@@ -2,9 +2,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import precision_score
-from typing import Dict, List, Optional
+from typing import Dict
 import pickle
 import os
 
@@ -20,7 +19,7 @@ class MLPredictor:
     - Volume Changes
     """
     
-    def __init__(self, model_path="data/models/rf_model.pkl"):
+    def __init__(self, model_path: str = "data/models/rf_model.pkl") -> None:
         self.model_path = model_path
         self.model = RandomForestClassifier(
             n_estimators=100, 
@@ -57,14 +56,14 @@ class MLPredictor:
                 
         return df[cols].dropna()
 
-    def _rsi(self, series, period):
+    def _rsi(self, series: pd.Series, period: int) -> pd.Series:
         delta = series.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
         rs = gain / loss
         return 100 - (100 / (1 + rs))
 
-    def train(self, data_map: Dict[str, pd.DataFrame]):
+    def train(self, data_map: Dict[str, pd.DataFrame]) -> None:
         """
         Train the model on historical data.
         Target: Next day return > 0 (1) else (0).
