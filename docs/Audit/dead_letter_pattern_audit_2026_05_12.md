@@ -31,6 +31,30 @@ After Agent B surfaced the production `hunt()` ticker= wiring bug (T-054), the u
 
 **Status post-T-054b**: all THREE known production `compute_all_features` call sites now pass `ticker=`. Director recommends adding the proposed "ticker=None LOUD warn" observability per A's open follow-up — once the function emits a warning when invoked without ticker, future siblings of this bug pattern surface immediately.
 
+**2026-05-22 update**: T-054c (LOUD warn) shipped (commit 92343b5). The bug class is now permanently locked out — any future caller that omits ticker= sees a DeprecationWarning at runtime.
+
+### 2026-05-22 follow-up — the 146 failed `_mut_` candidates analysis
+
+Earlier this audit speculated: "post-T-054 follow-up dispatch — re-evaluate the 146 'failed' `_mut_` candidates with foundry_feature columns now populated. Probably 100+ are bug-failed, not signal-failed."
+
+**Direct inspection refutes this speculation.** Of the 146 failed `_mut_` candidates in `data/governor/edges.yml`:
+
+| Module prefix | Count | Uses foundry_feature? |
+|---|---|---|
+| rsi_bounce | 35 | NO (technical, params-only mutation) |
+| fundamental_value | 35 | NO |
+| fundamental_ratio | 33 | NO |
+| composite_edge (composite_gen*) | 32 | NO (composite of existing edges, not foundry refs) |
+| rule_based_edge | 8 | NO |
+| momentum_factor / quality_roic / quality_gross | 3 | NO |
+| **edge_id starts with foundry_** | **0** | n/a |
+
+**All 146 failed candidates are PARAMETER-MUTATIONS of existing edge archetypes**, not new foundry_feature-referencing candidates. The T-054 wiring bug never affected them — they failed for legitimate Gate 1 / Gate 6 reasons (Sharpe contribution < threshold; factor-adjusted α below t > 2; whatever specific gate they hit).
+
+**No re-evaluation needed.** The proposed T-058 candidate ("re-run failed _mut_ with foundry columns populated") is REMOVED FROM QUEUE — it would not change any verdict.
+
+**T-054's actual cascade unlock applies to FUTURE Discovery cycles**, not past failed candidates. Once Engine D's next dispatch runs post-T-054, it can produce candidates that USE foundry features (via the T-022/T-024 gene encoding + seed enrichment) on the now-populated columns. THAT is where the T-054 fix lands — in future-cycle candidate generation, not retroactive re-evaluation.
+
 ---
 
 ## What was checked
