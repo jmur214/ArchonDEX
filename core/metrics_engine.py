@@ -235,8 +235,147 @@ class MetricsEngine:
     def value_at_risk(returns: pd.Series, confidence: float = 0.95) -> float:
         """
         Historical VaR.
+
+        NOTE (post-2026-05-16 metrics dive): VaR is NOT coherent — violates
+        subadditivity (Artzner-Delbaen-Eber-Heath 1999); tail-blind. Basel III
+        FRTB (BCBS d352, 2016) replaced 99% VaR with 97.5% Expected Shortfall.
+        Prefer `MetricsEngine.expected_shortfall()` for new code.
         """
         return float(np.percentile(returns, 100 * (1 - confidence)))
+
+    @staticmethod
+    def expected_shortfall(returns: pd.Series, confidence: float = 0.975) -> float:
+        """Expected Shortfall (a.k.a. CVaR / TVaR) at the given confidence.
+
+        ES_α is the average of the worst (1−α)·100% losses. Mathematically:
+            ES_α = E[R | R ≤ VaR_α]
+
+        Per the 2026-05-16 metrics research dive: coherent (Acerbi-Tasche
+        2002), tail-aware, and Basel III FRTB standard. The dive
+        explicitly recommends `ES_97.5 replacing VaR` everywhere in the
+        Layer 2 portfolio-health dashboard.
+
+        Convention: returned value is NEGATIVE for typical loss-tail input.
+        ES_0.975 ≈ -3% means "in the worst 2.5% of periods, average loss is 3%."
+
+        Args:
+            returns: per-period (typically daily) return series
+            confidence: confidence level; standard FRTB choice is 0.975
+
+        Returns:
+            Float; negative for typical loss-tail returns. Returns 0.0 for
+            empty input or fully-clean (no losses below threshold) data.
+
+        Reference: Acerbi, C., & Tasche, D. (2002). "On the Coherence of
+        Expected Shortfall." Journal of Banking & Finance 26(7): 1487-1503.
+        BCBS d352 (2016). "Minimum capital requirements for market risk."
+        """
+        if returns is None or len(returns) == 0:
+            return 0.0
+        threshold = float(np.percentile(returns, 100 * (1 - confidence)))
+        tail = returns[returns <= threshold]
+        if tail.empty:
+            return float(threshold)
+        return float(tail.mean())
+
+    @staticmethod
+    def conditional_drawdown_at_risk(
+        equity_curve: pd.Series, alpha: float = 0.95
+    ) -> float:
+        """Conditional Drawdown at Risk (CDaR) — the average of the worst
+        (1−α)·100% drawdowns.
+
+        Per Chekhlov-Uryasev-Zabarankin (2005, IJTAF 8(1):13-58): unlike
+        raw Max Drawdown (a single-realization point estimate of a sup-
+        statistic), CDaR is **LP-tractable and convex in portfolio weights**.
+        Per the 2026-05-16 metrics dive: "the right drawdown constraint for
+        optimization" — replaces raw MDD when Engine C / portfolio optimizer
+        needs a drawdown-aware objective.
+
+        Convention: returned value is NEGATIVE (e.g., -0.18 = "average of
+        worst 5% of drawdowns is 18%").
+
+        Args:
+            equity_curve: equity over time (any starting value)
+            alpha: confidence; 0.95 means "worst 5% of drawdowns"
+
+        Returns:
+            Float; negative. Returns 0.0 for non-decreasing curves.
+
+        Reference: Chekhlov, A., Uryasev, S., Zabarankin, M. (2005).
+        "Drawdown Measure in Portfolio Optimization." International Journal
+        of Theoretical and Applied Finance 8(1): 13-58.
+        """
+        if equity_curve is None or len(equity_curve) < 2:
+            return 0.0
+        roll_max = equity_curve.cummax()
+        drawdowns = (equity_curve - roll_max) / roll_max
+        # All drawdowns are ≤ 0; worst (most negative) is the tail
+        threshold = float(np.percentile(drawdowns, 100 * (1 - alpha)))
+        tail = drawdowns[drawdowns <= threshold]
+        if tail.empty:
+            return 0.0
+        return float(tail.mean())
+
+    @staticmethod
+    def effective_number_of_bets(
+        weights: pd.Series,
+        cov_matrix: pd.DataFrame,
+    ) -> float:
+        """Meucci's Effective Number of Bets (N_Ent).
+
+        Per Meucci (2009, Risk 22(7):74-79): given a portfolio's weights
+        and an asset covariance matrix, decompose total risk into
+        principal-portfolio variance contributions, then compute the
+        entropy-based diversification statistic:
+            p_i = (PC variance contribution of i) / total variance
+            N_Ent = exp(− Σ p_i · ln p_i)
+
+        N_Ent = N when every PC contributes equally (perfectly diversified
+        risk allocation). N_Ent → 1 when one PC dominates (concentrated
+        risk). Per the 2026-05-16 metrics dive: "the right portfolio
+        diversification statistic" — rebalance trigger when N_Ent drops
+        50% from rolling-12-month median.
+
+        Args:
+            weights: pd.Series of portfolio weights, indexed by asset
+            cov_matrix: pd.DataFrame of asset covariances; index/columns
+                        must match weights.index
+
+        Returns:
+            Float in [1, N] where N = len(weights). Returns 0.0 for
+            degenerate input (zero total variance, missing alignment).
+
+        Reference: Meucci, A. (2009). "Managing Diversification."
+        Risk 22(7): 74-79.
+        """
+        if weights is None or cov_matrix is None or len(weights) < 2:
+            return 0.0
+        # Align weights to covariance index
+        aligned_weights = weights.reindex(cov_matrix.index).fillna(0.0)
+        w = aligned_weights.values.astype(float)
+        cov = cov_matrix.values.astype(float)
+        # Principal-component decomposition of covariance
+        eigvals, eigvecs = np.linalg.eigh(cov)
+        # Filter near-zero eigenvalues (numerical noise)
+        positive_mask = eigvals > 1e-12
+        if not positive_mask.any():
+            return 0.0
+        eigvals = eigvals[positive_mask]
+        eigvecs = eigvecs[:, positive_mask]
+        # Project weights into PC space: tilt_i = (eigvec_i^T · w)
+        tilt = eigvecs.T @ w
+        # PC variance contribution: tilt_i^2 · eigval_i
+        pc_var = (tilt ** 2) * eigvals
+        total_var = pc_var.sum()
+        if total_var <= 0:
+            return 0.0
+        # Normalize to probabilities
+        p = pc_var / total_var
+        # Entropy (avoid log(0); zero-probability terms contribute 0 to entropy)
+        p_nonzero = p[p > 1e-15]
+        entropy = -np.sum(p_nonzero * np.log(p_nonzero))
+        return float(np.exp(entropy))
     
     @staticmethod
     def sqn(trades_pnl: pd.Series) -> float:

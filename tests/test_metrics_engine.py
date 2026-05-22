@@ -906,3 +906,211 @@ def test_sharpe_ratio_normal_input_unchanged_post_t061():
     expected = rets.mean() / rets.std() * np.sqrt(252)
     actual = MetricsEngine.sharpe_ratio(rets)
     assert abs(actual - expected) < 1e-10
+
+
+# ============================================================================
+# T-062 (2026-05-22): Layer 2 portfolio health metrics
+# Per the 2026-05-16 metrics research dive: ES_97.5 replacing VaR (FRTB
+# standard), CDaR for drawdown-aware optimization, Meucci N_Ent for
+# diversification monitoring.
+# ============================================================================
+
+# --- Expected Shortfall (ES) ---
+
+def test_expected_shortfall_normal_returns():
+    """Synthetic normal returns: ES_0.975 should be more negative than
+    VaR_0.975 (ES is the average of the tail, VaR is the threshold)."""
+    np.random.seed(0)
+    rets = pd.Series(np.random.normal(0.0005, 0.012, 2000))
+    es = MetricsEngine.expected_shortfall(rets, confidence=0.975)
+    var = MetricsEngine.value_at_risk(rets, confidence=0.975)
+    # ES is the conditional mean below VaR — by construction, ES ≤ VaR
+    # (both negative for typical loss tail, |ES| ≥ |VaR|)
+    assert es < 0
+    assert es <= var, f"ES={es} should be ≤ VaR={var} (more negative)"
+
+
+def test_expected_shortfall_uniform_distribution():
+    """For uniform returns on [-0.04, 0.04], ES_0.975 should be ≈ midpoint
+    of worst 2.5% tail = midpoint of [-0.04, -0.038] = -0.039 ± epsilon.
+    Loosen for sample noise."""
+    np.random.seed(1)
+    rets = pd.Series(np.random.uniform(-0.04, 0.04, 4000))
+    es = MetricsEngine.expected_shortfall(rets, confidence=0.975)
+    # Worst 2.5% tail of U[-0.04, 0.04] has theoretical mean = -0.0395
+    # Sample noise → ±10%
+    assert -0.041 < es < -0.036, (
+        f"ES of U[-0.04, 0.04] worst 2.5% should be ≈ -0.0395, got {es:.4f}"
+    )
+
+
+def test_expected_shortfall_empty_returns_zero():
+    """Defensive: empty input → 0.0, not exception."""
+    assert MetricsEngine.expected_shortfall(pd.Series([], dtype=float)) == 0.0
+
+
+def test_expected_shortfall_all_gains_no_loss_tail():
+    """If no returns are below the VaR threshold (all-positive), the tail
+    is the single VaR value itself (mean of one-element tail)."""
+    rets = pd.Series([0.01] * 100)  # all-positive constant returns
+    es = MetricsEngine.expected_shortfall(rets, confidence=0.975)
+    # The 2.5% quantile of a constant series equals that constant
+    assert abs(es - 0.01) < 1e-9
+
+
+# --- Conditional Drawdown at Risk (CDaR) ---
+
+def test_cdar_monotonically_growing_curve_returns_zero():
+    """An equity curve that never goes down has no drawdowns → CDaR = 0."""
+    curve = pd.Series(np.linspace(100, 200, 252))
+    cdar = MetricsEngine.conditional_drawdown_at_risk(curve, alpha=0.95)
+    assert cdar == 0.0
+
+
+def test_cdar_synthetic_drawdown_curve():
+    """Synthetic curve with one big drawdown: CDaR should capture the
+    worst drawdown values, returned as negative."""
+    # Build a curve: rises to 200, falls to 150 (worst -25% drawdown), recovers
+    curve = pd.Series([100, 120, 150, 180, 200, 175, 150, 165, 180, 195, 210])
+    cdar = MetricsEngine.conditional_drawdown_at_risk(curve, alpha=0.80)
+    # Drawdowns from peak (200): 0,0,0,0,0,-12.5%,-25%,-17.5%,-10%,-2.5%,0
+    # Worst 20% = -25%; tail mean of one obs at -0.25
+    assert cdar < 0
+    assert cdar < -0.10, (
+        f"CDaR with -25% drawdown should be < -10%, got {cdar:.4f}"
+    )
+
+
+def test_cdar_random_walk_realistic_band():
+    """Realistic random-walk curve: CDaR should be more negative than
+    typical drawdown levels."""
+    np.random.seed(2)
+    rets = np.random.normal(0.0003, 0.012, 1000)
+    curve = pd.Series(100 * np.cumprod(1 + rets))
+    cdar = MetricsEngine.conditional_drawdown_at_risk(curve, alpha=0.95)
+    mdd = MetricsEngine.max_drawdown(curve)
+    # CDaR (mean of worst 5% drawdowns) should be ≤ MDD (the single worst)
+    # in magnitude — i.e., MDD is the extreme, CDaR is a tail average
+    assert cdar <= 0
+    assert cdar >= mdd, (
+        f"CDaR={cdar} should be >= MDD={mdd} (less negative than the extremum)"
+    )
+
+
+def test_cdar_empty_input_returns_zero():
+    """Defensive: empty / single-point input → 0.0."""
+    assert MetricsEngine.conditional_drawdown_at_risk(pd.Series([], dtype=float)) == 0.0
+    assert MetricsEngine.conditional_drawdown_at_risk(pd.Series([100.0])) == 0.0
+
+
+# --- Meucci Effective Number of Bets (N_Ent) ---
+
+def test_n_ent_diagonal_covariance_returns_n():
+    """When covariance is diagonal (assets uncorrelated) AND weights are
+    equal, every PC contributes equally → N_Ent ≈ N."""
+    n = 5
+    weights = pd.Series([1.0 / n] * n, index=[f"a{i}" for i in range(n)])
+    # Identity covariance — each asset is its own PC at equal variance
+    cov = pd.DataFrame(
+        np.eye(n) * 0.01, index=weights.index, columns=weights.index
+    )
+    n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+    assert abs(n_ent - n) < 0.01, (
+        f"Equal weights + identity cov → N_Ent should be N={n}, got {n_ent}"
+    )
+
+
+def test_n_ent_concentrated_weight_returns_one():
+    """When all weight is in one asset, N_Ent should be ≈ 1."""
+    weights = pd.Series([1.0, 0.0, 0.0, 0.0], index=["a","b","c","d"])
+    cov = pd.DataFrame(np.eye(4) * 0.01, index=weights.index, columns=weights.index)
+    n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+    assert abs(n_ent - 1.0) < 0.01, (
+        f"All-in-one-asset → N_Ent should be 1, got {n_ent}"
+    )
+
+
+def test_n_ent_unequal_weights_correlated_assets_between_1_and_n():
+    """Unequal weights in a correlated portfolio: N_Ent should be
+    STRICTLY between 1 and N.
+
+    MATHEMATICAL NOTE: equal weights in an all-equal-correlation covariance
+    project perfectly into the [1,1,1,1] eigenvector (the only PC weighted
+    by the symmetric structure), giving N_Ent ≡ 1 regardless of ρ.
+    Testing the in-between case requires breaking the symmetry — either
+    unequal weights or non-uniform correlations.
+    """
+    n = 4
+    # Unequal weights breaking the symmetric eigenvector projection
+    weights = pd.Series([0.4, 0.3, 0.2, 0.1], index=[f"a{i}" for i in range(n)])
+    # Moderate correlation
+    cov = pd.DataFrame(
+        np.full((n, n), 0.005) + np.eye(n) * 0.005,
+        index=weights.index, columns=weights.index,
+    )
+    n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+    assert 1.0 < n_ent < n, (
+        f"Unequal weights moderate-correlation: N_Ent={n_ent} should be in (1, {n})"
+    )
+
+
+def test_n_ent_equal_weights_correlated_asymptote_one():
+    """Equal weights in an all-equal-correlation covariance project entirely
+    onto the [1,1,1,1] eigenvector. N_Ent = 1 for ANY ρ ≠ 0 — this is the
+    correct mathematical answer (all risk in one PC), not a bug."""
+    n = 4
+    weights = pd.Series([0.25] * n, index=[f"a{i}" for i in range(n)])
+    for off_diag in [0.001, 0.005, 0.008]:  # different correlation levels
+        cov = pd.DataFrame(
+            np.full((n, n), off_diag) + np.eye(n) * (0.01 - off_diag),
+            index=weights.index, columns=weights.index,
+        )
+        n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+        assert abs(n_ent - 1.0) < 1e-6, (
+            f"off_diag={off_diag}: equal weights + symmetric corr → "
+            f"N_Ent should be 1 exactly, got {n_ent}"
+        )
+
+
+def test_n_ent_extreme_correlation_concentrates_to_one():
+    """At ρ → 1, equal weights project entirely onto the first PC →
+    N_Ent → 1. Document this asymptotic limit; not a bug, real behavior."""
+    n = 4
+    weights = pd.Series([0.25] * n, index=[f"a{i}" for i in range(n)])
+    # Near-perfect correlation
+    cov = pd.DataFrame(
+        np.full((n, n), 0.009) + np.eye(n) * 0.001,
+        index=weights.index, columns=weights.index,
+    )
+    n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+    # All variance in one PC → entropy = 0 → N_Ent = exp(0) = 1
+    assert abs(n_ent - 1.0) < 1e-6, (
+        f"Near-perfect correlation should give N_Ent ≈ 1, got {n_ent}"
+    )
+
+
+def test_n_ent_degenerate_input():
+    """Defensive: None, single-asset, or zero covariance → 0.0."""
+    weights = pd.Series([1.0], index=["a"])
+    cov = pd.DataFrame([[0.01]], index=["a"], columns=["a"])
+    # Single-asset case is degenerate by the function's contract (len < 2)
+    assert MetricsEngine.effective_number_of_bets(weights, cov) == 0.0
+    # None input
+    assert MetricsEngine.effective_number_of_bets(None, cov) == 0.0
+    assert MetricsEngine.effective_number_of_bets(weights, None) == 0.0
+
+
+def test_n_ent_weights_realigned_to_cov_index():
+    """If weights have entries missing from cov, reindex aligns them
+    (missing → 0); cov entries missing from weights also → 0 effective weight."""
+    weights = pd.Series([0.5, 0.5], index=["a", "b"])
+    # Cov has 'a', 'b', 'c' — 'c' should be filled to 0
+    cov = pd.DataFrame(
+        np.eye(3) * 0.01,
+        index=["a","b","c"], columns=["a","b","c"],
+    )
+    n_ent = MetricsEngine.effective_number_of_bets(weights, cov)
+    # Only 2 assets actually held → effective bets ≈ 2
+    assert abs(n_ent - 2.0) < 0.01, (
+        f"Reindexed weights with 2 held assets → N_Ent ≈ 2, got {n_ent}"
+    )
