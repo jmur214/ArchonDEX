@@ -1,0 +1,185 @@
+{
+  "task_id": "T-2026-05-22-053",
+  "phase": "Phase 0b \u2014 fresh capture",
+  "input_parquet": "data/research/per_ticker_scores/157e5d58-ac68-493c-ba29-ccd313175ef3.parquet",
+  "n_rows": 2816839,
+  "n_unique_edges": 27,
+  "n_unique_tickers": 512,
+  "edges": [
+    "accruals_inv_asset_growth_v1",
+    "accruals_inv_sloan_v1",
+    "bollinger_reversion_v1",
+    "dividend_initiation_drift_v1",
+    "earnings_vol_v1",
+    "gap_fill_v1",
+    "growth_sales_v1",
+    "herding_v1",
+    "insider_cluster_v1",
+    "low_vol_factor_v1",
+    "macro_real_rate_v1",
+    "momentum_12_1_v1",
+    "momentum_6_1_v1",
+    "momentum_edge_v1",
+    "news_sentiment_edge_v1",
+    "pairs_trading_MA_V_v1",
+    "panic_v1",
+    "pead_predrift_v1",
+    "pead_short_v1",
+    "pead_v1",
+    "rsi_bounce_v1",
+    "short_term_reversal_v1",
+    "value_book_to_market_v1",
+    "value_deep_v1",
+    "value_earnings_yield_v1",
+    "value_trap_v1",
+    "volume_anomaly_v1"
+  ],
+  "approach_1_per_day_cross_sectional_mean": {
+    "pearson": {
+      "n_edges": 27,
+      "n_pairs": 210,
+      "avg_abs_rho": 0.167,
+      "max_abs_rho": 0.992,
+      "top_5_pairs": [
+        {
+          "a": "low_vol_factor_v1",
+          "b": "momentum_12_1_v1",
+          "rho": 0.992
+        },
+        {
+          "a": "momentum_12_1_v1",
+          "b": "momentum_6_1_v1",
+          "rho": 0.9785
+        },
+        {
+          "a": "low_vol_factor_v1",
+          "b": "momentum_6_1_v1",
+          "rho": 0.9784
+        },
+        {
+          "a": "value_book_to_market_v1",
+          "b": "value_earnings_yield_v1",
+          "rho": 0.9692
+        },
+        {
+          "a": "accruals_inv_asset_growth_v1",
+          "b": "value_earnings_yield_v1",
+          "rho": 0.9691
+        }
+      ]
+    },
+    "spearman": {
+      "n_edges": 27,
+      "n_pairs": 210,
+      "avg_abs_rho": 0.1814,
+      "max_abs_rho": 0.994,
+      "top_5_pairs": [
+        {
+          "a": "low_vol_factor_v1",
+          "b": "momentum_12_1_v1",
+          "rho": 0.994
+        },
+        {
+          "a": "low_vol_factor_v1",
+          "b": "momentum_6_1_v1",
+          "rho": 0.9715
+        },
+        {
+          "a": "momentum_12_1_v1",
+          "b": "momentum_6_1_v1",
+          "rho": 0.97
+        },
+        {
+          "a": "pead_predrift_v1",
+          "b": "pead_v1",
+          "rho": 0.83
+        },
+        {
+          "a": "bollinger_reversion_v1",
+          "b": "rsi_bounce_v1",
+          "rho": 0.7952
+        }
+      ]
+    }
+  },
+  "approach_2_per_ticker_date_panel": {
+    "pearson": {
+      "n_edges": 27,
+      "n_pairs": 253,
+      "avg_abs_rho": 0.0445,
+      "max_abs_rho": 0.635,
+      "top_5_pairs": [
+        {
+          "a": "pead_predrift_v1",
+          "b": "pead_v1",
+          "rho": 0.635
+        },
+        {
+          "a": "bollinger_reversion_v1",
+          "b": "rsi_bounce_v1",
+          "rho": 0.6209
+        },
+        {
+          "a": "momentum_edge_v1",
+          "b": "short_term_reversal_v1",
+          "rho": -0.5252
+        },
+        {
+          "a": "momentum_edge_v1",
+          "b": "rsi_bounce_v1",
+          "rho": -0.4714
+        },
+        {
+          "a": "rsi_bounce_v1",
+          "b": "short_term_reversal_v1",
+          "rho": 0.4518
+        }
+      ]
+    },
+    "spearman": {
+      "n_edges": 27,
+      "n_pairs": 253,
+      "avg_abs_rho": 0.0461,
+      "max_abs_rho": 0.7056,
+      "top_5_pairs": [
+        {
+          "a": "pead_predrift_v1",
+          "b": "pead_v1",
+          "rho": 0.7056
+        },
+        {
+          "a": "bollinger_reversion_v1",
+          "b": "rsi_bounce_v1",
+          "rho": 0.6201
+        },
+        {
+          "a": "momentum_edge_v1",
+          "b": "short_term_reversal_v1",
+          "rho": -0.603
+        },
+        {
+          "a": "momentum_edge_v1",
+          "b": "rsi_bounce_v1",
+          "rho": -0.4995
+        },
+        {
+          "a": "rsi_bounce_v1",
+          "b": "short_term_reversal_v1",
+          "rho": 0.4508
+        }
+      ]
+    }
+  },
+  "phase_0_reference": {
+    "per_day_avg_abs_rho": 0.156,
+    "per_day_max_abs_rho": 0.947,
+    "per_panel_avg_abs_rho": 0.098,
+    "per_panel_max_abs_rho": 0.622
+  },
+  "gate_decision": {
+    "threshold_avg_abs_rho": 0.3,
+    "threshold_max_abs_rho": 0.5,
+    "fires_on_avg": false,
+    "fires_on_max": true
+  }
+}

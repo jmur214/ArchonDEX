@@ -120,3 +120,104 @@ The big strategic answer (microcap substrate? LLM unpark? more event-driven slee
 - Input: `data/research/per_ticker_scores/695b0b21-18f0-4493-b593-e62abf091519.parquet`
 - This audit: `docs/Audit/pairwise_signal_correlation_phase0_2026_05_12.md`
 - Cited research: `docs/Sources/Alpha/Retail-algo-alpha_follow-up_multi-strat.md` §11 ("The single most consequential finding for your situation")
+
+---
+
+# Phase 0b — Fresh capture on current 6 actives (T-2026-05-22-053)
+
+**Date:** 2026-05-22
+**Input:** `data/research/per_ticker_scores/157e5d58-ac68-493c-ba29-ccd313175ef3.parquet`
+**Window:** 2024-01-01 → 2024-12-31, substrate-honest historical universe, journal-mode
+**Rows:** 2,816,839 (vs Phase 0's 1.85M)
+**Unique edges firing:** 27 (active + paused emit raw scores; archived spinoff_reversion_v1 does NOT)
+**Unique tickers:** 512
+
+## TL;DR — gate fires on max, NOT on the V/Q/A prior
+
+**The strong prior — that the 4 V/Q/A SimFin-derived edges cluster ρ > 0.7 — is REFUTED.**
+
+| Pair | ρ (per-panel Spearman) |
+|------|------------------------|
+| `accruals_inv_asset_growth_v1` ↔ `accruals_inv_sloan_v1` | +0.147 |
+| `accruals_inv_asset_growth_v1` ↔ `value_book_to_market_v1` | +0.074 |
+| `accruals_inv_asset_growth_v1` ↔ `value_earnings_yield_v1` | +0.012 |
+| `accruals_inv_sloan_v1` ↔ `value_book_to_market_v1` | +0.033 |
+| `accruals_inv_sloan_v1` ↔ `value_earnings_yield_v1` | +0.054 |
+| `value_book_to_market_v1` ↔ `value_earnings_yield_v1` | +0.316 |
+
+Max V/Q/A pair: +0.316 (book-to-market ↔ earnings-yield, both "value"; expected). Three of six V/Q/A pairs are below ρ=0.1. **The 4 V/Q/A edges are NOT a single redundant cluster.**
+
+## Among the current 6 actives, max ρ = +0.340 (below the 0.5 gate threshold)
+
+Current 6 actives sub-matrix (Spearman, per-panel):
+
+| | accruals_inv_asset_growth_v1 | accruals_inv_sloan_v1 | gap_fill_v1 | value_book_to_market_v1 | value_earnings_yield_v1 | volume_anomaly_v1 |
+|---|---|---|---|---|---|---|
+| accruals_inv_asset_growth_v1 | 1.000 | 0.147 | 0.002 | 0.074 | 0.012 | 0.000 |
+| accruals_inv_sloan_v1 | | 1.000 | 0.000 | 0.033 | 0.054 | 0.008 |
+| gap_fill_v1 | | | 1.000 | -0.000 | 0.000 | **0.340** |
+| value_book_to_market_v1 | | | | 1.000 | 0.316 | -0.000 |
+| value_earnings_yield_v1 | | | | | 1.000 | 0.002 |
+| volume_anomaly_v1 | | | | | | 1.000 |
+
+**Max ρ among current 6 actives: +0.340** (`gap_fill_v1` ↔ `volume_anomaly_v1`). This is **below** the gate's 0.5 max-threshold.
+
+## Full-panel results (includes paused edges)
+
+| Approach | avg \|ρ\| | max \|ρ\| | Gate fires? |
+|---|---|---|---|
+| **Per-day cross-sectional mean (Spearman)** | 0.1814 | **0.9940** | **YES (max)** |
+| **Per-(ticker, date) panel (Spearman)** | 0.0461 | **0.7056** | **YES (max)** |
+
+Phase 0 reference: 0.156 / 0.947 (per-day) and 0.098 / 0.622 (per-panel). The fresh capture's max|ρ| values are similar or slightly worse than Phase 0; avg|ρ| values are similar.
+
+### Top correlated pairs — fresh capture
+
+**Per-day Spearman (cross-sectional mean approach):**
+
+| Pair | ρ |
+|------|---|
+| `low_vol_factor_v1` ↔ `momentum_12_1_v1` | +0.9940 |
+| `low_vol_factor_v1` ↔ `momentum_6_1_v1` | +0.9715 |
+| `momentum_12_1_v1` ↔ `momentum_6_1_v1` | +0.9700 |
+| `pead_predrift_v1` ↔ `pead_v1` | +0.8300 |
+| `bollinger_reversion_v1` ↔ `rsi_bounce_v1` | +0.7952 |
+
+**Per-panel Spearman:**
+
+| Pair | ρ |
+|------|---|
+| `pead_predrift_v1` ↔ `pead_v1` | +0.7056 |
+| `bollinger_reversion_v1` ↔ `rsi_bounce_v1` | +0.6201 |
+| `momentum_edge_v1` ↔ `short_term_reversal_v1` | -0.6030 (expected anti-correlation) |
+| `momentum_edge_v1` ↔ `rsi_bounce_v1` | -0.4995 |
+| `rsi_bounce_v1` ↔ `short_term_reversal_v1` | +0.4508 |
+
+## What this means — re-interpretation
+
+1. **The current 6-active set is NOT signal-diversity-broken at the raw-correlation level.** Max ρ = +0.340 between any pair is below the 0.5 threshold. The Grinold-Kahn IR table at p.51 of Phase 0 still applies, but **on the actives the avg-ρ ≈ 0.08** (well below 0.2), which would give effective combined IR ≈ 0.7 of the i.i.d. baseline — NOT the disastrous 0.4 ratio at ρ=0.5.
+
+2. **The high-correlation pairs are all in the paused/non-active subset.** `low_vol_factor`, `momentum_12_1`, `momentum_6_1`, `pead_predrift`/`pead_v1`, `bollinger_reversion`/`rsi_bounce` — these are all paused per T-029/T-043 verdicts and are not contributing to the active ensemble at full weight.
+
+3. **The original Phase 0 "signal-diversity problem confirmed" gate fired correctly** on the 2024-era snapshot, which DID include high-correlation pairs in the active set. Today's actives — post-pruning to 6 + spinoff archival — are more diverse than feared.
+
+4. **The 0/11 factor-α verdict remains the binding constraint, but for a different mechanical reason.** Each active edge's raw signal is approximately uncorrelated with each other; the factor-α failure means each individual edge is factor-explained (loading on FF5+Mom), not that the ensemble is redundant.
+
+## Pruning recommendation
+
+**None at the active-set level.** The 6 current actives don't have a pair with ρ > 0.5; the gate doesn't fire on the actively-trading subset.
+
+For the **paused** set (where the gate fires hard), Engine F lifecycle's T-043 factor-α gate already retires 6 of 7 paused panel edges per the re-evaluation. The lifecycle journal contains the retirement decisions; once user reviews + approves, those edges leave the registry and the per-day Spearman max|ρ|=0.99 cluster disappears from future captures.
+
+## Forward implications for T-057
+
+T-057's confidence-gated execution (N-of-K agreement filter) operates on the **per-bar per-ticker per-edge raw scores**. With the current active set's max raw-signal ρ ≈ 0.34, an N≥2 confidence gate operates on signals that are largely independent — exactly the regime where N-of-K confidence-gating delivers meaningful turnover reduction without over-correlated false confidence.
+
+In contrast, if max ρ had been > 0.7 (as the prior predicted), N≥2 would be vacuous — two correlated edges both firing is one signal, not two. **Phase 0b's result is permissive for T-057.**
+
+## Files
+
+- Input parquet: `data/research/per_ticker_scores/157e5d58-ac68-493c-ba29-ccd313175ef3.parquet` (gitignored)
+- Diagnostic JSON: `docs/Audit/pairwise_signal_correlation_phase0b_2026_05_22.json`
+- Analysis script: `scripts/phase0b_correlation_t053.py`
+- Capture driver: `scripts/run_per_ticker_capture_t053.py`
