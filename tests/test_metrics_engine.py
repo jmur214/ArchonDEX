@@ -168,21 +168,22 @@ def test_sharpe_zero_for_exactly_zero_returns():
     assert MetricsEngine.sharpe_ratio(rets) == 0.0
 
 
-def test_sharpe_known_floating_point_edge_case_for_constant_positive_returns():
-    """Constant positive returns produce a non-zero std due to float
-    representation (e.g. ~1e-19) so the `returns.std() == 0` guard does
-    NOT fire. Result: huge / unstable Sharpe.
+def test_sharpe_constant_positive_returns_returns_zero_post_T061():
+    """T-061 (2026-05-22, user-approved): the `std == 0` exact-equality
+    guard in sharpe_ratio was hardened to a tolerance check (std < 1e-12).
+    Pandas std on identical floats returns ~2e-19 (not exactly zero),
+    which previously produced an exploding ~1e15 Sharpe. The tolerance
+    now correctly fires the guard for constant-input cases.
 
-    This is documented as a known degenerate edge case rather than a
-    fix — production data never produces exactly-constant returns. If
-    we ever want to harden the guard, change `== 0` to `< 1e-10` or
-    similar; that's a behavior change requiring user approval.
+    Pre-T-061: assertion was `sharpe == 0.0 or abs(sharpe) > 1e10` —
+    lock-in of the known-degenerate behavior pending user approval.
+    Post-T-061: the guard fires cleanly; sharpe == 0.
     """
     rets = pd.Series([0.001] * 100)
     sharpe = MetricsEngine.sharpe_ratio(rets)
-    # Either the guard fires (returns 0) or we get a huge unstable number.
-    # Both are "wrong" in different ways; lock in current behavior.
-    assert sharpe == 0.0 or abs(sharpe) > 1e10
+    assert sharpe == 0.0, (
+        f"Constant-input Sharpe should be 0 (tolerance guard), got {sharpe}"
+    )
 
 
 def test_sharpe_positive_for_positive_drift():
@@ -872,13 +873,36 @@ def test_pbo_reports_combination_count():
     assert result8["n_combinations"] == 70  # C(8, 4) = 70
 
 
-# NOTE: the pre-existing sharpe_ratio `std == 0` exact-equality bug
-# (pandas std on identical floats returns ~2e-19, producing huge unstable
-# Sharpes) is documented in the pre-T-059 test
-# `test_sharpe_known_floating_point_edge_case_for_constant_positive_returns`
-# above (line 171). That test's docstring explicitly flags changing the
-# guard to a tolerance as "a behavior change requiring user approval."
-# So the fix is NOT applied here; surfaced as a propose-first dispatch
-# candidate instead. The new sharpe_ratio_lo_corrected method DOES use
-# the tolerance check internally — that's a new method, no behavior
-# change to existing callers.
+# ============================================================================
+# T-061 (2026-05-22, user-approved): sharpe_ratio std == 0 → std < tol
+# The legacy test (line 171 ~) documented this as "behavior change requiring
+# user approval"; approval granted 2026-05-22. Mirrors the tolerance check
+# already in sharpe_ratio_lo_corrected from T-059.
+# ============================================================================
+
+def test_sharpe_ratio_handles_identical_float_input_without_exploding():
+    """pd.Series([0.001] * 100).std() returns ~2e-19, not 0. Pre-T-061 this
+    produced a Sharpe in the 1e15 range. With tolerance guard, returns 0."""
+    flat = pd.Series([0.001] * 100)
+    result = MetricsEngine.sharpe_ratio(flat)
+    assert result == 0.0, (
+        f"Identical-input Sharpe should be 0 (tolerance), got {result}"
+    )
+
+
+def test_sharpe_ratio_handles_nan_std():
+    """Single-element series → std is NaN → tolerance check returns 0."""
+    single = pd.Series([0.01])
+    result = MetricsEngine.sharpe_ratio(single)
+    assert result == 0.0
+
+
+def test_sharpe_ratio_normal_input_unchanged_post_t061():
+    """Backwards-compat gate: non-degenerate inputs should produce identical
+    Sharpe pre/post T-061. The tolerance fix only changes behavior for
+    constant/NaN std cases."""
+    np.random.seed(42)
+    rets = pd.Series(np.random.normal(0.001, 0.01, 252))
+    expected = rets.mean() / rets.std() * np.sqrt(252)
+    actual = MetricsEngine.sharpe_ratio(rets)
+    assert abs(actual - expected) < 1e-10

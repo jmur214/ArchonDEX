@@ -96,8 +96,17 @@ class MetricsEngine:
 
     @staticmethod
     def sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.0, periods: int = 252) -> float:
-        if returns.std() == 0: return 0.0
-        return (returns.mean() - risk_free_rate) / returns.std() * np.sqrt(periods)
+        # T-061 (2026-05-22, user-approved): tolerance (not == 0) — pandas
+        # std on identical floats can return tiny-but-nonzero (e.g., 2e-19
+        # for pd.Series([0.001]*100)) which previously produced an exploding
+        # ~1e15 Sharpe. The legacy test
+        # `test_sharpe_known_floating_point_edge_case_for_constant_positive_returns`
+        # documented this as "behavior change requiring user approval";
+        # approval granted 2026-05-22.
+        std = returns.std()
+        if std is None or std < 1e-12 or not np.isfinite(std):
+            return 0.0
+        return (returns.mean() - risk_free_rate) / std * np.sqrt(periods)
 
     @staticmethod
     def lo_eta(returns: pd.Series, q: int = 252, max_lag: Optional[int] = None) -> float:
