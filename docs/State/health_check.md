@@ -22,6 +22,16 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [MEDIUM 2026-05-22 LATE by Agent B] T-055c A/B lift verification — MARGINAL verdict, T-055b flag-flip NOT YET recommended
+- Category: engine-completion measurement / Moreira-Muir 2017 verification
+- 30-backtest grid (3-rep × 5-yr × 2-arm) — 10/10 cells canon-stable.
+- **Mean Sharpe lift: +0.256 point estimate (ABOVE Moreira-Muir +0.10-0.20 band) but ci_low = -0.140 (CROSSES ZERO)**. Per CLAUDE.md #6: gate on ci_low, not point.
+- Per-year variance huge: 2024 fragility-year RESCUED (+1.303), 2025 vol-shock TRAP (-0.942). Net MDD slightly worse (-0.62pp) driven by 2025 outlier.
+- **Harness bug found mid-campaign**: `run_vol_target_arms_full.py` was patching `config/risk_settings.json` but mode_controller loads `config/risk_settings.{env}.json` → silent vol-target-disabled for first 4 arm1 runs. Diagnosed via offline scalar simulator, fixed, re-ran. Lesson: env-suffixed config files require env-suffixed patches.
+- **Recommended follow-up before T-055b**: T-055d (EWMA λ=0.94 estimator) addresses the 2025 vol-shock failure mode. T-055e (regime-conditional target) addresses the late-cycle trap.
+- Branch `feature/engine-b-vol-targeting-ab-t055c` pushed; director merges audit doc to main.
+- Audit: `docs/Audit/engine_b_vol_targeting_ab_t055c_2026_05_22.md`.
+
 ### [MEDIUM 2026-05-22 by Agent B] Engine B portfolio-level vol-targeting LANDED (T-055; defense-first OFF, flag-flip gated on T-055b post full A/B)
 - Category: engine completion / Moreira-Muir 2017 infrastructure
 - `engines/engine_b_risk/vol_target.py` ships VolTargetConfig + compute_vol_scale + composer. Wired into `risk_engine.py` Path A (target_weight) AND Path B (ATR-risk) via the new `_compute_portfolio_vol_scalar()` helper. Reads from existing `self.portfolio.history` (same source as drawdown kill switch — no new state plumbing).
