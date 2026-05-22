@@ -77,7 +77,6 @@ from engines.engine_c_portfolio.composer import (
     PortfolioComposer, PortfolioOptimizerSettings,
 )
 
-from typing import Optional
 from engines.engine_f_governance.governor import StrategyGovernor
 
 from debug_config import is_debug_enabled

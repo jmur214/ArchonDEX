@@ -1,13 +1,11 @@
 # engines/data_manager/data_manager.py
 import os
-import shutil
 from pathlib import Path
 import pandas as pd
 import asyncio
 import concurrent.futures
 import threading
 import time
-import warnings
 from dotenv import load_dotenv
 
 from debug_config import is_debug_enabled
@@ -17,10 +15,6 @@ def is_info_enabled() -> bool:
     return DEBUG_LEVELS.get("DATA_MANAGER_INFO", False)
 
 # --- Force load .env globally from project root ---
-from dotenv import load_dotenv
-from pathlib import Path
-import os
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 env_path = ROOT_DIR / ".env"
 
