@@ -1,0 +1,99 @@
+{
+  "task_id": "T-2026-05-22-066",
+  "description": "Baseline metrics report using T-059..T-065 on T-035 cockpit-fixed trade logs",
+  "per_year": [
+    {
+      "year": 2021,
+      "n_returns": 251,
+      "sharpe_naive": 1.7911920275915931,
+      "sharpe_lo_corrected": 1.58592698928729,
+      "lo_eta": 14.055338612023846,
+      "lo_haircut_pct": 11.45968914233607,
+      "expected_shortfall_975_pct": -0.7901551201071912,
+      "max_drawdown_pct": -2.6693775697205036,
+      "cdar_95_pct": -1.5433246569228465,
+      "rolling_psr_60d_median": 0.6267691016130317,
+      "cusum_alarm_fired": false,
+      "cusum_max_minus": -9.059640319065558
+    },
+    {
+      "year": 2022,
+      "n_returns": 250,
+      "sharpe_naive": 0.29390610355913377,
+      "sharpe_lo_corrected": 0.27160319695328666,
+      "lo_eta": 14.66987937425896,
+      "lo_haircut_pct": 7.588446219988001,
+      "expected_shortfall_975_pct": -1.5481491822558535,
+      "max_drawdown_pct": -8.257350340420908,
+      "cdar_95_pct": -8.058185558562588,
+      "rolling_psr_60d_median": 0.5554686870031202,
+      "cusum_alarm_fired": false,
+      "cusum_max_minus": -9.65944738865541
+    },
+    {
+      "year": 2023,
+      "n_returns": 249,
+      "sharpe_naive": 1.2207332829083506,
+      "sharpe_lo_corrected": 1.6512894335154435,
+      "lo_eta": 21.473492587644614,
+      "lo_haircut_pct": -35.27028849261071,
+      "expected_shortfall_975_pct": -0.9131187370939811,
+      "max_drawdown_pct": -3.702938936564003,
+      "cdar_95_pct": -3.363680419401967,
+      "rolling_psr_60d_median": 0.6064752563344127,
+      "cusum_alarm_fired": false,
+      "cusum_max_minus": -6.831126776944917
+    },
+    {
+      "year": 2024,
+      "n_returns": 251,
+      "sharpe_naive": -0.6133324241043123,
+      "sharpe_lo_corrected": -1.1126194999566426,
+      "lo_eta": 28.79724976247789,
+      "lo_haircut_pct": -81.40562217650084,
+      "expected_shortfall_975_pct": -1.1284146760156035,
+      "max_drawdown_pct": -5.639004578186311,
+      "cdar_95_pct": -5.185234394104759,
+      "rolling_psr_60d_median": 0.37118814406228107,
+      "cusum_alarm_fired": true,
+      "cusum_max_minus": -13.169580231143343
+    },
+    {
+      "year": 2025,
+      "n_returns": 249,
+      "sharpe_naive": 0.2966577010939536,
+      "sharpe_lo_corrected": 0.4529652435154456,
+      "lo_eta": 24.238711130269213,
+      "lo_haircut_pct": -52.68952797958488,
+      "expected_shortfall_975_pct": -1.457769240641744,
+      "max_drawdown_pct": -7.545850839273157,
+      "cdar_95_pct": -5.253610160105627,
+      "rolling_psr_60d_median": 0.5059249521720103,
+      "cusum_alarm_fired": true,
+      "cusum_max_minus": -15.100696379098245
+    }
+  ],
+  "aggregate": {
+    "mean_sharpe_naive": 0.5978313382097438,
+    "mean_sharpe_lo_corrected": 0.5698330726629647,
+    "delta_pct": -4.683305099164298,
+    "min_sharpe_lo_corrected": -1.1126194999566426,
+    "max_sharpe_lo_corrected": 1.6512894335154435,
+    "n_years_alarm_fired": 2
+  },
+  "pbo_cscv": {
+    "pbo": 0.34285714285714286,
+    "n_combinations": 70,
+    "n_trials": 5,
+    "logit_mean": -0.029706307738283387,
+    "n_partitions": 8,
+    "deploy_threshold_met": true,
+    "deploy_threshold_strict": false
+  },
+  "metrics_methods_used": [
+    "T-059: lo_eta + sharpe_ratio_lo_corrected",
+    "T-060: probability_of_backtest_overfitting (PBO via CSCV)",
+    "T-062: expected_shortfall, conditional_drawdown_at_risk, max_drawdown",
+    "T-063: rolling_psr, cusum_decay_monitor"
+  ]
+}
