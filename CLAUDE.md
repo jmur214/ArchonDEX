@@ -101,6 +101,20 @@ measurement (hypothesis + threshold + N_trials_consumed) BEFORE
 running. See `docs/Audit/honest_n_mbl_computation_2026_05_12.md` 
 for the working numbers.
 
+**Floating-point std/var guards use tolerance, not exact equality.** 
+Pandas `Series.std()` on numerically-identical floats returns a 
+tiny-but-nonzero value (~2e-19 for `pd.Series([0.001]*100)`), not 
+exactly 0. A bare `if std == 0: return 0` guard fails for this 
+input — division by ~2e-19 explodes to ~1e15. The required pattern 
+is `if std is None or std < 1e-12 or not np.isfinite(std): return 
+fallback`. Applied throughout `core/metrics_engine.py` after the 
+T-061/T-065 sweep. Any new numerator/denominator guard on a 
+sample-statistic (std, var, mean) in performance-metric code 
+should follow this pattern. The bare-equality form is a latent 
+bug, not just a style issue. See 
+`tests/test_metrics_engine.py::test_sharpe_constant_positive_returns_returns_zero_post_T061`
+for the locked-in regression check.
+
 ## Git discipline
 
 **Commit early and often.** After any logically-complete unit of 
