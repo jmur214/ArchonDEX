@@ -536,6 +536,18 @@ class AlphaEngine:
 
         # Components
         self.collector = SignalCollector(edges=self.edges, debug=self.cfg.debug)
+        # T-057 confidence-gated execution config. Reads from
+        # `confidence_gate` block in alpha_settings (or override dict);
+        # defaults to disabled so legacy behavior is preserved.
+        from engines.engine_a_alpha.signal_processor import (
+            ConfidenceGateConfig as _ConfGateCfg,
+        )
+        _confidence_gate_raw = cfg_raw.get("confidence_gate", {}) or {}
+        _confidence_gate = _ConfGateCfg(
+            enabled=bool(_confidence_gate_raw.get("enabled", False)),
+            n_threshold=int(_confidence_gate_raw.get("n_threshold", 2)),
+        )
+
         self.processor = SignalProcessor(
             regime=self.cfg.regime,
             hygiene=self.cfg.hygiene,
@@ -547,6 +559,7 @@ class AlphaEngine:
             edge_tiers=_edge_tiers,
             paused_edge_ids=_paused_edge_ids,
             paused_max_weight=float(cfg_raw.get("paused_max_weight", 0.5)),
+            confidence_gate=_confidence_gate,
         )
         # Engine C portfolio composer (F4 charter close, 2026-05). HRP +
         # turnover-cost gating now live in engine_c_portfolio/composer.py;
