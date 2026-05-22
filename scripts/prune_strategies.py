@@ -75,7 +75,10 @@ class StrategyPruner:
             try:
                 with open(archive_path, "r") as f:
                     archive = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
+                # T-070: narrow per T-005/T-011/T-012/T-067 pattern.
+                # Corrupted graveyard / unreadable file → start fresh archive.
+                # Programmer errors (NameError, AttributeError) propagate.
                 archive = {}
         else:
             archive = {}

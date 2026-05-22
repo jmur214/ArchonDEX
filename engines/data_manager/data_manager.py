@@ -141,7 +141,10 @@ class DataManager:
             from engines.engine_d_discovery.synthetic_market import SyntheticMarketGenerator
             try:
                 seed = int(ticker.split("-")[1])
-            except: seed = 42
+            except (ValueError, IndexError):
+                # T-070: narrow per T-005/T-011/T-012/T-067 pattern. Bad-format
+                # ticker names (no "-", non-numeric suffix) → fall back to 42.
+                seed = 42
             gen = SyntheticMarketGenerator(seed=seed)
             # We need the price history to generate consistent fundamentals
             # Assuming standard 2 year history needed
@@ -636,7 +639,8 @@ class DataManager:
         # SYNTH-01 -> seed=1
         try:
             seed = int(ticker.split("-")[1])
-        except:
+        except (ValueError, IndexError):
+            # T-070: narrow per T-005/T-011/T-012/T-067 pattern.
             seed = 42
             
         gen = SyntheticMarketGenerator(seed=seed)

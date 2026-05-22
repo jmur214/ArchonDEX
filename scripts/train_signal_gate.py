@@ -134,7 +134,11 @@ def train_gate():
             try:
                 imps = gate.model.feature_importances_
                 print(f"[TRAIN] Feature Importances: {imps}")
-            except: pass
+            except AttributeError:
+                # T-070: narrow per T-005/T-011/T-012/T-067 pattern. Some model
+                # classes (linear, SVM) don't expose .feature_importances_;
+                # that's expected — skip silently. Any other error must surface.
+                pass
             
         print("[TRAIN] Brain Upgrade Complete.")
 

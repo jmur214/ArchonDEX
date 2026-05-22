@@ -14,8 +14,13 @@ from scripts.run_backtest import run_backtest_logic
 
 def _safe_float(val, default=-999.0):
     if val is None: return default
-    try: return float(val)
-    except: return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        # T-070: narrow per T-005/T-011/T-012/T-067 pattern. float() raises
+        # ValueError for un-parseable strings and TypeError for unsupported
+        # types; everything else (NameError, AttributeError) propagates.
+        return default
 
 
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
