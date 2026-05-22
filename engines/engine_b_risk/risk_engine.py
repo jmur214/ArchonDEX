@@ -86,6 +86,19 @@ class RiskConfig:
     drawdown_halt_threshold: float = 0.15        # 15% — block new entries
     drawdown_degrade_scaler: float = 0.5         # multiplier applied above degrade
 
+    # Portfolio-level vol-targeting (T-2026-05-12-055, Moreira-Muir 2017).
+    # Sizing modifier applied AFTER all existing risk constraints
+    # (drawdown halt / kill-switch) and BEFORE the final order is emitted.
+    # NEVER overrides risk gates — if kill-switch blocks, no order is
+    # placed and vol-target is irrelevant. OFF by default; A/B harness
+    # validates lift before director flag-flip (T-055b).
+    portfolio_vol_target_enabled: bool = False
+    portfolio_vol_target_annual_vol: float = 0.10        # 10% retail-fit
+    portfolio_vol_target_window_days: int = 60           # rolling-60d realized
+    portfolio_vol_target_floor: float = 0.5              # don't degross below 50%
+    portfolio_vol_target_ceiling: float = 2.0            # don't lever above 200%
+    portfolio_vol_target_min_returns_required: int = 60  # warmup gate
+
 
 class RiskEngine:
     """
@@ -356,6 +369,53 @@ class RiskEngine:
             return sum(1 for p in self.portfolio.positions.values() if p.qty != 0)  # type: ignore[union-attr]
         except Exception:
             return 0
+
+    def _compute_portfolio_vol_scalar(self) -> float:
+        """T-2026-05-12-055: portfolio-level vol-target sizing modifier.
+
+        Returns 1.0 (no-op passthrough) when:
+        - the feature is disabled (cfg.portfolio_vol_target_enabled=False, default),
+        - self.portfolio is None (no controller injection yet), OR
+        - the snapshot history is shorter than the warmup window.
+
+        Otherwise returns a value in [floor, ceiling] per Moreira-Muir.
+        This is a SIZING MODIFIER — it NEVER overrides kill-switch or
+        drawdown-halt. Those gates run elsewhere in prepare_order and
+        short-circuit before this scalar is applied.
+        """
+        if not self.cfg.portfolio_vol_target_enabled:
+            return 1.0
+        if self.portfolio is None:
+            return 1.0
+        try:
+            from engines.engine_b_risk.vol_target import (
+                VolTargetConfig, compute_portfolio_vol_scale,
+            )
+            vt_cfg = VolTargetConfig(
+                enabled=True,
+                target_annual_vol=self.cfg.portfolio_vol_target_annual_vol,
+                realized_vol_window_days=self.cfg.portfolio_vol_target_window_days,
+                leverage_floor=self.cfg.portfolio_vol_target_floor,
+                leverage_ceiling=self.cfg.portfolio_vol_target_ceiling,
+                min_returns_required=self.cfg.portfolio_vol_target_min_returns_required,
+            )
+            history = getattr(self.portfolio, "history", None) or []
+            return compute_portfolio_vol_scale(history, vt_cfg)
+        except _PROGRAMMER_ERRORS:
+            # Same fail-loud discipline as the drawdown kill switch: a
+            # TypeError / AttributeError here is a bug in vol_target
+            # logic, not a missing-data condition. Surface it.
+            raise
+        except Exception as e:
+            # Operational error (e.g., transient snapshot shape drift):
+            # fall back to 1.0 so the order pipeline degrades to "no
+            # vol-target overlay" rather than dropping the trade.
+            logger.warning(
+                "[RISK] portfolio vol-target scalar fell back to 1.0 "
+                "(no overlay applied): %s: %s",
+                type(e).__name__, e,
+            )
+            return 1.0
 
     def _gross_exposure(self, price_map: Dict[str, float]) -> float:
         """
@@ -687,6 +747,17 @@ class RiskEngine:
             raw_atr = price * 0.2  # clamp for safety
         atr = self._effective_atr(price, raw_atr)
 
+        # --- T-2026-05-12-055: portfolio-level vol-target scalar.
+        # Pure sizing modifier — applied AFTER existing risk constraints
+        # (drawdown halt + kill switch are evaluated separately inside
+        # the sizing path and short-circuit BEFORE this multiplication
+        # is applied to a final order). Default OFF (cfg flag False) →
+        # returns 1.0 → no behavior change. NEVER overrides kill-switch
+        # / drawdown-halt logic. Reads from self.portfolio.history with
+        # the same defensive try/except discipline as the drawdown
+        # kill switch above.
+        portfolio_vol_scalar = self._compute_portfolio_vol_scalar()
+
         # --- Sizing path A: align to target weights (if provided/enabled) ---
         add_qty: int
         chosen_side: str = side
@@ -705,7 +776,12 @@ class RiskEngine:
             # Default 1.0 = strict no-op when method="weighted_sum".
             sig_meta_in = signal.get("meta") or {}
             optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
-            target_notional = float(equity) * float(target_weight) * optimizer_weight
+            # T-055: portfolio_vol_scalar = 1.0 unless cfg.portfolio_vol_target_enabled.
+            # Composes multiplicatively with target_weight and optimizer_weight.
+            target_notional = (
+                float(equity) * float(target_weight) * optimizer_weight
+                * portfolio_vol_scalar
+            )
             current_notional = float(current_qty) * price
             delta_notional = target_notional - current_notional
 
@@ -799,6 +875,14 @@ class RiskEngine:
             sig_meta_in = signal.get("meta") or {}
             optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
             risk_scaler *= optimizer_weight
+
+            # 5b. T-2026-05-12-055 portfolio-level vol-target overlay.
+            # `portfolio_vol_scalar` was computed once at the top of
+            # prepare_order and equals 1.0 unless the feature is
+            # explicitly enabled in cfg. NEVER overrides kill-switch /
+            # drawdown-halt (those short-circuit upstream by returning
+            # None or applying drawdown_degrade_scaler).
+            risk_scaler *= portfolio_vol_scalar
 
             # 6. Drawdown-gated kill switch (R1 punch-list, OFF by default).
             # Reads current_drawdown_pct from PortfolioEngine.snapshot() via

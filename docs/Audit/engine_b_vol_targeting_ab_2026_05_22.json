@@ -1,0 +1,33 @@
+{
+  "task_id": "T-2026-05-12-055",
+  "ab_pair": "portfolio_vol_target ON vs OFF",
+  "harness_scope": "single rep \u00d7 1 task per arm (minimal smoke; full 3-rep \u00d7 5-yr deferred to sub-dispatch)",
+  "arms": [
+    {
+      "arm": "ARM_OFF",
+      "enabled": false,
+      "task": "q1",
+      "wall_seconds": 509.6,
+      "run_id": "2654e1e4-eb81-438b-98c2-3fb260da3632",
+      "trades_canon_md5": "182af6a1240da35055f716ef9dfcd333",
+      "sharpe": null,
+      "cagr_pct": null,
+      "mdd_pct": null
+    },
+    {
+      "arm": "ARM_ON",
+      "enabled": true,
+      "task": "q1",
+      "wall_seconds": 499.3,
+      "run_id": "8d3667a8-4f90-4d7a-8cf8-f0d38bcadeb1",
+      "trades_canon_md5": "182af6a1240da35055f716ef9dfcd333",
+      "sharpe": null,
+      "cagr_pct": null,
+      "mdd_pct": null
+    }
+  ],
+  "delta": {
+    "canon_identical": true,
+    "sharpe_delta": null
+  }
+}
