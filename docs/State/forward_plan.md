@@ -1,4 +1,56 @@
-# Forward Plan — live (last substantive update 2026-05-22, post N-of-K diagnostic + T-054 cascade closed + Engine D bug class CLOSED)
+# Forward Plan — live (last substantive update 2026-05-22, T-041b FAIL Gate 1 + T-055 ship defense-first; lift gates queued)
+
+> **2026-05-22 LATE — T-041b + T-055 both landed; verdicts split**
+>
+> ### T-041b: spinoff gauntlet FAIL Gate 1 (commit baa41fc)
+>
+> A's chain ran cleanly across 3 commits + 1,162-line diff. Built SEC EDGAR Form 10-12B scraper, indexed 150 spin-off events (137 EDGAR + 13 curated; well exceeds the ≥40 spec target). Universe-resolver wiring + 14 new tests pass.
+>
+> **Gauntlet verdict: FAIL Gate 1** (contribution Sharpe +0.000 vs threshold +0.10). No threshold lowered. Edge stays status='paused' tier='feature'.
+>
+> **Two testing-setup confounds A documented honestly:**
+> 1. **Paused-tier masking** — spinoff_reversion_v1 was already in the baseline at 0.25× weight from T-041's auto-register. Gate 1's contribution-delta measure was 0.25× → 1.25× instead of the clean 0 → 1.0× the gate was designed for. Noise-dominated for a sparse event-driven edge.
+> 2. **Sparse cached-OHLCV** — only ~24 of 150 spin-off children have cached OHLCV; ~10-20 actionable events in the 2018-2024 effective window (validate_candidate's `historical_universe_start_year` shifted the start past A's requested 2015).
+>
+> **Director read**: this is "useful failure mode information," not a falsification of the spin-off anomaly. The verdict says "this configuration on this substrate doesn't show measurable contribution," not "spin-offs don't generate alpha." Consistent with the broader 0/11 finding on S&P 500.
+>
+> **T-041c follow-ups in A's audit (queued, not dispatched):**
+> - Archive the paused entry → clean 0 → 1.0× contribution delta re-run
+> - Hyperparameter sweep (entry_offset, holding_period, linear_decay)
+> - Microcap substrate re-test (gated on user Norgate decision)
+> - T-041d pair-trade variant (long child / short parent)
+> - Distribution-date prospectus parsing for tighter entry
+>
+> ### T-055: Engine B vol-targeting code shipped defense-first (commit 27b1619)
+>
+> B's chain ships clean code in INERT state. Defense-first per CLAUDE.md Engine B propose-first discipline:
+> - vol_target.py (175 LOC) + risk_engine.py wiring + config block
+> - 12 tests pass (9 required + 3 added: warmup gate, multi-snap-per-day, sqrt(252) annualization)
+> - **Determinism gate PASS**: Q1 canon md5 bitwise identical to T-019 baseline. Code is INERT in default path.
+> - Q1 A/B smoke confirms INERT even under ARM_ON (Q1 ~62 days < 60-day warmup gate threshold; documented anticipated outcome, not a bug)
+>
+> **Deferred to T-055c**: the full 3-rep × 5-yr × 2-arm = 30-run campaign (~6 hr) is the Moreira-Muir +0.10-0.20 Sharpe-lift verification. **T-055b flag-flip is gated on T-055c lift confirmation.** B explicitly framed this gating per propose-first discipline.
+>
+> ### What this means for the dispatch queue
+>
+> Two natural next dispatches surfaced:
+>
+> | Priority | ID | Description | Estimated | Approval status |
+> |---|---|---|---|---|
+> | **HIGH** | T-055c | Full 3-rep × 5-yr × 2-arm vol-target A/B harness | ~6 hr | Engine B propose-first; T-055 approved but T-055c held as separate sub-dispatch per B's discipline |
+> | **HIGH** | T-041c-archive | Archive spinoff_reversion_v1 paused entry; re-run gauntlet with clean 0→1.0× delta | ~3-4 hr | Engine F autonomous (Engine F lifecycle handles edge archive); CLAUDE.md says no manual edges.yml edits |
+> | MEDIUM | T-057 | Confidence-gated execution N-threshold A/B harness | ~6-8 hr | Engine A autonomous-improvement; spec already drafted |
+> | MEDIUM | T-041c-other | Hyperparameter sweep + T-041d pair-trade variant | 8-12 hr each | Engine A autonomous |
+> | LOW | Re-eval 146 failed _mut_ candidates post-T-054 cascade | 2-3 hr | Engine D autonomous |
+> | DEFERRED | T-056, T-050 | Microcap + multi-decade extensions | 12-24 hr each | Blocked: data spend (user deferred 2026-05-12) |
+>
+> **User decisions queued:**
+> - Dispatch T-055c? (Engine B; technically covered by T-055 approval but B held it for propose-first hygiene)
+> - Dispatch T-041c-archive? Cleanest path to fairly evaluate the spinoff edge
+> - Dispatch T-057? Independent of both; Sharpe-restructurer not alpha-finder per N-of-K correction
+> - LLM still parked + Norgate still deferred (no change unless user re-engages)
+>
+> ---
 
 > **2026-05-22 SESSION SUMMARY — major-day arc**
 >
