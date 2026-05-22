@@ -606,3 +606,150 @@ def test_calculate_all_information_ratio_zero_when_no_benchmark():
     eq.index = pd.date_range("2024-01-01", periods=200, freq="B")
     metrics = MetricsEngine.calculate_all(eq)
     assert metrics["Information Ratio"] == 0.0
+
+
+# ============================================================================
+# T-059 (2026-05-22): Lo autocorrelation correction for Sharpe annualization
+# Per the 2026-05-16 metrics research dive: hedge-fund Sharpes overstated
+# ~65% when ρ₁ ≈ 0.34 is ignored. Lo FAJ 2002, eq. 14.
+# ============================================================================
+
+def test_lo_eta_iid_returns_close_to_sqrt_q():
+    """When autocorrelations are zero, η(q) should be close to √q (naive √252).
+
+    Sample autocorrelations on finite data are O(1/√n) per lag; summed over
+    ~30 lags with (q-k) weights this is a non-trivial noise band on η.
+    Use a longer series (n=5000) + smaller max_lag (30) to tighten sample
+    estimates. 12% tolerance reflects realistic finite-sample noise per
+    Lo's own caveats about needing T >> q for tight estimates.
+    """
+    np.random.seed(0)
+    iid_rets = pd.Series(np.random.normal(0.0005, 0.012, 5000))
+    eta = MetricsEngine.lo_eta(iid_rets, q=252, max_lag=30)
+    expected = np.sqrt(252)
+    assert abs(eta - expected) / expected < 0.12, (
+        f"i.i.d. η = {eta:.3f}, expected ≈ {expected:.3f} (±12% tolerance)"
+    )
+
+
+def test_lo_eta_positive_autocorrelation_reduces_eta():
+    """Positive autocorrelation (returns trend with prior returns) inflates
+    naive Sharpe — Lo correction REDUCES η below √q.
+
+    Finite-q + truncated-lag-sum η doesn't reach the asymptotic
+    (1+ρ)/(1-ρ) inflator exactly; the directional reduction is the
+    load-bearing property. Per Lo 2002: at ρ₁ ≈ 0.30 reduction is in the
+    10-20% range for daily data with bounded lag truncation.
+    """
+    np.random.seed(1)
+    n = 2000
+    eps = np.random.normal(0, 0.01, n)
+    ar_rets = np.zeros(n)
+    rho = 0.30  # strong positive autocorrelation
+    for i in range(1, n):
+        ar_rets[i] = rho * ar_rets[i-1] + eps[i]
+    eta = MetricsEngine.lo_eta(pd.Series(ar_rets), q=252, max_lag=120)
+    expected_naive = np.sqrt(252)
+    # Directional reduction (load-bearing property)
+    assert eta < expected_naive, (
+        f"AR(1) ρ=0.30: η = {eta:.3f} should be < √252 = {expected_naive:.3f}"
+    )
+    # Materiality: at least 8% reduction (conservative bound for sample noise)
+    reduction = (expected_naive - eta) / expected_naive
+    assert reduction > 0.08, (
+        f"AR(1) ρ=0.30: reduction = {reduction*100:.1f}% should be > 8%"
+    )
+
+
+def test_lo_eta_negative_autocorrelation_increases_eta():
+    """Negative autocorrelation (mean-reversion) deflates aggregate variance —
+    Lo correction INCREASES η above √q."""
+    np.random.seed(2)
+    n = 2000
+    eps = np.random.normal(0, 0.01, n)
+    ar_rets = np.zeros(n)
+    rho = -0.25  # mean-reversion
+    for i in range(1, n):
+        ar_rets[i] = rho * ar_rets[i-1] + eps[i]
+    eta = MetricsEngine.lo_eta(pd.Series(ar_rets), q=252, max_lag=120)
+    expected_naive = np.sqrt(252)
+    assert eta > expected_naive, (
+        f"AR(1) ρ=-0.25: η = {eta:.3f} should be > √252 = {expected_naive:.3f}"
+    )
+
+
+def test_lo_eta_short_series_falls_back_to_naive():
+    """Length < 2 should return √q without crashing (defensive)."""
+    eta_empty = MetricsEngine.lo_eta(pd.Series([]), q=252)
+    eta_single = MetricsEngine.lo_eta(pd.Series([0.01]), q=252)
+    assert eta_empty == np.sqrt(252)
+    assert eta_single == np.sqrt(252)
+
+
+def test_lo_eta_max_lag_zero_returns_naive():
+    """max_lag=0 short-circuits the autocorr sum to zero → η = q/√q = √q."""
+    rets = pd.Series(np.random.normal(0, 0.01, 500))
+    eta = MetricsEngine.lo_eta(rets, q=252, max_lag=0)
+    assert eta == np.sqrt(252)
+
+
+def test_sharpe_ratio_lo_corrected_matches_manual_calculation():
+    """End-to-end: corrected Sharpe should equal per-period Sharpe × η(q)."""
+    np.random.seed(3)
+    n = 500
+    eps = np.random.normal(0.0008, 0.01, n)
+    rho = 0.20
+    rets = np.zeros(n)
+    for i in range(1, n):
+        rets[i] = rho * rets[i-1] + eps[i]
+    rets = pd.Series(rets)
+    eta = MetricsEngine.lo_eta(rets, q=252, max_lag=60)
+    per_period = rets.mean() / rets.std()
+    expected_corrected = per_period * eta
+    actual_corrected = MetricsEngine.sharpe_ratio_lo_corrected(rets, periods=252, max_lag=60)
+    assert abs(actual_corrected - expected_corrected) < 1e-9, (
+        f"Lo-corrected Sharpe {actual_corrected:.6f} != "
+        f"per-period {per_period:.6f} × η {eta:.6f} = {expected_corrected:.6f}"
+    )
+
+
+def test_sharpe_ratio_lo_corrected_below_naive_for_positive_autocorr():
+    """The empirical claim: positive-autocorr Sharpe naive > Lo-corrected.
+    This is the load-bearing reason for the correction's existence."""
+    np.random.seed(4)
+    n = 500
+    eps = np.random.normal(0.0005, 0.01, n)
+    rho = 0.30
+    rets = np.zeros(n)
+    for i in range(1, n):
+        rets[i] = rho * rets[i-1] + eps[i]
+    rets = pd.Series(rets)
+    naive_sharpe = MetricsEngine.sharpe_ratio(rets, periods=252)
+    corrected_sharpe = MetricsEngine.sharpe_ratio_lo_corrected(rets, periods=252, max_lag=60)
+    # Both should be positive (positive mean) but corrected should be smaller
+    assert naive_sharpe > 0
+    assert corrected_sharpe > 0
+    assert corrected_sharpe < naive_sharpe, (
+        f"Lo correction should REDUCE Sharpe under positive autocorr: "
+        f"naive={naive_sharpe:.3f}, corrected={corrected_sharpe:.3f}"
+    )
+
+
+def test_sharpe_ratio_lo_corrected_zero_std_returns_zero():
+    """Defensive: flat returns → no division by zero."""
+    flat = pd.Series([0.001] * 100)
+    result = MetricsEngine.sharpe_ratio_lo_corrected(flat)
+    assert result == 0.0
+
+
+def test_naive_sharpe_unchanged_after_lo_addition():
+    """Backwards-compat gate: existing sharpe_ratio behavior MUST be
+    unchanged by the addition of Lo correction (new methods are additive only)."""
+    np.random.seed(5)
+    rets = pd.Series(np.random.normal(0.001, 0.01, 252))
+    expected_naive = rets.mean() / rets.std() * np.sqrt(252)
+    actual = MetricsEngine.sharpe_ratio(rets, periods=252)
+    assert abs(actual - expected_naive) < 1e-12, (
+        f"Naive Sharpe behavior changed unexpectedly: "
+        f"expected {expected_naive:.6f}, got {actual:.6f}"
+    )

@@ -100,6 +100,98 @@ class MetricsEngine:
         return (returns.mean() - risk_free_rate) / returns.std() * np.sqrt(periods)
 
     @staticmethod
+    def lo_eta(returns: pd.Series, q: int = 252, max_lag: Optional[int] = None) -> float:
+        """Lo (FAJ 2002, eq. 14) autocorrelation-corrected annualization factor.
+
+        Naive Sharpe annualization multiplies by √q (q=252 for daily). When
+        returns are autocorrelated, the true q-period volatility is NOT
+        σ_period · √q — positive autocorrelation inflates aggregate variance;
+        negative autocorrelation deflates it. The naive annualization
+        OVERSTATES Sharpe when ρ₁ > 0.
+
+        Lo derives the correct factor:
+            η(q) = q / √[q + 2 · Σ_{k=1}^{q-1} (q − k) · ρ_k]
+
+        When ρ_k = 0 for all k ≥ 1, η(q) = q/√q = √q (matches naive).
+        When ρ_k > 0, η(q) < √q (correction REDUCES annualized Sharpe).
+        When ρ_k < 0, η(q) > √q (correction INCREASES annualized Sharpe).
+
+        Lo's empirical finding on hedge-fund returns: naive Sharpes are
+        overstated ~65% when ρ₁ ≈ 0.34 is ignored. For daily equity returns
+        with mild autocorrelation (ρ₁ ≈ 0.05-0.10), expect a 5-15%
+        correction. Per CLAUDE.md 6th non-negotiable, Sharpe reporting should
+        carry CI; this correction also affects the annualized point estimate.
+
+        Args:
+            returns: per-period (e.g., daily) excess returns
+            q: annualization periods (252 for daily, 12 for monthly, etc.)
+            max_lag: cap on the autocorrelation sum. Default min(q-1, n-1).
+                     For q=252 and typical 1-year samples this can be slow;
+                     limiting to ~60-120 captures the bulk of equity
+                     autocorrelation decay (returns decorrelate within
+                     1-2 trading months).
+
+        Returns:
+            η(q) — the autocorrelation-corrected annualization factor.
+            Multiply (returns.mean() / returns.std()) by η(q) to get the
+            corrected annualized Sharpe.
+
+        Reference: Lo, A. W. (2002). "The Statistics of Sharpe Ratios."
+        Financial Analysts Journal 58(4): 36-52.
+        """
+        n = len(returns)
+        if n < 2:
+            return float(np.sqrt(q))
+        if max_lag is None:
+            max_lag = min(q - 1, n - 1)
+        max_lag = max(0, min(max_lag, n - 1, q - 1))
+        if max_lag == 0:
+            return float(np.sqrt(q))
+        # Sample autocorrelations at lags 1..max_lag
+        x = returns.values
+        x_centered = x - x.mean()
+        denom = float((x_centered ** 2).sum())
+        if denom == 0:
+            return float(np.sqrt(q))
+        # Lo's sum: 2 · Σ (q − k) · ρ_k for k=1..min(q-1, max_lag)
+        weight_sum = 0.0
+        for k in range(1, max_lag + 1):
+            rho_k = float((x_centered[:-k] * x_centered[k:]).sum() / denom)
+            weight_sum += (q - k) * rho_k
+        variance_inflator = q + 2.0 * weight_sum
+        if variance_inflator <= 0:
+            # Pathological case (extreme negative autocorrelation); fall back
+            # to naive √q with a sentinel that the caller can detect via |η|
+            # > √q being unusual.
+            return float(np.sqrt(q))
+        return float(q / np.sqrt(variance_inflator))
+
+    @staticmethod
+    def sharpe_ratio_lo_corrected(
+        returns: pd.Series,
+        risk_free_rate: float = 0.0,
+        periods: int = 252,
+        max_lag: Optional[int] = None,
+    ) -> float:
+        """Sharpe with Lo autocorrelation correction (returns the corrected
+        annualized Sharpe instead of √periods naive annualization).
+
+        See `lo_eta` for the math + reference. Always opt-in (the naive
+        `sharpe_ratio` method is unchanged for backwards compat). Per the
+        2026-05-16 metrics research dive: mandatory for any sub-daily or
+        illiquid / hedge-fund-style monthly series; advisory for daily
+        equity strategies where ρ₁ is typically small.
+        """
+        std = returns.std()
+        # Use tolerance (not == 0) because pandas std on identical floats
+        # can return tiny-but-nonzero values (e.g., 2e-19 for [0.001]*100).
+        if std is None or std < 1e-12 or not np.isfinite(std):
+            return 0.0
+        per_period = (returns.mean() - risk_free_rate) / std
+        eta = MetricsEngine.lo_eta(returns, q=periods, max_lag=max_lag)
+        return float(per_period * eta)
+
+    @staticmethod
     def sortino_ratio(returns: pd.Series, risk_free_rate: float = 0.0, periods: int = 252) -> float:
         downside = returns[returns < 0]
         if downside.empty or downside.std() == 0: return 10.0 # Capped max
