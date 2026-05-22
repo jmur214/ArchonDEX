@@ -124,13 +124,32 @@ class MLPredictor:
         Returns float 0.0 to 1.0.
         """
         if not self.is_trained:
-            # Try load
+            # Try load. T-067 (2026-05-22): narrow the bare-except per the
+            # T-005/T-011/T-012 fail-loud-on-programmer-errors pattern.
+            # Catch DATA/FILE errors only (corrupted pickle, ModuleNotFound
+            # for old pickle classes, etc.); let programmer errors (TypeError,
+            # NameError, AttributeError on local code) propagate.
             if os.path.exists(self.model_path):
                 try:
                     with open(self.model_path, "rb") as f:
                         self.model = pickle.load(f)
                     self.is_trained = True
-                except:
+                except (
+                    pickle.UnpicklingError,  # corrupted pickle
+                    EOFError,                # truncated file
+                    OSError,                 # disk / permission / unreadable
+                    ImportError,             # pickle of class whose module moved
+                    ModuleNotFoundError,     # ditto
+                    MemoryError,             # bad length-prefix in corrupted pickle
+                    ValueError,              # bad opcode / bad pickle structure
+                ) as exc:
+                    # File exists but unreadable — log + degrade to neutral
+                    # probability (matches existing model-missing pathway).
+                    import logging
+                    logging.getLogger("MLPredictor").warning(
+                        "[MLPredictor] model load failed for %s: %s",
+                        self.model_path, exc,
+                    )
                     return 0.5
             else:
                 return 0.5
