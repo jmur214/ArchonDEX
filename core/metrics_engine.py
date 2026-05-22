@@ -433,6 +433,139 @@ class MetricsEngine:
         return float(_stats.norm.cdf(z))
 
     @staticmethod
+    def rolling_psr(
+        returns: pd.Series,
+        window: int = 252,
+        sr_benchmark_annualized: float = 0.0,
+        periods: int = 252,
+    ) -> pd.Series:
+        """Rolling Probabilistic Sharpe Ratio over a trailing window.
+
+        Per the 2026-05-16 metrics research dive: rolling-252 PSR is the
+        right LIVE-monitoring signal for edge decay. As fresh returns
+        arrive, the trailing-N-day PSR-vs-zero (or PSR-vs-deployed-SR)
+        gives a continuous probability that the strategy's true Sharpe
+        still exceeds the benchmark.
+
+        Combine with CUSUM (below) for a pre-registered decay-kill
+        protocol: "kill if rolling-252 PSR drops below 0.5 for ≥60
+        consecutive days" (i.e., > 50% chance true Sharpe is now BELOW
+        benchmark, sustained).
+
+        Args:
+            returns: per-period returns time series with DatetimeIndex
+            window: rolling window in periods (252 standard = 1 trading year)
+            sr_benchmark_annualized: PSR benchmark (typically 0 for
+                "is the true SR above zero", or the deployed SR for
+                "is the strategy still beating its in-sample claim")
+            periods: annualization factor (252 daily, 12 monthly)
+
+        Returns:
+            pd.Series indexed like `returns`, with rolling PSR values.
+            First (window-1) entries are NaN.
+        """
+        if returns is None or len(returns) < window:
+            return pd.Series(dtype=float, index=returns.index if returns is not None else None)
+
+        out = pd.Series(np.nan, index=returns.index, dtype=float)
+        rets_values = returns.values
+        # Iterate windows efficiently — single PSR per window
+        for i in range(window - 1, len(returns)):
+            window_rets = pd.Series(rets_values[i - window + 1 : i + 1])
+            out.iloc[i] = MetricsEngine.probabilistic_sharpe_ratio(
+                window_rets,
+                sr_benchmark_annualized=sr_benchmark_annualized,
+                periods=periods,
+            )
+        return out
+
+    @staticmethod
+    def cusum_decay_monitor(
+        returns: pd.Series,
+        reference_mean: float,
+        reference_std: float,
+        k: float = 0.5,
+        h: float = 10.0,
+    ) -> Dict[str, Any]:
+        """CUSUM (Cumulative Sum) decay monitor for edge alpha decay.
+
+        Per the 2026-05-16 metrics research dive: pre-registered decay
+        monitor is THE retire-the-edge decision driver. CUSUM is the
+        standard sequential-analysis tool from Page (1954); for trading-
+        strategy decay use the Page-Hinkley variant. Implementation
+        per López de Prado AFML Ch. 17.
+
+        Method:
+            standardized r_t = (r_t - μ_ref) / σ_ref
+            CUSUM⁺_t = max(0, CUSUM⁺_{t-1} + standardized_r_t - k)
+            CUSUM⁻_t = min(0, CUSUM⁻_{t-1} + standardized_r_t + k)
+
+        ``h`` is the alarm threshold. Larger h → fewer false positives,
+        slower detection. Per the metrics dive: calibrate h such that
+        in-sample produces ~1 false-alarm-per-year. The dive's specific
+        rule: "kill if rolling-252 SR drops >2σ below in-sample for
+        ≥60 consecutive days" — this CUSUM is the leading-indicator
+        complement.
+
+        Args:
+            returns: live/OOS per-period returns to monitor
+            reference_mean: in-sample mean (pre-registered)
+            reference_std: in-sample std (pre-registered)
+            k: drift tolerance per standardized observation (default 0.5;
+               Page's classic choice)
+            h: alarm threshold (default 10; calibrate via in-sample
+               false-alarm rate)
+
+        Returns:
+            Dict with:
+              - "cusum_plus": pd.Series of upward CUSUM (signals positive drift)
+              - "cusum_minus": pd.Series of downward CUSUM (signals decay)
+              - "decay_alarm_fired": bool, True if CUSUM⁻ ever crossed -h
+              - "first_alarm_at": index of first alarm or None
+              - "max_cusum_minus": deepest decay accumulated
+
+        Reference:
+            - Page, E. S. (1954). "Continuous Inspection Schemes." Biometrika 41.
+            - Hinkley, D. V. (1971). "Inference about the change-point..."
+            - López de Prado AFML Ch. 17.
+        """
+        if returns is None or len(returns) == 0:
+            return {
+                "cusum_plus": pd.Series(dtype=float),
+                "cusum_minus": pd.Series(dtype=float),
+                "decay_alarm_fired": False,
+                "first_alarm_at": None,
+                "max_cusum_minus": 0.0,
+            }
+        if reference_std is None or reference_std <= 1e-12:
+            raise ValueError(
+                f"reference_std must be > 0 (got {reference_std}); "
+                f"in-sample std should be pre-registered"
+            )
+
+        standardized = (returns - reference_mean) / reference_std
+        cusum_plus = pd.Series(0.0, index=returns.index, dtype=float)
+        cusum_minus = pd.Series(0.0, index=returns.index, dtype=float)
+        first_alarm = None
+        cp = 0.0
+        cm = 0.0
+        for i, r in enumerate(standardized.values):
+            cp = max(0.0, cp + float(r) - k)
+            cm = min(0.0, cm + float(r) + k)
+            cusum_plus.iloc[i] = cp
+            cusum_minus.iloc[i] = cm
+            if first_alarm is None and cm <= -h:
+                first_alarm = returns.index[i]
+
+        return {
+            "cusum_plus": cusum_plus,
+            "cusum_minus": cusum_minus,
+            "decay_alarm_fired": first_alarm is not None,
+            "first_alarm_at": first_alarm,
+            "max_cusum_minus": float(cusum_minus.min()),
+        }
+
+    @staticmethod
     def deflated_sharpe_ratio(
         returns: pd.Series,
         n_trials: int,

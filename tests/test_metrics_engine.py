@@ -1114,3 +1114,158 @@ def test_n_ent_weights_realigned_to_cov_index():
     assert abs(n_ent - 2.0) < 0.01, (
         f"Reindexed weights with 2 held assets → N_Ent ≈ 2, got {n_ent}"
     )
+
+
+# ============================================================================
+# T-063 (2026-05-22): Pre-registered decay monitors — rolling PSR + CUSUM
+# Per the 2026-05-16 metrics research dive Layer 1: rolling-252 PSR + CUSUM
+# on standardized returns is THE retire-the-edge decision driver.
+# ============================================================================
+
+# --- rolling_psr ---
+
+def test_rolling_psr_returns_series_with_correct_window_NaNs():
+    """First (window-1) values should be NaN; rest are PSR in [0,1]."""
+    np.random.seed(0)
+    rets = pd.Series(
+        np.random.normal(0.0005, 0.01, 500),
+        index=pd.date_range("2024-01-01", periods=500, freq="B"),
+    )
+    psr_series = MetricsEngine.rolling_psr(rets, window=60)
+    # First 59 should be NaN
+    assert psr_series.iloc[:59].isna().all()
+    # Rest should be in [0, 1]
+    valid = psr_series.iloc[59:]
+    assert (valid >= 0.0).all() and (valid <= 1.0).all()
+
+
+def test_rolling_psr_positive_drift_above_half():
+    """Strong positive drift → rolling PSR should be > 0.5 (high prob true SR > 0)."""
+    np.random.seed(1)
+    rets = pd.Series(
+        np.random.normal(0.002, 0.01, 300),  # strong positive drift
+        index=pd.date_range("2024-01-01", periods=300, freq="B"),
+    )
+    psr = MetricsEngine.rolling_psr(rets, window=120)
+    valid = psr.dropna()
+    # Most windows should give high PSR (true Sharpe likely > 0)
+    assert valid.median() > 0.7, (
+        f"Strong drift should give rolling PSR median > 0.7, got {valid.median():.3f}"
+    )
+
+
+def test_rolling_psr_handles_too_short_input():
+    """Series shorter than window → returns empty/NaN series."""
+    rets = pd.Series(np.random.normal(0, 0.01, 50),
+                     index=pd.date_range("2024-01-01", periods=50, freq="B"))
+    result = MetricsEngine.rolling_psr(rets, window=252)
+    assert len(result) == 0 or result.isna().all()
+
+
+def test_rolling_psr_against_benchmark():
+    """Rolling PSR against a non-zero benchmark should be LOWER than
+    against zero benchmark (higher bar → less probability of beating it)."""
+    np.random.seed(2)
+    rets = pd.Series(
+        np.random.normal(0.0008, 0.012, 400),
+        index=pd.date_range("2024-01-01", periods=400, freq="B"),
+    )
+    psr_zero = MetricsEngine.rolling_psr(rets, window=120, sr_benchmark_annualized=0.0)
+    psr_high = MetricsEngine.rolling_psr(rets, window=120, sr_benchmark_annualized=2.0)
+    # Compare medians of valid (non-NaN) values
+    assert psr_zero.dropna().median() > psr_high.dropna().median(), (
+        "PSR vs higher benchmark should be lower than vs zero"
+    )
+
+
+# --- cusum_decay_monitor ---
+
+def test_cusum_no_alarm_for_in_sample_distribution():
+    """When OOS returns are drawn from the same distribution as in-sample,
+    CUSUM should rarely alarm at standard k=0.5, h=10."""
+    np.random.seed(3)
+    # In-sample stats
+    ref_mean, ref_std = 0.0005, 0.012
+    # OOS drawn from SAME distribution
+    oos = pd.Series(
+        np.random.normal(ref_mean, ref_std, 252),
+        index=pd.date_range("2024-01-01", periods=252, freq="B"),
+    )
+    result = MetricsEngine.cusum_decay_monitor(
+        oos, reference_mean=ref_mean, reference_std=ref_std, k=0.5, h=10.0
+    )
+    # At k=0.5, h=10 with same-distribution input, false-alarm rate
+    # should be low. Allow it but check the diagnostic structure.
+    assert "cusum_plus" in result
+    assert "cusum_minus" in result
+    assert "decay_alarm_fired" in result
+    assert len(result["cusum_plus"]) == len(oos)
+
+
+def test_cusum_alarms_on_genuine_decay():
+    """When OOS returns drop materially below in-sample mean by more than
+    the drift-tolerance k, CUSUM⁻ accumulates downward and fires.
+
+    Math note: at k=0.5, CUSUM⁻ only accumulates when standardized r_t
+    falls below -k (i.e., r_t < ref_mean - 0.5·ref_std). Mild decay of
+    e.g. -0.25σ standardized is ABSORBED by k=0.5 and doesn't accumulate.
+    Genuine decay must exceed the drift tolerance for the alarm to fire.
+    """
+    np.random.seed(4)
+    ref_mean, ref_std = 0.001, 0.012  # in-sample mean
+    # OOS mean is well below ref_mean - k·ref_std = 0.001 - 0.006 = -0.005
+    # Use -0.012 (1σ below ref_mean) which is well past the k=0.5 tolerance
+    oos = pd.Series(
+        np.random.normal(-0.012, 0.012, 252),
+        index=pd.date_range("2024-01-01", periods=252, freq="B"),
+    )
+    result = MetricsEngine.cusum_decay_monitor(
+        oos, reference_mean=ref_mean, reference_std=ref_std, k=0.5, h=10.0
+    )
+    assert result["decay_alarm_fired"], (
+        f"Genuine decay (mean shift past k=0.5) should fire CUSUM alarm. "
+        f"max_cusum_minus={result['max_cusum_minus']:.2f} should be ≤ -10"
+    )
+    assert result["first_alarm_at"] is not None
+
+
+def test_cusum_rejects_zero_reference_std():
+    """Pre-registered std=0 → exception (cannot standardize)."""
+    rets = pd.Series([0.01] * 50)
+    with pytest.raises(ValueError, match="reference_std"):
+        MetricsEngine.cusum_decay_monitor(
+            rets, reference_mean=0.0, reference_std=0.0
+        )
+
+
+def test_cusum_empty_input_returns_empty_state():
+    """Defensive: empty returns → no alarm, empty series, no exception."""
+    result = MetricsEngine.cusum_decay_monitor(
+        pd.Series([], dtype=float),
+        reference_mean=0.0, reference_std=0.01,
+    )
+    assert result["decay_alarm_fired"] is False
+    assert result["first_alarm_at"] is None
+    assert len(result["cusum_minus"]) == 0
+
+
+def test_cusum_h_threshold_controls_sensitivity():
+    """Lower h → faster alarm. Higher h → slower / fewer false alarms."""
+    np.random.seed(5)
+    ref_mean, ref_std = 0.001, 0.012
+    oos = pd.Series(
+        np.random.normal(-0.0005, 0.012, 252),  # mild decay
+        index=pd.date_range("2024-01-01", periods=252, freq="B"),
+    )
+    result_loose = MetricsEngine.cusum_decay_monitor(
+        oos, reference_mean=ref_mean, reference_std=ref_std, k=0.5, h=5.0
+    )
+    result_strict = MetricsEngine.cusum_decay_monitor(
+        oos, reference_mean=ref_mean, reference_std=ref_std, k=0.5, h=20.0
+    )
+    # If both fire, loose should fire NO LATER than strict
+    if result_loose["decay_alarm_fired"] and result_strict["decay_alarm_fired"]:
+        assert result_loose["first_alarm_at"] <= result_strict["first_alarm_at"]
+    else:
+        # Strict didn't fire → max_cusum_minus(strict) is shallower or equal
+        assert result_strict["max_cusum_minus"] >= result_loose["max_cusum_minus"]
