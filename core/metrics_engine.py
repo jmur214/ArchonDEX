@@ -335,6 +335,146 @@ class MetricsEngine:
         )
 
     @staticmethod
+    def probability_of_backtest_overfitting(
+        trial_matrix: pd.DataFrame,
+        n_partitions: int = 16,
+        rank_metric: str = "sharpe",
+    ) -> Dict[str, float]:
+        """Probability of Backtest Overfitting via Combinatorially Symmetric
+        Cross-Validation (CSCV).
+
+        Bailey, D., Borwein, J., López de Prado, M., Zhu, Q. (2017).
+        "The Probability of Backtest Overfitting." Journal of Computational
+        Finance 20(4): 39-69.
+
+        Model-free overfitting check, complementary to the parametric DSR.
+        Where DSR asks "is this Sharpe surprising given N trials and the
+        observed series' moments?", PBO asks "in how many IS/OOS partitions
+        does the in-sample-best strategy under-perform the OOS median?"
+
+        Method:
+          1. Partition T observations into S submatrices (rows).
+          2. For each combination of S/2 submatrices chosen IS (the other
+             S/2 are OOS): compute per-trial ranking metric IS + OOS.
+          3. Identify the IS-optimal trial. Look up its OOS rank.
+          4. PBO = fraction of partitions where the IS-optimal trial's OOS
+             rank is BELOW the median.
+
+        Interpretation:
+          PBO ≈ 0.5 → IS-best is random on OOS (no edge, just noise)
+          PBO < 0.5 → IS-best tends to beat OOS median (sign of real edge)
+          PBO > 0.5 → IS-best tends to UNDER-perform OOS (overfit)
+          Deploy threshold: PBO < 0.5, preferably < 0.3.
+
+        Args:
+            trial_matrix: T×N pandas DataFrame where T=time periods (rows),
+                          N=trial configurations (columns). Cell value =
+                          per-period return of trial N at time T.
+            n_partitions: S, must be EVEN. Default 16 (canonical).
+            rank_metric: "sharpe" (default; mean/std × √periods proxy) or
+                         "mean" (simple mean return).
+
+        Returns:
+            Dict with:
+              - "pbo": the PBO value in [0, 1]
+              - "n_combinations": number of IS/OOS partitions evaluated
+              - "n_trials": number of trial configurations (columns)
+              - "logit_mean": mean of logit(rank_oos / (N+1)) across combos
+                             (López de Prado's secondary diagnostic)
+
+        Caveats:
+          - Sensitive to S; report it. S=16 standard; S=4 unstable; S=32
+            may need more data.
+          - Gameable by adding dilutive trial columns. Honest N matters.
+          - Doesn't catch look-ahead bias / regime mismatch / wrong universe.
+
+        Reference: Bailey, Borwein, López de Prado, Zhu (2017) JoCF 20(4).
+        Python implementation guidance: https://github.com/esvhd/pypbo
+        (Stable but not used directly — this implementation is self-contained.)
+        """
+        from itertools import combinations
+        if not isinstance(trial_matrix, pd.DataFrame):
+            raise TypeError("trial_matrix must be a pandas DataFrame")
+        if n_partitions < 4 or n_partitions % 2 != 0:
+            raise ValueError(f"n_partitions must be EVEN and >= 4 (got {n_partitions})")
+        T, N = trial_matrix.shape
+        if T < n_partitions * 2:
+            # Not enough observations per partition for stable metric estimation
+            return {"pbo": float("nan"), "n_combinations": 0, "n_trials": N,
+                    "logit_mean": float("nan"),
+                    "error": f"T={T} too small for S={n_partitions} (need T >= 2S)"}
+        if N < 2:
+            return {"pbo": float("nan"), "n_combinations": 0, "n_trials": N,
+                    "logit_mean": float("nan"),
+                    "error": "need >= 2 trials to rank"}
+
+        # Step 1: partition T into S submatrices of (nearly) equal length
+        rows_per_partition = T // n_partitions
+        partitions: list[pd.DataFrame] = []
+        for s in range(n_partitions):
+            start = s * rows_per_partition
+            end = (s + 1) * rows_per_partition if s < n_partitions - 1 else T
+            partitions.append(trial_matrix.iloc[start:end].copy())
+
+        def _metric(submatrix: pd.DataFrame) -> pd.Series:
+            """Per-trial ranking metric across a submatrix's rows."""
+            if rank_metric == "sharpe":
+                mean = submatrix.mean(axis=0)
+                std = submatrix.std(axis=0, ddof=1)
+                # Use tolerance, not == 0, to handle near-flat columns
+                std = std.where(std > 1e-12, 1e-12)
+                return mean / std
+            elif rank_metric == "mean":
+                return submatrix.mean(axis=0)
+            else:
+                raise ValueError(f"Unknown rank_metric: {rank_metric}")
+
+        # Step 2: enumerate all C(S, S/2) combinations of IS submatrix indices
+        all_indices = list(range(n_partitions))
+        is_combinations = list(combinations(all_indices, n_partitions // 2))
+
+        n_below_median = 0
+        logits: list[float] = []
+        for is_indices in is_combinations:
+            oos_indices = [i for i in all_indices if i not in is_indices]
+            is_submatrix = pd.concat([partitions[i] for i in is_indices], axis=0)
+            oos_submatrix = pd.concat([partitions[i] for i in oos_indices], axis=0)
+
+            is_scores = _metric(is_submatrix)
+            oos_scores = _metric(oos_submatrix)
+
+            # IS-optimal trial
+            is_optimal_trial = is_scores.idxmax()
+
+            # OOS rank of that trial (1 = best, N = worst); rank descending
+            oos_ranks = oos_scores.rank(ascending=False, method="average")
+            rank_of_is_optimal = oos_ranks.loc[is_optimal_trial]
+            median_rank = (N + 1) / 2.0
+            if rank_of_is_optimal > median_rank:
+                n_below_median += 1
+
+            # López de Prado's secondary diagnostic: logit(rank / (N+1))
+            normalized_rank = rank_of_is_optimal / (N + 1.0)
+            # Clip to (epsilon, 1 - epsilon) to keep logit finite
+            eps = 1e-9
+            normalized_rank = float(min(max(normalized_rank, eps), 1.0 - eps))
+            logits.append(float(np.log(normalized_rank / (1.0 - normalized_rank))))
+
+        n_combos = len(is_combinations)
+        pbo = n_below_median / n_combos
+        logit_mean = float(np.mean(logits)) if logits else float("nan")
+
+        return {
+            "pbo": float(pbo),
+            "n_combinations": int(n_combos),
+            "n_trials": int(N),
+            "logit_mean": logit_mean,
+            "n_partitions": int(n_partitions),
+            "deploy_threshold_met": bool(pbo < 0.5),
+            "deploy_threshold_strict": bool(pbo < 0.3),
+        }
+
+    @staticmethod
     def information_ratio(
         strategy_rets: pd.Series,
         benchmark_rets: pd.Series,

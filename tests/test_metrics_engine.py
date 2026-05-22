@@ -753,3 +753,132 @@ def test_naive_sharpe_unchanged_after_lo_addition():
         f"Naive Sharpe behavior changed unexpectedly: "
         f"expected {expected_naive:.6f}, got {actual:.6f}"
     )
+
+
+# ============================================================================
+# T-060 (2026-05-22): PBO via CSCV — Probability of Backtest Overfitting
+# Bailey, Borwein, López de Prado, Zhu (2017) JoCF 20(4).
+# ============================================================================
+
+def test_pbo_pure_noise_returns_around_half():
+    """Pure noise trial matrix → PBO should be ≈ 0.5 (no edge, IS-best
+    is random on OOS). Allow wide tolerance for combinatorial noise."""
+    np.random.seed(0)
+    T, N = 320, 20  # T >= 2*S = 32 satisfied
+    noise = pd.DataFrame(
+        np.random.normal(0, 0.01, (T, N)),
+        columns=[f"trial_{i}" for i in range(N)],
+    )
+    result = MetricsEngine.probability_of_backtest_overfitting(
+        noise, n_partitions=8
+    )
+    assert result["n_combinations"] == 70  # C(8, 4) = 70
+    # Pure noise should give PBO near 0.5. Allow 0.3-0.7 band for randomness.
+    assert 0.3 < result["pbo"] < 0.7, (
+        f"Pure noise PBO = {result['pbo']:.3f}, expected ~0.5 ± 0.2"
+    )
+
+
+def test_pbo_genuine_signal_below_threshold():
+    """A trial matrix where one trial has genuine alpha (mean drift) should
+    produce PBO well below 0.5 — the IS-best (the alpha trial) consistently
+    beats OOS median because it has a real edge."""
+    np.random.seed(1)
+    T, N = 320, 20
+    # All trials are noise EXCEPT trial_0 which has a strong positive drift
+    noise = pd.DataFrame(
+        np.random.normal(0, 0.01, (T, N)),
+        columns=[f"trial_{i}" for i in range(N)],
+    )
+    noise["trial_0"] += 0.005  # strong daily drift
+    result = MetricsEngine.probability_of_backtest_overfitting(
+        noise, n_partitions=8
+    )
+    # Real signal → PBO should be deep below 0.5 (ideally near 0)
+    assert result["pbo"] < 0.3, (
+        f"Real-signal PBO = {result['pbo']:.3f}, expected < 0.3"
+    )
+    assert result["deploy_threshold_met"] is True
+
+
+def test_pbo_overfit_pattern_above_half():
+    """When the 'best in-sample' trial is consistently the WORST out-of-sample
+    (engineered overfit pattern), PBO should be high (> 0.5)."""
+    # Construct an adversarial pattern: alternate which trial is best per
+    # partition. The IS-optimal trial of each combo is engineered to
+    # consistently UNDER-perform on the held-out OOS.
+    np.random.seed(2)
+    T = 320
+    S = 8
+    rows_per = T // S
+    # 4 trials. In each odd-indexed partition, trial_A wins. In each
+    # even-indexed partition, trial_B wins. Force engineered anti-correlation
+    # between IS-win and OOS-win.
+    data = np.zeros((T, 4))
+    for p in range(S):
+        start = p * rows_per
+        end = start + rows_per
+        if p % 2 == 0:
+            data[start:end, 0] = np.random.normal(0.01, 0.001, rows_per)  # trial 0 great
+            data[start:end, 1] = np.random.normal(-0.01, 0.001, rows_per)  # trial 1 awful
+        else:
+            data[start:end, 0] = np.random.normal(-0.01, 0.001, rows_per)
+            data[start:end, 1] = np.random.normal(0.01, 0.001, rows_per)
+        data[start:end, 2] = np.random.normal(0, 0.01, rows_per)
+        data[start:end, 3] = np.random.normal(0, 0.01, rows_per)
+    df = pd.DataFrame(data, columns=[f"trial_{i}" for i in range(4)])
+    result = MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=S)
+    # The engineered anti-correlated pattern → PBO > 0.5
+    assert result["pbo"] > 0.5, (
+        f"Engineered overfit PBO = {result['pbo']:.3f}, expected > 0.5"
+    )
+    assert result["deploy_threshold_met"] is False
+
+
+def test_pbo_rejects_invalid_n_partitions():
+    """S must be even and >= 4."""
+    df = pd.DataFrame(np.random.normal(0, 0.01, (100, 5)))
+    import pytest
+    with pytest.raises(ValueError, match="n_partitions"):
+        MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=3)
+    with pytest.raises(ValueError, match="n_partitions"):
+        MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=2)
+
+
+def test_pbo_handles_too_few_observations():
+    """T < 2*S → returns NaN with error message, not exception."""
+    df = pd.DataFrame(np.random.normal(0, 0.01, (10, 5)))  # T=10, S=16 → fail
+    result = MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=16)
+    assert np.isnan(result["pbo"])
+    assert "error" in result
+
+
+def test_pbo_handles_single_trial():
+    """N=1 → cannot rank trials → NaN return."""
+    df = pd.DataFrame(np.random.normal(0, 0.01, (100, 1)))
+    result = MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=4)
+    assert np.isnan(result["pbo"])
+
+
+def test_pbo_reports_combination_count():
+    """C(S, S/2) check — for S=8 → 70 combinations; for S=4 → 6."""
+    np.random.seed(3)
+    df = pd.DataFrame(np.random.normal(0, 0.01, (100, 5)))
+    result4 = MetricsEngine.probability_of_backtest_overfitting(df, n_partitions=4)
+    assert result4["n_combinations"] == 6  # C(4, 2) = 6
+
+    df_big = pd.DataFrame(np.random.normal(0, 0.01, (320, 5)))
+    result8 = MetricsEngine.probability_of_backtest_overfitting(df_big, n_partitions=8)
+    assert result8["n_combinations"] == 70  # C(8, 4) = 70
+
+
+# NOTE: the pre-existing sharpe_ratio `std == 0` exact-equality bug
+# (pandas std on identical floats returns ~2e-19, producing huge unstable
+# Sharpes) is documented in the pre-T-059 test
+# `test_sharpe_known_floating_point_edge_case_for_constant_positive_returns`
+# above (line 171). That test's docstring explicitly flags changing the
+# guard to a tolerance as "a behavior change requiring user approval."
+# So the fix is NOT applied here; surfaced as a propose-first dispatch
+# candidate instead. The new sharpe_ratio_lo_corrected method DOES use
+# the tolerance check internally — that's a new method, no behavior
+# change to existing callers.
