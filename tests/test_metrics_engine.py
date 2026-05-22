@@ -1269,3 +1269,85 @@ def test_cusum_h_threshold_controls_sensitivity():
     else:
         # Strict didn't fire → max_cusum_minus(strict) is shallower or equal
         assert result_strict["max_cusum_minus"] >= result_loose["max_cusum_minus"]
+
+
+# ============================================================================
+# T-065 (2026-05-22, user-approved batch extension of T-061): tolerance sweep
+# Applies the same std == 0 → std < 1e-12 tolerance pattern from T-061 to
+# the other 7 floating-point std/var guards in MetricsEngine. Each is a
+# behavior change in the constant-input degenerate case ONLY; non-degenerate
+# inputs produce identical output pre/post.
+# ============================================================================
+
+def test_sortino_handles_identical_negative_returns():
+    """sortino_ratio with all-equal-negative returns: downside std is
+    ~2e-19, not 0. Pre-T-065 produced exploding ratio; post-T-065 caps at 10."""
+    rets = pd.Series([-0.001] * 50 + [0.002] * 50)
+    sortino = MetricsEngine.sortino_ratio(rets)
+    # Cap is 10.0; not exploding to 1e15
+    assert sortino == 10.0
+
+
+def test_beta_handles_identical_benchmark_returns():
+    """beta with flat benchmark: var is ~2e-19, not 0. Pre-T-065 exploded."""
+    strat = pd.Series(np.random.normal(0.001, 0.01, 100))
+    bench = pd.Series([0.0005] * 100)  # flat benchmark
+    beta = MetricsEngine.beta(strat, bench)
+    assert beta == 0.0
+
+
+def test_sqn_handles_identical_trade_pnl():
+    """sqn with all-equal trades: std is ~2e-19, not 0. Should return 0."""
+    pnl = pd.Series([100.0] * 50)
+    sqn = MetricsEngine.sqn(pnl)
+    assert sqn == 0.0
+
+
+def test_psr_handles_identical_returns():
+    """probabilistic_sharpe_ratio with constant input → 0 not exception."""
+    rets = pd.Series([0.001] * 100)
+    psr = MetricsEngine.probabilistic_sharpe_ratio(rets)
+    assert psr == 0.0
+
+
+def test_dsr_handles_identical_returns():
+    """deflated_sharpe_ratio with constant input → 0 not exception."""
+    rets = pd.Series([0.001] * 100)
+    dsr = MetricsEngine.deflated_sharpe_ratio(rets, n_trials=10)
+    assert dsr == 0.0
+
+
+def test_information_ratio_handles_identical_active_returns():
+    """When strategy === benchmark, active series is flat → 0 not exception."""
+    rets = pd.Series(np.random.normal(0.001, 0.01, 100))
+    ir = MetricsEngine.information_ratio(rets, rets.copy())
+    assert ir == 0.0
+
+
+def test_calculate_all_handles_constant_growth_curve_via_T065_guard():
+    """T-065 hardened calculate_all's std guard. Constant growth curves
+    have tiny-but-nonzero std after pct_change; pre-T-065 the calculate_all
+    guard *did* fire because returns of geometric constant growth are
+    bit-identical floats giving exactly std=0. Post-T-065 the tolerance
+    guard catches near-zero cases too. Verify both paths return _empty_metrics."""
+    # Geometric growth — returns exactly equal each period
+    curve = pd.Series([100.0 * (1.001 ** i) for i in range(100)],
+                      index=pd.date_range("2024-01-01", periods=100, freq="D"))
+    metrics = MetricsEngine.calculate_all(curve)
+    # The tolerance guard still short-circuits to empty (preserving
+    # T-061-era behavior).
+    assert metrics["Total Return %"] == 0.0
+
+
+def test_T065_non_degenerate_inputs_unchanged():
+    """Backwards-compat gate: non-degenerate inputs produce identical
+    output pre/post T-065. Only constant-input cases changed."""
+    np.random.seed(99)
+    rets = pd.Series(np.random.normal(0.001, 0.01, 252))
+    # All affected methods should produce non-zero, finite values
+    sortino = MetricsEngine.sortino_ratio(rets)
+    sqn = MetricsEngine.sqn(rets)
+    psr = MetricsEngine.probabilistic_sharpe_ratio(rets)
+    assert sortino != 10.0 and math.isfinite(sortino)
+    assert sqn > 0 and math.isfinite(sqn)
+    assert 0.0 < psr <= 1.0

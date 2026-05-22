@@ -24,8 +24,13 @@ class MetricsEngine:
             return MetricsEngine._empty_metrics()
             
         returns = equity_curve.pct_change().dropna()
-        if len(returns) < 2 or returns.std() == 0:
-             return MetricsEngine._empty_metrics()
+        # T-065: tolerance, not == 0 (sibling of T-061; same floating-point
+        # std-on-identical-floats issue documented there).
+        if len(returns) < 2:
+            return MetricsEngine._empty_metrics()
+        _std_init = returns.std()
+        if _std_init is None or _std_init < 1e-12 or not np.isfinite(_std_init):
+            return MetricsEngine._empty_metrics()
         
         # 1. Basic Risk/Return
         total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1.0
@@ -203,8 +208,13 @@ class MetricsEngine:
     @staticmethod
     def sortino_ratio(returns: pd.Series, risk_free_rate: float = 0.0, periods: int = 252) -> float:
         downside = returns[returns < 0]
-        if downside.empty or downside.std() == 0: return 10.0 # Capped max
-        return (returns.mean() - risk_free_rate) / downside.std() * np.sqrt(periods)
+        # T-065: tolerance, not == 0 (sibling of T-061).
+        if downside.empty:
+            return 10.0  # Capped max
+        d_std = downside.std()
+        if d_std is None or d_std < 1e-12 or not np.isfinite(d_std):
+            return 10.0  # Capped max
+        return (returns.mean() - risk_free_rate) / d_std * np.sqrt(periods)
 
     @staticmethod
     def max_drawdown(equity_curve: pd.Series) -> float:
@@ -228,7 +238,10 @@ class MetricsEngine:
     def beta(strategy_rets: pd.Series, benchmark_rets: pd.Series) -> float:
         cov = strategy_rets.cov(benchmark_rets)
         var = benchmark_rets.var()
-        if var == 0: return 0.0
+        # T-065: tolerance (sibling of T-061). var of identical floats can be
+        # tiny-but-nonzero, producing exploding beta.
+        if var is None or var < 1e-12 or not np.isfinite(var):
+            return 0.0
         return float(cov / var)
         
     @staticmethod
@@ -383,8 +396,13 @@ class MetricsEngine:
         System Quality Number (Tharp).
         Expectancy / StdDev * sqrt(N)
         """
-        if len(trades_pnl) < 2 or trades_pnl.std() == 0: return 0.0
-        return (trades_pnl.mean() / trades_pnl.std()) * np.sqrt(len(trades_pnl))
+        # T-065: tolerance (sibling of T-061).
+        if len(trades_pnl) < 2:
+            return 0.0
+        s = trades_pnl.std()
+        if s is None or s < 1e-12 or not np.isfinite(s):
+            return 0.0
+        return (trades_pnl.mean() / s) * np.sqrt(len(trades_pnl))
 
     @staticmethod
     def kelly_fraction(win_rate: float, win_loss_ratio: float) -> float:
@@ -413,7 +431,8 @@ class MetricsEngine:
         if returns is None or len(returns) < 4:
             return 0.0
         std = float(returns.std(ddof=1))
-        if std == 0.0:
+        # T-065: tolerance (sibling of T-061).
+        if std < 1e-12 or not np.isfinite(std):
             return 0.0
         n = int(len(returns))
         # Non-annualized (per-period) sample Sharpe — formula is on this scale
@@ -427,7 +446,8 @@ class MetricsEngine:
         if denom_inner <= 0.0:
             return 0.0
         sigma_sr = np.sqrt(denom_inner / (n - 1))
-        if sigma_sr == 0.0:
+        # T-065: tolerance (sibling of T-061).
+        if sigma_sr < 1e-12 or not np.isfinite(sigma_sr):
             return 1.0 if sr_hat > sr_bench else 0.0
         z = (sr_hat - sr_bench) / sigma_sr
         return float(_stats.norm.cdf(z))
@@ -590,7 +610,8 @@ class MetricsEngine:
         # Variance of SR across the trials, approximated by the per-period
         # SR standard error of the observed series
         std = float(returns.std(ddof=1))
-        if std == 0.0:
+        # T-065: tolerance (sibling of T-061).
+        if std < 1e-12 or not np.isfinite(std):
             return 0.0
         sr_hat = float(returns.mean()) / std
         skew = float(_stats.skew(returns, bias=False))
@@ -772,9 +793,13 @@ class MetricsEngine:
         if strategy_rets is None or benchmark_rets is None:
             return 0.0
         active = (strategy_rets - benchmark_rets).dropna()
-        if len(active) < 2 or active.std(ddof=1) == 0.0:
+        if len(active) < 2:
             return 0.0
-        return float(active.mean() / active.std(ddof=1) * np.sqrt(periods))
+        a_std = active.std(ddof=1)
+        # T-065: tolerance (sibling of T-061).
+        if a_std is None or a_std < 1e-12 or not np.isfinite(a_std):
+            return 0.0
+        return float(active.mean() / a_std * np.sqrt(periods))
 
     @staticmethod
     def tail_ratio(returns: pd.Series, percentile: float = 0.05) -> float:
@@ -795,7 +820,9 @@ class MetricsEngine:
         if bot_tail.empty or top_tail.empty:
             return 0.0
         bot_mean = bot_tail.mean()
-        if bot_mean == 0.0:
+        # T-065: tolerance (sibling of T-061). Tail mean of identical-loss
+        # samples can be tiny-but-nonzero; explicitly handle near-zero.
+        if abs(bot_mean) < 1e-12 or not np.isfinite(bot_mean):
             return 0.0
         return float(abs(top_tail.mean()) / abs(bot_mean))
 
