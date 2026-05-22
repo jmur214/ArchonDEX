@@ -22,6 +22,15 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [MEDIUM 2026-05-22 by Agent B] Engine B portfolio-level vol-targeting LANDED (T-055; defense-first OFF, flag-flip gated on T-055b post full A/B)
+- Category: engine completion / Moreira-Muir 2017 infrastructure
+- `engines/engine_b_risk/vol_target.py` ships VolTargetConfig + compute_vol_scale + composer. Wired into `risk_engine.py` Path A (target_weight) AND Path B (ATR-risk) via the new `_compute_portfolio_vol_scalar()` helper. Reads from existing `self.portfolio.history` (same source as drawdown kill switch — no new state plumbing).
+- **Defense-first default**: `portfolio_vol_target_enabled=False` in `config/risk_settings.json`. Determinism gate verified: single-rep Q1 canon md5 = `182af6a1240da35055f716ef9dfcd333` — bitwise identical to T-019 clean-main reference.
+- **Hard constraints met**: does NOT override kill-switch / drawdown-halt (those short-circuit before scalar is applied); no look-ahead (realized vol uses snapshots already in history); 12 new tests pass + 25 existing Engine B tests still pass.
+- **A/B Q1 smoke (T-055)**: ARM_OFF and ARM_ON both produced canon-identical trades.csv. This is BY DESIGN — Q1 (~62 trading days) is below the 60-day warmup gate; the scalar barely fires. The smoke validates wiring/determinism, NOT Sharpe lift.
+- **Sharpe lift validation deferred to T-055c** (full 3-rep × 5-yr × 2-arm = 30-run grid, ~6 hr wall). Expected lift per Moreira-Muir 2017 + dive 2: +0.10-0.20 Sharpe. Bootstrap CI per CLAUDE.md 6th non-negotiable will be required there.
+- Branch `feature/engine-b-vol-targeting` pushed; director merges after review per CLAUDE.md Engine B propose-first rule.
+
 ### [HIGH — DISCOVERY 2026-05-12 EVENING by Agent B] Engine D production `hunt()` does NOT pass `ticker=` to `compute_all_features` — foundry_feature gene type has been a dead-letter office for the entire project arc
 - Category: structural plumbing failure / engine integration
 - Surfaced 2026-05-12 evening by Agent B during T-038-CONT vectorization investigation. Empirical: production hunt() on 53 tickers × 1yr completes in 20.5 sec emitting 3 candidates; the smoke's 65min silent CPU was in a DIFFERENT, still-unprofiled code path.
