@@ -111,15 +111,6 @@ def run_ablation(
     return results
 
 
-def load_ablation(baseline_run_uuid: str,
-                  out_root: Path = ABLATION_ROOT) -> Optional[dict]:
-    """Read back a persisted ablation result, or None if not found."""
-    path = out_root / f"{baseline_run_uuid}.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
-
-
 def latest_ablation(out_root: Path = ABLATION_ROOT) -> Optional[dict]:
     """Return the most-recently written ablation payload, or None."""
     if not out_root.exists():

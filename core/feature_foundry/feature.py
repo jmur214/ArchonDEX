@@ -33,8 +33,8 @@ Tier vocabulary:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from dataclasses import dataclass
+from datetime import date
 from typing import Callable, Dict, List, Optional
 
 import pandas as pd
@@ -57,9 +57,6 @@ class Feature:
     source: str                 # name of the DataSource it consumes
     description: str = ""
     ticker_independent: bool = False
-    registered_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
 
     def __post_init__(self) -> None:
         if self.tier not in VALID_TIERS:

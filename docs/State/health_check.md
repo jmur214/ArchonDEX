@@ -381,6 +381,36 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: "Walk-forward optimization, OOS/IS degradation ratio" (engine_charters.md, Engine D Modules table). Walk-forward by definition requires honoring the rolling window start.
 - Recommended next step: Replace with `full_timeline.get_indexer([start_dt], method='nearest')[0]` (or `np.argmin(np.abs(full_timeline - start_dt))` for clarity). Remove the bare except — if the date is unparseable, the run should fail loudly.
 
+### [LOW 2026-05-23 by code-health] Unused defs / constants sweep — 6 functions + 13 module constants/dataclass fields with zero non-def references
+- Category: dead-code / hygiene
+- Files: 6 unused functions/methods (verified: zero same-file refs AND zero outside-file refs, string-grep aware):
+  - `core/feature_foundry/ablation.py:114` `load_ablation` — superseded by `latest_ablation` / `latest_ablation_for_feature` (the consumed APIs)
+  - `engines/data_manager/data_manager.py:752` `async_prefetch` — async helper, no callers; class is otherwise used
+  - `engines/data_manager/fundamentals/loader.py:38` `ingest_fmp_ratios` — only `FundamentalLoader()` instantiated in scripts/run_shadow_paper.py; this method never invoked. Path-C docs reference the LOADER (not this method) as the SimFin-rewire target
+  - `engines/data_manager/fundamentals/simfin_adapter.py:211` `load_fundamentals` — consumers (`_fundamentals_helpers.py`) use `load_panel` instead
+  - `engines/engine_d_discovery/gate1_signal_cache.py:251` `invalidate_on_universe_change` — wrapper for `clear()`, never invoked
+  - `engines/engine_d_discovery/gate1_signal_cache.py:254` `invalidate_on_window_change` — wrapper for `clear()`, never invoked
+- Files: 13 module-level constants / dataclass fields with zero reads anywhere:
+  - `engines/engine_d_discovery/bayesian_optimizer.py:107` `EARNINGS_INDICATORS`
+  - `engines/engine_f_governance/lifecycle_manager.py:93-94` `LifecycleConfig.retirement_recent_window`, `retirement_decay_std` (dataclass fields)
+  - `engines/engine_f_governance/governor.py:48` `GovernorConfig.max_turnover_per_month` (comment says "informational, not enforced by default")
+  - `engines/engine_c_portfolio/sleeves/moonshot_sleeve.py:37` `DEFAULT_MAX_POSITION_WEIGHT`
+  - `engines/engine_a_alpha/edges/leaps_catalyst_edge.py:60` `_Catalyst.expected_move_pct`
+  - `core/feature_foundry/feature.py:60` `Feature.registered_at` (auto-timestamp dataclass field never serialized — `asdict` only used on AblationResult)
+  - `scripts/factor_decomp_substrate_honest.py:82` `ALPHA_ANNUAL_FLOOR`
+  - `scripts/reset_base_edges.py:49` `SKIP_STATUSES`
+  - `scripts/path_c_synthetic_compounder.py:251-253` `ST_CAP_GAINS_RATE`, `ANNUAL_REBALANCE_MONTH`, `ANNUAL_REBALANCE_DAY_NOMINAL`
+  - `tests/test_anchor_no_stale_composites.py:30` `STALE_STATUSES`
+- Files: 1 obsolete one-shot script: `scripts/run_substrate_arm1_t035.py` — only ref is in a frozen measurement doc (`docs/Measurements/2026-05/substrate_honest_arm1_cockpit_fixed_2026_05_12.md`); no active code or script references
+- First flagged: 2026-05-23
+- Status: **PARTIAL 2026-05-23** — T-079 removed 5 functions (`invalidate_on_universe_change`, `invalidate_on_window_change`, `load_fundamentals`, `load_ablation`, `async_prefetch`), 3 dataclass fields (`Feature.registered_at`, `LifecycleConfig.retirement_{recent_window,decay_std}`, `GovernorConfig.max_turnover_per_month`), and archived `scripts/run_substrate_arm1_t035.py` to `Archive/scripts/`. 69 relevant tests pass. **REMAINING:** `ingest_fmp_ratios` (Medium-risk per agent — Path-C SimFin-rewire template, kept), 13 module-level constants in 8 files (deferred to next sweep).
+- Recommended next step: a future sweep can pick up the 13 deferred unused constants in atomic per-file commits. Excludes: pytest fixtures (auto-injected by name) and in-file helper functions (used only inside their own script's main). Out of scope per agent instructions: Engine B, Engine E, signal_processor.py.
+
+### [LOW 2026-05-23 by code-health] Dead-branches scan came back clean
+- Category: dead-code (sentinel)
+- Files: engines/ (in-scope), core/, scripts/, tests/
+- AST scan for `if False:` / `if 0:` / unreachable-after-return found zero violations across 436 .py files. Good sign; previous cleanup work has held up. No action needed.
+
 ### [LOW] Engine D save_candidates uses print() instead of structured logger; conflicts with DiscoveryLogger
 - Engine: D
 - First flagged: 2026-04-28

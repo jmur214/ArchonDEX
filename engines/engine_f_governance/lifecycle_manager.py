@@ -90,8 +90,6 @@ class LifecycleConfig:
     retirement_min_trades: int = 100
     retirement_min_days: int = 90
     retirement_margin: float = 0.3  # edge_sharpe must be <= benchmark_sharpe - 0.3 to retire
-    retirement_recent_window: int = 30
-    retirement_decay_std: float = 1.0
     retirement_revival_window: int = 15
     retirement_revival_sharpe: float = 0.3
 

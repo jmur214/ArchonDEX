@@ -248,12 +248,6 @@ class Gate1SignalCache:
         self._wrappers.clear()
         self._fingerprint = None
 
-    def invalidate_on_universe_change(self) -> None:
-        self.clear()
-
-    def invalidate_on_window_change(self) -> None:
-        self.clear()
-
     def __len__(self) -> int:
         return len(self._wrappers)
 

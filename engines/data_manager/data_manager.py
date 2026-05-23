@@ -2,8 +2,6 @@
 import os
 from pathlib import Path
 import pandas as pd
-import asyncio
-import concurrent.futures
 import threading
 import time
 from dotenv import load_dotenv
@@ -748,21 +746,3 @@ class DataManager:
             else:
                 out[t] = pd.DataFrame()
         return out
-
-    async def async_prefetch(self, tickers, start, end, timeframe="1d"):
-        """
-        Asynchronously prefetch multiple tickers, using cache when available.
-        """
-        loop = asyncio.get_event_loop()
-        results = {}
-        def fetch_one(ticker):
-            return ticker, self.load_or_fetch(
-                ticker, timeframe, start=start, end=end,
-                fetch_func=lambda t, tf, s, e: self.ensure_data([t], s, e, tf)[t]
-            )
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(tickers))) as executor:
-            futures = [loop.run_in_executor(executor, fetch_one, t) for t in tickers]
-            for f in await asyncio.gather(*futures):
-                t, df = f
-                results[t] = df
-        return results

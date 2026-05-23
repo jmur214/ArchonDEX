@@ -15,7 +15,6 @@ Free tier covers ~3,985 US tickers, ~5 years (2020-mid → present).
 from __future__ import annotations
 
 import os
-from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -206,30 +205,3 @@ def load_panel(force_rebuild: bool = False) -> pd.DataFrame:
     """Load the cached PIT panel (build it if missing)."""
     path = build_and_cache(force=force_rebuild)
     return pd.read_parquet(path)
-
-
-def load_fundamentals(
-    ticker: str,
-    asof_date: date,
-    panel: Optional[pd.DataFrame] = None,
-) -> Optional[dict]:
-    """Return the most recent fundamentals known to the public as of asof_date.
-
-    Uses Publish Date (not Report Date) for PIT correctness. Returns None if
-    no filings have been published for this ticker as of that date.
-    """
-    if panel is None:
-        panel = load_panel()
-
-    asof_ts = pd.Timestamp(asof_date)
-    try:
-        ticker_slice = panel.xs(ticker, level="Ticker")
-    except KeyError:
-        return None
-
-    eligible = ticker_slice[ticker_slice["publish_date"] <= asof_ts]
-    if eligible.empty:
-        return None
-
-    latest = eligible.sort_values("publish_date").iloc[-1]
-    return latest.to_dict()

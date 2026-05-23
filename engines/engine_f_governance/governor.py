@@ -45,7 +45,6 @@ class GovernorConfig:
 
     # optional defenses
     min_trades_in_window: int = 10
-    max_turnover_per_month: float = 100.0  # informational, not enforced by default
     penalize_negative_correlation: bool = False  # set True to downweight negatively corr edges
 
     # regime-conditional governance
