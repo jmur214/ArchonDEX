@@ -102,6 +102,30 @@ class MetaLearnerSettings:
     per_ticker_model_dir: str = "data/governor/per_ticker_metalearners"
 
 
+@dataclass
+class ConfidenceGateConfig:
+    """T-2026-05-12-057 confidence-gated execution.
+
+    Filters bars where fewer than `n_threshold` edges agree on direction.
+    Defense-first default: enabled=False (current weighted_sum behavior
+    preserved). A/B harness toggles ON to validate Sharpe lift.
+
+    Direction is determined by the SIGN of the per-edge raw_score on the
+    current bar — no look-ahead. The gate fires per (ticker, bar): when
+    the max of (long_count, short_count) is below `n_threshold`, the
+    ticker's aggregate signal is forced to no-trade (omitted from
+    output). When `long_count == short_count` (disagreement), the gate
+    also fails — current weighted_sum would have produced ~0 anyway.
+
+    Soft-paused edges are counted as FULL edges for direction-counting
+    purposes (the gate is about signal agreement, not capital
+    allocation). Their position-sizing impact remains scaled by the
+    paused_max_weight ceiling downstream.
+    """
+    enabled: bool = False
+    n_threshold: int = 2  # min edges agreeing on direction to trade
+
+
 # ----------------------------- Processor ----------------------------- #
 
 EDGE_AFFINITY_MAP = {
@@ -134,6 +158,7 @@ class SignalProcessor:
         edge_tiers: Optional[Dict[str, str]] = None,
         paused_edge_ids: Optional[Set[str]] = None,
         paused_max_weight: float = 0.5,
+        confidence_gate: Optional["ConfidenceGateConfig"] = None,
     ):
         self.regime = regime
         self.hygiene = hygiene
@@ -141,6 +166,11 @@ class SignalProcessor:
         self.edge_weights = dict(edge_weights or {})
         self.regime_gates = dict(regime_gates or {})
         self.debug = bool(debug)
+        # T-057 confidence gate. Defense-first default: disabled.
+        self.confidence_gate = confidence_gate or ConfidenceGateConfig()
+        # Diagnostic counters for the A/B harness.
+        self._confidence_gate_bars_passed: int = 0
+        self._confidence_gate_bars_filtered: int = 0
         # Phase 2.10d Primitive 2 — soft-pause weight ceiling.
         # Edges in `paused_edge_ids` (lifecycle status=paused) have their
         # effective per-bar weight capped at `paused_max_weight` AFTER all
@@ -402,6 +432,49 @@ class SignalProcessor:
         # tanh-like squashing (scaled)
         return float(np.tanh(r / clamp))
 
+    # ---- T-057 confidence gate ---- #
+
+    def _check_confidence_gate(self, edge_map: Dict[str, float]) -> bool:
+        """Return True iff at least `n_threshold` edges agree on direction
+        on this (ticker, bar). Disagreement (long_count == short_count)
+        OR insufficient agreement → returns False (no-trade).
+
+        Pre-T-057 behavior is preserved when `enabled=False`: function
+        returns True unconditionally → all bars pass through to the
+        existing weighted_sum aggregation.
+
+        Direction uses the SIGN of the per-edge raw_score on the current
+        bar — no look-ahead.
+
+        Soft-paused edges count as FULL edges for direction-counting
+        purposes (the gate is about signal AGREEMENT, not capital
+        allocation; their downstream weight is scaled separately).
+        """
+        if not self.confidence_gate.enabled:
+            return True
+        long_count = 0
+        short_count = 0
+        for raw in edge_map.values():
+            if raw is None:
+                continue
+            try:
+                v = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if np.isnan(v) or np.isinf(v):
+                continue
+            if v > 0:
+                long_count += 1
+            elif v < 0:
+                short_count += 1
+        n = self.confidence_gate.n_threshold
+        # Disagreement (equal long/short counts) fails even if max >= n.
+        # The weighted sum would have netted to ~0 anyway; explicit
+        # no-trade is cleaner.
+        if long_count == short_count:
+            return False
+        return max(long_count, short_count) >= n
+
     # ---- public ---- #
 
     def process(
@@ -420,6 +493,19 @@ class SignalProcessor:
             df = data_map.get(ticker)
             if df is None or df.empty or not self._enough_history(df):
                 continue
+
+            # T-057 confidence gate. When enabled and the per-ticker
+            # raw-score map shows fewer than n_threshold edges agreeing
+            # on direction, skip this (ticker, bar) entirely — no
+            # weighted_sum, no per-ticker entry in `out`. When disabled
+            # (default), this is a no-op passthrough.
+            if not self._check_confidence_gate(edge_map):
+                self._confidence_gate_bars_filtered += 1
+                if self.debug:
+                    print(f"[CONFIDENCE_GATE] {ticker} {now} BLOCKED "
+                          f"n_threshold={self.confidence_gate.n_threshold}")
+                continue
+            self._confidence_gate_bars_passed += 1
 
             trend_ok = self._trend_ok(df)
             vol_ok = self._vol_ok(df)
