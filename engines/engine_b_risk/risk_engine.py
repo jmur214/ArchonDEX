@@ -99,6 +99,11 @@ class RiskConfig:
     portfolio_vol_target_ceiling: float = 2.0            # don't lever above 200%
     portfolio_vol_target_min_returns_required: int = 60  # warmup gate
 
+    # T-2026-05-22-055d additions — EWMA estimator alternative for the
+    # vol-target overlay. Defaults preserve T-055 behavior (rolling).
+    portfolio_vol_target_estimator_type: str = "rolling"
+    portfolio_vol_target_ewma_lambda: float = 0.94       # RiskMetrics standard
+
 
 class RiskEngine:
     """
@@ -398,6 +403,8 @@ class RiskEngine:
                 leverage_floor=self.cfg.portfolio_vol_target_floor,
                 leverage_ceiling=self.cfg.portfolio_vol_target_ceiling,
                 min_returns_required=self.cfg.portfolio_vol_target_min_returns_required,
+                estimator_type=self.cfg.portfolio_vol_target_estimator_type,
+                ewma_lambda=self.cfg.portfolio_vol_target_ewma_lambda,
             )
             history = getattr(self.portfolio, "history", None) or []
             return compute_portfolio_vol_scale(history, vt_cfg)

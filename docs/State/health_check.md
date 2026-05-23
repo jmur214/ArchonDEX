@@ -22,6 +22,16 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [MEDIUM 2026-05-22 LATE by Agent B] T-055d EWMA estimator A/B — EWMA strictly dominates rolling but ci_low still touches zero
+- Category: engine-completion measurement / Moreira-Muir lift verification — EWMA alternative
+- 15 fresh EWMA-arm backtests (arm0 OFF reused from T-055c); 10/10 cells canon-stable.
+- **EWMA wins on every metric**: Δ Sharpe point +0.289 (vs rolling +0.256), ci_low -0.046 (vs -0.140; 67 % tighter), Δ MDD -0.03pp (vs rolling -0.62pp).
+- **Key wins**: 2024 fragility rescue AMPLIFIED (+1.622 vs rolling +1.303) and **2025 vol-shock trap FIXED** (-0.128 vs rolling -0.942). The catastrophic outlier that drove T-055c's wide CI is gone under EWMA.
+- **Trade-offs**: EWMA loses some 2021 bull lever-up (+0.289 vs +0.915) and gets 2022 bear WORSE (-0.594 vs -0.129) because the faster estimator misses partial recoveries.
+- Verdict **MARGINAL** per strict CLAUDE.md #6: ci_low(-0.046) still < 0; T-055b autonomous-recommend NOT cleared. **Director's call**: hold for T-055e (regime-conditional target) layered on EWMA, or surface to user with the +0.094 ci_low improvement evidence.
+- Branch `feature/engine-b-vol-target-ewma-t055d` pushed.
+- Audit: `docs/Audit/engine_b_vol_target_ewma_t055d_2026_05_22.md`.
+
 ### [MEDIUM 2026-05-22 LATE by Agent B] T-055c A/B lift verification — MARGINAL verdict, T-055b flag-flip NOT YET recommended
 - Category: engine-completion measurement / Moreira-Muir 2017 verification
 - 30-backtest grid (3-rep × 5-yr × 2-arm) — 10/10 cells canon-stable.

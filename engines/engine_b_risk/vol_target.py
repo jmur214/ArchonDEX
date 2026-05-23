@@ -40,6 +40,18 @@ class VolTargetConfig:
 
     Defense-first: defaults to disabled. Director flag-flips after the
     A/B harness confirms expected Moreira-Muir +0.10-0.20 Sharpe lift.
+
+    `estimator_type` (T-2026-05-22-055d) selects between:
+      * "rolling" (default, T-055 behavior): equal-weighted stdev over
+        a trailing `realized_vol_window_days` window.
+      * "ewma": RiskMetrics 1996 EWMA, σ²_t = λσ²_{t-1} + (1-λ)r²_t.
+        Faster vol-up response (λ=0.94 half-life ≈ 11 days). Addresses
+        the T-055c 2025 vol-shock failure mode (Harvey-et-al-2018
+        vol-expansion trap).
+
+    Production default stays "rolling" so default-OFF callers (and
+    enabled-but-unspecified callers) keep the T-055 / T-055c
+    behavior. EWMA opts in via config.
     """
     enabled: bool = False
     target_annual_vol: float = 0.10
@@ -51,6 +63,11 @@ class VolTargetConfig:
     # falls back to 1.0 (no-op). Default = window_days so we don't
     # compute on a partial window.
     min_returns_required: int = 60
+    # T-055d: estimator selection. "rolling" preserves T-055 default.
+    estimator_type: str = "rolling"
+    # T-055d: EWMA decay factor (RiskMetrics standard).
+    # Effective half-life = ln(0.5) / ln(λ) ≈ 11.2 days for λ=0.94.
+    ewma_lambda: float = 0.94
 
 
 def compute_vol_scale(
@@ -147,6 +164,56 @@ def compute_realized_vol_from_history(
     return sigma_daily * np.sqrt(TRADING_DAYS_PER_YEAR)
 
 
+def compute_realized_vol_from_history_ewma(
+    history: Sequence[Dict[str, Any]],
+    ewma_lambda: float,
+    min_returns_required: int,
+) -> Optional[float]:
+    """Annualized realized portfolio vol via RiskMetrics 1996 EWMA.
+
+    σ²_t = λ · σ²_{t-1} + (1 - λ) · r²_t
+
+    Initialized as σ²_0 = r²_0 (the first observed daily return
+    squared) — equivalent to assuming the pre-history state matches
+    the first observation. Subsequent observations decay it
+    exponentially with weight λ. Default λ=0.94 (RiskMetrics
+    standard, half-life ≈ 11.2 days).
+
+    Uses ALL daily-cadence returns in history (no window cutoff), so
+    the recursive update can warm up over the full available series.
+    Returns None when fewer than `min_returns_required` returns are
+    available — matches the rolling estimator's warmup discipline.
+
+    Same no-look-ahead guarantee as `compute_realized_vol_from_history`:
+    operates only on `history` already present at call time, which is
+    the prior-bar snapshot list at `prepare_order` time.
+    """
+    if not 0.0 < ewma_lambda < 1.0:
+        # Degenerate λ values would collapse to one-sided estimators
+        # or zero variance — refuse to fire rather than emit garbage.
+        return None
+    equity_series = _equity_at_end_of_each_day(history)
+    if len(equity_series) < min_returns_required + 1:
+        return None
+    eq_arr = np.asarray(equity_series, dtype=float)
+    if np.any(eq_arr <= 0.0):
+        return None
+    daily_returns = np.diff(eq_arr) / eq_arr[:-1]
+    if len(daily_returns) < min_returns_required:
+        return None
+    # EWMA variance recursion. Vectorized via numpy iteration —
+    # explicit loop is clearer than scipy.signal.lfilter for this
+    # short series (≤ 2000 days), and avoids a scipy dependency.
+    sigma2 = float(daily_returns[0] ** 2)
+    one_minus_lambda = 1.0 - ewma_lambda
+    for r in daily_returns[1:]:
+        sigma2 = ewma_lambda * sigma2 + one_minus_lambda * float(r) ** 2
+    sigma_daily = float(np.sqrt(sigma2))
+    if sigma_daily <= 0.0 or not np.isfinite(sigma_daily):
+        return None
+    return sigma_daily * np.sqrt(TRADING_DAYS_PER_YEAR)
+
+
 def compute_portfolio_vol_scale(
     history: Sequence[Dict[str, Any]],
     cfg: VolTargetConfig,
@@ -159,14 +226,26 @@ def compute_portfolio_vol_scale(
       * realized vol is zero / non-finite
 
     Otherwise returns the bounded scale per `compute_vol_scale`.
+
+    Dispatches between the rolling estimator (T-055 default) and the
+    EWMA estimator (T-055d) per `cfg.estimator_type`. Unknown values
+    fall back to "rolling" for safety — preserves no-op invariant when
+    a stale config slips through.
     """
     if not cfg.enabled:
         return 1.0
-    realized_vol = compute_realized_vol_from_history(
-        history,
-        window_days=cfg.realized_vol_window_days,
-        min_returns_required=cfg.min_returns_required,
-    )
+    if getattr(cfg, "estimator_type", "rolling") == "ewma":
+        realized_vol = compute_realized_vol_from_history_ewma(
+            history,
+            ewma_lambda=cfg.ewma_lambda,
+            min_returns_required=cfg.min_returns_required,
+        )
+    else:
+        realized_vol = compute_realized_vol_from_history(
+            history,
+            window_days=cfg.realized_vol_window_days,
+            min_returns_required=cfg.min_returns_required,
+        )
     return compute_vol_scale(
         realized_vol=realized_vol,
         target_vol=cfg.target_annual_vol,
