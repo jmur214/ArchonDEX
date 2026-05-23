@@ -171,6 +171,25 @@ See `task_queue.md.template`.
 
 ---
 
+## Cloud-compute (any session)
+
+For any campaign that's parallelizable into ≥ 4 cells AND total local sequential wall-time > 2 hours, **prefer cloud** — AWS Batch parallel infra has been live since 2026-05-09 (`Dockerfile.backtest` + `scripts/submit_substrate_run.py` + ECR + S3 + Batch queue).
+
+Quick reference: [`docs/Cloud/CLOUD_USAGE.md`](../Cloud/CLOUD_USAGE.md). Pre-flight from any worktree:
+
+```bash
+aws sts get-caller-identity --profile archondex      # must return account 407539788432
+aws batch describe-job-queues --profile archondex \
+  --region us-east-1 --job-queues archondex-backtest-queue \
+  --query 'jobQueues[0].state' --output text         # must return ENABLED
+```
+
+Director, A, and B all share `~/.aws/credentials` (user-level Mac state, visible from every worktree). No per-session AWS setup needed. The container `:dev` tag is auto-rebuilt on every main push via `.github/workflows/build_backtest_image.yml`; if the workflow isn't running, the manual rebuild path is in CLOUD_USAGE.md.
+
+For local-only situations (single backtest, mid-iteration debugging, < 4 cells), stay local — orchestration overhead dominates.
+
+---
+
 ## When to use multi-session vs in-session subagent
 
 The decision tree from `MULTI_SESSION_ORCHESTRATION.md` still applies. This continuous-coordination model is for ongoing parallel work. For single-shot tasks that fit in one director turn, in-session subagents (`Agent` tool with `Explore`, `code-health`, etc.) are still the right choice — zero setup cost.

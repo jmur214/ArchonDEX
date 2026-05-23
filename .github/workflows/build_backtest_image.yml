@@ -1,0 +1,92 @@
+# Auto-rebuild + push the archondex-backtest:dev image to ECR on every
+# main-branch push that touches code the image bakes in.
+#
+# Purpose: the Dockerfile.backtest bakes project source + data/processed +
+# governor templates at build time. If the image isn't kept in sync with
+# main, every cloud campaign risks running stale code (e.g., the May-9
+# image missing T-054 ticker= fix, T-055/T-055d vol-target, etc.).
+#
+# This workflow keeps :dev within minutes of main HEAD.
+#
+# Prerequisite secrets (configure in repo settings → Secrets → Actions):
+#   AWS_ROLE_TO_ASSUME — ARN of an IAM role with ECR push permissions for
+#                        archondex-backtest. Federated via OIDC (no
+#                        long-lived access keys in CI).
+#
+# Manual fallback path is documented in docs/Cloud/CLOUD_USAGE.md →
+# "Refreshing the image" → "Manual".
+
+name: Build & push backtest image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # The image bakes these → rebuild when they change.
+      - "Dockerfile.backtest"
+      - "requirements.lock.txt"
+      - "scripts/cloud_entrypoint.sh"
+      - "scripts/run_isolated.py"
+      - "core/**"
+      - "engines/**"
+      - "data/processed/**"
+      - "data/governor/_isolated_anchor/**"
+      - ".github/workflows/build_backtest_image.yml"
+  # Manual trigger for "I need this rebuilt right now" cases.
+  workflow_dispatch:
+
+# Concurrency: cancel any in-flight build when a newer commit arrives.
+# Each main push only needs the latest image.
+concurrency:
+  group: build-backtest-image
+  cancel-in-progress: true
+
+permissions:
+  # Required for the OIDC federation to AWS.
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: 407539788432.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPOSITORY: archondex-backtest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx (for layer cache)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build + push :dev (+ :sha tag for traceability)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.backtest
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:dev
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:sha-${{ github.sha }}
+          # Use the GitHub Actions cache backend so consecutive builds
+          # only re-do the layers actually affected by the commit.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "::notice title=Image pushed::Image ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:dev and :sha-${{ github.sha }} pushed to ECR. Next cloud campaign will use this image."

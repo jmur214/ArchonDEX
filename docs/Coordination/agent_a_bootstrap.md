@@ -95,14 +95,36 @@ At the top of EVERY user message:
 
 You don't need user approval for these *within the scope of your assigned task*. If a task assigns you a fix and you notice an adjacent debt item, document it in the outbox's "Notes for director" section but don't expand scope unilaterally.
 
+## Cloud-compute (when your task is a parallel campaign)
+
+If your brief involves a parallelizable campaign (≥ 4 cells, total local wall-time > 2 hr), prefer the cloud path. AWS Batch infra has been live since 2026-05-09. Quick reference: `docs/Cloud/CLOUD_USAGE.md`.
+
+Pre-flight from your worktree (uses the shared `~/.aws/credentials`):
+```bash
+aws sts get-caller-identity --profile archondex     # account 407539788432 expected
+```
+
+Launch:
+```bash
+python scripts/submit_substrate_run.py --reps 3 --arms 1,2
+# For non-substrate campaigns, copy submit_substrate_run.py → submit_<campaign>_run.py
+# and adapt the Cell dataclass (see CLOUD_USAGE.md "Adapting the launcher").
+```
+
+If `:dev` is stale relative to your branch (compare `aws ecr describe-images` timestamp to your last commit on main), rebuild + push BEFORE submitting — instructions in CLOUD_USAGE.md "Refreshing the image". Auto-rebuild on main push is wired via `.github/workflows/build_backtest_image.yml`.
+
+For local-only situations (single backtest, mid-iteration debugging, < 4 cells), stay local.
+
 ## Quick reference
 
 - Bootstrap path: `docs/Coordination/agent_a_bootstrap.md` (this file)
 - Protocol: `docs/Coordination/PROTOCOL.md`
+- Cloud usage: `docs/Cloud/CLOUD_USAGE.md`
 - Your inbox: `data/coordination/agent_a_inbox.md`
 - Your outbox: `data/coordination/agent_a_outbox.md`
 - Workspace check: `pwd && git rev-parse --show-toplevel && git branch --show-current`
 - Rebase: `git fetch origin main && git rebase origin/main`
+- AWS pre-flight: `aws sts get-caller-identity --profile archondex`
 - Commit attribution: `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
 
 Ready to work. Read your inbox now.

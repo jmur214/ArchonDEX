@@ -181,6 +181,18 @@ Default decision: trivial work → do it directly. Small synthesizable
 task → in-session subagent. Multiple long-running independent tasks 
 → multi-session orchestration.
 
+**Parallel campaigns default to cloud.** For any campaign that's 
+parallelizable into ≥ 4 cells AND total local sequential wall-time 
+> 2 hours, default to AWS Batch via 
+`scripts/submit_substrate_run.py` (or a campaign-adapted copy). 
+The infra has been live since 2026-05-09 — `Dockerfile.backtest`, 
+`scripts/submit_substrate_run.py`, ECR, S3, Batch queue. Quick 
+reference: `docs/Cloud/CLOUD_USAGE.md`. Pre-flight: 
+`aws sts get-caller-identity --profile archondex` must succeed. 
+Sessions share `~/.aws/credentials` (user-level Mac state). For 
+local-only situations (single backtest, mid-iteration debugging, 
+< 4 cells), stay local — orchestration overhead dominates.
+
 Preserving director-context budget across long projects is part of 
 how this system stays usable. Pick the pattern that minimizes 
 director context cost while making real forward progress.
