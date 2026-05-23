@@ -1,5 +1,13 @@
 # Cloud-compute scoping — minimum viable migration of long backtest sweeps
 
+> **⚠️ SUPERSEDED 2026-05-22 (same day).** This doc was written without searching the repo for existing cloud infrastructure. AWS-Batch parallel infra had already been built and verified in commit `e0d9ab3` (2026-05-09): `Dockerfile.backtest`, `requirements.lock.txt`, `scripts/submit_substrate_run.py`, `scripts/cloud_entrypoint.sh`, `docs/Cloud/CLOUD_RUNBOOK.md`, AWS account `407539788432`, IAM user `claude-code-cli`, S3 buckets, Batch queue `archondex-backtest-queue`. The recommendation below to spike GitHub Actions was actively wrong — we already chose AWS Batch and built it.
+>
+> **What's actually needed now:** validate that the existing infra still works end-to-end in a real campaign (Phase 1-6 was unit-spike-verified, never run for a full substrate measurement — zero historical jobs in the Batch queue). The next A/B campaign is the natural validation. The right next doc is a *"first-cloud-campaign runbook"*, not a clean-slate scoping.
+>
+> **Discipline failure logged:** `feedback_search_existing_infra_before_scoping_2026_05_22.md` in memory.
+
+---
+
 **Status:** SCOPING. Not a build plan; a "what would it take" so we can decide whether to invest before the next long-running sweep.
 **Date:** 2026-05-22
 **Trigger:** Agent A's current chain (T-041c-archive → T-053 → T-057) projects to ~12 hours on the user's MacBook. T-055c required 30 backtests × ~15 min each. Multi-hour-on-laptop is the current dominant cost; cloud parallelism would collapse it to wall-time-of-longest-run.
