@@ -19,7 +19,7 @@ import argparse
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 def load_jsonl(p: Path) -> List[dict]:
