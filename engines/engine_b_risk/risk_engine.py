@@ -104,6 +104,17 @@ class RiskConfig:
     portfolio_vol_target_estimator_type: str = "rolling"
     portfolio_vol_target_ewma_lambda: float = 0.94       # RiskMetrics standard
 
+    # T-2026-05-23-055e additions — regime-conditional target multiplier.
+    # When `portfolio_vol_target_regime_aware=True`, the base
+    # `portfolio_vol_target_annual_vol` is multiplied by one of the four
+    # multipliers below based on advisory["regime_summary"]. Defaults
+    # preserve T-055d behavior (regime_aware=False → multiplier ignored).
+    portfolio_vol_target_regime_aware: bool = False
+    portfolio_vol_target_benign_multiplier: float = 1.0
+    portfolio_vol_target_cautious_multiplier: float = 0.85
+    portfolio_vol_target_stressed_multiplier: float = 0.60
+    portfolio_vol_target_crisis_multiplier: float = 0.40
+
 
 class RiskEngine:
     """
@@ -375,7 +386,9 @@ class RiskEngine:
         except Exception:
             return 0
 
-    def _compute_portfolio_vol_scalar(self) -> float:
+    def _compute_portfolio_vol_scalar(
+        self, advisory: Optional[Dict[str, Any]] = None,
+    ) -> float:
         """T-2026-05-12-055: portfolio-level vol-target sizing modifier.
 
         Returns 1.0 (no-op passthrough) when:
@@ -387,6 +400,11 @@ class RiskEngine:
         This is a SIZING MODIFIER — it NEVER overrides kill-switch or
         drawdown-halt. Those gates run elsewhere in prepare_order and
         short-circuit before this scalar is applied.
+
+        T-2026-05-23-055e: optional `advisory` kwarg threads the
+        Engine E regime_summary through to the regime-conditional
+        target multiplier. When `portfolio_vol_target_regime_aware=False`
+        (default) OR advisory is None, behavior is identical to T-055d.
         """
         if not self.cfg.portfolio_vol_target_enabled:
             return 1.0
@@ -405,9 +423,14 @@ class RiskEngine:
                 min_returns_required=self.cfg.portfolio_vol_target_min_returns_required,
                 estimator_type=self.cfg.portfolio_vol_target_estimator_type,
                 ewma_lambda=self.cfg.portfolio_vol_target_ewma_lambda,
+                regime_aware=self.cfg.portfolio_vol_target_regime_aware,
+                benign_target_multiplier=self.cfg.portfolio_vol_target_benign_multiplier,
+                cautious_target_multiplier=self.cfg.portfolio_vol_target_cautious_multiplier,
+                stressed_target_multiplier=self.cfg.portfolio_vol_target_stressed_multiplier,
+                crisis_target_multiplier=self.cfg.portfolio_vol_target_crisis_multiplier,
             )
             history = getattr(self.portfolio, "history", None) or []
-            return compute_portfolio_vol_scale(history, vt_cfg)
+            return compute_portfolio_vol_scale(history, vt_cfg, advisory=advisory)
         except _PROGRAMMER_ERRORS:
             # Same fail-loud discipline as the drawdown kill switch: a
             # TypeError / AttributeError here is a bug in vol_target
@@ -763,7 +786,12 @@ class RiskEngine:
         # / drawdown-halt logic. Reads from self.portfolio.history with
         # the same defensive try/except discipline as the drawdown
         # kill switch above.
-        portfolio_vol_scalar = self._compute_portfolio_vol_scalar()
+        # T-055e: pass the advisory dict (already extracted at line 707
+        # for position-cap / risk-scalar consumers) through to the
+        # vol-target overlay. When cfg.portfolio_vol_target_regime_aware
+        # is False (default), the overlay ignores the advisory and
+        # behaves identically to T-055d.
+        portfolio_vol_scalar = self._compute_portfolio_vol_scalar(advisory=advisory)
 
         # --- Sizing path A: align to target weights (if provided/enabled) ---
         add_qty: int
