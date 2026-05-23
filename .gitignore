@@ -50,3 +50,11 @@ Archive/
 #   data/coordination/  → gitignored (already covered by `data/` rule above);
 #                         holds inbox/outbox/queue files symlinked across
 #                         agent worktrees. See docs/Coordination/PROTOCOL.md.
+#
+# Guard rail (T-073): if a director accidentally writes a runtime inbox/
+# outbox/queue file into docs/Coordination/ instead of data/coordination/,
+# gitignore it so the orphan can't be committed. The runtime files belong
+# under data/coordination/ only — symlinked from each agent worktree.
+docs/Coordination/agent_*_inbox.md
+docs/Coordination/agent_*_outbox.md
+docs/Coordination/task_queue.md

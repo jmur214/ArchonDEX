@@ -21,6 +21,8 @@ The user is the message bus between sessions. The protocol is hybrid:
 - **Tracked protocol docs** live in `docs/Coordination/` (this file, bootstraps, queue template).
 - **Lightweight signals** ("check your inbox", "T-XYZ done — look at outbox") flow through the user.
 
+> **⚠️ Path-trap warning for the director.** The two directories — `data/coordination/` (lowercase, runtime) and `docs/Coordination/` (capitalized, tracked) — are an easy confusion. Briefs MUST be written to `data/coordination/agent_<x>_inbox.md`, NOT to `docs/Coordination/`. As of T-073 (2026-05-22) the .gitignore catches the mistake (`docs/Coordination/agent_*_inbox.md` is now gitignored), but the brief still won't reach the agent if it lands in the wrong dir — the inode symlinks only point through `data/coordination/`. If you write a brief and the agent reports "still showing old content," check the path before re-writing.
+
 ---
 
 ## File layout
