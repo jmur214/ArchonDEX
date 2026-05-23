@@ -22,6 +22,21 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH 2026-05-23 by Agent B] T-055e regime-conditional vol-target — CLEARS CLAUDE.md #6 gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
+- Category: engine-completion / first T-055-series result to clear strict ci_low > 0
+- 15 fresh arm1 backtests (EWMA + regime_aware) reusing T-055d arm0. 10/10 cells canon-stable.
+- **Δ Sharpe = +0.549 with ci_low +0.047 (>0)** — first regime-conditional layer to clear the gate. ALL THREE headline metrics (Sharpe, CAGR, MDD) have ci_low > 0.
+- **Progressive improvement T-055c → T-055d → T-055e**:
+  - T-055c rolling: Δ +0.256, ci_low -0.140
+  - T-055d EWMA: Δ +0.289, ci_low -0.046
+  - T-055e regime+EWMA: **Δ +0.549, ci_low +0.047**
+- **MDD improves in every single year** (+0.38 to +2.74pp range, +1.11pp mean, ci_low +0.68pp). Harvey-et-al-2018 defensive value finally showing up consistently.
+- **2022 outlier (-0.997 Sharpe)** is the only per-year loss — regime-conditional over-degrosses in sustained bear, missing partial recoveries. Worst per-year loss in entire T-055 series. Cost of the policy's 2021/2024 wins.
+- **2024 rescue preserved** (+1.564 vs T-055d +1.622) AND **2025 trap-elimination preserved** (-0.198 vs T-055d -0.128) — both T-055d wins survive the regime-conditional layer.
+- **T-055b flag-flip is now defensible** per strict CLAUDE.md #6. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
+- Branch `feature/engine-b-vol-target-regime-conditional-t055e` pushed.
+- Audit: `docs/Audit/engine_b_vol_target_regime_conditional_t055e_2026_05_23.md`.
+
 ### [MEDIUM 2026-05-22 LATE by Agent B] T-055d EWMA estimator A/B — EWMA strictly dominates rolling but ci_low still touches zero
 - Category: engine-completion measurement / Moreira-Muir lift verification — EWMA alternative
 - 15 fresh EWMA-arm backtests (arm0 OFF reused from T-055c); 10/10 cells canon-stable.

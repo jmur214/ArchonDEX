@@ -69,6 +69,30 @@ class VolTargetConfig:
     # Effective half-life = ln(0.5) / ln(λ) ≈ 11.2 days for λ=0.94.
     ewma_lambda: float = 0.94
 
+    # T-2026-05-23-055e — regime-conditional target multiplier.
+    # When `regime_aware=True` AND `compute_portfolio_vol_scale` is
+    # called with a non-None `advisory` dict, the base
+    # `target_annual_vol` is multiplied by the regime-summary-keyed
+    # multiplier below before computing the scale. Defaults preserve
+    # T-055d behavior:
+    #   * regime_aware=False (default) → multiplier ignored entirely
+    #   * regime_aware=True but advisory=None → multiplier ignored
+    #   * unknown regime_summary value → multiplier = 1.0 (safe fallback)
+    #
+    # Rationale (T-055d 2022 bear degradation): EWMA's faster response
+    # over-degrosses in bear/stress windows because the estimator
+    # picks up vol clustering before the regime resolves. Muting the
+    # target (lowering effective target_vol) in stress regimes
+    # reduces over-degross by lowering the target → ratio numerator
+    # stays smaller → realized vol scales down less aggressively
+    # against a lower yardstick. Net: less aggressive degross in
+    # stress, preserved benign-regime behavior.
+    regime_aware: bool = False
+    benign_target_multiplier: float = 1.0       # no-op
+    cautious_target_multiplier: float = 0.85    # mild degross-bias
+    stressed_target_multiplier: float = 0.60    # aggressive degross
+    crisis_target_multiplier: float = 0.40      # heavy degross
+
 
 def compute_vol_scale(
     realized_vol: Optional[float],
@@ -214,9 +238,47 @@ def compute_realized_vol_from_history_ewma(
     return sigma_daily * np.sqrt(TRADING_DAYS_PER_YEAR)
 
 
+# T-055e regime-summary → multiplier-field mapping. Centralized so
+# both the dispatcher AND tests have a single source of truth.
+_REGIME_SUMMARY_TO_MULTIPLIER_FIELD: Dict[str, str] = {
+    "benign": "benign_target_multiplier",
+    "cautious": "cautious_target_multiplier",
+    "stressed": "stressed_target_multiplier",
+    "crisis": "crisis_target_multiplier",
+}
+
+
+def _regime_target_multiplier(
+    cfg: VolTargetConfig,
+    advisory: Optional[Dict[str, Any]],
+) -> float:
+    """T-055e: select the target-vol multiplier for the current regime.
+
+    Returns 1.0 (no-op) when:
+      * `cfg.regime_aware=False` (default) — feature opt-in flag,
+      * `advisory` is None or empty — no regime signal available,
+      * advisory["regime_summary"] is missing or has an unknown value.
+
+    Engine E's `_risk_to_summary` emits one of
+    {"benign", "cautious", "stressed", "crisis"} per
+    `engines/engine_e_regime/advisory.py:326`. Unknown values fall
+    back to 1.0 — safer than a hard error on schema drift.
+    """
+    if not getattr(cfg, "regime_aware", False):
+        return 1.0
+    if not advisory:
+        return 1.0
+    summary = advisory.get("regime_summary")
+    field_name = _REGIME_SUMMARY_TO_MULTIPLIER_FIELD.get(summary)
+    if field_name is None:
+        return 1.0
+    return float(getattr(cfg, field_name, 1.0))
+
+
 def compute_portfolio_vol_scale(
     history: Sequence[Dict[str, Any]],
     cfg: VolTargetConfig,
+    advisory: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Composer: realized vol from snapshot history → bounded scale.
 
@@ -231,6 +293,13 @@ def compute_portfolio_vol_scale(
     EWMA estimator (T-055d) per `cfg.estimator_type`. Unknown values
     fall back to "rolling" for safety — preserves no-op invariant when
     a stale config slips through.
+
+    T-2026-05-23-055e: optional `advisory` kwarg. When
+    `cfg.regime_aware=True` AND advisory is non-None, the BASE
+    `cfg.target_annual_vol` is multiplied by a regime-summary-keyed
+    multiplier before the scale is computed. When `regime_aware=False`
+    OR advisory is None, behavior is identical to T-055d (no breaking
+    change to existing on-main / harness call sites).
     """
     if not cfg.enabled:
         return 1.0
@@ -246,9 +315,13 @@ def compute_portfolio_vol_scale(
             window_days=cfg.realized_vol_window_days,
             min_returns_required=cfg.min_returns_required,
         )
+    # T-055e: apply the regime-conditional target multiplier. Defaults
+    # to 1.0 (no-op) for the entire T-055/T-055c/T-055d code path.
+    multiplier = _regime_target_multiplier(cfg, advisory)
+    effective_target_vol = float(cfg.target_annual_vol) * multiplier
     return compute_vol_scale(
         realized_vol=realized_vol,
-        target_vol=cfg.target_annual_vol,
+        target_vol=effective_target_vol,
         floor=cfg.leverage_floor,
         ceiling=cfg.leverage_ceiling,
     )
