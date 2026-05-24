@@ -278,8 +278,17 @@ def _print_state(label: str, journal_mode: bool = False) -> None:
         print(f"  {name}: {_md5(GOV_DIR / name)}")
 
 
-def _run_q1_inside_context(apply_journal_at_end: bool = False) -> dict:
-    """Run a 2025 OOS Q1 backtest (the canonical validation case).
+def _run_q1_inside_context(
+    apply_journal_at_end: bool = False,
+    override_start: str = "2025-01-01",
+    override_end: str = "2025-12-31",
+) -> dict:
+    """Run a single-year backtest inside the isolation context.
+
+    Despite the legacy "q1" name (kept for backward compatibility — the
+    function used to be 2025-only), this now accepts override_start /
+    override_end so a single isolation context can serve any year window.
+    Defaults preserve the original 2025 calendar-year behavior.
 
     apply_journal_at_end: F11 Phase 2 acceptance gate. When True, the
     backtest routes governance decisions through the LifecycleJournal
@@ -292,7 +301,7 @@ def _run_q1_inside_context(apply_journal_at_end: bool = False) -> dict:
     return mc.run_backtest(
         mode="prod", fresh=False, no_governor=False, reset_governor=True,
         alpha_debug=False,
-        override_start="2025-01-01", override_end="2025-12-31",
+        override_start=override_start, override_end=override_end,
         apply_journal_at_end=apply_journal_at_end,
     )
 
@@ -357,7 +366,37 @@ def main() -> int:
                              "decisions through the LifecycleJournal "
                              "instead of mutating edges.yml directly. "
                              "Applies journal at end-of-run.")
+    parser.add_argument(
+        "--year", type=int, default=None,
+        help="Run a specific calendar year (e.g., --year 2022). "
+             "Sets override_start=YYYY-01-01 and override_end=YYYY-12-31. "
+             "Mutually exclusive with --start-date / --end-date. Defaults "
+             "to 2025 when neither is given (legacy q1 behavior).",
+    )
+    parser.add_argument(
+        "--start-date", default=None,
+        help="Override start date (YYYY-MM-DD). Use with --end-date for "
+             "non-calendar-year windows. Overrides --year if both given.",
+    )
+    parser.add_argument(
+        "--end-date", default=None,
+        help="Override end date (YYYY-MM-DD). See --start-date.",
+    )
     args = parser.parse_args()
+
+    # Resolve the date window. Precedence: --start-date/--end-date > --year > default 2025.
+    if args.start_date or args.end_date:
+        if not (args.start_date and args.end_date):
+            parser.error("--start-date and --end-date must both be set")
+        override_start = args.start_date
+        override_end = args.end_date
+    elif args.year is not None:
+        override_start = f"{args.year}-01-01"
+        override_end = f"{args.year}-12-31"
+    else:
+        override_start = "2025-01-01"
+        override_end = "2025-12-31"
+    print(f"[ISOLATED] window: {override_start} -> {override_end}")
 
     if args.save_anchor:
         return save_anchor()
@@ -384,6 +423,8 @@ def main() -> int:
                 _print_state("PRE  RUN  ", journal_mode=args.journal_mode)
             summary = _run_q1_inside_context(
                 apply_journal_at_end=args.journal_mode,
+                override_start=override_start,
+                override_end=override_end,
             )
             if args.show_hashes:
                 _print_state("POST RUN  ", journal_mode=args.journal_mode)

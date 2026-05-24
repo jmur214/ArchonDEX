@@ -28,10 +28,66 @@ if [ -z "${ARCHONDEX_RESULTS_BUCKET:-}" ]; then
     exit 64
 fi
 
+# T-085: per-cell config patch (optional).
+# If ARCHONDEX_CONFIG_PATCH_B64 is set, decode and apply it BEFORE the
+# harness runs. The patch is a JSON object mapping config-file paths to
+# dotted-key updates:
+#
+#   {
+#     "config/risk_settings.prod.json": {
+#       "vol_target.enabled": true,
+#       "vol_target.regime_aware": true,
+#       "vol_target.cautious_target_multiplier": 0.90
+#     },
+#     "config/alpha_settings.json": {
+#       "confidence_gate.enabled": true,
+#       "confidence_gate.n_threshold": 3
+#     }
+#   }
+#
+# Dotted keys auto-create nested dicts. Existing values are overwritten.
+# Lets the campaign launcher per-cell A/B without rebuilding the image.
+if [ -n "${ARCHONDEX_CONFIG_PATCH_B64:-}" ]; then
+    PATCH_FILE=/tmp/cell_config_patch.json
+    echo "$ARCHONDEX_CONFIG_PATCH_B64" | base64 -d > "$PATCH_FILE" || {
+        echo "ERROR: failed to base64-decode ARCHONDEX_CONFIG_PATCH_B64" >&2
+        exit 67
+    }
+    echo "[entrypoint] Applying config patch:"
+    cat "$PATCH_FILE"
+    python - "$PATCH_FILE" <<'PYAPPLY' || exit 68
+import json
+import sys
+from pathlib import Path
+
+patch = json.loads(Path(sys.argv[1]).read_text())
+for cfg_path, updates in patch.items():
+    p = Path(cfg_path)
+    if not p.exists():
+        print(f"[entrypoint] WARN: {cfg_path} does not exist; creating", file=sys.stderr)
+        cfg = {}
+    else:
+        cfg = json.loads(p.read_text())
+    for dotted_key, value in updates.items():
+        keys = dotted_key.split(".")
+        target = cfg
+        for k in keys[:-1]:
+            target = target.setdefault(k, {})
+        target[keys[-1]] = value
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(cfg, indent=2))
+    print(f"[entrypoint] Patched {cfg_path}")
+PYAPPLY
+fi
+
 # Run the harness and capture its stdout (canon md5 lives there).
 # `tee` so the same lines also stream to CloudWatch.
 HARNESS_LOG=/tmp/harness.log
-python -m scripts.run_isolated --runs 1 --task q1 2>&1 | tee "$HARNESS_LOG"
+YEAR_ARG=""
+if [ -n "${ARCHONDEX_YEAR:-}" ]; then
+    YEAR_ARG="--year ${ARCHONDEX_YEAR}"
+fi
+python -m scripts.run_isolated --runs 1 --task q1 $YEAR_ARG 2>&1 | tee "$HARNESS_LOG"
 
 CANON_MD5=$(grep -E "trades_canon_md5:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')
 RUN_ID=$(grep -E "^\s+run_id:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')

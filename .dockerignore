@@ -36,6 +36,18 @@ data/coordination/
 data/trade_logs/
 data/observability/
 
+# --- Substrate-extension backups (one per swap; can grow large) ---
+# Backup dirs created when activating a new substrate via T-082b-style
+# atomic swaps. Each backup is ~600 MB-1 GB and adds nothing to the
+# image; the canonical substrate at data/processed/ is what gets baked.
+data/processed_alpaca_backup_*/
+data/processed_merged_*/
+data/processed_*backup*/
+
+# --- Trash + other macOS noise that could leak in from outside the repo ---
+.Trash/
+.DS_Store
+
 # --- Secrets — MUST never be baked into the image ---
 .env
 .env.*
