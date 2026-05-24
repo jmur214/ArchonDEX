@@ -914,6 +914,19 @@ class DiscoveryEngine:
         # Set False to disable caching; used by determinism cross-check
         # harnesses and by callers that need bitwise-equivalent paths.
         use_signal_cache: bool = True,
+        # ---- Gate 0: MBL pre-flight (T-2026-05-24-083) ----
+        # Per CLAUDE.md non-negotiable #7. The backtest window must satisfy
+        # T_years >= 2 * ln(N_effective) / SR_target^2 before any backtest
+        # fires. A window too short for the accumulated trial count is
+        # statistically incapable of clearing DSR — running the gauntlet
+        # on such a window wastes compute and produces measurements that
+        # cannot inform deployment.
+        #
+        # Set `enable_mbl_gate=False` to skip the check (for legacy
+        # bitwise-cross-checks against pre-Gate-0 runs only). Production
+        # use should keep it True.
+        enable_mbl_gate: bool = True,
+        mbl_sr_target: float = 1.0,
     ) -> Dict[str, float]:
         """Production-equivalent multi-gate validation (architectural-fix v2).
 
@@ -963,6 +976,38 @@ class DiscoveryEngine:
             attribution_diagnostics,
         )
         from engines.engine_d_discovery.robustness import RobustnessTester
+
+        # ---- Gate 0: MBL pre-flight (T-2026-05-24-083) ----------------
+        # Per CLAUDE.md non-negotiable #7. Reject backtest windows that
+        # are statistically incapable of clearing DSR at the configured
+        # SR_target given the accumulated honest-N. Runs BEFORE any
+        # expensive backtest fires; fail-fast saves ~30 min per cell.
+        if enable_mbl_gate and start_date and end_date:
+            from core.measurement.mbl_gate import check_mbl_gate, years_from_window
+            try:
+                t_years = years_from_window(start_date, end_date)
+                mbl_verdict = check_mbl_gate(
+                    t_years=t_years,
+                    sr_target=mbl_sr_target,
+                )
+                if not mbl_verdict["passed"]:
+                    return {
+                        "passed_all_gates": False,
+                        "gate_0_passed": False,
+                        "gate_0_reason": mbl_verdict["reason"],
+                        "gate_0_mbl_min": mbl_verdict["mbl_min"],
+                        "gate_0_n_effective": mbl_verdict["n_effective"],
+                        "gate_0_t_years": mbl_verdict["t_years"],
+                        "killed_by_gate": "gate_0_mbl",
+                    }
+            except (ValueError, FileNotFoundError) as exc:
+                # MBL infrastructure not usable (bad dates, missing
+                # registry). Log + proceed — better to run the gauntlet
+                # than to crash on a precondition check.
+                import logging
+                logging.getLogger("discovery").warning(
+                    "[gate_0_mbl] check skipped: %s", exc,
+                )
 
         _diag_t_start = _time.time()
         _diag_gate_seconds: Dict[str, float] = {}
