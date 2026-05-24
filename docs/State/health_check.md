@@ -22,6 +22,17 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH 2026-05-24 by Agent B] T-057b verification — confidence-gate lift COLLAPSES on extended substrate; flag-flip NOT recommended
+- Category: engine-completion verification / substrate-conditional lift falsified
+- Cloud campaign: 50/50 cells succeeded (2 arms × 5 yrs × 5 reps). T-057's +0.793 Sharpe lift on Alpaca-only substrate REVERSES to **Δ -0.075** on the extended Stooq+Alpaca substrate.
+- ci_low(Δ Sharpe): iid -0.532, block-bootstrap (5-yr) -1.154. **Both fail CLAUDE.md #6 strict gate.**
+- **Per-year pattern reveals regime dependency**: gate helps when OFF is weak (2021 +0.72, 2024 +1.43) but HURTS when OFF is strong (2022 -1.79, 2023 -1.13). 3 of 5 years remain consistent-sign vs original T-057; 2 of 5 reverse sign (2022, 2023 — both years where extended substrate's stronger OFF baseline left less room for the gate).
+- **MBL Gate-0 also FAILS**: 5-yr window insufficient for SR=1.0 lift claim at N=230 trials (needs 10.88 yr). Maximum clearable SR on this design: 1.475.
+- **3 of 10 cells show 1-rep determinism drift** (arm0_off/2021, arm2_n3/2022, arm2_n3/2024). The 5-rep design eliminated T-057's original 2021 arm2_n3 drift but surfaced 3 new cells — within-container module-global drift, worth a T-057c-determinism-investigation follow-up.
+- **Recommendation: DO NOT flip `confidence_gate.enabled=True`.** Stays False on main pending: (a) regime-conditional confidence gate (mirror T-055e pattern), (b) 11+ yr backtest window to clear MBL.
+- Lessons-learned pattern: SECOND time a positive lift has reversed sign on substrate change (vol-targeting series + confidence-gate series). ANY positive lift must be substrate-verified BEFORE production-recommend.
+- Audit: `docs/Audit/confidence_gated_flag_flip_t057b_2026_05_24.md`.
+
 ### [HIGH 2026-05-23 by Agent B] T-055e regime-conditional vol-target — CLEARS CLAUDE.md #6 gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
 - Category: engine-completion / first T-055-series result to clear strict ci_low > 0
 - 15 fresh arm1 backtests (EWMA + regime_aware) reusing T-055d arm0. 10/10 cells canon-stable.
