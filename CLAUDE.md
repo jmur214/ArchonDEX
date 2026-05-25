@@ -115,6 +115,32 @@ bug, not just a style issue. See
 `tests/test_metrics_engine.py::test_sharpe_constant_positive_returns_returns_zero_post_T061`
 for the locked-in regression check.
 
+**Substrate-conditional findings must be re-verified on the current 
+canonical substrate before flag-flip recommendation.** A positive lift 
+measured on one substrate cannot be assumed to hold on another, even 
+when the substrate change is "just" extending historical depth. 
+Confirmed TWICE in the 2026-05-23 → 2026-05-24 cloud-campaign cycle:
+
+- T-055e (vol-target regime+EWMA) showed Δ Sharpe +0.549, ci_low 
+  +0.047 on Alpaca-only substrate (DEFENSIBLE). On the post-T-082b 
+  extended substrate, the 2022 "load-bearing trade-off" SIGN-FLIPPED 
+  positive, but no multiplier-sweep arm cleared ci_low > 0.
+- T-057 (confidence-gated execution N≥3) showed Δ Sharpe +0.793 with 
+  non-overlapping CIs on Alpaca-only substrate ("strongest engine-
+  completion lift ever measured"). On extended substrate the lift 
+  COLLAPSED to -0.075 with ci_low -0.532 (iid) / -1.154 (block).
+
+In both cases mechanism diagnosis showed the original lift was an 
+artifact of the prior substrate's understated OFF baseline. **Required 
+process:** any measurement on substrate X that motivates a production 
+flag-flip on substrate Y must re-run on substrate Y under bootstrap 
+CI before the user-decision gate. When the canonical substrate 
+changes (e.g., T-082b-style activation), pre-existing "DEFENSIBLE" 
+verdicts demote to "DEFENSIBLE (under prior substrate); re-verify 
+required" until re-tested. This is orthogonal to MBL Gate-0 (CLAUDE.md 
+#7) — that catches window length; this catches OFF-baseline change. 
+See `memory/feedback_substrate_re_verify_before_recommend_2026_05_24.md`.
+
 ## Git discipline
 
 **Commit early and often.** After any logically-complete unit of 
