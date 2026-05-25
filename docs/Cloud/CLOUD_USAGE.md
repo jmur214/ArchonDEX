@@ -45,6 +45,36 @@ If any check fails: STOP. Don't submit jobs against broken infra. Surface the fa
 
 ---
 
+## ⚠️ Verify-first protocol (mandatory before any full A/B campaign)
+
+Before launching any campaign with > 2 cells, run a **2-cell verify spec** to confirm the patch actually takes effect. T-055g v1 (2026-05-24) cost $1.50 and ~67 min cloud wall on a 75-cell campaign where ALL 5 arms produced identical results because my patch keys used the wrong namespace (`risk.vol_target.X` vs the actual flat `portfolio_vol_target_X`).
+
+The verify catches this in ~10-15 min for $0.04:
+
+```json
+{
+  "campaign_id": "<your-campaign>-verify",
+  "years": [<one-year>],
+  "reps": 1,
+  "arms": {
+    "arm_off": { "config_patch": {} },
+    "arm_on": {
+      "config_patch": {
+        "config/<target>.json": {
+          "<key-that-should-affect-canon>": <value>
+        }
+      }
+    }
+  }
+}
+```
+
+Run it. Pull the manifests. **The two cells' `canon_md5` MUST differ.** If they match → patch didn't apply → fix BEFORE launching the full grid. See [`CLOUD_LESSONS_LEARNED.md`](CLOUD_LESSONS_LEARNED.md) gotcha #3 for the full incident report + key-namespace discipline (always grep the actual config-load path for field names).
+
+For determinism validation specifically (cross-container reproducibility), also run a 2-cell OFF-vs-OFF empty-patch check; canon must MATCH between the two reps. Catches the T-057c-determinism class of bug (dict-iteration-order FP-summation drift) which local `--runs N` cannot see.
+
+---
+
 ## How to submit a campaign
 
 The launcher is `scripts/submit_substrate_run.py`. It currently hardcodes the substrate-measurement shape (reps × arms). For non-substrate campaigns (e.g., vol-target A/B, regime-conditional A/B/C), copy the launcher and adapt the `Cell` dataclass + job-submission loop — see "Adapting the launcher for a new campaign" below.
