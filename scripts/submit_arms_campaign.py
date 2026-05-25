@@ -94,7 +94,9 @@ def aws(*args: str) -> str:
 class Cell:
     campaign_id: str
     arm: str
-    year: int
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+    window_label: str  # "2024" for single year, "2014-2025" for multi-year
     rep: int
     config_patch: Dict[str, Dict[str, object]]
     job_id: Optional[str] = None
@@ -103,11 +105,27 @@ class Cell:
 
     @property
     def cell_id(self) -> str:
-        return f"{self.campaign_id}/{self.arm}/{self.year}/rep{self.rep}"
+        return f"{self.campaign_id}/{self.arm}/{self.window_label}/rep{self.rep}"
 
     @property
     def s3_prefix(self) -> str:
         return f"s3://{RESULTS_BUCKET}/{self.cell_id}"
+
+    @property
+    def year_int_for_legacy(self) -> Optional[int]:
+        """Return integer year iff the window is a single calendar year
+        (start = YYYY-01-01, end = YYYY-12-31). Otherwise None.
+        Used to populate the legacy ARCHONDEX_YEAR env var for
+        backward compat in containers that only know about --year.
+        """
+        if (self.start_date.endswith("-01-01") and
+            self.end_date.endswith("-12-31") and
+            self.start_date[:4] == self.end_date[:4]):
+            try:
+                return int(self.start_date[:4])
+            except ValueError:
+                return None
+        return None
 
     def submit(self, job_definition: str = JOB_DEFINITION) -> str:
         """Submit one Batch job for this cell. Returns the AWS job ID."""
@@ -118,18 +136,24 @@ class Cell:
             {"name": "ARCHONDEX_RESULTS_BUCKET", "value": RESULTS_BUCKET},
             {"name": "ARCHONDEX_CELL_ID",        "value": self.cell_id},
             {"name": "ARCHONDEX_CONFIG_PATCH_B64", "value": patch_b64},
-            # Pre-set the year via env so the harness can pick it up
-            # (run_isolated currently runs --task q1; if multi-year support
-            # is needed, extend run_isolated or have the harness read
-            # ARCHONDEX_YEAR).
-            {"name": "ARCHONDEX_YEAR",           "value": str(self.year)},
+            # T-053b: cell window passes through as start/end. The
+            # entrypoint prefers these over ARCHONDEX_YEAR. We ALSO
+            # set ARCHONDEX_YEAR for single-year windows so any
+            # downstream tooling that grepped for it still works
+            # (back-compat).
+            {"name": "ARCHONDEX_START_DATE",     "value": self.start_date},
+            {"name": "ARCHONDEX_END_DATE",       "value": self.end_date},
             {"name": "ARCHONDEX_REP",            "value": str(self.rep)},
             {"name": "PYTHONHASHSEED",           "value": "0"},
         ]
+        legacy_year = self.year_int_for_legacy
+        if legacy_year is not None:
+            env.append({"name": "ARCHONDEX_YEAR", "value": str(legacy_year)})
         # Job name: alphanumeric, dashes only — Batch is strict
-        safe_name = f"{self.campaign_id}-{self.arm}-{self.year}-r{self.rep}".replace(
-            "_", "-"
-        ).replace(".", "-").lower()[:128]
+        safe_name = (
+            f"{self.campaign_id}-{self.arm}-{self.window_label}-r{self.rep}"
+            .replace("_", "-").replace(".", "-").lower()[:128]
+        )
         result_json = aws(
             "batch", "submit-job",
             "--job-name", safe_name,
@@ -142,26 +166,84 @@ class Cell:
 
 
 def load_spec(spec_path: Path) -> Dict:
-    """Load + validate the campaign spec JSON."""
+    """Load + validate the campaign spec JSON.
+
+    Schema (post-T-053b):
+        campaign_id: str
+        windows: list[{start: YYYY-MM-DD, end: YYYY-MM-DD, label?: str}]
+                 OR equivalent `years: list[int]` (legacy, desugared)
+        reps: int
+        arms: dict[str, {config_patch: {file_path: {dotted_key: value}}}]
+
+    Exactly one of `windows` or `years` must be present. `years` is
+    desugared in build_cells() to single-year windows so the rest of
+    the launcher uses the unified Cell shape.
+    """
     spec = json.loads(spec_path.read_text())
-    required = {"campaign_id", "years", "reps", "arms"}
+    has_windows = "windows" in spec
+    has_years = "years" in spec
+    if has_windows and has_years:
+        raise SystemExit("Spec must specify exactly one of 'windows' or 'years', not both")
+    if not (has_windows or has_years):
+        raise SystemExit("Spec must specify either 'windows' or 'years'")
+    required = {"campaign_id", "reps", "arms"}
     missing = required - set(spec.keys())
     if missing:
         raise SystemExit(f"Spec missing required keys: {missing}")
     if not isinstance(spec["arms"], dict) or not spec["arms"]:
         raise SystemExit("Spec 'arms' must be a non-empty dict")
+    if has_windows:
+        if not isinstance(spec["windows"], list) or not spec["windows"]:
+            raise SystemExit("Spec 'windows' must be a non-empty list")
+        for w in spec["windows"]:
+            if not isinstance(w, dict) or "start" not in w or "end" not in w:
+                raise SystemExit(f"Each window must be {{start, end, label?}}; got {w}")
     return spec
 
 
+def _window_label(start: str, end: str, override: Optional[str] = None) -> str:
+    """Build the S3 path segment for a window. Override takes precedence;
+    otherwise auto-generate from the dates."""
+    if override:
+        return override
+    # Single calendar year: "YYYY"
+    if (start.endswith("-01-01") and end.endswith("-12-31") and
+        start[:4] == end[:4]):
+        return start[:4]
+    # Multi-year span: "YYYY-YYYY"
+    if start[:4] != end[:4]:
+        return f"{start[:4]}-{end[:4]}"
+    # Sub-year: "YYYY-MM-DD_YYYY-MM-DD"
+    return f"{start}_{end}"
+
+
 def build_cells(spec: Dict) -> List[Cell]:
+    """Build the list of cells from spec. Desugars `years` to single-year
+    windows if present."""
+    if "windows" in spec:
+        windows = [
+            (w["start"], w["end"], w.get("label"))
+            for w in spec["windows"]
+        ]
+    else:
+        windows = [
+            (f"{y}-01-01", f"{y}-12-31", None)
+            for y in spec["years"]
+        ]
     cells = []
     for arm, arm_cfg in spec["arms"].items():
         patch = arm_cfg.get("config_patch", {})
-        for year in spec["years"]:
+        for start, end, label_override in windows:
+            label = _window_label(start, end, label_override)
             for rep in range(1, spec["reps"] + 1):
                 cells.append(Cell(
                     campaign_id=spec["campaign_id"],
-                    arm=arm, year=year, rep=rep, config_patch=patch,
+                    arm=arm,
+                    start_date=start,
+                    end_date=end,
+                    window_label=label,
+                    rep=rep,
+                    config_patch=patch,
                 ))
     return cells
 
@@ -259,12 +341,14 @@ def write_summary(cells: List[Cell], campaign_id: str, launch_ts: str) -> None:
     csv_path = out_dir / f"{campaign_id}_{launch_ts}.csv"
     json_path = out_dir / f"{campaign_id}_{launch_ts}.json"
 
-    # CSV
-    rows = ["cell_id,arm,year,rep,status,job_id,run_id,canon_md5,sharpe,s3_prefix"]
+    # CSV — post-T-053b columns; window_label replaces year for the
+    # human-readable column, with start/end_date for the precise window
+    rows = ["cell_id,arm,window_label,start_date,end_date,rep,status,job_id,run_id,canon_md5,sharpe,s3_prefix"]
     for c in cells:
         m = c.manifest or {}
         rows.append(
-            f"{c.cell_id},{c.arm},{c.year},{c.rep},{c.status or ''},{c.job_id or ''},"
+            f"{c.cell_id},{c.arm},{c.window_label},{c.start_date},{c.end_date},"
+            f"{c.rep},{c.status or ''},{c.job_id or ''},"
             f"{m.get('run_id', '')},{m.get('canon_md5', '')},{m.get('sharpe', '')},{c.s3_prefix}"
         )
     csv_path.write_text("\n".join(rows) + "\n")
@@ -277,7 +361,10 @@ def write_summary(cells: List[Cell], campaign_id: str, launch_ts: str) -> None:
         "n_succeeded": sum(1 for c in cells if c.status == "SUCCEEDED"),
         "n_failed": sum(1 for c in cells if c.status == "FAILED"),
         "cells": [
-            {"cell_id": c.cell_id, "arm": c.arm, "year": c.year, "rep": c.rep,
+            {"cell_id": c.cell_id, "arm": c.arm,
+             "window_label": c.window_label,
+             "start_date": c.start_date, "end_date": c.end_date,
+             "rep": c.rep,
              "status": c.status, "job_id": c.job_id, "manifest": c.manifest,
              "s3_prefix": c.s3_prefix}
             for c in cells
@@ -306,9 +393,11 @@ def main() -> int:
     cells = build_cells(spec)
     launch_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
+    n_windows = (len(spec["windows"]) if "windows" in spec
+                 else len(spec.get("years", [])))
     print(f"[campaign] {spec['campaign_id']}")
     print(f"[campaign] {len(cells)} cells "
-          f"({len(spec['arms'])} arms × {len(spec['years'])} years × {spec['reps']} reps)")
+          f"({len(spec['arms'])} arms × {n_windows} windows × {spec['reps']} reps)")
 
     if args.dry_run:
         print("[campaign] DRY RUN — would submit:")
