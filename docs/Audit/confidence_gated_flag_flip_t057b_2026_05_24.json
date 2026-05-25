@@ -1,0 +1,308 @@
+{
+  "task_id": "T-2026-05-23-057b-analyze",
+  "description": "Confidence-gated execution flag-flip verification \u2014 cloud campaign on extended substrate",
+  "substrate": "Stooq+Alpaca merged (post-T-082b), 1962-2026 depth",
+  "campaign_id": "t057b-confidence-gate-flip-verify",
+  "launch_ts": "20260524T041425Z",
+  "n_cells": 50,
+  "n_succeeded": 50,
+  "headline": {
+    "arm0_off": {
+      "mean": 0.87772,
+      "ci_low": 0.5051869999999999,
+      "ci_high": 1.246422,
+      "n": 25
+    },
+    "arm2_n3": {
+      "mean": 0.8025599999999998,
+      "ci_low": 0.5063759999999999,
+      "ci_high": 1.1296009999999999,
+      "n": 25
+    },
+    "delta_iid_paired": {
+      "mean": -0.07516000000000006,
+      "ci_low": -0.531818,
+      "ci_high": 0.36978199999999994,
+      "n": 25
+    },
+    "delta_block_per_year": {
+      "mean": -0.07516000000000007,
+      "ci_low": -1.1540400000000002,
+      "ci_high": 0.93936,
+      "n": 5,
+      "per_year_delta": [
+        0.7224,
+        -1.7872000000000001,
+        -1.1310000000000002,
+        1.432,
+        0.3879999999999999
+      ],
+      "per_year_label": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    }
+  },
+  "per_year": {
+    "arm0_off": {
+      "2021": {
+        "mean": 0.0246,
+        "values": [
+          0.022,
+          0.022,
+          0.022,
+          0.022,
+          0.035
+        ]
+      },
+      "2022": {
+        "mean": 1.479,
+        "values": [
+          1.479,
+          1.479,
+          1.479,
+          1.479,
+          1.479
+        ]
+      },
+      "2023": {
+        "mean": 1.7600000000000002,
+        "values": [
+          1.76,
+          1.76,
+          1.76,
+          1.76,
+          1.76
+        ]
+      },
+      "2024": {
+        "mean": -0.592,
+        "values": [
+          -0.592,
+          -0.592,
+          -0.592,
+          -0.592,
+          -0.592
+        ]
+      },
+      "2025": {
+        "mean": 1.717,
+        "values": [
+          1.717,
+          1.717,
+          1.717,
+          1.717,
+          1.717
+        ]
+      }
+    },
+    "arm2_n3": {
+      "2021": {
+        "mean": 0.747,
+        "values": [
+          0.747,
+          0.747,
+          0.747,
+          0.747,
+          0.747
+        ]
+      },
+      "2022": {
+        "mean": -0.3082,
+        "values": [
+          -0.311,
+          -0.297,
+          -0.311,
+          -0.311,
+          -0.311
+        ]
+      },
+      "2023": {
+        "mean": 0.629,
+        "values": [
+          0.629,
+          0.629,
+          0.629,
+          0.629,
+          0.629
+        ]
+      },
+      "2024": {
+        "mean": 0.8400000000000001,
+        "values": [
+          0.864,
+          0.824,
+          0.824,
+          0.864,
+          0.824
+        ]
+      },
+      "2025": {
+        "mean": 2.105,
+        "values": [
+          2.105,
+          2.105,
+          2.105,
+          2.105,
+          2.105
+        ]
+      }
+    },
+    "delta": {
+      "2021": 0.7224,
+      "2022": -1.7872000000000001,
+      "2023": -1.1310000000000002,
+      "2024": 1.432,
+      "2025": 0.3879999999999999
+    }
+  },
+  "canon_stability": {
+    "arm0_off": {
+      "2021": {
+        "md5s": [
+          "90a69be6e2ac13a261df97e308159828",
+          "90a69be6e2ac13a261df97e308159828",
+          "90a69be6e2ac13a261df97e308159828",
+          "90a69be6e2ac13a261df97e308159828",
+          "fd6bcfc1c613eed4973e0ab895bc233a"
+        ],
+        "canon_set_size": 2
+      },
+      "2022": {
+        "md5s": [
+          "e2fcf083aee000776275d3fca188c0ae",
+          "e2fcf083aee000776275d3fca188c0ae",
+          "e2fcf083aee000776275d3fca188c0ae",
+          "e2fcf083aee000776275d3fca188c0ae",
+          "e2fcf083aee000776275d3fca188c0ae"
+        ],
+        "canon_set_size": 1
+      },
+      "2023": {
+        "md5s": [
+          "d67532a4e45dadcab2a7c83740324949",
+          "d67532a4e45dadcab2a7c83740324949",
+          "d67532a4e45dadcab2a7c83740324949",
+          "d67532a4e45dadcab2a7c83740324949",
+          "d67532a4e45dadcab2a7c83740324949"
+        ],
+        "canon_set_size": 1
+      },
+      "2024": {
+        "md5s": [
+          "4c70e7476bbbdc737e19652ad6a33cfe",
+          "4c70e7476bbbdc737e19652ad6a33cfe",
+          "4c70e7476bbbdc737e19652ad6a33cfe",
+          "4c70e7476bbbdc737e19652ad6a33cfe",
+          "4c70e7476bbbdc737e19652ad6a33cfe"
+        ],
+        "canon_set_size": 1
+      },
+      "2025": {
+        "md5s": [
+          "062d0a8fcc34d476557c4bede81eb68d",
+          "062d0a8fcc34d476557c4bede81eb68d",
+          "062d0a8fcc34d476557c4bede81eb68d",
+          "062d0a8fcc34d476557c4bede81eb68d",
+          "062d0a8fcc34d476557c4bede81eb68d"
+        ],
+        "canon_set_size": 1
+      }
+    },
+    "arm2_n3": {
+      "2021": {
+        "md5s": [
+          "4f95274f80ec49313dc5278d58189b20",
+          "4f95274f80ec49313dc5278d58189b20",
+          "4f95274f80ec49313dc5278d58189b20",
+          "4f95274f80ec49313dc5278d58189b20",
+          "4f95274f80ec49313dc5278d58189b20"
+        ],
+        "canon_set_size": 1
+      },
+      "2022": {
+        "md5s": [
+          "c2df021a451282b9a0d5af9116ef8635",
+          "8d936983a9de6d1b101495aa27d5638f",
+          "c2df021a451282b9a0d5af9116ef8635",
+          "c2df021a451282b9a0d5af9116ef8635",
+          "c2df021a451282b9a0d5af9116ef8635"
+        ],
+        "canon_set_size": 2
+      },
+      "2023": {
+        "md5s": [
+          "fe1427cccb00083b3f651b3bbdf561ae",
+          "fe1427cccb00083b3f651b3bbdf561ae",
+          "fe1427cccb00083b3f651b3bbdf561ae",
+          "fe1427cccb00083b3f651b3bbdf561ae",
+          "fe1427cccb00083b3f651b3bbdf561ae"
+        ],
+        "canon_set_size": 1
+      },
+      "2024": {
+        "md5s": [
+          "1b96a4131b2a5854cf74fb7c81275c45",
+          "633a011437aa9f35fab89898e246c318",
+          "633a011437aa9f35fab89898e246c318",
+          "1b96a4131b2a5854cf74fb7c81275c45",
+          "633a011437aa9f35fab89898e246c318"
+        ],
+        "canon_set_size": 2
+      },
+      "2025": {
+        "md5s": [
+          "ee6bdefc909b1347b24139c14a08f34e",
+          "ee6bdefc909b1347b24139c14a08f34e",
+          "ee6bdefc909b1347b24139c14a08f34e",
+          "ee6bdefc909b1347b24139c14a08f34e",
+          "ee6bdefc909b1347b24139c14a08f34e"
+        ],
+        "canon_set_size": 1
+      }
+    }
+  },
+  "drift_cells": [
+    {
+      "arm": "arm0_off",
+      "year": 2021,
+      "n_unique": 2,
+      "md5s": [
+        "90a69be6e2ac13a261df97e308159828",
+        "90a69be6e2ac13a261df97e308159828",
+        "90a69be6e2ac13a261df97e308159828",
+        "90a69be6e2ac13a261df97e308159828",
+        "fd6bcfc1c613eed4973e0ab895bc233a"
+      ]
+    },
+    {
+      "arm": "arm2_n3",
+      "year": 2022,
+      "n_unique": 2,
+      "md5s": [
+        "c2df021a451282b9a0d5af9116ef8635",
+        "8d936983a9de6d1b101495aa27d5638f",
+        "c2df021a451282b9a0d5af9116ef8635",
+        "c2df021a451282b9a0d5af9116ef8635",
+        "c2df021a451282b9a0d5af9116ef8635"
+      ]
+    },
+    {
+      "arm": "arm2_n3",
+      "year": 2024,
+      "n_unique": 2,
+      "md5s": [
+        "1b96a4131b2a5854cf74fb7c81275c45",
+        "633a011437aa9f35fab89898e246c318",
+        "633a011437aa9f35fab89898e246c318",
+        "1b96a4131b2a5854cf74fb7c81275c45",
+        "633a011437aa9f35fab89898e246c318"
+      ]
+    }
+  ],
+  "verdict": "DEFER",
+  "verdict_reason": "block-bootstrap ci_low(\u0394 Sharpe) = -1.1540 \u2264 0; iid ci_low = -0.5318; point estimate -0.0752"
+}
