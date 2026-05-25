@@ -214,7 +214,24 @@ class SignalCollector:
         # Broaden pattern to accept uppercase letters, digits, dots, dashes; case insensitive handled by upper()
         ticker_pattern = re.compile(r"^[A-Z0-9.\-]{1,12}$")
 
-        for edge_name, edge_obj in self.edges.items():
+        # T-2026-05-24-057c-det determinism fix.
+        # signal_processor.py aggregates per-bar via
+        #   `for edge_name, raw in edge_map.items():
+        #        weighted_sum += (norm * w)`
+        # which is order-dependent for near-cancelling sums (REGN
+        # 2024-03-13: 8.8e-18 vs exact 0.0 residue → side flips
+        # short ↔ long). The cloud-container drift in 3/10 T-057b
+        # cells stemmed from cross-container variation in self.edges
+        # insertion order produced during module init.
+        #
+        # Sorting `self.edges.items()` by edge_name at iteration AND
+        # sorting the inner edge_map at return forces a canonical
+        # alphabetical edge order, eliminating the floating-point
+        # summation-order dependency. Single-process determinism
+        # already held (run_isolated --runs 5 is bit-identical
+        # pre-fix); this fix extends the guarantee to cross-process
+        # (cloud-container) determinism.
+        for edge_name, edge_obj in sorted(self.edges.items()):
             if self.debug:
                 from debug_config import is_debug_enabled
                 if is_debug_enabled("COLLECTOR"):
@@ -380,4 +397,13 @@ class SignalCollector:
             sample_str = ", ".join(sample_entries)
             print(f"[ALPHA][TRACE][Collector] Finished collection. tickers={num_tickers} edges={list(self.edges.keys())} normalized sample={sample_str}")
 
+        # T-2026-05-24-057c-det: canonicalize inner edge_map order so
+        # signal_processor's downstream iteration is deterministic
+        # regardless of how this collector built its inserts. Belt-and-
+        # braces with the sorted outer iteration above — guarantees
+        # invariant even if a future caller reaches in directly.
+        scores = {
+            tkr: dict(sorted(edge_map.items()))
+            for tkr, edge_map in scores.items()
+        }
         return scores
