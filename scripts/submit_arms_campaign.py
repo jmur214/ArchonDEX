@@ -127,8 +127,15 @@ class Cell:
                 return None
         return None
 
-    def submit(self, job_definition: str = JOB_DEFINITION) -> str:
-        """Submit one Batch job for this cell. Returns the AWS job ID."""
+    def submit(self, job_definition: str = JOB_DEFINITION,
+               timeout_seconds: Optional[int] = None) -> str:
+        """Submit one Batch job for this cell. Returns the AWS job ID.
+
+        ``timeout_seconds`` overrides the job definition's default
+        attemptDurationSeconds (typically 1800s). Required for multi-year
+        windows where a 12-yr cell needs ~7,200s — the default 30-min
+        timeout would kill the job mid-backtest.
+        """
         patch_b64 = base64.b64encode(
             json.dumps(self.config_patch).encode()
         ).decode()
@@ -154,13 +161,18 @@ class Cell:
             f"{self.campaign_id}-{self.arm}-{self.window_label}-r{self.rep}"
             .replace("_", "-").replace(".", "-").lower()[:128]
         )
-        result_json = aws(
+        submit_args = [
             "batch", "submit-job",
             "--job-name", safe_name,
             "--job-queue", JOB_QUEUE,
             "--job-definition", job_definition,
             "--container-overrides", json.dumps({"environment": env}),
-        )
+        ]
+        if timeout_seconds is not None:
+            submit_args.extend([
+                "--timeout", json.dumps({"attemptDurationSeconds": int(timeout_seconds)}),
+            ])
+        result_json = aws(*submit_args)
         self.job_id = json.loads(result_json)["jobId"]
         return self.job_id
 
@@ -248,11 +260,21 @@ def build_cells(spec: Dict) -> List[Cell]:
     return cells
 
 
-def submit_all(cells: List[Cell], job_definition: str, max_workers: int = 20) -> None:
-    """Submit cells in parallel (Batch handles N concurrent submits fine)."""
-    print(f"[campaign] Submitting {len(cells)} cells (parallel={max_workers})...")
+def submit_all(cells: List[Cell], job_definition: str,
+               max_workers: int = 20,
+               timeout_seconds: Optional[int] = None) -> None:
+    """Submit cells in parallel (Batch handles N concurrent submits fine).
+
+    ``timeout_seconds`` overrides the job definition default for every
+    cell. Required for multi-year windows.
+    """
+    print(f"[campaign] Submitting {len(cells)} cells (parallel={max_workers}, "
+          f"timeout={timeout_seconds or 'job-def-default'}s)...")
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(cell.submit, job_definition): cell for cell in cells}
+        futures = {
+            pool.submit(cell.submit, job_definition, timeout_seconds): cell
+            for cell in cells
+        }
         for fut in as_completed(futures):
             cell = futures[fut]
             try:
@@ -383,8 +405,13 @@ def main() -> int:
                     help=f"Batch job definition (default {JOB_DEFINITION})")
     ap.add_argument("--poll-interval", type=int, default=30,
                     help="Seconds between Batch describe-jobs polls (default 30)")
-    ap.add_argument("--timeout", type=int, default=7200,
-                    help="Total seconds to wait before bailing (default 7200=2hr)")
+    ap.add_argument("--timeout", type=int, default=14400,
+                    help="Total seconds (launcher-side) to wait before bailing (default 14400=4hr)")
+    ap.add_argument("--job-timeout", type=int, default=None,
+                    help="Per-job timeout override (attemptDurationSeconds). "
+                         "Default: use the job definition's value (typically 1800s). "
+                         "REQUIRED for multi-year windows — 12-yr cells need ~7200s, "
+                         "single-year ~1800s.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Show what would be submitted; do not submit.")
     args = ap.parse_args()
@@ -407,7 +434,7 @@ def main() -> int:
             print(f"  ... and {len(cells) - 5} more")
         return 0
 
-    submit_all(cells, args.job_def)
+    submit_all(cells, args.job_def, timeout_seconds=args.job_timeout)
     poll_until_terminal(cells, args.poll_interval, args.timeout)
     fetch_manifests(cells)
     write_summary(cells, spec["campaign_id"], launch_ts)
