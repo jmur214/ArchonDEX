@@ -83,11 +83,21 @@ fi
 # Run the harness and capture its stdout (canon md5 lives there).
 # `tee` so the same lines also stream to CloudWatch.
 HARNESS_LOG=/tmp/harness.log
-YEAR_ARG=""
-if [ -n "${ARCHONDEX_YEAR:-}" ]; then
-    YEAR_ARG="--year ${ARCHONDEX_YEAR}"
+# T-053b: window args — precedence matches scripts/run_isolated.py:
+# --start-date/--end-date > --year > default 2025.
+# When ARCHONDEX_START_DATE + ARCHONDEX_END_DATE are both set, they
+# override ARCHONDEX_YEAR. Backward-compat: existing year-based
+# campaigns keep working unchanged.
+WINDOW_ARG=""
+if [ -n "${ARCHONDEX_START_DATE:-}" ] && [ -n "${ARCHONDEX_END_DATE:-}" ]; then
+    WINDOW_ARG="--start-date ${ARCHONDEX_START_DATE} --end-date ${ARCHONDEX_END_DATE}"
+elif [ -n "${ARCHONDEX_START_DATE:-}" ] || [ -n "${ARCHONDEX_END_DATE:-}" ]; then
+    echo "ERROR: ARCHONDEX_START_DATE and ARCHONDEX_END_DATE must both be set when either is" >&2
+    exit 69
+elif [ -n "${ARCHONDEX_YEAR:-}" ]; then
+    WINDOW_ARG="--year ${ARCHONDEX_YEAR}"
 fi
-python -m scripts.run_isolated --runs 1 --task q1 $YEAR_ARG 2>&1 | tee "$HARNESS_LOG"
+python -m scripts.run_isolated --runs 1 --task q1 $WINDOW_ARG 2>&1 | tee "$HARNESS_LOG"
 
 CANON_MD5=$(grep -E "trades_canon_md5:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')
 RUN_ID=$(grep -E "^\s+run_id:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')
