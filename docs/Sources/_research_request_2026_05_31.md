@@ -1,8 +1,10 @@
 # Research request — ArchonDEX (retail algo trading system), 2026-05-31
 
-> **For an AI research analyst.** Paste everything below the line. The answer
-> will be filed under `docs/Sources/`. Optimize for decision-relevant depth and
-> intellectual honesty over breadth or optimism. Where the honest answer is
+> **For an AI research analyst.** Paste everything below the line. You do NOT
+> have access to our codebase or any internal files — everything you need is
+> stated inline in this prompt; nothing is referenced that you can't see.
+> Optimize for decision-relevant depth and intellectual honesty over breadth or
+> optimism. Where the honest answer is
 > "this doesn't work" or "no durable edge here," say so plainly — this team
 > values brutal realism and has killed many of its own promising-looking
 > findings on rigorous re-test.
