@@ -1,0 +1,49 @@
+{
+  "task_id": "T-2026-05-31-089",
+  "hmm_pkl": "/Users/jacksonmurphy/Dev/trading_machine-agent-b/engines/engine_e_regime/models/hmm_3state_v1.pkl",
+  "window": "2014-01-01_to_2025-04-30",
+  "horizon_days": 20,
+  "dd_threshold": -0.05,
+  "panel_rows": 1271,
+  "spy_rows": 1271,
+  "results": {
+    "crisis": {
+      "leaky": {
+        "path": "leaky_p_crisis",
+        "auc_point": 0.7443363898170382,
+        "ci_low": 0.7090741674428939,
+        "ci_high": 0.7788808334543962,
+        "n_rows": 1251,
+        "n_positives": 229
+      },
+      "causal": {
+        "path": "causal_p_crisis",
+        "auc_point": 0.7383330912074109,
+        "ci_low": 0.7024053252035994,
+        "ci_high": 0.7728356078927353,
+        "n_rows": 1251,
+        "n_positives": 229
+      },
+      "delta_point": 0.006
+    },
+    "stressed": {
+      "leaky": {
+        "path": "leaky_p_stressed",
+        "auc_point": 0.5339474786145839,
+        "ci_low": 0.49959739444021917,
+        "ci_high": 0.567403957904272,
+        "n_rows": 1251,
+        "n_positives": 229
+      },
+      "causal": {
+        "path": "causal_p_stressed",
+        "auc_point": 0.5331399174493031,
+        "ci_low": 0.49897404481323554,
+        "ci_high": 0.5656962224083268,
+        "n_rows": 1251,
+        "n_positives": 229
+      },
+      "delta_point": 0.0008
+    }
+  }
+}

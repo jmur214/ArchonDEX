@@ -348,10 +348,17 @@ def main():
     panel = build_feature_panel(root=REPO, start="2020-04-01", end=args.end, include_aux=False)
     print(f"[info] feature panel rows={len(panel)}, cols={list(panel.columns)}")
 
-    # Use predict_proba_sequence on the full panel; this runs forward-
-    # backward smoothed, but for time series labeling it's equivalent
-    # to the per-bar predict at this granularity.
-    proba_df = hmm.predict_proba_sequence(panel)
+    # T-2026-05-31-089 — CAUSAL labeling via per-bar growing-prefix
+    # predict_proba (the T-087 pattern). The prior call to
+    # `hmm.predict_proba_sequence(panel)` was forward-BACKWARD smoothed
+    # (each row's posterior was conditioned on FUTURE observations) and
+    # therefore introduced lookahead into the AUC headline. The false
+    # "equivalent for our purposes" comment from the prior version is
+    # removed because the predictive-validity test (AUC of signal_t vs
+    # forward dd_{t→t+k}) is exactly the case where forward-backward
+    # smoothing is NOT equivalent — it's contaminated.
+    from scripts._hmm_causal_proba import causal_proba_sequence
+    proba_df = causal_proba_sequence(hmm, panel, window=252)
     # Restrict to the validation window AFTER labeling to preserve the
     # full warm-up.
     mask_window = (proba_df.index >= pd.Timestamp(args.start)) & (proba_df.index <= pd.Timestamp(args.end))

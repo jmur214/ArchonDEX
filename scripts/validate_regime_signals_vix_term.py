@@ -242,7 +242,11 @@ def main():
     )
     print(f"[info] feature panel rows={len(panel)}, cols={list(panel.columns)}")
 
-    proba_df = hmm.predict_proba_sequence(panel)
+    # T-2026-05-31-089 — CAUSAL labeling via the T-087 growing-prefix
+    # pattern. Previous `predict_proba_sequence` call was forward-
+    # BACKWARD smoothed → lookahead in the predictive-AUC headline.
+    from scripts._hmm_causal_proba import causal_proba_sequence
+    proba_df = causal_proba_sequence(hmm, panel, window=252)
     mask_window = (proba_df.index >= pd.Timestamp(args.start)) & (proba_df.index <= pd.Timestamp(args.end))
     proba_df = proba_df.loc[mask_window]
     print(f"[info] HMM proba labeled rows in window: {len(proba_df)}")
