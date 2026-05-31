@@ -23,6 +23,7 @@ PortfolioEngine.allocate — opt-in path follows the migration plan.
 """
 from __future__ import annotations
 
+import math
 from typing import Dict, Optional
 
 import numpy as np
@@ -152,7 +153,13 @@ class MoonshotSleeve(Sleeve):
         # scaling is the only knob that decides allocation. Sleeve fills
         # its allocated capital; per_bet_size is the *upper* bound, not
         # an absolute floor.
-        total = sum(weights.values())
+        # T-2026-05-30-057c-followup determinism fix: math.fsum on sorted.
+        # `weights.values()` is dict-insertion-order; the FP sum here
+        # normalizes downstream per-ticker weights and therefore feeds
+        # trade decisions. Sorted math.fsum collapses cross-container
+        # summation-order residue. Same pattern as the xsec_momentum +
+        # signal_collector fixes.
+        total = math.fsum(sorted(weights.values()))
         if total > 0:
             weights = {tk: w / total for tk, w in weights.items()}
         else:
@@ -165,6 +172,9 @@ class MoonshotSleeve(Sleeve):
             target_weights=weights,
             rebalance_due=True,
             last_rebalance=as_of,
+            # Diagnostic only — no downstream decision rests on this sum,
+            # so the legacy `sum()` is acceptable here. Left untouched to
+            # minimize diff surface.
             objective_value=float(sum(candidates.values())),
             diagnostics={
                 "n_eligible": float(n),

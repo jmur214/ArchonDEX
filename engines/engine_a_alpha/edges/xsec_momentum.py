@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Sequence
@@ -108,7 +109,17 @@ class XSecMomentumEdge(EdgeBase):
 
         # Dollar-neutral (sum weights ~ 0)
         if neutralize == "dollar" and weights:
-            s = sum(weights.values())
+            # T-2026-05-30-057c-followup determinism fix: sort + math.fsum.
+            # `weights.values()` iteration order is upstream dict-insertion
+            # order. At zero-crossings (long_w ≈ short_w by construction
+            # of a dollar-neutral basket), `sum()` accumulates near-
+            # cancelling positive/negative contributions and the float
+            # residue depends on summation order. math.fsum on a sorted
+            # contribution list is order-independent AND higher-precision
+            # — the residue collapses to a single value regardless of
+            # cross-container module-init order. Same defensive pattern as
+            # the T-057c-det signal_collector sort fix.
+            s = math.fsum(sorted(weights.values()))
             if abs(s) > 1e-12:
                 # subtract mean weight to center
                 mean_w = s / len(weights)
