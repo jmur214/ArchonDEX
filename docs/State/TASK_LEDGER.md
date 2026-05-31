@@ -1,0 +1,57 @@
+# Task Ledger — ArchonDEX
+
+> **Status:** hand-maintained for now. Auto-generation from audit-doc YAML frontmatter is the future path once the structured `result_emit` schema lands (the parallel workstream's item J). Until then, append a row when an audit doc closes.
+
+Columns:
+
+- **T-ID** — task ID.
+- **date** — task close date (audit doc commit, not start).
+- **title** — one-phrase task summary.
+- **status** — `done` / `refuted` / `superseded` / `in-flight` / `blocked`.
+- **cells_attempted** / **cells_succeeded** — cloud campaign cell counts; `—` for local or non-campaign tasks.
+- **outcome** — one line; the punch line of the audit.
+- **audit doc** — relative path under `docs/Audit/`.
+
+Backfilled from T-035 (cloud era start, 2026-05-12) forward. Use `git log` and `MEMORY.md` for older context.
+
+| T-ID | date | title | status | cells_attempted | cells_succeeded | outcome | audit doc |
+|---|---|---|---|---|---|---|---|
+| T-035 | 2026-05-12 | Metrics pipeline bug + baseline correction | done | — | — | Peak_equity slot bug bi-directional; baseline corrected 0.270→0.598 | `metrics_report_t069_t035_baseline.md` |
+| T-038-CONT | 2026-05-12 | Foundry feature vectorization investigation | done | — | — | Surfaced T-054 production hunt() ticker= dead-letter bug | `dead_letter_pattern_audit_2026_05_12.md` |
+| T-041 | 2026-05-17 | Spinoff event-driven edge integration | done | — | — | EDGAR scraper + 150 events indexed; edge registered paused/feature tier | `engine_a_alpha_spinoff_2026_05_17.md` |
+| T-041b | 2026-05-22 | Spinoff gauntlet Gate 1 | refuted | — | — | Contribution Sharpe +0.000 vs +0.10 threshold; paused-tier-masking confound documented | `gauntlet_t041b_2026_05_22.md` |
+| T-041c | 2026-05-23 | Spinoff paused-tier-masking ruled out | refuted | — | — | Clean 0→1.0× re-run identical FAIL; pattern fails Gate 1 legitimately | `t041c_paused_tier_masking_ruled_out_2026_05_23.md` |
+| T-053 | 2026-05-23 | V/Q/A clustering prior | refuted | — | — | Max ρ within V/Q/A +0.316 (below 0.5 gate); no pruning needed | `t053_vqa_clustering_refuted_2026_05_23.md` |
+| T-053b | 2026-05-25 | Multi-year window harness + T-057 12-yr re-verify | done | 13 | 13 | Multi-year harness shipped; T-057 REFUTED on 12-yr; first MBL Gate-0 PASS | `multi_year_window_harness_t053b_2026_05_25.md` |
+| T-054 | 2026-05-12 | Production hunt() ticker= wiring fix | done | — | — | Engine D foundry_feature dead-letter closed; single-line fix unblocked T-022/23/24/38/52 cascade | `production_hunt_ticker_wiring_postfix_2026_05_12.json` |
+| T-055 | 2026-05-22 | Engine B vol-target shipped defense-first | done | — | — | INERT in default; bitwise-identical canon md5 vs T-019 | `engine_b_vol_targeting_2026_05_12.md` |
+| T-055c | 2026-05-22 | Vol-target A/B harness 5-yr-Alpaca | refuted | — | — | Marginal +0.256 mean, ci_low -0.140 crosses zero; regime-conditional | `engine_b_vol_targeting_ab_t055c_2026_05_22.md` |
+| T-055d | 2026-05-22 | EWMA dominates rolling | done | — | — | 2025 trap eliminated; ci_low -0.046 MARGINAL; additive Engine B change | `engine_b_vol_target_ewma_t055d_2026_05_22.md` |
+| T-055e | 2026-05-23 | Vol-target regime+EWMA 5-yr-Alpaca | superseded | — | — | First DEFENSIBLE +0.549 ci_low +0.047; later refuted on extended substrate | `engine_b_vol_target_regime_conditional_t055e_2026_05_23.md` |
+| T-055g | 2026-05-24 | Vol-target multiplier sensitivity sweep | refuted | 75 | 75 | Substrate-honest re-run: no arm clears ci_low>0; 2022 sign-flipped | `vol_target_multiplier_sensitivity_t055g_2026_05_24.md` |
+| T-055h | 2026-05-29 | Vol-target 12-yr verify | refuted | — | — | Δ Sharpe -0.214; vol-target chapter CLOSED on 12-yr window | `vol_target_12yr_verify_t055h_2026_05_29.md` |
+| T-057 | 2026-05-23 | Confidence-gated execution N-threshold A/B | superseded | — | — | Original 5-yr-Alpaca +0.793 "strongest lift" later reversed | `confidence_gated_execution_2026_05_12.md` |
+| T-057b | 2026-05-24 | Confidence-gated extended-substrate re-run | refuted | 50 | 50 | Δ -0.075, ci_low -0.532 iid / -1.154 block; regime-dependent floor-raiser | `confidence_gated_flag_flip_t057b_2026_05_24.md` |
+| T-057c-det | 2026-05-24 | T-057c determinism root-cause | done | — | — | FP summation-order cross-container fix in signal_collector.py | `confidence_gate_determinism_t057c_det_2026_05_24.md` |
+| T-057c-fp-followup | 2026-05-30 | FP determinism sweep | done | — | — | Defensive sort added at the 4 sibling cross-container summation sites | `fp_determinism_sweep_t057c_followup_2026_05_30.md` |
+| T-066 | 2026-05-22 | Baseline metrics report (T-035 post-fix) | done | — | — | Per-edge rolling PSR + 5-yr-Alpaca breakdown | `baseline_metrics_report_t066_2026_05_22.md` |
+| T-069 | 2026-05-22 | Pairwise conditional alpha analysis | done | — | — | Discovery-relevant pairwise correlations + α conditional on co-trigger | `pairwise_conditional_alpha_2026_05_22.md` |
+| T-081 | 2026-05-23 | Stooq substrate extension to 1962/1970 | done | — | — | Extended-survivor window opened; delisted gap pre-2020 caveat documented | `substrate_extension_stooq_t081_2026_05_23.md` |
+| T-082 | 2026-05-23 | Substrate merge + dividend-strip | done | — | — | Canonical substrate locked: Stooq + Alpaca dividend-strip merged | `substrate_merge_dividend_strip_t082_2026_05_23.md` |
+| T-087 | 2026-05-30 | Engine E regime signal re-diagnosis | done | — | — | HMM p_crisis AUC 0.887 on 12-yr; reversed 2026-05-06 "refuted" verdict | `engine_e_regime_rediagnosis_t087_2026_05_30.md` |
+| T-088 | 2026-05-31 | Risk-config key rename + filter hardening | done | — | — | risk_per_trade_pct confirmed DEAD KNOB on prod (Path B never runs); audit HIGH downgraded | `risk_config_keyfix_t088_2026_05_31.md` |
+| T-089 | 2026-05-31 | Regime-validator causal-path verification | done | — | — | T-087's AUC 0.887 causal claim verified; 3 sibling validators fixed; lookahead inflation bounded +0.006 | `regime_validator_causal_fix_t089_2026_05_31.md` |
+| T-090 | 2026-05-31 | Contract-test suite (silent-mismatch guard) | done | — | — | 10 parametric tests <1s; caught 3 known + surfaced 7 NEW silent-mismatch bugs | `contract_test_suite_t090_2026_05_31.md` |
+| T-091 | 2026-05-31 | Contract-suite green-up + CI gate | done | — | — | Suite 10/10 green; PSR + Sortino added to producer; CI workflow shipped | `contract_suite_greenup_t091_2026_05_31.md` |
+| T-092 | (in-flight) | Deep-substrate baseline 16-yr + 26-yr (Agent A) | in-flight | (cloud) | (pending) | Does the base validate on a longer-than-12-yr window? | (pending close) |
+| T-093 | 2026-05-31 | Doc-system overhaul Phase 1 | done | — | — | CURRENT_STATE + TASK_LEDGER + doc_lint + Audit/README index + nav edits | `doc_system_overhaul_phase1_t093_2026_05_31.md` |
+
+## Closed-pre-T-035 (digest only)
+
+Older tasks (T-001 to ~T-034) are summarized in `MEMORY.md` and the `docs/Sessions/2026-04/` summaries. Not backfilled here because the audit-doc trail is sparser and the cloud-cells columns don't apply.
+
+## Convention notes
+
+- **`cells_attempted` / `cells_succeeded`**: cloud-campaign cell counts (when AWS Batch submitted N cells; useful for honest-N accounting per the MBL constraint). For local-only or non-campaign work, both columns are `—`.
+- **`superseded`**: the task closed with a verdict that has since been overturned by a newer, more rigorous measurement. The audit doc still STANDS as the historical record; do not re-edit it. The supersession is tracked here + in the relevant audit's commit message of the superseding task.
+- **`refuted`**: the task closed with a negative verdict (the hypothesis it tested did NOT clear the gate). Distinct from `superseded` (which was originally positive but later overturned).

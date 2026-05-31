@@ -14,11 +14,16 @@ If you only read 5 docs, read these:
 
 | What you need | Where |
 |---|---|
-| **Current strategy / forward plan** | [`State/forward_plan.md`](State/forward_plan.md) |
+| **At-a-glance dashboard (validated / refuted / in-flight / next-decision / constraints)** | [`State/CURRENT_STATE.md`](State/CURRENT_STATE.md) |
+| **Per-task closed-out ledger (T-ID, status, cells, outcome)** | [`State/TASK_LEDGER.md`](State/TASK_LEDGER.md) |
+| **Current strategy / forward plan (verbose)** | [`State/forward_plan.md`](State/forward_plan.md) |
 | **Current code-quality findings** | [`State/health_check.md`](State/health_check.md) |
 | **Roadmap (phased plan, what's next)** | [`State/ROADMAP.md`](State/ROADMAP.md) |
 | **North-star goal + AI orientation** | [`State/GOAL.md`](State/GOAL.md) |
 | **Hard-won lessons (running collection)** | [`State/lessons_learned.md`](State/lessons_learned.md) |
+| **Audit topic index (find an audit doc by topic)** | [`Audit/README.md`](Audit/README.md) |
+
+`CURRENT_STATE.md` is the at-a-glance summary you read first on session start. `forward_plan.md` is the verbose, narrative version of in-flight planning; `TASK_LEDGER.md` is the closed-task history. If `CURRENT_STATE`'s "Last reconciled" date is more than 3 days old, fall back to source docs.
 
 ---
 
@@ -50,6 +55,8 @@ These files **mutate in place** — no date suffixes. `git log` is the history.
 
 | Doc | Updated when |
 |---|---|
+| [`CURRENT_STATE.md`](State/CURRENT_STATE.md) | At session start/end — validated / refuted / in-flight / next-decision / standing constraints. Hard caps per section. |
+| [`TASK_LEDGER.md`](State/TASK_LEDGER.md) | When a task closes — one row per T-ID with cells, status, audit ref |
 | [`forward_plan.md`](State/forward_plan.md) | Strategy / dispatch changes |
 | [`health_check.md`](State/health_check.md) | Code-quality finding opened or resolved |
 | [`ROADMAP.md`](State/ROADMAP.md) | Roadmap item completed or re-prioritized |
@@ -57,9 +64,24 @@ These files **mutate in place** — no date suffixes. `git log` is the history.
 | [`lessons_learned.md`](State/lessons_learned.md) | Non-obvious thing learned |
 | [`deployment_boundary.md`](State/deployment_boundary.md) | Deployment-context shift (e.g. tax-treatment, broker) |
 
-### `Measurements/<YYYY-MM>/` — point-in-time reports (frozen)
+### `Audit/` vs `Measurements/<YYYY-MM>/` — analysis docs vs raw cell results
 
-Backtests, ablations, audits, workstream close-outs. **Append-only.** A measurement is a point-in-time fact; never edited after the run.
+This is the **most-confused distinction** in the doc tree. Both are point-in-time and frozen on commit, but they answer different questions:
+
+| | `docs/Audit/` | `docs/Measurements/<YYYY-MM>/` |
+|---|---|---|
+| **What it is** | Analysis docs with a verdict — one per T-ID or per question | Raw cell-level results, run registries, parquet manifests |
+| **Reader's question it answers** | "Did X clear the bar?" / "Why did we believe Y?" | "What did cell K in campaign Z output?" |
+| **Format** | `.md` narrative + cited `.json` aggregations | `.parquet`, `.json`, per-run dirs, registries |
+| **Citation flow** | Audits CITE measurements | Measurements are the SOURCE DATA audits reference |
+| **Topic index** | [`Audit/README.md`](Audit/README.md) | (month-bucketed; grep by date) |
+| **Lifecycle** | Frozen on commit; superseded via TASK_LEDGER | Append-only; never edited post-run |
+
+If you find yourself unsure where to put a doc, ask: **does it have a verdict?** If yes → `Audit/`. If no (it's raw numbers / a registry / a manifest) → `Measurements/`.
+
+### `Measurements/<YYYY-MM>/` — raw point-in-time results (frozen)
+
+Backtests, ablations, run registries, parquet manifests. **Append-only.** A measurement is a point-in-time fact; never edited after the run.
 
 Current month: [`Measurements/2026-05/`](Measurements/2026-05/) — recent measurements (Foundation Gate, Path C harness, WS A-J close-outs)
 
@@ -68,6 +90,12 @@ Prior months: [`Measurements/2026-04/`](Measurements/2026-04/) — gauntlet vali
 If you find yourself editing a measurement file post-run, you probably want to:
 - Add a `Status: SUPERSEDED-BY-<newfile>` line to the old one, OR
 - Write a new measurement file and link to it from the State layer
+
+### `Audit/` — analysis docs with verdicts (frozen)
+
+One audit doc per T-ID (or per question). The audit's verdict is the punch line; supersession lives in [`State/TASK_LEDGER.md`](State/TASK_LEDGER.md). The audit text itself is frozen once committed — don't re-edit historical audits when their verdict gets superseded.
+
+Topic index: [`Audit/README.md`](Audit/README.md). Grouped by Engine / topic so cross-task analysis is fast.
 
 ### `Sessions/<YYYY-MM>/` — per-session summaries (frozen)
 
@@ -94,10 +122,13 @@ Paper reviews, third-party analysis. Cite freely; treat like a bibliography.
 
 | I want to... | Read |
 |---|---|
+| **Get the at-a-glance status before doing anything** | `State/CURRENT_STATE.md` |
 | Understand the project from cold start | `Core/PROJECT_CONTEXT.md` → `Core/Human/` |
 | Know what's broken right now | `State/health_check.md` |
-| Know what we're working on right now | `State/forward_plan.md` |
-| Know what's being measured / shipped | `Measurements/<latest-month>/` |
+| Know what we're working on right now | `State/forward_plan.md` (verbose) or `State/CURRENT_STATE.md` (at-a-glance) |
+| **Look up a closed task by T-ID** | `State/TASK_LEDGER.md` |
+| **Find an audit doc by topic** | `Audit/README.md` |
+| Know what's being measured / shipped | `Measurements/<latest-month>/` (raw cells) or `Audit/` (verdicts) |
 | Know what an agent did last session | `Sessions/<latest-month>/` |
 | Know how to run a CLI command | `Core/execution_manual.md` |
 | Understand the doc system itself | `Core/SESSION_PROCEDURES.md` § "Documentation lifecycle" |
