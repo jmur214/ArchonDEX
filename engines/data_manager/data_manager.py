@@ -61,7 +61,22 @@ class DataManager:
             if timeframe == "1m": interval = "1m"
             elif timeframe == "1H": interval = "1h"
             
-            df = yf.download(ticker, start=start_date, end=end_date, interval=interval, progress=False, auto_adjust=True)
+            # T-088: yfinance fallback writes to the SAME cache as the primary
+            # Alpaca path (data_manager.py:~671), which is split-only. Using
+            # auto_adjust=True here would produce dividend+split (total-return)
+            # prices that get mixed into a split-only substrate — the same
+            # adjustment-basis class we hit during the Stooq merge. Force
+            # split-only (auto_adjust=False) so any ticker that falls back to
+            # yfinance is consistent with the rest of the cache.
+            #
+            # Note: scripts/merge_stooq_alpaca_substrate.py:220 (apply_dividend_strip)
+            # only applies in the cross-source MERGE context where an overlap
+            # window lets us fit a ratio. The yfinance fallback has no such
+            # overlap — split-only is the correct basis-match for the cache.
+            df = yf.download(
+                ticker, start=start_date, end=end_date, interval=interval,
+                progress=False, auto_adjust=False,
+            )
             
             if df.empty:
                 return pd.DataFrame()

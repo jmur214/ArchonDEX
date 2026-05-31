@@ -23,7 +23,7 @@ def _write_run(root: Path, run_id: str, sharpe: float = 1.0, versions: bool = Tr
         "Volatility (%)": 12.0,
         "Win Rate (%)": 55.0,
         "PSR": 0.85,
-        "Sortino Ratio": 1.5,
+        "Sortino": 1.5,
     }))
     if versions:
         (rd / "engine_versions.json").write_text(json.dumps({
