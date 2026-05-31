@@ -22,7 +22,16 @@ class PortfolioPolicyConfig:
     rebalance_threshold: float = 0.02    # rebalance if deviation exceeds 2%
     risk_free_rate: float = 0.0
     debug: bool = False
-    
+
+    # T-098 no-trade band — Donohue-Yip 2003 / 2026-05-31 research finding_2 Q9.
+    # When enabled, the engine compares the freshly-computed target weight per
+    # ticker against the current weight; if |Δw| < no_trade_band_pct, the
+    # target is overridden with the current weight (rebalance suppressed).
+    # Default OFF — additive/inert when disabled (canon-md5 unchanged).
+    # See `docs/Audit/no_trade_band_h_band_t098_2026_05_31.md`.
+    no_trade_band_enabled: bool = False
+    no_trade_band_pct: float = 0.20
+
     # Parrondo / Fixed Mode Settings
     fixed_allocations: Optional[Dict[str, float]] = None # e.g. {"SPY": 0.5, "SHV": 0.5}
 

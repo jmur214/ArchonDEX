@@ -331,8 +331,68 @@ class PortfolioEngine:
     ) -> Dict[str, float]:
         """
         Wrapper around PortfolioPolicy.allocate() that stores and returns weights.
+
+        T-098 H-Band: when `policy.cfg.no_trade_band_enabled`, the freshly-
+        computed target weight is compared per-ticker against the current
+        weight (qty × last close / equity). The band is PROPORTIONAL per
+        Donohue-Yip 2003: suppress when
+            |target - curr| / max(|target|, |curr|, floor) < band_pct,
+        where floor=1e-9 prevents div-by-zero. Semantics:
+          - new entry (curr=0, target>0): |target|/|target| = 1.0 ≫ band
+            → fires (band does NOT block legit entries on small weights).
+          - small rebalance (curr=5%, target=6%): |1%|/|6%| ≈ 17% — at
+            band=20%, suppressed; at band=15%, fires.
+          - big rebalance / full exit: numerator ~= denominator → fires.
+
+        Default OFF — additive/inert when disabled; bitwise-identical canon
+        md5 vs the pre-T-098 baseline on default path. Per the 2026-05-31
+        external research (Donohue-Yip 2003), proportional band rebalancing
+        is the cheapest structural skew fix: cuts turnover ~60-70%, lets
+        winners run, sheds execution + tax cost — Pareto across objectives.
+
+        Note on absolute vs proportional: an ABSOLUTE band (|Δw| < band_pct)
+        was tried first in T-098 smoke and collapsed turnover to 0 because
+        our book's per-name target weights (1-10%) are smaller than any
+        sensible absolute threshold (20-25%) — see audit doc.
         """
         weights = self.policy.allocate(signals, price_data, equity, regime_meta=regime_meta)
+
+        # T-098 no-trade band — pure-additive, default OFF. Guard against
+        # zero/negative equity (degenerate at boot) — band can't be applied
+        # without a sensible denominator; skip silently if equity invalid.
+        band_enabled = bool(getattr(self.policy.cfg, "no_trade_band_enabled", False))
+        if band_enabled and equity and equity > 0:
+            band_pct = float(getattr(self.policy.cfg, "no_trade_band_pct", 0.0))
+            if band_pct > 0:
+                for tkr, target_w in list(weights.items()):
+                    try:
+                        tw = float(target_w)
+                    except (TypeError, ValueError):
+                        continue
+                    if not np.isfinite(tw):
+                        continue
+                    pos = self.positions.get(tkr)
+                    curr_qty = 0 if pos is None else int(pos.qty)
+                    if curr_qty == 0:
+                        curr_w = 0.0
+                    else:
+                        df = price_data.get(tkr)
+                        if df is None or df.empty or "Close" not in df.columns:
+                            # Can't determine current weight → fail safe,
+                            # leave target unchanged.
+                            continue
+                        try:
+                            last_px = float(df["Close"].iloc[-1])
+                        except Exception:
+                            continue
+                        if not np.isfinite(last_px) or last_px <= 0:
+                            continue
+                        curr_w = (curr_qty * last_px) / equity
+                    denom = max(abs(tw), abs(curr_w), 1e-9)
+                    if abs(tw - curr_w) / denom < band_pct:
+                        # Suppress rebalance / entry — hold current weight.
+                        weights[tkr] = curr_w
+
         self.current_target_weights = weights
         self._log_debug(f"Computed target allocations from signals: {signals} -> weights: {weights}")
         return weights

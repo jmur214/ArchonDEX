@@ -47,6 +47,7 @@ Backfilled from T-035 (cloud era start, 2026-05-12) forward. Use `git log` and `
 | T-093 | 2026-05-31 | Doc-system overhaul Phase 1 | done | — | — | CURRENT_STATE + TASK_LEDGER + doc_lint + Audit/README index + nav edits | `doc_system_overhaul_phase1_t093_2026_05_31.md` |
 | T-095 | (in-flight) | Fill-convention diagnostic (H-Convention, Agent B) | in-flight | — | — | Is ~0.81 a close-to-close fill artifact? gates how to read T-092 | (pending close) |
 | T-096 | 2026-05-31 | Doc-system overhaul Phase 2 (hooks + NON_NEGOTIABLES split) | done | — | — | SessionStart/Stop externalized + fail-open; CLAUDE.md restructure; NON_NEGOTIABLES.md expanded copy | `doc_system_overhaul_phase2_t096_2026_05_31.md` |
+| T-098 | 2026-05-31 | H-Band no-trade bands (Engine C autonomous; Agent B) | refuted | 36 | 36 | Donohue-Yip proportional band; 12-yr A/B; Δ Sharpe +0.008/+0.018 ci_low NEGATIVE; turnover Δ <2% (predicted −60-70%); skew mixed; NOT a Pareto win | `no_trade_band_h_band_t098_audit_2026_05_31.md` |
 
 ## Closed-pre-T-035 (digest only)
 

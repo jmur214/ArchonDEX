@@ -1,6 +1,6 @@
 # CURRENT_STATE — ArchonDEX
 
-**Last reconciled with source docs:** 2026-05-31
+**Last reconciled with source docs:** 2026-05-31 (T-098 close)
 
 **If this date is more than 3 days old, read `forward_plan.md`, `health_check.md`, and the latest `docs/Audit/*` before quoting state.** Hard caps below (≤5 per section, exactly 1 next-decision) are the anti-rot discipline — when a slot fills, the oldest item moves to MEMORY or is superseded.
 
@@ -12,11 +12,11 @@
 
 ## Recently refuted / superseded (max 5, rolling)
 
+- **T-098 H-Band (no-trade band, Donohue-Yip ±20-25%)** — REFUTED on 12-yr. Δ Sharpe +0.008 (arm1_b20) / +0.018 (arm2_b25), block-bootstrap ci_low NEGATIVE both arms. Turnover Δ −0.6% / +1.6% (predicted −60-70%). Skew mixed (arm1 +0.08; arm2 **worse** −0.22). Trade COUNT −17-19% but dollar-turnover flat: band suppresses small rebalances but the dominant large vol-target rebalances pass through. **DO NOT flag-flip.** Implementation kept as additive/default-OFF for future band-sweep work. Audit: `no_trade_band_h_band_t098_audit_2026_05_31.md`.
 - **T-057 confidence-gated execution (N≥3)** — REFUTED on 12-yr (Δ Sharpe -0.128; p(Δ>0)=32%). 5-yr-Alpaca +0.793 was a substrate-conditional artifact. First measurement to PASS MBL Gate-0. Do NOT flip. Audit: `multi_year_window_harness_t053b_2026_05_25.md`, `confidence_gated_flag_flip_t057b_2026_05_24.md`.
 - **T-055e/g/h regime-conditional vol-target** — CLOSED on 12-yr (Δ Sharpe -0.214, CI [-0.688, +0.260]). 5-yr-Alpaca +0.549 "DEFENSIBLE" verdict retired. The whole T-055 arc shows monotone decay (+0.549 → +0.413 → -0.214) as rigor rose. Audit: `vol_target_12yr_verify_t055h_2026_05_29.md`.
 - **T-088 risk_per_trade_pct** — confirmed DEAD KNOB on prod (Path A uses `target_weight`; the knob lives only on dead Path B). Audit HIGH-priority downgraded; historical verdicts STAND because the path was never live. Sweep target is `max_pos_value_pct × max_positions`. Audit: `risk_config_keyfix_t088_2026_05_31.md`.
-- **T-095 fill-convention (H-Convention)** — hypothesis REFUTED (good outcome): the backtest already fills at **t+1 OPEN**, not close-to-close. The Lou-Polk-Skouras overnight-alpha-leak (~0.55 Sharpe if momentum-dominated) does NOT apply; ~0.81 was never fill-inflated. Verified by director spot-check of `execution_simulator._next_price_for_entry_exit`. Audit: `fill_convention_diagnostic_t095_2026_05_31.md`.
-- **2026-05-06 Engine E refutation** — REVERSED by T-087 + T-089. The 5-yr "AUC 0.49, BLOCKED" verdict was a too-short-window false negative; on 12-yr causal path the HMM p_crisis AUC is 0.887 (verified non-leaky by T-089, lookahead inflation bounded +0.006). Engine E regime signal IS predictive. Audit: `engine_e_regime_rediagnosis_t087_2026_05_30.md`, `regime_validator_causal_fix_t089_2026_05_31.md`.
+- **T-095 fill-convention (H-Convention)** — hypothesis REFUTED (good outcome): the backtest already fills at **t+1 OPEN**, not close-to-close. The Lou-Polk-Skouras overnight-alpha-leak (~0.55 Sharpe if momentum-dominated) does NOT apply; ~0.81 was never fill-inflated. Audit: `fill_convention_diagnostic_t095_2026_05_31.md`.
 
 ## In flight (max 5)
 
