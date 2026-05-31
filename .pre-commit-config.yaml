@@ -39,3 +39,21 @@ repos:
         # the workflow's --skip-pytest flag if a separate test job
         # already covered it. Locally we always run the full gate.
         stages: [pre-commit]
+
+      # T-093 doc-lint — anti-rot guard for the documentation system.
+      # 7 checks: MEMORY.md size cap, CURRENT_STATE freshness, broken
+      # supersession markers, broken audit-doc refs, missing memory
+      # entry dates, TASK_LEDGER row completeness, scripts/*.py
+      # coverage in execution_manual.md. Fast (<1s); WARN-only checks
+      # don't block commits, FAIL checks do.
+      - id: doc-lint
+        name: Documentation lint (anti-rot guard)
+        entry: python scripts/doc_lint.py --pre-commit
+        language: system
+        # Trigger on changes to anything in the doc system OR to
+        # scripts/ (execution_manual coverage check) OR to the lint
+        # script itself. The check ignores its file args (it scans
+        # known paths), so pass_filenames is false.
+        files: ^(docs/.*|scripts/.*\.py|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        stages: [pre-commit]
