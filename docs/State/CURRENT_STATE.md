@@ -21,10 +21,11 @@
 ## In flight (max 5)
 
 - **T-092 (Agent A)** — deep-substrate baseline, 16-yr + 26-yr arm0_off, DSR + MBL verdict. Does the base validate on a longer-than-12-yr window? Result determines the next decision below.
+- **T-095 (Agent B)** — fill-convention diagnostic (H-Convention, from 2026-05-31 external research). Does the baseline fill at same-bar close / t+1-open / t+1-close, and how much of ~0.81 is a close-to-close artifact? Gates how to READ T-092 (same convention). Two-phase: Phase 1 diagnoses (may resolve clean); Phase 2 A/Bs next-open MOO on 12-yr if a real gap exists.
 
 ## Next decision (exactly 1)
 
-- **Await T-092 verdict.** If base clears DSR + MBL on 26-yr → portfolio-param sweep (`max_pos_value_pct × max_positions`, both LIVE per T-088) + overlay re-tests on the validated substrate. If still borderline → pivot to new alpha source (Discovery gene-encoding unblock / alt-data / parked LLM-as-analyst layer). The 26-yr Stooq survivor window is the highest-leverage substrate lever still available without buying data.
+- **Await T-092 + T-095 jointly.** T-095 (fill convention) gates how to read T-092's number — a 0.81 that's mostly close-to-close overnight-alpha artifact changes everything. If base survives BOTH honest fills (T-095) AND a longer window (T-092 DSR+MBL) → portfolio-param sweep (`max_pos_value_pct × max_positions`, both LIVE per T-088) + the research's structural skew decision (trend/barbell overlay). If it collapses under honest fills → the 0.81 was convention, pivot to the structural levers (skew overlay / no-trade bands / new alpha). The 2026-05-31 research reorders priorities toward CORRECTIONS (fill convention, tax-rate recompute) + one ARCHITECTURE decision (skew overlay), away from more factor parameter-tuning. See `docs/Sources/Research_2026_05_31/README.md`.
 
 ## Standing constraints (max 5)
 
