@@ -1,0 +1,541 @@
+{
+  "args": {
+    "start": "2014-01-01",
+    "end": "2025-12-31",
+    "hmm_pkl": "/Users/jacksonmurphy/Dev/trading_machine-agent-a/engines/engine_e_regime/models/hmm_3state_v1.pkl",
+    "dd_threshold": -0.05,
+    "out_json": "/Users/jacksonmurphy/Dev/trading_machine-agent-a/docs/Measurements/2026-05/regime_signal_validation_t087_2026_05_30.json"
+  },
+  "window": {
+    "start": "2014-01-02",
+    "end": "2025-12-31",
+    "n_days": 3018,
+    "years": 11.994524298425736
+  },
+  "hmm_metadata": {
+    "train_start": "2021-01-04",
+    "train_end": "2024-12-31",
+    "train_log_likelihood": -6048.1655129386845,
+    "n_train_obs": 1005
+  },
+  "hmm_state_label_for_idx": [
+    "crisis",
+    "stressed",
+    "benign"
+  ],
+  "unconditional_fire_rates": {
+    "hmm_p_crisis@0.5": 0.22697150430748841,
+    "hmm_p_stressed@0.5": 0.26872100728959575,
+    "hmm_crisis_or_stressed@0.5": 0.49569251159708416,
+    "vvix_z_252d@1.0": 0.14844267726971505,
+    "vvix_z_252d@1.5": 0.09078860172299535,
+    "vvix_z_252d@2.0": 0.042080848243870116
+  },
+  "auc": {
+    "horizon_5d": {
+      "base_rate": 0.010952538997676734,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.8868263168598739,
+          "auc_ci_low": 0.7947126628800535,
+          "auc_ci_high": 0.9466228682772059
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.4674801708358755,
+          "auc_ci_low": 0.3411836485661989,
+          "auc_ci_high": 0.622437109204595
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.8482763880414887,
+          "auc_ci_low": 0.8126565949740766,
+          "auc_ci_high": 0.8809582666860549
+        },
+        "vvix_proxy": {
+          "auc_point": 0.7208663819402075,
+          "auc_ci_low": 0.5250780640124902,
+          "auc_ci_high": 0.8722573379831444
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.6867206324883129,
+          "auc_ci_low": 0.47491367052610195,
+          "auc_ci_high": 0.8447136563876652
+        }
+      }
+    },
+    "horizon_10d": {
+      "base_rate": 0.049867021276595744,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.8039059948682062,
+          "auc_ci_low": 0.7396208848382929,
+          "auc_ci_high": 0.8605733310050468
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.5582715185444367,
+          "auc_ci_low": 0.46577273856744494,
+          "auc_ci_high": 0.6443841334882497
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.7988021926755307,
+          "auc_ci_low": 0.7443476013150561,
+          "auc_ci_high": 0.8429674064813865
+        },
+        "vvix_proxy": {
+          "auc_point": 0.6928714718917658,
+          "auc_ci_low": 0.5873060318007333,
+          "auc_ci_high": 0.7876878685015024
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.6303261250100989,
+          "auc_ci_low": 0.5166711846028734,
+          "auc_ci_high": 0.7355605373968036
+        }
+      }
+    },
+    "horizon_20d": {
+      "base_rate": 0.18979319546364243,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.6030221380347746,
+          "auc_ci_low": 0.5402857527413567,
+          "auc_ci_high": 0.6651218370507936
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.6064086488614073,
+          "auc_ci_low": 0.5413816322082451,
+          "auc_ci_high": 0.6665107368796223
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.6855812274211508,
+          "auc_ci_low": 0.6269904000543935,
+          "auc_ci_high": 0.7396967182269552
+        },
+        "vvix_proxy": {
+          "auc_point": 0.5858240461442398,
+          "auc_ci_low": 0.523918197984588,
+          "auc_ci_high": 0.643870112657389
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.5270146822794056,
+          "auc_ci_low": 0.4592777128773413,
+          "auc_ci_high": 0.5924538542217476
+        }
+      }
+    }
+  },
+  "auc_sub_windows": {
+    "oos_2014_2020": {
+      "n_days": 1763,
+      "base_rate": 0.04848830576155162,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.7921180702496826,
+          "auc_ci_low": 0.701981387320987,
+          "auc_ci_high": 0.8650639105252647
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.6033643673296657,
+          "auc_ci_low": 0.496312600927764,
+          "auc_ci_high": 0.7096807945527421
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.8154253068133729,
+          "auc_ci_low": 0.7497370151216305,
+          "auc_ci_high": 0.8712286193911347
+        },
+        "vvix_proxy": {
+          "auc_point": 0.7554873748060376,
+          "auc_ci_low": 0.6559752792649878,
+          "auc_ci_high": 0.8404480877268798
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.6967600820232399,
+          "auc_ci_low": 0.5885840619033263,
+          "auc_ci_high": 0.7976173791170287
+        }
+      }
+    },
+    "train_2021_2024": {
+      "n_days": 1005,
+      "base_rate": 0.04723618090452261,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.8016204327138882,
+          "auc_ci_low": 0.695087672333021,
+          "auc_ci_high": 0.8870390049986224
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.5786874943890834,
+          "auc_ci_low": 0.4745034889962426,
+          "auc_ci_high": 0.6731806195143071
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.7289927282520873,
+          "auc_ci_low": 0.6307308166138683,
+          "auc_ci_high": 0.8168193717277487
+        },
+        "vvix_proxy": {
+          "auc_point": 0.4850525181793698,
+          "auc_ci_low": 0.30498337088295246,
+          "auc_ci_high": 0.6768247422680412
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.43233234581201185,
+          "auc_ci_low": 0.25682539682539685,
+          "auc_ci_high": 0.6298620974022999
+        }
+      }
+    },
+    "post_train_2025": {
+      "n_days": 250,
+      "base_rate": 0.075,
+      "signals": {
+        "hmm_p_crisis": {
+          "auc_point": 0.9298048048048048,
+          "auc_ci_low": 0.7714074074074074,
+          "auc_ci_high": 0.9933628318584071
+        },
+        "hmm_p_stressed": {
+          "auc_point": 0.18693693693693694,
+          "auc_ci_low": 0.001226241569589209,
+          "auc_ci_high": 0.7404661016949152
+        },
+        "hmm_p_crisis_or_stressed": {
+          "auc_point": 0.9298048048048048,
+          "auc_ci_low": 0.7714074074074074,
+          "auc_ci_high": 0.9933628318584071
+        },
+        "vvix_proxy": {
+          "auc_point": 0.9644644644644644,
+          "auc_ci_low": 0.9180672268907563,
+          "auc_ci_high": 0.9932659932659933
+        },
+        "vvix_z_252d": {
+          "auc_point": 0.9479479479479479,
+          "auc_ci_low": 0.8715689596746865,
+          "auc_ci_high": 0.9924665178571429
+        }
+      }
+    }
+  },
+  "lead_vs_lag": {
+    "hmm_p_crisis": {
+      "lag": {
+        "5": -0.20450228944254362,
+        "10": -0.22499569220573695,
+        "20": -0.1489944835013288,
+        "40": 0.09642093004749543,
+        "60": 0.20974729302984432
+      },
+      "lead": {
+        "5": -0.24928637429449457,
+        "10": -0.2637665658237916,
+        "20": -0.1891427366392163,
+        "40": 0.06842956076756412,
+        "60": 0.19291650190163587
+      }
+    },
+    "hmm_p_stressed": {
+      "lag": {
+        "5": -0.049524723816469905,
+        "10": -0.05754358125413671,
+        "20": -0.09037552137309628,
+        "40": -0.17166055490953733,
+        "60": -0.20361848940667793
+      },
+      "lead": {
+        "5": -0.04700272539507617,
+        "10": -0.05511922639045956,
+        "20": -0.08409226650807455,
+        "40": -0.1667501978900937,
+        "60": -0.20023142213839776
+      }
+    },
+    "vvix_proxy": {
+      "lag": {
+        "5": -0.2285953541265292,
+        "10": -0.2437567800262552,
+        "20": -0.15054715983389202,
+        "40": 0.12433821841561085,
+        "60": 0.19496503010450683
+      },
+      "lead": {
+        "5": -0.24671791414301553,
+        "10": -0.27087232322478727,
+        "20": -0.17965490783567978,
+        "40": 0.10372749098932771,
+        "60": 0.18755189080648801
+      }
+    },
+    "vvix_z_252d": {
+      "lag": {
+        "5": -0.17329276011476683,
+        "10": -0.1588857578687862,
+        "20": -0.03018626808436704,
+        "40": 0.2543285433602255,
+        "60": 0.31097013883000046
+      },
+      "lead": {
+        "5": -0.19689893274661513,
+        "10": -0.19023812336075893,
+        "20": -0.06133202062799202,
+        "40": 0.2381557784885048,
+        "60": 0.30946242094321086
+      }
+    }
+  },
+  "per_event_tpr": {
+    "hmm_p_crisis @ 0.5": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": true,
+        "lead_days": 27,
+        "max_signal_in_window": 0.9999997006635106,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": true,
+        "lead_days": 60,
+        "max_signal_in_window": 0.9999999996575752,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": true,
+        "lead_days": 45,
+        "max_signal_in_window": 1.0,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": true,
+        "lead_days": 43,
+        "max_signal_in_window": 0.9999999920516984,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": true,
+        "lead_days": 42,
+        "max_signal_in_window": 1.0,
+        "n_obs_in_window": 42
+      }
+    ],
+    "hmm_p_stressed @ 0.5": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 0.33872906382579077,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": true,
+        "lead_days": 27,
+        "max_signal_in_window": 0.9999999085425813,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 0.07243161056958919,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": true,
+        "lead_days": 58,
+        "max_signal_in_window": 0.9999991045262421,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 3.1510275929877626e-13,
+        "n_obs_in_window": 42
+      }
+    ],
+    "hmm_crisis_or_stressed @ 0.5": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": true,
+        "lead_days": 27,
+        "max_signal_in_window": 1.0000000000008327,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": true,
+        "lead_days": 60,
+        "max_signal_in_window": 1.0000000000002227,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": true,
+        "lead_days": 45,
+        "max_signal_in_window": 1.0000000000002194,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": true,
+        "lead_days": 58,
+        "max_signal_in_window": 1.0000000000001135,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": true,
+        "lead_days": 42,
+        "max_signal_in_window": 1.0,
+        "n_obs_in_window": 42
+      }
+    ],
+    "vvix_z_252d @ 1.0": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": true,
+        "lead_days": 46,
+        "max_signal_in_window": 2.4870994195230245,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 0.754331245382463,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": true,
+        "lead_days": 28,
+        "max_signal_in_window": 3.422089168137109,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": -0.7365653909820858,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": true,
+        "lead_days": 4,
+        "max_signal_in_window": 1.189532729785632,
+        "n_obs_in_window": 42
+      }
+    ],
+    "vvix_z_252d @ 1.5": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": true,
+        "lead_days": 40,
+        "max_signal_in_window": 2.4870994195230245,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 0.754331245382463,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": true,
+        "lead_days": 25,
+        "max_signal_in_window": 3.422089168137109,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": -0.7365653909820858,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 1.189532729785632,
+        "n_obs_in_window": 42
+      }
+    ],
+    "vvix_z_252d @ 2.0": [
+      {
+        "label": "2015-08 China-vol",
+        "trough": "2015-08-25",
+        "fired": true,
+        "lead_days": 1,
+        "max_signal_in_window": 2.4870994195230245,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2018-Q4 selloff",
+        "trough": "2018-12-24",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 0.754331245382463,
+        "n_obs_in_window": 41
+      },
+      {
+        "label": "2020-03 COVID",
+        "trough": "2020-03-23",
+        "fired": true,
+        "lead_days": 25,
+        "max_signal_in_window": 3.422089168137109,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2022 bear (full)",
+        "trough": "2022-10-12",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": -0.7365653909820858,
+        "n_obs_in_window": 42
+      },
+      {
+        "label": "2025 vol-shock",
+        "trough": "2025-04-08",
+        "fired": false,
+        "lead_days": null,
+        "max_signal_in_window": 1.189532729785632,
+        "n_obs_in_window": 42
+      }
+    ]
+  }
+}
