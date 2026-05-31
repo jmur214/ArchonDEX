@@ -3,107 +3,122 @@ title: Silent-bug audit — systematic hunt for the mismatch/lookahead/wiring bu
 date: 2026-05-31
 author: director (multi-agent workflow: 6 hunters + per-finding adversarial verify + synth)
 method: 21 agents, 14 candidates, 9 confirmed (5 refuted by adversarial pass)
+status: CORRECTED — first write-up reconstructed findings from a truncated notification and was wrong; these are the actual parsed results
 ---
 
-# Silent-bug audit — 9 confirmed defects
+# Silent-bug audit — 9 confirmed defects (CORRECTED)
 
-Motivated by the recurring silent-mismatch bug family (cockpit peak_equity
-slot, hunt() ticker=, env-suffixed config, T-055g v1 patch keys, director
-'Sharpe' vs 'Sharpe Ratio', predict_proba_sequence lookahead). One hunter
-per bug-class; every candidate adversarially verified (refute-by-default)
-before confirmation. 5 of 14 candidates were refuted as benign — so the
-list below survived active refutation.
+> **Correction note:** the first version of this doc inferred findings
+> (H1/H2 Engine E + M2-M6) from the truncated task-notification + prior
+> context. That was the same infer-don't-verify error as the baseline DSR
+> bug. The list below is parsed from the actual workflow result
+> (`result.confirmed`, 9 items). Several inferred findings were WRONG —
+> e.g. the HIGH is a config-key mismatch, not a regime-lookahead; the
+> lookahead findings are in validation SCRIPTS, not Engine E production.
 
-## Ranked punch list
+Motivated by the recurring silent-mismatch family (cockpit peak_equity
+slot, hunt() ticker=, env-config, T-055g v1 patch keys, director 'Sharpe'
+vs 'Sharpe Ratio'). One hunter per bug-class; every candidate
+adversarially verified (refute-by-default). 5 of 14 refuted as benign.
 
-### HIGH — lookahead (could contaminate any regime-conditional backtest)
+## Ranked punch list (real)
 
-**H1. `engines/engine_e_regime/hmm_classifier.py::predict_proba_sequence`
-— non-causal smoothing.** Uses Baum-Welch forward-backward; posterior at
-bar t depends on bars t+1..T. Any backtest/live decision path consuming
-it sees the future. A flagged this in T-087 (where the diagnosis correctly
-used the causal filter). **Fix:** add `predict_proba_filtered` (forward-only),
-route all decision-path callers to it; keep smoothed for offline labeling only.
-**Blast radius:** any backtest that reads regime probabilities for sizing/gating.
-Note: T-055e/g/h still FAILED, so lookahead there (if present) wasn't enough
-to manufacture a passing lift — but it could have understated OFF-baseline
-or distorted per-year attribution.
+### HIGH
 
-**H2. `engines/engine_e_regime/regime_detector.py` — full-series
-normalization.** The feature panel feeding the HMM is normalized with
-mean/std/quantile over the ENTIRE window, so early-window regime calls use
-end-of-window statistics. **Fix:** expanding/rolling causal normalization
-(data ≤ t only) in backtest. **Blast radius:** same as H1 — regime calls
-are contaminated independent of the smoothing issue. These two are likely
-the reason the 2026-05-06 5-yr AUC was 0.49 while the T-087 causal-path
-12-yr AUC was 0.887: production may have been running the leaky path.
+**[3] config-namespace — production risk-sizing keys silently dropped.**
+`config/risk_settings.prod.json` (the only file ModeController loads)
+names sizing knobs `risk_per_trade` / `max_position_value`, but the
+`RiskConfig` dataclass reads `risk_per_trade_pct` / `max_pos_value_pct`.
+`RiskEngine.__init__` filters unrecognized keys silently → **production
+runs on dataclass DEFAULTS, not the prod-config values.** Family: T-055g
+v1 / env-config. **Engine B → PROPOSE-FIRST.**
+Readers: mode_controller.py:516,522,576 → risk_engine.py:131-133,878,982.
+Fix: rename JSON keys to match dataclass (and reconcile absolute vs
+pct-of-equity semantics for max_position_value), OR add a legacy-alias
+map + make the filter `log.warning`/raise on unknown keys.
+**Blast radius: every backtest's position sizing may be using default
+risk_per_trade, not the configured value — needs verification of whether
+defaults == intended before judging severity of past results.**
 
 ### MEDIUM
 
-**M1. `core/observability/run_registry.py:118` — Sortino key mismatch.**
-Reads `'Sortino Ratio'`; producers write `'Sortino'`. Registry sortino
-column is NULL for every run. **Fix:** one-char-class change to `"Sortino"`.
-Blast: forensic queries that sort/filter on sortino silently see all-NULL.
+**[5] lookahead — `scripts/validate_regime_signals_vix_term.py:245`**
+uses `predict_proba_sequence` (whole-panel forward-backward smoothed
+posteriors) then reports regime-conditioned forward returns → future
+leaks into labels. **Fix:** per-bar causal labeling (`predict_proba_at`/
+filtered), mirroring `validate_regime_signals_t087.py`.
 
-**M2. `orchestration/mode_controller.py` — env-suffixed config (recurrence).**
-Loader prefers `risk_settings.{env}.json` but some scripts patch the plain
-`risk_settings.json`; with env set, the patch is silently ignored. Same
-family as T-055c + T-055g v1. **Fix:** patch helper resolves the same
-env-suffixed path the loader uses; warn if both exist + diverge.
+**[6] lookahead — `scripts/backtest_transition_warning.py:331`** same
+non-causal smoothing; inflates the apparent warning lead-time. **Fix:**
+strictly causal per-bar loop.
 
-**M3. `engines/engine_a_alpha/alpha_engine.py` — cross_asset_confirm
-dead-letter.** Computed + threaded in the advisory dict but never gates a
-trade (matches the WS-C observability-only memo). **Fix:** either wire it
-into its intended gate or annotate it observability-only to stop
-re-discovery. (Likely intended-dormant; confirm.)
+**[7] unit-scale — `engines/data_manager/data_manager.py:64`** yfinance
+fallback uses `auto_adjust=True` (split+dividend total-return) while the
+primary Alpaca path (:671) is split-only; both write the SAME cache →
+mixed adjustment basis in substrate, no dividend strip on the fallback.
+Same class we hit in the Stooq merge. **Fix:** fetch fallback with
+`auto_adjust=False` + apply the existing `apply_dividend_strip` before
+caching. **Blast: any ticker that fell back to yfinance has total-return
+prices mixed into a split-only substrate.**
 
-**M4. `engines/engine_b_risk/risk_engine.py` — slippage_bps double-scale.**
-[PROPOSE-FIRST — Engine B, flagged not edited.] Primary fill path correct;
-a SECONDARY cost-estimate path applies bps without /10000. **Fix:** /10000
-in the secondary path + unit test (5bps→0.0005). Needs user approval.
-
-**M5. `engines/engine_b_risk/risk_engine.py` — regime_meta.advisory contract.**
-[PROPOSE-FIRST — Engine B.] Reads `regime_meta.get('advisory')`; some
-callers pass advisory flattened at top level → advisory-driven sizing
-silently no-ops. **Fix:** accept both shapes or assert; test. Needs approval.
-
-**M6. `engines/engine_d_discovery/discovery.py` — stale gate-result key.**
-A gauntlet gate reads a candidate-result key a refactor renamed; stale read
-falls back to pass-through default → that gate silently weakened. **Fix:**
-align reader key to current producer; regression test asserting the gate
-fires on a known-fail candidate. Blast: Discovery may be passing candidates
-a gate should kill.
+**[9] cross-engine-contract — `backtester/backtest_controller.py:424-425`**
+`SignalGate.predict()` wrapped in bare `except Exception: pass` that fails
+OPEN — silently passes ALL signals when the gate raises, and (unlike the
+sibling alpha catch) does NOT re-raise programmer errors. **Fix:** mirror
+the narrow-catch pattern (re-raise TypeError/AttributeError/NameError/
+AssertionError/ImportError; warn + fail-open only on data errors).
 
 ### LOW
 
-**L1. 13 harnesses — `summary.get('Total Trades')` always None.**
-`ModeController.run_backtest` returns `summary()` whose keys have no trade
-count; the count lives under `'Trades'` in the unused `summary_metrics()`.
-13 measurement/A-B scripts record `total_trades: null`. **Fix:** readers →
-`summary.get("Trades")` + wire `summary_metrics()`, or add `"Total Trades"`
-to `_compute_summary()`. Not a gate input — purely a nulled diagnostic.
+**[1] key-field — `summary.get('Total Trades')` null in 13 harnesses.**
+`run_backtest` returns `summary()` (no trade count); the count is
+`'Trades'` in the unused `summary_metrics()`. Every A/B JSON records
+`total_trades: null`. Diagnostic only — not a gate input. **Fix:** readers
+→ `'Trades'` + wire summary_metrics(), or add 'Total Trades' to
+_compute_summary().
 
-## Did any of these contaminate the T-053b/T-055h/T-057b cycle?
+**[2] key-field — `run_registry.py:118`** reads `'Sortino Ratio'`;
+producers write `'Sortino'` → registry sortino column NULL every run.
+**Fix:** one-line key change + fix the test fixture key too.
 
-- **H1/H2 (regime lookahead):** Potentially yes for the regime-conditional
-  arms (T-055e/g/h read the advisory). But those arms FAILED — lookahead
-  can't have manufactured a passing result. Worst case it distorted per-year
-  attribution. The T-057 confidence-gate arms don't read regime, so T-057b/
-  T-053b verdicts are clean.
-- **L1 (total_trades null):** The turnover/trade-count columns in those
-  audits were null — any "turnover reduced X%" claim sourced from these
-  JSONs is unsupported. Sharpe/CAGR/MDD/ci_low verdicts are unaffected
-  (those keys match).
-- **M1 (sortino null):** registry sortino was unusable; no verdict keyed
-  on it.
-- Everything else: no impact on the cycle's headline verdicts.
+**[4] lookahead — `scripts/validate_regime_signals.py:348-355`** the
+base regime validator has the same non-causal smoothing as [5]/[6], with
+a false "equivalent for our purposes" comment. **Fix:** use the causal
+path the t087 sibling already implements.
 
-**Bottom line:** the cycle's Sharpe-based verdicts (T-057 refuted, T-055
-closed, baseline borderline) stand. The lookahead pair (H1/H2) is the real
-prize — it must be fixed before ANY new regime-conditional work, and it
-explains the 2026-05-06-vs-T-087 AUC swing.
+**[8] cross-engine-contract — `live_trader/live_controller.py:20`**
+[PROPOSE-FIRST — live_trader] live sizing passes `cash` as the `equity`
+arg, wrong-shaped df_hist, omits target_weights/current_qty → live sizing
+diverges from backtest contract. **Fix:** pass total equity (cash+MV),
+per-ticker OHLC frame, forward current_qty + target_weights.
 
-## Coverage (refuted/benign candidates prove the search was real)
-5 candidates refuted across key-field-mismatch, unit-scale, and
-wiring-deadletter classes (false alarms the adversarial pass caught —
-e.g. EDGE_CATEGORY_MAP benign by Python source-order guarantee).
+## Did any contaminate the T-053b/T-055h/T-057b cycle?
+
+- **[3] HIGH config-key:** This is the one to worry about. If
+  `risk_per_trade` from prod.json was being dropped in favor of a
+  different dataclass default, the *absolute scale* of every backtest's
+  positions could differ from intent. **BUT** Sharpe is scale-invariant
+  to a constant position-size multiplier, so the *Sharpe-based verdicts*
+  (T-057 refuted, T-055 closed, baseline ~0.81) are likely unaffected.
+  CAGR/MDD absolute levels could be off. **Needs a direct check: does the
+  dataclass default == the prod.json value?** If yes, zero impact; if no,
+  CAGR/MDD numbers need an asterisk.
+- **[7] yfinance adjustment:** only affects tickers that fell back to
+  yfinance (delisted backfill era). Most of the 12-yr substrate is
+  Stooq+Alpaca (already dividend-stripped in T-082). Bounded.
+- **[1]/[2] total_trades + sortino null:** diagnostic fields only; no
+  verdict keyed on them. Turnover claims from those JSONs unsupported.
+- **[4]/[5]/[6] lookahead:** all in VALIDATION SCRIPTS, not production
+  backtests. They inflate the regime-signal AUC/lead-time diagnostics —
+  meaning **A's T-087 AUC 0.887 should be re-checked against the causal
+  path** (the t087 script claims it used causal; verify it doesn't share
+  the leaky call). This is the most important follow-up.
+
+**Bottom line:** the cycle's Sharpe-based verdicts stand. Two real
+follow-ups: (a) verify the HIGH config-key default == intended, (b)
+confirm T-087's headline AUC used the causal path (findings 4-6 show the
+non-causal call is widespread in the regime validators).
+
+## Coverage
+5 of 14 candidates refuted by the adversarial pass (false alarms caught,
+including benign Python source-order dict cases).
