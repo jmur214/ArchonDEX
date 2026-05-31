@@ -45,7 +45,7 @@ Backfilled from T-035 (cloud era start, 2026-05-12) forward. Use `git log` and `
 | T-091 | 2026-05-31 | Contract-suite green-up + CI gate | done | — | — | Suite 10/10 green; PSR + Sortino added to producer; CI workflow shipped | `contract_suite_greenup_t091_2026_05_31.md` |
 | T-092 | (in-flight) | Deep-substrate baseline 16-yr + 26-yr (Agent A) | in-flight | (cloud) | (pending) | Does the base validate on a longer-than-12-yr window? | (pending close) |
 | T-093 | 2026-05-31 | Doc-system overhaul Phase 1 | done | — | — | CURRENT_STATE + TASK_LEDGER + doc_lint + Audit/README index + nav edits | `doc_system_overhaul_phase1_t093_2026_05_31.md` |
-| T-095 | (in-flight) | Fill-convention diagnostic (H-Convention, Agent B) | in-flight | — | — | Is ~0.81 a close-to-close fill artifact? gates how to read T-092 | (pending close) |
+| T-095 | 2026-05-31 | Fill-convention diagnostic (H-Convention, Agent B) | done | — | — | Outcome (a) RESOLVED-CLEAN — signal on t-close already fills at t+1 OPEN (5 file:line citations); ~0.81 baseline is NOT a close-to-close artifact | `fill_convention_diagnostic_t095_2026_05_31.md` |
 | T-096 | 2026-05-31 | Doc-system overhaul Phase 2 (hooks + NON_NEGOTIABLES split) | done | — | — | SessionStart/Stop externalized + fail-open; CLAUDE.md restructure; NON_NEGOTIABLES.md expanded copy | `doc_system_overhaul_phase2_t096_2026_05_31.md` |
 
 ## Closed-pre-T-035 (digest only)

@@ -1,6 +1,6 @@
 # CURRENT_STATE — ArchonDEX
 
-**Last reconciled with source docs:** 2026-05-31
+**Last reconciled with source docs:** 2026-05-31 (T-095 close)
 
 **If this date is more than 3 days old, read `forward_plan.md`, `health_check.md`, and the latest `docs/Audit/*` before quoting state.** Hard caps below (≤5 per section, exactly 1 next-decision) are the anti-rot discipline — when a slot fills, the oldest item moves to MEMORY or is superseded.
 
@@ -12,20 +12,19 @@
 
 ## Recently refuted / superseded (max 5, rolling)
 
+- **T-095 H-Convention (fill-timing artifact hypothesis)** — REFUTED CLEAN. Code-level trace (5 file:line citations) confirms the backtest already fills at t+1 OPEN on signals computed from t-close. Lou-Polk-Skouras 2019 overnight-alpha leak does NOT apply. The ~0.81 baseline is NOT a close-to-close artifact; T-092 can be read at face value with respect to fill timing. Audit: `fill_convention_diagnostic_t095_2026_05_31.md`.
 - **T-057 confidence-gated execution (N≥3)** — REFUTED on 12-yr (Δ Sharpe -0.128; p(Δ>0)=32%). 5-yr-Alpaca +0.793 was a substrate-conditional artifact. First measurement to PASS MBL Gate-0. Do NOT flip. Audit: `multi_year_window_harness_t053b_2026_05_25.md`, `confidence_gated_flag_flip_t057b_2026_05_24.md`.
 - **T-055e/g/h regime-conditional vol-target** — CLOSED on 12-yr (Δ Sharpe -0.214, CI [-0.688, +0.260]). 5-yr-Alpaca +0.549 "DEFENSIBLE" verdict retired. The whole T-055 arc shows monotone decay (+0.549 → +0.413 → -0.214) as rigor rose. Audit: `vol_target_12yr_verify_t055h_2026_05_29.md`.
 - **T-088 risk_per_trade_pct** — confirmed DEAD KNOB on prod (Path A uses `target_weight`; the knob lives only on dead Path B). Audit HIGH-priority downgraded; historical verdicts STAND because the path was never live. Sweep target is `max_pos_value_pct × max_positions`. Audit: `risk_config_keyfix_t088_2026_05_31.md`.
-- **T-002 baseline 0.270** — superseded by T-035 corrected 0.598 (peak_equity slot bug); now further re-evaluated to ~0.81 on 12-yr extended substrate (T-092 in flight). The 0.270 number is HISTORICAL ONLY.
 - **2026-05-06 Engine E refutation** — REVERSED by T-087 + T-089. The 5-yr "AUC 0.49, BLOCKED" verdict was a too-short-window false negative; on 12-yr causal path the HMM p_crisis AUC is 0.887 (verified non-leaky by T-089, lookahead inflation bounded +0.006). Engine E regime signal IS predictive. Audit: `engine_e_regime_rediagnosis_t087_2026_05_30.md`, `regime_validator_causal_fix_t089_2026_05_31.md`.
 
 ## In flight (max 5)
 
-- **T-092 (Agent A)** — deep-substrate baseline, 16-yr + 26-yr arm0_off, DSR + MBL verdict. Does the base validate on a longer-than-12-yr window? Result determines the next decision below.
-- **T-095 (Agent B)** — fill-convention diagnostic (H-Convention, from 2026-05-31 external research). Does the baseline fill at same-bar close / t+1-open / t+1-close, and how much of ~0.81 is a close-to-close artifact? Gates how to READ T-092 (same convention). Two-phase: Phase 1 diagnoses (may resolve clean); Phase 2 A/Bs next-open MOO on 12-yr if a real gap exists.
+- **T-092 (Agent A)** — deep-substrate baseline, 16-yr + 26-yr arm0_off, DSR + MBL verdict. Does the base validate on a longer-than-12-yr window? Result determines the next decision below. (T-095 H-Convention closed clean 2026-05-31 — T-092 can be read at face value with respect to fill timing.)
 
 ## Next decision (exactly 1)
 
-- **Await T-092 + T-095 jointly.** T-095 (fill convention) gates how to read T-092's number — a 0.81 that's mostly close-to-close overnight-alpha artifact changes everything. If base survives BOTH honest fills (T-095) AND a longer window (T-092 DSR+MBL) → portfolio-param sweep (`max_pos_value_pct × max_positions`, both LIVE per T-088) + the research's structural skew decision (trend/barbell overlay). If it collapses under honest fills → the 0.81 was convention, pivot to the structural levers (skew overlay / no-trade bands / new alpha). The 2026-05-31 research reorders priorities toward CORRECTIONS (fill convention, tax-rate recompute) + one ARCHITECTURE decision (skew overlay), away from more factor parameter-tuning. See `docs/Sources/Research_2026_05_31/README.md`.
+- **Await T-092 verdict.** T-095 RESOLVED-CLEAN the fill-convention concern (signal-on-t-close already fills at t+1 OPEN; ~0.81 is NOT a close-to-close artifact). T-092 now the sole gate. If base clears DSR + MBL on 26-yr → portfolio-param sweep (`max_pos_value_pct × max_positions`, both LIVE per T-088) + the research's structural skew decision (trend/barbell overlay). If still borderline / collapses → pivot to structural levers (skew overlay / no-trade bands / new alpha) and tax-rate recompute. The 2026-05-31 research's correction-priority list shrinks by one (fill convention crossed off); tax-rate recompute + structural skew remain. See `docs/Sources/Research_2026_05_31/README.md`.
 
 ## Standing constraints (max 5)
 
