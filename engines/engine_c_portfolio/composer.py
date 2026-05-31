@@ -115,10 +115,18 @@ class PortfolioComposer:
         if not self.is_active or self._hrp is None:
             return per_ticker
 
-        active = [
+        # T-2026-05-30-057c-followup determinism fix: sort.
+        # `per_ticker.items()` iteration order is upstream dict-insertion
+        # order. The list comprehension preserves that order in `active`,
+        # which then feeds `_hrp.optimize(returns_df, active_tickers=active)`.
+        # HRP's hierarchical clustering input order affects tie-breaks at
+        # equal-distance merges; cross-container insertion-order variation
+        # was the second drift source A's T-055h surfaced. Sorting active
+        # tickers alphabetically forces a canonical clustering input order.
+        active = sorted(
             t for t, info in per_ticker.items()
             if abs(float(info.get("aggregate_score", 0.0))) > 1e-6
-        ]
+        )
         if len(active) < 2:
             return per_ticker
 
