@@ -248,6 +248,7 @@ class PerformanceMetrics:
 
     def _compute_summary(self) -> dict:
         """Compute metrics once without recursion between summary() and summary_metrics()."""
+        n_trades = int(len(self.trades)) if self.trades is not None else 0
         return {
             "Starting Equity": None if self.equity.empty else round(float(self.equity.iloc[0]), 2),
             "Ending Equity": None if self.equity.empty else round(float(self.equity.iloc[-1]), 2),
@@ -258,6 +259,10 @@ class PerformanceMetrics:
             "Sharpe Ratio": None if pd.isna(self.sharpe_ratio()) else round(self.sharpe_ratio(), 3),
             "Volatility (%)": None if pd.isna(self.volatility()) else round(self.volatility() * 100, 2),
             "Win Rate (%)": None if pd.isna(self.win_rate()) else round(self.win_rate() * 100, 2),
+            # T-088: 13 harnesses read summary().get('Total Trades') and got
+            # None because the count was only emitted by summary_metrics()
+            # under the legacy key 'Trades'. Now both paths see the count.
+            "Total Trades": n_trades,
         }
 
     def summary(self):
@@ -272,5 +277,8 @@ class PerformanceMetrics:
         """Return a JSON/DB-safe metrics dictionary for automated harness use."""
         s = self._compute_summary()
         clean = {k: self._to_native(v) for k, v in s.items()}
-        clean["Trades"] = int(len(self.trades)) if self.trades is not None else 0
+        # Preserve the legacy 'Trades' key for back-compat with readers that
+        # already consume summary_metrics()['Trades']. Both keys carry the
+        # same value.
+        clean["Trades"] = int(s["Total Trades"])
         return clean

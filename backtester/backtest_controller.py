@@ -422,7 +422,20 @@ class BacktestController:
                          print(f"[SIGNAL_GATE] Blocked {len(signals) - len(filtered_signals)} signals at {ts}")
                  signals = filtered_signals
              except Exception as e:
-                 pass # Fail open if gate errors
+                 # T-088 narrow-catch (mirrors the sibling alpha pattern at
+                 # backtest_controller.py:392-405): programmer errors must
+                 # propagate so a typo, missing import, or interface drift
+                 # surfaces immediately. Previously this was a bare
+                 # `except Exception: pass` that silently let ALL signals
+                 # through whenever the gate raised — same failure mode as
+                 # the 2026-05-08 zero-trade regression that the alpha-
+                 # catch was hardened against.
+                 if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
+                     raise
+                 logger.warning(
+                     "[%s] SignalGate predict error (failing open): %s: %s",
+                     ts, type(e).__name__, e,
+                 )
 
 
         # [BAGHOLDER FIX] Data Gap Protection

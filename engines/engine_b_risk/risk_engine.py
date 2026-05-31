@@ -128,8 +128,22 @@ class RiskEngine:
         wash_sale_cfg: Optional[Dict[str, Any]] = None,
         lt_hold_cfg: Optional[Dict[str, Any]] = None,
     ):
-        # Only pass known keys to the dataclass
-        cfg_filtered = {k: v for k, v in cfg.items() if k in RiskConfig.__annotations__}
+        # Only pass known keys to the dataclass. Warn loudly on unknown
+        # keys — silent drops were the cause of the T-088 risk-config
+        # mismatch (config/risk_settings.prod.json used legacy names
+        # risk_per_trade / max_position_value that the dataclass doesn't
+        # recognize, so prod ran on 2.5%-default risk_per_trade_pct
+        # instead of the intended 0.5%). Any future config-key drift
+        # surfaces in the logs now.
+        known = set(RiskConfig.__annotations__)
+        cfg_filtered = {k: v for k, v in cfg.items() if k in known}
+        unknown = [k for k in cfg.keys() if k not in known]
+        for k in unknown:
+            logger.warning(
+                "[RiskConfig] ignoring unknown config key: %s (value=%r) — "
+                "dataclass default will be used instead",
+                k, cfg[k],
+            )
         self.cfg = RiskConfig(**cfg_filtered)
         self.portfolio = None  # injected by controller
         self.last_skip_reason: Optional[str] = None

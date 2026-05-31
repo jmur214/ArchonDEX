@@ -115,7 +115,13 @@ def _parse_run_dir(run_dir: Path) -> Optional[RunRecord]:
         volatility=_safe_float(perf, "Volatility (%)"),
         win_rate=_safe_float(perf, "Win Rate (%)"),
         psr=_safe_float(perf, "PSR"),
-        sortino=_safe_float(perf, "Sortino Ratio"),
+        # T-088: producers write 'Sortino' (core/metrics_engine.py),
+        # but some legacy A/B harnesses use 'Sortino Ratio'. Read both —
+        # 'Sortino' first (canonical) then fall back to the legacy key
+        # so historical performance_summary.json files keep populating.
+        sortino=_safe_float(perf, "Sortino")
+        if "Sortino" in perf
+        else _safe_float(perf, "Sortino Ratio"),
         engine_a_version=versions.get("A"),
         engine_b_version=versions.get("B"),
         engine_c_version=versions.get("C"),

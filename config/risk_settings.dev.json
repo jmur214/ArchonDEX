@@ -1,7 +1,7 @@
 {
   "debug": true,
   "atr_lookback": 14,
-  "risk_per_trade": 0.01,
+  "risk_per_trade_pct": 0.01,
   "max_position_value": 30000,
   "atr_stop_mult": 1.5,
   "atr_tp_mult": 2.0,
