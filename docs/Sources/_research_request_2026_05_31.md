@@ -1,13 +1,14 @@
-# Research request — ArchonDEX (retail algo trading system), 2026-05-31
+<!-- Research prompt #1 — 2026-05-31. Hand the entire file to an external AI research analyst. Self-contained; analyst has no codebase access. Companion: _research_request_2_2026_05_31.md (prompt #2). -->
 
-> **For an AI research analyst.** Paste everything below the line. You do NOT
-> have access to our codebase or any internal files — everything you need is
-> stated inline in this prompt; nothing is referenced that you can't see.
-> Optimize for decision-relevant depth and intellectual honesty over breadth or
-> optimism. Where the honest answer is
-> "this doesn't work" or "no durable edge here," say so plainly — this team
-> values brutal realism and has killed many of its own promising-looking
-> findings on rigorous re-test.
+# Research request — ArchonDEX (retail algo trading system)
+
+**For the AI research analyst reading this:** You have **no access to our
+codebase, data, or internal files** — everything you need is stated inline
+below; nothing is referenced that you can't see. Optimize for decision-relevant
+depth and intellectual honesty over breadth or optimism. Where the honest answer
+is "this doesn't work" or "no durable edge here," say so plainly — this team
+values brutal realism and has killed many of its own promising-looking findings
+on rigorous re-test.
 
 ---
 
