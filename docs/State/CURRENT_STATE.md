@@ -20,11 +20,11 @@
 
 ## In flight (max 5)
 
-- **T-092 (Agent A)** — deep-substrate baseline, 16-yr + 26-yr arm0_off, DSR + MBL verdict. Does the base validate on a longer-than-12-yr window? Result determines the next decision below.
+- **T-092 (Agent A) — PARTIAL verdict in (n=4 on 16-yr, n=1 preview on 26-yr; final commit pending 5 cells).** Sharpe INVERTS with depth: 5yr 0.60 → 12yr 0.81 → **16yr 1.02 (ci_low 0.56, MDD -15.4%)** → **26yr 0.44 (ci_low 0.05, MDD -48%)**. 16-yr clears MBL + point-DSR; 26-yr fails both. The strict `ci_low > DSR-benchmark` (0.66) gate FAILS on EVERY window — by CLAUDE.md #6 nothing is formally validated. 16-yr is the crisis-free window (excludes 2008 + 2000-02); 26-yr per-year shows all pre-2009 bear/vol regimes hurt → base ensemble is bull-conditional. Survivor-only universe → numbers are UPPER bounds. Audit: `deep_substrate_baseline_t092_2026_05_31.md` (drafting).
 
 ## Next decision (exactly 1)
 
-- **Await T-092.** T-095 closed clean (fill convention is honest t+1-open), so the fill-timing worry is OFF T-092's risk list — T-092's number is readable at face value w.r.t. fills (remaining T-092 caveats: survivorship pre-2020 gap, DSR at honest N, MBL at 26-yr borderline). If base clears DSR + MBL on 26-yr → portfolio-param sweep (`max_pos_value_pct × max_positions`, both LIVE per T-088) + the research's structural skew decision (trend/barbell overlay). If still borderline → pivot to structural levers / new alpha. Parallel to T-092: the 2026-05-31 research correction queue is now **H-Tax** (IL-rate after-tax recompute, taxable-sleeve sorting — #1 remaining correction) then **H-Band** (no-trade bands). See `docs/Sources/Research_2026_05_31/README.md`.
+- **USER DECISION PENDING — T-092 Path A vs Path B.** **Path A:** treat 16-yr as the validation substrate, green-light overlay work (vol-target / confidence-gate / T-088 param sweep on a 16-yr A/B). **Path B:** treat the 26-yr collapse as a pivot-signal — the base 6-edge set is bull-conditional, so build crisis-regime robustness FIRST (HMM-gated kill switch using T-087's validated `hmm_p_crisis`, Engine D gene-encoding unblock, or the parked LLM-analyst path) before more overlays. **Director read (not user-ratified):** rigorous reading leans Path B — anointing the best-scoring window (16-yr excludes 2008+dotcom) is specification search; the strict CI gate fails everywhere; survivorship strengthens the pivot. A's own headline #5 converges here. NOT decided autonomously. (B mid-flight on T-098 H-Band; H-Tax T-097 staged.) See A's outbox + `docs/Sources/Research_2026_05_31/README.md`.
 
 ## Standing constraints (max 5)
 
