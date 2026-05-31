@@ -327,8 +327,15 @@ def main() -> int:
     log.info("Loading daily HMM artifact %s", args.daily_pickle)
     clf = HMMRegimeClassifier.load(Path(args.daily_pickle))
 
-    log.info("Running daily HMM forward pass...")
-    posterior_seq = clf.predict_proba_sequence(panel_valid)
+    # T-2026-05-31-089 — CAUSAL labeling. The previous
+    # `predict_proba_sequence` call was forward-BACKWARD smoothed → each
+    # bar's posterior included future evidence, contaminating
+    # transition-warning lead-time and TPR/FPR diagnostics. Switched to
+    # the T-087 growing-prefix pattern via the shared
+    # `causal_proba_sequence` helper.
+    log.info("Running daily HMM CAUSAL (filtered) per-bar pass...")
+    from scripts._hmm_causal_proba import causal_proba_sequence
+    posterior_seq = causal_proba_sequence(clf, panel_valid, window=252)
     log.info("Posterior sequence: %d bars × %d states", *posterior_seq.shape)
 
     detector = TransitionWarningDetector(TransitionWarningConfig())
