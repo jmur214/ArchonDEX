@@ -1,0 +1,77 @@
+# Contract-test suite — silent-mismatch bug-family guard.
+#
+# Runs tests/test_contracts.py on every PR and push. The suite enforces:
+#   - Layer 1: every JSON config key maps to a dataclass field or to an
+#     explicit allowlist (legit alias or KNOWN_DEAD).
+#   - Layer 2: every consumer-read summary key (scripts/ + observability)
+#     is in the producer's emit-set (cockpit/metrics.py:_compute_summary).
+#   - Layer 3: cross-engine signal-dict contract (deferred — landmark).
+#
+# History: the silent-mismatch family has bitten the project >= 9 times
+# (cockpit peak_equity, hunt() ticker=, env-config, T-055g v1 patch keys,
+# Sharpe vs Sharpe Ratio, run_registry Sortino, 13-harness Total Trades,
+# T-088 risk_per_trade rename, plus 7 more found by the T-090 sweep).
+# This CI gate makes the family structurally unmergeable.
+#
+# Runtime budget: <1s end-to-end (static introspection + JSON parse +
+# regex scan; no backtest). Triggered on every PR and push to main so
+# the gate fires before any merge.
+
+name: Contract tests
+
+on:
+  pull_request:
+    paths:
+      - "tests/test_contracts.py"
+      - "config/**.json"
+      - "engines/**/*.py"
+      - "cockpit/metrics.py"
+      - "core/observability/**"
+      - "scripts/**.py"
+      - ".github/workflows/contract_tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tests/test_contracts.py"
+      - "config/**.json"
+      - "engines/**/*.py"
+      - "cockpit/metrics.py"
+      - "core/observability/**"
+      - "scripts/**.py"
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-py3.14-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-py3.14-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # The contract suite is static-only (introspection + JSON +
+          # regex), but importing engine dataclasses pulls their full
+          # transitive deps. Install the project requirements.
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run contract tests
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python -m pytest tests/test_contracts.py -v

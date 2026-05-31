@@ -128,7 +128,7 @@ def _execute_grid() -> list:
                     "rep": rep,
                     "run_id": run_id,
                     "sharpe": summary.get("Sharpe Ratio"),
-                    "sortino": summary.get("Sortino Ratio"),
+                    "sortino": summary.get("Sortino"),
                     "cagr_pct": summary.get("CAGR (%)"),
                     "max_drawdown_pct": summary.get("Max Drawdown (%)"),
                     "win_rate_pct": summary.get("Win Rate (%)"),
