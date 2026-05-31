@@ -249,6 +249,9 @@ class PerformanceMetrics:
     def _compute_summary(self) -> dict:
         """Compute metrics once without recursion between summary() and summary_metrics()."""
         n_trades = int(len(self.trades)) if self.trades is not None else 0
+        engine = self._engine_metrics()
+        psr_raw = engine.get("PSR")
+        sortino_raw = engine.get("Sortino")
         return {
             "Starting Equity": None if self.equity.empty else round(float(self.equity.iloc[0]), 2),
             "Ending Equity": None if self.equity.empty else round(float(self.equity.iloc[-1]), 2),
@@ -263,6 +266,19 @@ class PerformanceMetrics:
             # None because the count was only emitted by summary_metrics()
             # under the legacy key 'Trades'. Now both paths see the count.
             "Total Trades": n_trades,
+            # T-091: PSR (Probabilistic Sharpe Ratio, Bailey-Lopez de Prado
+            # 2012) is computed in _engine_metrics() but was not surfaced
+            # in the summary path. Per CLAUDE.md #6 PSR is a headline
+            # statistic — run_registry.py:117 was reading it via
+            # _safe_float(perf, "PSR") and getting NULL silently.
+            "PSR": None if psr_raw is None or pd.isna(psr_raw) else round(float(psr_raw), 4),
+            # T-091: Sortino — same family as PSR. _engine_metrics() emits
+            # 'Sortino' (per core/metrics_engine.py:78) but it was never
+            # surfaced in the summary path. 13 A/B harnesses read
+            # summary.get('Sortino Ratio') and got NULL; run_registry's
+            # _safe_float(perf, 'Sortino') was also NULL. Pure-additive
+            # emit. Harness reads are renamed to 'Sortino' in this dispatch.
+            "Sortino": None if sortino_raw is None or pd.isna(sortino_raw) else round(float(sortino_raw), 3),
         }
 
     def summary(self):

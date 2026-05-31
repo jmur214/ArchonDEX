@@ -1,4 +1,14 @@
-"""T-2026-05-12-055 vol-target A/B harness.
+"""ARCHIVED 2026-05-31 (T-091).
+
+Superseded by run_vol_target_arms_full.py, run_vol_target_arms_ewma_t055d.py,
+run_vol_target_arms_regime_t055e.py, and run_vol_target_arms_multiplier_sweep_t055g.py.
+The vol-target chapter is CLOSED on 12-yr per T-055h (Δ -0.214); this
+minimal single-rep harness has no remaining use. The 4 silent-mismatch
+bug sites it carried (Sharpe / Max Drawdown% / CAGR_pct / MDD_pct
+reading keys cockpit/metrics.py:_compute_summary never emits) are
+retired with the file. Re-read history via git log if you need it.
+
+T-2026-05-12-055 vol-target A/B harness.
 
 Two arms on the same substrate:
   Arm 1 (control): portfolio_vol_target_enabled=False (default)

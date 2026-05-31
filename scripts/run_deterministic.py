@@ -164,8 +164,8 @@ def main():
         r = run_once(args)
         results.append(r)
         stats = r["stats"] or {}
-        sharpe = stats.get("sharpe") or stats.get("Sharpe") or "?"
-        cagr = stats.get("cagr") or stats.get("CAGR") or "?"
+        sharpe = stats.get("Sharpe Ratio") or "?"
+        cagr = stats.get("CAGR (%)") or "?"
         print(f"[RUN {i+1}] Sharpe={sharpe}  CAGR={cagr}")
         print(f"[RUN {i+1}] trades.csv   raw md5:  {r['trades_md5_raw']}")
         print(f"[RUN {i+1}] trades.csv   canon md5 (sans run_id,meta): {r['trades_md5_canon']}")

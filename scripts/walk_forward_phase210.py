@@ -90,9 +90,9 @@ def _run_year(year: int) -> dict:
         "start": start,
         "end": end,
         "sharpe": stats.get("Sharpe Ratio", float("nan")),
-        "cagr": stats.get("CAGR (%)", stats.get("CAGR", float("nan"))),
-        "mdd": stats.get("Max Drawdown (%)", stats.get("Max Drawdown", float("nan"))),
-        "win_rate": stats.get("Win Rate (%)", stats.get("Win Rate", float("nan"))),
+        "cagr": stats.get("CAGR (%)", float("nan")),
+        "mdd": stats.get("Max Drawdown (%)", float("nan")),
+        "win_rate": stats.get("Win Rate (%)", float("nan")),
         "benchmark_sharpe": bm.sharpe,
     }
 

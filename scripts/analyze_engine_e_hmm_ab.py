@@ -126,7 +126,7 @@ def _aggregate_per_cell(records: List[Dict]) -> Dict:
 
     Uses the HARNESS-REPORTED Sharpe / MDD / Win Rate (per-trade
     metrics, matches T-002 exactly). Sortino is not captured by the
-    current harness code path (`summary.get("Sortino Ratio")` returns
+    current harness code path (`summary.get("Sortino")` returns
     None) — reported as None. Snapshot-derived per-bar metrics are
     available in r["metrics_from_snapshots"] but use a different
     base measure (per-bar equity curve vs per-trade PnL); reported

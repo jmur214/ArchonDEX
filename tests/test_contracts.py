@@ -1,45 +1,43 @@
-"""T-2026-05-31-090 contract-test suite — permanent regression guards
-against the silent-mismatch bug family.
+"""Contract-test suite — permanent regression guards against the
+silent-mismatch bug family.
 
-The 2026-05-31 silent-bug audit (`docs/Audit/silent_bug_audit_2026_05_31.md`)
-identified 9 confirmed defects, ALL from ONE family:
+A producer writes a key/field/column under one name; a consumer reads
+it under a different name; a `.get()` default silently masks the gap.
+The project has hit this family >= 9 times (cockpit peak_equity slot,
+hunt() ticker=, env-config, T-055g v1 patch keys, 'Sharpe' vs
+'Sharpe Ratio', run_registry 'Sortino Ratio', 13-harness 'Total Trades',
+T-088 risk_per_trade rename, T-090 sweep found 7 more in vol-target
+harnesses).
 
-    A producer writes a key/field/column under one name; a consumer reads
-    it under a different name; a `.get()` default silently masks the gap.
-
-The project has hit this family ≥7 times (cockpit peak_equity slot,
-hunt() ticker=, env-config, T-055g v1 patch keys, the director's
-'Sharpe' vs 'Sharpe Ratio' bug, run_registry 'Sortino Ratio', the
-13-harness 'Total Trades').
-
-These tests make the family **fail at PR/CI time instead of after
-corrupting a measurement**. They assert INVARIANTS (config-key ⊆
-dataclass-field, consumer-read ⊆ producer-emit), not hardcoded values
-— so they remain green as configs/schemas evolve, but fire the
-moment a new mismatch appears.
+These tests assert INVARIANTS (config-key in dataclass-field,
+consumer-read in producer-emit), not hardcoded values — so they
+remain green as configs/schemas evolve, but fire the moment a new
+mismatch appears.
 
 ## Layers
 
-  Layer 1 — Config-key ⊆ dataclass-field contract:
-    for each (config_json, dataclass, known_alias_allowlist), assert
-    every JSON key is either a dataclass field or in the alias list.
+  Layer 1 — Config-key contract: every JSON top-level key must map
+    to a dataclass field OR be in an explicit allowlist (legit alias
+    or KNOWN_DEAD — dead config key, candidate for cleanup but not a
+    silent-mismatch hazard right now).
 
   Layer 2 — Performance-summary producer/consumer key contract:
-    consumer-read keys (from `summary.get(...)` across scripts/)
-    must each be in the producer's emit-set (cockpit/metrics.py
-    `_compute_summary()` keys) or in a known-alias allowlist.
+    consumer-read keys (from `summary.get(...)` patterns) must each
+    be in the producer's emit-set (cockpit/metrics.py
+    `_compute_summary()`) or in a known-alias allowlist.
 
-  Layer 3 — Cross-engine signal-dict contract (DEFERRED):
-    runtime-shaped dict from Engine A to Engine B/C. Static analysis
-    infeasible without a smoke test. Documented in audit doc as
-    deferred to a follow-up dispatch.
+  Layer 3 — Cross-engine signal-dict contract (DEFERRED).
+    Engine A -> B/C signal dict is shaped at runtime. Right path is
+    a producer-side TypedDict + runtime assert; landmark test below
+    is the anchor.
 
-## Currently-failing contracts (proof the suite catches real bugs)
+## History
 
-At the moment of writing, Layer 1 and Layer 2 each catch the bugs A
-is fixing in T-088. Expected: the test file is FAILING ON MAIN until
-T-088 lands. This is documented and intentional — when T-088 merges,
-the suite goes green.
+  T-090 (2026-05-31) — built suite; on-main 4 failures all real
+    bugs (RiskConfig x 2, Layer 2a producer-stale, Layer 2b 9 keys).
+  T-091 (2026-05-31) — green-up: T-088 merged + PSR added to producer
+    + 6 RiskConfig keys triaged (3 legit, 3 KNOWN_DEAD) + 7 NEW bugs
+    resolved (1 archived script, 2 live consumers patched).
 """
 from __future__ import annotations
 
@@ -47,7 +45,7 @@ import json
 import re
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import pytest
 
@@ -73,6 +71,24 @@ def _import_dataclass(import_path: str, class_name: str):
 # entry is a permission slip and should carry a short justification
 # in a code comment near where it's added.
 
+# Config keys that are GENUINELY DEAD in the live consuming path —
+# they sit in JSON but no code reads them. Distinct from legit aliases
+# (which DO have a consumer, just not the dataclass under test). This
+# set explicitly tags them as "cleanup candidate, not a silent-mismatch
+# hazard" so the suite stays green WHILE preserving the cleanup signal.
+#
+# Each entry: justify the dead-status with a one-line comment + cite
+# the audit/dispatch that triaged it. Removal of these keys from the
+# JSON is a propose-first Engine B config cleanup (not a test concern).
+KNOWN_DEAD_CONFIG_KEYS: Set[str] = {
+    # Triaged by T-091 dispatch (2026-05-31). 0 live refs in the risk
+    # consuming path. Same class as T-088's risk_per_trade_pct dead-knob.
+    "atr_lookback",         # Engine B risk path — dead knob, cleanup candidate
+    "position_sizing",      # Engine B risk path — dead knob, cleanup candidate
+    "commission_per_trade", # Engine B risk path — dead knob, cleanup candidate
+}
+
+
 LAYER1_CONTRACTS: List[Tuple[str, str, str, str, Set[str]]] = [
     # AlphaConfig — config/alpha_settings.{env}.json. Three nested
     # sub-config dicts (`hygiene`, `ensemble`, `regime`) are legit
@@ -95,26 +111,35 @@ LAYER1_CONTRACTS: List[Tuple[str, str, str, str, Set[str]]] = [
         "AlphaConfig",
         {"edge_params", "fill_share_cap", "metalearner"},
     ),
-    # RiskConfig — config/risk_settings.{env}.json. T-088 is fixing
-    # this contract right now: prod.json names sizing knobs
-    # `risk_per_trade` / `max_position_value` while RiskConfig fields
-    # are `risk_per_trade_pct` / `max_pos_value_pct`. Until T-088
-    # merges, this test is EXPECTED TO FAIL listing those keys + the
-    # ATR/commission/slippage/debug/position_sizing extras that aren't
-    # in RiskConfig. After T-088 the contract goes green.
+    # RiskConfig — config/risk_settings.{env}.json. T-088 fixed the
+    # sizing knob rename (risk_per_trade_pct + max_pos_value_pct now
+    # match the dataclass). The remaining 6 keys triaged 2026-05-31:
+    #   - `slippage_bps`            -> consumed via exec_params, not RiskConfig
+    #   - `debug`                   -> universal flag, consumed by many components
+    #   - `max_position_value`      -> intentionally-dropped absolute-$ variant
+    #                                  (we use max_pos_value_pct=0.30 instead).
+    #                                  See T-088 (Path-B decision pending).
+    # These 3 are LEGIT aliases (allowlisted below). The other 3
+    # (`atr_lookback`, `position_sizing`, `commission_per_trade`)
+    # are GENUINELY DEAD config keys with zero consumers in the live
+    # risk path — same class as T-088's risk_per_trade_pct Path-B
+    # dead-knob finding. They go in KNOWN_DEAD_CONFIG_KEYS (below)
+    # so the suite stays green WHILE preserving the signal that they
+    # are real cruft, not legit aliases. Cleanup to Engine B config
+    # is propose-first.
     (
         "RiskConfig vs risk_settings.prod.json",
         "config/risk_settings.prod.json",
         "engines.engine_b_risk.risk_engine",
         "RiskConfig",
-        set(),  # NO aliases — every key must be a real field after T-088
+        {"slippage_bps", "debug", "max_position_value"},
     ),
     (
         "RiskConfig vs risk_settings.dev.json",
         "config/risk_settings.dev.json",
         "engines.engine_b_risk.risk_engine",
         "RiskConfig",
-        set(),
+        {"slippage_bps", "debug", "max_position_value"},
     ),
     # GovernorConfig — config/governor_settings.json. One legit alias:
     # `max_turnover_per_month` is documented in the JSON but consumed
@@ -165,6 +190,8 @@ def test_layer1_config_key_in_dataclass_field(
             continue
         if k in known_aliases:
             continue
+        if k in KNOWN_DEAD_CONFIG_KEYS:
+            continue
         missing.append(k)
 
     assert not missing, (
@@ -172,14 +199,16 @@ def test_layer1_config_key_in_dataclass_field(
         f"  JSON file: {json_path_rel}\n"
         f"  Dataclass: {import_module}.{class_name}\n"
         f"  Keys present in JSON but NOT in dataclass fields "
-        f"(and not in known_aliases):\n"
+        f"(and not in known_aliases or KNOWN_DEAD_CONFIG_KEYS):\n"
         + "\n".join(f"    - {k!r}" for k in missing)
         + f"\n\n  These keys are SILENTLY DROPPED by the dataclass filter on load.\n"
         f"  Fix one of:\n"
         f"    1. Rename the JSON key to match the dataclass field.\n"
         f"    2. Add a field to the dataclass with a matching name.\n"
-        f"    3. If the key is consumed by a different loader,"
-        f" add it to known_aliases with a brief justification comment."
+        f"    3. If the key is consumed by a DIFFERENT loader,"
+        f" add to known_aliases with a justification comment.\n"
+        f"    4. If the key is GENUINELY DEAD (0 consumers), add to"
+        f" KNOWN_DEAD_CONFIG_KEYS as a cleanup candidate."
     )
 
 
@@ -204,6 +233,24 @@ PRODUCER_SUMMARY_KEYS: Set[str] = {
     "Sharpe Ratio",
     "Volatility (%)",
     "Win Rate (%)",
+    # T-088 (2026-05-31) added trade count to the summary path. Before
+    # T-088 it lived only in summary_metrics() under the legacy key
+    # 'Trades', so 13 harnesses reading 'Total Trades' got None silently.
+    "Total Trades",
+    # T-091 (2026-05-31) added PSR (Probabilistic Sharpe Ratio) to the
+    # summary path. Before T-091 PSR was computed via _engine_metrics()
+    # but not surfaced in the summary dict written to
+    # performance_summary.json; run_registry's _safe_float(perf, 'PSR')
+    # at run_registry.py:117 silently read NULL. Per CLAUDE.md #6 PSR
+    # is a headline statistic — it belongs in the summary.
+    "PSR",
+    # T-091 (2026-05-31) added Sortino to the summary path (same family
+    # as PSR; _engine_metrics() emits it but _compute_summary did not).
+    # 13 A/B harnesses read summary.get('Sortino Ratio') and got NULL;
+    # this dispatch renamed those reads to 'Sortino' and emits 'Sortino'
+    # here. run_registry at line 122-124 has a T-088 backward-compat
+    # fallback that reads 'Sortino Ratio' from historical JSONs.
+    "Sortino",
 }
 
 # `summary_metrics()` adds this; `summary()` does NOT.
@@ -344,21 +391,14 @@ KNOWN_CONSUMER_ALIAS_KEYS: Set[str] = {
     "CAGR",
     "max_drawdown",
     "MDD",
-    # `Trades` only appears in summary_metrics(), and some scripts
-    # legitimately call summary_metrics() then read 'Trades'. We
-    # cover this in PRODUCER_SUMMARY_METRICS_EXTRA_KEYS below by
-    # ALSO checking against the augmented set.
-}
-
-
-# Keys the consumer reads but the producer does NOT emit. These are
-# the LIVE silent-mismatch bugs the audit identified. The test below
-# is EXPECTED to fire on each until A's T-088 lands fixes for them.
-# After T-088 (which adds 'Total Trades' to _compute_summary, fixes
-# 'Sortino Ratio' alignment, etc.), the test goes green.
-EXPECTED_PRE_T088_VIOLATIONS: Set[str] = {
-    "Total Trades",      # bug [1]: 13 harnesses; producer has 'Trades' in summary_metrics() only
-    "Sortino Ratio",     # bug [2]: run_registry; producer has no Sortino at all in cockpit summary
+    # T-088 backward-compat fallback at core/observability/run_registry.py:124.
+    # The canonical producer-emitted key is 'Sortino' (T-091 added that
+    # emission to _compute_summary). The fallback reads 'Sortino Ratio'
+    # from any historical perf_summary.json that may carry the legacy
+    # name (run_benchmark.py:332 emits 'Sortino Ratio' into its own
+    # summary output). If any NEW code reads 'Sortino Ratio', revert
+    # this allowlist entry and treat as a real bug.
+    "Sortino Ratio",
 }
 
 
@@ -387,7 +427,6 @@ def test_layer2b_consumer_keys_subset_of_producer_keys():
         violations.append((key, sites))
 
     if not violations:
-        # No silent-mismatch reads. T-088 fully landed.
         return
 
     # Render a single actionable failure message listing each offending
@@ -419,20 +458,18 @@ def test_layer2b_consumer_keys_subset_of_producer_keys():
     pytest.fail("\n".join(lines))
 
 
-def test_layer2c_expected_pre_t088_violations_documented():
-    """Sanity test: after T-088 lands, this test reminds the reader to
-    REMOVE the EXPECTED_PRE_T088_VIOLATIONS list and unconditionally
-    fail on any new mismatch. Currently the EXPECTED set documents
-    which keys WILL fire on main pre-T-088.
+def test_layer2c_known_dead_config_keys_documented():
+    """Landmark: KNOWN_DEAD_CONFIG_KEYS exists + every entry has a
+    comment justifying its dead status. This test is a periodic-review
+    nudge: when this set has been stable for a quarter, someone should
+    propose an Engine B config cleanup PR to remove the dead keys from
+    the JSON.
 
-    This test ALWAYS passes — it just exists to anchor a TODO that
-    the test-suite reviewer can see and act on when T-088 merges."""
-    # Just assert the constant exists and is non-empty, so the
-    # documentation in this file is discoverable.
-    assert isinstance(EXPECTED_PRE_T088_VIOLATIONS, set)
-    assert len(EXPECTED_PRE_T088_VIOLATIONS) >= 2
-    # After T-088 lands and test_layer2b goes green, this set should
-    # shrink to empty — at which point this test stays passing trivially.
+    Always passes — exists so the cleanup signal isn't lost when the
+    suite is green."""
+    assert isinstance(KNOWN_DEAD_CONFIG_KEYS, set)
+    # If the set ever empties, this test can be deleted along with
+    # the constant — at that point all configs are clean.
 
 
 # ----------------------------------------------------------------------
