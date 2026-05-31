@@ -27,6 +27,24 @@ Both candidate overlays (T-057, T-055e/g/h) were retired on the 12-yr
 window. The untested question: does the **base itself** — the production
 6-edge ensemble, all overlays OFF — clear DSR at the project's honest N?
 
+## DEFINITIVE FIGURES (supersede any 0.835 in the body below)
+
+Computed via `MetricsEngine.bootstrap_distribution` (correct signature)
+on rep1's equity curve:
+
+- **Sharpe 0.810** (modal — 4 of 5 reps; **rep4 drifts to 0.919**, mild
+  determinism drift consistent with A's 2/10-cell note → these baseline
+  cells are in scope for B's T-057c-det-followup sweep)
+- **Block-bootstrap CI [0.328, 1.301]**, ci_low **0.328**
+- DSR N=260: benchmark 0.659, **point clears by +0.151**, ci_low fails
+- MBL at SR 0.810: needs **16.9 yr**, have 12 (short ~5 yr)
+- Kill-thesis ci_low 0.328 < 0.4 → triggers
+
+The body's 0.835 / [0.331,1.342] / bench 0.686 figures are from an
+earlier bootstrap seed; they're within the determinism-drift band and
+every qualitative conclusion is identical. Use the definitive figures
+above when citing.
+
 ## Data (CORRECTED)
 
 `arm0_off` from T-055h's 12-yr campoign
