@@ -10,10 +10,15 @@ improve. Most sessions should leave the system tighter, not larger.
 ## Reading order on session start
 
 1. This file (always loaded)
-2. `docs/Core/SESSION_PROCEDURES.md` — what to do when, in detail
-3. `docs/README.md` — canonical "where do I find X" navigation index 
+2. `docs/State/CURRENT_STATE.md` — at-a-glance live-state dashboard; the
+   current-truth file to read FIRST after this one. Auto-injected into every
+   session by the SessionStart hook (`.claude/hooks/sessionstart_context.sh`),
+   but read it directly when you need the full dashboard. If it disagrees with
+   an older audit or measurement, CURRENT_STATE.md wins.
+3. `docs/Core/SESSION_PROCEDURES.md` — what to do when, in detail
+4. `docs/README.md` — canonical "where do I find X" navigation index 
    (read this if you need to find any doc)
-4. `docs/Core/README.md` — Core-folder-specific reading order
+5. `docs/Core/README.md` — Core-folder-specific reading order
 
 The `docs/` tree is organized by **lifecycle**, not by topic:
 - `docs/State/` — current truth (mutates in place: `health_check.md`, 
@@ -27,6 +32,16 @@ Don't read everything by default — context is finite. Use the
 `docs/README.md` index to jump to the right doc.
 
 ## Non-negotiable rules
+
+> These rules are kept here VERBATIM because `CLAUDE.md` is the only 
+> file the harness guarantees to auto-load into every session. The 
+> expanded canonical copy — with full rationale, named regression 
+> tests, audit cross-refs, and worked MBL numbers — lives in 
+> `docs/Core/NON_NEGOTIABLES.md`. That file is a duplicate for depth, 
+> NOT a replacement: never move these rules out of `CLAUDE.md` and 
+> rely on the other file or on an `@import`, or they stop being 
+> always-loaded. If the two ever disagree on a constraint, this file 
+> wins; fix the drift.
 
 **Archive, never delete.** Legacy code goes to `Archive/` or 
 `docs/Archive/`. The deny list at the permission layer blocks `rm`, 
@@ -61,7 +76,27 @@ present-day truth. Files in `docs/Measurements/<year-month>/` are
 also point-in-time — useful for context, but not authoritative on 
 current behavior. For current code-quality state, read 
 `docs/State/health_check.md`. For current strategy/plan, read 
-`docs/State/forward_plan.md` and `docs/State/ROADMAP.md`.
+`docs/State/forward_plan.md` and `docs/State/ROADMAP.md`. For 
+at-a-glance live state, read `docs/State/CURRENT_STATE.md`.
+
+**Superseded findings are not current truth.** A finding tagged 
+SUPERSEDED in `MEMORY.md` or in `docs/State/CURRENT_STATE.md`, or 
+whose matching `docs/State/TASK_LEDGER.md` row's `status` has 
+flipped (e.g. to `refuted`/`superseded`), is automatically no 
+longer current truth — regardless of how confidently the original 
+audit or measurement stated it. Do not quote it as present-day 
+evidence; follow the supersession pointer to the current verdict.
+
+**`forward_plan.md` vs `CURRENT_STATE.md` — which to edit when.** 
+`docs/State/forward_plan.md` is the verbose narrative strategy/plan 
+(the "why and where next"). `docs/State/CURRENT_STATE.md` is the 
+at-a-glance live-state dashboard (the "what is true right now," 
+with hard caps and the last-reconciled stamp the Stop hook checks). 
+When the plan or direction changes, edit `forward_plan.md`. When 
+the current measured or operational state changes, reconcile 
+`CURRENT_STATE.md`. Keep them in sync; if they disagree, 
+`CURRENT_STATE.md` is the live truth and `forward_plan.md` explains 
+how you intend to change it.
 
 **Sharpe headlines must report bootstrap CI; kill thresholds 
 must be CI-aware, not point-estimate.** Every measurement that 
