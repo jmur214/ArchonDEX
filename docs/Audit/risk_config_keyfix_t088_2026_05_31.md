@@ -108,29 +108,95 @@ self.cfg = RiskConfig(**cfg_filtered)
 
 **This dispatch leaves the prod.json `max_position_value: 50000` key in place** so the director has the evidence and chooses. The corrected filter will now log `[RiskConfig] ignoring unknown config key: max_position_value (value=50000)` on every run, making the unresolved decision visible. **Director and user: which option?**
 
-### 12-yr baseline re-run at corrected risk_per_trade_pct
+### 12-yr baseline re-run at corrected risk_per_trade_pct — DEAD-KNOB FINDING
 
-Cloud campaign `t088-risk-keyfix-12yr` (1 arm × 3 reps × 12yr window,
-`config_patch` adds `risk_per_trade_pct: 0.005` so the run uses the
-intended 0.5% — `max_position_value` is left dropped, matching prior
-behaviour, to isolate the per-trade-risk effect).
+Cloud campaign `t088-risk-keyfix-12yr` ran 3 reps on the 12-yr window
+with `config_patch: {"risk_per_trade_pct": 0.005}` (so the patched
+file in the container had both the legacy `risk_per_trade: 0.005`
+and the dataclass-recognized `risk_per_trade_pct: 0.005`).
 
-| Statistic | T-053b/T-055h arm0_off (legacy 2.5% risk_per_trade default) | T-088 arm_keyfix (corrected 0.5%) | Δ |
+| Statistic | T-053b/T-055h arm0_off (legacy 2.5% dataclass default) | T-088 arm_keyfix (corrected 0.5%) | Δ |
 |-----------|---:|---:|---:|
-| Sharpe (point) | 0.8102 | **PENDING — cloud run in flight** | |
-| Sharpe ci_low (block-bootstrap 2.5%) | +0.265 | PENDING | |
-| Sharpe ci_high (97.5%) | +1.392 | PENDING | |
-| CAGR (annualized) | ~7.99 % | PENDING | |
-| MDD | -14.44 % | PENDING | |
+| Sharpe (point) | 0.8102 | **0.8102** | **0.0000** |
+| Sharpe ci_low (block-bootstrap 2.5%) | +0.265 | +0.273 | identical-within-bootstrap |
+| Sharpe ci_high (97.5%) | +1.392 | +1.398 | identical-within-bootstrap |
+| CAGR (annualized) | 7.99 % | **7.99 %** | **0.00 %** |
+| MDD | -14.44 % | **-14.44 %** | **0.00 %** |
+| Ending Equity | $251,499 | **$251,499.05** | **$0** |
+| **canon_md5** | `989af6a3...87` | **`989af6a3...87`** (3/3 reps stable) | **bitwise identical** |
 
-**Expectation per CLAUDE.md:** Sharpe is scale-invariant to a constant
-position-size multiplier, so the corrected Sharpe should stay around
-0.81 (with bootstrap-CI noise from the determinism drift surfaced in
-T-055h and the partial fix in T-057c-det-followup). CAGR and MDD scale
-roughly linearly with position size, so we expect both to shrink by
-roughly 5× (since corrected risk is 0.5%/2.5% = 0.2× of prior). If
-Sharpe shifts materially, that's a leverage-non-linearity surprise to
-investigate (slippage, ADV cap, or max_pos_value_pct binding).
+**The re-run produced bitwise-identical trades and equity curve** to
+the T-053b/T-055h arm0_off canonical baseline. All 3 reps converged
+on the same canon_md5 as the T-055h canonical (4/5 stable) and the
+T-053b arm0_off canonical — three independent campaigns now agree
+on the same trade output. **Cross-container determinism: 3/3 stable**
+this dispatch (T-057c-det-followup's three additional FP-fixes
+appear to have closed the 2/10 drift T-055h saw).
+
+#### Why is the corrected risk Sharpe / CAGR / MDD identical to the over-risked baseline?
+
+Inspecting one trade from rep1 (`AMT, 2014-01-03, long, 201 shares`):
+```
+sizing_mode:     target_weight
+target_weight:   0.1070872330326901
+target_notional: $10,708.72
+```
+
+**The production sizing path is Engine C target-weight (Path A in
+`engines/engine_b_risk/risk_engine.py:817-865`), NOT Engine B
+ATR-risk (Path B, lines 867+).** `risk_per_trade_pct` is only
+consumed in Path B (`risk_engine.py:892: base_risk_pct =
+self.cfg.risk_per_trade_pct`); in Path A, position size is
+`equity × target_weight × optimizer_weight × portfolio_vol_scalar`
+with no reference to `risk_per_trade_pct`.
+
+Path A is taken whenever the dataclass field
+`enforce_target_allocations=True` (the default) AND
+`target_weights` are passed by the controller — which they always
+are in the standard prod backtest flow (PortfolioEngine →
+ModeController → BacktestController).
+
+**Conclusion: `risk_per_trade_pct` is a dead knob in the production
+backtest sizing path.** The legacy `risk_per_trade` key was indeed
+being silently dropped — that's a real bug — but the dropped value
+fed a code path the harness never exercises. The "5× over-risk"
+framing in the silent-bug audit overstates impact; the genuine
+exposure is "config-key drift surfaced in a path that the prod
+config believed it was controlling, in this case harmlessly".
+
+**Similarly, `max_position_value: 50000`** (the other legacy key
+dropped from prod.json) does NOT bind in the target_weight sizing
+path. The dataclass default `max_pos_value_pct: 0.30` is only
+checked in Path B (`risk_engine.py:982: max_value = equity *
+max_pos_value_pct`). In Path A, the cap-equivalent is whatever
+ceiling PortfolioEngine + composer apply when computing
+`target_weight` — and from the trade evidence, target_weights
+ARE bounded around 0.30 max for any single name (KO trade in
+2014-01-03 hit `target_weight: 0.3` exactly), suggesting composer
+applies a 30% ceiling independently.
+
+#### What this re-run actually proves
+
+1. **All Sharpe/CAGR/MDD verdicts from T-053b, T-055h, T-087 STAND.**
+   The historical numbers were never "5× over-risked" because the
+   dropped key wasn't controlling sizing in the first place.
+2. **The renaming fix in this dispatch (risk_per_trade →
+   risk_per_trade_pct) is still correct.** If anyone later enables
+   Path B (ATR-risk sizing) by setting
+   `enforce_target_allocations=False`, the prod config's intended
+   0.5% per-trade risk will now actually be honored.
+3. **The filter-hardening (warn on unknown keys) is still correct
+   and now MORE valuable**: this exact silent-drop pattern (key
+   present but dead) is precisely the failure mode the warning
+   catches. Future prod runs log
+   `[RiskConfig] ignoring unknown config key: risk_per_trade`
+   (legacy still in dev.json — see semantic-fork section) and
+   `[RiskConfig] ignoring unknown config key: max_position_value`,
+   making the unresolved decisions VISIBLE.
+4. **3/3 cross-container determinism** is the first 12-yr campaign
+   to clear the determinism gate cleanly. T-057c-det-followup's
+   three additional FP-fixes (xsec_momentum, composer HRP,
+   moonshot sleeve) appear sufficient.
 
 **MBL Gate-0 check (CLAUDE.md #7):** at N_trials ≈ 269 (post-T-088:
 T-087 added 1 dispatch + per-method-and-per-stress-event signal-
@@ -202,7 +268,7 @@ Pre-existing failures (not T-088): `test_alpha_pipeline`, `test_anchor_no_stale_
 | A1 | risk_per_trade renamed in prod + dev config | DONE |
 | A2 | max_position_value fork DOCUMENTED, not guessed | DONE (see semantic-fork section) |
 | A3 | risk_engine.py:132 filter warns on unknown keys | DONE |
-| A4 | 12-yr baseline re-run at corrected config | IN FLIGHT (cloud t088-risk-keyfix-12yr) |
+| A4 | 12-yr baseline re-run at corrected config | DONE — 3/3 reps bitwise identical to baseline; risk_per_trade_pct is dead-knob in target_weight sizing path |
 | B1 | [1] Total Trades wired in _compute_summary | DONE |
 | B2 | [2] Sortino reader key fixed + test fixture | DONE |
 | B3 | [7] data_manager yfinance auto_adjust=False | DONE |
@@ -225,8 +291,9 @@ Pre-existing failures (not T-088): `test_alpha_pipeline`, `test_anchor_no_stale_
 
 ## Memory updates needed (post-merge)
 
-- New entry: "T-088 risk_per_trade keyfix — prod ran at 2.5% (dataclass default), not 0.5% (intended). 5× over-risk silently for every backtest. RiskConfig filter now warns on unknown keys (systemic fix). Sharpe ~scale-invariant so historical verdicts likely stand; CAGR/MDD absolute numbers need an asterisk pending the cloud re-run."
-- Update `project_silent_bug_audit_2026_05_31.md` — [3] HIGH resolved (rename + filter-hardening); [1][2][7][9] closed; max_position_value semantic fork escalated to director.
+- New entry: "T-088 risk_per_trade keyfix — config key WAS silently dropped (bug confirmed) but `risk_per_trade_pct` is a DEAD KNOB in the production sizing path (Engine C `target_weight` is used, not Engine B `atr_risk`). 12-yr re-run produced bitwise-identical trades (canon_md5 unchanged, Sharpe 0.81, CAGR 7.99%, MDD -14.44%). All historical verdicts STAND. The audit's '5× over-risk' framing overstated impact. Renaming + filter-hardening still ship as the systemic fix; ditto for catching `max_position_value` (also legacy/dropped, also irrelevant in target_weight path)."
+- Update `project_silent_bug_audit_2026_05_31.md` — [3] HIGH downgraded to LOW-LATENT in the audit's blast-radius sense: real key-drop, zero observable impact in current sizing path, fixes still merit-ranked. [1][2][7][9] closed; max_position_value semantic fork escalated to director.
+- New entry: "Engine B Path A (`enforce_target_allocations=True`, target_weight sizing) makes `risk_per_trade_pct`, `max_pos_value_pct`, `atr_stop_mult`, `atr_tp_mult`, `cap_atr_to_pct_of_price`, `atr_floor_pct_of_price` all DEAD KNOBS in production backtests. Future config audits must distinguish 'key present in dataclass' from 'key consumed by active sizing path'. The active sizing path is `risk_engine.py:817-865`, NOT lines 867+."
 
 ## Forward dispatches
 
