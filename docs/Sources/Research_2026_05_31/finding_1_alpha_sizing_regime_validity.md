@@ -79,3 +79,12 @@
 
 ## What softens the verdict
 Roth/tax-deferred wrapper (+0.2–0.4 ceiling) · honest M_eff≤30 surviving bootstrap · 24mo untouched OOS clearing 0.5 CI>0 in one run. Absent ≥1 of these: **not yet investable in a taxable account at this scale; highest-EV next move is structural (wrapper/instrument/arena), not parametric.**
+
+> **DIRECTOR NOTE (2026-05-31, user-confirmed):** BOTH arenas are live — a
+> taxable individual account (Illinois) AND a Roth. The "Roth wrapper"
+> softener is therefore **already realized**: in the Roth the +0.2–0.4
+> ceiling lift is captured and the strategy IS investable pre-tax at this
+> scale. H1 (after-tax viability) stays live but scoped to the TAXABLE
+> sleeve — its job is to sort strategies into taxable-eligible vs
+> Roth-only. Capital staging: ~$5K start → $50K → 100s K if it proves out
+> (futures-scale instruments unlock later, not at the $5K start).
