@@ -97,8 +97,9 @@
         "GLD"
     ],
     "hmm": {
-        "hmm_enabled": false,
+        "hmm_enabled": true,
         "model_path": "engines/engine_e_regime/models/hmm_3state_v1.pkl",
+        "feature_set": "legacy",
         "min_confidence_floor": 0.6,
         "on_model_missing": "warn"
     }

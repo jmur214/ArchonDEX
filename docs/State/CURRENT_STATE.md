@@ -1,6 +1,6 @@
 # CURRENT_STATE — ArchonDEX
 
-**Last reconciled with source docs:** 2026-05-31
+**Last reconciled with source docs:** 2026-06-04 (T-101 close)
 
 **If this date is more than 3 days old, read `forward_plan.md`, `health_check.md`, and the latest `docs/Audit/*` before quoting state.** Hard caps below (≤5 per section, exactly 1 next-decision) are the anti-rot discipline — when a slot fills, the oldest item moves to MEMORY or is superseded.
 
@@ -30,7 +30,7 @@
 
 - **PATH B IN EXECUTION. MASTER FINDING (T-100, 2026-06-04): the crisis defenses EXIST in code but were STARVED in the backtest — that is why the base drew -59% on 26-yr, NOT an absence of defensive machinery.** B's instrumentation: (a) HMM **not wired** — 0/1174 advisory calls received `hmm_proba` (`hmm_enabled=false` default); (b) 5-axis regime detector **MISSED COVID** (0 crisis bars May–Dec 2020); (c) regime returns None pre-2020 on the local SPY gap (~80% of a local 26-yr run dormant); (d) the Engine-B `risk_scalar` 46% cut the audit flagged lives on **DEAD Path B** (atr-risk, confirms T-088 — prod uses Path A target_weight; the static audit-read was wrong, B's empirical trace is right). **In flight / sequenced:**
   - **T-099 (MERGED 253a96f):** long-window FP-determinism fixed (5 sites; 12-yr `--runs 3` bitwise-identical). Cloud cross-container 26-yr verify still recommended (T-099-verify).
-  - **Phase 0+ (autonomous, Engine E config — NEXT):** flip `hmm_enabled=true` so the validated HMM posterior actually feeds the advisory; re-run the T-100 diagnostic to confirm crisis now fires + gross falls in 2020/2022. This is the highest-leverage cheap step — the defense was off, not absent.
+  - **Phase 0+ (T-101 DONE 2026-06-04, Agent B):** `hmm_enabled=true` flipped in `config/regime_settings.json`. Q1' YES — posterior flows (1174/1174 advisory calls). Q2'/Q3' NO change — regime_summary distribution + per-arm gross deltas + 2022 default-cell canon are BITWISE IDENTICAL pre/post-flip. **CAPABILITY failure, not WIRING.** HMM modulates `risk_scalar` on dead Path B; Path A (production target_weight sizing) doesn't consume it. The −59% MDD was never going to be saved by a config flag. Det 3/3 PASS. Flag stays flipped (no-op for trades, observability win). Audit: `hmm_wire_phase0plus_t101_2026_06_04.md`.
   - **Phase 0b (cloud cell):** 2008 + 2000-02 need cloud data (local SPY starts 2020-04) to test crisis response on the real GFC/dotcom regimes.
   - **Phase 1 (Engine B, propose-first, 2nd gate):** binary de-gross to floor=0.25 (cash) — warranted per T-100 outcome (c), but design must REPLACE/COMPOSE-WITH the existing (now-to-be-fed) advisory de-gross, not stack a 5th cut. Returns for review.
   - **Phase 2 A/B (gated on T-099✓ + Phase-0+):** arms off/0.25/0.50/0.0/tiered, 16-yr + 26-yr, bootstrap CI. Adopt iff MaxDD −≥25% AND Sharpe-ci_low not down.
