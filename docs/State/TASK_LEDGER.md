@@ -49,6 +49,7 @@ Backfilled from T-035 (cloud era start, 2026-05-12) forward. Use `git log` and `
 | T-096 | 2026-05-31 | Doc-system overhaul Phase 2 (hooks + NON_NEGOTIABLES split) | done | — | — | SessionStart/Stop externalized + fail-open; CLAUDE.md restructure; NON_NEGOTIABLES.md expanded copy | `doc_system_overhaul_phase2_t096_2026_05_31.md` |
 | T-098 | 2026-05-31 | H-Band no-trade bands (Agent B, Engine C) | refuted | 36 | 36 | ±20/25% no Pareto win (Sharpe ci_low<0, turnover flat, skew mixed); clean default-OFF impl kept for tighter sweep; branch NOT merged | `no_trade_band_h_band_t098_audit_2026_05_31.md` |
 | T-096 | 2026-05-31 | Doc-system overhaul Phase 2 (hooks + NON_NEGOTIABLES split) | done | — | — | SessionStart/Stop externalized + fail-open; CLAUDE.md restructure; NON_NEGOTIABLES.md expanded copy | `doc_system_overhaul_phase2_t096_2026_05_31.md` |
+| T-100 | 2026-06-04 | HMM crisis kill-switch Phase 0 diagnostic (Agent B, diagnostic only) | done | — | — | Compound (a)+(b)+(c): HMM not wired (0/1174 calls), 5-axis missed 2020 COVID, gross drops only 1.2pp aggregate (risk_scalar is dead-knob, Path B). Phase 1 binary kill-switch warranted; HMM enable + Phase 0b cloud recommended | `crisis_path_diagnostic_t100_2026_06_04.md` |
 
 ## Closed-pre-T-035 (digest only)
 

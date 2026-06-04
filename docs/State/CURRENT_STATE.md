@@ -1,6 +1,6 @@
 # CURRENT_STATE — ArchonDEX
 
-**Last reconciled with source docs:** 2026-05-31
+**Last reconciled with source docs:** 2026-06-04 (T-100 close)
 
 **If this date is more than 3 days old, read `forward_plan.md`, `health_check.md`, and the latest `docs/Audit/*` before quoting state.** Hard caps below (≤5 per section, exactly 1 next-decision) are the anti-rot discipline — when a slot fills, the oldest item moves to MEMORY or is superseded.
 
@@ -24,13 +24,13 @@
 
 ## In flight (max 5)
 
-- _(none — T-092 and T-098 both closed; see Recently-refuted + the Next-decision fork.)_
+- **T-099 (Agent A) — long-window determinism fix** — extend T-057c-det for the depth-scaling FP drift (26-yr 0.19 Sharpe). Prerequisite for any trustworthy 16/26-yr A/B.
 
 ## Next decision (exactly 1)
 
 - **PATH B IN EXECUTION (decided 2026-05-31, kill-switch proposal APPROVED 2026-06-04).** Build crisis-regime robustness before overlays. **In flight / sequenced:**
   - **T-099 (Agent A, running):** long-window determinism fix — extend T-057c-det for the depth-scaling FP drift (26-yr 0.19 Sharpe). Prerequisite for any trustworthy 16/26-yr A/B.
-  - **Kill-switch Phase 0 (diagnose, autonomous, dispatched to B):** instrument the 26-yr backtest — is the ALREADY-EXISTING HMM→advisory→crisis-de-gross path (`advisory.py` `regime_summary=='crisis'`) even firing, and why did the base still draw -59%? Behavioral question, drift-tolerant → does NOT wait on T-099. Proposal: `docs/Core/Ideas_Pipeline/hmm_crisis_killswitch_proposal_2026_06_04.md`.
+  - **Kill-switch Phase 0 (T-100, DONE 2026-06-04, Agent B):** diagnosed compound (a)+(b)+(c) on local 4.7-yr substrate: HMM not wired (0/1174 advisory calls received hmm_proba), 5-axis missed 2020 COVID entirely (offline HMM would have caught 17 high-p_crisis bars), gross drops only 1.2pp aggregate even when 5-axis fires crisis (risk_scalar is dead-knob, lives on Path B per T-088). Phase 1 binary kill-switch IS warranted. Audit: `crisis_path_diagnostic_t100_2026_06_04.md`. **Cloud Phase 0b RECOMMENDED** (verify 2008/2000-02 — SPY local only goes to 2020-04-09). **Phase 0+ autonomous fix available now:** flip `hmm_enabled=true` in `config/regime_settings.json` (Engine E config, autonomous).
   - **Kill-switch Phase 1 (Engine B, propose-first, 2nd gate):** binary de-gross to floor=0.25 (cash, not bonds) — ONLY if Phase 0 shows the existing path fires-but-is-too-weak. Approved defaults stand; code still returns for review.
   - **Phase 2 A/B (gated on T-099):** arms off/0.25/0.50/0.0/tiered, 16-yr + 26-yr, bootstrap CI. Adopt iff MaxDD −≥25% AND Sharpe-ci_low not down.
   - **LAYER 2 — trend/managed-futures positive-skew sleeve (the STRUCTURAL skew fix; user-confirmed near-future plan 2026-06-04).** The kill-switch is the band-aid; this is the cure. Sequenced after the kill-switch resolves.
