@@ -28,7 +28,14 @@
 
 ## Next decision (exactly 1)
 
-- **DECIDED 2026-05-31: PATH B — pivot to crisis-regime robustness.** (User-ratified; T-092's 26-yr collapse + bull-conditionality + strict-CI-fails-everywhere = the base 6-edge ensemble has plateaued, build defense before more overlays.) **Immediate work, in order:** (1) **HMM-gated binary kill-switch** using Engine E's validated crisis posterior (T-087/T-089, AUC 0.887) — **Engine B (Risk) → PROPOSE-FIRST; director scoping the design for user approval before any dispatch.** (2) **Long-window determinism fix** (extend T-057c-det per A's depth-scaling drift finding) — autonomous, prerequisite for trusting any future 16/26-yr A/B of the kill-switch. (3) Later branches if (1) underdelivers: Engine D gene-encoding unblock, parked LLM-analyst. **Path A (overlays on 16-yr) is NOT pursued** — anointing the crisis-free window was the spec-search trap we rejected. Staged-but-deprioritized: H-Tax T-097 (/tmp). See A's outbox + `docs/Sources/Research_2026_05_31/README.md`.
+- **PATH B IN EXECUTION (decided 2026-05-31, kill-switch proposal APPROVED 2026-06-04).** Build crisis-regime robustness before overlays. **In flight / sequenced:**
+  - **T-099 (Agent A, running):** long-window determinism fix — extend T-057c-det for the depth-scaling FP drift (26-yr 0.19 Sharpe). Prerequisite for any trustworthy 16/26-yr A/B.
+  - **Kill-switch Phase 0 (diagnose, autonomous, dispatched to B):** instrument the 26-yr backtest — is the ALREADY-EXISTING HMM→advisory→crisis-de-gross path (`advisory.py` `regime_summary=='crisis'`) even firing, and why did the base still draw -59%? Behavioral question, drift-tolerant → does NOT wait on T-099. Proposal: `docs/Core/Ideas_Pipeline/hmm_crisis_killswitch_proposal_2026_06_04.md`.
+  - **Kill-switch Phase 1 (Engine B, propose-first, 2nd gate):** binary de-gross to floor=0.25 (cash, not bonds) — ONLY if Phase 0 shows the existing path fires-but-is-too-weak. Approved defaults stand; code still returns for review.
+  - **Phase 2 A/B (gated on T-099):** arms off/0.25/0.50/0.0/tiered, 16-yr + 26-yr, bootstrap CI. Adopt iff MaxDD −≥25% AND Sharpe-ci_low not down.
+  - **LAYER 2 — trend/managed-futures positive-skew sleeve (the STRUCTURAL skew fix; user-confirmed near-future plan 2026-06-04).** The kill-switch is the band-aid; this is the cure. Sequenced after the kill-switch resolves.
+  - Later fallbacks if defense underdelivers: Engine D gene-encoding unblock, parked LLM-analyst.
+  - **Path A (overlays on 16-yr) NOT pursued** (spec-search trap). Deprioritized: H-Tax T-097 (/tmp).
 
 ## Standing constraints (max 5)
 
