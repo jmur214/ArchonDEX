@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+import math
 import pandas as pd
 import numpy as np
 
@@ -242,10 +243,23 @@ class PortfolioEngine:
         if not hasattr(self, 'realized_pnl') or self.realized_pnl is None:
             self.realized_pnl = 0.0
 
-        market_value = 0.0
-        unrealized = 0.0
+        # T-2026-06-04-099 determinism fix: sort + math.fsum.
+        # self.positions iteration order is dict-insertion order = trade-
+        # history order. Across containers, that order varies (it traces
+        # back to signal_collector's outer ticker order; T-057c-det
+        # only sorted the inner edge_map). The market_value += ...
+        # accumulation is order-dependent FP, so a tiny ULP-level residue
+        # in equity propagates into the next bar's risk-budget and target-
+        # notional sizing, producing different trades, compounding into
+        # T-092's observed 0.19-Sharpe cross-container drift at 26-yr.
+        # Sorting positions alphabetically and using math.fsum on the
+        # sorted contribution list forces a canonical, higher-precision
+        # accumulation order.
+        mv_contribs: List[float] = []
+        ur_contribs: List[float] = []
         open_positions_count = 0
-        for t, pos in self.positions.items():
+        for t in sorted(self.positions.keys()):
+            pos = self.positions[t]
             if pos.qty == 0:
                 continue
             open_positions_count += 1
@@ -263,9 +277,12 @@ class PortfolioEngine:
                     px = 0.0
                     if is_debug_enabled("PORTFOLIO"):
                         print(f"[PORTFOLIO][A L E R T] MTM Gap for {t}: No data, no history. Valuing at 0.0.")
-            
-            market_value += pos.qty * px
-            unrealized += (px - pos.avg_price) * pos.qty
+
+            mv_contribs.append(float(pos.qty) * px)
+            ur_contribs.append((px - pos.avg_price) * float(pos.qty))
+
+        market_value = math.fsum(mv_contribs)
+        unrealized = math.fsum(ur_contribs)
 
         equity = self.cash + market_value
         # Advance the running peak; compute drawdown vs peak. peak_equity
@@ -307,20 +324,25 @@ class PortfolioEngine:
         """
         Compute total portfolio equity = cash + Σ(qty * price).
         """
-        mv = 0.0
-        for t, pos in self.positions.items():
+        # T-2026-06-04-099 determinism fix: sort + math.fsum (matches the
+        # snapshot() accumulator above). total_equity is called from
+        # mode_controller checkpoints + governor lifecycle and feeds
+        # observability paths.
+        mv_contribs: List[float] = []
+        for t in sorted(self.positions.keys()):
+            pos = self.positions[t]
             if pos.qty == 0:
                 continue
             if t in price_map:
                 px = float(price_map[t])
-                # We don't update pos.last_price here generally as total_equity might be called tentatively, 
+                # We don't update pos.last_price here generally as total_equity might be called tentatively,
                 # but for consistency with snapshot we assume price_map is authoritative current state.
                 # However, to simulate 'read-only' equity check, we don't mutate pos.
             else:
                 px = pos.last_price if pos.last_price is not None else 0.0
 
-            mv += pos.qty * px
-        return self.cash + mv
+            mv_contribs.append(float(pos.qty) * px)
+        return self.cash + math.fsum(mv_contribs)
     # ------------------------------------------------------------------ #
     def compute_target_allocations(
         self,

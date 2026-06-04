@@ -521,12 +521,17 @@ class BacktestController:
         if ts in equity_cache:
             equity = equity_cache[ts]
         else:
-            # Quick equity calc
-            mv = 0.0
-            for t_pos, p_pos in self.portfolio.positions.items():
-                 if p_pos.qty != 0 and t_pos in close_prices_df.columns:
-                     mv += p_pos.qty * close_prices_df.at[ts, t_pos]
-            equity = self.get_portfolio_capital() + mv
+            # T-2026-06-04-099 determinism fix: sort + math.fsum.
+            # self.portfolio.positions iteration is dict-insertion order =
+            # trade-history order, which varies cross-container. This
+            # equity feeds straight into the next bar's target_notional
+            # sizing — drift here compounds T-092 style.
+            mv_contribs = []
+            for t_pos in sorted(self.portfolio.positions.keys()):
+                p_pos = self.portfolio.positions[t_pos]
+                if p_pos.qty != 0 and t_pos in close_prices_df.columns:
+                    mv_contribs.append(float(p_pos.qty) * float(close_prices_df.at[ts, t_pos]))
+            equity = self.get_portfolio_capital() + math.fsum(mv_contribs)
             equity_cache[ts] = equity
 
         # Call Policy (Engine C)
@@ -546,16 +551,18 @@ class BacktestController:
         if ts in equity_cache:
             equity = equity_cache[ts]
         else:
-            # Compute portfolio equity at ts efficiently
+            # T-2026-06-04-099 determinism fix: sort + math.fsum.
+            # Compute portfolio equity at ts efficiently.
             try:
                 pos_qtys = {tkr: int(self.portfolio.positions.get(tkr).qty) if self.portfolio.positions.get(tkr) else 0 for tkr in tickers}
                 pos_values = []
-                for tkr, qty in pos_qtys.items():
+                for tkr in sorted(pos_qtys.keys()):
+                    qty = pos_qtys[tkr]
                     price = close_prices_df.at[ts, tkr] if tkr in close_prices_df.columns else np.nan
                     if pd.isna(price):
                         price = 0.0
-                    pos_values.append(qty * price)
-                equity = self.get_portfolio_capital() + sum(pos_values)
+                    pos_values.append(float(qty) * float(price))
+                equity = self.get_portfolio_capital() + math.fsum(pos_values)
             except Exception:
                 equity = self.get_portfolio_capital()
             equity_cache[ts] = equity
