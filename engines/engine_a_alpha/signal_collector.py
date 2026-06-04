@@ -402,8 +402,21 @@ class SignalCollector:
         # regardless of how this collector built its inserts. Belt-and-
         # braces with the sorted outer iteration above — guarantees
         # invariant even if a future caller reaches in directly.
+        #
+        # T-2026-06-04-099 extension: ALSO canonicalize OUTER ticker
+        # order. The prior T-057c-det fix only sorted the inner edge_map;
+        # outer ticker insertion order remained dependent on which edge
+        # fired first for each ticker, which varies cross-container as
+        # individual edges' internal pandas operations may iterate in
+        # different orders. That outer order propagates to
+        # signal_processor.process() (which iterates raw_scores.items()
+        # at the OUTER level), then to proc, then to the signals list
+        # in alpha_engine.build_signals_for_ts, then to position-insertion
+        # order in portfolio_engine, then to the equity-curve accumulator.
+        # T-092 saw 0.19-Sharpe cross-container drift at 26-yr; this
+        # extension closes the outer-iteration root.
         scores = {
-            tkr: dict(sorted(edge_map.items()))
-            for tkr, edge_map in scores.items()
+            tkr: dict(sorted(scores[tkr].items()))
+            for tkr in sorted(scores.keys())
         }
         return scores
