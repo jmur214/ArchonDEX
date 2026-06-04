@@ -22,6 +22,50 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] Engine F learned-affinity producer is DEAD on production path (regime_conditional_enabled=false)
+- Engine: F
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `RegimePerformanceTracker.get_learned_affinity()` (regime_tracker.py:180) produces the `advisory["learned_edge_affinity"]` key that `engine_a_alpha/signal_processor.py:563` consumes (0.3-1.5x per-category multiplier on edge norms). The ONLY caller in the repo is `backtester/backtest_controller.py:346-348`, gated behind `regime_conditional_enabled`. In `config/governor_settings.json:13` that flag is `false`. So in production the multiplier is never injected, the consumer always sees `{}`, and the whole regime-conditional-weight chain (`_rebuild_regime_weights_from_tracker`, `get_edge_weights(regime_meta=...)` blending) is also disabled (same flag). Capability is shipped + wired end-to-end but switched OFF; NONE of CURRENT_STATE.md/MEMORY.md/index reflect the default-OFF state.
+- Charter reference: engine_charters.md §F Design Notes "Learned edge affinity | F computes per-category affinity via `get_learned_affinity(regime_label)` ... Injected into `regime_meta["advisory"]["learned_edge_affinity"]`". Charter presents as active; code default is inert.
+- Recommended next step: Document default-OFF in CURRENT_STATE/charters. For Path B this is the existing lever for regime-conditional crisis de-weighting (kills edges whose per-regime Sharpe <= 0 via `get_regime_weight`). Re-verify lift on canonical substrate before flag-flip (CLAUDE.md #9).
+
+### [HIGH] Engine F factor-α retirement gate (T-043) is inert on every live/backtest lifecycle call
+- Engine: F
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `LifecycleConfig.factor_alpha_enabled` defaults `True` (lifecycle_manager.py:224); a full FF5+Mom HAC bootstrap retirement gate exists (factor_alpha_gate.py). But the gate body requires `factors is not None` (lifecycle_manager.py:614), and the production entry `StrategyGovernor.evaluate_lifecycle` (governor.py:607-610) calls `lcm.evaluate(...)` WITHOUT `factors=`. The only caller supplying factors is `scripts/lifecycle_factor_alpha_reeval_t043.py`. So in the autonomous loop the gate is a permanent no-op despite its enable-flag reading True. Flag-vs-path hazard, same family as T-088.
+- Charter reference: engine_charters.md §F Invariant 4 ("Edge demotions require statistically significant underperformance"). Not discoverable as inert from any living doc.
+- Recommended next step: Either wire `factors=` into `governor.evaluate_lifecycle` (Engine F, autonomous-allowed) or document that factor-α retirement is script-only.
+
+### [HIGH] Engine F: governor.py docstrings mislabel the engine as "Engine D"
+- Engine: F
+- First flagged: 2026-06-04
+- Status: not started
+- Description: governor.py:20 and governor.py:89 both attribute the Governor to "Engine D". Governance is Engine F; Discovery is Engine D. Stale label from before the D/F split. Misleads charter-boundary audits.
+- Charter reference: engine_charters.md §"Discovery (D) and Governance (F) split what was previously a single overloaded engine."
+- Recommended next step: Update both docstrings to "Engine F". Doc-only, autonomous-allowed.
+
+### [MEDIUM] Engine F: `regime_analytics.RegimePerfAnalytics` referenced by charter + index.md but file does not exist
+- Engine: F
+- First flagged: 2026-06-04
+- Status: not started
+- Description: engine_charters.md §F Modules and `engines/engine_f_governance/index.md:15`/:99-101 document `regime_analytics.py`, but a whole-repo search (excl. Archive) finds no such file. The auto-generated index block is built by `scripts/sync_docs.py` from real code → file archived/deleted without regenerating, or sync_docs read a stale source. Role overlaps the existing `regime_tracker.RegimePerformanceTracker`.
+- Charter reference: engine_charters.md §F Modules table, row `regime_analytics.py`.
+- Recommended next step: Run `scripts/sync_docs.py`; confirm consolidation into RegimePerformanceTracker; update charter + index or restore from Archive.
+
+### [MEDIUM 2026-06-04 by engine-auditor] Engine C — shipped crisis/defensive capabilities are NOT discoverable from living docs (Path-B-relevant doc gap)
+- Engine: C
+- First flagged: 2026-06-04
+- Status: not started
+- Description: An Engine-C audit for Path B (crisis-regime robustness) found multiple SHIPPED capabilities that are absent from `docs/State/CURRENT_STATE.md` and only thinly described (or wrong) in `docs/Core/engine_charters.md` + `engines/engine_c_portfolio/index.md`. The most Path-B-relevant:
+  1. **Regime-aware vol-target upside ceiling (crisis de-gross)** — `policy.py:334-352` `_apply_vol_target` caps leverage to 1.0× in `market_turmoil`/`cautious_decline`/`stressed`/`crisis` (1.4× transitional, legacy 2.0× benign). This is an Engine-C SIBLING to the already-surfaced Engine B/E `portfolio_vol_target_crisis_multiplier=0.40` path. No living doc mentions Engine C has its own regime-conditional de-gross. Charter (line 256) only says "scale weights to match target_volatility (clamp 0.3-2.0x)" — the asymmetric/regime-aware ceiling is invisible, and the 0.3 downside FLOOR (keeps ≥30% gross in vol spikes — a de-gross LIMITER) is undocumented.
+  2. **Advisory exposure-cap enforcement in Engine C** — `policy.py:370-391` `_apply_exposure_cap` consumes Engine E's `suggested_exposure_cap`. This is DOUBLE-CONSUMED: Engine B (`risk_engine.py:736`) also applies the same `suggested_exposure_cap` to `effective_max_gross`. Potential compounding de-gross; the boundary (who owns exposure-cap enforcement, C or B?) is not stated in any doc.
+  3. **Reachability nuance the docs hide:** prod `config/portfolio_settings.json` sets `mode: "mean_variance"`, and both overlays above live ONLY in the adaptive-mode branch (after the mean_variance early-return at `policy.py:200`). BUT `data/research/allocation_recommendations.json` recommends `mode:"adaptive"` for EVERY regime, and `_apply_regime_overrides` (`policy.py:86`) applies "mode" as a known-safe override key — so the crisis overlays can be silently activated at allocation time. No doc captures this mean_variance→adaptive flip.
+  4. **Multi-sleeve infrastructure already exists** — `sleeves/` ships `MultiSleeveAggregator`, `TrendFollowingSleeve` (CTA momentum + inverse-vol), `MoonshotSleeve` (asymmetric-upside). CURRENT_STATE.md line 36 names "LAYER 2 — trend/managed-futures positive-skew sleeve (the STRUCTURAL skew fix)" as future near-term work WITHOUT noting a TrendFollowingSleeve + aggregator already exist (default-OFF, never wired into `BacktestController`). Path B Layer 2 may be partly pre-built.
+- Charter reference: `engine_charters.md` §Engine C C.2 Allocation (lines 249-277) lists "Portfolio-level vol targeting (scale weights to match target_volatility via w@cov@w)" and "Advisory exposure cap enforcement" but omits the regime-conditional ceiling, the double-consumption with B, the mean_variance/adaptive reachability flip, and all sleeve infrastructure.
+- Recommended next step: (a) Add the regime-aware vol-target ceiling + downside floor and the C-vs-B exposure-cap double-consumption to CURRENT_STATE.md as a Path-B-relevant existing defensive primitive (it answers "what de-gross does C already do?"). (b) Resolve the exposure-cap ownership boundary B-vs-C in the charter. (c) Document sleeve infra status (built, default-OFF, unwired) before Path-B Layer 2 work re-builds it. (d) Regenerate `index.md` auto-ref via `scripts/sync_docs.py` — it currently lists a non-existent `allocator.py` (`EngineCAllocator`).
+
 ### [HIGH 2026-05-24 by Agent B] T-057b verification — confidence-gate lift COLLAPSES on extended substrate; flag-flip NOT recommended
 - Category: engine-completion verification / substrate-conditional lift falsified
 - Cloud campaign: 50/50 cells succeeded (2 arms × 5 yrs × 5 reps). T-057's +0.793 Sharpe lift on Alpaca-only substrate REVERSES to **Δ -0.075** on the extended Stooq+Alpaca substrate.
@@ -47,6 +91,22 @@ then LOW. Within each severity, list newest at the top.
 - **T-055b flag-flip is now defensible** per strict CLAUDE.md #6. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
 - Branch `feature/engine-b-vol-target-regime-conditional-t055e` pushed.
 - Audit: `docs/Audit/engine_b_vol_target_regime_conditional_t055e_2026_05_23.md`.
+
+### [MEDIUM 2026-06-04 by engine-auditor] Engine D charter + index.md claim "4-Gate Validation" but code runs an 8-gate pipeline (Gates 0,5,6,7,8 undocumented; Gates 1,3 descriptions stale)
+- Engine: D
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `docs/Core/engine_charters.md` (Engine D output contract + Invariant #4) and `engines/engine_d_discovery/index.md` (line 10, 18) both describe a 4-gate validation pipeline: "backtest → PBO → WFO → significance." The actual `DiscoveryEngine.validate_candidate` (discovery.py:869-1673) runs **Gate 0 (MBL pre-flight, default ON, mbl_sr_target=1.0)**, Gate 1 (now a *contribution-lift* gate `with−baseline > 0.10`, NOT the documented standalone "Sharpe > 0"), Gate 2 (PBO), Gate 3 (rolling-window consistency on the attribution stream — NOT the documented OOS/IS hyperparameter WFO degradation), Gate 4 (permutation), **Gate 5 (Universe-B production-equivalent transfer)**, **Gate 6 (FF5+Mom factor-alpha, t>2 AND α>2%)**, **Gate 7 (substrate-transfer drift, historical-S&P 500)**, **Gate 8 (DSR multiple-testing correction)**. Gates 7 and 8 are wired LIVE in the production `--discover` path (`orchestration/mode_controller.py:1209-1318`), so they are not dead code. A reader of the living docs would not know the gauntlet enforces factor-adjusted alpha, substrate transfer, or multiple-testing deflation.
+- Charter reference: engine_charters.md Engine D Invariant #4: "Every candidate must pass 4-gate validation (backtest → PBO → WFO → significance) before promotion"; output contract comments label only Gates 2/3/4.
+- Recommended next step: Update the Engine D charter output contract + Invariant #4 and index.md design-notes to describe the 8-gate (Gate 0-8) pipeline as implemented, including which gates are default-ON vs gated, and correct the Gate 1 (contribution-lift) and Gate 3 (consistency) semantics.
+
+### [MEDIUM 2026-06-04 by engine-auditor] Engine D GA can emit crisis/defensive gene types (macro VIX/yield-curve, regime=bear, short/market_neutral direction) that no living doc surfaces — Path-B relevant
+- Engine: D
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `DiscoveryEngine._create_random_gene` (discovery.py:496-538) emits a **macro (10%)** bucket — `vix_level` (thresholds 15/20/25/30, "panic" at >30), `yield_curve` (T10Y2Y inversion-as-stress), `unemployment_delta` — plus a **behavioral (5%)** bucket (`panic_score`, `herding_breadth`) and a **regime (5%)** bucket (`is bear`). The GA also emits `direction: short` (10%) and `market_neutral` (10%) genomes (discovery.py:353-357, genetic_algorithm.py:157-163, 288-289). These resolve to real signal behavior in `engines/engine_a_alpha/edges/composite_edge.py` (macro handler line 181/496-531; regime handler line 160; short/market_neutral sign at line 150). This means Engine D is *already capable* of discovering crisis-aware, VIX-gated, and short/hedge edges — directly relevant to the T-092 Path B crisis-robustness pivot — yet MEMORY records Engine D only as "GA emits only rsi_bounce_v1 mutations" (the pre-T-022 state, now superseded by the foundry/macro vocabulary). No living doc tells a Path-B planner that the edge-discovery vocabulary already spans crisis/defensive primitives.
+- Charter reference: engine_charters.md Engine D Design Notes: "GA gene vocabulary spans 7 types (technical, fundamental, regime, calendar, microstructure, intermarket, behavioral)" — omits the macro (FRED VIX/yield-curve/unemployment) and foundry_feature buckets, and does not mention short/market_neutral direction emission.
+- Recommended next step: Document the full gene vocabulary (incl. macro + foundry_feature buckets and short/market_neutral directions) in the Engine D charter Design Notes, and flag for the Path-B work that crisis/VIX/short edge discovery is an existing capability lever (not new infrastructure).
 
 ### [MEDIUM 2026-05-22 LATE by Agent B] T-055d EWMA estimator A/B — EWMA strictly dominates rolling but ci_low still touches zero
 - Category: engine-completion measurement / Moreira-Muir lift verification — EWMA alternative
@@ -462,6 +522,18 @@ then LOW. Within each severity, list newest at the top.
 - See: `docs/Sessions/2026-04-27_session.md`, commits dfb0627, f06afb2-b1928c9, aa1cb65, da196b1, 1600e45, 53d5c07, 7db6625, 45abf0e, efbdf8d. Also `scripts/walk_forward_phase210.py`.
 
 ### MEDIUM
+
+### [MEDIUM 2026-06-04 by engine-auditor] Engine B defensive-capability surface is doc-buried — living docs omit ≥4 crisis/de-gross paths that Path B needs to find
+- Engine: B
+- First flagged: 2026-06-04
+- Status: not started
+- Description: A targeted audit of `engines/engine_b_risk/` for Path-B (crisis-regime robustness) cross-checked the code surface against the living docs (`CURRENT_STATE.md`, `engine_charters.md`, Engine B `index.md`, `high_level_engine_function.md`). Multiple shipped defensive capabilities are NOT discoverable from those docs:
+  - **Crisis-floor on `suggested_max_positions`** (`engine_e_regime/advisory.py:228-235`, fields `AdvisoryConfig.crisis_max_positions=5` / `stressed_max_positions=7` at `regime_config.py:105-106`) → consumed ACTIVE by Engine B (`risk_engine.py:729-731`, `risk_advisory_enabled` defaults True, present in prod). This is the de-gross path that motivated the audit and appears in NO living doc.
+  - **Regime-conditional vol-target multiplier incl. `portfolio_vol_target_crisis_multiplier=0.40`** (`risk_engine.py:112-116`; `vol_target.py:90-94,251-275`) → GATED-OFF (needs both `portfolio_vol_target_enabled` + `portfolio_vol_target_regime_aware`) AND refuted on 12-yr (T-055h). The shipped CAPABILITY is invisible because MEMORY recorded only the negative VERDICT.
+  - **Drawdown-gated kill switch** (`risk_engine.py:83-87,940-979`, thresholds 5/10/15%) → INERT (default OFF). Only mention is one RESOLVED line in `health_check.md:524`; absent from CURRENT_STATE and charter.
+  - **`FactorRiskModel`** (`factor_analysis.py`) → ORPHANED: zero importers anywhere in the repo. Charter never mentions a factor-neutrality capability for B.
+- Charter reference: engine_charters.md § Engine B Design Notes lists only "Regime-based stop widening — Keep" and the Double-Counting Matrix rows for exposure cap / max positions / risk scalar. The charter does NOT enumerate the drawdown kill switch, the crisis vol-target multiplier, the advisory crisis-positions floor, or factor analysis — so a Path-B planner reading the charter cannot see the de-gross tools already shipped.
+- Recommended next step: add a "Defensive / crisis-regime tools (current state + flag)" subsection to the Engine B `index.md` and to `CURRENT_STATE.md`, listing each capability with its file:line, default state (active / inert / gated / refuted-but-present), and the config flag that engages it. Archive `factor_analysis.py` to `Archive/` if it stays unwired, or document the intended consumer.
 
 ### [MEDIUM] Variant C HMM wire shipped (OFF-by-default) — flip `feature_set="minimal_c"` + `model_path=hmm_minimal_C_v1.pkl` to engage
 - Category: regime / risk-advisory wire-up
@@ -1062,3 +1134,84 @@ Severity counts: HIGH 3 | MEDIUM 6 | LOW 4. Top-3 highest-impact below.
   declaration to the top of the module (near other module-level state)
   and add a `# Module-global: see _run_with_overlay_diagnostics docstring`
   comment.
+
+### [HIGH] Engine A independently consumes E's `risk_scalar`/`regime_summary` as a crisis de-gross brake — undocumented + double-count with B
+- Engine: A
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `signal_processor.py:543-551` reads
+  `regime_meta["advisory"]["regime_summary"]` and, when it is
+  `"stressed"` or `"crisis"`, multiplies every edge's normalized score
+  by `advisory["risk_scalar"]` — an active, default-ON crisis de-gross
+  path that lives INSIDE Engine A's forecast layer. The living docs
+  attribute `risk_scalar` consumption EXCLUSIVELY to Engine B:
+  `high_level_engine_function.md:35` ("Applies Engine E advisory
+  `risk_scalar` to ATR sizing budget") and the charter Double-Counting
+  Matrix (`engine_charters.md:551`) gives A a dash for Risk-Off /
+  risk_scalar. So the SAME crisis fact (risk_scalar < 1.0) is applied
+  in BOTH A (shrinks forecast) AND B (shrinks size) — exactly the
+  triple-count failure mode the matrix's WARNING block exists to
+  prevent. This is the same buried-defensive-path class as the
+  Engine B+E `portfolio_vol_target_crisis_multiplier=0.40` /
+  `advisory.py` crisis path that no living doc surfaced. It is HIGHLY
+  relevant to T-092 Path B (HMM crisis kill-switch) because the
+  kill-switch design must account for A ALREADY de-grossing on the
+  crisis posterior, or the de-gross gets double-applied.
+- Charter reference: `engine_charters.md:88` ("A should be opinionated
+  about direction but NOT protective about risk. ... It's B's job to
+  say 'I'm only allowing 0.5% exposure right now.'") and the
+  Double-Counting Matrix rule (line 557): "Each regime fact should
+  affect at most 2 engines, and only through different mechanisms (A
+  as a predictive feature, B as a risk constraint — never both as
+  'reduce aggressiveness')." A multiplying its own score by risk_scalar
+  is "reduce aggressiveness," not "predictive feature."
+- Recommended next step: Decide (propose-first, spans A+B+E boundary)
+  whether crisis de-gross belongs in A's score path at all. If kept,
+  document it explicitly in `high_level_engine_function.md` Engine A
+  section AND update the Double-Counting Matrix to show A consuming
+  risk_scalar, with an explicit note on why double-application is
+  intended. If not, move it entirely to B. Either way, the T-092 Path B
+  kill-switch scoping MUST treat this as a pre-existing de-gross layer.
+
+### [HIGH] Engine B's `correlation_regime` consumer is DEAD — E emits a nested dict, B reads a flat string, so elevated/dispersed sector-limit branches never fire
+- Engine: B (consumer) / E (producer) — cross-engine contract mismatch
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `risk_engine.py:744` reads `advisory.get("correlation_regime", "normal")` and branches on `== "dispersed"` / `in ("elevated","spike")` to widen/tighten the sector cap (lines 745-748). But Engine E never puts a flat top-level `correlation_regime` string into the advisory dict — `regime_detector.py:259` emits it as a NESTED object `{"state": ..., "confidence": ...}` on the detector output, and `advisory.py` does not surface a flat `correlation_regime` key at all (grep returns zero hits). So B's read always falls through to the `"normal"` default and the correlation-driven sector-limit adjustment (a charter-documented Engine B control — Double-Counting Matrix "Elevated Correlation" + "Dispersed Correlation" rows) NEVER fires in production. Same silent key-mismatch family as the T-088/T-090/T-091 contract-test work; not caught because the contract suite covers config-key⊆dataclass and perf-summary reader⊆producer, but NOT cross-engine advisory-dict reader⊆producer.
+- Charter reference: `engine_charters.md` Double-Counting Matrix "Elevated Correlation" row ("B uses as... Lower gross exposure cap, tighter sector limits (20%)") and "Dispersed Correlation" row ("B uses as... Relaxed sector limits (40%)"). Both rows describe a control that is dead on the production path.
+- Recommended next step: Decide whether E should publish a flat `correlation_regime` key into `advisory` (Engine E change) or B should read the nested `correlation_regime.state` (Engine B — PROPOSE-FIRST, risk engine). Add a Layer-3 cross-engine advisory contract test (reader keys ⊆ producer keys) so the next advisory-key drift is structurally unmergeable. Re-measure any sector-cap effect AFTER the fix, since historical backtests ran with this control dead.
+
+### [MEDIUM] Engine A ships 4 active/inert macro de-gross "regime tilt" edges that no living doc surfaces (yield-curve ACTIVE; credit-spread/unemployment/real-rate retired-but-importable)
+- Engine: A
+- First flagged: 2026-06-04
+- Status: not started
+- Description: `macro_yield_curve_edge.py` auto-registers
+  `status="active"` (line 199) and emits a UNIFORM -0.3 tilt across
+  every ticker when the 10Y-2Y Treasury spread inverts (line 173-178)
+  — a recession/crisis de-gross overlay baked into the alpha layer.
+  Three sibling edges (`macro_credit_spread_edge.py`,
+  `macro_unemployment_momentum_edge.py`, `macro_real_rate_edge.py`)
+  implement the same uniform-defensive-tilt mechanism but auto-register
+  `status="retired"` (reclassified 2026-05-02 as Engine E HMM regime
+  inputs) — they are inert by default but remain fully importable and
+  would re-activate any defensive tilt if a future caller loads them.
+  NONE of these appear in CURRENT_STATE.md, the charter, or
+  high_level_engine_function.md. They are directly Path-B relevant:
+  the yield-curve edge is a SECOND crisis-de-gross path inside A
+  (alongside the risk_scalar brake above), and the retired trio are
+  ready-made defensive tilts. Note the yield-curve edge fires only when
+  the FRED cache is populated (abstains to zeros on a fresh clone), so
+  whether it is actually contributing on the canonical substrate needs
+  verification, not assumption.
+- Charter reference: `engine_charters.md:75` ("Macro-regime gating | A
+  consumes E's regime as a predictive feature ... Safety-oriented
+  gating belongs in B.") A uniform across-universe -0.3 tilt on curve
+  inversion is safety-oriented gross-bias gating, which the charter
+  rules belongs in B, not a per-ticker A edge.
+- Recommended next step: Inventory which of these macro/defensive edges
+  is actually in the loaded edge set on the canonical substrate (read
+  the live `data/governor/edges.yml` status, not the auto-register
+  default). Document the active ones in the Engine A section of
+  high_level_engine_function.md. For T-092 Path B, treat
+  `macro_yield_curve_v1` as a pre-existing crisis-defensive overlay
+  when scoping the kill-switch.
