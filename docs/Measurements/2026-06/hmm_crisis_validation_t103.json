@@ -1,0 +1,1005 @@
+{
+  "task": "T-2026-06-04-103",
+  "panel_start": "2005-02-25",
+  "panel_end": "2025-12-31",
+  "train_start": "2006-04-01",
+  "train_end": "2019-12-31",
+  "binding_data_floor": "2006-04-04 (DTWEXBGS 2006-01-02 + 63d warmup for dollar_ret_63d)",
+  "hmm_pkl": "/Users/jacksonmurphy/Dev/trading_machine-agent-a/engines/engine_e_regime/models/hmm_3state_crisis_v1.pkl",
+  "baseline_hmm_pkl": "/Users/jacksonmurphy/Dev/trading_machine-agent-a/engines/engine_e_regime/models/hmm_3state_v1.pkl",
+  "auc_by_window": {
+    "full": {
+      "horizon_5d_hmm_p_crisis": {
+        "auc_point": 0.6841579701248209,
+        "auc_ci_low": 0.5434307844621746,
+        "auc_ci_high": 0.812595379749635
+      },
+      "horizon_5d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.9337835072641703,
+        "auc_ci_low": 0.9131975391166568,
+        "auc_ci_high": 0.9490772106062376
+      },
+      "horizon_10d_hmm_p_crisis": {
+        "auc_point": 0.6387498042990427,
+        "auc_ci_low": 0.5530171467794368,
+        "auc_ci_high": 0.717365678931944
+      },
+      "horizon_10d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.8707402424952307,
+        "auc_ci_low": 0.8294642473695513,
+        "auc_ci_high": 0.9031831241494027
+      },
+      "horizon_20d_hmm_p_crisis": {
+        "auc_point": 0.5862092696056441,
+        "auc_ci_low": 0.5357991524892762,
+        "auc_ci_high": 0.6371893420343699
+      },
+      "horizon_20d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.6960113270258146,
+        "auc_ci_low": 0.6501036761795411,
+        "auc_ci_high": 0.7343940620228585
+      }
+    },
+    "in_train": {
+      "horizon_5d_hmm_p_crisis": {
+        "auc_point": 0.9086578034970442,
+        "auc_ci_low": 0.8082665534504414,
+        "auc_ci_high": 0.9622546207378214
+      },
+      "horizon_5d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.9426398692973486,
+        "auc_ci_low": 0.918926344032311,
+        "auc_ci_high": 0.9621344796476144
+      },
+      "horizon_10d_hmm_p_crisis": {
+        "auc_point": 0.814042514862187,
+        "auc_ci_low": 0.7309741405097631,
+        "auc_ci_high": 0.8802906617192332
+      },
+      "horizon_10d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.8691952400968794,
+        "auc_ci_low": 0.8126716055714348,
+        "auc_ci_high": 0.9167487994820237
+      },
+      "horizon_20d_hmm_p_crisis": {
+        "auc_point": 0.7146726903444591,
+        "auc_ci_low": 0.6635650112922841,
+        "auc_ci_high": 0.7652945981043713
+      },
+      "horizon_20d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.694242819828471,
+        "auc_ci_low": 0.6373745653653075,
+        "auc_ci_high": 0.751442606540066
+      }
+    },
+    "oos": {
+      "horizon_5d_hmm_p_crisis": {
+        "auc_point": 0.4970702179176755,
+        "auc_ci_low": 0.32938114517061884,
+        "auc_ci_high": 0.6695484610176553
+      },
+      "horizon_5d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.9138256658595642,
+        "auc_ci_low": 0.8796637820967513,
+        "auc_ci_high": 0.9430522914218566
+      },
+      "horizon_10d_hmm_p_crisis": {
+        "auc_point": 0.5373182965400466,
+        "auc_ci_low": 0.4266970288440685,
+        "auc_ci_high": 0.6494252873563219
+      },
+      "horizon_10d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.8638286316731095,
+        "auc_ci_low": 0.813935061276236,
+        "auc_ci_high": 0.9035085935805682
+      },
+      "horizon_20d_hmm_p_crisis": {
+        "auc_point": 0.502889812690214,
+        "auc_ci_low": 0.4286421394799054,
+        "auc_ci_high": 0.5828606395178633
+      },
+      "horizon_20d_hmm_p_crisis_or_stressed": {
+        "auc_point": 0.6610182509432694,
+        "auc_ci_low": 0.5887702948316033,
+        "auc_ci_high": 0.7277242161978703
+      }
+    }
+  },
+  "per_event_tpr": {
+    "p_crisis>=0.3": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 52,
+        "max_p": 1.0,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 5.909683298951606e-06,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.460734968209544e-11,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 2.060039960724304e-45,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 4.139813569178907e-37,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 1.9955025100281532e-57,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.01813644269936e-51,
+        "n_obs": 42
+      }
+    ],
+    "p_crisis>=0.5": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 52,
+        "max_p": 1.0,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 5.909683298951606e-06,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.460734968209544e-11,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 2.060039960724304e-45,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 4.139813569178907e-37,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 1.9955025100281532e-57,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.01813644269936e-51,
+        "n_obs": 42
+      }
+    ],
+    "p_crisis>=0.7": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 52,
+        "max_p": 1.0,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 5.909683298951606e-06,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.460734968209544e-11,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 2.060039960724304e-45,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 4.139813569178907e-37,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 1.9955025100281532e-57,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.01813644269936e-51,
+        "n_obs": 42
+      }
+    ],
+    "p_crisis_or_stressed>=0.5": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000001001,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000001112,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000902,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 43,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ],
+    "p_crisis_or_stressed>=0.7": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000001001,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000001112,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000902,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 42,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ],
+    "p_crisis_or_stressed>=0.9": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000001001,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000001112,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000902,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 42,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ]
+  },
+  "covid_trajectory_feb_may_2020": [
+    {
+      "date": "2020-02-03",
+      "p_crisis": 9.714147883741799e-52,
+      "p_stressed": 0.02951619087996013
+    },
+    {
+      "date": "2020-02-04",
+      "p_crisis": 3.344601395247904e-52,
+      "p_stressed": 0.008917642772389265
+    },
+    {
+      "date": "2020-02-05",
+      "p_crisis": 1.4982605627885522e-52,
+      "p_stressed": 0.005869924636930512
+    },
+    {
+      "date": "2020-02-06",
+      "p_crisis": 1.6435746892590966e-52,
+      "p_stressed": 0.004174134853534764
+    },
+    {
+      "date": "2020-02-07",
+      "p_crisis": 1.3172483396613877e-51,
+      "p_stressed": 0.03574471588840061
+    },
+    {
+      "date": "2020-02-10",
+      "p_crisis": 3.7585989537723786e-51,
+      "p_stressed": 0.08992748062311294
+    },
+    {
+      "date": "2020-02-11",
+      "p_crisis": 2.7305051856965366e-52,
+      "p_stressed": 0.04544815777446652
+    },
+    {
+      "date": "2020-02-12",
+      "p_crisis": 2.547345339981046e-53,
+      "p_stressed": 0.007307302057934693
+    },
+    {
+      "date": "2020-02-13",
+      "p_crisis": 7.12040811404003e-55,
+      "p_stressed": 0.0020733225065817052
+    },
+    {
+      "date": "2020-02-14",
+      "p_crisis": 5.568850408612963e-55,
+      "p_stressed": 0.0013545257211194748
+    },
+    {
+      "date": "2020-02-18",
+      "p_crisis": 2.19082638088148e-55,
+      "p_stressed": 0.001318371312492959
+    },
+    {
+      "date": "2020-02-19",
+      "p_crisis": 5.911181202446364e-56,
+      "p_stressed": 0.000866796315394489
+    },
+    {
+      "date": "2020-02-20",
+      "p_crisis": 3.739847781383136e-56,
+      "p_stressed": 0.0010598344251640437
+    },
+    {
+      "date": "2020-02-21",
+      "p_crisis": 4.144859179956935e-56,
+      "p_stressed": 0.006354194412429919
+    },
+    {
+      "date": "2020-02-24",
+      "p_crisis": 2.7969987159312845e-56,
+      "p_stressed": 0.9999843674691861
+    },
+    {
+      "date": "2020-02-25",
+      "p_crisis": 5.216851754580064e-56,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-02-26",
+      "p_crisis": 6.954404160402245e-53,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-02-27",
+      "p_crisis": 3.0269232502314625e-54,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-02-28",
+      "p_crisis": 1.25721994791631e-52,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-02",
+      "p_crisis": 1.4071853867456635e-56,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-03",
+      "p_crisis": 4.0979575289618446e-57,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-04",
+      "p_crisis": 2.5704950587169268e-55,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-05",
+      "p_crisis": 4.2153361401989726e-58,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-06",
+      "p_crisis": 1.6657567488917e-59,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-09",
+      "p_crisis": 5.6528632234800966e-64,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-10",
+      "p_crisis": 5.019921742125529e-64,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-11",
+      "p_crisis": 1.1173104469901903e-54,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-12",
+      "p_crisis": 1.4016106724024389e-52,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-13",
+      "p_crisis": 6.808179032484311e-53,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-16",
+      "p_crisis": 2.150979798671975e-65,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-17",
+      "p_crisis": 5.007598105737995e-56,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-18",
+      "p_crisis": 2.9665566018900087e-47,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-19",
+      "p_crisis": 1.510181117248096e-42,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-20",
+      "p_crisis": 1.4444877085038747e-46,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-23",
+      "p_crisis": 4.139813569178907e-37,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-24",
+      "p_crisis": 1.469142581569805e-37,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-25",
+      "p_crisis": 2.998200492243678e-35,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-26",
+      "p_crisis": 5.129516045516627e-32,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-27",
+      "p_crisis": 2.5271074527068146e-37,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-30",
+      "p_crisis": 2.150130438154767e-24,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-03-31",
+      "p_crisis": 7.103321112646654e-26,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-01",
+      "p_crisis": 6.762391289459047e-30,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-02",
+      "p_crisis": 4.8252959944807975e-21,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-03",
+      "p_crisis": 1.2982964733396061e-19,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-06",
+      "p_crisis": 2.4004875830837647e-19,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-07",
+      "p_crisis": 2.0810417153466435e-18,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-08",
+      "p_crisis": 3.1686233275268212e-18,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-09",
+      "p_crisis": 5.0325848517884604e-23,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-13",
+      "p_crisis": 1.1058286813062252e-24,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-14",
+      "p_crisis": 1.4466952115541026e-22,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-15",
+      "p_crisis": 5.493873832780048e-34,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-16",
+      "p_crisis": 6.043533737532104e-31,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-17",
+      "p_crisis": 6.733586427634817e-34,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-20",
+      "p_crisis": 3.5504248154992574e-35,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-21",
+      "p_crisis": 1.2867646139950005e-35,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-22",
+      "p_crisis": 8.443617254871516e-33,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-23",
+      "p_crisis": 3.172886355936462e-32,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-24",
+      "p_crisis": 1.740525782157635e-33,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-27",
+      "p_crisis": 9.256471880908903e-34,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-28",
+      "p_crisis": 1.1345165323475072e-33,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-29",
+      "p_crisis": 9.542748577655396e-35,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-04-30",
+      "p_crisis": 3.2318638475517916e-33,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-01",
+      "p_crisis": 1.9625339568685928e-33,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-04",
+      "p_crisis": 1.169986574124831e-31,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-05",
+      "p_crisis": 2.2491995887532467e-29,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-06",
+      "p_crisis": 2.983974101931651e-29,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-07",
+      "p_crisis": 1.8028501590690504e-30,
+      "p_stressed": 0.9999999999954525
+    },
+    {
+      "date": "2020-05-08",
+      "p_crisis": 2.652758587027078e-29,
+      "p_stressed": 0.9999999999949978
+    },
+    {
+      "date": "2020-05-11",
+      "p_crisis": 6.448870116793258e-30,
+      "p_stressed": 0.9999999999904503
+    },
+    {
+      "date": "2020-05-12",
+      "p_crisis": 7.778595528978388e-30,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-13",
+      "p_crisis": 3.769144566249059e-27,
+      "p_stressed": 1.0
+    },
+    {
+      "date": "2020-05-14",
+      "p_crisis": 1.6508834046211976e-28,
+      "p_stressed": 0.9999999999886313
+    },
+    {
+      "date": "2020-05-15",
+      "p_crisis": 1.1645991435563496e-27,
+      "p_stressed": 0.9999999998422027
+    },
+    {
+      "date": "2020-05-18",
+      "p_crisis": 2.1841780937794447e-27,
+      "p_stressed": 0.9999999993710844
+    },
+    {
+      "date": "2020-05-19",
+      "p_crisis": 1.454599758374745e-27,
+      "p_stressed": 0.9999999997762643
+    },
+    {
+      "date": "2020-05-20",
+      "p_crisis": 1.0913554400030378e-29,
+      "p_stressed": 0.9999999999990905
+    },
+    {
+      "date": "2020-05-21",
+      "p_crisis": 1.2836297231535423e-30,
+      "p_stressed": 0.9999999999931788
+    },
+    {
+      "date": "2020-05-22",
+      "p_crisis": 3.803881254485042e-31,
+      "p_stressed": 0.999999999661668
+    },
+    {
+      "date": "2020-05-26",
+      "p_crisis": 2.388881921796544e-33,
+      "p_stressed": 0.9999999963347364
+    },
+    {
+      "date": "2020-05-27",
+      "p_crisis": 3.609355452097128e-34,
+      "p_stressed": 0.9999999999804459
+    },
+    {
+      "date": "2020-05-28",
+      "p_crisis": 2.7659450049072244e-32,
+      "p_stressed": 0.9999999987335286
+    },
+    {
+      "date": "2020-05-29",
+      "p_crisis": 1.7862561455841296e-34,
+      "p_stressed": 0.9999999997198756
+    }
+  ],
+  "head_to_head_vs_baseline": {
+    "baseline_label_for_idx": [
+      "crisis",
+      "stressed",
+      "benign"
+    ],
+    "by_event": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 52,
+        "max_p": 1.0,
+        "n_obs": 44,
+        "baseline_fired": true,
+        "baseline_max_p": 1.0,
+        "baseline_lead_days": 59
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 5.909683298951606e-06,
+        "n_obs": 42,
+        "baseline_fired": true,
+        "baseline_max_p": 1.0,
+        "baseline_lead_days": 56
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.460734968209544e-11,
+        "n_obs": 42,
+        "baseline_fired": true,
+        "baseline_max_p": 0.9999997006635106,
+        "baseline_lead_days": 27
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 2.060039960724304e-45,
+        "n_obs": 41,
+        "baseline_fired": true,
+        "baseline_max_p": 0.9999999996575752,
+        "baseline_lead_days": 60
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 4.139813569178907e-37,
+        "n_obs": 42,
+        "baseline_fired": true,
+        "baseline_max_p": 1.0,
+        "baseline_lead_days": 45
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 1.9955025100281532e-57,
+        "n_obs": 42,
+        "baseline_fired": true,
+        "baseline_max_p": 0.9999999920516984,
+        "baseline_lead_days": 43
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": false,
+        "lead_days": null,
+        "max_p": 8.01813644269936e-51,
+        "n_obs": 42,
+        "baseline_fired": true,
+        "baseline_max_p": 1.0,
+        "baseline_lead_days": 42
+      }
+    ]
+  }
+}
