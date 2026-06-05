@@ -1,0 +1,70 @@
+{
+  "Starting Equity": 100000.0,
+  "Ending Equity": 197013.07,
+  "Net Profit": 97013.07,
+  "Total Return (%)": 97.01,
+  "CAGR (%)": 2.64,
+  "Max Drawdown (%)": -59.29,
+  "Sharpe Ratio": 0.246,
+  "Volatility (%)": 15.75,
+  "Win Rate (%)": 50.2,
+  "cost_completeness_layer_v1": {
+    "sharpe_A_baseline": 0.2456618747968,
+    "sharpe_B_after_borrow_alpaca": 0.2456618747968,
+    "sharpe_C_after_tax": 0.2456618747968,
+    "cagr_A_baseline": 0.026481169462921228,
+    "cagr_B_after_borrow_alpaca": 0.026481169462921228,
+    "cagr_C_after_tax": 0.026481169462921228,
+    "max_dd_A_baseline": -0.5929115728975597,
+    "max_dd_B_after_borrow_alpaca": -0.5929115728975597,
+    "max_dd_C_after_tax": -0.5929115728975597,
+    "total_alpaca_fees_usd": 2781.070964941017,
+    "total_borrow_drag_usd": 0.0,
+    "total_tax_drag_usd": 0.0,
+    "delta_A_to_B_sharpe": 0.0,
+    "delta_B_to_C_sharpe": 0.0,
+    "yearly_tax_breakdown": {}
+  },
+  "path_a_modules": {
+    "wash_sale": {
+      "enabled": false,
+      "buys_proposed": 0,
+      "buys_blocked": 0,
+      "block_rate": 0.0,
+      "loss_exits_recorded": 0
+    },
+    "lt_hold": {
+      "enabled": false,
+      "exits_proposed": 0,
+      "exits_deferred": 0,
+      "exits_hard_capped": 0,
+      "defer_rate": 0.0,
+      "tickers_tracked": 0
+    }
+  },
+  "bootstrap_distribution": {
+    "sharpe": {
+      "point_estimate": 0.2456618747968,
+      "mean": 0.2615529035734572,
+      "std": 0.19457605117258764,
+      "median": 0.2487516886902927,
+      "ci_low": -0.08936463546069585,
+      "ci_high": 0.6527974492822481,
+      "p_above_zero": 0.916,
+      "n_iterations": 500,
+      "block_length": 19
+    },
+    "sortino": {
+      "point_estimate": 0.27292751482934985,
+      "mean": 0.30293516258116004,
+      "std": 0.2335330396720875,
+      "median": 0.27545684177464075,
+      "ci_low": -0.09055237589627164,
+      "ci_high": 0.8144301957069819,
+      "p_above_zero": 0.916,
+      "n_iterations": 500,
+      "block_length": 19
+    },
+    "n_returns": 6538
+  }
+}

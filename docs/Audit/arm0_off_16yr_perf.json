@@ -1,0 +1,70 @@
+{
+  "Starting Equity": 100000.0,
+  "Ending Equity": 530493.47,
+  "Net Profit": 430493.47,
+  "Total Return (%)": 430.49,
+  "CAGR (%)": 11.0,
+  "Max Drawdown (%)": -15.38,
+  "Sharpe Ratio": 1.018,
+  "Volatility (%)": 10.85,
+  "Win Rate (%)": 52.28,
+  "cost_completeness_layer_v1": {
+    "sharpe_A_baseline": 1.017505010308472,
+    "sharpe_B_after_borrow_alpaca": 1.017505010308472,
+    "sharpe_C_after_tax": 1.017505010308472,
+    "cagr_A_baseline": 0.11018109679434351,
+    "cagr_B_after_borrow_alpaca": 0.11018109679434351,
+    "cagr_C_after_tax": 0.11018109679434351,
+    "max_dd_A_baseline": -0.15377022247198138,
+    "max_dd_B_after_borrow_alpaca": -0.15377022247198138,
+    "max_dd_C_after_tax": -0.15377022247198138,
+    "total_alpaca_fees_usd": 3034.803644371961,
+    "total_borrow_drag_usd": 0.0,
+    "total_tax_drag_usd": 0.0,
+    "delta_A_to_B_sharpe": 0.0,
+    "delta_B_to_C_sharpe": 0.0,
+    "yearly_tax_breakdown": {}
+  },
+  "path_a_modules": {
+    "wash_sale": {
+      "enabled": false,
+      "buys_proposed": 0,
+      "buys_blocked": 0,
+      "block_rate": 0.0,
+      "loss_exits_recorded": 0
+    },
+    "lt_hold": {
+      "enabled": false,
+      "exits_proposed": 0,
+      "exits_deferred": 0,
+      "exits_hard_capped": 0,
+      "defer_rate": 0.0,
+      "tickers_tracked": 0
+    }
+  },
+  "bootstrap_distribution": {
+    "sharpe": {
+      "point_estimate": 1.017505010308472,
+      "mean": 1.0355971031988798,
+      "std": 0.233971084550238,
+      "median": 1.03777695488812,
+      "ci_low": 0.5754431240582619,
+      "ci_high": 1.5345905869314056,
+      "p_above_zero": 1.0,
+      "n_iterations": 500,
+      "block_length": 16
+    },
+    "sortino": {
+      "point_estimate": 1.2769843178986935,
+      "mean": 1.309269803169691,
+      "std": 0.31922179495049813,
+      "median": 1.289932019951734,
+      "ci_low": 0.6930655659796764,
+      "ci_high": 2.0159545345578898,
+      "p_above_zero": 1.0,
+      "n_iterations": 500,
+      "block_length": 16
+    },
+    "n_returns": 4023
+  }
+}
