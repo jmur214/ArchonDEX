@@ -1,0 +1,552 @@
+{
+  "task": "T-2026-06-05-105",
+  "live_window_bars": 60,
+  "baseline_window_bars": 252,
+  "panel_start": "2005-02-25",
+  "panel_end": "2025-12-31",
+  "train_start": "2006-04-01",
+  "train_end": "2019-12-31",
+  "hmm_pkl": "/Users/jacksonmurphy/Dev/trading_machine-agent-a/engines/engine_e_regime/models/hmm_3state_crisis_v1.pkl",
+  "auc_by_window": {
+    "window_60": {
+      "by_horizon": {
+        "h_5d": {
+          "full": {
+            "auc_point": 0.932472546211036,
+            "auc_ci_low": 0.9108788681789388,
+            "auc_ci_high": 0.9486007801613824
+          },
+          "in_train": {
+            "auc_point": 0.9391353420967299,
+            "auc_ci_low": 0.9153277283338197,
+            "auc_ci_high": 0.958380367072202
+          },
+          "oos": {
+            "auc_point": 0.9189588377723971,
+            "auc_ci_low": 0.8851052728500399,
+            "auc_ci_high": 0.9480081026333559
+          }
+        },
+        "h_10d": {
+          "full": {
+            "auc_point": 0.8695508155656193,
+            "auc_ci_low": 0.8281978187673116,
+            "auc_ci_high": 0.9027997617734289
+          },
+          "in_train": {
+            "auc_point": 0.8668541537393997,
+            "auc_ci_low": 0.8122511759340404,
+            "auc_ci_high": 0.9151157493453028
+          },
+          "oos": {
+            "auc_point": 0.8659595540078592,
+            "auc_ci_low": 0.8144816141147698,
+            "auc_ci_high": 0.9054062296681847
+          }
+        },
+        "h_20d": {
+          "full": {
+            "auc_point": 0.6960937818604461,
+            "auc_ci_low": 0.6507222833733637,
+            "auc_ci_high": 0.7343609694056729
+          },
+          "in_train": {
+            "auc_point": 0.6939392437823867,
+            "auc_ci_low": 0.637152204960454,
+            "auc_ci_high": 0.7506490637255758
+          },
+          "oos": {
+            "auc_point": 0.6619579201029195,
+            "auc_ci_low": 0.5902612150076653,
+            "auc_ci_high": 0.7281352085189428
+          }
+        }
+      }
+    },
+    "window_252": {
+      "by_horizon": {
+        "h_5d": {
+          "full": {
+            "auc_point": 0.9337835072641703,
+            "auc_ci_low": 0.9131975391166568,
+            "auc_ci_high": 0.9490772106062376
+          },
+          "in_train": {
+            "auc_point": 0.9426398692973486,
+            "auc_ci_low": 0.918926344032311,
+            "auc_ci_high": 0.9621344796476144
+          },
+          "oos": {
+            "auc_point": 0.9138256658595642,
+            "auc_ci_low": 0.8796637820967513,
+            "auc_ci_high": 0.9430522914218566
+          }
+        },
+        "h_10d": {
+          "full": {
+            "auc_point": 0.8707402424952307,
+            "auc_ci_low": 0.8294642473695513,
+            "auc_ci_high": 0.9031831241494027
+          },
+          "in_train": {
+            "auc_point": 0.8691952400968794,
+            "auc_ci_low": 0.8126716055714348,
+            "auc_ci_high": 0.9167487994820237
+          },
+          "oos": {
+            "auc_point": 0.8638286316731095,
+            "auc_ci_low": 0.813935061276236,
+            "auc_ci_high": 0.9035085935805682
+          }
+        },
+        "h_20d": {
+          "full": {
+            "auc_point": 0.6960113270258146,
+            "auc_ci_low": 0.6501036761795411,
+            "auc_ci_high": 0.7343940620228585
+          },
+          "in_train": {
+            "auc_point": 0.694242819828471,
+            "auc_ci_low": 0.6373745653653075,
+            "auc_ci_high": 0.751442606540066
+          },
+          "oos": {
+            "auc_point": 0.6610182509432694,
+            "auc_ci_low": 0.5887702948316033,
+            "auc_ci_high": 0.7277242161978703
+          }
+        }
+      }
+    }
+  },
+  "per_event_60_bar": {
+    "thr_0.5": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000000273,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000000522,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000244,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 43,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ],
+    "thr_0.7": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000000273,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000000522,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000244,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 42,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ],
+    "thr_0.9": [
+      {
+        "label": "2008 GFC (IN-TRAIN)",
+        "trough": "2008-11-20",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000000273,
+        "n_obs": 44
+      },
+      {
+        "label": "2011 EU debt (IN-TRAIN)",
+        "trough": "2011-10-03",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000000522,
+        "n_obs": 42
+      },
+      {
+        "label": "2015-08 China-vol (IN-TRAIN)",
+        "trough": "2015-08-25",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000244,
+        "n_obs": 42
+      },
+      {
+        "label": "2018-Q4 selloff (IN-TRAIN)",
+        "trough": "2018-12-24",
+        "in_train": true,
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0,
+        "n_obs": 41
+      },
+      {
+        "label": "COVID 2020 (HELD-OUT)",
+        "trough": "2020-03-23",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2022 bear (HELD-OUT)",
+        "trough": "2022-10-12",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0,
+        "n_obs": 42
+      },
+      {
+        "label": "2025 vol-shock (HELD-OUT)",
+        "trough": "2025-04-08",
+        "in_train": false,
+        "fired": true,
+        "lead_days": 42,
+        "max_p": 1.0,
+        "n_obs": 42
+      }
+    ]
+  },
+  "dwell_time_60_bar": {
+    "window_60_bar": {
+      "16yr_2010_2025": {
+        "thr_0.3": {
+          "n_obs": 4023,
+          "frac_above": 0.44668158090976884,
+          "median_run": 13.0,
+          "p90_run": 188.60000000000014,
+          "max_run": 348,
+          "n_runs": 30
+        },
+        "thr_0.5": {
+          "n_obs": 4023,
+          "frac_above": 0.4397216007954263,
+          "median_run": 12.0,
+          "p90_run": 198.19999999999993,
+          "max_run": 348,
+          "n_runs": 29
+        },
+        "thr_0.7": {
+          "n_obs": 4023,
+          "frac_above": 0.43524732786477754,
+          "median_run": 18.0,
+          "p90_run": 226.0,
+          "max_run": 347,
+          "n_runs": 26
+        }
+      },
+      "26yr_2006_2025": {
+        "thr_0.3": {
+          "n_obs": 4967,
+          "frac_above": 0.5055365411717334,
+          "median_run": 18.0,
+          "p90_run": 255.80000000000007,
+          "max_run": 634,
+          "n_runs": 33
+        },
+        "thr_0.5": {
+          "n_obs": 4967,
+          "frac_above": 0.49929534930541575,
+          "median_run": 19.0,
+          "p90_run": 265.4000000000002,
+          "max_run": 632,
+          "n_runs": 32
+        },
+        "thr_0.7": {
+          "n_obs": 4967,
+          "frac_above": 0.49526877390779145,
+          "median_run": 22.0,
+          "p90_run": 280.2,
+          "max_run": 631,
+          "n_runs": 29
+        }
+      }
+    }
+  },
+  "windows": {
+    "window_60": {
+      "p_combined_mean": 0.5008845513629497,
+      "p_crisis_mean": 0.04324690753569671,
+      "p_stressed_mean": 0.457637643827253,
+      "n_obs": 4967
+    },
+    "window_252": {
+      "p_combined_mean": 0.5008845513629524,
+      "p_crisis_mean": 0.043246907535696516,
+      "p_stressed_mean": 0.4576376438272558,
+      "n_obs": 4967
+    }
+  },
+  "head_to_head_per_event": [
+    {
+      "label": "2008 GFC (IN-TRAIN)",
+      "trough": "2008-11-20",
+      "in_train": true,
+      "live_60": {
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000000273
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 59,
+        "max_p": 1.0000000000001001
+      }
+    },
+    {
+      "label": "2011 EU debt (IN-TRAIN)",
+      "trough": "2011-10-03",
+      "in_train": true,
+      "live_60": {
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000000522
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0000000000001112
+      }
+    },
+    {
+      "label": "2015-08 China-vol (IN-TRAIN)",
+      "trough": "2015-08-25",
+      "in_train": true,
+      "live_60": {
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000244
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 4,
+        "max_p": 1.0000000000000902
+      }
+    },
+    {
+      "label": "2018-Q4 selloff (IN-TRAIN)",
+      "trough": "2018-12-24",
+      "in_train": true,
+      "live_60": {
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 60,
+        "max_p": 1.0
+      }
+    },
+    {
+      "label": "COVID 2020 (HELD-OUT)",
+      "trough": "2020-03-23",
+      "in_train": false,
+      "live_60": {
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 28,
+        "max_p": 1.0
+      }
+    },
+    {
+      "label": "2022 bear (HELD-OUT)",
+      "trough": "2022-10-12",
+      "in_train": false,
+      "live_60": {
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 58,
+        "max_p": 1.0
+      }
+    },
+    {
+      "label": "2025 vol-shock (HELD-OUT)",
+      "trough": "2025-04-08",
+      "in_train": false,
+      "live_60": {
+        "fired": true,
+        "lead_days": 43,
+        "max_p": 1.0
+      },
+      "baseline_252": {
+        "fired": true,
+        "lead_days": 43,
+        "max_p": 1.0
+      }
+    }
+  ],
+  "dwell_time_252_bar": {
+    "window_252_bar": {
+      "16yr_2010_2025": {
+        "thr_0.3": {
+          "n_obs": 4023,
+          "frac_above": 0.44668158090976884,
+          "median_run": 13.0,
+          "p90_run": 188.60000000000014,
+          "max_run": 348,
+          "n_runs": 30
+        },
+        "thr_0.5": {
+          "n_obs": 4023,
+          "frac_above": 0.4397216007954263,
+          "median_run": 12.0,
+          "p90_run": 198.19999999999993,
+          "max_run": 348,
+          "n_runs": 29
+        },
+        "thr_0.7": {
+          "n_obs": 4023,
+          "frac_above": 0.43524732786477754,
+          "median_run": 18.0,
+          "p90_run": 226.0,
+          "max_run": 347,
+          "n_runs": 26
+        }
+      },
+      "26yr_2006_2025": {
+        "thr_0.3": {
+          "n_obs": 4967,
+          "frac_above": 0.5055365411717334,
+          "median_run": 18.0,
+          "p90_run": 255.80000000000007,
+          "max_run": 634,
+          "n_runs": 33
+        },
+        "thr_0.5": {
+          "n_obs": 4967,
+          "frac_above": 0.49929534930541575,
+          "median_run": 19.0,
+          "p90_run": 265.4000000000002,
+          "max_run": 632,
+          "n_runs": 32
+        },
+        "thr_0.7": {
+          "n_obs": 4967,
+          "frac_above": 0.49526877390779145,
+          "median_run": 22.0,
+          "p90_run": 280.2,
+          "max_run": 631,
+          "n_runs": 29
+        }
+      }
+    }
+  }
+}
