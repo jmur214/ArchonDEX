@@ -251,6 +251,14 @@ class AdvisoryEngine:
             "regime_confidence": round(regime_confidence, 3),
         }
 
+        # T-2026-06-05-107 — gated producer fix for the dead correlation_regime
+        # wire (T-104). When the flag is on, surface the correlation axis state
+        # as a FLAT STRING in advisory[] so Engine B's risk_engine.py:744-748
+        # sector-cap tightening branch can fire. Default OFF preserves
+        # pre-T-107 canon-md5 (`0145c03a6496…` on T-101's 2022 default cell).
+        if getattr(self.cfg, "correlation_regime_in_advisory_enabled", False):
+            advisory["correlation_regime"] = axis_states.get("correlation", "normal")
+
         return (macro_regime, advisory)
 
     @staticmethod

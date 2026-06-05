@@ -109,6 +109,21 @@ class AdvisoryConfig:
     # Set to 1.0 to disable damping entirely.
     hmm_confidence_min_floor: float = 0.6
 
+    # T-2026-06-05-107 — surface the correlation axis state as a flat
+    # string inside the advisory dict, fixing the dead-wire bug T-104
+    # diagnosed: Engine B's risk_engine.py:744-748 reads
+    # `advisory.get("correlation_regime", "normal")` but the producer
+    # never wrote `correlation_regime` into advisory (only into the
+    # regime_meta top-level as a NESTED dict). When True,
+    # advisory["correlation_regime"] = axis_states["correlation"]
+    # (flat string), activating the dormant 30%→20% (elevated/spike)
+    # and 30%→40% (dispersed) sector caps. Default OFF preserves
+    # pre-T-107 production behavior and canon-md5; OFF must remain
+    # bitwise inert vs T-104's `0145c03a6496…` baseline. Production
+    # flag-flip requires the T-107 A/B evidence (Sharpe ci_low + MaxDD
+    # + sector-concentration on 16-yr + 26-yr).
+    correlation_regime_in_advisory_enabled: bool = False
+
 
 @dataclass
 class HMMConfig:
