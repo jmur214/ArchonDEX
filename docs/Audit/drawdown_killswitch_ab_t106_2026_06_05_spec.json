@@ -1,0 +1,46 @@
+{
+  "campaign_id": "t106-drawdown-killswitch-ab",
+  "windows": [
+    {"start": "2010-01-01", "end": "2025-12-31", "label": "16yr"},
+    {"start": "2000-01-01", "end": "2025-12-31", "label": "26yr"}
+  ],
+  "reps": 1,
+  "arms": {
+    "arm0_off": {
+      "config_patch": {}
+    },
+    "arm1_default": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "drawdown_kill_switch_enabled": true,
+          "drawdown_warn_threshold": 0.05,
+          "drawdown_degrade_threshold": 0.10,
+          "drawdown_halt_threshold": 0.15,
+          "drawdown_degrade_scaler": 0.5
+        }
+      }
+    },
+    "arm2_tight": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "drawdown_kill_switch_enabled": true,
+          "drawdown_warn_threshold": 0.04,
+          "drawdown_degrade_threshold": 0.07,
+          "drawdown_halt_threshold": 0.12,
+          "drawdown_degrade_scaler": 0.5
+        }
+      }
+    },
+    "arm3_degrade_only": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "drawdown_kill_switch_enabled": true,
+          "drawdown_warn_threshold": 0.05,
+          "drawdown_degrade_threshold": 0.10,
+          "drawdown_halt_threshold": 0.99,
+          "drawdown_degrade_scaler": 0.5
+        }
+      }
+    }
+  }
+}

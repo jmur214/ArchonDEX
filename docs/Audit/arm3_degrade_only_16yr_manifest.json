@@ -1,0 +1,8 @@
+{
+  "run_id":         "bac0ad98-7bbd-4098-bb7f-9f04bfa87da9",
+  "cell_id":        "t106-drawdown-killswitch-ab/arm3_degrade_only/16yr/rep1",
+  "canon_md5":      "b9cb088f3d7b793598ea5b6db60579d9",
+  "sharpe":         "1.018",
+  "s3_prefix":      "s3://archondex-results-407539788432/t106-drawdown-killswitch-ab/arm3_degrade_only/16yr/rep1/bac0ad98-7bbd-4098-bb7f-9f04bfa87da9",
+  "completed_at":   "2026-06-05T08:11:36Z"
+}
