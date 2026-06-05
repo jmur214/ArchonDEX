@@ -1,0 +1,162 @@
+{
+  "task": "T-2026-06-05-110",
+  "data_floors": {
+    "DBMF": "2019-05-10",
+    "KMLM": "2020-12-08"
+  },
+  "covered_crises": {
+    "DBMF": [
+      "COVID 2020",
+      "2022 bear",
+      "2025 vol-shock"
+    ],
+    "KMLM": [
+      "2022 bear",
+      "2025 vol-shock"
+    ]
+  },
+  "dbmf": {
+    "ticker": "DBMF",
+    "n_obs": 1767,
+    "first_date": "2019-05-13",
+    "last_date": "2026-05-22",
+    "years": 7.025325119780972,
+    "metrics": {
+      "sharpe": {
+        "point": 0.5166694425378399,
+        "ci_low": -0.17510656878978884,
+        "ci_high": 1.1876265773423
+      },
+      "sortino": {
+        "point": 0.45815905494452025,
+        "ci_low": -0.14854842366452622,
+        "ci_high": 1.0693556248057368
+      },
+      "skewness": {
+        "point": -0.748854389936233,
+        "ci_low": -1.0260343471387037,
+        "ci_high": -0.42536072308963774,
+        "t108_spot_basket_reference": -0.408,
+        "equity_trend_reference": -0.133
+      },
+      "max_drawdown": -0.2368234987657697,
+      "final_equity_multiple": 1.5004246940272554,
+      "annualized_return": 0.05957259789937863
+    },
+    "crisis_windows": [
+      {
+        "label": "COVID 2020",
+        "start": "2020-02-19",
+        "end": "2020-04-30",
+        "n_days": 51,
+        "total_return": -0.024253554400213928,
+        "spy_total_return": -0.136330057531732,
+        "outperform_spy_pp": 0.11207650313151807
+      },
+      {
+        "label": "2022 bear",
+        "start": "2022-01-03",
+        "end": "2022-10-12",
+        "n_days": 196,
+        "total_return": 0.32730816200210966,
+        "spy_total_return": -0.2449545088557996,
+        "outperform_spy_pp": 0.5722626708579093
+      },
+      {
+        "label": "2025 vol-shock",
+        "start": "2025-02-01",
+        "end": "2025-04-30",
+        "n_days": 61,
+        "total_return": -0.045712126936153674,
+        "spy_total_return": -0.06952941215950925,
+        "outperform_spy_pp": 0.023817285223355578
+      }
+    ],
+    "diversification": {
+      "correlation_to_spy": 0.18261597362953352,
+      "beta_to_spy": 0.117921628085471
+    }
+  },
+  "kmlm": {
+    "ticker": "KMLM",
+    "n_obs": 1364,
+    "first_date": "2020-12-09",
+    "last_date": "2026-05-22",
+    "years": 5.448323066392882,
+    "metrics": {
+      "sharpe": {
+        "point": 0.4091275359197655,
+        "ci_low": -0.34545704991818155,
+        "ci_high": 1.2485179467734935
+      },
+      "sortino": {
+        "point": 0.37119042077214337,
+        "ci_low": -0.3111295810880782,
+        "ci_high": 1.1641387979421103
+      },
+      "skewness": {
+        "point": -0.8491540525234301,
+        "ci_low": -1.302159884176022,
+        "ci_high": -0.4240210497300015,
+        "t108_spot_basket_reference": -0.408,
+        "equity_trend_reference": -0.133
+      },
+      "max_drawdown": -0.2805551300163993,
+      "final_equity_multiple": 1.3133878798777145,
+      "annualized_return": 0.051654765947740655
+    },
+    "crisis_windows": [
+      {
+        "label": "COVID 2020",
+        "start": "2020-02-19",
+        "end": "2020-04-30",
+        "n_days": 0,
+        "total_return": null
+      },
+      {
+        "label": "2022 bear",
+        "start": "2022-01-03",
+        "end": "2022-10-12",
+        "n_days": 196,
+        "total_return": 0.4879253285901184,
+        "spy_total_return": -0.2449545088557996,
+        "outperform_spy_pp": 0.732879837445918
+      },
+      {
+        "label": "2025 vol-shock",
+        "start": "2025-02-01",
+        "end": "2025-04-30",
+        "n_days": 61,
+        "total_return": -0.04256093124772664,
+        "spy_total_return": -0.06952941215950925,
+        "outperform_spy_pp": 0.02696848091178261
+      }
+    ],
+    "diversification": {
+      "correlation_to_spy": -0.13852121374459037,
+      "beta_to_spy": -0.12435666742206604
+    }
+  },
+  "verdicts": {
+    "DBMF": "MIXED (crisis-alpha diversifier; skew flat/negative)",
+    "KMLM": "MIXED (crisis-alpha diversifier; skew flat/negative)",
+    "combined_headline": "MIXED (the ETF that has crisis-alpha + low base-corr)"
+  },
+  "t108_spot_basket_reference": {
+    "skewness": -0.408,
+    "skew_ci": [
+      -0.754,
+      -0.039
+    ],
+    "crisis_2022_pp": 35.68,
+    "crisis_covid_pp": 10.99,
+    "spy_correlation": 0.289,
+    "sharpe": 0.505
+  },
+  "honest_caveats": [
+    "DBMF/KMLM are MANAGED products \u2014 embed manager discretion + ER (~0.85-0.95%).",
+    "A positive skew here means 'this product delivers it,' NOT 'self-built futures trend would deliver it.'",
+    "KMLM postdates COVID \u2014 only 2 testable crises (2022, 2025) vs T-108's 8 windows.",
+    "DBMF history 7yr vs T-108's 17.4yr \u2014 much thinner crisis evidence."
+  ]
+}
