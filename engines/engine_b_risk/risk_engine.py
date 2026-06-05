@@ -85,6 +85,18 @@ class RiskConfig:
     drawdown_degrade_threshold: float = 0.10     # 10% — halve new sizing
     drawdown_halt_threshold: float = 0.15        # 15% — block new entries
     drawdown_degrade_scaler: float = 0.5         # multiplier applied above degrade
+    # T-2026-06-05-111 PoC: Path-A wiring for the drawdown kill-switch.
+    # When True AND drawdown_kill_switch_enabled is also True, the halt
+    # branch's `return None` and the degrade branch's size multiplier
+    # are applied PRE-PATH (i.e., before the Path-A vs Path-B branch).
+    # Halt blocks new entries on Path A (production); degrade multiplies
+    # Path A's `target_notional`.
+    # Default False to preserve T-106 verified canon-md5 baseline
+    # bitwise-identical. Only effective when paired with
+    # drawdown_kill_switch_enabled=True. Reviewable reference impl per
+    # T-111 propose-first dispatch — does NOT change main's default
+    # behavior; awaits a director-gated A/B before any prod flip.
+    drawdown_kill_switch_apply_on_path_a: bool = False
 
     # Portfolio-level vol-targeting (T-2026-05-12-055, Moreira-Muir 2017).
     # Sizing modifier applied AFTER all existing risk constraints
@@ -817,6 +829,62 @@ class RiskEngine:
         if self.cfg.enforce_target_allocations and target_weights:
             target_weight = target_weights.get(ticker)
 
+        # T-2026-06-05-111 PoC — Path-A drawdown kill-switch PRE-PATH block.
+        # Lifts the drawdown halt + degrade out of the Path-B `else:` block
+        # (where they have been dead in production since R1; see T-106
+        # `docs/Audit/drawdown_killswitch_ab_t106_2026_06_05.md`) so they
+        # can fire on the live Path A path too.
+        #   - Default OFF (both flags False) → block is skipped entirely;
+        #     canon-md5 bitwise-identical to pre-T-111 main.
+        #   - Active only when BOTH `drawdown_kill_switch_enabled=True`
+        #     (existing R1 flag) AND `drawdown_kill_switch_apply_on_path_a=True`
+        #     (new T-111 flag). Pairing prevents accidentally activating
+        #     the lift while the legacy Path-B block is also enabled, and
+        #     keeps director-gated A/B clean.
+        # Halt: short-circuits with `return None` regardless of path.
+        # Degrade: produces a multiplier `_drawdown_size_mult` that is
+        # consumed by Path A (`target_notional *= ...`) below and by
+        # Path B (`risk_scaler *= ...`) further down. Composes coherently
+        # with the existing Path A advisory caps (`suggested_max_positions`
+        # + `suggested_exposure_cap`) — the advisory caps are absolute
+        # ceilings (min(suggested, cfg)) while the drawdown multiplier
+        # scales `target_notional`, so they stack additively (cap then
+        # scale, scaler can only further reduce, never grow). No
+        # double-cut risk.
+        _drawdown_size_mult: float = 1.0
+        if (
+            self.cfg.drawdown_kill_switch_enabled
+            and self.cfg.drawdown_kill_switch_apply_on_path_a
+            and self.portfolio is not None
+        ):
+            dd_pct = 0.0
+            try:
+                if self.portfolio.history:
+                    dd_pct = float(self.portfolio.history[-1].get("current_drawdown_pct", 0.0))
+            except Exception as e:
+                # Same fail-loud-on-programmer-error discipline as the
+                # legacy Path-B kill-switch (T-2026-05-08-012 narrowed catch).
+                if isinstance(e, _PROGRAMMER_ERRORS):
+                    raise
+                logger.warning(
+                    "[RISK] Drawdown calc fell back to 0.0 in PoC pre-path "
+                    "block — kill switch may be inert: %s: %s",
+                    type(e).__name__, e,
+                )
+                dd_pct = 0.0
+            if dd_pct >= self.cfg.drawdown_halt_threshold:
+                self._fail(ticker, "drawdown_halt_path_a")
+                if is_debug_enabled("RISK"):
+                    print(f"[RISK] PRE-PATH Drawdown halt: {dd_pct*100:.2f}% ≥ "
+                          f"{self.cfg.drawdown_halt_threshold*100:.2f}% — blocking new entry for {ticker}")
+                return None
+            if dd_pct >= self.cfg.drawdown_degrade_threshold:
+                _drawdown_size_mult = float(self.cfg.drawdown_degrade_scaler)
+                if is_debug_enabled("RISK"):
+                    print(f"[RISK] PRE-PATH Drawdown de-gross: {dd_pct*100:.2f}% ≥ "
+                          f"{self.cfg.drawdown_degrade_threshold*100:.2f}% — size multiplier ×"
+                          f"{_drawdown_size_mult:.2f}")
+
         if target_weight is not None and np.isfinite(target_weight):
             # Path A — Engine C optimizer_weight composition (also applied
             # in Path B below). When SignalProcessor uses method="hrp_composed",
@@ -826,10 +894,14 @@ class RiskEngine:
             sig_meta_in = signal.get("meta") or {}
             optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
             # T-055: portfolio_vol_scalar = 1.0 unless cfg.portfolio_vol_target_enabled.
-            # Composes multiplicatively with target_weight and optimizer_weight.
+            # T-111: _drawdown_size_mult = 1.0 unless both
+            # drawdown_kill_switch_enabled AND
+            # drawdown_kill_switch_apply_on_path_a are True AND drawdown is
+            # past the degrade threshold. Composes multiplicatively with
+            # target_weight, optimizer_weight, and portfolio_vol_scalar.
             target_notional = (
                 float(equity) * float(target_weight) * optimizer_weight
-                * portfolio_vol_scalar
+                * portfolio_vol_scalar * _drawdown_size_mult
             )
             current_notional = float(current_qty) * price
             delta_notional = target_notional - current_notional
