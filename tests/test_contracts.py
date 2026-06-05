@@ -856,14 +856,25 @@ KNOWN_DEAD_ADVISORY_READS: Set[str] = {
     # propose-first (Engine B). When fixed, REMOVE this entry — the
     # test will then enforce reader⊆writer for new code.
     "correlation_regime",
-    # T-102 2026-06-04: Engine C reads
+    # T-102 2026-06-04 → T-104 2026-06-05: Engine C reads
     # `advisory.get("allocation_recommendation")` (policy.py:62) with a
     # disk-load fallback via AllocationEvaluator.load_recommendations().
-    # No engine-layer producer ever puts this key INTO advisory; the
-    # disk fallback is the de-facto producer. Less critical than
-    # correlation_regime because the fallback path is intentional;
-    # cleanup would be to drop the advisory.get() and call the disk
-    # loader directly.
+    # T-104 classification: INTENDED-DISK-SOURCE, NOT a bug.
+    #   - policy.py:62-80 reads advisory.get("allocation_recommendation")
+    #     first, then falls back to loading from disk via
+    #     AllocationEvaluator.load_recommendations() +
+    #     get_config_for_regime(label). The disk path IS the canonical
+    #     producer; the advisory read is a defensive primary-path slot
+    #     for future Engine-E injection that has never been wired.
+    #   - Engine E advisory.py never writes the key — by design (the
+    #     allocation evaluator lives in Engine C, not Engine E, and the
+    #     disk-load happens entirely inside policy.py:65-80).
+    # No proposed fix. Keep the allowlist entry indefinitely with this
+    # justification. Distinct from `correlation_regime` (which IS a
+    # real silent-mismatch bug awaiting Engine E producer-side fix).
+    # Optional cleanup (NOT proposed here): drop the advisory.get() head
+    # and call the disk loader unconditionally — reduces apparent
+    # confusion but no behavior change. Out of T-104 scope.
     "allocation_recommendation",
 }
 
