@@ -1,0 +1,135 @@
+{
+  "task": "T-2026-06-05-108",
+  "window": [
+    "2008-02-20",
+    "2025-12-31"
+  ],
+  "universe": [
+    "SPY",
+    "TLT",
+    "GLD",
+    "USO",
+    "UUP",
+    "EEM",
+    "IEF",
+    "DBC"
+  ],
+  "binding_data_floor": "UUP 2007-02-20",
+  "n_daily_returns": 4495,
+  "n_rebalances": 146,
+  "metrics": {
+    "sharpe": {
+      "point": 0.5051838925132083,
+      "ci_low": 0.08518497874485487,
+      "ci_high": 0.9813957660948334
+    },
+    "sortino": {
+      "point": 0.4706766441621216,
+      "ci_low": 0.07834965552489256,
+      "ci_high": 0.9181151568976911
+    },
+    "skewness": {
+      "point": -0.40809076422881196,
+      "ci_low": -0.7537361055104751,
+      "ci_high": -0.03884981912810395,
+      "equity_trend_reference": -0.133
+    },
+    "max_drawdown": -0.26471471841682714,
+    "final_equity_multiple": 2.3398621964879704,
+    "annualized_return": 0.04881201309870464
+  },
+  "crisis_windows": [
+    {
+      "label": "2008 GFC",
+      "start": "2008-09-01",
+      "end": "2009-03-31",
+      "n_days": 146,
+      "total_return": -0.09263554186842415,
+      "spy_total_return": -0.3787641765716617,
+      "outperform_spy_pp": 0.28612863470323757,
+      "max_drawdown": -0.14480782296764705
+    },
+    {
+      "label": "2010 Flash crash",
+      "start": "2010-04-23",
+      "end": "2010-07-02",
+      "n_days": 50,
+      "total_return": -0.09096944390644524,
+      "spy_total_return": -0.16103088022965184,
+      "outperform_spy_pp": 0.0700614363232066,
+      "max_drawdown": -0.10300412090629674
+    },
+    {
+      "label": "2011 EU debt",
+      "start": "2011-07-01",
+      "end": "2011-10-31",
+      "n_days": 85,
+      "total_return": -0.024284689054896114,
+      "spy_total_return": -0.05761765946837483,
+      "outperform_spy_pp": 0.03333297041347871,
+      "max_drawdown": -0.09067434583236678
+    },
+    {
+      "label": "2015-08 China",
+      "start": "2015-07-15",
+      "end": "2015-09-30",
+      "n_days": 55,
+      "total_return": -0.0009127045081124274,
+      "spy_total_return": -0.08548112619418036,
+      "outperform_spy_pp": 0.08456842168606793,
+      "max_drawdown": -0.03271647044871229
+    },
+    {
+      "label": "2018-Q4",
+      "start": "2018-10-01",
+      "end": "2018-12-31",
+      "n_days": 63,
+      "total_return": -0.08879299211012415,
+      "spy_total_return": -0.13830838585101446,
+      "outperform_spy_pp": 0.04951539374089031,
+      "max_drawdown": -0.10487591464072632
+    },
+    {
+      "label": "COVID 2020",
+      "start": "2020-02-19",
+      "end": "2020-04-30",
+      "n_days": 51,
+      "total_return": -0.026463319509296146,
+      "spy_total_return": -0.136330057531732,
+      "outperform_spy_pp": 0.10986673802243585,
+      "max_drawdown": -0.10543126943797165
+    },
+    {
+      "label": "2022 bear",
+      "start": "2022-01-03",
+      "end": "2022-10-12",
+      "n_days": 196,
+      "total_return": 0.11181547509854517,
+      "spy_total_return": -0.2449545088557996,
+      "outperform_spy_pp": 0.3567699839543448,
+      "max_drawdown": -0.09036153446437634
+    },
+    {
+      "label": "2025 vol-shock",
+      "start": "2025-02-01",
+      "end": "2025-04-30",
+      "n_days": 61,
+      "total_return": 0.007207905840775464,
+      "spy_total_return": -0.06952941215950925,
+      "outperform_spy_pp": 0.07673731800028472,
+      "max_drawdown": -0.09403133759552595
+    }
+  ],
+  "diversification": {
+    "correlation_to_spy": 0.28900009361437495,
+    "beta_to_spy": 0.15261674227521999
+  },
+  "verdict": {
+    "label": "DEAD",
+    "skew_positive": false,
+    "skew_ci_low_gt_zero": false,
+    "sharpe_ci_low_gt_zero": true,
+    "crisis_protective": true,
+    "low_base_correlation": true
+  }
+}
