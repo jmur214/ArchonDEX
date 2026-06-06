@@ -359,6 +359,13 @@ class PortfolioEngine:
             # silently drop the sleeve's contribution (see backtest_controller
             # _log_snapshot override at the matching point).
             "sleeve_equity": sleeve_equity,
+            # T-2026-06-06-124: gross_notional = Σ|qty·px| per bar. Needed
+            # by the T-118 de-gross campaign + the T-116 count×size double-
+            # count diagnostic (this book shorts → net market_value ≠ gross).
+            # Reuses the existing helper at portfolio_engine.gross_notional
+            # — PURELY ADDITIVE, does not feed equity, does not change
+            # trades.csv → canon-safe.
+            "gross_notional": self.gross_notional(price_map),
         }
         # optional quick-look attribution (counts of open positions by edge)
         try:
