@@ -48,10 +48,45 @@ WINDOWS = [
     {"start": "2000-01-01", "end": "2025-12-31", "label": "26yr"},
 ]
 RISK_CFG = "config/risk_settings.prod.json"
+REGIME_CFG = "config/regime_settings.json"
+
+# Director decision (T-118-RUN): drive the overlay with the CRISIS model
+# (validated AUC@5d 0.914, T-103/T-105), NOT production v1 (the original
+# that scored the false-negative AUC 0.49). Model-INVARIANCE at overlay-OFF
+# was verified empirically: crisis-model + overlay-OFF reproduces the T-092
+# baseline canon (2022 cell `0145c03a…`), because the HMM is invisible to
+# Path A except through the overlay (advisory.py:204 — HMM modulates only
+# risk_scalar, which is dead on Path A here). So the crisis model is patched
+# into ALL arms (incl arm0) to hold the model constant; the only thing that
+# varies arm0 -> treatment is the overlay flag. Loading the crisis model to
+# drive the EXPERIMENT is NOT a production repoint (prod default stays v1,
+# overlay-OFF).
+CRISIS_MODEL = "engines/engine_e_regime/models/hmm_3state_crisis_v1.pkl"
+V1_MODEL = "engines/engine_e_regime/models/hmm_3state_v1.pkl"
 
 
-def build_arms(include_null: bool) -> dict:
-    arms = {"arm0_off": {"config_patch": {}}}  # == T-092 baseline
+def _overlay_patch(lvl, k, dd, rl, rb, model):
+    """A risk-overlay patch plus the regime model_path patch."""
+    return {
+        RISK_CFG: {
+            "regime_transition_overlay_enabled": True,
+            "regime_overlay_degross_level": lvl,
+            "regime_overlay_k_days": k,
+            "regime_overlay_degross_delta": dd,
+            "regime_overlay_regross_level": rl,
+            "regime_overlay_regross_bars": rb,
+            # T-116 lift stays OFF — the overlay is the de-gross under test;
+            # don't stack the risk_scalar lift (explicit for clarity).
+            "advisory_risk_scalar_apply_on_path_a": False,
+        },
+        REGIME_CFG: {"hmm.model_path": model},
+    }
+
+
+def build_arms(include_null: bool, v1_blind: bool) -> dict:
+    # arm0: overlay OFF, crisis model loaded -> canon-invariant == T-092
+    # baseline (verified). Holds the model constant vs the treatment arms.
+    arms = {"arm0_off": {"config_patch": {REGIME_CFG: {"hmm.model_path": CRISIS_MODEL}}}}
     for lvl in DEGROSS_LEVELS:
         if lvl == 1.0 and not include_null:
             continue  # null/placebo control — skip unless explicitly requested
@@ -59,14 +94,17 @@ def build_arms(include_null: bool) -> dict:
             for hname, (dd, rl, rb) in HYSTERESIS.items():
                 lvl_tag = str(lvl).replace(".", "")
                 arm = f"arm_L{lvl_tag}_k{k}_{hname}"
-                arms[arm] = {"config_patch": {RISK_CFG: {
-                    "regime_transition_overlay_enabled": True,
-                    "regime_overlay_degross_level": lvl,
-                    "regime_overlay_k_days": k,
-                    "regime_overlay_degross_delta": dd,
-                    "regime_overlay_regross_level": rl,
-                    "regime_overlay_regross_bars": rb,
-                }}}
+                arms[arm] = {"config_patch": _overlay_patch(lvl, k, dd, rl, rb, CRISIS_MODEL)}
+
+    # OPTIONAL (+2 cells/window per arm) — signal-quality disambiguation:
+    # the SAME overlay config driven by the BLIND v1 model. Expectation:
+    # v1-blind overlay does nothing/hurts while crisis-signal helps -> a
+    # clean "it's the signal, not just the mechanism" contrast.
+    if v1_blind:
+        dd, rl, rb = HYSTERESIS["HB"]  # representative fast/slow-asymmetric pair
+        arms["arm_v1blind_L05_k5_HB"] = {
+            "config_patch": _overlay_patch(0.5, 5, dd, rl, rb, V1_MODEL)
+        }
     return arms
 
 
@@ -74,11 +112,13 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", type=int, default=1)
     ap.add_argument("--include-null-arms", action="store_true",
-                    help="include the 12 degross_level=1.0 placebo controls")
+                    help="include the 12 degross_level=1.0 placebo controls (full grid)")
+    ap.add_argument("--v1-blind-disambig", action="store_true",
+                    help="add 1 v1-model overlay arm (+2 cells) for signal-quality contrast")
     ap.add_argument("--out", default="data/cloud_runs/specs/t118_overlay.json")
     args = ap.parse_args()
 
-    arms = build_arms(args.include_null_arms)
+    arms = build_arms(args.include_null_arms, args.v1_blind_disambig)
     spec = {
         "campaign_id": "t118-hmm-transition-overlay",
         "windows": WINDOWS,
