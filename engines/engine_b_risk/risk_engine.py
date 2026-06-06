@@ -98,6 +98,26 @@ class RiskConfig:
     # behavior; awaits a director-gated A/B before any prod flip.
     drawdown_kill_switch_apply_on_path_a: bool = False
 
+    # T-2026-06-06-116 PoC — Path-A wiring for the HMM-modulated advisory
+    # risk_scalar de-gross. SIBLING of the T-111 drawdown lift above.
+    # The Engine-E advisory.risk_scalar (modulated by the validated HMM,
+    # T-101) is consumed ONLY in the legacy Path-B `else:` block
+    # (`risk_scaler *= advisory_risk_scalar`, ~line 987), which production
+    # (Path A, target_weight) never reaches — so the HMM's risk-off signal
+    # never affects production sizing (T-101 proved flipping `hmm_enabled`
+    # on did nothing for exactly this reason). When True AND
+    # `risk_advisory_enabled` is also True, the same `advisory_risk_scalar`
+    # value Path B uses is applied multiplicatively to Path A's
+    # `target_notional` (composes with optimizer_weight, portfolio_vol_scalar,
+    # and T-111's _drawdown_size_mult). Default False → mult stays 1.0 →
+    # canon-md5 bitwise-identical to current main. Reviewable reference impl
+    # per the T-116 propose-first dispatch; does NOT change main's default
+    # behavior and awaits a director-gated A/B before any prod flip. The
+    # double-count interaction with the LIVE suggested_exposure_cap +
+    # suggested_max_positions floors is documented in
+    # docs/Audit/hmm_riskscalar_path_a_lift_t116_2026_06_06.md.
+    advisory_risk_scalar_apply_on_path_a: bool = False
+
     # Portfolio-level vol-targeting (T-2026-05-12-055, Moreira-Muir 2017).
     # Sizing modifier applied AFTER all existing risk constraints
     # (drawdown halt / kill-switch) and BEFORE the final order is emitted.
@@ -885,6 +905,31 @@ class RiskEngine:
                           f"{self.cfg.drawdown_degrade_threshold*100:.2f}% — size multiplier ×"
                           f"{_drawdown_size_mult:.2f}")
 
+        # T-2026-06-06-116 PoC — Path-A wiring for the HMM-modulated advisory
+        # risk_scalar de-gross. Mirrors the _drawdown_size_mult shape above.
+        # `advisory_risk_scalar` was already extracted at ~line 753 (defaults
+        # to 1.0; set to advisory['risk_scalar'] only when an advisory is
+        # present AND risk_advisory_enabled). It is consumed in Path B
+        # (`risk_scaler *= advisory_risk_scalar`) but DEAD on Path A — this
+        # block lifts it onto Path A's `target_notional` behind a default-OFF
+        # flag. Default OFF (flag False) → mult stays 1.0 → canon-md5
+        # bitwise-identical to current main. DOUBLE-COUNT GUARD: composes as
+        # min() against the LIVE exposure-cap ceiling (`effective_max_gross`,
+        # ~line 1191) — the cap is an absolute ceiling enforced AFTER this
+        # multiplier, so "more conservative wins" on total gross (no
+        # double-cut). Orthogonal to the live `effective_max_positions`
+        # count-floor; the cap-slack count×size compounding is the one item
+        # the director-gated A/B must measure (see the T-116 audit doc).
+        _advisory_risk_scalar_mult: float = 1.0
+        if (
+            self.cfg.advisory_risk_scalar_apply_on_path_a
+            and self.cfg.risk_advisory_enabled
+        ):
+            _advisory_risk_scalar_mult = float(advisory_risk_scalar)
+            if is_debug_enabled("RISK") and _advisory_risk_scalar_mult != 1.0:
+                print(f"[RISK] PRE-PATH advisory risk_scalar de-gross (Path A): "
+                      f"size multiplier ×{_advisory_risk_scalar_mult:.3f}")
+
         if target_weight is not None and np.isfinite(target_weight):
             # Path A — Engine C optimizer_weight composition (also applied
             # in Path B below). When SignalProcessor uses method="hrp_composed",
@@ -899,9 +944,14 @@ class RiskEngine:
             # drawdown_kill_switch_apply_on_path_a are True AND drawdown is
             # past the degrade threshold. Composes multiplicatively with
             # target_weight, optimizer_weight, and portfolio_vol_scalar.
+            # T-116: _advisory_risk_scalar_mult = 1.0 unless
+            # advisory_risk_scalar_apply_on_path_a AND risk_advisory_enabled
+            # are both True. Lifts the HMM-modulated advisory.risk_scalar
+            # (dead on Path A pre-T-116) onto production sizing.
             target_notional = (
                 float(equity) * float(target_weight) * optimizer_weight
                 * portfolio_vol_scalar * _drawdown_size_mult
+                * _advisory_risk_scalar_mult
             )
             current_notional = float(current_qty) * price
             delta_notional = target_notional - current_notional
