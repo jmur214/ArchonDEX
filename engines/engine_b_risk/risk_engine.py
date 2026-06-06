@@ -147,6 +147,30 @@ class RiskConfig:
     portfolio_vol_target_stressed_multiplier: float = 0.60
     portfolio_vol_target_crisis_multiplier: float = 0.40
 
+    # T-2026-06-06-118 — HMM regime-TRANSITION-triggered gross-exposure
+    # overlay (the pre-registered "culmination" experiment; propose-first).
+    # Converts the validated Engine-E combined posterior
+    # (p_crisis + p_stressed) from a LEVEL (disqualified by T-105's 44-50%
+    # always-on / 198-265d p90 dwell) into a TRANSITION trigger: de-gross
+    # Path-A target_notional when the k-day change in the combined posterior
+    # crosses `regime_overlay_degross_delta`, with ASYMMETRIC hysteresis
+    # (re-gross strictly slower — requires `regime_overlay_regross_bars`
+    # consecutive calm bars at/below `regime_overlay_regross_level`).
+    # Consumes ONLY the per-bar posterior the live backtest already computes
+    # causally (predict_proba_at, 60-bar growing window — T-089-verified);
+    # adds NO new inference, so it cannot introduce look-ahead. Logic lives
+    # in engines/engine_b_risk/regime_transition_overlay.py.
+    # Default OFF -> multiplier 1.0 -> canon-md5 bitwise-identical to the
+    # T-092 baseline. The campaign sweeps degross_level {1.0,0.5,0.0} x
+    # k_days {3,5,10} x 4 hysteresis pairs = ~36 configs (pre-registered in
+    # docs/Audit/hmm_transition_trigger_overlay_t118_2026_06_06.md).
+    regime_transition_overlay_enabled: bool = False
+    regime_overlay_degross_level: float = 1.0     # gross mult applied when armed
+    regime_overlay_k_days: int = 5                # Delta(p_combined) lookback (bars)
+    regime_overlay_degross_delta: float = 0.40    # tau_on: arm when Delta_k >= this
+    regime_overlay_regross_level: float = 0.30    # tau_off: calm ceiling on p_combined
+    regime_overlay_regross_bars: int = 10         # n_off: consecutive calm bars to disarm
+
 
 class RiskEngine:
     """
@@ -225,6 +249,22 @@ class RiskEngine:
                     print(f"[RISK][WARN] Sector map not found at {self.cfg.sector_map_path}")
         except Exception as e:
             print(f"[RISK][ERROR] Failed to load sector map: {e}")
+
+        # T-2026-06-06-118 — HMM transition-trigger gross-exposure overlay.
+        # Stateful per-portfolio tracker; default-OFF -> inert (observe()
+        # short-circuits to 1.0 and is never advanced). Fed once per bar
+        # from manage_positions; read in prepare_order (Path A).
+        from engines.engine_b_risk.regime_transition_overlay import (
+            RegimeTransitionOverlay, RegimeOverlayConfig,
+        )
+        self.regime_overlay = RegimeTransitionOverlay(RegimeOverlayConfig(
+            enabled=bool(self.cfg.regime_transition_overlay_enabled),
+            degross_level=float(self.cfg.regime_overlay_degross_level),
+            k_days=int(self.cfg.regime_overlay_k_days),
+            degross_delta=float(self.cfg.regime_overlay_degross_delta),
+            regross_level=float(self.cfg.regime_overlay_regross_level),
+            regross_bars=int(self.cfg.regime_overlay_regross_bars),
+        ))
 
     # ------------------------------------------------------------------ #
     # Path A — fill listener for tax-aware modules. Called by
@@ -307,6 +347,20 @@ class RiskEngine:
         data_map : optional dict of {ticker: DataFrame} with ATR column
             When provided, trailing stops use real ATR instead of a price-based estimate.
         """
+        # T-2026-06-06-118 — advance the regime-transition overlay ONCE per
+        # bar. This method runs every bar in the backtest loop (before
+        # prepare_order), so it is the per-bar hook for the overlay's
+        # combined-posterior buffer. Placed BEFORE the enable_trailing
+        # early-return so the buffer never gaps. Idempotent by timestamp;
+        # strict no-op (no state touched) when the overlay is disabled.
+        if self.cfg.regime_transition_overlay_enabled and regime_meta:
+            _ov_ts = regime_meta.get("timestamp")
+            if _ov_ts:
+                self.regime_overlay.observe(
+                    _ov_ts,
+                    self.regime_overlay.combined_posterior(regime_meta),
+                )
+
         if not self.portfolio or not self.cfg.enable_trailing:
             return []
 
@@ -930,6 +984,27 @@ class RiskEngine:
                 print(f"[RISK] PRE-PATH advisory risk_scalar de-gross (Path A): "
                       f"size multiplier ×{_advisory_risk_scalar_mult:.3f}")
 
+        # T-2026-06-06-118 — HMM regime-transition gross-exposure overlay.
+        # The overlay state is advanced once per bar in manage_positions;
+        # here we (idempotently) ensure it is current for this bar and read
+        # the gross multiplier. Default OFF -> 1.0 -> canon-identical. When
+        # armed, multiplies Path A's target_notional (de-grossing the
+        # rebalance target). Uses regime_meta['timestamp'] as the bar key
+        # (same source as the manage_positions hook -> idempotent).
+        _regime_overlay_mult: float = 1.0
+        if self.cfg.regime_transition_overlay_enabled:
+            _ov_ts = regime_meta.get("timestamp") if regime_meta else None
+            if _ov_ts:
+                self.regime_overlay.observe(
+                    _ov_ts,
+                    self.regime_overlay.combined_posterior(regime_meta),
+                )
+            _regime_overlay_mult = float(self.regime_overlay.current_multiplier())
+            if is_debug_enabled("RISK") and _regime_overlay_mult != 1.0:
+                print(f"[RISK] PRE-PATH regime-transition overlay de-gross (Path A): "
+                      f"size multiplier ×{_regime_overlay_mult:.3f} "
+                      f"(armed={self.regime_overlay.armed})")
+
         if target_weight is not None and np.isfinite(target_weight):
             # Path A — Engine C optimizer_weight composition (also applied
             # in Path B below). When SignalProcessor uses method="hrp_composed",
@@ -948,10 +1023,15 @@ class RiskEngine:
             # advisory_risk_scalar_apply_on_path_a AND risk_advisory_enabled
             # are both True. Lifts the HMM-modulated advisory.risk_scalar
             # (dead on Path A pre-T-116) onto production sizing.
+            # T-118: _regime_overlay_mult = 1.0 unless
+            # regime_transition_overlay_enabled AND the transition trigger is
+            # armed (k-day Delta in combined HMM posterior crossed tau_on,
+            # not yet stood down by the asymmetric hysteresis). De-grosses
+            # the rebalance target on a regime transition into stress.
             target_notional = (
                 float(equity) * float(target_weight) * optimizer_weight
                 * portfolio_vol_scalar * _drawdown_size_mult
-                * _advisory_risk_scalar_mult
+                * _advisory_risk_scalar_mult * _regime_overlay_mult
             )
             current_notional = float(current_qty) * price
             delta_notional = target_notional - current_notional
