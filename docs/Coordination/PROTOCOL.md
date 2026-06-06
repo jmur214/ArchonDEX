@@ -150,6 +150,13 @@ Then in chat: "T-YYYY-MM-DD-NNN done, see outbox".
 
 <path to audit doc, or "none — code-only change">
 
+## Proposed TASK_LEDGER row
+
+<the single pipe-delimited row for docs/State/TASK_LEDGER.md — the director
+appends this on main at merge time. Do NOT edit TASK_LEDGER yourself (see
+Conflict avoidance #6). Format:
+| T-ID | YYYY-MM-DD | title | done/refuted/... | cells_att | cells_succ | one-line outcome | audit doc |>
+
 ## Notes for director
 
 <anything that affects integration: file conflicts to expect, tests that need re-running on main, follow-up tasks worth queuing>
@@ -168,6 +175,7 @@ See `task_queue.md.template`.
 3. **Director's substantive commits go to a director branch first** if agents are mid-task on overlapping files. Coordination-file-only commits (`docs/Coordination/*`) go to main directly.
 4. **Task queue tracks "files-touched" hint** per task so director can spot overlap before dispatching.
 5. **Conflict resolution is the director's job** — agents don't merge into main themselves.
+6. **Agents do NOT write `docs/State/TASK_LEDGER.md`** (added 2026-06-06, T-114). Every agent branch appending a TASK_LEDGER row guarantees a merge conflict when ≥2 land — it was hand-resolved ~6×/day at 2 agents and scales N-way. Instead: **the director writes the TASK_LEDGER row at merge time** (the director is already the one merging + integrating, and writes the authoritative one-line outcome anyway). Agents put their proposed ledger line in their OUTBOX ("Notes for director") so the director has the text; the director appends it to TASK_LEDGER in the merge commit. This makes ledger conflicts structurally impossible regardless of agent count — the load-bearing fix for scaling past 2 agents. Same applies to any other single append-only shared file (e.g. CURRENT_STATE rolling sections): agents propose in outbox, director writes on main.
 
 ---
 
@@ -206,9 +214,14 @@ Skip this protocol when:
 
 ---
 
+## Coordination automation (added 2026-06-06, T-114)
+
+- **Outbox watcher:** `python scripts/watch_coordination.py` (run in the director worktree) polls every `agent_*_outbox.md` and prints a notification the moment an agent reports — automating the "user forgets to relay 'X done'" failure mode below. Scale-ready: it globs `agent_*_outbox.md`, so it picks up agent C / specialists with no code change. `--once` for a snapshot, `--interval N` to tune. Read-only.
+- **TASK_LEDGER conflict eliminated:** agents no longer write the ledger (Conflict avoidance #6); the director writes the row at merge time from the agent's "Proposed TASK_LEDGER row" outbox section. Ledger conflicts are now structurally impossible at any agent count.
+
 ## Failure modes & known risks
 
-- **User forgets to nudge.** If user doesn't ping A "check inbox" after director writes a brief, A doesn't know work is waiting. Mitigation: director ALWAYS says "Brief T-XYZ ready for A — please ping A" in chat after writing the inbox.
+- **User forgets to nudge.** If user doesn't ping A "check inbox" after director writes a brief, A doesn't know work is waiting. Mitigation: director ALWAYS says "Brief T-XYZ ready for A — please ping A" in chat after writing the inbox. (The reverse direction — agent→director — is now automated by `scripts/watch_coordination.py`.)
 - **Agent forgets to rebase.** Agents start on stale branches and hit merge conflicts later. Mitigation: rebase is the first action specified in every brief.
 - **Same-workspace file races.** All three sessions see the IDE workspace. If an agent forgets to `cd` into its worktree, edits land in main. Mitigation: bootstrap message hard-codes the cd; workspace check at top of every task confirms `pwd`.
 - **Director loses chat memory on compaction.** Substantive integration summaries should land in git (commit messages, audit docs) so the durable record survives.

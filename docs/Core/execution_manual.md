@@ -540,3 +540,19 @@ cat data/research/edge_results.parquet
 tail -f data/logs/latest.log
 grep ALPHA data/logs/latest.log | tail
 ```
+
+### COORDINATION — outbox watcher (T-114, 2026-06-06)
+
+Run in the DIRECTOR worktree to get notified when any agent finishes a task
+(automates the manual "X done, see outbox" relay). Read-only; globs
+`agent_*_outbox.md` so it scales to agent C / specialists with no change.
+
+```bash
+python scripts/watch_coordination.py                 # poll forever (10s)
+python scripts/watch_coordination.py --interval 5    # custom interval
+python scripts/watch_coordination.py --once          # one snapshot + exit
+```
+
+Protocol: agents no longer write `docs/State/TASK_LEDGER.md` (conflict source);
+the director writes the ledger row at merge time from the agent's outbox
+"Proposed TASK_LEDGER row" section. See `docs/Coordination/PROTOCOL.md`.
