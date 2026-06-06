@@ -809,7 +809,14 @@ class BacktestController:
                         live_mv += float(_pos.qty) * float(px)
                 snap["cash"] = live_cash
                 snap["market_value"] = live_mv
-                snap["equity"] = live_cash + live_mv
+                # T-2026-06-06-120: preserve the spot-sleeve PnL contribution
+                # when the controller recomputes equity from live state. The
+                # PortfolioEngine.snapshot() included sleeve_equity in the
+                # original `equity` field; without this add-back the recompute
+                # silently zeroes the sleeve. When the sleeve is OFF, sleeve_eq
+                # is 0.0 and behavior is bitwise-identical to pre-T-120.
+                sleeve_eq = float(snap.get("sleeve_equity", 0.0))
+                snap["equity"] = live_cash + live_mv + sleeve_eq
             except Exception as e:
 
                 if is_debug_enabled("BACKTEST_CONTROLLER"):
