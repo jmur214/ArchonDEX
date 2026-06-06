@@ -1,4 +1,90 @@
-# Forward Plan — live (last substantive update 2026-05-22, T-041b FAIL Gate 1 + T-055 ship defense-first; lift gates queued)
+# Forward Plan — live (last substantive update 2026-06-06, research-driven two-track pivot: de-gross overlay + literature edges)
+
+> ## 2026-06-06 — Research-driven plan-delta (THE CURRENT PLAN; everything below this block is historical narrative)
+>
+> Two rounds of external research (2026-05-31 + 2026-06-06, a dev *with* codebase
+> access + an AI research model) independently converged on the same sequence our
+> falsification machine ground out. **The research validates the spine and adds
+> specific deltas — it is a sharpening, not a redirect.** Source files:
+> `docs/Sessions/Other-dev-opinion/6-6-26_{gaps,gaps_precursor,speed,doc-issues_continued}.md`.
+>
+> ### Where we are (the honest frame)
+> - **T-092 closed the headline base-alpha question NEGATIVE.** The base 6-edge
+>   ensemble is bull-conditional (16-yr Sharpe 1.018 / 26-yr 0.246), survivor-biased
+>   upper-bound. The pivot is locked: the goal is **not** "fix the base's alpha"
+>   (we can't validate it) but "(a) make it survivable, (b) find NEW alpha outside
+>   the current factor-crowded inventory."
+> - **~37% of top-1%-retail. The gap is an *implementation* gap, not a knowledge
+>   gap.** World-class on measurement/discipline; structurally bounded on verified
+>   alpha (0/11 edges clear factor-α t>2). The AQR-shape move: industrialize the
+>   published literature through our gauntlet, don't invent artisanal edges.
+>
+> ### The two-track plan (run in PARALLEL, per user 2026-06-06)
+> **RISK / DE-GROSS track** — drawdown-reduction is *legitimate risk-adjusted edge*
+> (geometric return + Calmar + survivability), NOT alpha. Name it honestly.
+> - **THE culmination experiment: the HMM transition-trigger overlay (T-118)** —
+>   research #1, highest-EV in the codebase. Converts the validated combined
+>   posterior from a level (disqualified — T-105 dwell-time) to a transition trigger
+>   (Δposterior + asymmetric hysteresis). Plumbing done (T-100→T-116 lifted the dead
+>   Path-B defensive controls onto Path A). Pre-registered lean 50-cell A/B, **driven
+>   by the CRISIS model** (the 0.914-AUC signal), gated on T-109's fresh cloud image.
+> - Next in this track: Engine B thickening — HAR-RV vol forecast (`arch`) + event-risk
+>   auto-reduction (FOMC/CPI/NFP), which *feed* the overlay.
+>
+> **ALPHA track** — the existing 11 edges are factor-LOSERS / closet-beta (T-117
+> compression REFUTED: you can't recombine negative-α streams into positive joint α).
+> - The answer is **NEW literature edges that live OUTSIDE FF5+Mom.** **VRP first
+>   (T-122)** — the one structurally-non-factor candidate, hence the only real shot at
+>   the t>2 all 11 existing edges fail. Then BAB / QMJ / gross-profitability through
+>   the gauntlet. Each is candidate-only (Engine F gates promotion).
+>
+> ### The 4-agent lanes (coordination automated — T-114 watcher + ledger-conflict-free)
+> A = portfolio/sleeve · B = cloud/infra · C = risk-engine · D = alpha/edge.
+>
+> ### Research-prioritized build order (durable)
+> 1. **HMM transition-trigger overlay (T-118)** — in flight.
+> 2. **Engine B thickening:** HAR-RV vol forecast + event-risk auto-reduction (feeds #1).
+> 3. ~~Edge compression~~ — **REFUTED (T-117), skip.**
+> 4. **Cross-asset trend/carry diversifier** — the spot-ETF sleeve (T-108→T-121) is the
+>    trend piece (note: T-120 found analytical wins don't survive naive integration;
+>    T-121 decouples capital semantics to fix it). Carry (Koijen-et-al) is unbuilt.
+> 5. **HRP correlation-aware sizing** + per-cluster budgets.
+> 6. **Literature edges (VRP T-122 first)** — the alpha-side core.
+>
+> ### Explicit STOP / DO-NOT-PURSUE (research-validated)
+> - **PARK Engine D autonomous Discovery — do NOT unblock gene-encoding.** Multiple-
+>   testing math is net-negative at N~270 (null-max Sharpe at 10⁴ trials > 1.3). This
+>   reverses the long-standing "gene-encoding is the gating lever" health-check item.
+> - Microstructure / order-flow-imbalance from 1-min bars (latency-bound).
+> - Naive opening-range-breakout on indices (dead).
+> - **Plain (non-conditional) Moreira-Muir vol-scaling — look-ahead bias.** Only the
+>   conditional / transition-triggered form survives real-time (Cederburg 2020). HARD
+>   constraint on all vol-targeting work; never quote gross M-M "+25% Sharpe" as lift.
+> - Complex ML vol forecasting (LSTM adds ~nothing over HAR-RV).
+> - Long/short sector momentum (documented negative).
+>
+> ### Two facts surfaced that matter
+> - **The validated crisis signal (0.914 AUC) is the CRISIS model, NOT production.**
+>   Production loads `hmm_3state_v1.pkl` — the *original* model that scored the
+>   false-negative AUC 0.49 (T-087 reversed it on the crisis retrain). The validated
+>   signal isn't wired (a buried capability). T-118 drives its overlay with the crisis
+>   model; if it wins, repointing production rides along (separate gate).
+> - **Speed: reps 5→1 + determinism canary = free 5× compute** (T-119, staged for B);
+>   S3 feature cache (3-10×) if profiling confirms.
+>
+> ### Doc-tuning (low priority — research file 4)
+> Loosen doc-system propose-first to *structural* changes only; add archive-compaction
+> + a `cockpit/dashboard/` deletion date. Engine-B propose-first is CORRECTLY calibrated
+> (it caught T-055e + T-057 from shipping) — do not loosen it.
+>
+> ### Honest scorecard + trajectory
+> ~37% of top-1%-retail today. Trajectory ~45-50% next quarter IF (a) the overlay
+> closes the crisis gap AND (b) one literature edge clears t>2. De-gross improves the
+> *risk profile*, not alpha. **The headline question — does regime-transition de-gross
+> close the bull-conditional collapse? — is one experiment (T-118) from a definitive
+> answer, either way.**
+
+---
 
 > **2026-05-22 LATE — T-041b + T-055 both landed; verdicts split**
 >
