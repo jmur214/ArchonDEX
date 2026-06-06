@@ -1,0 +1,62 @@
+{
+  "campaign_name": "spot-sleeve-integration-t121",
+  "task_id": "T-2026-06-06-121",
+  "description": "Integrated A/B of the spot 8-ETF sleeve at 25% and 30% capital allocation vs the production baseline (arm0_off). The integrated result is the TRUE A/B \u2014 the T-115 analytical partition was an external linear combination; this is the in-engine semantics.",
+  "arms": [
+    {
+      "arm_id": "arm0_off",
+      "label": "Baseline (sleeve OFF)",
+      "config_patches": {
+        "portfolio_settings.json": {
+          "spot_sleeve_enabled": false
+        }
+      }
+    },
+    {
+      "arm_id": "arm1_on_25pct",
+      "label": "Spot sleeve ON @ 25% capital (T-115 recommended allocation)",
+      "config_patches": {
+        "portfolio_settings.json": {
+          "spot_sleeve_enabled": true,
+          "spot_sleeve_capital_pct": 0.25
+        }
+      }
+    },
+    {
+      "arm_id": "arm2_on_30pct",
+      "label": "Spot sleeve ON @ 30% capital (T-115 bigger-MDD-slash arm)",
+      "config_patches": {
+        "portfolio_settings.json": {
+          "spot_sleeve_enabled": true,
+          "spot_sleeve_capital_pct": 0.3
+        }
+      }
+    }
+  ],
+  "windows": [
+    {
+      "window_id": "2010-2025_16yr",
+      "start_date": "2010-01-01",
+      "end_date": "2025-12-31",
+      "label": "T-092 16-yr arm0_off best window (Sharpe 1.018, ci_low 0.560)"
+    },
+    {
+      "window_id": "2000-2025_26yr",
+      "start_date": "2000-01-01",
+      "end_date": "2025-12-31",
+      "label": "T-092 26-yr 2008-inclusive substrate (Sharpe 0.246, ci_low -0.119)"
+    }
+  ],
+  "reps_per_cell": 5,
+  "total_cells": 30,
+  "deferred_until": "T-109 fresh ECR image (the :dev image predates T-120/T-121)",
+  "primary_kpis": [
+    "MDD reduction (rel + abs pp) vs arm0_off",
+    "Sharpe ci_low delta vs arm0_off",
+    "Calmar improvement",
+    "Calm-year Sharpe delta",
+    "Crisis-period return aggregate",
+    "Reproduction-vs-T-115 (integrated vs analytical divergence)"
+  ],
+  "decision_gate": "MDD reduction >= 15% AND Sharpe ci_low not down AND calm-Sharpe drag >= -0.20 \u2014 same gate as T-115 analytical."
+}
