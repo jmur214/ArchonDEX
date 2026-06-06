@@ -63,15 +63,46 @@ class PortfolioEngine:
     """
 
     def __init__(self, initial_capital: float, policy_cfg: Optional[PortfolioPolicyConfig] = None):
-        self.cash: float = float(initial_capital)
+        _cfg = policy_cfg or PortfolioPolicyConfig()
+        self.policy = PortfolioPolicy(_cfg)
+
+        # T-2026-06-06-120 — spot 8-ETF crisis-diversifier sleeve, Phase 1.
+        # When `spot_sleeve_enabled=True`, partition initial capital between
+        # the equity book (1 - spot_sleeve_capital_pct) and a self-contained
+        # SpotETFTrendSleeve that runs the validated T-115 cross-asset
+        # diversified-trend logic on the 8-ETF basket (NOT equity-trend; see
+        # SpotETFTrendSleeve docstring for the inbox-flagged anti-pattern
+        # warning). The sleeve runs independently from Engine A/B order flow
+        # — it tracks its own equity bar-by-bar via Stooq close-prices and
+        # contributes its PnL to total portfolio equity in snapshot().
+        #
+        # Default OFF preserves pre-T-120 production behavior:
+        #   self.cash = initial_capital, self.spot_sleeve = None,
+        #   snapshot() returns cash + market_value (no sleeve contribution).
+        # → canon-md5 bitwise-identical to current main baseline.
+        self.spot_sleeve = None
+        self._spot_sleeve_capital_pct = 0.0
+        if getattr(_cfg, "spot_sleeve_enabled", False):
+            from engines.engine_c_portfolio.sleeves.spot_etf_trend_sleeve import (
+                SpotETFTrendSleeve,
+            )
+            self._spot_sleeve_capital_pct = float(_cfg.spot_sleeve_capital_pct)
+            sleeve_initial = float(initial_capital) * self._spot_sleeve_capital_pct
+            self.spot_sleeve = SpotETFTrendSleeve(initial_capital=sleeve_initial)
+            book_initial = float(initial_capital) - sleeve_initial
+        else:
+            book_initial = float(initial_capital)
+
+        self.cash: float = book_initial
         self.realized_pnl: float = 0.0
         self.positions: Dict[str, Position] = {}
         self.history: List[dict] = []
-        self.policy = PortfolioPolicy(policy_cfg or PortfolioPolicyConfig())
         self.current_target_weights: Dict[str, float] = {}
         # Running peak equity for the drawdown-gated kill switch (R1
-        # punch-list). Initialized to starting capital; advanced monotonically
-        # in snapshot() whenever equity makes a new high.
+        # punch-list). Initialized to TOTAL starting capital (book + sleeve
+        # if T-120 partition active), so drawdowns are measured against the
+        # full intended portfolio. Advanced monotonically in snapshot()
+        # whenever equity makes a new high.
         self.peak_equity: float = float(initial_capital)
 
     def _log_debug(self, msg: str):
@@ -284,7 +315,25 @@ class PortfolioEngine:
         market_value = math.fsum(mv_contribs)
         unrealized = math.fsum(ur_contribs)
 
-        equity = self.cash + market_value
+        # T-2026-06-06-120 — spot 8-ETF crisis-diversifier sleeve PnL.
+        # Advance the self-contained sleeve to today and add its current
+        # equity to the portfolio total. When spot_sleeve is None (default
+        # OFF), this adds 0.0 — bitwise-identical to pre-T-120 baseline.
+        # When ON, the sleeve has been compounding its share of capital
+        # bar-by-bar via the 8-ETF basket monthly-trend rule (T-115 spec).
+        sleeve_equity = 0.0
+        if self.spot_sleeve is not None:
+            try:
+                self.spot_sleeve.advance_to(pd.to_datetime(timestamp))
+                sleeve_equity = float(self.spot_sleeve.equity)
+            except Exception as exc:
+                # A failing sleeve MUST NOT crash the snapshot path.
+                # Log + degrade to last-known sleeve value (or 0 if never advanced).
+                if is_debug_enabled("PORTFOLIO"):
+                    print(f"[PORTFOLIO][SPOT_SLEEVE][WARN] advance_to failed at {timestamp}: {exc}")
+                sleeve_equity = float(getattr(self.spot_sleeve, "equity", 0.0))
+
+        equity = self.cash + market_value + sleeve_equity
         # Advance the running peak; compute drawdown vs peak. peak_equity
         # is monotone non-decreasing so subsequent flat-or-down equity
         # produces a non-negative current_drawdown_pct.
@@ -304,6 +353,12 @@ class PortfolioEngine:
             "positions": open_positions_count,
             "peak_equity": self.peak_equity,
             "current_drawdown_pct": current_drawdown_pct,
+            # T-2026-06-06-120: spot 8-ETF sleeve PnL contribution. Zero when
+            # sleeve disabled (default). Downstream consumers that recompute
+            # equity from cash + market_value MUST add this back, or they
+            # silently drop the sleeve's contribution (see backtest_controller
+            # _log_snapshot override at the matching point).
+            "sleeve_equity": sleeve_equity,
         }
         # optional quick-look attribution (counts of open positions by edge)
         try:

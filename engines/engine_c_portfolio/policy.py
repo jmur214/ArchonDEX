@@ -26,6 +26,22 @@ class PortfolioPolicyConfig:
     # Parrondo / Fixed Mode Settings
     fixed_allocations: Optional[Dict[str, float]] = None # e.g. {"SPY": 0.5, "SHV": 0.5}
 
+    # T-2026-06-06-120 — spot 8-ETF crisis-diversifier sleeve, Phase 1 wiring.
+    # When `spot_sleeve_enabled=True`, PortfolioEngine partitions capital:
+    # the equity book runs on `(1 - spot_sleeve_capital_pct)` of initial
+    # capital; the spot 8-ETF basket sleeve (SPY/TLT/GLD/USO/UUP/EEM/IEF/DBC,
+    # monthly rebalance, top-N=4, lookback=252, vol_window=63, max_pos=0.30)
+    # runs independently on the remaining `spot_sleeve_capital_pct` and its
+    # PnL is added to `equity` via PortfolioEngine.snapshot(). Faithful
+    # capital-partition match to T-115's analytical result.
+    #
+    # Default OFF preserves pre-T-120 production behavior and canon-md5
+    # bitwise-identical (no sleeve code runs when False). Production flag-flip
+    # requires the T-120 A/B evidence + director/user gate; this dispatch
+    # ships the wiring + measurement, not the prod-default change.
+    spot_sleeve_enabled: bool = False
+    spot_sleeve_capital_pct: float = 0.25
+
 
 class PortfolioPolicy:
     """
