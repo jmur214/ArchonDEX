@@ -1,0 +1,8 @@
+{
+  "run_id":         "3d8b6110-6364-4d4f-aaf6-c67dd9293e34",
+  "cell_id":        "t109-static20-sector-cap-ab/arm1_static_20pct/16yr/rep1",
+  "canon_md5":      "1003293821cf089424996e473285f45b",
+  "sharpe":         "0.766",
+  "s3_prefix":      "s3://archondex-results-407539788432/t109-static20-sector-cap-ab/arm1_static_20pct/16yr/rep1/3d8b6110-6364-4d4f-aaf6-c67dd9293e34",
+  "completed_at":   "2026-06-06T08:50:00Z"
+}

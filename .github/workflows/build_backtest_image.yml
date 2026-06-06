@@ -60,6 +60,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # T-2026-06-05-109 fail-loud precheck. The OIDC action below silently
+      # reports "Credentials could not be loaded" when AWS_ROLE_TO_ASSUME
+      # is missing, which T-109 traced to ~10 consecutive failed runs
+      # since 2026-05-24 (the secret has never been configured for this
+      # repo). Fail with a NAMED reason so the next maintainer doesn't
+      # have to dig through the OIDC action output.
+      # See docs/Audit/ecr_rebuild_static20_t109_2026_06_05.md for the
+      # one-time IAM + secret setup the user must do.
+      - name: Pre-check required secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
+            echo "::error::Repo secret AWS_ROLE_TO_ASSUME is MISSING."
+            echo "::error::This workflow has been failing on every main push since 2026-05-24."
+            echo "::error::Fix: GitHub repo → Settings → Secrets and variables → Actions →"
+            echo "::error::      add secret AWS_ROLE_TO_ASSUME with the IAM role ARN."
+            echo "::error::See docs/Audit/ecr_rebuild_static20_t109_2026_06_05.md for the"
+            echo "::error::IAM role + OIDC trust-policy configuration (one-time setup)."
+            exit 1
+          fi
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
