@@ -1,0 +1,1151 @@
+{
+  "task": "T-2026-06-05-112",
+  "allocations": [
+    0.0,
+    0.1,
+    0.15,
+    0.2
+  ],
+  "sleeves": {
+    "spot_basket": {
+      "sleeve_name": "Spot 8-ETF basket",
+      "base_label": "T-092 arm0_off 26yr (2000-2025)",
+      "window": [
+        "2008-02-20",
+        "2025-12-30"
+      ],
+      "n_aligned_rows": 4494,
+      "years": 17.859000684462696,
+      "n_crisis_days": 707,
+      "n_calm_days": 3787,
+      "arms": [
+        {
+          "allocation": 0.0,
+          "sharpe": {
+            "point": 0.32575130689672815,
+            "ci_low": -0.11722825996227305,
+            "ci_high": 0.7939928603681085
+          },
+          "max_drawdown": {
+            "point": -0.526976386011888,
+            "ci_low": -0.617411051006495,
+            "ci_high": -0.20944508766935754
+          },
+          "calmar": {
+            "point": 0.06500883502065435,
+            "ci_low": -0.04477720220746764,
+            "ci_high": 0.4049460246306935
+          },
+          "cagr": 0.03425812093802749,
+          "final_equity_multiple": 1.823403385713734,
+          "calm_year_sharpe": 0.89103729847987,
+          "crisis_period_sharpe": -1.1354821426908028,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 146,
+              "total_return": -0.4414166973114947
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 50,
+              "total_return": -0.00925335338836375
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 85,
+              "total_return": -0.15312374751447722
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 55,
+              "total_return": -0.0005592146522284125
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 63,
+              "total_return": 0.008089246531066907
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.04152516540229989
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.027578498442557997
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.027131965955755843
+            }
+          ]
+        },
+        {
+          "allocation": 0.1,
+          "sharpe": {
+            "point": 0.3706227859784415,
+            "ci_low": -0.07937633041404091,
+            "ci_high": 0.8546907726911924
+          },
+          "max_drawdown": {
+            "point": -0.4937718722141149,
+            "ci_low": -0.5722766585724886,
+            "ci_high": -0.18700378300235387
+          },
+          "calmar": {
+            "point": 0.07502121378685862,
+            "ci_low": -0.034213263267979,
+            "ci_high": 0.4389583983297994
+          },
+          "cagr": 0.03704336518731255,
+          "final_equity_multiple": 1.9129855604269683,
+          "calm_year_sharpe": 0.967839608775232,
+          "crisis_period_sharpe": -1.1688885102190025,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 146,
+              "total_return": -0.41163945426732973
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 50,
+              "total_return": -0.01689430657743729
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 85,
+              "total_return": -0.13948722743858033
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 55,
+              "total_return": -0.00034889334669663263
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 63,
+              "total_return": -0.001858503563256786
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.03942248623444311
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.036578351199921366
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.025436146560102513
+            }
+          ]
+        },
+        {
+          "allocation": 0.15,
+          "sharpe": {
+            "point": 0.39538371879356626,
+            "ci_low": -0.05697354262583268,
+            "ci_high": 0.889955096000638
+          },
+          "max_drawdown": {
+            "point": -0.47648013414993806,
+            "ci_low": -0.5430692611366325,
+            "ci_high": -0.1770421104541915
+          },
+          "calmar": {
+            "point": 0.0804428583054407,
+            "ci_low": -0.03213406772819246,
+            "ci_high": 0.45789780776993194
+          },
+          "cagr": 0.03832942391678085,
+          "final_equity_multiple": 1.9557366446977862,
+          "calm_year_sharpe": 1.0080340775443755,
+          "crisis_period_sharpe": -1.185401993731699,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 146,
+              "total_return": -0.39633312943537014
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 50,
+              "total_return": -0.020762313372908237
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 85,
+              "total_return": -0.13271973581070962
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 55,
+              "total_return": -0.00026431899927015223
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 63,
+              "total_return": -0.006810968587714128
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.038420869221529985
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.04103474401116203
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.024562954733833076
+            }
+          ]
+        },
+        {
+          "allocation": 0.2,
+          "sharpe": {
+            "point": 0.4215335301199123,
+            "ci_low": -0.04461560230313465,
+            "ci_high": 0.9175438635105434
+          },
+          "max_drawdown": {
+            "point": -0.45871802056856126,
+            "ci_low": -0.5223640904094757,
+            "ci_high": -0.16515164886399802
+          },
+          "calmar": {
+            "point": 0.0862056440999546,
+            "ci_low": -0.021167379392968366,
+            "ci_high": 0.47281790007562013
+          },
+          "cagr": 0.03954408242336904,
+          "final_equity_multiple": 1.9969410200406168,
+          "calm_year_sharpe": 1.0484012827909965,
+          "crisis_period_sharpe": -1.201138348241827,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 146,
+              "total_return": -0.38074643584811363
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 50,
+              "total_return": -0.024661503934086726
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 85,
+              "total_return": -0.1259879774473367
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 55,
+              "total_return": -0.0001934528395048929
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 63,
+              "total_return": -0.011749123302856046
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.03745241231489216
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.045461401331726936
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.023672994626407817
+            }
+          ]
+        }
+      ]
+    },
+    "dbmf": {
+      "sleeve_name": "DBMF",
+      "base_label": "T-092 arm0_off 16yr (2010-2025)",
+      "window": [
+        "2019-05-13",
+        "2025-12-30"
+      ],
+      "n_aligned_rows": 1668,
+      "years": 6.633812457221081,
+      "n_crisis_days": 308,
+      "n_calm_days": 1360,
+      "arms": [
+        {
+          "allocation": 0.0,
+          "sharpe": {
+            "point": 1.0878978132201762,
+            "ci_low": 0.35908098513322884,
+            "ci_high": 1.77520259275139
+          },
+          "max_drawdown": {
+            "point": -0.08596331136476032,
+            "ci_low": -0.18032832266568077,
+            "ci_high": -0.05384615208742949
+          },
+          "calmar": {
+            "point": 0.9089412926126239,
+            "ci_low": 0.15592595625094438,
+            "ci_high": 2.204150611959638
+          },
+          "cagr": 0.07813560334914671,
+          "final_equity_multiple": 1.6453818833193716,
+          "calm_year_sharpe": 1.4082731551399221,
+          "crisis_period_sharpe": 0.5434202443323706,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.02637344513026474
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.08676822210866475
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.011394842443683384
+            }
+          ]
+        },
+        {
+          "allocation": 0.1,
+          "sharpe": {
+            "point": 1.1481274363540859,
+            "ci_low": 0.40301778117222753,
+            "ci_high": 1.8616790442095401
+          },
+          "max_drawdown": {
+            "point": -0.07814566254467492,
+            "ci_low": -0.16201758543880063,
+            "ci_high": -0.04813681735008324
+          },
+          "calmar": {
+            "point": 0.9728907628823704,
+            "ci_low": 0.18343104972163438,
+            "ci_high": 2.329361395397019
+          },
+          "cagr": 0.07602719324903706,
+          "final_equity_multiple": 1.624200301309829,
+          "calm_year_sharpe": 1.4237138477116729,
+          "crisis_period_sharpe": 0.7102469021419182,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.025676193744598286
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.11012708739910981
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.0056607840423714695
+            }
+          ]
+        },
+        {
+          "allocation": 0.15,
+          "sharpe": {
+            "point": 1.1631616482827318,
+            "ci_low": 0.40431075829574215,
+            "ci_high": 1.8734171470019085
+          },
+          "max_drawdown": {
+            "point": -0.07882225914771712,
+            "ci_low": -0.15611909046176486,
+            "ci_high": -0.04722962791446772
+          },
+          "calmar": {
+            "point": 0.950117680994288,
+            "ci_low": 0.1891094748240833,
+            "ci_high": 2.3741127595317173
+          },
+          "cagr": 0.07489042207215979,
+          "final_equity_multiple": 1.612876400890204,
+          "calm_year_sharpe": 1.401031944172418,
+          "crisis_period_sharpe": 0.7977152732650528,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.025367913708812306
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.12187533945198781
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.0027953880816720122
+            }
+          ]
+        },
+        {
+          "allocation": 0.2,
+          "sharpe": {
+            "point": 1.1643910417325452,
+            "ci_low": 0.4051542596683601,
+            "ci_high": 1.882566505348058
+          },
+          "max_drawdown": {
+            "point": -0.07951340292794717,
+            "ci_low": -0.1529932425711511,
+            "ci_high": -0.04630802248186561
+          },
+          "calmar": {
+            "point": 0.9268726715889569,
+            "ci_low": 0.18790138129605904,
+            "ci_high": 2.3765220889591405
+          },
+          "cagr": 0.07369880019895558,
+          "final_equity_multiple": 1.6010781289804477,
+          "calm_year_sharpe": 1.3548934987987293,
+          "crisis_period_sharpe": 0.8850958303442196,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 51,
+              "total_return": -0.025086555750979067
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.13366788515660577
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": -6.886905176894942e-05
+            }
+          ]
+        }
+      ]
+    },
+    "kmlm": {
+      "sleeve_name": "KMLM",
+      "base_label": "T-092 arm0_off 16yr (2010-2025)",
+      "window": [
+        "2020-12-09",
+        "2025-12-30"
+      ],
+      "n_aligned_rows": 1265,
+      "years": 5.0568104038329915,
+      "n_crisis_days": 257,
+      "n_calm_days": 1008,
+      "arms": [
+        {
+          "allocation": 0.0,
+          "sharpe": {
+            "point": 0.7068921828387831,
+            "ci_low": -0.12802563805215303,
+            "ci_high": 1.5323640069131268
+          },
+          "max_drawdown": {
+            "point": -0.08596331136476054,
+            "ci_low": -0.1848993948911556,
+            "ci_high": -0.046575746655180494
+          },
+          "calmar": {
+            "point": 0.49006955338376,
+            "ci_low": -0.06462027740922008,
+            "ci_high": 1.8956954722464434
+          },
+          "cagr": 0.0421280016079173,
+          "final_equity_multiple": 1.2301580237178182,
+          "calm_year_sharpe": 0.6626883539112887,
+          "crisis_period_sharpe": 0.9449621213770001,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.08676822210866475
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.011394842443683384
+            }
+          ]
+        },
+        {
+          "allocation": 0.1,
+          "sharpe": {
+            "point": 0.7491222033624954,
+            "ci_low": -0.07205833449270876,
+            "ci_high": 1.5487582422717792
+          },
+          "max_drawdown": {
+            "point": -0.07274117196458962,
+            "ci_low": -0.16149727400126246,
+            "ci_high": -0.041964941102253794
+          },
+          "calmar": {
+            "point": 0.5810806112677716,
+            "ci_low": -0.04123834749228212,
+            "ci_high": 1.991604214495862
+          },
+          "cagr": 0.042268484669517825,
+          "final_equity_multiple": 1.2309906909159671,
+          "calm_year_sharpe": 0.5297360258798728,
+          "crisis_period_sharpe": 1.2898314827135298,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.12387542976551602
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.006010020714313669
+            }
+          ]
+        },
+        {
+          "allocation": 0.15,
+          "sharpe": {
+            "point": 0.7500882152583666,
+            "ci_low": -0.03912603345662251,
+            "ci_high": 1.5642299776763837
+          },
+          "max_drawdown": {
+            "point": -0.06849506234472469,
+            "ci_low": -0.1543404794306794,
+            "ci_high": -0.041683802999920694
+          },
+          "calmar": {
+            "point": 0.616643514693176,
+            "ci_low": -0.02905401075733057,
+            "ci_high": 2.0001332031439922
+          },
+          "cagr": 0.042237035983379245,
+          "final_equity_multiple": 1.2308042499624616,
+          "calm_year_sharpe": 0.4390980187267777,
+          "crisis_period_sharpe": 1.452977172261638,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.14269670831132064
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.0033163598972441033
+            }
+          ]
+        },
+        {
+          "allocation": 0.2,
+          "sharpe": {
+            "point": 0.7365547194717184,
+            "ci_low": -0.037628298436745304,
+            "ci_high": 1.5112681314132739
+          },
+          "max_drawdown": {
+            "point": -0.06455474865927424,
+            "ci_low": -0.15875569121724464,
+            "ci_high": -0.042153448029386364
+          },
+          "calmar": {
+            "point": 0.6527440742923305,
+            "ci_low": -0.027267879510407454,
+            "ci_high": 1.9677636643089327
+          },
+          "cagr": 0.04213772965477203,
+          "final_equity_multiple": 1.2302156689808257,
+          "calm_year_sharpe": 0.34234639239197356,
+          "crisis_period_sharpe": 1.5994933279459949,
+          "crisis_windows": [
+            {
+              "label": "2008 GFC",
+              "start": "2008-09-01",
+              "end": "2009-03-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2010 Flash crash",
+              "start": "2010-04-23",
+              "end": "2010-07-02",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2011 EU debt",
+              "start": "2011-07-01",
+              "end": "2011-10-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2015-08 China",
+              "start": "2015-07-15",
+              "end": "2015-09-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2018-Q4",
+              "start": "2018-10-01",
+              "end": "2018-12-31",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "COVID 2020",
+              "start": "2020-02-19",
+              "end": "2020-04-30",
+              "n_days": 0,
+              "total_return": NaN
+            },
+            {
+              "label": "2022 bear",
+              "start": "2022-01-03",
+              "end": "2022-10-12",
+              "n_days": 196,
+              "total_return": 0.16169430007309926
+            },
+            {
+              "label": "2025 vol-shock",
+              "start": "2025-02-01",
+              "end": "2025-04-30",
+              "n_days": 61,
+              "total_return": 0.0006219217364262786
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "decision_gate_table": [
+    {
+      "sleeve": "spot_basket",
+      "allocation": 0.1,
+      "mdd_reduction_pct": 0.06300949089780289,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": 0.076802310295362,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": -0.07937633041404091,
+      "arm_mdd": -0.4937718722141149,
+      "base_mdd": -0.526976386011888,
+      "arm_calmar": 0.07502121378685862,
+      "calm_year_sharpe": 0.967839608775232
+    },
+    {
+      "sleeve": "spot_basket",
+      "allocation": 0.15,
+      "mdd_reduction_pct": 0.09582260837928858,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": 0.11699677906450545,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": -0.05697354262583268,
+      "arm_mdd": -0.47648013414993806,
+      "base_mdd": -0.526976386011888,
+      "arm_calmar": 0.0804428583054407,
+      "calm_year_sharpe": 1.0080340775443755
+    },
+    {
+      "sleeve": "spot_basket",
+      "allocation": 0.2,
+      "mdd_reduction_pct": 0.12952831901994735,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": 0.15736398431112653,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": -0.04461560230313465,
+      "arm_mdd": -0.45871802056856126,
+      "base_mdd": -0.526976386011888,
+      "arm_calmar": 0.0862056440999546,
+      "calm_year_sharpe": 1.0484012827909965
+    },
+    {
+      "sleeve": "dbmf",
+      "allocation": 0.1,
+      "mdd_reduction_pct": 0.09094169007651973,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": 0.015440692571750736,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": 0.40301778117222753,
+      "arm_mdd": -0.07814566254467492,
+      "base_mdd": -0.08596331136476032,
+      "arm_calmar": 0.9728907628823704,
+      "calm_year_sharpe": 1.4237138477116729
+    },
+    {
+      "sleeve": "dbmf",
+      "allocation": 0.15,
+      "mdd_reduction_pct": 0.08307092995455025,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": -0.007241210967504186,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": 0.40431075829574215,
+      "arm_mdd": -0.07882225914771712,
+      "base_mdd": -0.08596331136476032,
+      "arm_calmar": 0.950117680994288,
+      "calm_year_sharpe": 1.401031944172418
+    },
+    {
+      "sleeve": "dbmf",
+      "allocation": 0.2,
+      "mdd_reduction_pct": 0.07503094441586637,
+      "mdd_reduction_passes_15pct": false,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": -0.053379656341192794,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": 0.4051542596683601,
+      "arm_mdd": -0.07951340292794717,
+      "base_mdd": -0.08596331136476032,
+      "arm_calmar": 0.9268726715889569,
+      "calm_year_sharpe": 1.3548934987987293
+    },
+    {
+      "sleeve": "kmlm",
+      "allocation": 0.1,
+      "mdd_reduction_pct": 0.15381142478407536,
+      "mdd_reduction_passes_15pct": true,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": -0.13295232803141588,
+      "calm_drag_bounded": true,
+      "passes_decision_gate": true,
+      "arm_sharpe_ci_low": -0.07205833449270876,
+      "arm_mdd": -0.07274117196458962,
+      "base_mdd": -0.08596331136476054,
+      "arm_calmar": 0.5810806112677716,
+      "calm_year_sharpe": 0.5297360258798728
+    },
+    {
+      "sleeve": "kmlm",
+      "allocation": 0.15,
+      "mdd_reduction_pct": 0.20320586471959382,
+      "mdd_reduction_passes_15pct": true,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": -0.223590335184511,
+      "calm_drag_bounded": false,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": -0.03912603345662251,
+      "arm_mdd": -0.06849506234472469,
+      "base_mdd": -0.08596331136476054,
+      "arm_calmar": 0.616643514693176,
+      "calm_year_sharpe": 0.4390980187267777
+    },
+    {
+      "sleeve": "kmlm",
+      "allocation": 0.2,
+      "mdd_reduction_pct": 0.2490430203955875,
+      "mdd_reduction_passes_15pct": true,
+      "sharpe_ci_low_not_down": true,
+      "calm_sharpe_delta": -0.3203419615193151,
+      "calm_drag_bounded": false,
+      "passes_decision_gate": false,
+      "arm_sharpe_ci_low": -0.037628298436745304,
+      "arm_mdd": -0.06455474865927424,
+      "base_mdd": -0.08596331136476054,
+      "arm_calmar": 0.6527440742923305,
+      "calm_year_sharpe": 0.34234639239197356
+    }
+  ],
+  "verdict": "RECOMMEND kmlm @ 10% (MDD reduction +15.4%, calmar +0.581)"
+}
