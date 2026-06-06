@@ -276,7 +276,14 @@ class PaperTradeController:
 
             # Equity at 'now'
             last_prices_now = {t: self._close_scalar(df.loc[now]) for t, df in slice_map.items()}
-            equity_now = self.portfolio.total_equity(last_prices_now)
+            # T-2026-06-06-121 Phase 2: when spot sleeve is ON, the book sizes
+            # off its proportional slice of TOTAL portfolio (book + sleeve)
+            # per the decoupled-capital semantics. When OFF (default),
+            # effective_book_equity_for_sizing returns total_equity (no-op).
+            if hasattr(self.portfolio, "effective_book_equity_for_sizing"):
+                equity_now = self.portfolio.effective_book_equity_for_sizing(last_prices_now)
+            else:
+                equity_now = self.portfolio.total_equity(last_prices_now)
 
             # Risk -> orders
             orders: List[dict] = []
@@ -453,7 +460,12 @@ class LiveTradeController:
 
         # Portfolio equity at current snapshot
         last_prices = {t: self._close_scalar(latest_rows[t]) for t in latest_rows}
-        equity = self.portfolio.total_equity(last_prices)
+        # T-2026-06-06-121 Phase 2: decoupled book sizing equity when sleeve ON
+        # (no-op when OFF — returns total_equity).
+        if hasattr(self.portfolio, "effective_book_equity_for_sizing"):
+            equity = self.portfolio.effective_book_equity_for_sizing(last_prices)
+        else:
+            equity = self.portfolio.total_equity(last_prices)
 
         # Risk -> orders
         orders: List[dict] = []

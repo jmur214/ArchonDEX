@@ -398,6 +398,44 @@ class PortfolioEngine:
 
             mv_contribs.append(float(pos.qty) * px)
         return self.cash + math.fsum(mv_contribs)
+
+    # ------------------------------------------------------------------ #
+    def effective_book_equity_for_sizing(self, price_map: Dict[str, float]) -> float:
+        """T-2026-06-06-121 Phase 2 decoupling: the equity input that
+        Engine A (signal scaling) and Engine B (position sizing) should
+        use when computing target notionals.
+
+        When the spot sleeve is OFF (production default), this equals
+        `total_equity()` — bitwise-identical to pre-T-121 behavior.
+
+        When the spot sleeve is ON, this returns
+        `(book_cash + book_mv + sleeve_equity) * (1 - spot_sleeve_capital_pct)`
+        — the book's proportional slice of total portfolio value. The
+        formula matches the inbox-specified decoupling:
+            book_sizing_equity = total_equity * (1 - spot_sleeve_capital_pct)
+
+        Note: with the T-120 capital-partition (`self.cash` starts at
+        `(1 - pct) * initial_capital`), this produces nearly the same
+        value as `total_equity()` at t=0 (both = initial book slice).
+        The difference becomes meaningful as the sleeve gains/loses:
+        the book gets a proportional share of the sleeve's dynamic
+        equity for sizing purposes. This is the "two sub-portfolios
+        sharing total equity" model the inbox specified to bring the
+        integrated path closer to T-115's analytical prediction.
+
+        Downstream consumers (backtest_controller._prepare_orders,
+        mode_controller checkpoints) should call this method instead
+        of `total_equity()` when sizing trades, OR be allowed to
+        continue calling `total_equity()` (which yields book-only
+        equity); both produce identical sizing when the sleeve is OFF.
+        For Phase-2 decoupled semantics, the controller must call
+        this method.
+        """
+        if self.spot_sleeve is None:
+            return self.total_equity(price_map)
+        sleeve_eq = float(getattr(self.spot_sleeve, "equity", 0.0))
+        total_eq = self.total_equity(price_map) + sleeve_eq
+        return total_eq * (1.0 - self._spot_sleeve_capital_pct)
     # ------------------------------------------------------------------ #
     def compute_target_allocations(
         self,

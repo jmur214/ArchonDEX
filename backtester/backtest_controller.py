@@ -532,6 +532,27 @@ class BacktestController:
                 if p_pos.qty != 0 and t_pos in close_prices_df.columns:
                     mv_contribs.append(float(p_pos.qty) * float(close_prices_df.at[ts, t_pos]))
             equity = self.get_portfolio_capital() + math.fsum(mv_contribs)
+
+            # T-2026-06-06-121 Phase 2 — decoupled capital semantics for the
+            # spot 8-ETF sleeve. When the sleeve is ON, the book sizes off
+            # its proportional slice of TOTAL portfolio value (book + sleeve)
+            # rather than just its own cash+market_value. This is the
+            # "two sub-portfolios sharing total equity" model the inbox
+            # specified to bring the integrated path closer to T-115
+            # analytical. When the sleeve is OFF (default), spot_sleeve is
+            # None and this no-ops — equity stays equal to the pre-T-121
+            # formula above, preserving canon-md5 bitwise-identical.
+            if getattr(self.portfolio, "spot_sleeve", None) is not None:
+                # Build a price_map for the book positions at this bar so
+                # effective_book_equity_for_sizing can compute total equity.
+                price_map_now = {
+                    t_pos: float(close_prices_df.at[ts, t_pos])
+                    for t_pos in self.portfolio.positions.keys()
+                    if self.portfolio.positions[t_pos].qty != 0
+                    and t_pos in close_prices_df.columns
+                }
+                equity = self.portfolio.effective_book_equity_for_sizing(price_map_now)
+
             equity_cache[ts] = equity
 
         # Call Policy (Engine C)
