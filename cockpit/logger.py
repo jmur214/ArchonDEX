@@ -66,6 +66,14 @@ class CockpitLogger:
         "positions",
         "peak_equity",
         "current_drawdown_pct",
+        # T-2026-06-06-124: Σ|qty·px| per bar. Needed by C's T-118
+        # de-gross campaign + T-116 count×size double-count diagnostic
+        # (this book shorts → net market_value ≠ gross). Reuses the
+        # PortfolioEngine.gross_notional helper. Purely additive in the
+        # CSV schema — canon (trades.csv) is unaffected; the existing
+        # cockpit.metrics reader already tolerates new columns appended
+        # before the trailing run_id position (verified post-T-124).
+        "gross_notional",
         "open_pos_by_edge",
         "run_id",
     ]
