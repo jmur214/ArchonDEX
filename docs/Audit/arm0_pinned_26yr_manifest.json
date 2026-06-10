@@ -1,0 +1,8 @@
+{
+  "run_id":         "63b6512b-959d-48fa-98d7-2ccb02f61a2c",
+  "cell_id":        "t125-rebaseline-t092-pinned/arm0_pinned/26yr/rep1",
+  "canon_md5":      "2b2f2c2b12b893fe7552d6251623a7dd",
+  "sharpe":         "0.446",
+  "s3_prefix":      "s3://archondex-results-407539788432/t125-rebaseline-t092-pinned/arm0_pinned/26yr/rep1/63b6512b-959d-48fa-98d7-2ccb02f61a2c",
+  "completed_at":   "2026-06-10T04:09:28Z"
+}
