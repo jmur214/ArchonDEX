@@ -98,6 +98,26 @@ done
 if [ -e "${MAIN}/data/governor" ]; then
   cp -r "${MAIN}/data/governor" "$WT/data/governor"
   echo "    copied data/governor (per-agent isolation for mutable state)"
+
+  # T-2026-06-10-133: the ANCHORS are shared, not copied. T-131 forensics
+  # found a per-agent anchor copy silently diverged from the director's
+  # for 29 days (data/governor is gitignored → a worktree-local anchor
+  # update never propagates). The anchor is the canon-relevant seed every
+  # isolated() run executes from, it is pinned by
+  # config/substrate_manifest.sha256, and updating it is a deliberate
+  # director-coordinated event (--save-anchor → regenerate manifest →
+  # commit both in one PR). Symlinking gives all worktrees a single
+  # source of truth; the 0o444 write-protection from save_anchor guards
+  # against accidental writes through the symlink. LIVE governor files
+  # stay per-agent copies (they're supposed to mutate per-run and are
+  # excluded from the manifest since T-131).
+  for anchor in _isolated_anchor _cap_recal_anchor; do
+    if [ -d "${MAIN}/data/governor/${anchor}" ]; then
+      rm -rf "$WT/data/governor/${anchor}"
+      ln -s "${MAIN}/data/governor/${anchor}" "$WT/data/governor/${anchor}"
+      echo "    symlinked data/governor/${anchor} (shared, write-protected)"
+    fi
+  done
 fi
 
 echo "[4/4] Verifying setup..."

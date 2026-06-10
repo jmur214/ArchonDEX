@@ -83,6 +83,15 @@ The launcher is `scripts/submit_substrate_run.py`. It currently hardcodes the su
 python scripts/submit_substrate_run.py --reps 3 --arms 1,2
 ```
 
+**`--job-timeout` defaults (T-109 lesson):** the job-definition default (30 min) only fits single-year cells. Deep windows need explicit overrides — and budget headroom over the naive estimate: T-109's 26-yr cell completed its full backtest and was SIGKILLed during the S3 upload because the timeout was 20 minutes too tight (the result needed a CloudWatch log-scrape to recover). Reference wall-times on the clean image: ~8-10 min/sim-year.
+
+| Window | `--job-timeout` |
+|---|---|
+| single-year | 3600 (1 h) |
+| 12-yr | 10800 (3 h) |
+| 16-yr | 14400 (4 h) |
+| **26-yr** | **21600 (6 h) — the default; never 14400** |
+
 **What this does (under the hood):**
 
 1. Submits N=reps × arms Batch jobs via `aws batch submit-job`, one per cell.
@@ -105,13 +114,15 @@ Monthly budget alarm is set at $20 → triple-digit job counts will trigger bill
 
 ## Refreshing the image
 
-The `:dev` tag bakes the project source + `data/processed/` + governor templates at build time. Any time main has commits the image hasn't seen, the image must be rebuilt and pushed BEFORE submitting jobs — otherwise the campaign runs stale code.
+The `:dev` tag bakes the project source + `data/processed/` + `data/raw/` + governor ANCHORS at build time. Any time main has commits the image hasn't seen, the image must be rebuilt and pushed BEFORE submitting jobs — otherwise the campaign runs stale code.
 
-**Manual (until CI takes over — see `.github/workflows/build_backtest_image.yml`):**
+**THE ONLY SANCTIONED BUILD PATH (T-127/T-133 — do NOT run raw `docker build .`):**
 
 ```bash
-# From repo root, on a clean main checkout.
-docker build -f Dockerfile.backtest -t archondex-backtest:dev .
+# From any worktree (symlinked data/ subdirs are followed).
+scripts/build_backtest_image.sh HEAD            # → archondex-backtest:dev + :sha-<short>
+# or pin an exact commit:
+scripts/build_backtest_image.sh <git-ref> archondex-backtest:<tag>
 
 aws ecr get-login-password --profile archondex --region us-east-1 \
   | docker login --username AWS --password-stdin \
@@ -123,9 +134,15 @@ docker tag archondex-backtest:dev \
 docker push 407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:dev
 ```
 
-Build ~5 min (deps + project + bake data). Push ~2-5 min on residential. The Batch job def is set to `imagePullPolicy=Always` so a fresh push is picked up on the next job submit; no `aws batch register-job-definition` rerun needed.
+Why script-only (the T-125→T-127 saga in one paragraph): raw `docker build .` bakes the LIVE WORKTREE — host `__pycache__` (which the container then EXECUTES in place of the source — the stale-bytecode bug that produced a fake +0.21 Sharpe at 26-yr), untracked junk, uncommitted file states. The script builds from `git archive <commit>` (worktree-independent by construction), verifies the data substrate against the committed `config/substrate_manifest.sha256` (drifted data = loud failure, not a silently moved canon), and labels the image with commit + substrate provenance. Two builds of the same commit produce the same canon — proven 3-builds-1-canon (`529e5520…`, T-127).
 
-**Automatic:** the GitHub Actions workflow at `.github/workflows/build_backtest_image.yml` rebuilds + pushes `:dev` on every push to main. Once that's set up + verified, the manual sequence above is the fallback for "I need this rebuilt RIGHT NOW and can't wait for CI."
+**Substrate manifest policy (T-131):** `data/processed/` + `data/raw/` + governor ANCHORS are pinned by the manifest; the 9 LIVE mutable governor files (`edges.yml`, `edge_weights.json`, `regime_edge_performance.json`, `lifecycle_history.csv`, `ga_population.yml`, `lifecycle_journal.jsonl`, `.journal_apply_mark`, `edge_metrics.json`, `decision_diary.jsonl`) are excluded from BOTH the manifest and the image bake (T-133) — they are canon-irrelevant (the in-container harness restores scoped files from `_isolated_anchor/` on entry; the rest are write-only observability). Local runs therefore can NOT block builds.
+
+**Anchor-update procedure (deliberate, director-coordinated):** the anchors are shared across all worktrees via symlink (T-133) and write-protected (0o444). To change them: (1) `python -m scripts.run_isolated --save-anchor` in the director worktree; (2) `python3 scripts/gen_substrate_manifest.py generate`; (3) commit the regenerated manifest in the SAME PR with a note on why the seed state changed. A drifted anchor is a measurement-invalidating event — never update it casually.
+
+Build ~3-5 min (deps + project + bake data). Push ~5-50 min on residential. The Batch job def is set to `imagePullPolicy=Always` so a fresh push is picked up on the next job submit; no `aws batch register-job-definition` rerun needed.
+
+**Automatic:** the GitHub Actions workflow at `.github/workflows/build_backtest_image.yml` rebuilds + pushes `:dev` on every push to main — BLOCKED until the `AWS_ROLE_TO_ASSUME` repo secret is configured (see `docs/Audit/ecr_rebuild_static20_t109_2026_06_05.md` Part A). It should be migrated to call `scripts/build_backtest_image.sh` when revived.
 
 ---
 

@@ -556,3 +556,32 @@ python scripts/watch_coordination.py --once          # one snapshot + exit
 Protocol: agents no longer write `docs/State/TASK_LEDGER.md` (conflict source);
 the director writes the ledger row at merge time from the agent's outbox
 "Proposed TASK_LEDGER row" section. See `docs/Coordination/PROTOCOL.md`.
+
+### REPRODUCIBLE IMAGE BUILDS + SUBSTRATE PIN (T-127/T-131/T-133, 2026-06-10)
+
+The ONLY sanctioned way to build the cloud backtest image. Raw
+`docker build -f Dockerfile.backtest .` is DEPRECATED — it bakes live
+worktree state (host __pycache__ → stale-bytecode execution, untracked
+junk, uncommitted files); the T-125→T-127 saga came from exactly that.
+
+```bash
+# Build from a COMMIT (git archive; worktree-independent), verify the
+# data substrate against the committed manifest, label provenance:
+scripts/build_backtest_image.sh HEAD                      # → :dev + :sha-<short>
+scripts/build_backtest_image.sh <ref> archondex-backtest:<tag>
+
+# Substrate manifest (pins data/processed + data/raw + governor ANCHORS;
+# the 9 live mutable governor files are excluded — T-131 policy):
+python3 scripts/gen_substrate_manifest.py verify           # check current state
+python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE change; commit in same PR
+
+# Anchor update (deliberate, director-coordinated, 3 steps):
+python -m scripts.run_isolated --save-anchor               # writes + chmods anchors 0o444
+python3 scripts/gen_substrate_manifest.py generate         # re-pin
+# commit the manifest in the SAME PR with the reason for the seed change
+```
+
+Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
+does this for new worktrees; the 4 existing ones were converted
+2026-06-10). Cloud `--job-timeout`: 26-yr cells = 21600 (6h), never
+14400 — see CLOUD_USAGE.md timeout table.
