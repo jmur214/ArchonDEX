@@ -1,0 +1,8 @@
+{
+  "run_id":         "abc06a04-6981-47b2-9403-1ac4a0c68250",
+  "cell_id":        "t127-substrate-pin/nopyc/26yr/rep1",
+  "canon_md5":      "529e55204a92462337169fb0b3f3a4fd",
+  "sharpe":         "0.237",
+  "s3_prefix":      "s3://archondex-results-407539788432/t127-substrate-pin/nopyc/26yr/rep1/abc06a04-6981-47b2-9403-1ac4a0c68250",
+  "completed_at":   "2026-06-10T18:29:12Z"
+}

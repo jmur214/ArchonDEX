@@ -3,12 +3,25 @@
 # Anything not explicitly needed by the backtest harness is excluded.
 
 # --- Local environments / caches ---
+# T-127: dockerignore patterns are ROOTED at the context root — bare
+# `__pycache__/` only matched a TOP-LEVEL dir, so every nested
+# engines/**/__pycache__ (host-compiled bytecode!) was silently baked
+# into the image. Python then LOADED those host pycs instead of
+# compiling the baked source (T-127 forensics: 237 valid-header host
+# pycs in the June-6 images). The `**/` forms below close that.
 .venv/
 myenv/
 __pycache__/
+**/__pycache__
 *.pyc
+**/*.pyc
 *.pyo
 *.pyd
+**/.DS_Store
+# T-127: untracked config backup clutter was baked too (5 files found
+# in the June-6 images). Harmless only by luck — exclude the class.
+config/*backup*
+config/*.pre-*
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
