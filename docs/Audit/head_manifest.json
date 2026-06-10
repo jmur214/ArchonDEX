@@ -1,0 +1,8 @@
+{
+  "run_id":         "e9abcbe5-97cf-41ec-90ac-54001b0e1316",
+  "cell_id":        "t126-bisect/head/26yr/rep1",
+  "canon_md5":      "529e55204a92462337169fb0b3f3a4fd",
+  "sharpe":         "0.237",
+  "s3_prefix":      "s3://archondex-results-407539788432/t126-bisect/head/26yr/rep1/e9abcbe5-97cf-41ec-90ac-54001b0e1316",
+  "completed_at":   "2026-06-10T10:08:09Z"
+}
