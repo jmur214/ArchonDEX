@@ -26,10 +26,11 @@
 
 ## In flight (max 5)
 
-- **T-118 campaign (Agent C) — LAUNCHING (gate cleared by T-127).** HMM transition-trigger de-gross overlay, lean 52-cell pre-registered A/B on the pinned substrate. Pre-flight anchor: **arm0 26yr canon `529e5520` / Sharpe 0.237** (T-127, ×3-build bitwise). Crisis-model-driven, causal path, T-116 lift OFF in all arms. THE de-gross headline experiment — *more* important now the collapse is confirmed real.
-- **Spot-sleeve cloud A/B (Agent A) — next after C launches.** Prior NEGATIVE (T-120/121: analytical winner doesn't survive integration; scale-dependence ~2.7pp/yr). The 16/26-yr integrated A/B is the close-out verdict.
-- **T-113 drawdown-lift A/B — queued (B or C post-overlay).** The lagging de-gross sibling; needs the pinned image (has T-111's lift).
-- **Fair BAB deep-window re-test — queued (D).** T-123 missed on BAB's worst window (2014-25 large-cap headwind); the deep 2008-inclusive test is the honest alpha referendum.
+- **T-118 campaign (Agent C) — RELAUNCHED post substrate-restore.** HMM transition-trigger de-gross overlay, lean 52-cell pre-registered A/B on the pinned substrate (`:t127-clean`). Pre-flight anchor: **arm0 26yr canon `529e5520` / Sharpe 0.237**. Crisis-model-driven, causal path, T-116 lift OFF in all arms. THE de-gross headline experiment.
+- **T-128 sleeve close-out (Agent A) — 6 cells RUNNING** on `:t127-clean` (arm0/25%/30% × 16/26yr; in-campaign arm0 doubles as bitwise repro check vs `529e5520`). Prior NEGATIVE (T-120/121 scale-dependence). Verdict ≈ 4-5h out; analysis script pre-staged.
+- **T-113 drawdown-lift A/B — queued (post-overlay verdict).** The lagging de-gross sibling; avoid double N_trials spend if the overlay answers it.
+- **ALPHA LANE PAUSED — the fork is EARNED (T-129, USER decision pending).** Fair BAB referendum (26yr incl 2008, broadest universe, survivor-favorable): α coin-flip everywhere; pre-2014 literature alpha does not exist on our substrate; FF5 spans low-beta harder at depth. Chain closed (T-117→122→123→129): **substrate-empty is EVIDENCED.** Options: (a) risk-mgmt+falsification platform mission, (b) non-equity instruments, (c) micro-cap/intl universe. Decide after the overlay verdict lands (same strategic round).
+- **Governor-hygiene follow-up (B) — queued/dispatching:** run-isolation leak (something mutated `_isolated_anchor` past run_isolated) + the governor-in-manifest design question (any local director-worktree run re-blocks image builds until a director restore — seen 2026-06-10).
 - **Methodology guard — queued.** Single-cell OFF-canon ≠ 26yr-inert (T-126, ~0.009 leak): add a deep-window canon check to future inertness claims (contract-test/doc-lint extension).
 
 ## Next decision (exactly 1)
