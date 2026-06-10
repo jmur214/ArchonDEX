@@ -52,11 +52,34 @@ git archive "$SHA" | tar -x -C "$STAGE"
 
 echo "[build] staging data substrate (symlinks followed, junk excluded)"
 mkdir -p "$STAGE/data"
-for d in processed raw governor; do
+for d in processed raw; do
     rsync -aL \
         --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
         "data/$d" "$STAGE/data/"
 done
+# T-2026-06-10-133: LIVE mutable governor files are NOT baked. T-131
+# proved they are canon-irrelevant (isolated() restores every scoped
+# file from _isolated_anchor/ ON ENTRY; edge_metrics/decision_diary are
+# write-only observability, lazily re-created in-container). Excluding
+# them removes the last image-content surface that varies with local
+# run activity — images of the same commit are now byte-identical
+# regardless of what ran in the worktree. The ANCHORS keep being baked:
+# they are what the in-container harness executes from. Exclusion list
+# mirrors LIVE_MUTABLE_GOVERNOR in scripts/gen_substrate_manifest.py.
+# NOTE: patterns are ANCHORED ('/governor/<name>') — a bare 'edges.yml'
+# would basename-match at any depth and strip _isolated_anchor/edges.yml,
+# the very file the in-container harness restores from.
+rsync -aL \
+    --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
+    --exclude='/governor/edges.yml' --exclude='/governor/edge_weights.json' \
+    --exclude='/governor/regime_edge_performance.json' \
+    --exclude='/governor/lifecycle_history.csv' \
+    --exclude='/governor/ga_population.yml' \
+    --exclude='/governor/lifecycle_journal.jsonl' \
+    --exclude='/governor/.journal_apply_mark' \
+    --exclude='/governor/edge_metrics.json' \
+    --exclude='/governor/decision_diary.jsonl' \
+    "data/governor" "$STAGE/data/"
 
 echo "[build] verifying substrate against committed manifest"
 if [ ! -f "$STAGE/config/substrate_manifest.sha256" ]; then
