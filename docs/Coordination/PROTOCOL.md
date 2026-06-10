@@ -192,7 +192,7 @@ aws batch describe-job-queues --profile archondex \
   --query 'jobQueues[0].state' --output text         # must return ENABLED
 ```
 
-Director, A, and B all share `~/.aws/credentials` (user-level Mac state, visible from every worktree). No per-session AWS setup needed. The container `:dev` tag is auto-rebuilt on every main push via `.github/workflows/build_backtest_image.yml`; if the workflow isn't running, the manual rebuild path is in CLOUD_USAGE.md.
+Director, A, and B all share `~/.aws/credentials` (user-level Mac state, visible from every worktree). No per-session AWS setup needed. Image rebuilds go through `scripts/build_backtest_image.sh` ONLY (T-127/T-133 — raw `docker build .` bakes live-worktree state and is deprecated; full procedure + substrate-manifest policy in CLOUD_USAGE.md "Refreshing the image"). The CI auto-rebuild workflow exists but is BLOCKED on the `AWS_ROLE_TO_ASSUME` repo secret (T-109).
 
 For local-only situations (single backtest, mid-iteration debugging, < 4 cells), stay local — orchestration overhead dominates.
 
