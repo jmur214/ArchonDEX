@@ -21,7 +21,18 @@
 #   at runtime via --env-file or AWS Secrets Manager. NEVER COPY them in.
 
 # ---------- builder stage: install pinned deps into a virtualenv ----------
-FROM python:3.14-slim AS builder
+#
+# T-2026-06-06-125: base pinned by manifest-list digest (was previously
+# the mutable tag `python:3.14-slim`). The mutable tag could resolve to
+# a different image on each rebuild → silent base-layer drift between
+# the May-28 working image (--runs 3 = 3/3) and the 2026-06-06 T-109
+# rebuild (--runs 3 = 2/3, 1/3 drift to b17bb3953b9e…). The digest below
+# is the multi-arch index digest from `docker buildx imagetools inspect
+# python:3.14-slim` on 2026-06-06; resolves to the linux/amd64 manifest
+# `sha256:7d8de339aa8619f9b25e7d474d687ae4f6ef9704adad90a136af0f485adec
+# cb7` for Fargate (x86_64). To bump, re-run that inspect and update
+# BOTH stages atomically (builder + runtime) in the same commit.
+FROM python:3.14-slim@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97 AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -45,7 +56,10 @@ RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install -r requirements.lock.txt
 
 # ---------- runtime stage: minimal image with only what's needed -----------
-FROM python:3.14-slim AS runtime
+# T-125: runtime stage MUST pin to the SAME digest as the builder stage
+# above. Mismatched stages would re-introduce the drift the pin is
+# meant to close.
+FROM python:3.14-slim@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97 AS runtime
 
 # Runtime libs that the C-extension wheels depend on (lxml, pyarrow, etc.)
 # Plus awscli for S3 upload from the cloud entrypoint script (~30MB).

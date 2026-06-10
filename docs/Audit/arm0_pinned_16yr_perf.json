@@ -1,0 +1,73 @@
+{
+  "Starting Equity": 100000.0,
+  "Ending Equity": 476423.5,
+  "Net Profit": 376423.5,
+  "Total Return (%)": 376.42,
+  "CAGR (%)": 10.26,
+  "Max Drawdown (%)": -16.49,
+  "Sharpe Ratio": 0.945,
+  "Volatility (%)": 11.0,
+  "Win Rate (%)": 52.62,
+  "Total Trades": 7959,
+  "PSR": 0.9999,
+  "Sortino": 1.135,
+  "cost_completeness_layer_v1": {
+    "sharpe_A_baseline": 0.9445653453832625,
+    "sharpe_B_after_borrow_alpaca": 0.9445653453832625,
+    "sharpe_C_after_tax": 0.9445653453832625,
+    "cagr_A_baseline": 0.10273046053792245,
+    "cagr_B_after_borrow_alpaca": 0.10273046053792245,
+    "cagr_C_after_tax": 0.10273046053792245,
+    "max_dd_A_baseline": -0.1649483231671089,
+    "max_dd_B_after_borrow_alpaca": -0.1649483231671089,
+    "max_dd_C_after_tax": -0.1649483231671089,
+    "total_alpaca_fees_usd": 2837.8159098464585,
+    "total_borrow_drag_usd": 0.0,
+    "total_tax_drag_usd": 0.0,
+    "delta_A_to_B_sharpe": 0.0,
+    "delta_B_to_C_sharpe": 0.0,
+    "yearly_tax_breakdown": {}
+  },
+  "path_a_modules": {
+    "wash_sale": {
+      "enabled": false,
+      "buys_proposed": 0,
+      "buys_blocked": 0,
+      "block_rate": 0.0,
+      "loss_exits_recorded": 0
+    },
+    "lt_hold": {
+      "enabled": false,
+      "exits_proposed": 0,
+      "exits_deferred": 0,
+      "exits_hard_capped": 0,
+      "defer_rate": 0.0,
+      "tickers_tracked": 0
+    }
+  },
+  "bootstrap_distribution": {
+    "sharpe": {
+      "point_estimate": 0.9445653453832625,
+      "mean": 0.9650597800572308,
+      "std": 0.22751428820399355,
+      "median": 0.9650925345873048,
+      "ci_low": 0.530441158742825,
+      "ci_high": 1.4346468955438914,
+      "p_above_zero": 1.0,
+      "n_iterations": 500,
+      "block_length": 16
+    },
+    "sortino": {
+      "point_estimate": 1.134980213136343,
+      "mean": 1.1712444291951265,
+      "std": 0.30467921027745776,
+      "median": 1.164581145435526,
+      "ci_low": 0.6190147414676068,
+      "ci_high": 1.8528049626994851,
+      "p_above_zero": 1.0,
+      "n_iterations": 500,
+      "block_length": 16
+    },
+    "n_returns": 4023
+  }
+}
