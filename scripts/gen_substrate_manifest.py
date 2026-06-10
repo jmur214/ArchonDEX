@@ -40,6 +40,40 @@ JUNK_SUFFIXES = {".pyc"}
 JUNK_DIRS = {"__pycache__"}
 DEFAULT_MANIFEST = "config/substrate_manifest.sha256"
 
+# T-2026-06-10-131: LIVE mutable governor state is excluded from the
+# manifest. Rationale (proven, see docs/Audit/governor_hygiene_t131_*):
+#   * The in-container harness (scripts/run_isolated.py `isolated()`)
+#     restores every ISOLATED_FILES entry from `_isolated_anchor/` ON
+#     ENTRY — the baked live value is overwritten before the engine
+#     reads it, so it cannot affect the trade canon. Proven empirically:
+#     a run with the ENTIRE June-10 drifted live set mounted produced a
+#     bitwise-identical canon to the canonical run.
+#   * edge_metrics.json / decision_diary.jsonl are write-only
+#     observability outputs (governor._save_metrics is never read back;
+#     the diary has no engine readers) — append/rewrite by design.
+#   * Pinning them caused the operational trap this exclusion fixes:
+#     ANY local run mutated live files -> manifest verify FAILED -> all
+#     image builds blocked on a hand-restore.
+# The ANCHORS (`_isolated_anchor/`, `_cap_recal_anchor/`) remain PINNED
+# — they are the state the run actually executes from, i.e. the
+# reproducibility-relevant input. Changing an anchor is a deliberate
+# act: re-run --save-anchor, regenerate this manifest, commit both in
+# the same PR.
+LIVE_MUTABLE_GOVERNOR = {
+    # ISOLATED_FILES (run_isolated.py) — restored from anchor on entry:
+    "data/governor/edges.yml",
+    "data/governor/edge_weights.json",
+    "data/governor/regime_edge_performance.json",
+    "data/governor/lifecycle_history.csv",
+    "data/governor/ga_population.yml",
+    # journal-mode scope:
+    "data/governor/lifecycle_journal.jsonl",
+    "data/governor/.journal_apply_mark",
+    # write-only observability (no engine readers):
+    "data/governor/edge_metrics.json",
+    "data/governor/decision_diary.jsonl",
+}
+
 
 def iter_substrate_files(root: Path):
     for d in SUBSTRATE_DIRS:
@@ -54,7 +88,10 @@ def iter_substrate_files(root: Path):
                 continue
             if any(part in JUNK_DIRS for part in p.parts):
                 continue
-            yield Path(d) / p.relative_to(base)
+            rel = Path(d) / p.relative_to(base)
+            if rel.as_posix() in LIVE_MUTABLE_GOVERNOR:
+                continue
+            yield rel
 
 
 def hash_file(path: Path) -> str:
