@@ -187,15 +187,31 @@ def _md5(path: Path) -> str:
 
 
 def save_anchor() -> int:
-    """Snapshot `data/governor/<file>` for every name in ISOLATED_FILES."""
+    """Snapshot `data/governor/<file>` for every name in ISOLATED_FILES.
+
+    T-2026-06-10-131: anchor files are chmod'd READ-ONLY (0o444) after
+    the snapshot. The anchor is the canon-relevant seed every isolated
+    run executes from — an accidental write into it silently moves every
+    subsequent measurement. Since T-127 the anchors are also pinned by
+    `config/substrate_manifest.sha256`, so a DELIBERATE anchor update is
+    a 3-step act: run --save-anchor (it re-grants itself write perm),
+    regenerate the manifest, commit both in the same PR.
+    """
     ISOLATED_ANCHOR.mkdir(parents=True, exist_ok=True)
     saved = []
     for name in ISOLATED_FILES:
         src = GOV_DIR / name
+        dst = ISOLATED_ANCHOR / name
         if src.exists():
-            shutil.copy(src, ISOLATED_ANCHOR / name)
+            if dst.exists():
+                dst.chmod(0o644)  # re-grant: a prior save made it read-only
+            shutil.copy(src, dst)
+            dst.chmod(0o444)
             saved.append(name)
     print(f"[ISOLATED] Anchor saved at {ISOLATED_ANCHOR}: {saved}")
+    print("[ISOLATED] Anchor files set READ-ONLY. If this update is "
+          "deliberate: regenerate config/substrate_manifest.sha256 and "
+          "commit both in the same PR.")
     return 0
 
 
@@ -231,7 +247,13 @@ def restore_anchor(include_journal: bool = False) -> None:
         src = ISOLATED_ANCHOR / name
         dst = GOV_DIR / name
         if src.exists():
-            shutil.copy(src, dst)
+            # T-131: anchor files are read-only (0o444) since save_anchor
+            # write-protects them. copyfile (not copy) so the anchor's
+            # read-only bit is NOT propagated onto the live file; pre-chmod
+            # handles a live file left read-only by an older copy() pass.
+            if dst.exists() and not os.access(dst, os.W_OK):
+                dst.chmod(0o644)
+            shutil.copyfile(src, dst)
         elif dst.exists():
             dst.unlink()
 
