@@ -2,7 +2,7 @@
 
 **Last reconciled with source docs:** 2026-06-06 (T-125 dispatch; wave T-102→T-124 closed)
 
-**⚠️ CLOUD SUBSTRATE UNDER REPAIR (T-109/T-125):** the rebuilt cloud image has a determinism regression (`--runs 3` = 2/3, not 3/3) and arm0 26-yr came back **0.446 vs T-092's published 0.246** — so **all T-092 numbers below are UNDER RE-VERIFICATION** and all cloud A/Bs are BLOCKED until T-125 restores the 3/3 floor + re-baselines. Root cause: unpinned Docker base + `>=` requirements. Do not quote 0.246 as settled.
+**⚠️ DETERMINISM FIXED (T-125) — but the 26-yr baseline is in a CODE-SHIFT BISECT (T-126):** T-125 pinned the Docker base by digest → `--runs 3` = **3/3 RESTORED**; cloud substrate is trustworthy again. BUT the re-baseline gave 26-yr **0.446** (bitwise-reproducible) vs T-092's **0.246**, and the pin proved the shift is **CODE-driven** (T-099→T-124 merges), not OS/lib. **T-126 bisect (in flight) decides:** either T-099's determinism fix legitimately re-canonicalized a noisy number (→ 0.446 real, **bull-conditional collapse SOFTENS**) OR an "inert" merge broke at 26-yr depth (→ bug to fix). **Until T-126 returns, do not quote EITHER 0.246 or 0.446 as settled, and the held cloud wave stays held.** (16-yr also unsettled: pinned 0.945 vs T-092 1.018.)
 
 **If this date is more than 3 days old, read `forward_plan.md` (2026-06-06 block = current plan), `health_check.md`, and the latest `docs/Audit/*` before quoting state.** Hard caps below (≤5 per section, exactly 1 next-decision) are the anti-rot discipline — when a slot fills, the oldest item moves to MEMORY or is superseded.
 
