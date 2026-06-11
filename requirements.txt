@@ -24,3 +24,4 @@ dash>=2.13.0
 plotly>=5.17.0
 hmmlearn>=0.3.0   # Engine E HMM regime classifier (added 2026-05-02)
 scikit-optimize>=0.10.2  # Engine D Bayesian-opt candidate search (T-028, 2026-05-11)
+hypothesis>=6.130  # T-138 property-based invariant suite (dev/CI only; NOT in requirements.lock.txt -> not baked into the cloud image)
