@@ -1,7 +1,37 @@
 # T-118b PRE-REGISTRATION — Crisis-Replay Evaluation of the Regime-Transition De-Grossing Overlay
 
+> ## ADDENDUM v3 (2026-06-10, still PRE-UNBLINDING — **FINAL**; supersedes v2's
+> ## episode clauses; every change TIGHTENS or DISCLOSES, none loosens)
+>
+> T-143's fixture implementation proved the v2 episode list is NOT mechanically
+> derivable from the "TR peak-to-trough DD ≥15%" rule under ANY consistent reading
+> (strict-ATH kills 2011 by nesting it in the GFC TR spell and re-dates dotcom;
+> local-peak readings that admit 2011 also admit the omitted 2010 correction and
+> fragment episodes; April 2025, −18.7% TR, clears every reading, predates this
+> registration, and was on no list). The campaign remains blind (never launched;
+> only arm0 pre-flight cells exist). Resolution — the LIST is the lock, by
+> enumeration, month-anchored (exact trading days pinned by T-143's documented
+> month-anchored procedure; the rule is demoted to motivation):
+>
+> **1. ACTIONABLE EPISODE SET (7):** GFC (2007-10→2009-03), **2010 (Apr→Jul,
+> −15.6% — ADDED)**, 2011 (Apr→Oct), 2018Q4 (Sep→Dec), COVID (2020-02→03),
+> 2022 (Jan→Oct), **2025 (Feb→Apr, −18.7% TR — ADDED; pre-dated this registration
+> and is in the campaign window; omitting it would favor whichever side it favors,
+> so it gates).** Dotcom remains DISCLOSED-BLIND (overlay data floor 2006-04):
+> computed, reported, never gated.
+> **2. SPLITS:** in-sample-for-the-HMM {GFC, 2010, 2011, 2018Q4}; OOS {COVID,
+> 2022, 2025}. The v2 "both OOS must improve" extends in form: **ALL THREE OOS
+> episodes must individually improve (ΔMaxDD > +0.5pp)** for PASS.
+> **3. AGGREGATES RESCALED to 7:** sign test **≥ 6/7** (was 4/5); median ΔMaxDD
+> ≥ +3pp over the 7; GFC floor (≥ +5pp), calm-drag ceiling, terminal-wealth,
+> 3× benefit/drag ratio, no-single-episode >50%, primary-config-only — ALL STAND.
+> **4. FINALITY:** no further amendments under any circumstance. Any future
+> derivation dispute is resolved by RUNNING BOTH READINGS AND REPORTING BOTH —
+> never by editing this document. T-143's divergence checker reports; it does not
+> patch. After unblinding, this document is read-only history.
+
 > ## ADDENDUM v2 (2026-06-10, SAME DAY, still PRE-UNBLINDING — supersedes the
-> ## conflicting clauses below; every change TIGHTENS or DISCLOSES, none loosens)
+> ## conflicting clauses below; episode clauses superseded by v3 above; every change TIGHTENS or DISCLOSES, none loosens)
 >
 > An adversarial red-team review of the director's decisions (independent
 > fresh-context agent, run before any T-118 output existed) found three defects in
