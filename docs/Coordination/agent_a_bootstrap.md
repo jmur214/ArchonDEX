@@ -111,7 +111,7 @@ python scripts/submit_substrate_run.py --reps 3 --arms 1,2
 # and adapt the Cell dataclass (see CLOUD_USAGE.md "Adapting the launcher").
 ```
 
-If `:dev` is stale relative to your branch (compare `aws ecr describe-images` timestamp to your last commit on main), rebuild + push BEFORE submitting — instructions in CLOUD_USAGE.md "Refreshing the image". Auto-rebuild on main push is wired via `.github/workflows/build_backtest_image.yml`.
+Image discipline (T-127/T-133): build ONLY via `scripts/build_backtest_image.sh` (git-archive clean-source + substrate-manifest verify + sha-tag provenance) — raw `docker build .` is deprecated. CI auto-rebuild is currently DEAD (repo secret `AWS_ROLE_TO_ASSUME` unconfigured — user-action pending); never assume the image is fresh, verify its provenance labels against current main.
 
 For local-only situations (single backtest, mid-iteration debugging, < 4 cells), stay local.
 

@@ -1,5 +1,53 @@
 # T-118b PRE-REGISTRATION — Crisis-Replay Evaluation of the Regime-Transition De-Grossing Overlay
 
+> ## ADDENDUM v2 (2026-06-10, SAME DAY, still PRE-UNBLINDING — supersedes the
+> ## conflicting clauses below; every change TIGHTENS or DISCLOSES, none loosens)
+>
+> An adversarial red-team review of the director's decisions (independent
+> fresh-context agent, run before any T-118 output existed) found three defects in
+> v1. C's campaign is still in flight; nothing has been unblinded. Corrections:
+>
+> **1. The episode list is RE-DERIVED honestly from the locked mechanical rule.**
+> Applying "S&P 500 TR peak-to-trough DD ≥ 15%" over 2000-2025 actually yields:
+> **dotcom (2000-03→2002-10, ~−47%), GFC, 2011, 2018Q4, COVID-2020, 2022.**
+> v1's E3 (2015-05→2016-02, ~−13/14% TR) does NOT clear the threshold and is
+> REMOVED. Dotcom DOES clear it and was wrongly absent. DISCLOSURE: the crisis
+> HMM's data floor is 2006-04 (T-103) — the overlay is structurally blind to
+> dotcom. Resolution (the less-favorable-to-the-overlay form): the GATE evaluates
+> the **5 actionable episodes {GFC, 2011, 2018Q4, COVID, 2022}**; the dotcom
+> window's ΔMaxDD is computed and REPORTED alongside (expected ≈ 0) with the
+> blindness stated as a deployment caveat in any recommendation. Sign test
+> becomes **≥ 4/5**; median is over 5 episodes.
+>
+> **2. IN-SAMPLE/OOS asymmetry disclosed + a new OOS requirement (tightening).**
+> The driving model trained on 2006-04→2019-12 (T-103): **GFC, 2011, 2018Q4 are
+> IN-SAMPLE for the HMM; COVID and 2022 are OOS.** New co-equal PASS criterion:
+> **both OOS episodes must individually improve (ΔMaxDD > +0.5pp).** In-sample
+> and OOS results are reported as separate splits, always.
+>
+> **3. Return-units benefit floor added (closes the net-negative-PASS hole).**
+> New co-equal PASS criteria: (a) **26-yr cumulative return: overlay-on ≥
+> overlay-off** (terminal-wealth not worse — benefit-minus-drag in one number);
+> (b) the research's ratio test, operationalized: **episode-frequency-annualized
+> crisis benefit ≥ 3× the realized calm-period drag**. And a binding-episode
+> floor: **GFC ΔMaxDD ≥ +5pp** (an overlay that can't materially blunt the
+> episode that motivates it does not PASS).
+>
+> **4. PRIMARY CONFIG designated (closes the best-of-36 multiplicity hole).**
+> The gate is evaluated on ONE pre-designated configuration: **de-gross level
+> 0.5 × k = 5 days × the hysteresis pair closest to the shipped RiskConfig
+> defaults (degross_delta 0.4 / regross_level 0.3 / regross_bars 10)** — the
+> center-of-grid default, named before any results exist. All other campaign
+> configs are SENSITIVITY ONLY; if a different config is ever preferred, it
+> requires fresh out-of-sample validation under a new pre-registration. The
+> no-multiplicity claim in §3 below holds only under this designation.
+>
+> v1's §5 thresholds otherwise stand (median ΔMaxDD ≥ +3pp across the 5
+> actionable episodes; calm-drag ceiling unchanged; no-single-episode >50%).
+> PASS now requires ALL of: v1 (i)-(iv) + OOS-both-improve + terminal-wealth +
+> 3× ratio + GFC floor. This addendum is committed while the campaign runs;
+> after unblinding, no further edits of any kind.
+
 **Status:** LOCKED 2026-06-10, committed BEFORE any T-118 campaign output has been
 seen by anyone (C's 52-cell grid is in flight; no results unblinded). Companion to
 `t118_gate_power_critique_logged_2026_06_10.md` (the pre-unblinding power critique)
