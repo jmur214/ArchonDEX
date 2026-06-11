@@ -84,26 +84,30 @@ def load_returns() -> pd.DataFrame:
 def mi_with_nulls(X: np.ndarray, y_panel: pd.DataFrame, sub_idx: np.ndarray,
                   feat_names: list[str], row_day: pd.Series,
                   row_tic: pd.Series, rng) -> dict:
-    """Pooled MI per feature vs forward return, with circular-shift nulls."""
-    y_obs = np.array([y_panel.at[d, t] if (d in y_panel.index and t in y_panel.columns)
-                      else np.nan
-                      for d, t in zip(row_day.iloc[sub_idx], row_tic.iloc[sub_idx])])
-    m = np.isfinite(y_obs)
-    Xs = X[sub_idx][m]
-    mi_obs = mutual_info_regression(Xs, y_obs[m], n_neighbors=3, random_state=SEED)
+    """Pooled MI per feature vs forward return, with circular-shift nulls.
 
+    Vectorized lookup: rows map into the (date, ticker)-stacked return panel
+    via a MultiIndex reindex (the naive per-row .at lookup is O(rows × draws)
+    and unusably slow at 30k × 201)."""
+    mi_rows = pd.MultiIndex.from_arrays(
+        [row_day.iloc[sub_idx].values, row_tic.iloc[sub_idx].values])
+    Xsub = X[sub_idx]
+
+    def _mi_against(panel: pd.DataFrame) -> np.ndarray:
+        stacked = panel.stack()
+        y = stacked.reindex(mi_rows).to_numpy()
+        m = np.isfinite(y)
+        return mutual_info_regression(Xsub[m], y[m], n_neighbors=3,
+                                      random_state=SEED)
+
+    mi_obs = _mi_against(y_panel)
     T = len(y_panel.index)
     mi_null = np.zeros((N_NULL, len(feat_names)))
     for i in range(N_NULL):
         k = int(rng.integers(21, T - 21))
         rolled = pd.DataFrame(np.roll(y_panel.values, k, axis=0),
                               index=y_panel.index, columns=y_panel.columns)
-        y_n = np.array([rolled.at[d, t] if (d in rolled.index and t in rolled.columns)
-                        else np.nan
-                        for d, t in zip(row_day.iloc[sub_idx], row_tic.iloc[sub_idx])])
-        mn = np.isfinite(y_n)
-        mi_null[i] = mutual_info_regression(X[sub_idx][mn], y_n[mn],
-                                            n_neighbors=3, random_state=SEED)
+        mi_null[i] = _mi_against(rolled)
         if (i + 1) % 50 == 0:
             print(f"[T150-C] MI nulls {i+1}/{N_NULL}", flush=True)
     p975 = np.percentile(mi_null, 97.5, axis=0)
