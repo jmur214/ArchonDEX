@@ -301,19 +301,42 @@ def test_beta_alters_z_score():
 # Registration tests
 # ---------------------------------------------------------------------------
 
-def test_all_pairs_register_at_paused_feature():
-    """Every auto-registered pair edge must be at status='paused'
-    tier='feature'. No promotion to active at import time."""
-    # Importing the module triggers registration as a side effect.
-    from engines.engine_a_alpha.edges import pairs_trading_v1  # noqa: F401
+def test_all_pairs_register_at_paused_feature(tmp_path):
+    """Every pair edge built from the cointegration manifest must
+    register at status='paused' tier='feature'. No promotion to active
+    at registration time.
+
+    T-147 isolation: this test previously asserted against the LIVE
+    ``data/governor/edges.yml`` (module import side-effect + default
+    ``EdgeRegistry()``), which flaked whenever a concurrent
+    ``run_isolated`` restored governor anchors or a backtest's
+    end-of-run lifecycle writes landed mid-read. The contract under
+    test is the registration MECHANISM (manifest → paused/feature
+    specs, round-tripped through the registry), not the live file's
+    current state — so it exercises the same ``_build_pair_spec`` /
+    ``ensure`` path against a tmp_path registry.
+    """
+    from engines.engine_a_alpha.edges.pairs_trading_v1 import (
+        _build_pair_spec,
+        _load_survivor_specs,
+    )
     from engines.engine_a_alpha.edge_registry import EdgeRegistry
 
-    reg = EdgeRegistry()
-    pair_specs = [s for s in reg.get_all_specs() if s.category == "pairs_trading"]
-    assert len(pair_specs) >= 1, (
-        "At least one pair edge should auto-register from the cointegration "
-        "screen manifest. If the manifest is missing, the screen wasn't run."
+    survivors = _load_survivor_specs()
+    assert len(survivors) >= 1, (
+        "At least one pair should survive in the cointegration screen "
+        "manifest. If the manifest is missing, the screen wasn't run."
     )
+
+    reg = EdgeRegistry(store_path=tmp_path / "edges.yml")
+    for surv in survivors:
+        _Reg, spec = _build_pair_spec(surv)
+        reg.ensure(spec)
+
+    # Fresh instance re-reads from disk — proves the YAML round-trip too.
+    reg2 = EdgeRegistry(store_path=tmp_path / "edges.yml")
+    pair_specs = [s for s in reg2.get_all_specs() if s.category == "pairs_trading"]
+    assert len(pair_specs) == len(survivors)
     for s in pair_specs:
         assert s.status == "paused", f"{s.edge_id} status={s.status}, expected 'paused'"
         assert s.tier == "feature", f"{s.edge_id} tier={s.tier}, expected 'feature'"

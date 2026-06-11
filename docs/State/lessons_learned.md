@@ -853,3 +853,25 @@ tests couldn't see it (they construct the simulator directly). The
 end-to-end canon smoke (flag ON ⇒ canon MUST differ) is the only test
 class that catches consuming-site misses — make it a standard step for
 every new config-driven feature, not just default-OFF inertness.
+
+---
+
+## 2026-06-11 — "Concurrency flake" decomposed into two non-concurrency root causes (T-147)
+
+The flake I flagged in T-146 (suite fails when run concurrently with
+run_isolated) turned out to be TWO different hygiene defects: (a) a
+test asserting against the LIVE data/governor/edges.yml — genuinely
+racy with anchor restores and lifecycle writes; (b) a test calling
+yf.download() LIVE in its body — network-flaky, merely CORRELATED with
+the concurrency window. Fixes: exercise the registration mechanism
+against a tmp_path registry (same contract, zero shared state);
+synthetic deterministic bars (the network was never the contract).
+
+**Lessons:** (a) "flaky under concurrency" is a symptom cluster, not a
+diagnosis — separate shared-FILE races from external-state flakes
+before fixing; (b) a test's contract is the mechanism, not the live
+artifact — if rewriting it against isolated state changes what it
+verifies, it was an integration probe mislabeled as a unit test;
+(c) network calls in unit tests violate determinism discipline twice
+(flake + the yfinance-contamination rule) — grep `yfinance|requests|
+download` under tests/ during any test-hygiene pass.
