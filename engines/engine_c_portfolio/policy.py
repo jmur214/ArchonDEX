@@ -42,6 +42,29 @@ class PortfolioPolicyConfig:
     spot_sleeve_enabled: bool = False
     spot_sleeve_capital_pct: float = 0.25
 
+    # T-2026-06-10-139 — Carver dynamic optimization (integer-position
+    # layer). When `dynamic_optimization_enabled=True`,
+    # PortfolioEngine.compute_target_allocations post-processes the
+    # allocator's unrounded target weights into integer-share-feasible
+    # weights via the greedy tracking-error minimizer in
+    # `dynamic_optimizer.py` (concept port of pysystemtrade's
+    # dynamic_small_system_optimise). Engine B's Path A then lands
+    # exactly on the chosen whole-share positions — no Engine B change.
+    #
+    # Default OFF preserves pre-T-139 production behavior canon-md5
+    # bitwise-identical (the post-processing branch never runs and the
+    # optimizer module is never imported when False). Production
+    # flag-flip requires integrated A/B evidence + director/user gate;
+    # T-139 ships wiring + fixture demonstration, not the prod change.
+    dynamic_optimization_enabled: bool = False
+    dynopt_shadow_cost: float = 10.0             # Carver default
+    dynopt_cost_per_trade_bps: float = 10.0      # matches turnover_flat_cost_bps
+    dynopt_tracking_error_buffer: float = 0.02   # Carver default (annualized TE)
+    dynopt_buying_power_fraction: float = 1.0    # gross Σ|w| hard cap
+    dynopt_max_weight_per_asset: Optional[float] = None
+    dynopt_cov_lookback: int = 60                # matches HRPConfig.cov_lookback
+    dynopt_use_ledoit_wolf: bool = True          # matches HRPConfig
+
 
 class PortfolioPolicy:
     """

@@ -417,9 +417,103 @@ class PortfolioEngine:
         Wrapper around PortfolioPolicy.allocate() that stores and returns weights.
         """
         weights = self.policy.allocate(signals, price_data, equity, regime_meta=regime_meta)
+
+        # T-2026-06-10-139 — Carver dynamic optimization (integer-position
+        # layer), default OFF. When enabled, re-express the unrounded
+        # target weights as the integer-share-feasible book that best
+        # tracks them (greedy TE minimizer, dynamic_optimizer.py). When
+        # disabled (default), this branch is a no-op and the optimizer
+        # module is never imported — pre-T-139 behavior bitwise-identical.
+        if getattr(self.policy.cfg, "dynamic_optimization_enabled", False) and weights:
+            weights = self._apply_dynamic_optimization(weights, price_data, equity)
+
         self.current_target_weights = weights
         self._log_debug(f"Computed target allocations from signals: {signals} -> weights: {weights}")
         return weights
+
+    def _apply_dynamic_optimization(
+        self,
+        weights: Dict[str, float],
+        price_data: Dict[str, pd.DataFrame],
+        equity: float,
+    ) -> Dict[str, float]:
+        """Post-process unrounded target weights into integer-feasible ones.
+
+        Engine C scope only: consumes the allocator's weights, current
+        integer positions, last Closes, and the existing Ledoit-Wolf
+        covariance estimator (HRPOptimizer._estimate_cov — the reused
+        portfolio-level Σ machinery). Fails open to the unmodified
+        weights on any optimization-precluding input.
+        """
+        from engines.engine_c_portfolio.dynamic_optimizer import (
+            DynamicOptimizationConfig,
+            optimize_integer_positions,
+        )
+        from engines.engine_c_portfolio.optimizers.hrp import HRPConfig, HRPOptimizer
+
+        cfg = self.policy.cfg
+        lookback = int(getattr(cfg, "dynopt_cov_lookback", 60))
+
+        prices: Dict[str, float] = {}
+        returns_map: Dict[str, pd.Series] = {}
+        for tkr in sorted(weights.keys()):
+            df = price_data.get(tkr)
+            if df is None or df.empty or "Close" not in df.columns:
+                continue
+            close = df["Close"]
+            try:
+                last_close = float(close.iloc[-1])
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(last_close) and last_close > 0.0:
+                prices[tkr] = last_close
+            rets = close.pct_change().dropna().tail(lookback)
+            if len(rets) >= 2:
+                returns_map[tkr] = rets
+
+        if not returns_map:
+            self._log_debug("[DYNOPT] no usable returns history — passing weights through")
+            return weights
+
+        returns_df = pd.DataFrame(returns_map).fillna(0.0)
+        hrp = HRPOptimizer(HRPConfig(
+            cov_lookback=lookback,
+            use_ledoit_wolf=bool(getattr(cfg, "dynopt_use_ledoit_wolf", True)),
+        ))
+        covariance = hrp._estimate_cov(returns_df)
+
+        current_positions = {
+            t: int(self.positions[t].qty) if t in self.positions else 0
+            for t in weights.keys()
+        }
+
+        dyn_cfg = DynamicOptimizationConfig(
+            shadow_cost=float(getattr(cfg, "dynopt_shadow_cost", 10.0)),
+            cost_per_trade_bps=float(getattr(cfg, "dynopt_cost_per_trade_bps", 10.0)),
+            tracking_error_buffer=float(getattr(cfg, "dynopt_tracking_error_buffer", 0.02)),
+            buying_power_fraction=float(getattr(cfg, "dynopt_buying_power_fraction", 1.0)),
+            max_weight_per_asset=getattr(cfg, "dynopt_max_weight_per_asset", None),
+        )
+        result = optimize_integer_positions(
+            target_weights=weights,
+            prices=prices,
+            current_positions=current_positions,
+            equity=equity,
+            covariance=covariance,
+            cfg=dyn_cfg,
+        )
+        # Kept for observability/cockpit consumption; not read by engines.
+        self.last_dynopt_result = result
+        if result.skipped:
+            self._log_debug(f"[DYNOPT] skipped ({result.skip_reason}) — weights passed through")
+            return weights
+        self._log_debug(
+            f"[DYNOPT] TE prior={result.tracking_error_prior:.4f} "
+            f"naive={result.tracking_error_naive:.4f} "
+            f"optimized={result.tracking_error_optimized:.4f} "
+            f"trades={len(result.trades)} buffered={result.buffered}"
+        )
+        return result.weights
 
     def target_notional_values(self, equity: float) -> Dict[str, float]:
         """
