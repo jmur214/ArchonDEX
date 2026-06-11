@@ -93,6 +93,30 @@ class VolTargetConfig:
     stressed_target_multiplier: float = 0.60    # aggressive degross
     crisis_target_multiplier: float = 0.40      # heavy degross
 
+    # T-2026-06-11-153 — sigma-floor guard (Fix A) for the estimator
+    # collapse-to-near-zero state D's T-150 measured (and the T-153
+    # assessment quantified: BOTH estimators emit sigma < 2% annual on
+    # ~14% of canonical 26-yr bars, requesting ceiling leverage off a
+    # garbage estimate; min observed sigma 3e-06 sails past the `<= 0`
+    # guard). The estimator-consumer instance of the CLAUDE.md
+    # std-tolerance non-negotiable. When enabled, the effective floor is
+    #   max(vol_floor_annual,
+    #       vol_floor_full_sample_frac * full-sample sigma(history))
+    # and realized_vol is floored to it BEFORE the target/sigma divide.
+    # Default OFF -> behavior bitwise-identical to pre-T-153.
+    vol_floor_enabled: bool = False
+    vol_floor_annual: float = 0.02              # absolute floor (annualized)
+    vol_floor_full_sample_frac: float = 0.0     # 0.0 = absolute-only
+
+    # T-2026-06-11-153 — Yang-Zhang estimator option (Fix B). Selected
+    # via estimator_type="yang_zhang" (the T-055d selection mechanism).
+    # Math + corrupt-opens repair ported from D's T-150 implementation
+    # (engines/engine_b_risk/yz_vol.py). Requires the caller to supply
+    # data_map + positions to compute_portfolio_vol_scale; estimator
+    # unavailable -> None -> 1.0 no-op. Default estimator_type stays
+    # "rolling" — this is opt-in only.
+    yz_window_days: int = 21
+
 
 def compute_vol_scale(
     realized_vol: Optional[float],
@@ -238,6 +262,59 @@ def compute_realized_vol_from_history_ewma(
     return sigma_daily * np.sqrt(TRADING_DAYS_PER_YEAR)
 
 
+def _full_sample_sigma_ann(history: Sequence[Dict[str, Any]]) -> Optional[float]:
+    """T-153: annualized stdev over ALL daily returns in history.
+
+    Stateless + causal (only data already in `history` at call time).
+    Used for the relative component of the sigma-floor guard. Returns
+    None when fewer than 2 returns are available or the stdev is
+    degenerate (the floor then falls back to its absolute component).
+    """
+    equity_series = _equity_at_end_of_each_day(history)
+    if len(equity_series) < 3:
+        return None
+    eq_arr = np.asarray(equity_series, dtype=float)
+    if np.any(eq_arr <= 0.0):
+        return None
+    daily_returns = np.diff(eq_arr) / eq_arr[:-1]
+    sigma_daily = float(np.std(daily_returns, ddof=1))
+    if not np.isfinite(sigma_daily) or sigma_daily <= 0.0:
+        return None
+    return sigma_daily * np.sqrt(TRADING_DAYS_PER_YEAR)
+
+
+def apply_vol_floor(
+    realized_vol: Optional[float],
+    cfg: VolTargetConfig,
+    history: Sequence[Dict[str, Any]],
+) -> Optional[float]:
+    """T-153 Fix A: floor a near-zero sigma before the target/sigma divide.
+
+    No-op (returns input unchanged) when:
+      * cfg.vol_floor_enabled=False (default) — bitwise pre-T-153 path,
+      * realized_vol is None (estimator unavailable stays unavailable —
+        the floor must never INVENT a vol estimate where there is none).
+
+    Effective floor = max(vol_floor_annual,
+                          vol_floor_full_sample_frac * full-sample sigma).
+    The relative component degrades to 0 when the full-sample sigma is
+    itself unavailable/degenerate.
+    """
+    if not getattr(cfg, "vol_floor_enabled", False):
+        return realized_vol
+    if realized_vol is None:
+        return None
+    floor = float(getattr(cfg, "vol_floor_annual", 0.0))
+    frac = float(getattr(cfg, "vol_floor_full_sample_frac", 0.0))
+    if frac > 0.0:
+        fs = _full_sample_sigma_ann(history)
+        if fs is not None:
+            floor = max(floor, frac * fs)
+    if floor <= 0.0:
+        return realized_vol
+    return max(float(realized_vol), floor)
+
+
 # T-055e regime-summary → multiplier-field mapping. Centralized so
 # both the dispatcher AND tests have a single source of truth.
 _REGIME_SUMMARY_TO_MULTIPLIER_FIELD: Dict[str, str] = {
@@ -279,6 +356,8 @@ def compute_portfolio_vol_scale(
     history: Sequence[Dict[str, Any]],
     cfg: VolTargetConfig,
     advisory: Optional[Dict[str, Any]] = None,
+    data_map: Optional[Dict[str, Any]] = None,
+    positions: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Composer: realized vol from snapshot history → bounded scale.
 
@@ -303,11 +382,21 @@ def compute_portfolio_vol_scale(
     """
     if not cfg.enabled:
         return 1.0
-    if getattr(cfg, "estimator_type", "rolling") == "ewma":
+    estimator = getattr(cfg, "estimator_type", "rolling")
+    if estimator == "ewma":
         realized_vol = compute_realized_vol_from_history_ewma(
             history,
             ewma_lambda=cfg.ewma_lambda,
             min_returns_required=cfg.min_returns_required,
+        )
+    elif estimator == "yang_zhang":
+        # T-153 Fix B: range-based Yang-Zhang (D's T-150 winner; immune
+        # to the close-to-close collapse mode). Gross-weighted per-name
+        # aggregation — an upper bound on portfolio vol, conservative
+        # for leverage. Unavailable inputs -> None -> 1.0 no-op below.
+        from engines.engine_b_risk.yz_vol import portfolio_yang_zhang_vol
+        realized_vol = portfolio_yang_zhang_vol(
+            data_map, positions, window=getattr(cfg, "yz_window_days", 21),
         )
     else:
         realized_vol = compute_realized_vol_from_history(
@@ -315,6 +404,10 @@ def compute_portfolio_vol_scale(
             window_days=cfg.realized_vol_window_days,
             min_returns_required=cfg.min_returns_required,
         )
+    # T-153 Fix A: sigma-floor guard (default OFF -> passthrough). Floors
+    # a collapsed-but-positive sigma BEFORE the target/sigma divide;
+    # never invents an estimate when the estimator returned None.
+    realized_vol = apply_vol_floor(realized_vol, cfg, history)
     # T-055e: apply the regime-conditional target multiplier. Defaults
     # to 1.0 (no-op) for the entire T-055/T-055c/T-055d code path.
     multiplier = _regime_target_multiplier(cfg, advisory)
