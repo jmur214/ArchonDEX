@@ -541,6 +541,20 @@ tail -f data/logs/latest.log
 grep ALPHA data/logs/latest.log | tail
 ```
 
+### DYNAMIC OPTIMIZATION FIXTURE DEMO (T-139, 2026-06-10)
+
+```bash
+# Frozen-fixture comparison: naive rounding vs Carver dynamic
+# optimization vs unrounded ideal at $5K / $50K. Engineering
+# verification only — no backtest, no N_trials consumed. Fixture data
+# embedded (scripts/t139_fixture_data.py, pinned 2024-05-10).
+python -m scripts.demo_dynamic_optimization_t139
+```
+
+The optimizer itself is Engine C: `dynamic_optimization_enabled` in
+`config/portfolio_settings.json` (default false — OFF is canon-inert,
+see docs/Audit/dynamic_optimization_t139_2026_06_10.md).
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task

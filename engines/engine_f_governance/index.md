@@ -66,6 +66,17 @@ Per `docs/Core/engine_charters.md` § Engine F:
   - `def run_wfo_for_candidate()`: Run WFO for a candidate using WalkForwardOptimizer directly.
   - `def update_production_config()`: Updates alpha_settings.prod.json to include the new 'active' edge parameters.
 
+### `factor_alpha_gate.py`
+**Module Docstring:** engines/engine_f_governance/factor_alpha_gate.py
+- **Class `FactorAlphaResult`**: Output of one evaluation cycle for one edge.
+- **Function `compute_alpha_tstat_with_bootstrap_ci()`**: Run FF5+Mom HAC regression with residual block-bootstrap CI on
+- **Function `daily_returns_from_closed_trades()`**: Sum closed-trade `pnl` by date, divide by initial_capital.
+- **Function `load_state()`**: Load the per-edge consecutive-cycles state file.
+- **Function `save_state()`**: Persist state to disk. Atomic-ish via write-then-rename.
+- **Function `update_state_for_edge()`**: Apply a single-cycle observation to per-edge state.
+- **Function `gate_fires()`**: Pure: did the consecutive-cycles threshold get met?
+- **Function `check_factor_alpha_retirement()`**: End-to-end factor-α retirement gate.
+
 ### `governor.py`
 - **Class `GovernorConfig`**: Configuration for the Strategy Governor (Engine D).
 - **Class `StrategyGovernor`**: Engine D: Governance & Meta-Allocation (non-ML MVP).
@@ -81,6 +92,23 @@ Per `docs/Core/engine_charters.md` § Engine F:
   - `def save_weights()`: Persist weights to JSON (data/governor/edge_weights.json by default).
   - `def merge_evaluator_recommendations()`: Optionally blend in evaluator-produced edge weights (e.g., from research runs).
 
+### `journal.py`
+**Module Docstring:** LifecycleJournal — append-only journal of governance decisions.
+- **Class `JournalEntry`**: One append-only journal record.
+  - `def to_json_line()`
+- **Class `LifecycleJournal`**: Append-only writer + reader for governance decisions.
+  - `def __init__()`
+  - `def append()`: Append one entry to the journal. Atomic at the line level
+  - `def append_many()`: Append a batch. Returns count written. Single lock acquisition
+  - `def read_all()`: Read every entry. For small-to-medium journals (~thousands).
+  - `def iter_entries()`: Stream entries one-at-a-time. Skips malformed lines with a
+  - `def filter_since()`: Return entries whose timestamp > `after_iso`. Used by the
+  - `def truncate()`: Remove journal entries.
+- **Function `now_utc_iso()`**: Single source of truth for journal timestamp generation.
+- **Function `make_weight_update()`**: No docstring
+- **Function `make_status_change()`**: No docstring
+- **Function `make_tier_change()`**: No docstring
+
 ### `lifecycle_manager.py`
 **Module Docstring:** engines/engine_f_governance/lifecycle_manager.py
 - **Class `LifecycleConfig`**: Gates and thresholds for edge lifecycle transitions.
@@ -95,10 +123,6 @@ Per `docs/Core/engine_charters.md` § Engine F:
 
 ### `promote_best_params.py`
 - **Function `promote_best_params()`**: No docstring
-
-### `regime_analytics.py`
-- **Class `RegimePerfAnalytics`**: Analytics module to measure strategy performance CONDITIONAL on Market Regime.
-  - `def analyze()`: Merge trades with the regime AT ENTRY TIME.
 
 ### `regime_tracker.py`
 **Module Docstring:** Per-edge, per-regime performance tracking using Welford's online algorithm.

@@ -57,6 +57,9 @@
   - `def get_all_specs()`: Returns all registered edge specs regardless of status.
   - `def ensure()`: Idempotent upsert.
 
+### `edge_taxonomy.py`
+**Module Docstring:** engines/engine_a_alpha/edge_taxonomy.py
+
 ### `edge_template.py`
 - **Class `EdgeTemplate`**: Interface for edges that support autonomous parameter generation.
   - `def get_hyperparameter_space()`: Returns a dictionary defining the parameter space.
@@ -114,6 +117,7 @@
 - **Class `HygieneSettings`**: No docstring
 - **Class `EnsembleSettings`**: No docstring
 - **Class `MetaLearnerSettings`**: Layer 3 (allocation) meta-learner integration.
+- **Class `ConfidenceGateConfig`**: T-2026-05-12-057 confidence-gated execution.
 - **Class `SignalProcessor`**: No docstring
   - `def __init__()`
   - `def process()`: Returns a dict per ticker with normalized & aggregated score and details.

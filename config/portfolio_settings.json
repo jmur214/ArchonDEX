@@ -9,6 +9,13 @@
     "rebalance_threshold": 0.05,
     "risk_free_rate": 0.04,
     "debug": true,
+    "dynamic_optimization_enabled": false,
+    "dynopt_shadow_cost": 10.0,
+    "dynopt_cost_per_trade_bps": 10.0,
+    "dynopt_tracking_error_buffer": 0.02,
+    "dynopt_buying_power_fraction": 1.0,
+    "dynopt_cov_lookback": 60,
+    "dynopt_use_ledoit_wolf": true,
     "portfolio_optimizer": {
         "method": "weighted_sum",
         "hrp": {
