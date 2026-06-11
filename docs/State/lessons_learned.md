@@ -892,3 +892,25 @@ daily vol-target moves still dominate); the economics survive only
 because of the tax multiplier. Generalization: evaluate every
 execution/turnover proposal through the after-tax module BEFORE sizing
 its priority — the pre-tax cost frame mis-ranks them.
+
+---
+
+## 2026-06-11 — Extending a guard exposed the guard's own blind spot (T-151)
+
+Adding safe_f/car25 keys to the performance-summary contract made the
+layer-2a test fail "backwards" — the keys were in BOTH the producer and
+the constant, but the static scraper's non-greedy `return\s*\{(.*?)\}`
+regex stopped at the FIRST nested `}` (the close of T-141's
+after_tax_detail comprehension), so every producer key added after a
+nested dict was invisible to the guard. It would have silently passed
+stale constants forever. Fixed with balanced-brace extraction +
+top-level filtering.
+
+**Lessons:** (a) when a guard fails in a direction that makes no sense,
+suspect the GUARD's parser before the guarded code; (b) regex-over-code
+guards need bracket-aware extraction the moment the guarded structure
+can nest — non-greedy matching is a silent truncation, the same failure
+shape as the silent-mismatch family the guard exists to catch;
+(c) safe_f demo also confirmed: per-account analysis keeps paying —
+Roth +60% headroom vs taxable 73% OVERSIZED on the same book (third
+independent indictment of taxable deployment at current turnover).

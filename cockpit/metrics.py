@@ -302,6 +302,44 @@ class PerformanceMetrics:
             self._cached_after_tax_report = report
         return self._cached_after_tax_report
 
+    # ---- safe-f / CAR25 reporting (T-151; backtester.safef_car25) ----
+    def _safef_report(self) -> dict:
+        """Bandy safe-f/CAR25 sizing-health block (cached per instance).
+
+        Reporting-first: nothing consumes it for sizing. Config from
+        backtest_settings.json `safef_car25` (optional block; library
+        defaults documented as reconstructed-from-knowledge). Never
+        raises — None fields + skip_reason on failure.
+        """
+        if not hasattr(self, "_cached_safef_report"):
+            report: dict = {"safe_f": None, "car25_pct": None,
+                            "skip_reason": "error:init"}
+            try:
+                from backtester.safef_car25 import SafeFConfig, compute_safef_car25
+
+                cfg_kwargs: dict = {}
+                try:
+                    import json as _json
+                    from pathlib import Path as _Path
+                    _cfg_path = _Path(__file__).resolve().parents[1] / "config" / "backtest_settings.json"
+                    with open(_cfg_path, "r") as _fh:
+                        block = (_json.load(_fh) or {}).get("safef_car25") or {}
+                    cfg_kwargs = {k: v for k, v in block.items()
+                                  if k in SafeFConfig.__annotations__}
+                except Exception:
+                    cfg_kwargs = {}
+
+                eq = self.equity
+                rets = (
+                    eq.pct_change().dropna()
+                    if eq is not None and len(eq) >= 2 else pd.Series(dtype=float)
+                )
+                report = compute_safef_car25(rets, SafeFConfig(**cfg_kwargs))
+            except Exception as exc:
+                report["skip_reason"] = f"error:{type(exc).__name__}"
+            self._cached_safef_report = report
+        return self._cached_safef_report
+
     def _compute_summary(self) -> dict:
         """Compute metrics once without recursion between summary() and summary_metrics()."""
         n_trades = int(len(self.trades)) if self.trades is not None else 0
@@ -309,6 +347,7 @@ class PerformanceMetrics:
         psr_raw = engine.get("PSR")
         sortino_raw = engine.get("Sortino")
         after_tax = self._after_tax_report()
+        safef = self._safef_report()
         return {
             "Starting Equity": None if self.equity.empty else round(float(self.equity.iloc[0]), 2),
             "Ending Equity": None if self.equity.empty else round(float(self.equity.iloc[-1]), 2),
@@ -349,6 +388,17 @@ class PerformanceMetrics:
             "after_tax_detail": {
                 k: v for k, v in after_tax.items()
                 if k not in self._AFTER_TAX_FLAT_KEYS
+            },
+            # T-151: Bandy safe-f / CAR25 sizing-health metrics
+            # (reporting-first; the future live-ops kill metric). Flat
+            # deploy-gate inputs + nested detail (lists stay nested —
+            # the pd.isna-truthiness constraint documented at the T-141
+            # block above applies here too).
+            "safe_f": safef.get("safe_f"),
+            "car25_pct": safef.get("car25_pct"),
+            "safef_detail": {
+                k: v for k, v in safef.items()
+                if k not in ("safe_f", "car25_pct")
             },
         }
 

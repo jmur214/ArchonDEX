@@ -621,6 +621,20 @@ POSITION-level trade-to-edge — NOT T-098's refuted weight band; see
 docs/Audit/position_buffering_t148_2026_06_11.md (incl. the
 pre-registered enable-A/B spec).
 
+### SAFE-F / CAR25 SIZING HEALTH (T-151, 2026-06-11)
+
+```bash
+# Bandy sizing-health metrics per account (Roth=pre-tax vs taxable-IL
+# via the T-141 tax model). Reporting only — zero N_trials.
+python -m scripts.demo_safef_car25_t151 [run_dir]
+```
+
+Every performance summary now carries `safe_f` + `car25_pct` +
+`safef_detail` (seed-pinned block-MC; defaults are documented
+reconstructions, configurable via optional `safef_car25` block in
+backtest_settings.json). Record-dependent — sizing decisions use the
+deep-window number. See docs/Audit/safef_car25_t151_2026_06_11.md.
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task

@@ -283,6 +283,15 @@ PRODUCER_SUMMARY_KEYS: Set[str] = {
     "sharpe_roth",
     "tax_drag_pct",
     "after_tax_detail",
+    # T-151 (2026-06-11) safe-f / CAR25 (Bandy) sizing-health metrics:
+    # reporting-first (nothing consumes them for sizing; future live-ops
+    # kill metric). Computed post-hoc from the equity record via
+    # backtester/safef_car25.py; config block `safef_car25` in
+    # backtest_settings.json is optional (library defaults are
+    # documented reconstructions, not verified Bandy parameters).
+    "safe_f",
+    "car25_pct",
+    "safef_detail",
 }
 
 # `summary_metrics()` adds this; `summary()` does NOT.
@@ -304,15 +313,40 @@ def _scrape_compute_summary_keys() -> Set[str]:
     without updating this test's PRODUCER_SUMMARY_KEYS constant —
     keeps both in sync."""
     src = (REPO / "cockpit" / "metrics.py").read_text()
-    # Find the _compute_summary function body via simple bracket match.
-    m = re.search(
-        r"def _compute_summary\b.*?return\s*\{(.*?)\}", src, re.DOTALL,
-    )
+    # Find the start of _compute_summary's return-dict literal, then
+    # walk to the MATCHING close brace. (T-151: the previous non-greedy
+    # `\{(.*?)\}` regex stopped at the FIRST `}` — the close of the
+    # first nested dict comprehension — silently hiding any keys added
+    # after it. Balanced-brace extraction sees the whole literal.)
+    m = re.search(r"def _compute_summary\b.*?return\s*\{", src, re.DOTALL)
     if m is None:
         return set()
-    body = m.group(1)
-    # Pull every string literal that looks like a dict key.
-    keys = set(re.findall(r'"([^"]+)"\s*:', body))
+    start = m.end()          # position just after the opening '{'
+    depth = 1
+    pos = start
+    while pos < len(src) and depth > 0:
+        ch = src[pos]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        pos += 1
+    body = src[start:pos - 1]
+    # Top-level keys only: strip nested {...} regions before scraping so
+    # keys inside nested dict literals/comprehensions don't leak in.
+    flat_chars = []
+    depth = 0
+    for ch in body:
+        if ch == "{":
+            depth += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            continue
+        if depth == 0:
+            flat_chars.append(ch)
+    flat = "".join(flat_chars)
+    keys = set(re.findall(r'"([^"]+)"\s*:', flat))
     return keys
 
 
