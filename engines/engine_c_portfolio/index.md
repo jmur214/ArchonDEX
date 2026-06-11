@@ -80,3 +80,8 @@
   - `def get_avg_price()`
   - `def get_qty()`
 - **Function `is_portfolio_debug()`**: No docstring
+
+### `position_buffering.py`
+**Module Docstring:** Carver position buffering — 10% position inertia (T-148).
+- **Class `BufferingResult`**: No docstring
+- **Function `apply_position_buffering()`**: Apply Carver trade-to-edge buffering to a target-weight map.
