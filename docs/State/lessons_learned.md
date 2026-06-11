@@ -875,3 +875,20 @@ verifies, it was an integration probe mislabeled as a unit test;
 (c) network calls in unit tests violate determinism discipline twice
 (flake + the yfinance-contamination rule) — grep `yfinance|requests|
 download` under tests/ during any test-hygiene pass.
+
+---
+
+## 2026-06-11 — Turnover levers are tax levers first, cost levers second (T-148)
+
+Carver 10% buffering on the 2024 book: turnover ↓11% ⇒ execution cost
+↓4.5 bps/yr but tax drag ↓130 bps of equity/yr — **the tax channel is
+~29× the cost channel** at our 100%-ST/wash-sale-heavy posture (T-141).
+Cost-only valuation of any turnover-reduction lever understates it by
+an order of magnitude in the taxable account — and by exactly that much
+LESS in the Roth, so the lever's value is ACCOUNT-DEPENDENT (router
+input). Also: T-098's failure mechanism partially carried even under
+trade-to-edge semantics (turnover ↓11%, not the predicted 60-70% —
+daily vol-target moves still dominate); the economics survive only
+because of the tax multiplier. Generalization: evaluate every
+execution/turnover proposal through the after-tax module BEFORE sizing
+its priority — the pre-tax cost frame mis-ranks them.

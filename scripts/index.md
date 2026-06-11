@@ -20,6 +20,11 @@
 **Module Docstring:** T-2026-05-31-089 — canonical CAUSAL HMM posterior helper for validators.
 - **Function `causal_proba_sequence()`**: Compute CAUSAL (filtered) HMM posteriors over a panel.
 
+### `_xlsx_min.py`
+**Module Docstring:** scripts/_xlsx_min.py — minimal stdlib .xlsx reader (T-136).
+- **Function `read_xlsx_first_sheet()`**: No docstring
+- **Function `excel_serial_to_datetime()`**: No docstring
+
 ### `ab_engine_c_hrp.py`
 **Module Docstring:** A/B harness: weighted_sum vs HRP under run_isolated.
 - **Function `main()`**: No docstring
@@ -46,6 +51,22 @@
 
 ### `aggregate_t057b_cloud.py`
 **Module Docstring:** T-2026-05-23-057b-analyze cloud-results aggregator.
+- **Function `main()`**: No docstring
+
+### `analyze_13f_crowding_t145.py`
+**Module Docstring:** scripts/analyze_13f_crowding_t145.py
+- **Function `load_prices()`**: No docstring
+- **Function `build_strategy()`**: Quarterly-rebalanced low-minus-high-crowding long-short.
+- **Function `factor_report()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `analyze_8k_events_t137.py`
+**Module Docstring:** scripts/analyze_8k_events_t137.py
+- **Function `build_close_returns()`**: No docstring
+- **Function `anchor_events()`**: Map acceptance datetime (UTC) -> anchor trading-day close index pos.
+- **Function `calendar_time_series()`**: Daily mean abnormal return over events within (anchor, anchor+horizon].
+- **Function `romano_wolf_stepm()`**: FWER-controlled stepwise test that each series' mean != 0.
+- **Function `factor_gate()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `analyze_bab_deep_t129.py`
@@ -75,6 +96,13 @@
 
 ### `analyze_engine_e_hmm_ab.py`
 **Module Docstring:** scripts/analyze_engine_e_hmm_ab.py
+- **Function `main()`**: No docstring
+
+### `analyze_form4_clusters_t144.py`
+**Module Docstring:** scripts/analyze_form4_clusters_t144.py
+- **Function `load_buys()`**: No docstring
+- **Function `cluster_events()`**: Cluster-buy events: >=k distinct insiders, >=MIN_VALUE total, within a
+- **Function `anchor()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `analyze_oos_2025.py`
@@ -117,6 +145,24 @@
 - **Function `vrp_return_stream()`**: Vol-managed market return: scale_{t-1} * market_return_t, minus cost on
 - **Function `factor_report()`**: No docstring
 - **Function `book_correlation()`**: Correlation of VRP return to the existing 6-active-edge book + to the
+- **Function `main()`**: No docstring
+
+### `archive_altdata_t136.py`
+**Module Docstring:** scripts/archive_altdata_t136.py
+- **Function `pull_gpr()`**: No docstring
+- **Function `pull_epu()`**: No docstring
+- **Function `pull_gdelt_timelines()`**: No docstring
+- **Function `snapshot_polymarket()`**: No docstring
+- **Function `snapshot_kalshi()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `archive_positioning_t136.py`
+**Module Docstring:** scripts/archive_positioning_t136.py
+- **Function `pull_regsho_short_volume()`**: No docstring
+- **Function `pull_sec_ftd()`**: No docstring
+- **Function `pull_naaim()`**: No docstring
+- **Function `pull_finra_margin()`**: No docstring
+- **Function `pull_finra_short_interest()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `audit_data_gaps.py`
@@ -169,6 +215,20 @@
 - **Function `main()`**: No docstring
 - **Function `generate_audit_md()`**: Generate the markdown audit doc.
 
+### `build_13f_panel_t145.py`
+**Module Docstring:** scripts/build_13f_panel_t145.py
+- **Function `zip_urls()`**: No docstring
+- **Function `cusip_lookup()`**: No docstring
+- **Function `process_quarter()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `build_membership_panel_t136.py`
+**Module Docstring:** scripts/build_membership_panel_t136.py
+- **Function `build_intervals()`**: No docstring
+- **Function `internal_consistency_check()`**: Cross-check the intervals against the repo's own date-stamped
+- **Function `wikipedia_cross_check()`**: Second source: Wikipedia current constituents vs the panel TODAY.
+- **Function `main()`**: No docstring
+
 ### `cointegration_pair_screen.py`
 **Module Docstring:** scripts/cointegration_pair_screen.py
 - **Function `load_close_series()`**: Load adjusted closes from data/processed/<ticker>_1d.csv as a
@@ -187,6 +247,20 @@
 **Module Docstring:** T-2026-05-31-089 — quantify leaky-vs-causal AUC inflation.
 - **Function `main()`**: No docstring
 
+### `crisis_replay_t118b.py`
+**Module Docstring:** T-143 — Crisis-replay harness implementing the LOCKED T-118b
+- **Class `Episode`**: No docstring
+- **Class `EpisodeResult`**: No docstring
+- **Class `Criterion`**: No docstring
+- **Class `CrisisReplayResult`**: No docstring
+  - `def verdict_line()`
+- **Function `derive_episodes_mechanical()`**: Mechanically derive ≥threshold peak-to-trough drawdown episodes.
+- **Function `pin_locked_episodes()`**: Pin the LOCKED episode set's exact trading dates from the TR
+- **Function `check_mechanical_derivation()`**: The honest-derivation check the T-143 brief requires: does the
+- **Function `evaluate_crisis_replay()`**: Run the locked T-118b evaluation on one config's artifact pair.
+- **Function `format_report()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `dbmf_kmlm_phase0_t110.py`
 **Module Docstring:** T-110 Phase 0 — DBMF + KMLM managed-futures ETFs diagnostic.
 - **Function `load_stooq_etf()`**: No docstring
@@ -200,10 +274,22 @@
 - **Function `verdict_for()`**: Map ETF result to PROCEED-INTEGRATE / MIXED / DEAD.
 - **Function `main()`**: No docstring
 
+### `demo_after_tax_t141.py`
+**Module Docstring:** T-141 demonstration — pre-tax vs after-tax (taxable-IL) on a real book.
+- **Function `main()`**: No docstring
+
+### `demo_auction_execution_t146.py`
+**Module Docstring:** T-146 demonstration — what auction execution is WORTH at our turnover.
+- **Function `main()`**: No docstring
+
 ### `demo_dynamic_optimization_t139.py`
 **Module Docstring:** T-139 payoff demonstration — frozen-fixture comparison, NOT a backtest.
 - **Function `build_fixture()`**: No docstring
 - **Function `annualized_te()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `demo_position_buffering_t148.py`
+**Module Docstring:** T-148 demonstration — what buffering is worth, COUPLED through costs
 - **Function `main()`**: No docstring
 
 ### `det_d1_repro.py`
@@ -323,6 +409,13 @@
 - **Function `validate_model_cards()`**: Run the existing card validator scoped to changed features.
 - **Function `adversarial_check()`**: Real-vs-twin lift comparison.
 - **Function `resolve_changed_paths()`**: Decide which feature files to gate.
+- **Function `main()`**: No docstring
+
+### `fetch_8k_edgar_t137.py`
+**Module Docstring:** scripts/fetch_8k_edgar_t137.py
+- **Function `panel_tickers()`**: No docstring
+- **Function `ticker_cik_map()`**: No docstring
+- **Function `fetch_company()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `fetch_all.py`
@@ -469,6 +562,15 @@
 - **Function `politis_white_block()`**: No docstring
 - **Function `block_bootstrap_ci()`**: No docstring
 - **Function `run_phase0()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `measure_survivor_inflation_t136.py`
+**Module Docstring:** scripts/measure_survivor_inflation_t136.py
+- **Function `load_price_panel()`**: No docstring
+- **Function `exchange_map()`**: SEC company_tickers_exchange.json → ticker -> exchange (best-effort).
+- **Function `classify_exits()`**: One row per membership exit inside the window, with classification.
+- **Function `ew_series()`**: No docstring
+- **Function `stats()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `merge_stooq_alpaca_substrate.py`
@@ -808,6 +910,18 @@
 **Module Docstring:** T-115 — extend the T-112 spot-basket sweep to {25%, 30%} on the deep
 - **Function `main()`**: No docstring
 
+### `spot_sleeve_closeout_analysis_t128.py`
+**Module Docstring:** T-128 spot-sleeve close-out analysis — the definitive 16/26-yr integrated A/B.
+- **Function `fetch_snapshots()`**: No docstring
+- **Function `daily_returns()`**: No docstring
+- **Function `sharpe()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `max_drawdown()`**: No docstring
+- **Function `year_return()`**: No docstring
+- **Function `block_bootstrap_ci()`**: Block bootstrap on the DIFFERENCE series; returns (ci_low, ci_high)
+- **Function `analyze()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `spot_sleeve_cloud_ab_spec_t121.py`
 **Module Docstring:** T-121 cloud A/B spec for the spot sleeve integration — full 16/26-yr.
 - **Function `write_spec_json()`**: No docstring
@@ -829,6 +943,8 @@
 - **Function `aws()`**: Run an AWS CLI command via the `archondex` profile + `us-east-1`.
 - **Function `load_spec()`**: Load + validate the campaign spec JSON.
 - **Function `build_cells()`**: Build the list of cells from spec. Desugars `years` to single-year
+- **Function `build_canary_cells()`**: 3-rep single-year canary on the spec's first arm.
+- **Function `check_canary()`**: True if all canary canons are present and identical.
 - **Function `submit_all()`**: Submit cells in parallel (Batch handles N concurrent submits fine).
 - **Function `poll_until_terminal()`**: Poll Batch describe-jobs until all cells reach SUCCEEDED or FAILED.
 - **Function `fetch_manifests()`**: Pull per-cell manifest.json from S3 for cells that SUCCEEDED.
@@ -1087,4 +1203,11 @@
 
 ### `watch_coordination.py`
 **Module Docstring:** Coordination outbox watcher — notify the director when any agent finishes.
+- **Function `main()`**: No docstring
+
+### `wire_sec_insider_feed_t136.py`
+**Module Docstring:** scripts/wire_sec_insider_feed_t136.py
+- **Function `quarters()`**: No docstring
+- **Function `fetch_zip()`**: No docstring
+- **Function `parse_quarter()`**: No docstring
 - **Function `main()`**: No docstring

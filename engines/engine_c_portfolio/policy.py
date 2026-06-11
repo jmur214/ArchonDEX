@@ -65,6 +65,19 @@ class PortfolioPolicyConfig:
     dynopt_cov_lookback: int = 60                # matches HRPConfig.cov_lookback
     dynopt_use_ledoit_wolf: bool = True          # matches HRPConfig
 
+    # T-2026-06-11-148 — Carver position buffering (10% inertia).
+    # When enabled, PortfolioEngine.compute_target_allocations
+    # post-processes targets through trade-to-edge buffering
+    # (position_buffering.py), composing AFTER dynamic optimization
+    # when both are on. POSITION-level trade-to-edge — NOT T-098's
+    # refuted weight-level no-trade-or-full-trade band; see the module
+    # docstring + docs/Audit/position_buffering_t148_2026_06_11.md.
+    # Default OFF = pre-T-148 behavior canon-bitwise. No prod flip; a
+    # real enable rides a pre-registered A/B (the T-098 precedent
+    # demands the deep-window test before any adoption claim).
+    position_buffering_enabled: bool = False
+    buffer_fraction: float = 0.10                # Carver convention
+
 
 class PortfolioPolicy:
     """

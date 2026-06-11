@@ -427,9 +427,69 @@ class PortfolioEngine:
         if getattr(self.policy.cfg, "dynamic_optimization_enabled", False) and weights:
             weights = self._apply_dynamic_optimization(weights, price_data, equity)
 
+        # T-2026-06-11-148 — Carver position buffering (trade-to-edge,
+        # 10% inertia), default OFF. Composes AFTER dynamic optimization:
+        # when dyn-opt is ON, buffering bands around its integer-implied
+        # optimal positions; when OFF, around the unrounded optimal
+        # shares. OFF ⇒ this branch is a no-op and the module is never
+        # imported — pre-T-148 behavior bitwise-identical.
+        if getattr(self.policy.cfg, "position_buffering_enabled", False) and weights:
+            weights = self._apply_position_buffering(weights, price_data, equity)
+
         self.current_target_weights = weights
         self._log_debug(f"Computed target allocations from signals: {signals} -> weights: {weights}")
         return weights
+
+    def _apply_position_buffering(
+        self,
+        weights: Dict[str, float],
+        price_data: Dict[str, pd.DataFrame],
+        equity: float,
+    ) -> Dict[str, float]:
+        """Trade-to-edge buffering post-processor (Engine C scope only).
+
+        Same plumbing contract as _apply_dynamic_optimization: last
+        Closes from the bar's price_data (the prices Engine B sizes
+        from), current integer positions from self.positions, the bar's
+        sizing equity. Fails open to the unmodified weights on any
+        precluding input.
+        """
+        from engines.engine_c_portfolio.position_buffering import (
+            apply_position_buffering,
+        )
+
+        prices: Dict[str, float] = {}
+        for tkr in sorted(weights.keys()):
+            df = price_data.get(tkr)
+            if df is None or df.empty or "Close" not in df.columns:
+                continue
+            try:
+                last_close = float(df["Close"].iloc[-1])
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(last_close) and last_close > 0.0:
+                prices[tkr] = last_close
+
+        current_positions = {
+            t: int(self.positions[t].qty) if t in self.positions else 0
+            for t in weights.keys()
+        }
+        result = apply_position_buffering(
+            target_weights=weights,
+            prices=prices,
+            current_positions=current_positions,
+            equity=equity,
+            buffer_fraction=float(getattr(self.policy.cfg, "buffer_fraction", 0.10)),
+        )
+        # Kept for observability; not read by engines.
+        self.last_buffering_result = result
+        self._log_debug(
+            f"[BUFFER] suppressed={len(result.suppressed)} "
+            f"edge_trades={len(result.edge_trades)} "
+            f"notional {result.notional_traded_unbuffered:,.0f}→"
+            f"{result.notional_traded_buffered:,.0f}"
+        )
+        return result.weights
 
     def _apply_dynamic_optimization(
         self,

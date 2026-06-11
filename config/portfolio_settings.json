@@ -16,6 +16,8 @@
     "dynopt_buying_power_fraction": 1.0,
     "dynopt_cov_lookback": 60,
     "dynopt_use_ledoit_wolf": true,
+    "position_buffering_enabled": false,
+    "buffer_fraction": 0.10,
     "portfolio_optimizer": {
         "method": "weighted_sum",
         "hrp": {

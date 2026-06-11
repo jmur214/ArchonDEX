@@ -607,6 +607,20 @@ See docs/Audit/auction_execution_t146_2026_06_10.md (incl. the live-side
 OPG/CLS design one-pager: 9:28 ET cutoff, dyn-opt whole-share coupling,
 router/account batching).
 
+### POSITION-BUFFERING COUPLED ACCOUNTING (T-148, 2026-06-11)
+
+```bash
+# Turnover/cost/tax-drag deltas between an OFF and ON run pair
+# (accounting only — no performance comparison, zero N_trials):
+python -m scripts.demo_position_buffering_t148 <off_run_dir> <on_run_dir>
+```
+
+Flag: `position_buffering_enabled` (false) + `buffer_fraction` (0.10)
+in portfolio_settings.json. Composes AFTER dynamic optimization.
+POSITION-level trade-to-edge — NOT T-098's refuted weight band; see
+docs/Audit/position_buffering_t148_2026_06_11.md (incl. the
+pre-registered enable-A/B spec).
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task
