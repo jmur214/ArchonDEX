@@ -43,6 +43,19 @@ SHA=$(git rev-parse --verify "${REF}^{commit}")
 SHORT=$(git rev-parse --short "$SHA")
 TAG="${2:-archondex-backtest:dev}"
 
+# T-2026-06-11-155: disk pre-flight. Three disk-full incidents to date
+# (T-107 build fail, T-126 ResourceExhausted, A's containerd corruption).
+# Staging needs ~3GB (data copy) + docker needs ~8GB unless registry-
+# direct. Fail BEFORE staging rather than corrupt the content store.
+_need_gb=$([ "${ARCHONDEX_BUILD_PUSH:-0}" = "1" ] && echo 6 || echo 12)
+_avail_gb=$(df -g / 2>/dev/null | awk 'NR==2{print $4}' || df -BG / | awk 'NR==2{gsub("G","",$4); print $4}')
+if [ "${_avail_gb:-0}" -lt "$_need_gb" ]; then
+    echo "[build] ERROR: ${_avail_gb}GB free < ${_need_gb}GB required" >&2
+    echo "[build]        (registry-direct ARCHONDEX_BUILD_PUSH=1 needs less;" >&2
+    echo "[build]         also consider a Docker Desktop disk reclaim.)" >&2
+    exit 75
+fi
+
 STAGE=$(mktemp -d "${TMPDIR:-/tmp}/archondex_build.XXXXXX")
 cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT

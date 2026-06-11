@@ -118,10 +118,14 @@ The `:dev` tag bakes the project source + `data/processed/` + `data/raw/` + gove
 
 **THE ONLY SANCTIONED BUILD PATH (T-127/T-133 — do NOT run raw `docker build .`):**
 
+**`:dev` IS RETIRED (T-155, per A's T-140 recommendation):** the mutable tag is provenance-unverifiable — a campaign can't prove which commit/substrate it ran. Campaigns use **sha-tags + the env-pinned job definition** only. Submit with an explicit `--job-def` / job-definition whose image is the `sha-<short>` tag of a `build_backtest_image.sh` build.
+
 ```bash
 # From any worktree (symlinked data/ subdirs are followed).
-scripts/build_backtest_image.sh HEAD            # → archondex-backtest:dev + :sha-<short>
-# or pin an exact commit:
+# Registry-direct (preferred; ~8GB less local disk):
+ARCHONDEX_BUILD_PUSH=1 scripts/build_backtest_image.sh HEAD \
+    407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:sha-<short>
+# Local build:
 scripts/build_backtest_image.sh <git-ref> archondex-backtest:<tag>
 
 aws ecr get-login-password --profile archondex --region us-east-1 \
