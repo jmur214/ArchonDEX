@@ -34,12 +34,6 @@
   - `def save_recommendations()`
   - `def load_recommendations()`
 
-### `allocator.py`
-- **Class `AllocatorConfig`**: No docstring
-- **Class `EngineCAllocator`**: Portfolio-level selection & diversification.
-  - `def __init__()`
-  - `def select()`: scored:  {ticker: {"score": float, "side": "long|short|none", "contrib":[...]}}
-
 ### `composer.py`
 **Module Docstring:** Engine C — Portfolio Composer.
 - **Class `PortfolioOptimizerSettings`**: Config for PortfolioComposer.
@@ -47,6 +41,14 @@
   - `def __init__()`
   - `def is_active()`
   - `def compose()`: Mutate ``per_ticker`` in place to add ``hrp_weight`` and
+
+### `dynamic_optimizer.py`
+**Module Docstring:** Carver-style dynamic optimization — the integer-position layer (T-139).
+- **Class `DynamicOptimizationConfig`**: Tunables for the integer-position optimizer.
+- **Class `DynamicOptimizationResult`**: Output of one optimization call (one rebalance bar).
+- **Function `tracking_error_std()`**: Annualized tracking-error std ``sqrt((w-w*)' Σ (w-w*))``.
+- **Function `naive_rounded_positions()`**: Production-parity naive rounding: Engine B Path A truncates the
+- **Function `optimize_integer_positions()`**: Choose integer positions approximating the unrounded target book.
 
 ### `optimizer.py`
 - **Class `PortfolioOptimizer`**: Mean-Variance Optimizer (MVO) for professional portfolio construction.

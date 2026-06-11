@@ -31,9 +31,19 @@
 - **Function `stream_sharpe()`**: Annualized Sharpe of a per-day return stream.
 - **Function `attribution_diagnostics()`**: Summary stats for the attribution stream — for audit logging.
 
+### `bayesian_optimizer.py`
+**Module Docstring:** engines/engine_d_discovery/bayesian_optimizer.py
+- **Class `BayesianOptimizer`**: Bayesian-optimization-guided candidate search for Engine D.
+  - `def __init__()`
+  - `def warm_start()`: Register `(gene, score)` pairs from a prior cycle's
+  - `def suggest_candidates()`: Suggest N candidate gene-specs ready for downstream gauntlet
+  - `def n_observations()`: How many points has the surrogate seen (warm-start + tells).
+- **Function `cumulative_gate_margin()`**: Compute the spec's Option-B objective: sum of (metric - threshold)/
+
 ### `discovery.py`
 - **Class `DiscoveryEngine`**: Engine D (Discovery): The Evolutionary Lab.
   - `def __init__()`
+  - `def clear_gate1_signal_cache()`: Drop all cached baseline-edge wrappers. Call between cycles
   - `def hunt()`: Phase 2 Core: The "Hunter".
   - `def generate_candidates()`: Produce candidate specs via two paths:
   - `def get_queued_candidates()`: Retrieve candidates from registry that are ready for validation.
@@ -55,13 +65,28 @@
   - `def compute_all_features()`: Master factory method. Computes all feature blocks and returns a unified DataFrame.
   - `def compute_cross_sectional_features()`: Compute cross-sectional rank features across the universe.
 
+### `gate1_signal_cache.py`
+**Module Docstring:** engines/engine_d_discovery/gate1_signal_cache.py
+- **Class `CachedEdgeWrapper`**: Memoizing wrapper around an EdgeBase-shaped object.
+  - `def __init__()`
+  - `def edge_id()`
+  - `def hits()`
+  - `def misses()`
+  - `def compute_signals()`: Delegated + memoized version of the wrapped edge's
+  - `def cache_stats()`
+- **Class `Gate1SignalCache`**: Per-cycle registry of `CachedEdgeWrapper`s keyed by edge_id.
+  - `def __init__()`
+  - `def wrap_edges()`: Return wrapped versions of the supplied edges.
+  - `def clear()`
+  - `def stats()`
+
 ### `genetic_algorithm.py`
 **Module Docstring:** Genetic Algorithm engine for CompositeEdge genome evolution.
 - **Class `GeneticAlgorithm`**: Manages a persistent population of CompositeEdge genomes and evolves
   - `def __init__()`
   - `def load_population()`: Load population from YAML. Returns True if loaded, False if empty/new.
   - `def save_population()`: Persist population to YAML.
-  - `def seed_from_registry()`: Seed Gen 0 from existing composite edges in the registry.
+  - `def seed_from_registry()`: Seed Gen 0 from existing composite edges in the registry, then
   - `def tournament_select()`: Tournament selection: pick k random individuals, return the one
   - `def crossover()`: Single-point crossover: take a prefix of genes from parent_a and
   - `def mutate()`: Mutate a genome with several possible operations:
@@ -82,6 +107,18 @@
 - **Function `monte_carlo_permutation_test()`**: Test whether the strategy's Sharpe ratio is statistically significant
 - **Function `apply_bh_fdr()`**: Benjamini-Hochberg false-discovery-rate correction for a batch of p-values.
 - **Function `minimum_track_record_length()`**: Minimum Track Record Length (MinTRL) per Bailey & Lopez de Prado (2012).
+
+### `sleeve_gauntlet.py`
+**Module Docstring:** Sleeve-level gauntlet — different fitness criteria from the core gauntlet.
+- **Class `SleeveCriteria`**: Pre-committed success and kill thresholds for a sleeve.
+- **Class `SleeveMetrics`**: Computed metrics for one sleeve's return stream.
+  - `def to_dict()`
+- **Class `SleeveVerdict`**: Outcome of evaluating a SleeveMetrics against SleeveCriteria.
+  - `def to_dict()`
+- **Function `upside_capture()`**: Strategy return / benchmark return on days when benchmark > 0.
+- **Function `per_trade_stats()`**: Hit rate, avg winner / loser, ≥3x bet flag.
+- **Function `compute_sleeve_metrics()`**: Compute the sleeve gauntlet metric pack from a sleeve's daily
+- **Function `evaluate_sleeve_gauntlet()`**: Bucket a SleeveMetrics into SUCCESS / PARTIAL / FAIL / INDETERMINATE.
 
 ### `synthetic_market.py`
 - **Class `SyntheticMarketGenerator`**: Generates realistic synthetic market data using Regime-Switching Geometric Brownian Motion.

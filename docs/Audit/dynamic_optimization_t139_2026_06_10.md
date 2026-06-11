@@ -143,16 +143,21 @@ sides.)
 
 ### Proof 2 — ON path fires (functional smoke)
 
-Flag flipped ON in `portfolio_settings.json` for one 2024-cell run:
-completes end-to-end, canon md5 **differs** from baseline (the flag
-actually changes trades), then config reverted. Values in the table
-below.
+Flag flipped ON in `portfolio_settings.json` for one 2024-cell run,
+then reverted (config diff vs HEAD verified zero afterward):
 
 | State | Sharpe | trades canon md5 |
 |---|---:|---|
-| ON (2024 cell, $100K default capital) | (see outbox/final) | (differs from `5d88e1a0…`) |
+| OFF (default) | 0.991 | `5d88e1a0f70f0cd052a7813a6e40b1a9` |
+| ON (2024 cell, $100K default capital) | 1.188 | `4c097deb4f476e56a1d11c5d64436493` |
 
-*(Section completed after the run — see final numbers below.)*
+The ON canon **differs** — the flag actually changes trades — and the
+run completes end-to-end without errors. **The single-cell Sharpe delta
+(0.991 → 1.188) is NOT improvement evidence**: one year, one cell, no
+bootstrap CI, $100K capital where integer effects are incidental
+(T-120's ON smoke showed the same class of meaningless single-cell
+delta). Functional proof only; the A/B that could justify enabling is
+the user-gated step described below.
 
 ### Proof 3 — test suite
 

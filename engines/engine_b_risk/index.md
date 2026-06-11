@@ -35,6 +35,17 @@
   - `def get_entry_dt()`
   - `def should_defer_exit()`: Decide whether to defer a signal-driven exit.
 
+### `regime_transition_overlay.py`
+**Module Docstring:** engines/engine_b_risk/regime_transition_overlay.py
+- **Class `RegimeOverlayConfig`**: Pre-registered overlay parameters (see the T-118 grid).
+- **Class `RegimeTransitionOverlay`**: Stateful, deterministic, idempotent-by-timestamp transition trigger.
+  - `def __init__()`
+  - `def observe()`: Advance the trigger state for a NEW bar; idempotent within a bar.
+  - `def current_multiplier()`: Gross multiplier for the current bar (1.0 when disabled/disarmed).
+  - `def armed()`
+  - `def state()`: (armed, bars_calm, last_mult) — for diagnostics/observability.
+  - `def combined_posterior()`: Extract p_crisis + p_stressed from regime_meta, fail-safe to 0.0.
+
 ### `risk_engine.py`
 - **Class `RiskConfig`**: Risk and constraint configuration (config-driven).
 - **Class `RiskEngine`**: Engine B — Risk / Sizing / Constraints.
@@ -43,6 +54,14 @@
   - `def prepare_order()`
   - `def manage_positions()`: Check all open positions and generate 'update' orders (e.g. moving stops).
   - `def prepare_order()`: Build an order dict or return None if constraints block it.
+
+### `vol_target.py`
+**Module Docstring:** Engine B portfolio-level vol-targeting (T-2026-05-12-055).
+- **Class `VolTargetConfig`**: Portfolio-level vol-targeting configuration.
+- **Function `compute_vol_scale()`**: Standard Moreira-Muir scaling clamped to [floor, ceiling].
+- **Function `compute_realized_vol_from_history()`**: Annualized realized portfolio vol from the trailing `window_days`
+- **Function `compute_realized_vol_from_history_ewma()`**: Annualized realized portfolio vol via RiskMetrics 1996 EWMA.
+- **Function `compute_portfolio_vol_scale()`**: Composer: realized vol from snapshot history → bounded scale.
 
 ### `wash_sale_avoidance.py`
 **Module Docstring:** Wash-sale avoidance — refuse buys within 30 days of a loss-realizing exit.
