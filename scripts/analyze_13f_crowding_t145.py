@@ -52,7 +52,7 @@ from scripts.factor_decomp_substrate_honest import regress_with_hac  # noqa: E40
 from engines.engine_f_governance.factor_alpha_gate import (  # noqa: E402
     compute_alpha_tstat_with_bootstrap_ci,
 )
-from scripts.analyze_8k_events_t137 import romano_wolf_stepm  # noqa: E402
+from core.multiple_testing import romano_wolf_stepm  # noqa: E402
 from engines.data_manager.membership import load_membership  # noqa: E402
 
 PANEL_13F = ROOT / "data" / "edgar" / "13f" / "ownership_panel.parquet"

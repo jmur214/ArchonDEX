@@ -149,67 +149,12 @@ def calendar_time_series(events: pd.DataFrame, abn: pd.DataFrame,
 
 
 # --------------------------------------------------------------------------- #
-# Hand-rolled Romano-Wolf StepM (2005), circular block bootstrap, two-sided
+# Romano-Wolf StepM — PROMOTED to core/multiple_testing.py (T-149 Part A;
+# three consumers: T-137/T-144/T-145). Re-exported here so downstream
+# imports (`from scripts.analyze_8k_events_t137 import romano_wolf_stepm`)
+# keep working.
 # --------------------------------------------------------------------------- #
-
-def romano_wolf_stepm(series: Dict[str, pd.Series], b: int = B_BOOT,
-                      block: int = BLOCK, alpha: float = FWER_ALPHA,
-                      seed: int = SEED) -> Dict:
-    """FWER-controlled stepwise test that each series' mean != 0.
-
-    Studentized |t| statistics; joint null via circular block bootstrap of
-    each (recentred) series with SHARED resample indices on the union
-    calendar (preserves cross-member dependence); stepwise max-|t| ladder.
-    """
-    rng = np.random.default_rng(seed)
-    names = list(series.keys())
-    cal = pd.DatetimeIndex(sorted(set().union(*[s.index for s in series.values()])))
-    X = pd.DataFrame({k: s.reindex(cal) for k, s in series.items()})
-    n = len(cal)
-
-    def tstat(col: np.ndarray) -> float:
-        v = col[np.isfinite(col)]
-        if len(v) < 30 or v.std() == 0:
-            return 0.0
-        return float(v.mean() / (v.std(ddof=1) / np.sqrt(len(v))))
-
-    t_obs = {k: tstat(X[k].to_numpy()) for k in names}
-
-    # joint bootstrap of recentred panel (shared indices across members)
-    Xc = X - X.mean()
-    Xc_np = Xc.to_numpy()
-    n_blocks = int(np.ceil(n / block))
-    boot_T = np.zeros((b, len(names)))
-    for i in range(b):
-        starts = rng.integers(0, n, size=n_blocks)
-        idx = np.concatenate([(np.arange(s, s + block) % n) for s in starts])[:n]
-        sample = Xc_np[idx]
-        for j in range(len(names)):
-            boot_T[i, j] = abs(tstat(sample[:, j]))
-
-    # stepwise max ladder
-    rejected: List[str] = []
-    active = list(range(len(names)))
-    order = sorted(active, key=lambda j: -abs(t_obs[names[j]]))
-    while True:
-        if not active:
-            break
-        max_null = boot_T[:, active].max(axis=1)
-        crit = float(np.quantile(max_null, 1 - alpha))
-        newly = [j for j in order if j in active and abs(t_obs[names[j]]) > crit]
-        if not newly:
-            break
-        for j in newly:
-            rejected.append(names[j])
-            active.remove(j)
-    crit_final = float(np.quantile(boot_T[:, active].max(axis=1), 1 - alpha)) \
-        if active else None
-    return {
-        "t_observed": {k: round(v, 3) for k, v in t_obs.items()},
-        "survivors_fwer05": rejected,
-        "final_critical_value": crit_final,
-        "n_days_union_calendar": int(n),
-    }
+from core.multiple_testing import romano_wolf_stepm  # noqa: E402,F401
 
 
 # --------------------------------------------------------------------------- #
