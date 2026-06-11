@@ -272,6 +272,17 @@ PRODUCER_SUMMARY_KEYS: Set[str] = {
     # here. run_registry at line 122-124 has a T-088 backward-compat
     # fallback that reads 'Sortino Ratio' from historical JSONs.
     "Sortino",
+    # T-141 (2026-06-10) after-tax gate (reporting, not enforcement):
+    # the three flat deploy-gate inputs + the nested accounting detail
+    # block. Report-only — computed from the fill log + equity curve
+    # via backtester/after_tax_metrics.py regardless of the
+    # canon-changing `tax_drag_model.enabled` backtest flag. Rates come
+    # from config/backtest_settings.json `tax_drag_model` (federal ST/LT
+    # + additive state rates; IL flat 4.95%).
+    "after_tax_sharpe_taxable",
+    "sharpe_roth",
+    "tax_drag_pct",
+    "after_tax_detail",
 }
 
 # `summary_metrics()` adds this; `summary()` does NOT.

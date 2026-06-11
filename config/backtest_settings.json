@@ -150,6 +150,8 @@
     "enabled": false,
     "short_term_rate": 0.30,
     "long_term_rate": 0.15,
+    "state_st_rate": 0.0495,
+    "state_lt_rate": 0.0495,
     "long_term_min_days": 365,
     "wash_sale_window_days": 30,
     "carry_forward_losses": true
