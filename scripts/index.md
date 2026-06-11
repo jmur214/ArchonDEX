@@ -65,7 +65,6 @@
 - **Function `build_close_returns()`**: No docstring
 - **Function `anchor_events()`**: Map acceptance datetime (UTC) -> anchor trading-day close index pos.
 - **Function `calendar_time_series()`**: Daily mean abnormal return over events within (anchor, anchor+horizon].
-- **Function `romano_wolf_stepm()`**: FWER-controlled stepwise test that each series' mean != 0.
 - **Function `factor_gate()`**: No docstring
 - **Function `main()`**: No docstring
 
@@ -229,6 +228,11 @@
 - **Function `wikipedia_cross_check()`**: Second source: Wikipedia current constituents vs the panel TODAY.
 - **Function `main()`**: No docstring
 
+### `build_ohlc_features_t150.py`
+**Module Docstring:** scripts/build_ohlc_features_t150.py
+- **Function `load_ohlc_features()`**: Loader for the Part-A feature panel (long format).
+- **Function `main()`**: No docstring
+
 ### `cointegration_pair_screen.py`
 **Module Docstring:** scripts/cointegration_pair_screen.py
 - **Function `load_close_series()`**: Load adjusted closes from data/processed/<ticker>_1d.csv as a
@@ -290,6 +294,10 @@
 
 ### `demo_position_buffering_t148.py`
 **Module Docstring:** T-148 demonstration — what buffering is worth, COUPLED through costs
+- **Function `main()`**: No docstring
+
+### `demo_safef_car25_t151.py`
+**Module Docstring:** T-151 demonstration — safe-f / CAR25 on a real book, per account.
 - **Function `main()`**: No docstring
 
 ### `det_d1_repro.py`
@@ -419,6 +427,11 @@
 - **Function `main()`**: No docstring
 
 ### `fetch_all.py`
+- **Function `main()`**: No docstring
+
+### `fetch_alpaca_minute_t150.py`
+**Module Docstring:** scripts/fetch_alpaca_minute_t150.py
+- **Function `fetch_symbol()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `fetch_data.py`
@@ -579,6 +592,11 @@
 - **Function `apply_dividend_strip()`**: Apply ratio(t) = exp(a + b*(t - epoch)) to Stooq's OHLC.
 - **Function `apply_constant_rescale()`**: Fallback when overlap is too short: scale by a single constant.
 - **Function `merge_ticker()`**: Merge one ticker. Returns provenance record (no IO of the result).
+- **Function `main()`**: No docstring
+
+### `metalearner_falsification_t149.py`
+**Module Docstring:** scripts/metalearner_falsification_t149.py
+- **Function `fit_predict()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `metrics_report.py`
@@ -893,6 +911,12 @@
 
 ### `run_vrp_gauntlet_t122.py`
 **Module Docstring:** scripts/run_vrp_gauntlet_t122.py
+- **Function `main()`**: No docstring
+
+### `screen_features_t150.py`
+**Module Docstring:** scripts/screen_features_t150.py
+- **Function `load_returns()`**: No docstring
+- **Function `mi_with_nulls()`**: Pooled MI per feature vs forward return, with circular-shift nulls.
 - **Function `main()`**: No docstring
 
 ### `sleeve_phase0_verdict.py`
