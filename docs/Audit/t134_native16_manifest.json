@@ -1,0 +1,8 @@
+{
+  "run_id":         "725cf725-d478-4563-85c7-57446a87c520",
+  "cell_id":        "t134-speed/native16/16yr/rep1",
+  "canon_md5":      "9153ff1506dab89cefa64c178423be67",
+  "sharpe":         "0.945",
+  "s3_prefix":      "s3://archondex-results-407539788432/t134-speed/native16/16yr/rep1/725cf725-d478-4563-85c7-57446a87c520",
+  "completed_at":   "2026-06-11T01:14:10Z"
+}
