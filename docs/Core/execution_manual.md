@@ -555,6 +555,23 @@ The optimizer itself is Engine C: `dynamic_optimization_enabled` in
 `config/portfolio_settings.json` (default false — OFF is canon-inert,
 see docs/Audit/dynamic_optimization_t139_2026_06_10.md).
 
+### AFTER-TAX REPORTING DEMO (T-141, 2026-06-10)
+
+```bash
+# Pre-tax vs after-tax (taxable-IL) Sharpe/CAGR with block-bootstrap CIs
+# on a backtest's trade logs (default: flat data/trade_logs pair).
+# Report-only — no backtest, no N_trials. Rates from
+# backtest_settings.json `tax_drag_model` (federal + IL 4.95%).
+python -m scripts.demo_after_tax_t141 [run_dir]
+```
+
+Every performance summary now carries `after_tax_sharpe_taxable`,
+`sharpe_roth`, `tax_drag_pct` + `after_tax_detail` (report-only; the
+canon-changing `tax_drag_model.enabled` flag is separate). Router
+validation: `core/account_router.py::validate_routing` against
+`config/account_routing.json`. See
+docs/Audit/after_tax_gate_t141_2026_06_10.md.
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task

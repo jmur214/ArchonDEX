@@ -774,3 +774,25 @@ the guarantee is by-construction, not empirical; (c) share COUNT is the
 wrong cost metric across a 5–500 price range — measure traded weight
 (notional/equity); a "fewer trades" property that fails on counts can
 be correct on weight.
+
+---
+
+## 2026-06-10 — A reporting layer found a correctness bug in the model it wraps (T-141 wash-sale blindness)
+
+Wiring the (previously unwired) `tax_drag_model` into always-on
+reporting immediately surfaced that its wash-sale scan indexed re-opens
+from REALIZED lots only — a repurchase still held at run end was
+invisible, which is exactly the pattern the IRS rule targets, and
+missing it UNDERSTATES drag against the module's own documented
+conservative intent. The bug sat dormant since 2026-05-02 because the
+model ran only behind a default-OFF flag nobody flipped.
+
+**Lessons:** (a) a default-OFF capability that nothing reads is
+unaudited code — wiring it into an always-on REPORT path is itself a
+test; (b) when a module documents a conservatism direction ("we err
+toward overstating drag"), test the direction, not just the arithmetic
+— the blindness violated the documented invariant, which is what made
+it a clear bug rather than a judgment call; (c) repoint-over-rebuild
+paid again (T-139's covariance reuse, now T-141's tax engine): the
+80%-built capability existed, the missing 20% was wiring + state rates
++ the gate fields.
