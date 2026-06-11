@@ -23,6 +23,10 @@ on:
   pull_request:
     paths:
       - "tests/test_contracts.py"
+      - "tests/test_forbidden_patterns.py"
+      - "tests/test_invariants_property.py"
+      - "tests/test_golden_master.py"
+      - "tests/golden/**"
       - "config/**.json"
       - "engines/**/*.py"
       - "cockpit/metrics.py"
@@ -33,6 +37,10 @@ on:
     branches: [main]
     paths:
       - "tests/test_contracts.py"
+      - "tests/test_forbidden_patterns.py"
+      - "tests/test_invariants_property.py"
+      - "tests/test_golden_master.py"
+      - "tests/golden/**"
       - "config/**.json"
       - "engines/**/*.py"
       - "cockpit/metrics.py"
@@ -75,3 +83,19 @@ jobs:
           PYTHONHASHSEED: "0"
         run: |
           python -m pytest tests/test_contracts.py -v
+
+      # T-2026-06-10-138 — agent-code safety gate (blind-spots research
+      # §AREA 1). Three tiers, cheapest first:
+      #   forbidden-pattern lint  (<1s, pure regex over signal paths)
+      #   property invariants     (~1s, hypothesis: no-lookahead, P&L
+      #                            conservation, sign antisymmetry, units,
+      #                            scale, idempotency)
+      #   golden master           (auto-SKIPS here: the runner has no
+      #                            data/processed. It gates every LOCAL
+      #                            suite run + any future data-enabled CI.
+      #                            Regen procedure in the test docstring.)
+      - name: Agent-code safety gate (T-138)
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python -m pytest tests/test_forbidden_patterns.py tests/test_invariants_property.py tests/test_golden_master.py -v

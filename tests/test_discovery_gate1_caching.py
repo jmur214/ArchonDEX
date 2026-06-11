@@ -352,12 +352,19 @@ def test_gate1_cache_invalidates_on_window_change(synthetic_data_map, monkeypatc
 
     cand = {"edge_id": "cand_x", "module": "test", "class": "CountingEdge"}
 
+    # T-138: enable_mbl_gate=False — Gate-0 MBL (CLAUDE.md #7) correctly
+    # short-circuits these sub-year fixture windows BEFORE the caching
+    # block, so with the gate on the cache is never touched and the
+    # fingerprint stays None for both calls (the pre-T-138 failure mode
+    # of this test). The subject under test is the cache-invalidation
+    # mechanism, not Gate-0 — bypass via the documented escape hatch.
     disc.validate_candidate(
         cand, synthetic_data_map,
         significance_threshold=None,
         start_date=str(idx[0].date()),
         end_date=str(idx[100].date()),
         use_signal_cache=True,
+        enable_mbl_gate=False,
     )
     cache = disc._get_gate1_signal_cache()
     fp_a = cache._fingerprint
@@ -368,6 +375,7 @@ def test_gate1_cache_invalidates_on_window_change(synthetic_data_map, monkeypatc
         start_date=str(idx[0].date()),
         end_date=str(idx[150].date()),
         use_signal_cache=True,
+        enable_mbl_gate=False,
     )
     fp_b = cache._fingerprint
 
