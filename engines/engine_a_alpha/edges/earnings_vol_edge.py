@@ -7,6 +7,31 @@ from engines.engine_a_alpha.edge_template import EdgeTemplate
 logger = logging.getLogger("EARNINGS_VOL")
 
 
+_PINNED_EARNINGS_CACHE = "unset"
+
+
+def _load_pinned_earnings():
+    """ticker -> sorted [tz-naive normalized Timestamps] from the pinned
+    parquet; None if the parquet is absent (legacy fallback engages).
+    Loaded once per process."""
+    global _PINNED_EARNINGS_CACHE
+    if _PINNED_EARNINGS_CACHE != "unset":
+        return _PINNED_EARNINGS_CACHE
+    from pathlib import Path
+    p = Path(__file__).resolve().parents[3] / "data" / "earnings" / "earnings_dates_pinned.parquet"
+    if not p.exists():
+        _PINNED_EARNINGS_CACHE = None
+        return None
+    df = pd.read_parquet(p)
+    out = {}
+    for t, g in df.groupby("ticker"):
+        out[t] = sorted(pd.DatetimeIndex(g["earnings_date"]).tz_localize(None).normalize().tolist()) \
+            if getattr(pd.DatetimeIndex(g["earnings_date"]), "tz", None) is not None \
+            else sorted(pd.DatetimeIndex(g["earnings_date"]).normalize().tolist())
+    _PINNED_EARNINGS_CACHE = out
+    return out
+
+
 class EarningsVolEdge(EdgeBase, EdgeTemplate):
     """
     Behavioral edge: earnings volatility patterns.
@@ -71,6 +96,23 @@ class EarningsVolEdge(EdgeBase, EdgeTemplate):
         if ticker in self._earnings_cache:
             return self._earnings_cache[ticker]
 
+        # T-2026-06-11-155: PINNED earnings dates. The substrate parquet
+        # (data/earnings/earnings_dates_pinned.parquet, vintage-stamped,
+        # manifest-pinned) is the primary source for local AND cloud —
+        # zero network, identical data everywhere. This closes T-142's
+        # contamination finding at the data layer (live Yahoo dates were
+        # feeding trades). A ticker absent from the parquet = pinned
+        # no-data (ETFs etc.) and scores 0 exactly as the live fetch's
+        # empty result did. Refresh = scripts/pin_earnings_dates.py +
+        # manifest regen + commit (deliberate act).
+        pinned = _load_pinned_earnings()
+        if pinned is not None:
+            dates = pinned.get(ticker, [])
+            self._earnings_cache[ticker] = dates
+            return dates
+
+        # Legacy network fallback — only reachable when the pinned parquet
+        # is absent entirely (pre-T-155 checkouts / exotic local setups).
         # T-142 hermetic gate (before the swallow-all try below).
         from core.hermetic import hermetic_block
         if hermetic_block("earnings_vol_edge._get_earnings_dates", ticker):
