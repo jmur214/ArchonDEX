@@ -81,10 +81,16 @@ def pull_gpr() -> str:
                 if url.endswith(".xlsx"):
                     df = read_xlsx_first_sheet(blob)
                 else:
-                    got.append(f"{name}: only legacy .xls reachable — "
-                               f"UNPARSEABLE without xlrd (dep approval needed)")
-                    ok = True
-                    break
+                    # legacy binary .xls — xlrd dep user-approved 2026-06-10
+                    try:
+                        import io
+                        import pandas as _pd
+                        df = _pd.read_excel(io.BytesIO(blob), engine="xlrd")
+                    except ImportError:
+                        got.append(f"{name}: only legacy .xls reachable — "
+                                   f"UNPARSEABLE without xlrd (dep approval needed)")
+                        ok = True
+                        break
                 df.columns = [str(c).strip().lower() for c in df.columns]
                 df["archive_vintage"] = SNAP_DATE
                 dcol = next((c for c in df.columns if "date" in c or c in ("day", "month")),
