@@ -3,10 +3,11 @@ task_id: T-2026-06-11-149
 title: StepM→core + the metalearner falsification (closing the alpha lane's last GO)
 date: 2026-06-11
 author: Agent D (alpha/edge lane)
-outcome: PENDING — this revision is the PRE-REGISTRATION, committed BEFORE the
-  falsification run touches data (per the brief's hard constraint). The kill
-  bar below is immovable after this commit. Results land in the next revision.
-status: PRE-REGISTRATION (results pending)
+outcome: DOOR CLOSED — ridge beats GBM OOS (IC +0.0064 vs +0.0039; diff −0.0025,
+  SPA p=0.595, ci spans 0); kill bar failed both prongs. StepM/SPA in core with
+  7 tests, 3 consumers repointed. Pre-registration was committed before data
+  contact (ba9353e) and left untouched. The alpha-lane record is complete.
+status: CURRENT
 reproduce: |
   python -m pytest tests/test_multiple_testing.py -q     (Part A: 7 tests)
   PYTHONHASHSEED=0 python -m scripts.metalearner_falsification_t149
@@ -68,7 +69,43 @@ stays false REGARDLESS of outcome.
    reinforced.
 6. **Determinism:** seed 0 end-to-end, no wall-clock in artifact, ×2.
 
-## Results
+## Results (appended post-run; pre-registration above untouched)
 
-*(pending — next revision; the section above may not be edited after this
-commit, only appended below)*
+**VERDICT: DOOR CLOSED** — and in the exact form the research predicted:
+**ridge beats the GBM out-of-sample.**
+
+| model | OOS mean daily rank-IC (1,004 days, 15 CPCV paths) |
+|---|---|
+| ridge (the null combiner) | **+0.00637** |
+| GBM (monotonic, depth-3, heavy leaves) | +0.00386 |
+| linear uniform (production proxy) | +0.00047 |
+
+Kill bar: GBM − ridge mean daily IC difference = **−0.00251**,
+block-bootstrap ci [−0.0185, +0.0121], **SPA p = 0.595** → fails BOTH prongs
+(needed: SPA reject at 5% AND ci_low > 0). Not close. Determinism PASS ×2
+(md5 84ea2f1b…).
+
+**Reading it:**
+- The non-linear stacker is WORSE than ridge under CPCV — the T-132
+  bollinger×pead_short interaction (1-of-28, selection-uncorrected) did not
+  generalize, exactly as the multiplicity caveat warned. The door-ajar is now
+  evidence-closed: **"non-linear combination cannot extract compound alpha
+  from these edges"** joins T-117's linear closure; the 2026-05-01 metalearner
+  falsification stands doubly reinforced.
+- Even the WINNING combiner's IC (+0.006 daily rank-IC ≈ 0.6% of return
+  rank variance) is economically tiny — combination quality was never the
+  binding constraint; signal quality is (the lane's consistent finding).
+- Both regularized models beat the uniform linear proxy — worth a footnote
+  (weighting helps marginally) but not a deployment thesis at IC +0.006.
+- The metalearner's production `enabled` stays false, now with closed-door
+  evidence rather than a stale 2026-05-01 verdict.
+
+**The alpha lane's complete record going into the fork:**
+characteristic factors closed (T-117/123/129) · timing-overlay closed (T-122)
+· composition closed (T-135: real α exists overnight, unharvestable) ·
+structured-event lane closed as a class (T-137/144/145) · linear combination
+closed (T-117) · **non-linear combination closed (T-149)**. Remaining
+genuinely-open: directional-text events (prompt-injection-gated), intraday
+features/execution (data/build-gated), options-class VRP + universe expansion
+(user fork), and the risk/regime mission where the system's demonstrated
+strengths live.
