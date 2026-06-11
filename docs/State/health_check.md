@@ -36,15 +36,15 @@ then LOW. Within each severity, list newest at the top.
 - Status: not started
 - Description: `LifecycleConfig.factor_alpha_enabled` defaults `True` (lifecycle_manager.py:224); a full FF5+Mom HAC bootstrap retirement gate exists (factor_alpha_gate.py). But the gate body requires `factors is not None` (lifecycle_manager.py:614), and the production entry `StrategyGovernor.evaluate_lifecycle` (governor.py:607-610) calls `lcm.evaluate(...)` WITHOUT `factors=`. The only caller supplying factors is `scripts/lifecycle_factor_alpha_reeval_t043.py`. So in the autonomous loop the gate is a permanent no-op despite its enable-flag reading True. Flag-vs-path hazard, same family as T-088.
 - Charter reference: engine_charters.md §F Invariant 4 ("Edge demotions require statistically significant underperformance"). Not discoverable as inert from any living doc.
-- Recommended next step: Either wire `factors=` into `governor.evaluate_lifecycle` (Engine F, autonomous-allowed) or document that factor-α retirement is script-only.
+- Recommended next step: USER-GATED, not autonomous (re-scoped 2026-06-11 fresh-view review). Wiring `factors=` is mechanically one argument (`load_factor_data(auto_download=False)` fail-soft → `lcm.evaluate(..., factors=factors)`), BUT with prod `lifecycle_enabled=true` + `lifecycle_readonly=false` + `journal=None` on the `update_from_trades` path (governor.py:554), transitions DIRECT-MUTATE edges.yml, and T-043 measured 6 of 7 active edges firing. That would shift arm0 canon mid-T-140-re-baseline and under the held T-118 campaign. Sequence: after T-140 lands and the T-118 wave closes, surface "retire the factor-negative book" as the user decision it is (fresh-view review P1 #3), then wire with journal routing on every call path.
 
-### [HIGH] Engine F: governor.py docstrings mislabel the engine as "Engine D"
-- Engine: F
-- First flagged: 2026-06-04
-- Status: not started
-- Description: governor.py:20 and governor.py:89 both attribute the Governor to "Engine D". Governance is Engine F; Discovery is Engine D. Stale label from before the D/F split. Misleads charter-boundary audits.
-- Charter reference: engine_charters.md §"Discovery (D) and Governance (F) split what was previously a single overloaded engine."
-- Recommended next step: Update both docstrings to "Engine F". Doc-only, autonomous-allowed.
+### [HIGH] Engine E: production loads the legacy HMM, not the validated crisis model
+- Engine: E
+- First flagged: 2026-06-11 (fresh-view review; previously discoverable only inside the T-118 audit doc)
+- Status: not started (repoint is propose-first; sequenced behind T-118 verdict)
+- Description: `config/regime_settings.json:101` points at `engines/engine_e_regime/models/hmm_3state_v1.pkl` — the original model that scored OOS AUC 0.49 (false-negative) before T-087 reversed the verdict via the crisis retrain. The validated artifact `hmm_3state_crisis_v1.pkl` (T-103/T-105: OOS AUC@5d 0.914–0.919 on the combined posterior, 7/7 per-event TPR at the live 60-bar window) is referenced ONLY by T-103/T-105 scripts and the T-118 campaign-spec generator. CURRENT_STATE leans on "hmm_p_crisis is VALIDATED-predictive" as load-bearing for the Path-B kill-switch decision, but the production system never computes that signal.
+- Charter reference: engine_charters.md §E (regime detection is E's job; the model artifact choice is config, not code).
+- Recommended next step: T-118 drives its overlay with the crisis model; if the overlay wins its pre-registered gate, the production repoint rides along as a separate propose-first gate. Until then this row exists so the mismatch is discoverable from a living doc. capability_ledger.md Engine E section updated 2026-06-11 with the same facts.
 
 ### [MEDIUM] Engine F: `regime_analytics.RegimePerfAnalytics` referenced by charter + index.md but file does not exist
 - Engine: F
@@ -686,6 +686,12 @@ then LOW. Within each severity, list newest at the top.
 ---
 
 ## Resolved (last 90 days)
+
+### [HIGH → RESOLVED 2026-06-11] Engine F: governor.py docstrings mislabel the engine as "Engine D"
+- Engine: F
+- First flagged: 2026-06-04; Resolved: 2026-06-11
+- Description: governor.py:21 and governor.py:89 both attributed the Governor to "Engine D" (stale label from before the D/F split). Both updated to "Engine F". Doc-only change, autonomous-allowed.
+- See: `engines/engine_f_governance/governor.py:21,89`; fresh-view review `docs/Audit/fresh_view_full_system_review_2026_06_11.md`.
 
 ### [MEDIUM → RESOLVED 2026-04-27] Lifecycle audit-trail / registry-state divergence detection missing (2026-04-25)
 - Engine: F (Governance)
