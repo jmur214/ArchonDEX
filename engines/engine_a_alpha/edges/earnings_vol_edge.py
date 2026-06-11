@@ -71,6 +71,12 @@ class EarningsVolEdge(EdgeBase, EdgeTemplate):
         if ticker in self._earnings_cache:
             return self._earnings_cache[ticker]
 
+        # T-142 hermetic gate (before the swallow-all try below).
+        from core.hermetic import hermetic_block
+        if hermetic_block("earnings_vol_edge._get_earnings_dates", ticker):
+            self._earnings_cache[ticker] = []
+            return []
+
         try:
             import yfinance as yf
             tk = yf.Ticker(ticker)

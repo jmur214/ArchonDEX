@@ -47,6 +47,15 @@ class DataManager:
         if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
             print(f"[DATA_MANAGER][INFO] Falling back to yfinance for {ticker}...")
         
+        # T-142: hermetic gate — in measured runs the network fallback is
+        # blocked loudly (T-134 profile: 52% of cloud wall was this class of
+        # call; plus the split-only-cache contamination hazard, T-088 note
+        # below). Empty frame == the no-data outcome the caller already
+        # handles. Gate sits BEFORE the try so strict mode isn't swallowed.
+        from core.hermetic import hermetic_block
+        if hermetic_block("data_manager._fetch_yfinance", ticker, str(start), str(end)):
+            return pd.DataFrame()
+
         try:
             # yfinance expects YYYY-MM-DD strings (or accepts None = today).
             # Don't call strftime on None: pd.to_datetime(None) → NaT, which
