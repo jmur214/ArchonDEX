@@ -76,12 +76,24 @@ LIVE_MUTABLE_GOVERNOR = {
 
 
 def iter_substrate_files(root: Path):
+    import os
     for d in SUBSTRATE_DIRS:
         base = (root / d).resolve()
         if not base.is_dir():
             print(f"WARN: substrate dir missing: {root / d}", file=sys.stderr)
             continue
-        for p in sorted(base.rglob("*")):
+        # T-155 fix: walk with followlinks=True. Since T-133 the anchor
+        # dirs are SYMLINKS in agent worktrees; pathlib.rglob does not
+        # descend symlinked dirs, so a manifest generated in a worktree
+        # silently DROPPED the anchors — while the build's `rsync -aL`
+        # dereferences them, making every build fail verify with
+        # "EXTRA: _isolated_anchor/...". The generator must dereference
+        # exactly like the build stages.
+        paths = []
+        for dirpath, _dirnames, filenames in os.walk(base, followlinks=True):
+            for fn in filenames:
+                paths.append(Path(dirpath) / fn)
+        for p in sorted(paths):
             if not p.is_file():
                 continue
             if p.name in JUNK_NAMES or p.suffix in JUNK_SUFFIXES:
