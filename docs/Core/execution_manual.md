@@ -635,6 +635,21 @@ reconstructions, configurable via optional `safef_car25` block in
 backtest_settings.json). Record-dependent — sizing decisions use the
 deep-window number. See docs/Audit/safef_car25_t151_2026_06_11.md.
 
+### DIVERGENCE-MONITOR CALIBRATION (T-152, 2026-06-11)
+
+```bash
+# False-alarm grids -> operating points -> injected-divergence power
+# (seed-deterministic; zero N_trials). Re-run on deeper run dirs to
+# refresh the calibration.
+python -m scripts.calibrate_divergence_monitors_t152 [run_dir]
+```
+
+Operating points (calibrated 2026-06-11, ~<=1 FA/yr): CUSUM-mean
+k=1.0/h=5.0, CUSUM-var k=2.0/h=12.0, PH delta=0.05/lambda=20 (sigma
+units — research params were mis-scaled ~80x; documented). Summaries
+carry `divergence_alarms` + `divergence_detail` (shadow only). See
+docs/Audit/divergence_monitors_t152_2026_06_11.md.
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task
