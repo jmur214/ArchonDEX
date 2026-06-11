@@ -101,11 +101,32 @@ BASE_DIGEST=$(grep -oE 'python:3\.14-slim@sha256:[a-f0-9]{64}' "$STAGE/Dockerfil
 echo "[build] base: ${BASE_DIGEST:-UNPINNED (pre-T-125 commit)}"
 
 echo "[build] docker build"
-docker build -f "$STAGE/Dockerfile.backtest" \
-    --label "org.archondex.commit=$SHA" \
-    --label "org.archondex.substrate-manifest-md5=$SUBSTRATE_MD5" \
-    -t "$TAG" -t "archondex-backtest:sha-$SHORT" \
-    "$STAGE"
+if [ "${ARCHONDEX_BUILD_PUSH:-0}" = "1" ]; then
+    # T-2026-06-10-140: registry-direct build. `--push` streams layers to
+    # the registry WITHOUT unpacking the image into the local store —
+    # peak local disk drops by the full image size (~8GB). Added after a
+    # disk-full mid-unpack corrupted the local containerd content store.
+    # Requires $TAG to be a full registry ref (e.g. <acct>.dkr.ecr...:tag)
+    # and prior `docker login` / ecr get-login-password auth. The sha tag
+    # is pushed to the same remote repo.
+    REPO="${TAG%:*}"
+    case "$TAG" in
+        */*) : ;;
+        *) echo "[build] ERROR: ARCHONDEX_BUILD_PUSH=1 requires TAG to be a full registry ref, got '$TAG'" >&2; exit 70 ;;
+    esac
+    docker build -f "$STAGE/Dockerfile.backtest" \
+        --label "org.archondex.commit=$SHA" \
+        --label "org.archondex.substrate-manifest-md5=$SUBSTRATE_MD5" \
+        -t "$TAG" -t "$REPO:sha-$SHORT" \
+        --push \
+        "$STAGE"
+else
+    docker build -f "$STAGE/Dockerfile.backtest" \
+        --label "org.archondex.commit=$SHA" \
+        --label "org.archondex.substrate-manifest-md5=$SUBSTRATE_MD5" \
+        -t "$TAG" -t "archondex-backtest:sha-$SHORT" \
+        "$STAGE"
+fi
 
 echo "[build] DONE"
 echo "  image:     $TAG (+ archondex-backtest:sha-$SHORT)"
