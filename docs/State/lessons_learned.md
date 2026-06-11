@@ -744,3 +744,33 @@ F6 fixed (1) — universe. The 2026-05-07 R1 audit found (7) — validation geom
 **Procedural rule (added):** every measurement claim must enumerate which substrate components were honest at measurement time. Future audit prompts should ask: "show me each substrate component you verified, what you tested it against, what would have invalidated the result." A measurement that says "Sharpe X on universe Y" without naming the other 6 components is incomplete.
 
 **The phrase "every Sharpe in the project has been measured under conditions that systematically inflate it"** (from synthesis-by-primary-dev) reduces to: at least one of the 7 substrate components is still optimistic on every measurement to date. F6 closed one. R1's embargo+DSR fix would close another. R2's 1962+ extension closes a third. **Four remain to be addressed** (data quality, governor state, code state, cost model — though cost model is closer to honest than the others post-realistic-cost-layer work).
+
+---
+
+## 2026-06-10 — Zero-start greedy LOSES to naive truncation under common-factor correlation (T-139)
+
+Porting pysystemtrade's dynamic optimization: the source's greedy walk
+(start at zero, step only toward the unrounded optimal, accept the best
+single-step improvement) **lost to naive per-name truncation on 14/20
+seeded random books** when returns share a strong common factor. The
+single-step walk stalls in the factor valley — no one-share step
+improves, but a JOINT two-name move would. Carver's futures context
+tolerates this (large per-contract weights, reduce-only constraints);
+our equity-book premise ("never do worse than what Engine B's
+truncation produces today") does not.
+
+Fixes that made dominance structural rather than hoped-for: (1)
+multi-start — also run the walk from the naive book when feasible and
+keep the better objective (greedy from a feasible point can only
+improve on it); (2) a bidirectional ±1-share sign-preserving polish
+pass to escape toward-target-only stalls.
+
+**Transferable lessons:** (a) a reference implementation's search
+heuristic encodes ITS asset class's geometry — port the objective
+faithfully, but re-verify the search against OUR covariance structure
+before trusting it; (b) when a property must hold vs a production
+baseline ("never worse than X"), make the baseline a SEARCH START so
+the guarantee is by-construction, not empirical; (c) share COUNT is the
+wrong cost metric across a 5–500 price range — measure traded weight
+(notional/equity); a "fewer trades" property that fails on counts can
+be correct on weight.
