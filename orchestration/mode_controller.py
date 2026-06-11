@@ -537,6 +537,9 @@ class ModeController:
             "slippage_bps": float(self.cfg_bt.get("slippage_bps", 10.0)),
             "slippage_model": str(self.cfg_bt.get("slippage_model", "fixed")),
             "commission": float(self.cfg_bt.get("commission", 0.0)),
+            # T-146: auction-execution convention; "off" = legacy bitwise.
+            "auction_execution": str(self.cfg_bt.get("auction_execution", "off")),
+            "auction_safety_bps": float(self.cfg_bt.get("auction_safety_bps", 1.0)),
         }
         if "slippage_extra" in self.cfg_bt:
             self.exec_params["slippage_extra"] = self.cfg_bt["slippage_extra"]

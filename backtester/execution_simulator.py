@@ -37,6 +37,32 @@ class ExecParams:
     prefer_close_fallback: bool = True
     conservative_intrabar: bool = True
     verbose: bool = True
+    # T-146 — auction-execution convention (research top-10 #1).
+    # "off" (default) = legacy next-Open + slippage-model fills, bitwise
+    # pre-T-146. "moo"/"moc" = ALL signal-driven fills at the next bar's
+    # opening/closing auction print; "moo_moc" = entries at the open
+    # auction, signal exits at the close auction. Auction fills receive
+    # the official auction print — on US-equity daily bars the Open and
+    # Close columns ARE the opening/closing auction prints (primary-
+    # listing official prices; caveat: thin names can have small or
+    # crossed opening auctions where the print is less representative —
+    # our liquid-large-cap universe at <0.001% ADV is the good case).
+    # Cost model: NO spread/impact (the auction is the price-discovery
+    # event; a marketable auction order at our size receives the print)
+    # + `auction_safety_bps` applied ADVERSELY per side (imbalance/
+    # thin-auction safety margin, configurable) + the existing Alpaca
+    # regulatory pass-through fees (SEC §31 ≈0.278bp + FINRA TAF on
+    # sells — already modeled by AlpacaFees, reused unchanged).
+    # Intrabar stop/target fills are NOT auction orders and keep the
+    # legacy level+slippage path regardless of mode.
+    auction_execution: str = "off"
+    auction_safety_bps: float = 1.0
+
+
+_AUCTION_MODES = ("off", "moo", "moc", "moo_moc")
+_ENTRY_SIDES = ("long", "short")
+_BUY_SIDES = ("long", "cover")   # adverse = pay up
+# sells ("short", "exit") adverse = receive less
 
 
 # ------------------------------ Simulator ------------------------------ #
@@ -69,7 +95,14 @@ class ExecutionSimulator:
                  verbose: bool = True,
                  slippage_extra: Optional[Dict[str, Any]] = None,
                  alpaca_fees_cfg: Optional[Dict[str, Any]] = None,
-                 alpaca_fees: Optional[AlpacaFees] = None):
+                 alpaca_fees: Optional[AlpacaFees] = None,
+                 auction_execution: str = "off",
+                 auction_safety_bps: float = 1.0):
+        if str(auction_execution) not in _AUCTION_MODES:
+            raise ValueError(
+                f"auction_execution must be one of {_AUCTION_MODES}, "
+                f"got '{auction_execution}'"
+            )
         self.params = ExecParams(
             slippage_bps=float(slippage_bps),
             slippage_model=str(slippage_model),
@@ -79,6 +112,8 @@ class ExecutionSimulator:
             prefer_close_fallback=bool(prefer_close_fallback),
             conservative_intrabar=bool(conservative_intrabar),
             verbose=bool(verbose),
+            auction_execution=str(auction_execution),
+            auction_safety_bps=float(auction_safety_bps),
         )
 
         # Initialize the slippage model. `slippage_extra` lets callers
@@ -172,6 +207,45 @@ class ExecutionSimulator:
             raise ValueError("No valid Open/Close found to execute next-bar fill.")
         return px
 
+    # ---------------------- auction execution (T-146) ------------------- #
+
+    def _auction_price(self, bar: Dict[str, float], side: str, mode: str) -> float:
+        """Auction print for this fill under the active convention.
+
+        moo     → next bar's OPEN auction for every signal fill
+        moc     → next bar's CLOSE auction for every signal fill
+        moo_moc → entries (long/short) at the OPEN auction, signal exits
+                  (exit/cover) at the CLOSE auction
+        On US-equity daily bars the Open/Close columns are the official
+        auction prints. If the chosen print is missing/invalid, fall back
+        to the other one (mirrors prefer_close_fallback semantics).
+        """
+        if mode == "moo":
+            use_open = True
+        elif mode == "moc":
+            use_open = False
+        else:  # moo_moc
+            use_open = side in _ENTRY_SIDES
+        primary, fallback = ("Open", "Close") if use_open else ("Close", "Open")
+        px = bar.get(primary, float("nan"))
+        if not math.isfinite(px) or px <= 0:
+            px = bar.get(fallback, float("nan"))
+        if not math.isfinite(px) or px <= 0:
+            raise ValueError(
+                f"No valid {primary}/{fallback} auction print for fill."
+            )
+        return px
+
+    def _apply_auction_safety(self, price: float, side: str) -> float:
+        """Adverse safety margin on the auction print (imbalance / thin-
+        auction buffer): buys pay up, sells receive less. No spread or
+        impact model — the auction order receives the official print.
+        """
+        adj = self.params.auction_safety_bps / 1e4
+        if side in _BUY_SIDES:
+            return price * (1.0 + adj)
+        return price * (1.0 - adj)
+
     # ----------------------------- public ------------------------------ #
 
     def fill_at_next_open(self, order: dict, next_bar_like: Any) -> Optional[dict]:
@@ -220,7 +294,15 @@ class ExecutionSimulator:
         if qty <= 0 or side not in ("long", "short", "exit", "cover") or not ticker:
             return None
 
-        raw = self._next_price_for_entry_exit(bar)
+        # T-146: auction-execution convention. "off" (default) keeps the
+        # legacy next-Open + slippage-model path bitwise; auction modes
+        # take the official auction print + adverse safety bps and skip
+        # the spread/impact model entirely (fees path unchanged below).
+        auction_mode = self.params.auction_execution
+        if auction_mode != "off":
+            raw = self._auction_price(bar, side, auction_mode)
+        else:
+            raw = self._next_price_for_entry_exit(bar)
 
         # gap sanity warning (not fatal)
         prev = bar.get("PrevClose", float("nan"))
@@ -230,9 +312,12 @@ class ExecutionSimulator:
                 self._log_info(f"[WARN][EXEC] Gap > {self.params.gap_warn:.0%} on {ticker}: "
                                f"prev={prev:.4f}, open={raw:.4f} ({gap:.1%})")
 
-        # Apply slippage using the model — forward qty so size-aware
-        # models (RealisticSlippageModel) can compute market impact.
-        traded = self._apply_slippage(raw, side, ticker, next_bar_like, qty=qty)
+        if auction_mode != "off":
+            traded = self._apply_auction_safety(raw, side)
+        else:
+            # Apply slippage using the model — forward qty so size-aware
+            # models (RealisticSlippageModel) can compute market impact.
+            traded = self._apply_slippage(raw, side, ticker, next_bar_like, qty=qty)
 
         # Alpaca regulatory pass-through fees (SEC Section 31 + FINRA TAF).
         # When the model is disabled this returns the flat ``commission``
