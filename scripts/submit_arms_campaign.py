@@ -202,6 +202,12 @@ def load_spec(spec_path: Path) -> Dict:
     missing = required - set(spec.keys())
     if missing:
         raise SystemExit(f"Spec missing required keys: {missing}")
+    # T-2026-06-10-134 ADDENDUM: the planned optional-reps-default-1 is ON
+    # HOLD — A's T-128 found cross-task determinism broken (placement
+    # lottery; two canon attractors per image). Reps stay spec-required
+    # until T-140 lands; then reps→1 + a CROSS-TASK canary unanimity check
+    # become valid (the canary machinery below is already cross-task: each
+    # canary rep is its own Batch task).
     if not isinstance(spec["arms"], dict) or not spec["arms"]:
         raise SystemExit("Spec 'arms' must be a non-empty dict")
     if has_windows:
@@ -258,6 +264,62 @@ def build_cells(spec: Dict) -> List[Cell]:
                     config_patch=patch,
                 ))
     return cells
+
+
+# T-2026-06-10-134: per-campaign determinism canary.
+# With the rep default at 1, the campaign needs an in-band check that the
+# determinism floor still holds on the exact image/config it runs.
+# 3 reps of ONE cheap cell (single-year window, the spec's FIRST arm) ride
+# along with every campaign; if their canon_md5s are not 3/3 identical the
+# campaign result is declared UNTRUSTED (exit code 2) — that's a finding
+# (the floor broke: image, base, harness, or substrate changed), not noise.
+CANARY_ARM_PREFIX = "_canary"
+CANARY_YEAR = "2022"          # well-populated reference year
+CANARY_REPS = 3
+
+
+def build_canary_cells(spec: Dict) -> List[Cell]:
+    """3-rep single-year canary on the spec's first arm."""
+    first_arm = next(iter(spec["arms"]))
+    patch = spec["arms"][first_arm].get("config_patch", {})
+    return [
+        Cell(
+            campaign_id=spec["campaign_id"],
+            arm=f"{CANARY_ARM_PREFIX}_{first_arm}",
+            start_date=f"{CANARY_YEAR}-01-01",
+            end_date=f"{CANARY_YEAR}-12-31",
+            window_label=CANARY_YEAR,
+            rep=rep,
+            config_patch=patch,
+        )
+        for rep in range(1, CANARY_REPS + 1)
+    ]
+
+
+def check_canary(canary_cells: List[Cell]) -> bool:
+    """True if all canary canons are present and identical.
+
+    The canon lives in the fetched manifest dict (`cell.manifest`), set by
+    fetch_manifests() — NOT a top-level Cell attribute.
+    """
+    def canon(c: Cell) -> Optional[str]:
+        return (c.manifest or {}).get("canon_md5")
+
+    md5s = {canon(c) for c in canary_cells if canon(c)}
+    ok = (len(md5s) == 1
+          and sum(1 for c in canary_cells if canon(c)) == len(canary_cells))
+    if ok:
+        print(f"[canary] PASS — {len(canary_cells)}/{len(canary_cells)} bitwise-identical "
+              f"canon {next(iter(md5s))}")
+    else:
+        print("=" * 72)
+        print("[canary] *** FAIL — DETERMINISM FLOOR BROKEN ***")
+        for c in canary_cells:
+            print(f"  {c.cell_id}: canon={canon(c)}")
+        print("[canary] The campaign's results are UNTRUSTED. Do not compare arms.")
+        print("[canary] Investigate: image change? base digest? harness? substrate?")
+        print("=" * 72)
+    return ok
 
 
 def submit_all(cells: List[Cell], job_definition: str,
@@ -414,32 +476,47 @@ def main() -> int:
                          "single-year ~1800s.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Show what would be submitted; do not submit.")
+    ap.add_argument("--reps", type=int, default=None,
+                    help="Override the spec's reps (spec default is 1 since "
+                         "T-134; use 3 for explicit determinism checks).")
+    ap.add_argument("--no-canary", action="store_true",
+                    help="Skip the 3-rep determinism canary (NOT recommended "
+                         "— the canary is the safety net that lets reps "
+                         "default to 1).")
     args = ap.parse_args()
 
     spec = load_spec(Path(args.spec))
+    if args.reps is not None:
+        spec["reps"] = args.reps
     cells = build_cells(spec)
+    canary_cells = [] if args.no_canary else build_canary_cells(spec)
     launch_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     n_windows = (len(spec["windows"]) if "windows" in spec
                  else len(spec.get("years", [])))
     print(f"[campaign] {spec['campaign_id']}")
     print(f"[campaign] {len(cells)} cells "
-          f"({len(spec['arms'])} arms × {n_windows} windows × {spec['reps']} reps)")
+          f"({len(spec['arms'])} arms × {n_windows} windows × {spec['reps']} reps)"
+          + (f" + {len(canary_cells)} canary" if canary_cells else " (canary SKIPPED)"))
 
     if args.dry_run:
         print("[campaign] DRY RUN — would submit:")
-        for c in cells[:5]:
+        for c in (canary_cells + cells)[:8]:
             print(f"  {c.cell_id}  patch={list(c.config_patch.keys())}")
-        if len(cells) > 5:
-            print(f"  ... and {len(cells) - 5} more")
+        if len(canary_cells) + len(cells) > 8:
+            print(f"  ... and {len(canary_cells) + len(cells) - 8} more")
         return 0
 
-    submit_all(cells, args.job_def, timeout_seconds=args.job_timeout)
-    poll_until_terminal(cells, args.poll_interval, args.timeout)
-    fetch_manifests(cells)
-    write_summary(cells, spec["campaign_id"], launch_ts)
+    all_cells = canary_cells + cells
+    submit_all(all_cells, args.job_def, timeout_seconds=args.job_timeout)
+    poll_until_terminal(all_cells, args.poll_interval, args.timeout)
+    fetch_manifests(all_cells)
+    write_summary(all_cells, spec["campaign_id"], launch_ts)
 
-    n_failed = sum(1 for c in cells if c.status == "FAILED")
+    canary_ok = check_canary(canary_cells) if canary_cells else True
+    n_failed = sum(1 for c in all_cells if c.status == "FAILED")
+    if not canary_ok:
+        return 2  # determinism floor broke — results untrusted
     return 0 if n_failed == 0 else 1
 
 
