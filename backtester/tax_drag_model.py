@@ -67,6 +67,15 @@ class TaxDragConfig:
     # Federal long-term capital gains rate. 15% is the middle bracket;
     # 0% applies below ~$47k income, 20% above ~$518k.
     long_term_rate: float = 0.15
+    # T-141: state capital-gains rates, ADDED to the federal rate per
+    # bucket. Defaults 0.0 preserve pre-T-141 behavior exactly. For the
+    # Illinois deployment context both are the flat 4.95% — IL taxes
+    # capital gains as ordinary income, so ST and LT carry the same
+    # state rate. Rates live in config (backtest_settings.json
+    # `tax_drag_model`), not code. These are planning estimates, not
+    # tax advice.
+    state_st_rate: float = 0.0
+    state_lt_rate: float = 0.0
     # Long-term threshold in days. IRS rule is "more than 1 year"; we
     # use ≥ 365 days as a slight (conservative) overestimate of drag.
     long_term_min_days: int = 365
@@ -147,6 +156,12 @@ class TaxDragModel:
         long_lots: Dict[str, deque] = {}
         short_lots: Dict[str, deque] = {}
         realized: List[_RealizedTrade] = []
+        # T-141: record EVERY open event for the wash-sale scan. The
+        # scan previously indexed entry dates of REALIZED lots only, so
+        # a repurchase still held at run end was invisible — exactly the
+        # case the IRS rule targets, and missing it UNDERSTATES drag
+        # (against this module's documented conservative intent).
+        open_events: Dict[str, List[pd.Timestamp]] = {}
 
         for _, row in df.iterrows():
             ticker = str(row["ticker"])
@@ -161,10 +176,12 @@ class TaxDragModel:
                 long_lots.setdefault(ticker, deque()).append(
                     _OpenLot(qty=qty, price=price, entry_dt=dt)
                 )
+                open_events.setdefault(ticker, []).append(dt)
             elif side == "short":
                 short_lots.setdefault(ticker, deque()).append(
                     _OpenLot(qty=qty, price=price, entry_dt=dt)
                 )
+                open_events.setdefault(ticker, []).append(dt)
             elif side == "exit":
                 self._fifo_close(
                     long_lots.get(ticker, deque()),
@@ -195,6 +212,9 @@ class TaxDragModel:
                 if t.holding_days >= self.config.long_term_min_days
                 else "short_term"
             )
+        # Stash for apply_wash_sale_rule (same-instance pipeline). Kept
+        # as instance state so the public method signature is unchanged.
+        self._last_open_events = open_events
         return realized
 
     def _fifo_close(
@@ -256,13 +276,21 @@ class TaxDragModel:
 
         window = self.config.wash_sale_window_days
 
-        # Index re-opens per ticker by date (only "long" and "short" opens)
-        by_ticker_opens: Dict[str, List[pd.Timestamp]] = {}
-        for t in trades:
-            by_ticker_opens.setdefault(t.ticker, []).append(t.entry_dt)
-        # Sort each list once
-        for v in by_ticker_opens.values():
-            v.sort()
+        # Index re-opens per ticker by date. Prefer the full open-event
+        # log captured by reconstruct_trades (T-141 — sees repurchases
+        # that never closed); fall back to realized-lot entry dates for
+        # callers that built `trades` elsewhere (pre-T-141 behavior).
+        open_events = getattr(self, "_last_open_events", None)
+        if open_events:
+            by_ticker_opens: Dict[str, List[pd.Timestamp]] = {
+                k: sorted(v) for k, v in open_events.items()
+            }
+        else:
+            by_ticker_opens = {}
+            for t in trades:
+                by_ticker_opens.setdefault(t.ticker, []).append(t.entry_dt)
+            for v in by_ticker_opens.values():
+                v.sort()
 
         for t in trades:
             if t.pnl >= 0:
@@ -335,9 +363,11 @@ class TaxDragModel:
             new_carry_lt = 0.0 if net_lt >= 0 else -net_lt
             taxable_st = max(0.0, net_st)
             taxable_lt = max(0.0, net_lt)
+            # T-141: effective rate = federal + state per bucket (state
+            # defaults 0.0 → identical to pre-T-141 arithmetic).
             tax_owed = (
-                taxable_st * cfg.short_term_rate
-                + taxable_lt * cfg.long_term_rate
+                taxable_st * (cfg.short_term_rate + cfg.state_st_rate)
+                + taxable_lt * (cfg.long_term_rate + cfg.state_lt_rate)
             )
             b["taxable_st"] = taxable_st
             b["taxable_lt"] = taxable_lt
@@ -424,5 +454,7 @@ def get_tax_drag_model(config_dict: Optional[dict] = None) -> TaxDragModel:
         long_term_min_days=int(config_dict.get("long_term_min_days", 365)),
         wash_sale_window_days=int(config_dict.get("wash_sale_window_days", 30)),
         carry_forward_losses=bool(config_dict.get("carry_forward_losses", True)),
+        state_st_rate=float(config_dict.get("state_st_rate", 0.0)),
+        state_lt_rate=float(config_dict.get("state_lt_rate", 0.0)),
     )
     return TaxDragModel(cfg)

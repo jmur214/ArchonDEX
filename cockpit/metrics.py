@@ -246,12 +246,69 @@ class PerformanceMetrics:
             return np.nan
         return (realized["pnl"] > 0).mean()
 
+    # ---- after-tax reporting (T-141; delegated to backtester.after_tax_metrics) ----
+    _AFTER_TAX_FLAT_KEYS = ("after_tax_sharpe_taxable", "sharpe_roth", "tax_drag_pct")
+
+    def _after_tax_report(self) -> dict:
+        """After-tax reporting block (cached per instance).
+
+        Report-only: independent of the canon-changing
+        `tax_drag_model.enabled` backtest flag (see
+        backtester/after_tax_metrics.py). Rates come from
+        config/backtest_settings.json `tax_drag_model`;
+        `tax_rates_source` records whether config or library defaults
+        were used, so a silent fallback is observable. Never raises —
+        on any failure the three flat keys surface as None.
+        """
+        if not hasattr(self, "_cached_after_tax_report"):
+            report: dict = {k: None for k in self._AFTER_TAX_FLAT_KEYS}
+            report["skip_reason"] = "error:init"
+            try:
+                from backtester.after_tax_metrics import compute_after_tax_report
+
+                tax_cfg: dict = {}
+                source = "defaults"
+                try:
+                    import json as _json
+                    from pathlib import Path as _Path
+                    _cfg_path = _Path(__file__).resolve().parents[1] / "config" / "backtest_settings.json"
+                    with open(_cfg_path, "r") as _fh:
+                        tax_cfg = (_json.load(_fh) or {}).get("tax_drag_model") or {}
+                    if tax_cfg:
+                        source = "config"
+                except Exception:
+                    tax_cfg = {}
+
+                # Timestamp-aligned equity (same alignment as _engine_metrics) —
+                # the tax model debits at calendar year-ends.
+                eq_series = self.equity.copy()
+                if "timestamp" in self.snapshots.columns and not eq_series.empty:
+                    eq_series.index = pd.to_datetime(
+                        self.snapshots.loc[eq_series.index, "timestamp"].values
+                    )
+
+                # The tax model needs the RAW fill-log schema. When trades.csv
+                # lacked pnl, __init__ replaced self.trades with the
+                # FIFO-realized frame — treat that as no-fill-log.
+                fill_log = None
+                _required = {"timestamp", "ticker", "side", "qty", "fill_price"}
+                if self.trades is not None and _required.issubset(set(self.trades.columns)):
+                    fill_log = self.trades
+
+                report = compute_after_tax_report(fill_log, eq_series, tax_cfg)
+                report["tax_rates_source"] = source
+            except Exception as exc:
+                report["skip_reason"] = f"error:{type(exc).__name__}"
+            self._cached_after_tax_report = report
+        return self._cached_after_tax_report
+
     def _compute_summary(self) -> dict:
         """Compute metrics once without recursion between summary() and summary_metrics()."""
         n_trades = int(len(self.trades)) if self.trades is not None else 0
         engine = self._engine_metrics()
         psr_raw = engine.get("PSR")
         sortino_raw = engine.get("Sortino")
+        after_tax = self._after_tax_report()
         return {
             "Starting Equity": None if self.equity.empty else round(float(self.equity.iloc[0]), 2),
             "Ending Equity": None if self.equity.empty else round(float(self.equity.iloc[-1]), 2),
@@ -279,6 +336,20 @@ class PerformanceMetrics:
             # _safe_float(perf, 'Sortino') was also NULL. Pure-additive
             # emit. Harness reads are renamed to 'Sortino' in this dispatch.
             "Sortino": None if sortino_raw is None or pd.isna(sortino_raw) else round(float(sortino_raw), 3),
+            # T-141: after-tax gate (reporting, not enforcement). The three
+            # flat keys are the deploy-gate inputs both research passes
+            # asked for; the detail block carries the full tax accounting
+            # (only JSON-native types — a top-level LIST would break
+            # summary_metrics()'s _to_native via pd.isna truthiness, so
+            # lists stay nested inside this dict). Report-only: the
+            # canon-changing tax_drag_model.enabled flag is NOT consulted.
+            "after_tax_sharpe_taxable": after_tax.get("after_tax_sharpe_taxable"),
+            "sharpe_roth": after_tax.get("sharpe_roth"),
+            "tax_drag_pct": after_tax.get("tax_drag_pct"),
+            "after_tax_detail": {
+                k: v for k, v in after_tax.items()
+                if k not in self._AFTER_TAX_FLAT_KEYS
+            },
         }
 
     def summary(self):
