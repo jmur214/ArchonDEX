@@ -147,6 +147,27 @@ class RiskConfig:
     portfolio_vol_target_stressed_multiplier: float = 0.60
     portfolio_vol_target_crisis_multiplier: float = 0.40
 
+    # T-2026-06-11-153 — vol-estimator collapse fixes (PROPOSE-FIRST,
+    # both default-inert). D's T-150 measured the production-spec
+    # EWMA(0.94) collapsing to near-zero variance on quiet stretches —
+    # exactly where a vol-targeter dividing by sigma over-levers. The
+    # T-153 assessment quantified it on the canonical 26-yr history:
+    # BOTH estimators (ewma AND rolling) emit sigma < 2% annual on ~14%
+    # of live bars (min 3e-06 — past the `<=0` guard), requesting the
+    # 2.0x ceiling off a garbage estimate (up to 1.57x over-lever vs a
+    # sanity-floored sigma).
+    # Fix A: sigma-floor guard (consumer-side, protects ALL estimators).
+    # Fix B: estimator_type="yang_zhang" (D's T-150 winner; range-based,
+    # collapse-immune) — selected via the EXISTING
+    # portfolio_vol_target_estimator_type key; default stays "rolling".
+    # NOTE the whole feature is also gated by
+    # portfolio_vol_target_enabled=False (prod default) — these knobs
+    # are dormant until the director-gated enable A/B.
+    portfolio_vol_target_floor_enabled: bool = False
+    portfolio_vol_target_floor_annual: float = 0.02
+    portfolio_vol_target_floor_full_sample_frac: float = 0.0
+    portfolio_vol_target_yz_window_days: int = 21
+
     # T-2026-06-06-118 — HMM regime-TRANSITION-triggered gross-exposure
     # overlay (the pre-registered "culmination" experiment; propose-first).
     # Converts the validated Engine-E combined posterior
@@ -207,6 +228,11 @@ class RiskEngine:
 
         # Internal: bar-index bookkeeping for cooldown (per ticker)
         self._last_action_bar: Dict[str, int] = {}
+
+        # T-2026-06-11-153: per-bar data_map reference cache (set by
+        # manage_positions; read only by the yang_zhang vol-target
+        # estimator). None until the first bar / on the live path.
+        self._last_data_map: Optional[Dict[str, pd.DataFrame]] = None
 
         # Tax-aware modules (Path A, 2026-05). Default-disabled — when
         # neither cfg block has ``enabled=True``, ``record_fill`` /
@@ -347,6 +373,16 @@ class RiskEngine:
         data_map : optional dict of {ticker: DataFrame} with ATR column
             When provided, trailing stops use real ATR instead of a price-based estimate.
         """
+        # T-2026-06-11-153 — cache the per-bar data_map reference so the
+        # yang_zhang vol-target estimator can reach OHLC frames without
+        # changing any prepare_order call signature (threading price_data
+        # into prepare_order is NOT canon-inert — the sector-check block
+        # reads it when present). A reference assignment with no reader
+        # on the default path ("rolling"/"ewma" ignore it) — zero
+        # behavioral change until estimator_type="yang_zhang" is enabled.
+        if data_map is not None:
+            self._last_data_map = data_map
+
         # T-2026-06-06-118 — advance the regime-transition overlay ONCE per
         # bar. This method runs every bar in the backtest loop (before
         # prepare_order), so it is the per-bar hook for the overlay's
@@ -528,9 +564,19 @@ class RiskEngine:
                 cautious_target_multiplier=self.cfg.portfolio_vol_target_cautious_multiplier,
                 stressed_target_multiplier=self.cfg.portfolio_vol_target_stressed_multiplier,
                 crisis_target_multiplier=self.cfg.portfolio_vol_target_crisis_multiplier,
+                # T-153: sigma-floor guard (Fix A) + yang_zhang option
+                # (Fix B). All default-inert; see RiskConfig comments.
+                vol_floor_enabled=self.cfg.portfolio_vol_target_floor_enabled,
+                vol_floor_annual=self.cfg.portfolio_vol_target_floor_annual,
+                vol_floor_full_sample_frac=self.cfg.portfolio_vol_target_floor_full_sample_frac,
+                yz_window_days=self.cfg.portfolio_vol_target_yz_window_days,
             )
             history = getattr(self.portfolio, "history", None) or []
-            return compute_portfolio_vol_scale(history, vt_cfg, advisory=advisory)
+            return compute_portfolio_vol_scale(
+                history, vt_cfg, advisory=advisory,
+                data_map=self._last_data_map,
+                positions=getattr(self.portfolio, "positions", None),
+            )
         except _PROGRAMMER_ERRORS:
             # Same fail-loud discipline as the drawdown kill switch: a
             # TypeError / AttributeError here is a bug in vol_target
