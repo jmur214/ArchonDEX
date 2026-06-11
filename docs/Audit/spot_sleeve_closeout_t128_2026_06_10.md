@@ -153,17 +153,17 @@ determinism is fixed and N>1 task-reps agree.**
 | arm1_on_25pct / 2010-2025 | `feb71dab` | 0.957 |
 | arm2_on_30pct / 2010-2025 | `893422e8` | 0.906 |
 | arm0_off / 2000-2025 | `2b2f2c2b` | 0.446 |
-| arm1_on_25pct / 2000-2025 | [pending at writing] | — |
+| arm1_on_25pct / 2000-2025 | `d85e8510` | 0.425 |
 | arm2_on_30pct / 2000-2025 | `7727afe7` | 0.530 |
 
 Directional pattern for whatever little it's worth (each cell is one
 draw of the placement lottery; the lottery swings 26-yr Sharpe by
 ±0.21, the same order as the arm deltas): 16-yr Sharpe degrades
-monotonically with sleeve allocation (-0.064 / -0.115); 26-yr
-improves (+0.084 at 30%). That seesaw (calm-window drag, crisis-era
-help) matches the T-108/T-115 sleeve thesis — but **no decision-gate
-verdict is issued on invalid cells**. The sleeve chapter stays OPEN,
-not closed-negative.
+monotonically with sleeve allocation (-0.064 / -0.115); 26-yr is
+NON-monotone (off 0.446 / on25 0.425 / on30 0.530) — incoherent
+under any treatment-effect reading, exactly what a lottery-dominated
+measurement looks like. **No decision-gate verdict is issued on
+invalid cells.** The sleeve chapter stays OPEN, not closed-negative.
 
 ## 5. Remediation path (proposed, NOT implemented here)
 
