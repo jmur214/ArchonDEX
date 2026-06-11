@@ -119,6 +119,8 @@
   "promote_to_governor": true,
   "slippage_bps": 10.0,
   "slippage_model": "realistic",
+  "auction_execution": "off",
+  "auction_safety_bps": 1.0,
   "slippage_extra": {
     "impact_coefficient": 0.5,
     "adv_lookback": 20,

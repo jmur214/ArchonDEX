@@ -824,3 +824,32 @@ rule-ambiguity-free given the set; (d) when a brief says STOP-and-report
 on divergence, the deliverable forks: ship the harness (set-agnostic)
 + the finding (director adjudicates pre-unblinding), never a silent
 patch.
+
+---
+
+## 2026-06-10 — A research "free lunch" partially replicated our existing cost model (T-146)
+
+The research ranked OPG/CLS auction execution top-1 ("effectively
+spread-free at our size"). Implementing it and re-pricing the real 2024
+book per-fill showed the prod RealisticSlippageModel ALREADY prices
+mega-caps at 1bp half-spread ≈ the auction safety margin — so on 76% of
+our notional the claimed saving is ≈0 by construction, and the honest
+annual figure is ~30bps of equity (mid-bucket + impact term), not the
+~235bps a legacy fixed-10bp comparison would suggest. The convention's
+real value is structural (backtest fills by the mechanism live will
+use), not a cost windfall.
+
+**Lesson:** before adopting an external recommendation, re-price it
+against the CURRENT cost model on the actual book — "vs naive baseline"
+savings claims silently assume the naive baseline. Same family as
+re-verify-on-current-substrate (CLAUDE.md #9), applied to cost
+conventions instead of alpha.
+
+**T-146 addendum (same day):** the ON-path smoke caught the
+silent-mismatch family AGAIN — `run_backtest` builds a LOCAL
+exec_params dict, not the `self.exec_params` from `__init__`; auction
+keys added only to the latter never reached the simulator, and 36 unit
+tests couldn't see it (they construct the simulator directly). The
+end-to-end canon smoke (flag ON ⇒ canon MUST differ) is the only test
+class that catches consuming-site misses — make it a standard step for
+every new config-driven feature, not just default-OFF inertness.

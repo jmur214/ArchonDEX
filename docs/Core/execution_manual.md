@@ -591,6 +591,22 @@ NOTE: no on-disk S&P 500 TR series covers 1999→present — see
 docs/Audit/crisis_replay_harness_t143_2026_06_10.md (episode-list
 findings + the ^SP500TR caching decision).
 
+### AUCTION-EXECUTION CONVENTION + COST ACCOUNTING (T-146, 2026-06-10)
+
+```bash
+# Execution-cost accounting: current realistic-model convention vs
+# OPG/CLS auction fills, per-fill ADV-bucketed, on an existing book.
+# Accounting only — no backtest, no N_trials.
+python -m scripts.demo_auction_execution_t146 [run_dir]
+```
+
+Backtest convention flag: `auction_execution` in backtest_settings.json
+(`off`|`moo`|`moc`|`moo_moc`, default off = legacy bitwise) +
+`auction_safety_bps` (1.0). moo = conservative timing-identical choice.
+See docs/Audit/auction_execution_t146_2026_06_10.md (incl. the live-side
+OPG/CLS design one-pager: 9:28 ET cutoff, dyn-opt whole-share coupling,
+router/account batching).
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task

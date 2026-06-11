@@ -156,6 +156,12 @@ class BacktestController:
             # ``enabled`` flag adds a few tenths of a bp of cost per
             # round-trip on a typical universe.
             alpaca_fees_cfg=exec_params.get("alpaca_fees"),
+            # T-146: auction-execution convention (off|moo|moc|moo_moc).
+            # Default "off" = legacy fills bitwise; auction modes fill at
+            # the official auction print + adverse safety bps, no
+            # spread/impact model. See execution_simulator.ExecParams.
+            auction_execution=str(exec_params.get("auction_execution", "off")),
+            auction_safety_bps=float(exec_params.get("auction_safety_bps", 1.0)),
         )
         # Stash cost-completeness config for post-run aggregation.
         self._cost_aggregator_cfg: Dict[str, Any] = {
