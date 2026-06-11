@@ -796,10 +796,15 @@ class BacktestController:
             close_map_next = {t: _scalar_close(row) for t, row in next_rows.items()}
             snap = self.portfolio.snapshot(nxt, close_map_next)
 
-            # DEBUG: full snapshot dict before we touch it further
-            print(f"[DEBUG_SNAPSHOT_PAYLOAD_PRE_LOG] t={nxt}, snap={snap}")
-
-            print(f"[DEBUG_SNAPSHOT_CHECK] Snapshot at {nxt}: cash={self.portfolio.cash}, positions={{t: p.qty for t,p in self.portfolio.positions.items()}}, realized_pnl={self.portfolio.realized_pnl}")
+            # DEBUG: full snapshot dict before we touch it further.
+            # T-142: gated behind the level check. These two per-bar prints
+            # (full snap dict each) were the print-storm behind the logger
+            # drain T-134 profiled (main thread blocked in logger.close
+            # joins) AND the bulk of per-cell CloudWatch ingest. Content
+            # unchanged when BACKTEST_CONTROLLER debug is enabled.
+            if is_controller_debug():
+                print(f"[DEBUG_SNAPSHOT_PAYLOAD_PRE_LOG] t={nxt}, snap={snap}")
+                print(f"[DEBUG_SNAPSHOT_CHECK] Snapshot at {nxt}: cash={self.portfolio.cash}, positions={{t: p.qty for t,p in self.portfolio.positions.items()}}, realized_pnl={self.portfolio.realized_pnl}")
             # Ensure snapshot reflects live portfolio state using close prices for this bar
             snap["positions"] = sum(1 for p in self.portfolio.positions.values() if p.qty != 0)
             try:
@@ -1161,7 +1166,8 @@ class BacktestController:
         snap0["positions"] = sum(1 for p in self.portfolio.positions.values() if p.qty != 0)
         snap0["run_id"] = self.run_id
         # DEBUG: see exactly what initial snapshot looks like before logger touches it
-        print(f"[DEBUG_INITIAL_SNAPSHOT_PAYLOAD] {snap0}")
+        if is_controller_debug():
+            print(f"[DEBUG_INITIAL_SNAPSHOT_PAYLOAD] {snap0}")
         try:
             self.logger.log_snapshot(snap0)
         except Exception as e:

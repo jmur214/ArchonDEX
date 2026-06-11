@@ -439,6 +439,12 @@ def _fetch_yfinance_earnings(symbol: str) -> list[dict]:
     Raises ``EarningsDataError`` on yfinance failure so the manager
     can decide whether to fall back to cache or surface the error.
     """
+    # T-142 hermetic gate: surfaces as the existing EarningsDataError path
+    # (manager already falls back to cache / surfaces it).
+    from core.hermetic import hermetic_block
+    if hermetic_block("earnings_data._fetch_symbol", symbol):
+        raise EarningsDataError(
+            f"hermetic mode: network fetch for {symbol} blocked (use cache)")
     try:
         ticker = yf.Ticker(symbol)
         ed = ticker.earnings_dates

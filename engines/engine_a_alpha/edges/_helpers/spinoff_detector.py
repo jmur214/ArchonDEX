@@ -163,10 +163,14 @@ def detect_from_yfinance(
         logger.debug("yfinance not installed; skipping yfinance detection")
         return out
 
+    from core.hermetic import hermetic_block
     for tkr in parent_tickers:
         try:
             if tkr in _CACHED_YFINANCE:
                 splits = _CACHED_YFINANCE[tkr]
+            elif hermetic_block("spinoff_detector._splits", tkr):
+                _CACHED_YFINANCE[tkr] = pd.DataFrame()
+                continue
             else:
                 t = yf.Ticker(tkr)
                 splits = t.splits
@@ -239,6 +243,9 @@ def _yfinance_first_trade_date(ticker: str) -> Optional[pd.Timestamp]:
     bar for a spin-off child is, by definition, the day trading
     commenced — i.e. the distribution.
     """
+    from core.hermetic import hermetic_block
+    if hermetic_block("spinoff_detector._history", ticker):
+        return None
     try:
         import yfinance as yf
         t = yf.Ticker(ticker)

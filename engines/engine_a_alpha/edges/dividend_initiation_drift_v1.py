@@ -107,6 +107,12 @@ class DividendInitiationDriftEdge(EdgeBase):
             cached = self._dividends_cache[ticker]
             return cached if not cached.empty else None
 
+        # T-142 hermetic gate (before the swallow-all try below).
+        from core.hermetic import hermetic_block
+        if hermetic_block("dividend_initiation_drift._get_dividends", ticker):
+            self._dividends_cache[ticker] = pd.Series(dtype=float)
+            return None
+
         try:
             import yfinance as yf
             tk = yf.Ticker(ticker)

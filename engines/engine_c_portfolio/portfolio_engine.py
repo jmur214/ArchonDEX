@@ -118,7 +118,10 @@ class PortfolioEngine:
         return self.positions.get(ticker, Position())
 
     def apply_fill(self, fill: dict) -> None:
-        print(f"[DEBUG_PORTFOLIO_APPLY_FILL] Received fill: {fill}")
+        # T-142: gated — was an unconditional full-dict print PER FILL
+        # (12k+ lines on a 26-yr cell), part of the logger-drain storm.
+        if is_debug_enabled("PORTFOLIO"):
+            print(f"[DEBUG_PORTFOLIO_APPLY_FILL] Received fill: {fill}")
         """
         Apply a simulated or real fill.
         fill keys:

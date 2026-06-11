@@ -152,6 +152,13 @@ class Cell:
             {"name": "ARCHONDEX_END_DATE",       "value": self.end_date},
             {"name": "ARCHONDEX_REP",            "value": str(self.rep)},
             {"name": "PYTHONHASHSEED",           "value": "0"},
+            # T-142: cloud cells run HERMETIC by default — yfinance network
+            # fallbacks are blocked loudly instead of burning wall-time
+            # (T-134 profile: 52% of cell wall) and risking split-only-cache
+            # contamination (T-088 hazard note in data_manager). Blocked-call
+            # lines in CloudWatch double as the substrate-gap inventory.
+            # Local runs are unaffected (env unset = off).
+            {"name": "ARCHONDEX_HERMETIC",       "value": "1"},
         ]
         legacy_year = self.year_int_for_legacy
         if legacy_year is not None:

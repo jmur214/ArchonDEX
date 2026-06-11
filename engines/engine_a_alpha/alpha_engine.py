@@ -695,6 +695,10 @@ class AlphaEngine:
             return spy.loc[:now]
 
         # 2. Live Download path
+        # T-142 hermetic gate — empty frame is the existing no-data outcome.
+        from core.hermetic import hermetic_block
+        if hermetic_block("alpha_engine._spy_live_download", "SPY"):
+            return pd.DataFrame()
         try:
             import yfinance as yf
             end_str = now.strftime("%Y-%m-%d")
