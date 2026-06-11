@@ -18,7 +18,10 @@ def _load_pinned_earnings():
     if _PINNED_EARNINGS_CACHE != "unset":
         return _PINNED_EARNINGS_CACHE
     from pathlib import Path
-    p = Path(__file__).resolve().parents[3] / "data" / "earnings" / "earnings_dates_pinned.parquet"
+    # data/processed is the BAKED+MANIFEST-PINNED substrate dir (T-155 fix:
+    # data/earnings is neither baked by the Dockerfile nor manifest-covered
+    # — a parquet there would silently vanish in cloud cells).
+    p = Path(__file__).resolve().parents[3] / "data" / "processed" / "earnings_dates_pinned.parquet"
     if not p.exists():
         _PINNED_EARNINGS_CACHE = None
         return None
