@@ -796,3 +796,31 @@ it a clear bug rather than a judgment call; (c) repoint-over-rebuild
 paid again (T-139's covariance reuse, now T-141's tax engine): the
 80%-built capability existed, the missing 20% was wiring + state rates
 + the gate fields.
+
+---
+
+## 2026-06-10 — A locked pre-registration's "mechanical" episode list was not mechanically derivable (T-143)
+
+Implementing the T-118b crisis-replay registration as code: the locked
+rule "S&P 500 TR peak-to-trough DD ≥ 15%" reproduces the locked episode
+set under NO consistent reading on real TR data. The strict
+all-time-high reading kills 2011 (nests inside the unrecovered GFC TR
+spell) and re-dates dotcom's peak to 2000-09; any local-peak reading
+that admits 2011 also admits the omitted 2010 correction (−15.6%) and
+fragments dotcom/GFC/2022 at their >+15% bear-market rallies. And a
+2025-02→04 episode (−18.7% TR) clears every reading but predates the
+registration, so its auto-append clause doesn't cover it.
+
+**Lessons:** (a) writing the verification CODE is itself the audit — a
+prose "mechanical rule" can feel rigorous while being underspecified
+and empirically wrong; turning registrations into tested harnesses
+BEFORE unblinding is when defects are still fixable; (b) drawdown
+episode lists need the segmentation rule named exactly (all-time-high
+vs local-peak vs zigzag thresholds — they disagree on real data even
+about which trough belongs to which crisis); (c) the lock-respecting
+escape hatch was in the registration itself: the SET is locked and only
+exact days are "fixed mechanically" — month-anchored day-pinning is
+rule-ambiguity-free given the set; (d) when a brief says STOP-and-report
+on divergence, the deliverable forks: ship the harness (set-agnostic)
++ the finding (director adjudicates pre-unblinding), never a silent
+patch.

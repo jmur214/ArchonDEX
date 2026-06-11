@@ -572,6 +572,25 @@ validation: `core/account_router.py::validate_routing` against
 `config/account_routing.json`. See
 docs/Audit/after_tax_gate_t141_2026_06_10.md.
 
+### CRISIS-REPLAY ANALYSIS — T-118b locked gate (T-143, 2026-06-10)
+
+```bash
+# The pre-registered T-118b second-read, push-button (director runs
+# post-relaunch on REAL artifacts; fixture-only until then):
+python -m scripts.crisis_replay_t118b \
+    --on <overlay_on.csv> --off <overlay_off.csv> \
+    --spx <sp500_tr.csv> --primary-config
+# artifacts: date,equity,gross_notional per bar. Verdict line shows
+# every locked criterion's value. Non-primary configs: drop
+# --primary-config -> SENSITIVITY (no gate; addendum v2 §4).
+```
+
+Locked criteria + episode month-pinning live in the module's constants
+block (transcribed from docs/Audit/t118b_preregistration_2026_06_10.md).
+NOTE: no on-disk S&P 500 TR series covers 1999→present — see
+docs/Audit/crisis_replay_harness_t143_2026_06_10.md (episode-list
+findings + the ^SP500TR caching decision).
+
 ### COORDINATION — outbox watcher (T-114, 2026-06-06)
 
 Run in the DIRECTOR worktree to get notified when any agent finishes a task
