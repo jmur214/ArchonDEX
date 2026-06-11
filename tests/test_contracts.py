@@ -292,6 +292,12 @@ PRODUCER_SUMMARY_KEYS: Set[str] = {
     "safe_f",
     "car25_pct",
     "safef_detail",
+    # T-152 (2026-06-11) CUSUM/Page-Hinkley divergence shadow counts at
+    # the calibrated operating points (reporting only; the paper-loop
+    # kill metrics later). backtester/divergence_monitors.py; optional
+    # `divergence_monitors` config block.
+    "divergence_alarms",
+    "divergence_detail",
 }
 
 # `summary_metrics()` adds this; `summary()` does NOT.

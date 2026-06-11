@@ -914,3 +914,23 @@ shape as the silent-mismatch family the guard exists to catch;
 (c) safe_f demo also confirmed: per-account analysis keeps paying —
 Roth +60% headroom vs taxable 73% OVERSIZED on the same book (third
 independent indictment of taxable deployment at current turnover).
+
+---
+
+## 2026-06-11 — Daily kill metrics cannot see alpha decay; vol breaks are what they CAN see (T-152)
+
+Calibrating CUSUM/Page-Hinkley on our own history before paper trading:
+(1) the research's PH parameters were mis-scaled ~80× for standardized
+inputs (λ=0.25σ alarms ~104×/yr; the z-statistic random-walks ~1σ/day —
+λ must be O(5-20)σ); rule: re-derive any detector's parameter SCALE
+against the statistic actually fed to it. (2) The structural finding:
+at our SNR (~6bp edge on ~80bp daily vol), a 50% edge degradation is a
+~0.04σ/day mean shift — undetectable by ANY daily mean-shift monitor on
+sub-quarter horizons at sane false-alarm rates (the same arithmetic
+that makes Sharpe need years). Vol-scale breaks ARE detectable
+(~13-16td median) — so the kill stack must pair mean+variance channels
+(fast, regime-scale) with safe-f/CAR25 + scheduled deep-window
+re-measurement (slow, alpha-scale). Face validity: the calibrated
+monitors fired exactly on 2024-08-05 (yen-carry unwind) and the US
+election week, unprompted. Tuning kill metrics BEFORE capital exists is
+what made all three findings cheap.

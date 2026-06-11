@@ -340,6 +340,42 @@ class PerformanceMetrics:
             self._cached_safef_report = report
         return self._cached_safef_report
 
+    # ---- divergence monitors (T-152; backtester.divergence_monitors) ----
+    def _divergence_report(self) -> dict:
+        """CUSUM/Page-Hinkley shadow block (cached). Reporting only —
+        the calibrated operating points (T-152) applied to the record's
+        own lagged-rolling-null innovations; alarms on a BACKTEST record
+        flag internal regime structure, not live divergence. Config via
+        optional `divergence_monitors` block in backtest_settings.json.
+        Never raises."""
+        if not hasattr(self, "_cached_divergence_report"):
+            report: dict = {"divergence_alarms": None,
+                            "divergence_detail": {"skip_reason": "error:init"}}
+            try:
+                from backtester.divergence_monitors import shadow_report
+
+                block: dict = {}
+                try:
+                    import json as _json
+                    from pathlib import Path as _Path
+                    _p = _Path(__file__).resolve().parents[1] / "config" / "backtest_settings.json"
+                    with open(_p, "r") as _fh:
+                        block = (_json.load(_fh) or {}).get("divergence_monitors") or {}
+                except Exception:
+                    block = {}
+                eq = self.equity
+                rets = (eq.pct_change().dropna()
+                        if eq is not None and len(eq) >= 2 else pd.Series(dtype=float))
+                if "timestamp" in self.snapshots.columns and not rets.empty:
+                    rets.index = pd.to_datetime(
+                        self.snapshots.loc[rets.index, "timestamp"].values
+                    )
+                report = shadow_report(rets, block)
+            except Exception as exc:
+                report["divergence_detail"] = {"skip_reason": f"error:{type(exc).__name__}"}
+            self._cached_divergence_report = report
+        return self._cached_divergence_report
+
     def _compute_summary(self) -> dict:
         """Compute metrics once without recursion between summary() and summary_metrics()."""
         n_trades = int(len(self.trades)) if self.trades is not None else 0
@@ -348,6 +384,7 @@ class PerformanceMetrics:
         sortino_raw = engine.get("Sortino")
         after_tax = self._after_tax_report()
         safef = self._safef_report()
+        divergence = self._divergence_report()
         return {
             "Starting Equity": None if self.equity.empty else round(float(self.equity.iloc[0]), 2),
             "Ending Equity": None if self.equity.empty else round(float(self.equity.iloc[-1]), 2),
@@ -400,6 +437,12 @@ class PerformanceMetrics:
                 k: v for k, v in safef.items()
                 if k not in ("safe_f", "car25_pct")
             },
+            # T-152: CUSUM/Page-Hinkley divergence shadow counts at the
+            # calibrated operating points (reporting only; the future
+            # paper-loop kill metrics). Alarm DATE lists live inside the
+            # detail dict (nested — the pd.isna list constraint).
+            "divergence_alarms": divergence.get("divergence_alarms"),
+            "divergence_detail": divergence.get("divergence_detail"),
         }
 
     def summary(self):
