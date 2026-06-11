@@ -1,0 +1,29 @@
+{
+    "_doc": [
+        "T-141 account routing: sleeve/strategy -> account mapping + the two research rules.",
+        "Validated by core/account_router.py::validate_routing (config+check only; no live enforcement yet).",
+        "RULE A: st_heavy sleeves may sit in taxable only with after-tax evidence (after_tax_sharpe_taxable ci_low > 0).",
+        "RULE B: cross_account_wash_sale = 'disjoint_universes' (ticker in exactly one account's universe) or 'blackout_31d' (31-day cross-account blackout after a taxable realized loss; Rev. Rul. 2008-5).",
+        "Tax RATES live in backtest_settings.json::tax_drag_model (single source), not here.",
+        "These are engineering constraints encoding published IRS guidance - not tax advice."
+    ],
+    "default_account": "taxable",
+    "rules": {
+        "cross_account_wash_sale": "blackout_31d",
+        "st_heavy_requires_after_tax_evidence": true
+    },
+    "sleeves": {
+        "equity_ensemble_core": {
+            "account": "taxable",
+            "st_heavy": true,
+            "universe": [],
+            "_note": "The current 6-edge production book - 100% short-term lots on the 2024 cell (see after_tax_detail). RULE A flags this routing until after-tax evidence clears ci_low > 0 or it moves to roth; that flag is the intended deploy-gate input, not a config mistake."
+        },
+        "spot_etf_trend_sleeve": {
+            "account": "taxable",
+            "st_heavy": false,
+            "universe": ["SPY", "TLT", "GLD", "USO", "UUP", "EEM", "IEF", "DBC"],
+            "_note": "T-120 monthly-rebalance crisis diversifier; slow tilt, harvestable losses -> taxable per the research allocation rule."
+        }
+    }
+}
