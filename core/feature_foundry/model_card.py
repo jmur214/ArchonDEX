@@ -227,7 +227,9 @@ def validate_all_model_cards(
 
     # 2 + 4 — every card on disk must parse + reference a real feature.
     if root.exists():
-        for path in root.glob("*.yml"):
+        # T-140 (Vector A): sorted so validation-error ordering is stable
+        # across filesystems (glob order is task-unique on Fargate).
+        for path in sorted(root.glob("*.yml")):
             try:
                 data = yaml.safe_load(path.read_text()) or {}
                 card = ModelCard.from_dict(data)

@@ -23,6 +23,20 @@
 
 set -euo pipefail
 
+# T-2026-06-10-140 — Vector B fix (cross-task LAPACK nondeterminism).
+# Multi-threaded OpenBLAS/LAPACK reductions partition work by runtime
+# conditions, changing FP summation order per task: probe evidence =
+# eigh md5 5-vs-1 split unpinned vs 6/6 unanimous with these pins
+# (T-128 forensics, docs/Audit/spot_sleeve_closeout_t128_2026_06_10.md).
+# The MVO path (scipy.optimize over w·Σ·w) hits this op class every
+# solver iteration; ±0.21 Sharpe swing at 26-yr. Belt + suspenders:
+# these exports cover ad-hoc job defs; the registered job definitions
+# carry the same env (set at job-def registration).
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+
 if [ -z "${ARCHONDEX_RESULTS_BUCKET:-}" ]; then
     echo "ERROR: ARCHONDEX_RESULTS_BUCKET not set" >&2
     exit 64

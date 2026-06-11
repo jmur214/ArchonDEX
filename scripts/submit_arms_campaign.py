@@ -216,7 +216,61 @@ def load_spec(spec_path: Path) -> Dict:
         for w in spec["windows"]:
             if not isinstance(w, dict) or "start" not in w or "end" not in w:
                 raise SystemExit(f"Each window must be {{start, end, label?}}; got {w}")
+    _enforce_canon_anchor_gate(spec)
     return spec
+
+
+def _enforce_canon_anchor_gate(spec: Dict) -> None:
+    """T-2026-06-10-140: canon-anchor HARD gate.
+
+    T-128 proved cross-task cloud results can silently land on a
+    different canon attractor than the campaign's reference baseline
+    (same image, same config — task-placement nondeterminism). The
+    pre-flight anchor protocol caught that invalidity; this gate makes
+    the protocol structural instead of procedural.
+
+    Every multi-arm spec must satisfy ONE of:
+
+    1. Contain an unpatched baseline arm (an arm whose config_patch is
+       empty) — the anchor cell runs inside the campaign and the
+       analyst verifies its canon against the published anchor before
+       using any arm-vs-arm result. By convention name it `arm0_off`,
+       but any empty-patch arm qualifies.
+
+    2. Declare a verified external anchor:
+           "anchor": {
+               "canon_md5": "<hex32>",
+               "source": "<task-id / audit doc that published it>",
+               "image": "<image tag or digest the anchor was produced on>"
+           }
+       — asserting a same-image arm0 canon already exists and naming
+       where it came from. The launcher records it in the campaign
+       summary so the analyst can verify post-run.
+
+    Single-arm specs (pure baseline re-baselines, e.g. the T-140
+    unanimity campaign itself) are exempt: they ARE the anchor.
+    """
+    arms = spec["arms"]
+    if len(arms) < 2:
+        return  # single-arm campaign IS an anchor measurement
+    has_baseline_arm = any(
+        not (arm.get("config_patch") or {})
+        for arm in arms.values()
+    )
+    anchor = spec.get("anchor")
+    has_external_anchor = (
+        isinstance(anchor, dict)
+        and {"canon_md5", "source", "image"} <= set(anchor.keys())
+    )
+    if not (has_baseline_arm or has_external_anchor):
+        raise SystemExit(
+            "CANON-ANCHOR GATE (T-140): multi-arm spec must include an "
+            "unpatched baseline arm (empty config_patch) OR an explicit "
+            "'anchor': {canon_md5, source, image} block naming a verified "
+            "same-image arm0 canon. Cross-task cloud results without an "
+            "anchor are uninterpretable (see "
+            "docs/Audit/spot_sleeve_closeout_t128_2026_06_10.md)."
+        )
 
 
 def _window_label(start: str, end: str, override: Optional[str] = None) -> str:

@@ -110,7 +110,12 @@ class EvolutionController:
             from engines.data_manager.data_manager import DataManager
             dm = DataManager(cache_dir=str(self.project_root / "data" / "processed"))
             self.data_map = {}
-            for f in dm.cache_dir.glob("*_1d.csv"):
+            # T-2026-06-10-140 (Vector A): glob order is task-unique on
+            # Fargate (T-128 probe: 6/6 different listdir orders, same
+            # files). Unsorted insertion here made data_map dict order —
+            # and any FP-order-sensitive consumer downstream — a per-task
+            # coin flip. sorted() pins it. (T-057c-det family, completed.)
+            for f in sorted(dm.cache_dir.glob("*_1d.csv")):
                 ticker = f.name.split("_")[0]
                 df = dm.load_cached(ticker, "1d")
                 if df is not None and not df.empty:

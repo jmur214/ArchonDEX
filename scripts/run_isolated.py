@@ -55,17 +55,39 @@ ISOLATED_ANCHOR = GOV_DIR / "_isolated_anchor"
 TRADES_DIR = ROOT / "data" / "trade_logs"
 
 
+# T-2026-06-10-140 — Vector B env parity with the cloud entrypoint.
+# Multi-threaded OpenBLAS/LAPACK reductions are bitwise-nondeterministic
+# across tasks (T-128 probe: eigh 5-vs-1 split unpinned, 6/6 unanimous
+# pinned). Local Mac runs were stable in practice, but pinning here too
+# makes local and cloud numerically comparable by construction and
+# removes "was it the thread count?" from every future local-vs-cloud
+# discrepancy investigation. Must be set BEFORE numpy/scipy first
+# import — module import time is the only safe place.
+_BLAS_DETERMINISM_PINS = {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OMP_DYNAMIC": "FALSE",
+}
+
+
+def _needs_blas_reexec() -> bool:
+    return any(os.environ.get(k) != v for k, v in _BLAS_DETERMINISM_PINS.items())
+
+
 def _reexec_if_hashseed_unset() -> None:
-    """Re-exec ourselves with PYTHONHASHSEED=0 if it isn't set yet.
+    """Re-exec ourselves with PYTHONHASHSEED=0 + BLAS pins if not set yet.
 
     Python randomizes string hash seeds per-process by default, which
     leaks into `set()` iteration order and breaks bit-for-bit
-    determinism. The 04-23 floor required this; we keep it. Called only
-    from `__main__` so importing the module (e.g. from tests) does
-    not trigger a re-exec.
+    determinism. The 04-23 floor required this; we keep it. T-140 adds
+    the single-thread BLAS pins to the same re-exec (they must be set
+    before numpy loads). Called only from `__main__` so importing the
+    module (e.g. from tests) does not trigger a re-exec.
     """
-    if os.environ.get("PYTHONHASHSEED") != "0":
+    if os.environ.get("PYTHONHASHSEED") != "0" or _needs_blas_reexec():
         os.environ["PYTHONHASHSEED"] = "0"
+        os.environ.update(_BLAS_DETERMINISM_PINS)
         os.execv(sys.executable, [sys.executable, "-m", "scripts.run_isolated", *sys.argv[1:]])
 
 
