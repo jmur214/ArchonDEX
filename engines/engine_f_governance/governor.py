@@ -18,7 +18,7 @@ log = logging.getLogger("governor")
 @dataclass
 class GovernorConfig:
     """
-    Configuration for the Strategy Governor (Engine D).
+    Configuration for the Strategy Governor (Engine F).
 
     Notes
     -----
@@ -86,7 +86,7 @@ class GovernorConfig:
 
 class StrategyGovernor:
     """
-    Engine D: Governance & Meta-Allocation (non-ML MVP).
+    Engine F: Governance & Meta-Allocation (non-ML MVP).
 
     Responsibilities
     ----------------

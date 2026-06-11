@@ -78,8 +78,8 @@ Per `docs/Core/engine_charters.md` § Engine F:
 - **Function `check_factor_alpha_retirement()`**: End-to-end factor-α retirement gate.
 
 ### `governor.py`
-- **Class `GovernorConfig`**: Configuration for the Strategy Governor (Engine D).
-- **Class `StrategyGovernor`**: Engine D: Governance & Meta-Allocation (non-ML MVP).
+- **Class `GovernorConfig`**: Configuration for the Strategy Governor (Engine F).
+- **Class `StrategyGovernor`**: Engine F: Governance & Meta-Allocation (non-ML MVP).
   - `def normalize_weights()`: Safeguard: Ensure internal weights sum to 1.0 (clamped in [0,1]).
   - `def __init__()`
   - `def update_from_trades()`: Update internal weights using most-recent data window.

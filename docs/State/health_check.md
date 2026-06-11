@@ -36,15 +36,15 @@ then LOW. Within each severity, list newest at the top.
 - Status: not started
 - Description: `LifecycleConfig.factor_alpha_enabled` defaults `True` (lifecycle_manager.py:224); a full FF5+Mom HAC bootstrap retirement gate exists (factor_alpha_gate.py). But the gate body requires `factors is not None` (lifecycle_manager.py:614), and the production entry `StrategyGovernor.evaluate_lifecycle` (governor.py:607-610) calls `lcm.evaluate(...)` WITHOUT `factors=`. The only caller supplying factors is `scripts/lifecycle_factor_alpha_reeval_t043.py`. So in the autonomous loop the gate is a permanent no-op despite its enable-flag reading True. Flag-vs-path hazard, same family as T-088.
 - Charter reference: engine_charters.md §F Invariant 4 ("Edge demotions require statistically significant underperformance"). Not discoverable as inert from any living doc.
-- Recommended next step: Either wire `factors=` into `governor.evaluate_lifecycle` (Engine F, autonomous-allowed) or document that factor-α retirement is script-only.
+- Recommended next step: USER-GATED, not autonomous (re-scoped 2026-06-11 fresh-view review). Wiring `factors=` is mechanically one argument (`load_factor_data(auto_download=False)` fail-soft → `lcm.evaluate(..., factors=factors)`), BUT with prod `lifecycle_enabled=true` + `lifecycle_readonly=false` + `journal=None` on the `update_from_trades` path (governor.py:554), transitions DIRECT-MUTATE edges.yml, and T-043 measured 6 of 7 active edges firing. That would shift arm0 canon mid-T-140-re-baseline and under the held T-118 campaign. Sequence: after T-140 lands and the T-118 wave closes, surface "retire the factor-negative book" as the user decision it is (fresh-view review P1 #3), then wire with journal routing on every call path.
 
-### [HIGH] Engine F: governor.py docstrings mislabel the engine as "Engine D"
-- Engine: F
-- First flagged: 2026-06-04
-- Status: not started
-- Description: governor.py:20 and governor.py:89 both attribute the Governor to "Engine D". Governance is Engine F; Discovery is Engine D. Stale label from before the D/F split. Misleads charter-boundary audits.
-- Charter reference: engine_charters.md §"Discovery (D) and Governance (F) split what was previously a single overloaded engine."
-- Recommended next step: Update both docstrings to "Engine F". Doc-only, autonomous-allowed.
+### [HIGH] Engine E: production loads the legacy HMM, not the validated crisis model
+- Engine: E
+- First flagged: 2026-06-11 (fresh-view review; previously discoverable only inside the T-118 audit doc)
+- Status: not started (repoint is propose-first; sequenced behind T-118 verdict)
+- Description: `config/regime_settings.json:101` points at `engines/engine_e_regime/models/hmm_3state_v1.pkl` — the original model that scored OOS AUC 0.49 (false-negative) before T-087 reversed the verdict via the crisis retrain. The validated artifact `hmm_3state_crisis_v1.pkl` (T-103/T-105: OOS AUC@5d 0.914–0.919 on the combined posterior, 7/7 per-event TPR at the live 60-bar window) is referenced ONLY by T-103/T-105 scripts and the T-118 campaign-spec generator. CURRENT_STATE leans on "hmm_p_crisis is VALIDATED-predictive" as load-bearing for the Path-B kill-switch decision, but the production system never computes that signal.
+- Charter reference: engine_charters.md §E (regime detection is E's job; the model artifact choice is config, not code).
+- Recommended next step: T-118 drives its overlay with the crisis model; if the overlay wins its pre-registered gate, the production repoint rides along as a separate propose-first gate. Until then this row exists so the mismatch is discoverable from a living doc. capability_ledger.md Engine E section updated 2026-06-11 with the same facts.
 
 ### [MEDIUM] Engine F: `regime_analytics.RegimePerfAnalytics` referenced by charter + index.md but file does not exist
 - Engine: F
@@ -66,32 +66,6 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: `engine_charters.md` §Engine C C.2 Allocation (lines 249-277) lists "Portfolio-level vol targeting (scale weights to match target_volatility via w@cov@w)" and "Advisory exposure cap enforcement" but omits the regime-conditional ceiling, the double-consumption with B, the mean_variance/adaptive reachability flip, and all sleeve infrastructure.
 - Recommended next step: (a) Add the regime-aware vol-target ceiling + downside floor and the C-vs-B exposure-cap double-consumption to CURRENT_STATE.md as a Path-B-relevant existing defensive primitive (it answers "what de-gross does C already do?"). (b) Resolve the exposure-cap ownership boundary B-vs-C in the charter. (c) Document sleeve infra status (built, default-OFF, unwired) before Path-B Layer 2 work re-builds it. (d) Regenerate `index.md` auto-ref via `scripts/sync_docs.py` — it currently lists a non-existent `allocator.py` (`EngineCAllocator`).
 
-### [HIGH 2026-05-24 by Agent B] T-057b verification — confidence-gate lift COLLAPSES on extended substrate; flag-flip NOT recommended
-- Category: engine-completion verification / substrate-conditional lift falsified
-- Cloud campaign: 50/50 cells succeeded (2 arms × 5 yrs × 5 reps). T-057's +0.793 Sharpe lift on Alpaca-only substrate REVERSES to **Δ -0.075** on the extended Stooq+Alpaca substrate.
-- ci_low(Δ Sharpe): iid -0.532, block-bootstrap (5-yr) -1.154. **Both fail CLAUDE.md #6 strict gate.**
-- **Per-year pattern reveals regime dependency**: gate helps when OFF is weak (2021 +0.72, 2024 +1.43) but HURTS when OFF is strong (2022 -1.79, 2023 -1.13). 3 of 5 years remain consistent-sign vs original T-057; 2 of 5 reverse sign (2022, 2023 — both years where extended substrate's stronger OFF baseline left less room for the gate).
-- **MBL Gate-0 also FAILS**: 5-yr window insufficient for SR=1.0 lift claim at N=230 trials (needs 10.88 yr). Maximum clearable SR on this design: 1.475.
-- **3 of 10 cells show 1-rep determinism drift** (arm0_off/2021, arm2_n3/2022, arm2_n3/2024). The 5-rep design eliminated T-057's original 2021 arm2_n3 drift but surfaced 3 new cells — within-container module-global drift, worth a T-057c-determinism-investigation follow-up.
-- **Recommendation: DO NOT flip `confidence_gate.enabled=True`.** Stays False on main pending: (a) regime-conditional confidence gate (mirror T-055e pattern), (b) 11+ yr backtest window to clear MBL.
-- Lessons-learned pattern: SECOND time a positive lift has reversed sign on substrate change (vol-targeting series + confidence-gate series). ANY positive lift must be substrate-verified BEFORE production-recommend.
-- Audit: `docs/Audit/confidence_gated_flag_flip_t057b_2026_05_24.md`.
-
-### [HIGH 2026-05-23 by Agent B] T-055e regime-conditional vol-target — CLEARS CLAUDE.md #6 gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
-- Category: engine-completion / first T-055-series result to clear strict ci_low > 0
-- 15 fresh arm1 backtests (EWMA + regime_aware) reusing T-055d arm0. 10/10 cells canon-stable.
-- **Δ Sharpe = +0.549 with ci_low +0.047 (>0)** — first regime-conditional layer to clear the gate. ALL THREE headline metrics (Sharpe, CAGR, MDD) have ci_low > 0.
-- **Progressive improvement T-055c → T-055d → T-055e**:
-  - T-055c rolling: Δ +0.256, ci_low -0.140
-  - T-055d EWMA: Δ +0.289, ci_low -0.046
-  - T-055e regime+EWMA: **Δ +0.549, ci_low +0.047**
-- **MDD improves in every single year** (+0.38 to +2.74pp range, +1.11pp mean, ci_low +0.68pp). Harvey-et-al-2018 defensive value finally showing up consistently.
-- **2022 outlier (-0.997 Sharpe)** is the only per-year loss — regime-conditional over-degrosses in sustained bear, missing partial recoveries. Worst per-year loss in entire T-055 series. Cost of the policy's 2021/2024 wins.
-- **2024 rescue preserved** (+1.564 vs T-055d +1.622) AND **2025 trap-elimination preserved** (-0.198 vs T-055d -0.128) — both T-055d wins survive the regime-conditional layer.
-- **T-055b flag-flip is now defensible** per strict CLAUDE.md #6. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
-- Branch `feature/engine-b-vol-target-regime-conditional-t055e` pushed.
-- Audit: `docs/Audit/engine_b_vol_target_regime_conditional_t055e_2026_05_23.md`.
-
 ### [MEDIUM 2026-06-04 by engine-auditor] Engine D charter + index.md claim "4-Gate Validation" but code runs an 8-gate pipeline (Gates 0,5,6,7,8 undocumented; Gates 1,3 descriptions stale)
 - Engine: D
 - First flagged: 2026-06-04
@@ -108,52 +82,9 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: engine_charters.md Engine D Design Notes: "GA gene vocabulary spans 7 types (technical, fundamental, regime, calendar, microstructure, intermarket, behavioral)" — omits the macro (FRED VIX/yield-curve/unemployment) and foundry_feature buckets, and does not mention short/market_neutral direction emission.
 - Recommended next step: Document the full gene vocabulary (incl. macro + foundry_feature buckets and short/market_neutral directions) in the Engine D charter Design Notes, and flag for the Path-B work that crisis/VIX/short edge discovery is an existing capability lever (not new infrastructure).
 
-### [MEDIUM 2026-05-22 LATE by Agent B] T-055d EWMA estimator A/B — EWMA strictly dominates rolling but ci_low still touches zero
-- Category: engine-completion measurement / Moreira-Muir lift verification — EWMA alternative
-- 15 fresh EWMA-arm backtests (arm0 OFF reused from T-055c); 10/10 cells canon-stable.
-- **EWMA wins on every metric**: Δ Sharpe point +0.289 (vs rolling +0.256), ci_low -0.046 (vs -0.140; 67 % tighter), Δ MDD -0.03pp (vs rolling -0.62pp).
-- **Key wins**: 2024 fragility rescue AMPLIFIED (+1.622 vs rolling +1.303) and **2025 vol-shock trap FIXED** (-0.128 vs rolling -0.942). The catastrophic outlier that drove T-055c's wide CI is gone under EWMA.
-- **Trade-offs**: EWMA loses some 2021 bull lever-up (+0.289 vs +0.915) and gets 2022 bear WORSE (-0.594 vs -0.129) because the faster estimator misses partial recoveries.
-- Verdict **MARGINAL** per strict CLAUDE.md #6: ci_low(-0.046) still < 0; T-055b autonomous-recommend NOT cleared. **Director's call**: hold for T-055e (regime-conditional target) layered on EWMA, or surface to user with the +0.094 ci_low improvement evidence.
-- Branch `feature/engine-b-vol-target-ewma-t055d` pushed.
-- Audit: `docs/Audit/engine_b_vol_target_ewma_t055d_2026_05_22.md`.
-
-### [MEDIUM 2026-05-22 LATE by Agent B] T-055c A/B lift verification — MARGINAL verdict, T-055b flag-flip NOT YET recommended
-- Category: engine-completion measurement / Moreira-Muir 2017 verification
-- 30-backtest grid (3-rep × 5-yr × 2-arm) — 10/10 cells canon-stable.
-- **Mean Sharpe lift: +0.256 point estimate (ABOVE Moreira-Muir +0.10-0.20 band) but ci_low = -0.140 (CROSSES ZERO)**. Per CLAUDE.md #6: gate on ci_low, not point.
-- Per-year variance huge: 2024 fragility-year RESCUED (+1.303), 2025 vol-shock TRAP (-0.942). Net MDD slightly worse (-0.62pp) driven by 2025 outlier.
-- **Harness bug found mid-campaign**: `run_vol_target_arms_full.py` was patching `config/risk_settings.json` but mode_controller loads `config/risk_settings.{env}.json` → silent vol-target-disabled for first 4 arm1 runs. Diagnosed via offline scalar simulator, fixed, re-ran. Lesson: env-suffixed config files require env-suffixed patches.
-- **Recommended follow-up before T-055b**: T-055d (EWMA λ=0.94 estimator) addresses the 2025 vol-shock failure mode. T-055e (regime-conditional target) addresses the late-cycle trap.
-- Branch `feature/engine-b-vol-targeting-ab-t055c` pushed; director merges audit doc to main.
-- Audit: `docs/Audit/engine_b_vol_targeting_ab_t055c_2026_05_22.md`.
-
-### [MEDIUM 2026-05-22 by Agent B] Engine B portfolio-level vol-targeting LANDED (T-055; defense-first OFF, flag-flip gated on T-055b post full A/B)
-- Category: engine completion / Moreira-Muir 2017 infrastructure
-- `engines/engine_b_risk/vol_target.py` ships VolTargetConfig + compute_vol_scale + composer. Wired into `risk_engine.py` Path A (target_weight) AND Path B (ATR-risk) via the new `_compute_portfolio_vol_scalar()` helper. Reads from existing `self.portfolio.history` (same source as drawdown kill switch — no new state plumbing).
-- **Defense-first default**: `portfolio_vol_target_enabled=False` in `config/risk_settings.json`. Determinism gate verified: single-rep Q1 canon md5 = `182af6a1240da35055f716ef9dfcd333` — bitwise identical to T-019 clean-main reference.
-- **Hard constraints met**: does NOT override kill-switch / drawdown-halt (those short-circuit before scalar is applied); no look-ahead (realized vol uses snapshots already in history); 12 new tests pass + 25 existing Engine B tests still pass.
-- **A/B Q1 smoke (T-055)**: ARM_OFF and ARM_ON both produced canon-identical trades.csv. This is BY DESIGN — Q1 (~62 trading days) is below the 60-day warmup gate; the scalar barely fires. The smoke validates wiring/determinism, NOT Sharpe lift.
-- **Sharpe lift validation deferred to T-055c** (full 3-rep × 5-yr × 2-arm = 30-run grid, ~6 hr wall). Expected lift per Moreira-Muir 2017 + dive 2: +0.10-0.20 Sharpe. Bootstrap CI per CLAUDE.md 6th non-negotiable will be required there.
-- Branch `feature/engine-b-vol-targeting` pushed; director merges after review per CLAUDE.md Engine B propose-first rule.
-
-### [HIGH — DISCOVERY 2026-05-12 EVENING by Agent B] Engine D production `hunt()` does NOT pass `ticker=` to `compute_all_features` — foundry_feature gene type has been a dead-letter office for the entire project arc
-- Category: structural plumbing failure / engine integration
-- Surfaced 2026-05-12 evening by Agent B during T-038-CONT vectorization investigation. Empirical: production hunt() on 53 tickers × 1yr completes in 20.5 sec emitting 3 candidates; the smoke's 65min silent CPU was in a DIFFERENT, still-unprofiled code path.
-- **Cascade impact**: T-022 (gene encoding extension), T-023 (Gate 1 caching), T-024 (seed enrichment), T-038-CONT (vectorization), T-052 (4 regime features) all share this dead-letter destiny until the wiring fix lands. The "Foundry features invisible to GA gene encoding" diagnosis from 2026-05-11 was correct but located in the wrong layer — gene encoding was fine; the FEATURE COMPUTE in production was the gap.
-- **Reframes Engine D history**: T-021's "all 3 candidates were rsi_bounce_v1 mutations" was structural plumbing failure, not signal weakness. T-025's 30/30 Gate 1 kill rate was the same dead-letter pattern. T-026 BLOCKED on stale composites masked the wiring issue.
-- Forward action: T-054 dispatch in flight (Agent A as of 2026-05-12 LATE). Single likely-1-line fix in `engines/engine_d_discovery/discovery.py` unblocks ~30+ hr of prior agent investment.
-- Discipline implication: parallels the cockpit metrics-pipeline bug pattern — silent structural gap masked as functional weakness. **Worth a broader dead-letter audit across the codebase** (any registered-but-never-invoked feature/method/config flag). See newly-flagged MEDIUM entry below.
-
-### [HIGH → RESOLVED 2026-05-12 by T-043 ship + flag-flip] Lifecycle gauntlet was asymmetric — strict on entry (Gate 6 FF5+Mom α t > 2), loose on retirement (raw Sharpe only)
-- Category: governance / lifecycle policy
-- T-043 (merged 219648b 2026-05-12) added `engines/engine_f_governance/factor_alpha_gate.py` — symmetric retirement gate matching Discovery Gate 6.
-- Re-evaluation on T-035/T-036 cockpit-fixed trade logs: **6 of 7 evaluated edges fire** (gap_fill, volume_anomaly, value_book_to_market, accruals_inv_sloan, value_earnings_yield, accruals_inv_asset_growth retire; STR keeps as UNIFORMLY NOISY).
-- `factor_alpha_enabled` flag flipped True in commit b45f829 per user explicit approval. Next live discovery cycle writes retirement decisions to lifecycle journal; user applies via journal_apply.
-- gap_fill_v1 + volume_anomaly_v1 fire on **ci_low alone** (point -0.93 above -2.0 threshold; ci_low -3.9/-4.0). Textbook CLAUDE.md 6th non-negotiable working as designed.
-
 ### [MEDIUM → ELEVATED 2026-05-12] Worth a broader codebase audit for other dead-letter / unreachable-code patterns (post-T-054 discovery)
 - Category: code hygiene / structural plumbing
+- Status: needs-verification (triaged 2026-06-11; partially addressed by the T-090/T-102/T-104/T-111 contract-test + wiring sweeps, but no TASK_LEDGER row closes out the codebase-wide dead-letter audit as such)
 - The T-054 production-hunt() ticker= wiring bug is the second "registered but unreachable" bug class discovered (after the cockpit metrics-pipeline bug which was schema-mismatch, not unreachable code per se). Per the user 2026-05-12 directive "bones must be PERFECT before LLM," a deliberate dead-letter audit is overdue.
 - Candidates to search for:
   - Functions defined but never invoked in production code paths (especially in engines/)
@@ -164,83 +95,28 @@ then LOW. Within each severity, list newest at the top.
 - Recommended dispatch: `code-health` subagent against engines/engine_d_discovery/ + engines/engine_a_alpha/edges/ as Phase 1 (where T-022/T-024 worked and the gap was). Then engines/engine_b_risk/ + engines/engine_c_portfolio/ as Phase 2.
 - Director-side analysis of `engines/engine_d_discovery/` already started (separate audit forthcoming).
 
-### [HIGH] Worktree anchor divergence — director/A/B have different `_isolated_anchor/edges.yml`, inflating apparent canon-md5 drift
-- Category: harness state / cross-worktree measurement comparability
-- First flagged: 2026-05-11 by A's T-024 outbox (Q1 canon shifted 182af6a1 → 28cfa38f, Sharpe 0.127 → 0.281). Director-side investigation found root cause: each worktree's `data/governor/_isolated_anchor/edges.yml` has diverged. Director + B have md5 `818330dc...` (size 86,674, mtimes May 7-8); A has md5 `8da9ce85...` (size 88,278, mtime May 10). A's anchor is 1,604 bytes larger — almost certainly the auto-registered T-014/T-016/T-017/T-018 paused edges appended to A's anchor's edges.yml during a recent backtest run (which suggests one or more measurement runs had end-of-run edges.yml mutations NOT gated by journal-mode).
-- Implication: T-019's "paused-tier inert" conclusion needs reframing. T-019 measured ~Δ Sharpe 0.0000 vs T-002 on the OLD anchor (without the new paused edges). The new paused edges weren't being loaded at all, NOT producing 0 trades through soft-pause. T-020's per-edge isolation used `exact_edge_ids` so it bypassed this and correctly showed 5/5 generate trades at full weight.
-- A's current canon (28cfa38f) IS the production state on the NEW anchor: 5 paused edges loaded, soft-pause applies 0.25× weight, they contribute trades, lifting Q1 Sharpe by +0.154. This is the real measurement going forward.
-- Forward action: standardize on A's anchor as the canonical one (it reflects post-T-014/T-016/T-017/T-018 production reality). Re-save anchor in director + B worktrees via `python -m scripts.run_isolated --save-anchor`. Per CLAUDE.md, --save-anchor is propose-first-equivalent since it changes governor state — director executes after explicit user nod.
-- Open question: HOW did A's edges.yml get those 1,604 bytes? Auto-register-on-import shouldn't write to edges.yml. Possibly an end-of-run lifecycle mutation in a non-journal-mode run. Worth a brief code audit (~30 min) to find the mutation path.
-
-### [MEDIUM] Lifecycle gauntlet doesn't check factor-adjusted α — edges with positive raw PnL but significantly negative factor-adjusted α stay active
-- Category: Engine F autonomous-decision gap / lifecycle retirement scope
-- First flagged: 2026-05-11 by director-side threshold-calibration audit (`docs/Audit/factor_decomp_threshold_calibration_2026_05_11.md`).
-- The `lifecycle_manager.py:_check_retirement` gate (line 655+) uses raw Sharpe-vs-benchmark with CI-aware reading (T-010's update). It catches edges with negative raw PnL/Sharpe. But it does NOT check factor-adjusted α.
-- Concrete miss: `value_book_to_market_v1` has +$2,082 raw PnL over 5 years but FF5+Mom α = -2.20% / t = -2.60 (significantly negative idiosyncratic α). It's winning ONLY by buying Mkt+Mom factor exposure that factor ETFs sell cheaper. Lifecycle keeps it active despite the structural-evidence retirement case.
-- Future T-026-or-similar dispatch: extend the lifecycle gauntlet's retirement gate to ALSO check factor-adjusted α (HAC t < -2 OR α ci_low < some-negative-threshold). Would catch the value/accruals cluster cleanly. Engine F change — propose-first per CLAUDE.md interpretation since it changes autonomous decision logic; spec needed before dispatch.
-- Note: lifecycle hasn't fired on substrate-honest data yet (`data/governor/decision_diary.jsonl` only shows measurement_run entries through 2026-05-10, no lifecycle decisions). So the 3 raw-PnL-negative edges (value_earnings_yield, accruals_inv_sloan, accruals_inv_asset_growth) would auto-retire on the next lifecycle cycle that runs on substrate-honest. Value_book_to_market would stay alive without the factor-adjusted gate.
-
-### [HIGH] Engine D gene encoding is single-archetype — Discovery cannot emit candidates from expanded Foundry vocabulary
-- Category: Engine D structural / autonomous-discovery gap
-- First flagged: 2026-05-11 by T-2026-05-10-021 (first-ever Discovery cycle on substrate-honest). All 3 candidates were `rsi_bounce_v1` mutations. The post-T-006 Foundry features + post-T-014 calendar features (mom_12_1, mom_6_1, vol_regime, ma_cross, dist_52w_high, drawdown, hyg_lqd_spread, FOMC drift, sell-in-May, etc.) are NOT REACHABLE by the GA's gene encoding.
-- Implication: vocabulary expansion (T-006, T-013, T-014) delivered zero benefit to Discovery's autonomous candidate-search until gene encoding is extended. **This is the primary structural blocker for the engines-first lift path.** Highest-leverage Engine D work going forward.
-- Forward action: dispatch Engine D gene-encoding extension (next dispatch, ~6-10 hr Engine D autonomy lane).
-
 ### [HIGH] Gate 1 (Sharpe-contribution-to-ensemble) wall-time makes Discovery cycles intractable at cap=30
 - Category: Engine D performance / Discovery-cycle feasibility
 - First flagged: 2026-05-11 by T-2026-05-10-021. Per-candidate wall-time 3,240-6,689 sec (Gate 1 runs full ModeController backtest). Cap=30 candidates → 37+ hr. **Cap=30 is infeasible without Gate 1 caching.**
+- Status: needs-verification (triaged 2026-06-11; `gate1_signal_cache.py` shipped on the T-023 lane, but no ledger/audit row confirms cap=30 Discovery-cycle wall-time is now tractable)
 - Forward action: cached signal-collector replay (compute active-ensemble signal stream ONCE per (universe, window), then replay candidate contributions layered on top) — B's estimate: 10-50× speedup. Makes cap=30+ Discovery runs tractable in 6-8 hr.
 - T-013's vectorization doesn't help here — different code path (Discovery Gate 1 vs Foundry feature loop).
 
 ### [HIGH] 0/11 edges clear FF5+Mom t > 2 gate on substrate-honest — universal pattern, not edge-specific
 - Category: alpha mechanism / threshold calibration question
 - First flagged: 2026-05-09 by T-004 (0/6 active edges). Confirmed 2026-05-10 by T-020 (0/5 new paused edges either, despite 5/5 generating trades at full isolation). Max α t-stat across all 11 edges: 1.76 on short_term_reversal_v1.
+- Status: not started (triaged 2026-06-11)
 - Implication: raw Sharpe in this system is Mkt + Mom factor exposure, not idiosyncratic alpha. EITHER (a) the t > 2 threshold is inherently incompatible with retail-scale substrate-honest universes, OR (b) the project genuinely has no factor-adjusted alpha. Per the discipline framework, we don't relax thresholds after data lands — but the threshold-calibration question is worth ~2-3 hr director analysis (comparison against SPY's own factor-adjusted alpha on the same window; original calibration context).
 - Closest-miss watchlist: short_term_reversal_v1 (t=1.76, 2022 zero-Sharpe cell suspicious), pairs_trading_MA_V_v1 (α point +18%, t=1.41 limited by n=167 trades).
 - Forward action: keep all 5 new paused edges at paused/feature (no manual promotion). Optional follow-ups: STR re-measurement (~2 hr) + pairs inventory expansion (~4 hr) to tighten the t-stats on the closest-miss edges.
 
-### [HIGH] Paused-tier edge expansion is INERT against the active-edge-dominated ensemble — Discovery cycle is the only lift mechanism for new edges
-- Category: alpha mechanism / forward-path-bottleneck
-- First flagged: 2026-05-10 by T-019 substrate-honest post-edge-expansion measurement. Δ Sharpe = 0.0000 in BOTH arms vs T-002. Bit-identical canon md5s in 15/15 cells per arm. The 5 new paused edges from 2026-05-09 (T-014 calendar features, T-016 momentum × 3, T-017 pairs MA/V, T-018 dividend init) contributed **zero trades** over 5-year substrate-honest — while pre-existing `news_sentiment_edge_v1` at the same 0.25× soft-pause weight produced 451 trades. Infrastructure isn't the filter; signal density at the substrate-honest scale is.
-- Implication: today's edge-expansion track delivered zero substrate-honest alpha. Paused parking provides "post-pause revival evidence" capability — NOT a path to alpha contribution while still paused. **The mechanism for converting today's inventory into headline lift is Discovery's substrate-honest gauntlet (Phase 2.10 + Gates 7/8) promoting edges to `status='active'`.**
-- Forward action: dispatch a Discovery cycle on substrate-honest data; let the gauntlet validate which (if any) of the new paused edges deserve promotion. Adding MORE paused edges is wasted effort until the existing inventory's gauntlet outcome is known.
-
-
 ### [HIGH → 2026-05-12 EVENING UPDATE BY T-036] All 6 active edges are UNIFORMLY NEGATIVE on factor-adjusted α (re-confirmed at stronger level)
 - Category: alpha integrity / factor-vs-idiosyncratic decomposition
+- Status: not started (triaged 2026-06-11)
 - 2026-05-12 evening update post-T-036 Part B (per-regime factor decomp on cockpit-fixed trade logs): the cockpit-bug-correction strengthened, not weakened, the T-004/T-029 "no idiosyncratic alpha" finding. **`volume_anomaly_v1` and `gap_fill_v1` — labeled as "5-year dollar PnL winners" in the morning 2024 attribution audit (commit d1ed01f) — are UNIFORMLY NEGATIVE on factor-adjusted α** (volume_anomaly emerging_expansion t = -2.06, robust_expansion t = -2.27; gap_fill robust_expansion t = -2.77). Their positive dollar PnL is Mkt+Mom factor beta exposure, NOT idiosyncratic alpha.
 - Implication: the 0.598 corrected Sharpe baseline IS REAL (the strategy makes money) but it's **beta-driven, not alpha-driven**. After factor exposure subtraction, the residual α is uniformly negative or noisy across all 11 edges in the T-029/T-036 panel.
 - Bucket counts (11 edges, post-T-036): UNIFORMLY NEGATIVE 7 (+2 from T-029) | UNIFORMLY NOISY 1 (STR — equity-level Sharpe 0.999 but factor-explained) | UNIFORMLY POSITIVE 1 (dividend_initiation_drift_v1 — currently inert/paused per T-019) | INSUFFICIENT DATA 1 (pairs_MA_V).
 - Forward action: T-043 spec needs to incorporate factor-adjusted α inputs alongside raw Sharpe for the Engine F lifecycle re-evaluation. T-041 (spin-offs, structurally non-factor) becomes more important. Discovery's Gate 6 (FF5+Mom t > 2) becomes the highest-leverage filter for finding idiosyncratic α.
-
-### [HIGH → RE-CORRECTED 2026-05-12 BY T-035] The substrate-honest baseline is 0.598, not 0.270
-- Category: measurement integrity / canonical baseline
-- 2026-05-12 update: T-2026-05-12-035 re-measured T-002 Arm 1 with the cockpit metrics-pipeline fix (T-034) applied. **Corrected mean Arm 1 Sharpe = 0.598** (vs T-002 reported 0.270, Δ +0.328). The shift is from bug-correction, not substrate change.
-- The cockpit bug was bi-directional: winning years inflated (peak_equity is monotone non-decreasing, lower variance than real equity; the metric reader was reading peak-as-equity, inflating Sharpe) and losing years zeroed (peak stays at starting capital while real equity falls → flat equity read → Sharpe ≈ 0). Director's prediction "barely fires in small-MDD cells" was REFUTED.
-- Per-year corrected | T-002 → T-035: 2021 0.413 → **1.791** | 2022 0.116 → **0.294** | 2023 0.261 → **1.221** | 2024 0.236 → **-0.613** | 2025 0.325 → **0.297** | mean 0.270 → **0.598**.
-- **No single year clears `ci_low > 0`** even at corrected level. Per CLAUDE.md 6th non-negotiable: 0.598 mean Sharpe is better than 0.270 but the strategy is **bull-conditional with material 2024-style downside** that was previously hidden.
-- All prior bear-year Sharpe-bearing audits remain SUSPECT until re-measured: T-002 Arm 2, T-019 paused-tier-inert, T-029 per-regime decomp, T-020 per-edge isolation, F6 multi-year, T-030 STR. T-036 (in flight) takes highest-priority subset (STR + per-regime adverse cells).
-- The "0.9154 surviving-6 contaminated" finding (below, retained for history) is still correct: that was the zero-trade-regression bug, NOT the cockpit bug. They are two distinct measurement-integrity issues; both retract their respective headlines.
-
-### [HIGH → RESOLVED-AS-CONTAMINATED 2026-05-09 (historical, see entry above for the corrected 0.598 baseline as of 2026-05-12)] The 0.9154 surviving-6 result was contaminated by the zero-trade regression
-- Category: measurement integrity / superseded headlines
-- First flagged: 2026-05-09 evening by dev review at `docs/Sessions/Other-dev-opinion/05-09-26.md`. The C-collapses-1 surviving-6 mean Sharpe 0.9154 (PARTIAL bucket, basis for the "6-edge surviving set" narrative) was almost certainly measured during the 2026-05-07 zero-trade-regression window before the bug was caught. **It is RETRACTED.**
-- The honest baseline going forward is the substrate-honest two-arm result T-002 (May 9): **Arm 1 mean Sharpe 0.2702 with bootstrap 95% CI [-0.383, +0.771] — `ci_low` includes zero.** Arm 2 (HMM ON) at 0.294, Δ +0.024, NEUTRAL bucket per pre-commit. **(SUPERSEDED 2026-05-12 by T-035 corrected 0.598 — see entry above.)**
-- Compounding evidence: T-004 factor-decomp on the same trade logs found 0/6 edges have positive factor-adjusted α at t > 2; 4/6 have *significantly negative* factor-adjusted α (t between -2.6 and -5.7). The load-bearing alpha (`volume_anomaly_v1`) is GENUINELY NOISY at t = 0.83, R² = 0.04. (Factor decomp uses real equity returns, not the buggy metric — so this finding is INDEPENDENT of the cockpit bug and remains valid.)
-- Implication: the project now operates against the **0.598** baseline (corrected 2026-05-12) as the comparison point for whether engine completion delivers projected lift.
-- Forward path: engines-first directive anchored. Three parallel tracks (engine completion, edge expansion, defensive layer), all gated on engine completion before Moonshot/AI evaluation.
-
-### [HIGH → RESOLVED 2026-05-08] Backtests produce zero trades since 2026-05-07 evening — every isolated run lands trades_canon_md5 = `d41d8cd9...` (empty file)
-- **RESOLVED 2026-05-08:** root cause was `EarningsVolEdge` raising `TypeError: Cannot compare tz-naive and tz-aware timestamps` — silently swallowed by `backtest_controller.py:389` bare-except. Fix: tz-strip in yfinance cache (commit `4b7a14e`). The bug class is closed by T-005 narrow-except in `backtest_controller.py:389-405` (commit `129c7ba`, merged `4aa634e`); programmer errors now propagate so the next regression of this shape surfaces immediately. Also swept in T-011 (Engine A, 7 sites) and T-012 (Engine B drawdown-halt). Bonus audit at `docs/Audit/bare_except_audit_2026_05_08.md` flagged 188 broader sites; 7 highest-impact closed today.
-
-### [HIGH — historical context only] Original symptom report from 2026-05-08 (pre-fix):
-- Category: governor-state regression / measurement gating
-- First flagged: 2026-05-08 during the missing-CSV closure work. The closure was complete (48/48 sourced, 100% of legitimate names) but the post-closure substrate-honest re-measurement returned Sharpe 0.0 with zero trades. A static-substrate repro yielded the same result. A code-only rollback to commit `7d54de3` (last commit before the 2026-05-07 evening regression window) also yielded zero trades, ruling out the engine/orchestration trees as the cause.
-- Last trade-producing run in `data/trade_logs/`: `35e2f3dd-49e9-45bd-b72f-828efba624a7` at 2026-05-07 01:39 (Sharpe −0.107, 10,581 trade rows). Every subsequent isolated run is empty.
-- Bisect: at code-state `7d54de3` (post-F4-merge, pre-F11-phase-2) — 0 trades. At code-state `1085069` (parent of the F4-merge `cae2002`, with composer.py moved aside) — also 0 trades. So the cause is not in any commit since the last good run; it's purely in state restored by `isolated()` from `data/governor/_isolated_anchor/`. Cross-reference: a note in `project_engine_c_f4_closed_2026_05_07.md` at the time of the F4 merge flagged "incomplete worktree governor state" producing zero trades — that state propagated into the parent repo at 2026-05-07 01:49 (the timestamp on `_isolated_anchor/edges.yml`).
-- The anchor's `edge_weights.json` (last modified 2026-05-06) lacks weight entries for the 4 active V/Q/A edges (`value_earnings_yield_v1`, `value_book_to_market_v1`, `accruals_inv_sloan_v1`, `accruals_inv_asset_growth_v1`); if any recent governor change started reading missing entries as 0.0 instead of defaulting to 1.0, the V/Q/A edges would silently abstain. This is the most likely root cause and the first thing to check.
-- Implication: ALL measurement work done after 2026-05-07 01:39 needs verification — anything claiming a Sharpe number without a trades.csv with >1 line is reading stale results, not measuring current code. The substrate-honest re-measurement closing the 0.5074 upper bound is blocked on this fix.
-- Next: (1) check `_isolated_anchor/edge_weights.json` first — restore weights for the 4 V/Q/A active edges. (2) If that doesn't unblock, bisect among the 4 anchor files (`edges.yml`, `edge_weights.json`, `lifecycle_history.csv`, `regime_edge_performance.json`) by restoring each from a pre-2026-05-07 trade_log's `engine_versions.json` snapshot. (3) Verify with a 1-year static-substrate smoke producing ~0.27 Sharpe / ~13k trades. (4) Then re-anchor and re-run the 5-year substrate-honest measurement against the now-closed missing-CSV gap. See `docs/Measurements/2026-05/missing_csv_closure_2026_05_08.md` for the full debug trail (3 forward repros + 2 code-bisect rollbacks all confirming state-side cause).
 
 ### [HIGH → RESOLVED 2026-05-08] Missing-CSV upper-bound caveat — 36 delisted S&P 500 names absent from `data/processed/` (substrate-honest measurements were upper-bounds only)
 - Category: data substrate completeness
@@ -289,15 +165,6 @@ then LOW. Within each severity, list newest at the top.
   at 1.4. Benign or unknown regime keeps the legacy 2.0 ceiling. Downside
   floor 0.3 unchanged. When `regime_meta is None`, behavior is identical
   to legacy. 6 unit tests cover all 4 regime classes. Commit `c4fb913`.
-
-### [HIGH] Foundation Gate baseline (mean Sharpe 1.296) was a substrate artifact — universe-aware rerun lands 0.507 (−0.789, −61%)
-- Engine: data_manager (pre-2026-05-09 the survivorship-bias-aware loader was unwired) + orchestration (ModeController defaulted to the static 109-ticker config) + Engine A (edges were tuned and validated against the static-substrate Sharpes)
-- First flagged: 2026-05-09 — F6 finding from the dev-opinion consolidated audit (the 115-name static config was identified as a load-bearing assumption hiding under every prior Sharpe headline). The universe loader (`engines/data_manager/universe.py`) was built 2026-04-24 but never wired into ModeController, so every measurement campaign through 2026-05-08 ran on the static substrate.
-- Wiring shipped: `f6-universe-loader-wire` branch, commit `69006fb`. New `engines/data_manager/universe_resolver.py::resolve_universe` is opt-in via `use_historical_universe` config flag (default false to preserve prior measurement reproducibility) or `--use-historical-universe` CLI flag on `scripts/run_multi_year`. 15 resolver unit tests pass; 40 existing universe.py tests pass.
-- Verdict: COLLAPSES. See full report `docs/Measurements/2026-05/universe_aware_verdict_2026_05_09.md`. Per-year deltas: 2021 1.666→0.862 (−0.804), 2022 0.583→−0.321 (−0.904), 2023 1.387→1.292 (−0.095), 2024 1.890→0.268 (−1.622), 2025 0.954→0.436 (−0.518). 4 of 5 years collapse far outside the noise band; 2023 alone holds together. Mean clears 0.5 by 0.0074 — cosmetic rather than meaningful.
-- Implication: Path 1 ship is not viable as previously framed. The kill thesis suspended by the 2026-04-30 Foundation Gate pass is re-engaged on the universe-aware substrate. Engine A edges tuned against the static substrate need re-validation under universe-aware geometry before any per-edge Sharpe number is treated as honest. ~~The 26-54 missing-CSV delisted names per year (FRC, DISCA, ATVI, etc.) remain unincluded — adding them would push deeper into COLLAPSES, so the measured 0.507 is an upper bound.~~ **Update 2026-05-08:** the missing-CSV gap is now closed (48/48 = 100% of legitimate names sourced via Alpaca; see `missing_csv_closure_2026_05_08.md`). The 0.507 figure becomes a re-measurable number, not an upper bound, as soon as the zero-trade regression (new HIGH item above) is fixed.
-- Honest scope: the wiring is a clean fix and lands as a Pareto improvement to the substrate (default behavior preserved, opt-in path validated, deterministic). The COLLAPSES verdict is an information win, not a project-breaking finding — it tells us where to focus next: edge-level re-validation, regime-conditional analysis of why 2023 held, and the remaining missing-CSV names.
-- Next: (1) default `use_historical_universe: true` for measurement campaigns going forward, (2) re-run the Discovery gauntlet on universe-aware substrate, ~~(3) populate the missing CSVs via `scripts/fetch_universe.py`,~~ **(3) DONE 2026-05-08** — `scripts/fetch_missing_delisted.py` closed the 48-name gap, (4) re-evaluate which alpha generators survive in 2023 vs. the others.
 
 ### [HIGH → RESOLVED 2026-05-02] Gauntlet geometry-mismatch — gates 1–6 consumed a standalone single-edge equity curve incompatible with ensemble-deployed strategies
 - Engine: D (Discovery — `engines/engine_d_discovery/discovery.py::validate_candidate`, gates 1–6) + orchestration (the production-equivalent backtest invocation that didn't exist)
@@ -356,7 +223,7 @@ then LOW. Within each severity, list newest at the top.
 ### [HIGH] (HISTORICAL — superseded by entry above 2026-04-30) In-sample Sharpe 1.063 was a double artifact — system has no validated alpha under honest costs on a representative universe
 - Engine: A (signal_processor / edge stack) + D (discovery / lifecycle decisions made on artifact data)
 - First flagged: 2026-04-29 (Phase 2.10b OOS Validation Gate result)
-- Status: **active — blocking all forward feature work.** Phase 2.10c diagnostic triage required next.
+- Status: historical/superseded (Status line corrected 2026-06-11 — was stale "active — blocking" contradicting the entry's own HISTORICAL title; superseded by the 2026-04-30 entry above)
 - Description: Phase 2.10b ran the three OOS gates for the realistic-cost in-sample Sharpe 1.063 result. **All three failed by wide margins:**
   - **Q1 (2025 OOS, prod 109 universe):** Sharpe **-0.049** vs criterion > 0.5. SPY 2025 was 0.955 — system trailed every benchmark by **>1.0 Sharpe** in a strong bull year. Run UUID `72ec531d-7a82-4c2a-97c0-ffb2bf6ddb34`. Audit: `docs/Audit/oos_validation_2026_04.md`.
   - **Q2 (universe-B held-out 50, in-sample window):** Sharpe **0.225** vs in-sample 1.063 — a **79% Sharpe collapse** on the same window with held-out tickers. Vol nearly doubled (5.7% → 9.95%), MDD nearly doubled (-10.07% → -18.17%). Run UUID `ee21c681-f8de-4cdb-9adb-a102b4063ca1`.
@@ -491,11 +358,6 @@ then LOW. Within each severity, list newest at the top.
 - First flagged: 2026-05-23
 - Status: **PARTIAL 2026-05-23** — T-079 removed 5 functions (`invalidate_on_universe_change`, `invalidate_on_window_change`, `load_fundamentals`, `load_ablation`, `async_prefetch`), 3 dataclass fields (`Feature.registered_at`, `LifecycleConfig.retirement_{recent_window,decay_std}`, `GovernorConfig.max_turnover_per_month`), and archived `scripts/run_substrate_arm1_t035.py` to `Archive/scripts/`. 69 relevant tests pass. **REMAINING:** `ingest_fmp_ratios` (Medium-risk per agent — Path-C SimFin-rewire template, kept), 13 module-level constants in 8 files (deferred to next sweep).
 - Recommended next step: a future sweep can pick up the 13 deferred unused constants in atomic per-file commits. Excludes: pytest fixtures (auto-injected by name) and in-file helper functions (used only inside their own script's main). Out of scope per agent instructions: Engine B, Engine E, signal_processor.py.
-
-### [LOW 2026-05-23 by code-health] Dead-branches scan came back clean
-- Category: dead-code (sentinel)
-- Files: engines/ (in-scope), core/, scripts/, tests/
-- AST scan for `if False:` / `if 0:` / unreachable-after-return found zero violations across 436 .py files. Good sign; previous cleanup work has held up. No action needed.
 
 ### [LOW] Engine D save_candidates uses print() instead of structured logger; conflicts with DiscoveryLogger
 - Engine: D
@@ -632,7 +494,7 @@ then LOW. Within each severity, list newest at the top.
 ### [MEDIUM → RESOLVED 2026-05-07] Charter inversion: Engine A signal_processor imports EDGE_CATEGORY_MAP from Engine F's regime_tracker
 - Engine: A (with import dependency on F)
 - First flagged: 2026-04-28
-- Status: not started
+- Status: resolved (Status line corrected 2026-06-11 — was stale "not started" contradicting the RESOLVED title; code-verified: `engines/engine_a_alpha/edge_taxonomy.py` exists and `signal_processor.py:28` imports from it)
 - Description: `engines/engine_a_alpha/signal_processor.py:27` does `from engines.engine_f_governance.regime_tracker import EDGE_CATEGORY_MAP`. EDGE_CATEGORY_MAP is a taxonomy mapping edge name patterns to category labels (`"momentum"`, `"mean_reversion"`, etc.) used by SignalProcessor for the learned-affinity multiplier. Per `engine_charters.md`, Engine A produces signals; Engine F governs lifecycle. A should not depend on F's internal data structures at module-import time — that creates a cycle of intent: SignalProcessor's behaviour now depends on whether F has loaded its tracker module, which means refactoring F's tracker can break A's signal aggregation. The proper layering is for the taxonomy to live in `engines/engine_a_alpha/` (where the edges live) or in `core/` as a shared resource, with F consuming it. Today it lives in F because F was the first to need it for affinity tracking, and A grew an after-the-fact dependency. This is a smaller version of the same charter-inversion that flagged `evolution_controller.py` in F (existing finding above): a piece of the system is in the wrong package, and the dependency direction is reversed from what the charter intends.
 - Charter reference: engine_charters.md Engine A: "Generates buy/sell signals." Engine F: "Lifecycle, governance, weight learning." Authority Boundaries imply A precedes F in the data flow — A should not import F.
 - Files: `engines/engine_a_alpha/signal_processor.py:27`, `engines/engine_f_governance/regime_tracker.py` (where EDGE_CATEGORY_MAP is defined)
@@ -686,6 +548,170 @@ then LOW. Within each severity, list newest at the top.
 ---
 
 ## Resolved (last 90 days)
+
+### [HIGH → RESOLVED 2026-06-11] Engine F: governor.py docstrings mislabel the engine as "Engine D"
+- Engine: F
+- First flagged: 2026-06-04; Resolved: 2026-06-11
+- Description: governor.py:21 and governor.py:89 both attributed the Governor to "Engine D" (stale label from before the D/F split). Both updated to "Engine F". Doc-only change, autonomous-allowed.
+- See: `engines/engine_f_governance/governor.py:21,89`; fresh-view review `docs/Audit/fresh_view_full_system_review_2026_06_11.md`.
+
+### [HIGH → RESOLVED 2026-06-10] Worktree anchor divergence — director/A/B have different `_isolated_anchor/edges.yml`, inflating apparent canon-md5 drift
+- Category: harness state / cross-worktree measurement comparability
+- First flagged: 2026-05-11 by A's T-024 outbox (Q1 canon shifted 182af6a1 → 28cfa38f, Sharpe 0.127 → 0.281). Director-side investigation found root cause: each worktree's `data/governor/_isolated_anchor/edges.yml` has diverged. Director + B have md5 `818330dc...` (size 86,674, mtimes May 7-8); A has md5 `8da9ce85...` (size 88,278, mtime May 10). A's anchor is 1,604 bytes larger — almost certainly the auto-registered T-014/T-016/T-017/T-018 paused edges appended to A's anchor's edges.yml during a recent backtest run (which suggests one or more measurement runs had end-of-run edges.yml mutations NOT gated by journal-mode).
+- Implication: T-019's "paused-tier inert" conclusion needs reframing. T-019 measured ~Δ Sharpe 0.0000 vs T-002 on the OLD anchor (without the new paused edges). The new paused edges weren't being loaded at all, NOT producing 0 trades through soft-pause. T-020's per-edge isolation used `exact_edge_ids` so it bypassed this and correctly showed 5/5 generate trades at full weight.
+- A's current canon (28cfa38f) IS the production state on the NEW anchor: 5 paused edges loaded, soft-pause applies 0.25× weight, they contribute trades, lifting Q1 Sharpe by +0.154. This is the real measurement going forward.
+- Forward action: standardize on A's anchor as the canonical one (it reflects post-T-014/T-016/T-017/T-018 production reality). Re-save anchor in director + B worktrees via `python -m scripts.run_isolated --save-anchor`. Per CLAUDE.md, --save-anchor is propose-first-equivalent since it changes governor state — director executes after explicit user nod.
+- Open question: HOW did A's edges.yml get those 1,604 bytes? Auto-register-on-import shouldn't write to edges.yml. Possibly an end-of-run lifecycle mutation in a non-journal-mode run. Worth a brief code audit (~30 min) to find the mutation path.
+- Resolved by: T-131 governor hygiene (anchor-vs-live proven canon-irrelevant bitwise; anchors write-protected; manifest policy) + T-133 follow-ups (all worktrees symlinked to the director's write-protected anchors; divergence class closed end-to-end). TASK_LEDGER: both `done` 2026-06-10. (triaged 2026-06-11)
+
+### [HIGH → SUPERSEDED 2026-05-29] T-055e regime-conditional vol-target — CLEARS CLAUDE.md #6 gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
+- Category: engine-completion / first T-055-series result to clear strict ci_low > 0
+- 15 fresh arm1 backtests (EWMA + regime_aware) reusing T-055d arm0. 10/10 cells canon-stable.
+- **Δ Sharpe = +0.549 with ci_low +0.047 (>0)** — first regime-conditional layer to clear the gate. ALL THREE headline metrics (Sharpe, CAGR, MDD) have ci_low > 0.
+- **Progressive improvement T-055c → T-055d → T-055e**:
+  - T-055c rolling: Δ +0.256, ci_low -0.140
+  - T-055d EWMA: Δ +0.289, ci_low -0.046
+  - T-055e regime+EWMA: **Δ +0.549, ci_low +0.047**
+- **MDD improves in every single year** (+0.38 to +2.74pp range, +1.11pp mean, ci_low +0.68pp). Harvey-et-al-2018 defensive value finally showing up consistently.
+- **2022 outlier (-0.997 Sharpe)** is the only per-year loss — regime-conditional over-degrosses in sustained bear, missing partial recoveries. Worst per-year loss in entire T-055 series. Cost of the policy's 2021/2024 wins.
+- **2024 rescue preserved** (+1.564 vs T-055d +1.622) AND **2025 trap-elimination preserved** (-0.198 vs T-055d -0.128) — both T-055d wins survive the regime-conditional layer.
+- **T-055b flag-flip is now defensible** per strict CLAUDE.md #6. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
+- Branch `feature/engine-b-vol-target-regime-conditional-t055e` pushed.
+- Audit: `docs/Audit/engine_b_vol_target_regime_conditional_t055e_2026_05_23.md`.
+- Superseded by: T-055g multiplier sweep (refuted on canonical substrate; no arm clears ci_low>0; 2022 sign-flipped) and T-055h 12-yr verify (Δ Sharpe -0.214; vol-target chapter CLOSED, `docs/Audit/vol_target_12yr_verify_t055h_2026_05_29.md`). TASK_LEDGER marks T-055e `superseded`; CURRENT_STATE.md lists the +0.549 "DEFENSIBLE" verdict as retired. Not current truth per the CLAUDE.md supersession rule. (triaged 2026-06-11)
+
+### [MEDIUM → SUPERSEDED 2026-05-29] T-055d EWMA estimator A/B — EWMA strictly dominates rolling but ci_low still touches zero
+- Category: engine-completion measurement / Moreira-Muir lift verification — EWMA alternative
+- 15 fresh EWMA-arm backtests (arm0 OFF reused from T-055c); 10/10 cells canon-stable.
+- **EWMA wins on every metric**: Δ Sharpe point +0.289 (vs rolling +0.256), ci_low -0.046 (vs -0.140; 67 % tighter), Δ MDD -0.03pp (vs rolling -0.62pp).
+- **Key wins**: 2024 fragility rescue AMPLIFIED (+1.622 vs rolling +1.303) and **2025 vol-shock trap FIXED** (-0.128 vs rolling -0.942). The catastrophic outlier that drove T-055c's wide CI is gone under EWMA.
+- **Trade-offs**: EWMA loses some 2021 bull lever-up (+0.289 vs +0.915) and gets 2022 bear WORSE (-0.594 vs -0.129) because the faster estimator misses partial recoveries.
+- Verdict **MARGINAL** per strict CLAUDE.md #6: ci_low(-0.046) still < 0; T-055b autonomous-recommend NOT cleared. **Director's call**: hold for T-055e (regime-conditional target) layered on EWMA, or surface to user with the +0.094 ci_low improvement evidence.
+- Branch `feature/engine-b-vol-target-ewma-t055d` pushed.
+- Audit: `docs/Audit/engine_b_vol_target_ewma_t055d_2026_05_22.md`.
+- Superseded by: T-055h 12-yr verify closed the vol-target chapter (Δ Sharpe -0.214; `docs/Audit/vol_target_12yr_verify_t055h_2026_05_29.md`); the held T-055e follow-up ran and was itself refuted (T-055g/T-055h). TASK_LEDGER: T-055d `done`, chapter closed. (triaged 2026-06-11)
+
+### [MEDIUM → SUPERSEDED 2026-05-29] T-055c A/B lift verification — MARGINAL verdict, T-055b flag-flip NOT YET recommended
+- Category: engine-completion measurement / Moreira-Muir 2017 verification
+- 30-backtest grid (3-rep × 5-yr × 2-arm) — 10/10 cells canon-stable.
+- **Mean Sharpe lift: +0.256 point estimate (ABOVE Moreira-Muir +0.10-0.20 band) but ci_low = -0.140 (CROSSES ZERO)**. Per CLAUDE.md #6: gate on ci_low, not point.
+- Per-year variance huge: 2024 fragility-year RESCUED (+1.303), 2025 vol-shock TRAP (-0.942). Net MDD slightly worse (-0.62pp) driven by 2025 outlier.
+- **Harness bug found mid-campaign**: `run_vol_target_arms_full.py` was patching `config/risk_settings.json` but mode_controller loads `config/risk_settings.{env}.json` → silent vol-target-disabled for first 4 arm1 runs. Diagnosed via offline scalar simulator, fixed, re-ran. Lesson: env-suffixed config files require env-suffixed patches.
+- **Recommended follow-up before T-055b**: T-055d (EWMA λ=0.94 estimator) addresses the 2025 vol-shock failure mode. T-055e (regime-conditional target) addresses the late-cycle trap.
+- Branch `feature/engine-b-vol-targeting-ab-t055c` pushed; director merges audit doc to main.
+- Audit: `docs/Audit/engine_b_vol_targeting_ab_t055c_2026_05_22.md`.
+- Superseded by: T-055d/T-055e follow-ups ran; chapter closed by T-055h 12-yr verify (vol-target CLOSED). TASK_LEDGER: T-055c `refuted`. (triaged 2026-06-11)
+
+### [MEDIUM → RESOLVED 2026-05-29] Engine B portfolio-level vol-targeting LANDED (T-055; defense-first OFF, flag-flip gated on T-055b post full A/B)
+- Category: engine completion / Moreira-Muir 2017 infrastructure
+- `engines/engine_b_risk/vol_target.py` ships VolTargetConfig + compute_vol_scale + composer. Wired into `risk_engine.py` Path A (target_weight) AND Path B (ATR-risk) via the new `_compute_portfolio_vol_scalar()` helper. Reads from existing `self.portfolio.history` (same source as drawdown kill switch — no new state plumbing).
+- **Defense-first default**: `portfolio_vol_target_enabled=False` in `config/risk_settings.json`. Determinism gate verified: single-rep Q1 canon md5 = `182af6a1240da35055f716ef9dfcd333` — bitwise identical to T-019 clean-main reference.
+- **Hard constraints met**: does NOT override kill-switch / drawdown-halt (those short-circuit before scalar is applied); no look-ahead (realized vol uses snapshots already in history); 12 new tests pass + 25 existing Engine B tests still pass.
+- **A/B Q1 smoke (T-055)**: ARM_OFF and ARM_ON both produced canon-identical trades.csv. This is BY DESIGN — Q1 (~62 trading days) is below the 60-day warmup gate; the scalar barely fires. The smoke validates wiring/determinism, NOT Sharpe lift.
+- **Sharpe lift validation deferred to T-055c** (full 3-rep × 5-yr × 2-arm = 30-run grid, ~6 hr wall). Expected lift per Moreira-Muir 2017 + dive 2: +0.10-0.20 Sharpe. Bootstrap CI per CLAUDE.md 6th non-negotiable will be required there.
+- Branch `feature/engine-b-vol-targeting` pushed; director merges after review per CLAUDE.md Engine B propose-first rule.
+- Resolved by: infrastructure shipped (TASK_LEDGER T-055 `done`); the gated T-055b flag-flip question closed NEGATIVE via T-055g/T-055h (vol-target chapter CLOSED on 12-yr; flag stays OFF). (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-25] T-057b verification — confidence-gate lift COLLAPSES on extended substrate; flag-flip NOT recommended
+- Category: engine-completion verification / substrate-conditional lift falsified
+- Cloud campaign: 50/50 cells succeeded (2 arms × 5 yrs × 5 reps). T-057's +0.793 Sharpe lift on Alpaca-only substrate REVERSES to **Δ -0.075** on the extended Stooq+Alpaca substrate.
+- ci_low(Δ Sharpe): iid -0.532, block-bootstrap (5-yr) -1.154. **Both fail CLAUDE.md #6 strict gate.**
+- **Per-year pattern reveals regime dependency**: gate helps when OFF is weak (2021 +0.72, 2024 +1.43) but HURTS when OFF is strong (2022 -1.79, 2023 -1.13). 3 of 5 years remain consistent-sign vs original T-057; 2 of 5 reverse sign (2022, 2023 — both years where extended substrate's stronger OFF baseline left less room for the gate).
+- **MBL Gate-0 also FAILS**: 5-yr window insufficient for SR=1.0 lift claim at N=230 trials (needs 10.88 yr). Maximum clearable SR on this design: 1.475.
+- **3 of 10 cells show 1-rep determinism drift** (arm0_off/2021, arm2_n3/2022, arm2_n3/2024). The 5-rep design eliminated T-057's original 2021 arm2_n3 drift but surfaced 3 new cells — within-container module-global drift, worth a T-057c-determinism-investigation follow-up.
+- **Recommendation: DO NOT flip `confidence_gate.enabled=True`.** Stays False on main pending: (a) regime-conditional confidence gate (mirror T-055e pattern), (b) 11+ yr backtest window to clear MBL.
+- Lessons-learned pattern: SECOND time a positive lift has reversed sign on substrate change (vol-targeting series + confidence-gate series). ANY positive lift must be substrate-verified BEFORE production-recommend.
+- Audit: `docs/Audit/confidence_gated_flag_flip_t057b_2026_05_24.md`.
+- Resolved by: recommendation adopted — flag stays False; T-053b 12-yr re-verify REFUTED T-057 definitively (TASK_LEDGER T-057b `refuted`, T-053b `done`, `docs/Audit/multi_year_window_harness_t053b_2026_05_25.md`); determinism follow-up closed by T-057c-det + T-057c-fp-followup. CURRENT_STATE.md lists T-057 as refuted. (triaged 2026-06-11)
+
+### [LOW → RESOLVED 2026-05-23] Dead-branches scan came back clean
+- Category: dead-code (sentinel)
+- Files: engines/ (in-scope), core/, scripts/, tests/
+- AST scan for `if False:` / `if 0:` / unreachable-after-return found zero violations across 436 .py files. Good sign; previous cleanup work has held up. No action needed.
+- Resolved by: clean-scan sentinel — the entry's own text states "No action needed". (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-12] Engine D production `hunt()` does NOT pass `ticker=` to `compute_all_features` — foundry_feature gene type has been a dead-letter office for the entire project arc
+- Category: structural plumbing failure / engine integration
+- Surfaced 2026-05-12 evening by Agent B during T-038-CONT vectorization investigation. Empirical: production hunt() on 53 tickers × 1yr completes in 20.5 sec emitting 3 candidates; the smoke's 65min silent CPU was in a DIFFERENT, still-unprofiled code path.
+- **Cascade impact**: T-022 (gene encoding extension), T-023 (Gate 1 caching), T-024 (seed enrichment), T-038-CONT (vectorization), T-052 (4 regime features) all share this dead-letter destiny until the wiring fix lands. The "Foundry features invisible to GA gene encoding" diagnosis from 2026-05-11 was correct but located in the wrong layer — gene encoding was fine; the FEATURE COMPUTE in production was the gap.
+- **Reframes Engine D history**: T-021's "all 3 candidates were rsi_bounce_v1 mutations" was structural plumbing failure, not signal weakness. T-025's 30/30 Gate 1 kill rate was the same dead-letter pattern. T-026 BLOCKED on stale composites masked the wiring issue.
+- Forward action: T-054 dispatch in flight (Agent A as of 2026-05-12 LATE). Single likely-1-line fix in `engines/engine_d_discovery/discovery.py` unblocks ~30+ hr of prior agent investment.
+- Discipline implication: parallels the cockpit metrics-pipeline bug pattern — silent structural gap masked as functional weakness. **Worth a broader dead-letter audit across the codebase** (any registered-but-never-invoked feature/method/config flag). See newly-flagged MEDIUM entry below.
+- Resolved by: T-054 production hunt() ticker= wiring fix (TASK_LEDGER `done` 2026-05-12; audit `production_hunt_ticker_wiring_postfix_2026_05_12.json`), unblocking the T-022/23/24/38/52 cascade. (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-12 by T-043 ship + flag-flip] Lifecycle gauntlet was asymmetric — strict on entry (Gate 6 FF5+Mom α t > 2), loose on retirement (raw Sharpe only)
+- Category: governance / lifecycle policy
+- T-043 (merged 219648b 2026-05-12) added `engines/engine_f_governance/factor_alpha_gate.py` — symmetric retirement gate matching Discovery Gate 6.
+- Re-evaluation on T-035/T-036 cockpit-fixed trade logs: **6 of 7 evaluated edges fire** (gap_fill, volume_anomaly, value_book_to_market, accruals_inv_sloan, value_earnings_yield, accruals_inv_asset_growth retire; STR keeps as UNIFORMLY NOISY).
+- `factor_alpha_enabled` flag flipped True in commit b45f829 per user explicit approval. Next live discovery cycle writes retirement decisions to lifecycle journal; user applies via journal_apply.
+- gap_fill_v1 + volume_anomaly_v1 fire on **ci_low alone** (point -0.93 above -2.0 threshold; ci_low -3.9/-4.0). Textbook CLAUDE.md 6th non-negotiable working as designed.
+- Resolved by: T-043 ship (commit 219648b) + `factor_alpha_enabled` flag-flip (commit b45f829), as recorded in-entry. NOTE: a 2026-06-04 engine-auditor finding (active HIGH in this file) later found the gate INERT on the production lifecycle call path (`factors=` never supplied) — that residual is tracked there, not here. (triaged 2026-06-11)
+
+### [MEDIUM → RESOLVED 2026-05-12] Lifecycle gauntlet doesn't check factor-adjusted α — edges with positive raw PnL but significantly negative factor-adjusted α stay active
+- Category: Engine F autonomous-decision gap / lifecycle retirement scope
+- First flagged: 2026-05-11 by director-side threshold-calibration audit (`docs/Audit/factor_decomp_threshold_calibration_2026_05_11.md`).
+- The `lifecycle_manager.py:_check_retirement` gate (line 655+) uses raw Sharpe-vs-benchmark with CI-aware reading (T-010's update). It catches edges with negative raw PnL/Sharpe. But it does NOT check factor-adjusted α.
+- Concrete miss: `value_book_to_market_v1` has +$2,082 raw PnL over 5 years but FF5+Mom α = -2.20% / t = -2.60 (significantly negative idiosyncratic α). It's winning ONLY by buying Mkt+Mom factor exposure that factor ETFs sell cheaper. Lifecycle keeps it active despite the structural-evidence retirement case.
+- Future T-026-or-similar dispatch: extend the lifecycle gauntlet's retirement gate to ALSO check factor-adjusted α (HAC t < -2 OR α ci_low < some-negative-threshold). Would catch the value/accruals cluster cleanly. Engine F change — propose-first per CLAUDE.md interpretation since it changes autonomous decision logic; spec needed before dispatch.
+- Note: lifecycle hasn't fired on substrate-honest data yet (`data/governor/decision_diary.jsonl` only shows measurement_run entries through 2026-05-10, no lifecycle decisions). So the 3 raw-PnL-negative edges (value_earnings_yield, accruals_inv_sloan, accruals_inv_asset_growth) would auto-retire on the next lifecycle cycle that runs on substrate-honest. Value_book_to_market would stay alive without the factor-adjusted gate.
+- Resolved by: T-043 shipped `engines/engine_f_governance/factor_alpha_gate.py` (symmetric FF5+Mom retirement gate, commit 219648b; flag flipped b45f829) — exactly the extension this entry requested; value_book_to_market_v1 is among the 6/7 firing edges. NOTE: the gate is currently inert on the production call path (`factors=` never supplied) — tracked as an active HIGH entry (2026-06-04) in this file. (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-12] Engine D gene encoding is single-archetype — Discovery cannot emit candidates from expanded Foundry vocabulary
+- Category: Engine D structural / autonomous-discovery gap
+- First flagged: 2026-05-11 by T-2026-05-10-021 (first-ever Discovery cycle on substrate-honest). All 3 candidates were `rsi_bounce_v1` mutations. The post-T-006 Foundry features + post-T-014 calendar features (mom_12_1, mom_6_1, vol_regime, ma_cross, dist_52w_high, drawdown, hyg_lqd_spread, FOMC drift, sell-in-May, etc.) are NOT REACHABLE by the GA's gene encoding.
+- Implication: vocabulary expansion (T-006, T-013, T-014) delivered zero benefit to Discovery's autonomous candidate-search until gene encoding is extended. **This is the primary structural blocker for the engines-first lift path.** Highest-leverage Engine D work going forward.
+- Forward action: dispatch Engine D gene-encoding extension (next dispatch, ~6-10 hr Engine D autonomy lane).
+- Resolved by: T-022 gene-encoding extension + T-054 production hunt() `ticker=` wiring fix (TASK_LEDGER T-054 `done` — the actual blocking layer). The 2026-06-04 engine-auditor entry in this file documents the now-expanded GA vocabulary (macro/behavioral/regime + short/market_neutral directions). (triaged 2026-06-11)
+
+### [HIGH → SUPERSEDED 2026-05-11] Paused-tier edge expansion is INERT against the active-edge-dominated ensemble — Discovery cycle is the only lift mechanism for new edges
+- Category: alpha mechanism / forward-path-bottleneck
+- First flagged: 2026-05-10 by T-019 substrate-honest post-edge-expansion measurement. Δ Sharpe = 0.0000 in BOTH arms vs T-002. Bit-identical canon md5s in 15/15 cells per arm. The 5 new paused edges from 2026-05-09 (T-014 calendar features, T-016 momentum × 3, T-017 pairs MA/V, T-018 dividend init) contributed **zero trades** over 5-year substrate-honest — while pre-existing `news_sentiment_edge_v1` at the same 0.25× soft-pause weight produced 451 trades. Infrastructure isn't the filter; signal density at the substrate-honest scale is.
+- Implication: today's edge-expansion track delivered zero substrate-honest alpha. Paused parking provides "post-pause revival evidence" capability — NOT a path to alpha contribution while still paused. **The mechanism for converting today's inventory into headline lift is Discovery's substrate-honest gauntlet (Phase 2.10 + Gates 7/8) promoting edges to `status='active'`.**
+- Forward action: dispatch a Discovery cycle on substrate-honest data; let the gauntlet validate which (if any) of the new paused edges deserve promotion. Adding MORE paused edges is wasted effort until the existing inventory's gauntlet outcome is known.
+- Superseded by: the 2026-05-11 worktree-anchor investigation — T-019 ran against a stale anchor that never loaded the 5 new paused edges (NOT soft-pause producing 0 trades); on the canonical anchor they contribute trades (+0.154 Q1 Sharpe). Anchor-divergence class later closed by T-131/T-133. (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-12 (RE-CORRECTED BY T-035)] The substrate-honest baseline is 0.598, not 0.270
+- Category: measurement integrity / canonical baseline
+- 2026-05-12 update: T-2026-05-12-035 re-measured T-002 Arm 1 with the cockpit metrics-pipeline fix (T-034) applied. **Corrected mean Arm 1 Sharpe = 0.598** (vs T-002 reported 0.270, Δ +0.328). The shift is from bug-correction, not substrate change.
+- The cockpit bug was bi-directional: winning years inflated (peak_equity is monotone non-decreasing, lower variance than real equity; the metric reader was reading peak-as-equity, inflating Sharpe) and losing years zeroed (peak stays at starting capital while real equity falls → flat equity read → Sharpe ≈ 0). Director's prediction "barely fires in small-MDD cells" was REFUTED.
+- Per-year corrected | T-002 → T-035: 2021 0.413 → **1.791** | 2022 0.116 → **0.294** | 2023 0.261 → **1.221** | 2024 0.236 → **-0.613** | 2025 0.325 → **0.297** | mean 0.270 → **0.598**.
+- **No single year clears `ci_low > 0`** even at corrected level. Per CLAUDE.md 6th non-negotiable: 0.598 mean Sharpe is better than 0.270 but the strategy is **bull-conditional with material 2024-style downside** that was previously hidden.
+- All prior bear-year Sharpe-bearing audits remain SUSPECT until re-measured: T-002 Arm 2, T-019 paused-tier-inert, T-029 per-regime decomp, T-020 per-edge isolation, F6 multi-year, T-030 STR. T-036 (in flight) takes highest-priority subset (STR + per-regime adverse cells).
+- The "0.9154 surviving-6 contaminated" finding (below, retained for history) is still correct: that was the zero-trade-regression bug, NOT the cockpit bug. They are two distinct measurement-integrity issues; both retract their respective headlines.
+- Resolved by: T-035 metrics-pipeline fix + re-measurement (TASK_LEDGER `done` 2026-05-12). The 0.598 figure is itself now historical — current baselines per CURRENT_STATE.md: ~0.81 (12-yr, not formally validated) and 0.237 (26-yr clean arm0, canon 529e5520). Do not quote 0.598 as current. (triaged 2026-06-11)
+
+### [HIGH → RESOLVED-AS-CONTAMINATED 2026-05-09 (historical, see entry above for the corrected 0.598 baseline as of 2026-05-12)] The 0.9154 surviving-6 result was contaminated by the zero-trade regression
+- Category: measurement integrity / superseded headlines
+- First flagged: 2026-05-09 evening by dev review at `docs/Sessions/Other-dev-opinion/05-09-26.md`. The C-collapses-1 surviving-6 mean Sharpe 0.9154 (PARTIAL bucket, basis for the "6-edge surviving set" narrative) was almost certainly measured during the 2026-05-07 zero-trade-regression window before the bug was caught. **It is RETRACTED.**
+- The honest baseline going forward is the substrate-honest two-arm result T-002 (May 9): **Arm 1 mean Sharpe 0.2702 with bootstrap 95% CI [-0.383, +0.771] — `ci_low` includes zero.** Arm 2 (HMM ON) at 0.294, Δ +0.024, NEUTRAL bucket per pre-commit. **(SUPERSEDED 2026-05-12 by T-035 corrected 0.598 — see entry above.)**
+- Compounding evidence: T-004 factor-decomp on the same trade logs found 0/6 edges have positive factor-adjusted α at t > 2; 4/6 have *significantly negative* factor-adjusted α (t between -2.6 and -5.7). The load-bearing alpha (`volume_anomaly_v1`) is GENUINELY NOISY at t = 0.83, R² = 0.04. (Factor decomp uses real equity returns, not the buggy metric — so this finding is INDEPENDENT of the cockpit bug and remains valid.)
+- Implication: the project now operates against the **0.598** baseline (corrected 2026-05-12) as the comparison point for whether engine completion delivers projected lift.
+- Forward path: engines-first directive anchored. Three parallel tracks (engine completion, edge expansion, defensive layer), all gated on engine completion before Moonshot/AI evaluation.
+- Resolved by: retraction recorded in-entry; superseded chain continues in the T-035 entry above. (triaged 2026-06-11)
+
+### [HIGH → SUPERSEDED 2026-05-12] Foundation Gate baseline (mean Sharpe 1.296) was a substrate artifact — universe-aware rerun lands 0.507 (−0.789, −61%)
+- Engine: data_manager (pre-2026-05-09 the survivorship-bias-aware loader was unwired) + orchestration (ModeController defaulted to the static 109-ticker config) + Engine A (edges were tuned and validated against the static-substrate Sharpes)
+- First flagged: 2026-05-09 — F6 finding from the dev-opinion consolidated audit (the 115-name static config was identified as a load-bearing assumption hiding under every prior Sharpe headline). The universe loader (`engines/data_manager/universe.py`) was built 2026-04-24 but never wired into ModeController, so every measurement campaign through 2026-05-08 ran on the static substrate.
+- Wiring shipped: `f6-universe-loader-wire` branch, commit `69006fb`. New `engines/data_manager/universe_resolver.py::resolve_universe` is opt-in via `use_historical_universe` config flag (default false to preserve prior measurement reproducibility) or `--use-historical-universe` CLI flag on `scripts/run_multi_year`. 15 resolver unit tests pass; 40 existing universe.py tests pass.
+- Verdict: COLLAPSES. See full report `docs/Measurements/2026-05/universe_aware_verdict_2026_05_09.md`. Per-year deltas: 2021 1.666→0.862 (−0.804), 2022 0.583→−0.321 (−0.904), 2023 1.387→1.292 (−0.095), 2024 1.890→0.268 (−1.622), 2025 0.954→0.436 (−0.518). 4 of 5 years collapse far outside the noise band; 2023 alone holds together. Mean clears 0.5 by 0.0074 — cosmetic rather than meaningful.
+- Implication: Path 1 ship is not viable as previously framed. The kill thesis suspended by the 2026-04-30 Foundation Gate pass is re-engaged on the universe-aware substrate. Engine A edges tuned against the static substrate need re-validation under universe-aware geometry before any per-edge Sharpe number is treated as honest. ~~The 26-54 missing-CSV delisted names per year (FRC, DISCA, ATVI, etc.) remain unincluded — adding them would push deeper into COLLAPSES, so the measured 0.507 is an upper bound.~~ **Update 2026-05-08:** the missing-CSV gap is now closed (48/48 = 100% of legitimate names sourced via Alpaca; see `missing_csv_closure_2026_05_08.md`). The 0.507 figure becomes a re-measurable number, not an upper bound, as soon as the zero-trade regression (new HIGH item above) is fixed.
+- Honest scope: the wiring is a clean fix and lands as a Pareto improvement to the substrate (default behavior preserved, opt-in path validated, deterministic). The COLLAPSES verdict is an information win, not a project-breaking finding — it tells us where to focus next: edge-level re-validation, regime-conditional analysis of why 2023 held, and the remaining missing-CSV names.
+- Next: (1) default `use_historical_universe: true` for measurement campaigns going forward, (2) re-run the Discovery gauntlet on universe-aware substrate, ~~(3) populate the missing CSVs via `scripts/fetch_universe.py`,~~ **(3) DONE 2026-05-08** — `scripts/fetch_missing_delisted.py` closed the 48-name gap, (4) re-evaluate which alpha generators survive in 2023 vs. the others.
+- Superseded by: the zero-trade-regression fix + T-035 cockpit-metrics correction re-based the number (0.507 → 0.598), and the substrate was later canonicalized (T-081/T-082) with deeper-window baselines (12-yr ~0.81, 26-yr 0.237 per CURRENT_STATE.md). The COLLAPSES verdict stands historically; none of this entry's numbers are current truth. (triaged 2026-06-11)
+
+### [HIGH → RESOLVED 2026-05-08] Backtests produce zero trades since 2026-05-07 evening — every isolated run lands trades_canon_md5 = `d41d8cd9...` (empty file)
+- **RESOLVED 2026-05-08:** root cause was `EarningsVolEdge` raising `TypeError: Cannot compare tz-naive and tz-aware timestamps` — silently swallowed by `backtest_controller.py:389` bare-except. Fix: tz-strip in yfinance cache (commit `4b7a14e`). The bug class is closed by T-005 narrow-except in `backtest_controller.py:389-405` (commit `129c7ba`, merged `4aa634e`); programmer errors now propagate so the next regression of this shape surfaces immediately. Also swept in T-011 (Engine A, 7 sites) and T-012 (Engine B drawdown-halt). Bonus audit at `docs/Audit/bare_except_audit_2026_05_08.md` flagged 188 broader sites; 7 highest-impact closed today.
+- Resolved by: commits 4b7a14e (tz-strip fix) + 129c7ba/4aa634e (T-005 narrow-except), as recorded in-entry. (triaged 2026-06-11)
+
+### [HIGH — historical context only] Original symptom report from 2026-05-08 (pre-fix):
+- Category: governor-state regression / measurement gating
+- First flagged: 2026-05-08 during the missing-CSV closure work. The closure was complete (48/48 sourced, 100% of legitimate names) but the post-closure substrate-honest re-measurement returned Sharpe 0.0 with zero trades. A static-substrate repro yielded the same result. A code-only rollback to commit `7d54de3` (last commit before the 2026-05-07 evening regression window) also yielded zero trades, ruling out the engine/orchestration trees as the cause.
+- Last trade-producing run in `data/trade_logs/`: `35e2f3dd-49e9-45bd-b72f-828efba624a7` at 2026-05-07 01:39 (Sharpe −0.107, 10,581 trade rows). Every subsequent isolated run is empty.
+- Bisect: at code-state `7d54de3` (post-F4-merge, pre-F11-phase-2) — 0 trades. At code-state `1085069` (parent of the F4-merge `cae2002`, with composer.py moved aside) — also 0 trades. So the cause is not in any commit since the last good run; it's purely in state restored by `isolated()` from `data/governor/_isolated_anchor/`. Cross-reference: a note in `project_engine_c_f4_closed_2026_05_07.md` at the time of the F4 merge flagged "incomplete worktree governor state" producing zero trades — that state propagated into the parent repo at 2026-05-07 01:49 (the timestamp on `_isolated_anchor/edges.yml`).
+- The anchor's `edge_weights.json` (last modified 2026-05-06) lacks weight entries for the 4 active V/Q/A edges (`value_earnings_yield_v1`, `value_book_to_market_v1`, `accruals_inv_sloan_v1`, `accruals_inv_asset_growth_v1`); if any recent governor change started reading missing entries as 0.0 instead of defaulting to 1.0, the V/Q/A edges would silently abstain. This is the most likely root cause and the first thing to check.
+- Implication: ALL measurement work done after 2026-05-07 01:39 needs verification — anything claiming a Sharpe number without a trades.csv with >1 line is reading stale results, not measuring current code. The substrate-honest re-measurement closing the 0.5074 upper bound is blocked on this fix.
+- Next: (1) check `_isolated_anchor/edge_weights.json` first — restore weights for the 4 V/Q/A active edges. (2) If that doesn't unblock, bisect among the 4 anchor files (`edges.yml`, `edge_weights.json`, `lifecycle_history.csv`, `regime_edge_performance.json`) by restoring each from a pre-2026-05-07 trade_log's `engine_versions.json` snapshot. (3) Verify with a 1-year static-substrate smoke producing ~0.27 Sharpe / ~13k trades. (4) Then re-anchor and re-run the 5-year substrate-honest measurement against the now-closed missing-CSV gap. See `docs/Measurements/2026-05/missing_csv_closure_2026_05_08.md` for the full debug trail (3 forward repros + 2 code-bisect rollbacks all confirming state-side cause).
+- Resolved by: the same fix as the entry above; kept as historical context only per its own header. (triaged 2026-06-11)
 
 ### [MEDIUM → RESOLVED 2026-04-27] Lifecycle audit-trail / registry-state divergence detection missing (2026-04-25)
 - Engine: F (Governance)
