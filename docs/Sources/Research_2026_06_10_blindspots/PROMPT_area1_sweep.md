@@ -14,7 +14,7 @@ Context: a retail systematic-trading codebase written and operated by LLM agents
 We already adopted: golden-master P&L regression + property-based invariants +
 forbidden-pattern lint (in build), and the design rule that external text NEVER
 enters a privileged agent's context (structured-extraction-only quarantine).
-Deliver actionable specs/checklists with citations — no reading lists.
+Deliver actionable specs/checklists with citations — no reading lists. **You have NO access to our codebase** — everything you know about us is in this prompt; mark any us-specific inference explicitly as INFERENCE (we verify locally before adopting).
 
 ## 1. EXHAUSTIVE incident + technique sweep (the fast-moving half)
 - Every documented prompt-injection / data-poisoning incident or demonstration

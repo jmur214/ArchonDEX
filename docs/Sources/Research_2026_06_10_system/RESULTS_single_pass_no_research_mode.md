@@ -1,5 +1,7 @@
 # RESULTS — system-improvements hunt, single pass WITHOUT research mode (2026-06-10)
 
+> **PROVENANCE (added 2026-06-10): the researcher had NO codebase access.** Literature/price/regulatory claims are independent and verifiable; any US-SPECIFIC judgment ("your gate…", "your overlay is the surviving family") derives solely from the prompt's self-description and partially echoes the director's framing — weight accordingly; verify locally before adoption (standing policy).
+
 > Provenance: the user ran `PROMPT_system_improvements.md` without the deep-research
 > feature. The agent executed a knowledge-first single pass with targeted searches
 > for time-sensitive items. Director assessment: strong; full rerun NOT warranted

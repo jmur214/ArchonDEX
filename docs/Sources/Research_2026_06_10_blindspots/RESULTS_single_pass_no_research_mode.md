@@ -1,5 +1,7 @@
 # RESULTS — blind-spots hunt, single pass WITHOUT research mode (2026-06-10)
 
+> **PROVENANCE (added 2026-06-10): the researcher had NO codebase access.** Literature/price/regulatory claims are independent and verifiable; any US-SPECIFIC judgment ("your gate…", "your overlay is the surviving family") derives solely from the prompt's self-description and partially echoes the director's framing — weight accordingly; verify locally before adoption (standing policy).
+
 > Provenance: user ran `PROMPT_blind_spots.md` without the deep-research feature.
 > Output self-grades: Areas 2/3/4 = stable literature, "close to complete"; Areas
 > 1.2/1.4 (injection incidents, post-cutoff agent tooling) = fast-moving → a

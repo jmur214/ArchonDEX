@@ -1,5 +1,7 @@
 # RESULTS — data-source hunt (RESEARCH MODE; all prices verified on live pages 2026-06-10)
 
+> **PROVENANCE (added 2026-06-10): the researcher had NO codebase access.** Literature/price/regulatory claims are independent and verifiable; any US-SPECIFIC judgment ("your gate…", "your overlay is the surviving family") derives solely from the prompt's self-description and partially echoes the director's framing — weight accordingly; verify locally before adoption (standing policy).
+
 > Provenance: the user ran `PROMPT_data_sources.md` with the deep-research feature.
 > Prices verified on vendor pages 2026-06-10; login-walled prices flagged unverified,
 > not guessed. Director-extracted actions tracked in session todos. Key correction on
