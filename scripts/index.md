@@ -25,34 +25,6 @@
 - **Function `read_xlsx_first_sheet()`**: No docstring
 - **Function `excel_serial_to_datetime()`**: No docstring
 
-### `ab_engine_c_hrp.py`
-**Module Docstring:** A/B harness: weighted_sum vs HRP under run_isolated.
-- **Function `main()`**: No docstring
-
-### `ab_path_a_tax_efficient_core.py`
-**Module Docstring:** A/B/C/D harness — Path A tax-efficient core (HRP slice 2 + turnover
-- **Function `main()`**: No docstring
-
-### `aggregate_t055c.py`
-**Module Docstring:** T-2026-05-22-055c aggregation — read per-arm incremental JSON,
-- **Function `main()`**: No docstring
-
-### `aggregate_t055d.py`
-**Module Docstring:** T-2026-05-22-055d aggregation — read per-arm incremental JSON,
-- **Function `main()`**: No docstring
-
-### `aggregate_t055e.py`
-**Module Docstring:** T-2026-05-23-055e aggregation — read per-arm incremental JSON,
-- **Function `main()`**: No docstring
-
-### `aggregate_t057b.py`
-**Module Docstring:** T-2026-05-23-057b aggregation — bootstrap CI on the 2-arm × 5-yr ×
-- **Function `main()`**: No docstring
-
-### `aggregate_t057b_cloud.py`
-**Module Docstring:** T-2026-05-23-057b-analyze cloud-results aggregator.
-- **Function `main()`**: No docstring
-
 ### `analyze_13f_crowding_t145.py`
 **Module Docstring:** scripts/analyze_13f_crowding_t145.py
 - **Function `load_prices()`**: No docstring
@@ -89,9 +61,6 @@
 - **Function `load_records()`**: No docstring
 - **Function `fmt_pct()`**: No docstring
 - **Function `main()`**: No docstring
-
-### `analyze_edges.py`
-*No public classes or functions found.*
 
 ### `analyze_engine_e_hmm_ab.py`
 **Module Docstring:** scripts/analyze_engine_e_hmm_ab.py
@@ -181,14 +150,6 @@
 **Module Docstring:** scripts/audit_per_edge_substrate.py
 - **Function `main()`**: No docstring
 
-### `audit_six_names_isolation.py`
-**Module Docstring:** scripts/audit_six_names_isolation.py
-- **Function `main()`**: No docstring
-
-### `audit_surviving_edges_multi_year.py`
-**Module Docstring:** scripts/audit_surviving_edges_multi_year.py
-- **Function `main()`**: No docstring
-
 ### `backfill_decision_diary.py`
 **Module Docstring:** One-shot backfill of decision diary with this week's load-bearing decisions.
 - **Function `main()`**: No docstring
@@ -204,15 +165,6 @@
 - **Function `detect_real_transitions()`**: Identify durable argmax-state transitions in a posterior sequence.
 - **Function `evaluate_anchor_events()`**: For each anchor event, find lead time of the first warning fire.
 - **Function `main()`**: No docstring
-
-### `baseline_metrics_report_t066.py`
-**Module Docstring:** scripts/baseline_metrics_report_t066.py
-- **Function `load_equity_curve()`**: Load equity from a run's portfolio_snapshots.csv (cockpit-fixed schema).
-- **Function `compute_per_year_metrics()`**: Apply the full T-059..T-063 metric suite to a single year's equity.
-- **Function `compute_full_panel_metrics()`**: Aggregate metrics computed on the per-year cells.
-- **Function `compute_pbo_across_years()`**: Run PBO via CSCV across the 5-year panel. Each year is one "trial";
-- **Function `main()`**: No docstring
-- **Function `generate_audit_md()`**: Generate the markdown audit doc.
 
 ### `build_13f_panel_t145.py`
 **Module Docstring:** scripts/build_13f_panel_t145.py
@@ -245,10 +197,6 @@
 
 ### `cointegration_pair_screen_t031.py`
 **Module Docstring:** scripts/cointegration_pair_screen_t031.py
-- **Function `main()`**: No docstring
-
-### `compare_leaky_vs_causal_t089.py`
-**Module Docstring:** T-2026-05-31-089 — quantify leaky-vs-causal AUC inflation.
 - **Function `main()`**: No docstring
 
 ### `crisis_replay_t118b.py`
@@ -300,45 +248,6 @@
 **Module Docstring:** T-151 demonstration — safe-f / CAR25 on a real book, per account.
 - **Function `main()`**: No docstring
 
-### `det_d1_repro.py`
-**Module Docstring:** scripts/det_d1_repro.py
-- **Function `md5()`**: No docstring
-- **Function `hash_governor_state()`**: No docstring
-- **Function `file_size()`**: No docstring
-- **Function `gov_sizes()`**: No docstring
-- **Function `find_run_id()`**: No docstring
-- **Function `trades_canon_md5()`**: MD5 of trades.csv with run_id+meta columns dropped (mirrors
-- **Function `run_one()`**: Single 2025 OOS Q1-style run with --reset-governor.
-- **Function `main()`**: No docstring
-
-### `det_d2_bisect.py`
-**Module Docstring:** scripts/det_d2_bisect.py
-- **Function `md5()`**: No docstring
-- **Function `snapshot_drifted()`**: Capture the current live governor state as the 'drifted' anchor.
-- **Function `restore_from_drifted()`**: Restore the four candidate files from the drifted snapshot.
-- **Function `override_one_from_clean()`**: After restore_from_drifted(), copy `file_to_override` from CLEAN
-- **Function `find_run_id()`**: No docstring
-- **Function `trades_canon_md5()`**: No docstring
-- **Function `run_one()`**: Single 2025 OOS Q1 run. Caller is responsible for governor-state
-- **Function `main()`**: No docstring
-
-### `diagnose_crisis_path_t100.py`
-**Module Docstring:** T-2026-06-04-100 — diagnose the existing HMM crisis-de-gross path.
-- **Function `install_advisory_monkeypatch()`**: Wrap AdvisoryEngine.generate so every per-bar call records its
-- **Function `install_detect_regime_monkeypatch()`**: Wrap RegimeDetector.detect_regime so it stamps the timestamp onto
-- **Function `run_backtest()`**: Run a 26-yr arm0_off backtest. Returns the run_id.
-- **Function `read_snapshot_gross()`**: Load portfolio_snapshots.csv → DataFrame with per-bar
-- **Function `compute_offline_hmm_p_crisis()`**: Build the HMM feature panel + drive HMMRegimeClassifier.predict_proba_at
-- **Function `analyze()`**: Cross-join + summary stats per year + crisis-bar / benign-bar
-- **Function `main()`**: No docstring
-
-### `diagnose_realistic_slippage.py`
-**Module Docstring:** scripts/diagnose_realistic_slippage.py
-- **Function `find_latest_trade_log()`**: Locate the most recently-written trades.csv under data/trade_logs/.
-- **Function `load_bar_data()`**: Load the daily parquet for a ticker; None if missing.
-- **Function `trailing_window()`**: Return up to n_days of bar data ending at-or-before `as_of` (no look-ahead).
-- **Function `main()`**: No docstring
-
 ### `discovery_diag_analytics.py`
 **Module Docstring:** scripts/discovery_diag_analytics.py
 - **Function `load_jsonl()`**: No docstring
@@ -383,10 +292,6 @@
 - **Function `analyze_edge()`**: Full per-regime decomp for one edge.
 - **Function `render_markdown()`**: Produce the audit-doc markdown.
 - **Function `build()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `factor_decomp_per_regime_t036.py`
-**Module Docstring:** scripts/factor_decomp_per_regime_t036.py
 - **Function `main()`**: No docstring
 
 ### `factor_decomp_substrate_honest.py`
@@ -489,14 +394,6 @@
 
 ### `harvest_data.py`
 - **Function `harvest()`**: Run a simulation to collect (Features, Label) pairs for ML training.
-
-### `hrp_slice_3_redistribution_histogram.py`
-**Module Docstring:** Sanity histogram for HRP slice 3's redistribution behaviour.
-- **Function `build_data_map()`**: Two-cluster synthetic returns with mild within-cluster noise.
-- **Function `collect_optimizer_weights()`**: No docstring
-- **Function `histogram()`**: Bucket optimizer_weights into [0, 0.25), [0.25, 0.5), ... up to
-- **Function `render_md_block()`**: No docstring
-- **Function `main()`**: No docstring
 
 ### `ingest_stooq_us_daily.py`
 **Module Docstring:** scripts/ingest_stooq_us_daily.py
@@ -669,33 +566,12 @@
 **Module Docstring:** Phase 2.10c diagnostic: per-edge per-year PnL attribution across the
 - **Function `main()`**: No docstring
 
-### `profile_seed_from_foundry.py`
-**Module Docstring:** T-2026-05-12-038-CONT profile: identify the hot path inside
-- **Function `profile_substrate()`**: No docstring
-
-### `prune_strategies.py`
-- **Class `StrategyPruner`**: The 'Reaper' of the Trading Machine.
-  - `def __init__()`
-  - `def prune()`
-  - `def clean_logs()`: Removes old backtest log folders from data/trade_logs.
-
-### `replay_fill_share_cap_2025.py`
-**Module Docstring:** scripts/replay_fill_share_cap_2025.py
-- **Function `main()`**: No docstring
-
 ### `reset_base_edges.py`
 **Module Docstring:** scripts/reset_base_edges.py
 - **Function `load_edges()`**: No docstring
 - **Function `save_edges()`**: No docstring
 - **Function `preview()`**: Return edge_ids that would be demoted.
 - **Function `demote()`**: Mutate in place: active → candidate. Returns count.
-- **Function `main()`**: No docstring
-
-### `retrain_edges.py`
-*No public classes or functions found.*
-
-### `revalidate_alphas.py`
-**Module Docstring:** Re-validate the two factor-decomp-identified real alphas
 - **Function `main()`**: No docstring
 
 ### `run.py`
@@ -732,16 +608,6 @@
 - **Function `retrain_metalearner()`**: Invoke train_metalearner.py on the filtered run. Returns the
 - **Function `backtest_year()`**: Backtest single-year window with the currently-loaded metalearner.
 - **Function `attach_benchmarks()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `run_confidence_gated_ab_t057.py`
-**Module Docstring:** scripts/run_confidence_gated_ab_t057.py
-- **Function `confidence_gate_patch()`**: Temporarily set the `confidence_gate` block in alpha_settings.prod.json.
-- **Function `main()`**: No docstring
-
-### `run_confidence_gated_t057b.py`
-**Module Docstring:** scripts/run_confidence_gated_t057b.py
-- **Function `confidence_gate_patch()`**: Patch the `confidence_gate` block in alpha_settings.prod.json,
 - **Function `main()`**: No docstring
 
 ### `run_deterministic.py`
@@ -888,25 +754,10 @@
 **Module Docstring:** Run the trend Phase-0 verdict on the wider universe (all 722 tickers
 - **Function `main()`**: No docstring
 
-### `run_vol_target_arms_ewma_t055d.py`
-**Module Docstring:** scripts/run_vol_target_arms_ewma_t055d.py
-- **Function `vol_target_ewma_patch()`**: No docstring
-- **Function `main()`**: No docstring
-
 ### `run_vol_target_arms_full.py`
 **Module Docstring:** scripts/run_vol_target_arms_full.py
 - **Function `vol_target_patch()`**: Patch risk_settings.json to enable/disable vol-targeting, restore on exit.
 - **Function `run_full()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `run_vol_target_arms_multiplier_sweep_t055g.py`
-**Module Docstring:** scripts/run_vol_target_arms_multiplier_sweep_t055g.py
-- **Function `vol_target_arm_patch()`**: Patch config/risk_settings.prod.json with the arm's multiplier
-- **Function `main()`**: No docstring
-
-### `run_vol_target_arms_regime_t055e.py`
-**Module Docstring:** scripts/run_vol_target_arms_regime_t055e.py
-- **Function `vol_target_regime_patch()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `run_vrp_gauntlet_t122.py`
@@ -924,10 +775,6 @@
 - **Function `run_sleeve()`**: Run the sleeve through a sequence of rebalance dates. Returns
 - **Function `run_trend_verdict()`**: No docstring
 - **Function `run_moonshot_verdict()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `smoke_per_ticker_logger.py`
-**Module Docstring:** scripts/smoke_per_ticker_logger.py
 - **Function `main()`**: No docstring
 
 ### `spot_basket_extended_sweep_t115.py`
@@ -1073,12 +920,6 @@
 - **Function `update_all_data()`**: Programmatic entry point for data updating.
 - **Function `main()`**: No docstring
 
-### `validate_active_edges.py`
-- **Function `main()`**: No docstring
-
-### `validate_complementary_discovery.py`
-- **Function `validate_discovery_vocabulary()`**: No docstring
-
 ### `validate_hmm_crisis_t103.py`
 **Module Docstring:** T-103 — Validate the crisis-trained HMM on HELD-OUT crisis events.
 - **Function `compute_causal_posteriors()`**: For each t, run predict_proba on Z[max(0,t-window+1):t+1] and
@@ -1113,9 +954,6 @@
 - **Function `per_state_dd_breakdown()`**: No docstring
 - **Function `evaluate_variant()`**: No docstring
 - **Function `main()`**: No docstring
-
-### `validate_phase2_math.py`
-- **Function `test_phase2_math()`**: No docstring
 
 ### `validate_regime_signals.py`
 **Module Docstring:** validate_regime_signals — read-only validation of HMM + WS-C signals.
