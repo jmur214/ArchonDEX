@@ -45,6 +45,32 @@
   commit absorbs them (commit 24ea5d6 contains the archive moves
   alongside the docstring fix; content correct, boundary off).
 
+## Continuation (same session, later): P2 burndown executed
+
+- **Remote-container test environment restored**: the cloud session had
+  ZERO Python deps installed (no numpy/pandas/pytest — no test had ever
+  been runnable in this environment). Installed the stack (numpy,
+  pandas, scipy, sklearn, statsmodels, hmmlearn, scikit-optimize, dash,
+  plotly, lxml, ta via --use-pep517, alpaca-py, yfinance, hypothesis).
+  Result: 2,363 tests collect cleanly; **2,270 pass; 15 known-red**, all
+  data-dependent (need gitignored data/ artifacts: FRED panels,
+  cointegration manifests, minimal_c model features). A SessionStart
+  dep-bootstrap hook for cloud sessions would make this permanent —
+  candidate for the session-start-hook skill.
+- **health_check triage** (subagent, lossless): 21 genuinely status-less
+  entries → 17 moved to Resolved/Superseded with evidence pointers
+  (several presented refuted verdicts as active — the T-055e
+  "DEFENSIBLE" entry was the headline supersession violation), 2
+  still-active, 2 needs-verification. Two stale Status lines
+  contradicting their own RESOLVED/HISTORICAL titles corrected.
+- **Scripts archive sweep** (subagent, verified): 32 closed-task
+  one-offs → Archive/scripts/ (full T-055 + T-057 chapters, T-036/066/
+  089/100 scripts, closed pre-task one-offs, two 0-byte files). 151
+  kept under a protected set (test imports incl. the bare
+  `from scripts import X` form, living-doc refs, transitive imports,
+  all T-116+ in-flight era). Post-sweep full suite == baseline
+  bit-for-bit (15 known-red, no new failures). index.md regenerated.
+
 ## Pick up next time
 
 - The review's P1 list awaits user decisions: (1) retire the
