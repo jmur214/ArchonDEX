@@ -18,18 +18,25 @@ Inputs (per arm): a per-bar artifact frame with columns
 ``gross_notional`` (T-124 column; mechanism check), indexed by trading
 date. Daily returns derive from equity.
 
-The locked criteria (gate = PRIMARY CONFIG ONLY; all others sensitivity):
-  (i)    median ΔMaxDD over the 5 actionable episodes ≥ +3pp
-  (ii)   sign test ≥ 4/5 (success = episode ΔMaxDD > +0.5pp)
+The locked criteria (ADDENDUM v3, FINAL — gate = PRIMARY CONFIG ONLY;
+all others sensitivity). The episode LIST is the lock, by enumeration,
+month-anchored (v3 demoted the 15% rule to motivation after T-143
+proved it non-derivable):
+  (i)    median ΔMaxDD over the 7 actionable episodes ≥ +3pp
+  (ii)   sign test ≥ 6/7 (success = episode ΔMaxDD > +0.5pp)
   (iii)  calm-drag: CAGR(on)−CAGR(off) on non-episode days ≥ −40 bps,
          stationary-bootstrap 90% CI excluding −80 bps
   (iv)   no single episode > 50% of aggregate equal-weighted benefit
-  (v2-a) OOS both improve: COVID and 2022 each ΔMaxDD > +0.5pp
+  (v3)   OOS ALL improve: COVID, 2022 and 2025 each ΔMaxDD > +0.5pp
   (v2-b) terminal wealth: full-window cumulative return on ≥ off
   (v2-c) episode-frequency-annualized crisis benefit ≥ 3× realized calm drag
   (v2-d) GFC floor: ΔMaxDD(GFC) ≥ +5pp
 PASS iff ALL; PARTIAL iff (i)+(iii) hold but not all; FAIL otherwise.
 Dotcom is REPORTED blind (HMM data floor 2006-04), never gated.
+Splits: in-sample-for-the-HMM {GFC, 2010, 2011, 2018Q4}; OOS {COVID,
+2022, 2025}. Per v3 §4 (finality): derivation disputes are resolved by
+RUNNING BOTH READINGS AND REPORTING BOTH — never by editing the
+registration; the divergence checker reports, it does not patch.
 
 CLI (the director's one command post-relaunch, real artifacts):
   python -m scripts.crisis_replay_t118b \
@@ -48,30 +55,34 @@ import pandas as pd
 TRADING_DAYS = 252.0
 
 # ----------------------------------------------------------------------
-# Locked thresholds (registration §4, §5, addendum v2) — DO NOT EDIT
+# Locked thresholds (registration §4, §5, ADDENDUM v3 FINAL) — DO NOT EDIT
 # ----------------------------------------------------------------------
-DD_THRESHOLD = 0.15              # episode rule: TR peak-to-trough ≥ 15%
+DD_THRESHOLD = 0.15              # motivation only post-v3 (checker still uses it)
 EXTENSION_TD = 20                # window = peak → trough + 20 trading days
-MEDIAN_DMAXDD_PP = 3.0           # (i)
+MEDIAN_DMAXDD_PP = 3.0           # (i), over the 7 actionable
 SIGN_SUCCESS_PP = 0.5            # success = ΔMaxDD > +0.5pp
-SIGN_REQUIRED = 4                # (ii) ≥ 4/5 (addendum supersedes 5/6)
-SIGN_N = 5
+SIGN_REQUIRED = 6                # (ii) ≥ 6/7 (v3 rescale; was 4/5 in v2)
+SIGN_N = 7
 CALM_DRAG_FLOOR_BPS = -40.0      # (iii) point
 CALM_DRAG_CI_BOUND_BPS = -80.0   # (iii) 90% CI must exclude
 SINGLE_EPISODE_MAX_SHARE = 0.50  # (iv)
-OOS_IMPROVE_PP = 0.5             # (v2-a)
+OOS_IMPROVE_PP = 0.5             # (v3) ALL THREE OOS must clear this
 RATIO_REQUIRED = 3.0             # (v2-c)
 GFC_FLOOR_PP = 5.0               # (v2-d)
 
-# Locked episode set (addendum v2 §1). Peak/trough months anchor the
-# mechanical date-fixing; exact trading dates are fixed from the TR
-# series at analysis time (no discretion).
+# Locked episode set (ADDENDUM v3 §1 — the LIST is the lock, by
+# enumeration). Peak/trough months anchor the mechanical day-fixing
+# (T-143 month-anchored procedure); exact trading dates are fixed from
+# the TR series at analysis time (no discretion). Splits per v3 §2.
 LOCKED_EPISODES: List[Dict] = [
     {"id": "dotcom", "label": "Dotcom 2000-03→2002-10",
      "peak_month": "2000-03", "trough_month": "2002-10",
      "actionable": False, "oos": False, "blind": True},
     {"id": "gfc", "label": "GFC 2007-10→2009-03",
      "peak_month": "2007-10", "trough_month": "2009-03",
+     "actionable": True, "oos": False, "blind": False},
+    {"id": "us2010", "label": "2010 correction 2010-04→2010-07 (v3 ADDED)",
+     "peak_month": "2010-04", "trough_month": "2010-07",
      "actionable": True, "oos": False, "blind": False},
     {"id": "us2011", "label": "US downgrade 2011-04→2011-10",
      "peak_month": "2011-04", "trough_month": "2011-10",
@@ -84,6 +95,9 @@ LOCKED_EPISODES: List[Dict] = [
      "actionable": True, "oos": True, "blind": False},
     {"id": "y2022", "label": "2022 grind 2022-01→2022-10 (slow)",
      "peak_month": "2022-01", "trough_month": "2022-10",
+     "actionable": True, "oos": True, "blind": False},
+    {"id": "y2025", "label": "2025 tariff shock 2025-02→2025-04 (v3 ADDED)",
+     "peak_month": "2025-02", "trough_month": "2025-04",
      "actionable": True, "oos": True, "blind": False},
 ]
 ACTIONABLE_IDS = [e["id"] for e in LOCKED_EPISODES if e["actionable"]]
@@ -581,10 +595,10 @@ def evaluate_crisis_replay(
     else:
         single_share = float(dmaxdd.max() / net_benefit) if dmaxdd.max() > 0 else 0.0
 
-    # (v2-a) OOS both improve
+    # (v3) OOS ALL improve — COVID, 2022 and 2025 each individually
     oos_results = [r for r in actionable if r.oos]
-    oos_both = (len(oos_results) == 2
-                and all(r.d_maxdd_pp > OOS_IMPROVE_PP for r in oos_results))
+    oos_all = (len(oos_results) == 3
+               and all(r.d_maxdd_pp > OOS_IMPROVE_PP for r in oos_results))
 
     # (v2-b) terminal wealth
     tw_on, tw_off = _total_return(on["equity"]), _total_return(off["equity"])
@@ -625,9 +639,9 @@ def evaluate_crisis_replay(
                   round(single_share, 3) if np.isfinite(single_share) else "inf(net<=0)",
                   f"<= {SINGLE_EPISODE_MAX_SHARE}",
                   single_share <= SINGLE_EPISODE_MAX_SHARE),
-        Criterion("oos_both_improve", "(v2-a) COVID and 2022 each > +0.5pp",
+        Criterion("oos_all_improve", "(v3) COVID, 2022 and 2025 each > +0.5pp",
                   {r.episode_id: round(r.d_maxdd_pp, 2) for r in oos_results},
-                  "both > +0.5pp", oos_both),
+                  "all 3 > +0.5pp", oos_all),
         Criterion("terminal_wealth", "(v2-b) full-window return on ≥ off",
                   f"on={tw_on:.4f} off={tw_off:.4f}", "on >= off",
                   tw_on >= tw_off),
@@ -651,7 +665,7 @@ def evaluate_crisis_replay(
         # (terminal wealth, ratio, OOS, GFC floor) is structural → FAIL.
         by_key = {c.key: c.passed for c in criteria}
         v2_ok = all(by_key[k] for k in (
-            "oos_both_improve", "terminal_wealth",
+            "oos_all_improve", "terminal_wealth",
             "benefit_drag_ratio", "gfc_floor_pp",
         ))
         calm_ok = by_key["calm_drag_bps"] and by_key["calm_drag_ci90_low_bps"]

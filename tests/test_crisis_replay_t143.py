@@ -36,17 +36,21 @@ from scripts.crisis_replay_t118b import (
 # ----------------------------------------------------------------------
 # Synthetic fixture machinery
 # ----------------------------------------------------------------------
-CAL = pd.bdate_range("2006-01-02", "2024-12-31")
+CAL = pd.bdate_range("2006-01-02", "2025-12-31")
 
 # Locked-id episode windows on the synthetic calendar (dates mirror the
-# locked months; exact days are arbitrary within them — fixtures define
-# their own windows, the evaluator only consumes Episode objects).
+# v3-enumerated months; exact days are arbitrary within them — fixtures
+# define their own windows, the evaluator only consumes Episode objects).
+# v3 splits: in-sample {gfc, us2010, us2011, q42018}; OOS {covid, y2022,
+# y2025}.
 _EP_SPECS = [
     ("gfc",    "2007-10-09", "2009-03-09", False, False),
+    ("us2010", "2010-04-23", "2010-07-02", False, False),
     ("us2011", "2011-04-29", "2011-10-03", False, False),
     ("q42018", "2018-09-20", "2018-12-24", False, False),
     ("covid",  "2020-02-19", "2020-03-23", True,  False),
     ("y2022",  "2022-01-03", "2022-10-12", True,  False),
+    ("y2025",  "2025-02-19", "2025-04-08", True,  False),
 ]
 
 
@@ -129,8 +133,8 @@ class TestScenarioHelps:
         for r in res.episode_results:
             assert r.d_maxdd_pp > 0.5
             assert r.days_to_degross is not None
-        assert res.splits["oos"]["n"] == 2
-        assert res.splits["in_sample"]["n"] == 3
+        assert res.splits["oos"]["n"] == 3        # v3: COVID, 2022, 2025
+        assert res.splits["in_sample"]["n"] == 4  # v3: GFC, 2010, 2011, Q4-2018
 
     def test_calm_drag_zero(self):
         res = _result(self.ON, OFF)
@@ -205,15 +209,18 @@ class TestScenarioV1Hole:
 # Scenario: PARTIAL — only trigger-tunable criteria fail
 # ----------------------------------------------------------------------
 class TestScenarioPartial:
-    # GFC + both OOS episodes improve strongly; the two other in-sample
-    # episodes are left untreated (≈0 ΔMaxDD) → sign test 3/5 fails, but
-    # median (8pp-ish), calm, and every v2 criterion hold → PARTIAL.
+    # GFC + all THREE OOS episodes improve strongly; the three other
+    # in-sample episodes are left untreated (≈0 ΔMaxDD) → sign test 4/7
+    # fails, but median (4th-of-7 = a treated episode), calm, and every
+    # v3 co-equal criterion hold → PARTIAL (only the trigger-tunable
+    # shape criterion failed).
     ON = _build_artifacts(
         0.0004, -0.0060, 0.0300, degross_in_episode=True,
         per_episode_overrides={
             "gfc": (-0.0030, 0.0300),
             "covid": (-0.0030, 0.0300),
             "y2022": (-0.0030, 0.0300),
+            "y2025": (-0.0030, 0.0300),
         },
     )
 
@@ -222,8 +229,41 @@ class TestScenarioPartial:
         assert not _crit(res, "sign_test").passed
         assert _crit(res, "median_dmaxdd_pp").passed
         assert _crit(res, "terminal_wealth").passed
-        assert _crit(res, "oos_both_improve").passed
+        assert _crit(res, "oos_all_improve").passed
         assert res.verdict == "PARTIAL"
+
+
+class TestScenarioTwoOfThreeOOS:
+    # v3's new clause must demonstrably BITE on its own: every episode
+    # treated EXCEPT 2025 (one OOS episode left at the OFF arm's
+    # behavior → ΔMaxDD ≈ 0). Sign test 6/7 still PASSES at its
+    # boundary, median/GFC/calm/terminal/ratio/single all PASS — only
+    # the all-3-OOS clause fails ⇒ verdict FAIL (a co-equal v3 criterion
+    # is structural: it must not escape to PARTIAL). Same spirit as the
+    # v1-hole regression.
+    ON = _build_artifacts(
+        0.0004, -0.0030, 0.0300, degross_in_episode=True,
+        per_episode_overrides={
+            "y2025": (-0.0060, 0.0300),  # untreated: identical to OFF
+        },
+    )
+
+    def test_only_oos_clause_fails(self):
+        res = _result(self.ON, OFF)
+        oos = _crit(res, "oos_all_improve")
+        assert not oos.passed
+        for key in ("median_dmaxdd_pp", "sign_test", "calm_drag_bps",
+                    "calm_drag_ci90_low_bps", "single_episode_share",
+                    "terminal_wealth", "benefit_drag_ratio", "gfc_floor_pp"):
+            assert _crit(res, key).passed, key
+
+    def test_sign_test_passes_at_boundary_six_of_seven(self):
+        res = _result(self.ON, OFF)
+        assert str(_crit(res, "sign_test").value) == "6/7"
+
+    def test_verdict_fail_not_partial(self):
+        res = _result(self.ON, OFF)
+        assert res.verdict == "FAIL"
 
 
 # ----------------------------------------------------------------------
@@ -236,7 +276,7 @@ class TestPrimaryConfigGating:
         assert res.verdict == "SENSITIVITY"
         assert any("multiplicity" in n for n in res.notes)
         # metrics still reported
-        assert len(res.episode_results) == 5
+        assert len(res.episode_results) == 7
 
 
 # ----------------------------------------------------------------------
@@ -290,7 +330,7 @@ class TestMechanicalDerivation:
 
 class TestMonthPinning:
     def test_pins_all_locked_episodes_on_covering_series(self):
-        cal = pd.bdate_range("1999-01-04", "2024-12-31")
+        cal = pd.bdate_range("1999-01-04", "2025-12-31")
         rng = np.random.default_rng(0)
         tr = pd.Series(
             100.0 * np.cumprod(1.0 + rng.normal(0.0003, 0.01, len(cal))),
@@ -299,7 +339,8 @@ class TestMonthPinning:
         eps, uncov = pin_locked_episodes(tr)
         assert uncov == []
         assert [e.episode_id for e in eps] == [
-            "dotcom", "gfc", "us2011", "q42018", "covid", "y2022"
+            "dotcom", "gfc", "us2010", "us2011", "q42018",
+            "covid", "y2022", "y2025",
         ]
         for e in eps:
             # peak day = month max; trough day = month min — mechanical.
@@ -308,14 +349,16 @@ class TestMonthPinning:
             assert e.peak == pm.idxmax() and e.trough == tm.idxmin()
 
     def test_dotcom_uncoverable_on_2005_start_series(self):
-        cal = pd.bdate_range("2005-02-25", "2024-12-31")
+        cal = pd.bdate_range("2005-02-25", "2025-12-31")
         tr = pd.Series(np.linspace(100, 300, len(cal)), index=cal)
         eps, uncov = pin_locked_episodes(tr)
         assert uncov == ["dotcom"]
-        assert len(eps) == 5
+        assert len(eps) == 7
 
-    def test_actionable_set_is_the_locked_five(self):
-        assert ACTIONABLE_IDS == ["gfc", "us2011", "q42018", "covid", "y2022"]
+    def test_actionable_set_is_the_v3_enumerated_seven(self):
+        assert ACTIONABLE_IDS == [
+            "gfc", "us2010", "us2011", "q42018", "covid", "y2022", "y2025"
+        ]
 
 
 class TestDerivationCheckReportsDivergence:
@@ -331,7 +374,7 @@ class TestDerivationCheckReportsDivergence:
         chk = check_mechanical_derivation(tr, rule="alltime_high")
         assert chk["matched"] == []
         assert len(chk["extras"]) == 1
-        assert len(chk["missing"]) == 6
+        assert len(chk["missing"]) == 8  # the full v3 enumeration + dotcom
 
 
 # ----------------------------------------------------------------------
