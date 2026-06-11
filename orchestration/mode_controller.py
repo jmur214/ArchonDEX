@@ -981,6 +981,14 @@ class ModeController:
             "slippage_bps": float(self.cfg_bt.get("slippage_bps", 10.0)),
             "slippage_model": str(self.cfg_bt.get("slippage_model", "fixed")),
             "commission": float(self.cfg_bt.get("commission", 0.0)),
+            # T-146: auction-execution convention. NOTE this LOCAL dict —
+            # not self.exec_params from __init__ — is what run_backtest
+            # actually passes to BacktestController; the T-146 ON smoke
+            # caught the keys missing here (the silent-mismatch family,
+            # T-088/T-090: a key read at one site but not the consuming
+            # site). Keep both sites in sync.
+            "auction_execution": str(self.cfg_bt.get("auction_execution", "off")),
+            "auction_safety_bps": float(self.cfg_bt.get("auction_safety_bps", 1.0)),
         }
         # Optional model-specific config block (e.g. realistic-model knobs:
         # impact_coefficient, mega_cap_threshold_usd, ...). Forwarded as-is
