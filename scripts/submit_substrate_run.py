@@ -136,8 +136,16 @@ def fetch_manifest(cell: Cell) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    # T-2026-06-10-134 ADDENDUM: the planned reps 3→1 default is ON HOLD.
+    # A's T-128 forensics found cross-task cloud determinism is BROKEN
+    # (placement lottery: multithreaded eigh + per-task listdir order →
+    # two canon attractors within one image digest). Until A's T-140
+    # lands (thread pins + sorted sweep + N≥5 canon unanimity), reps
+    # stay at 3 — they are currently the only cross-task replication.
     ap.add_argument("--reps", type=int, default=3,
-                    help="Number of reps per arm (default 3).")
+                    help="Number of reps per arm (default 3; the reps→1 "
+                         "reduction is HELD until T-140 restores cross-task "
+                         "determinism).")
     ap.add_argument("--arms", type=str, default="1,2",
                     help="Comma-separated arm IDs (default 1,2).")
     ap.add_argument("--job-def", type=str, default=JOB_DEFINITION,
