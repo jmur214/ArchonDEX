@@ -11,6 +11,7 @@ is missing (CI without data).
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -18,6 +19,23 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
+LIVE_REGISTRY = REPO_ROOT / "data" / "governor" / "edges.yml"
+
+
+@pytest.fixture()
+def registry_copy(tmp_path):
+    """A tmp_path SNAPSHOT of the live registry (T-138, after E's T-147
+    pairs-test pattern). Tests previously read the LIVE
+    data/governor/edges.yml directly — concurrency-fragile (another
+    agent's run mutating the live file mid-test changes results) and a
+    live-state dependency the suite shouldn't have. Each test gets an
+    immutable copy; the live file is never opened by the engine under
+    test."""
+    if not LIVE_REGISTRY.exists():
+        pytest.skip("edges.yml missing")
+    dst = tmp_path / "edges.yml"
+    shutil.copyfile(LIVE_REGISTRY, dst)
+    return dst
 
 
 def _load_data_map(tickers, start: str, end: str):
@@ -39,12 +57,12 @@ def _load_data_map(tickers, start: str, end: str):
     not (PROCESSED_DIR / "SPY_1d.csv").exists(),
     reason="Prod data cache not present",
 )
-def test_build_production_edges_excludes_candidate():
+def test_build_production_edges_excludes_candidate(registry_copy):
     """The baseline ensemble must exclude the candidate by edge_id."""
     from engines.engine_d_discovery.discovery import DiscoveryEngine
 
     disc = DiscoveryEngine(
-        registry_path=str(REPO_ROOT / "data" / "governor" / "edges.yml"),
+        registry_path=str(registry_copy),
         processed_data_dir=str(PROCESSED_DIR),
     )
     edges_inc, weights_inc = disc._build_production_edges(
@@ -66,13 +84,13 @@ def test_build_production_edges_excludes_candidate():
     not (PROCESSED_DIR / "SPY_1d.csv").exists(),
     reason="Prod data cache not present",
 )
-def test_build_production_edges_applies_soft_pause():
+def test_build_production_edges_applies_soft_pause(registry_copy):
     """status='paused' edges should have weight × 0.25 capped at 0.5."""
     from engines.engine_d_discovery.discovery import DiscoveryEngine
     from engines.engine_a_alpha.edge_registry import EdgeRegistry
 
     disc = DiscoveryEngine(
-        registry_path=str(REPO_ROOT / "data" / "governor" / "edges.yml"),
+        registry_path=str(registry_copy),
         processed_data_dir=str(PROCESSED_DIR),
     )
     edges, weights = disc._build_production_edges(
@@ -95,10 +113,10 @@ def test_build_production_edges_applies_soft_pause():
 FALSIFIABLE_CANDIDATES = ["volume_anomaly_v1", "herding_v1"]
 
 
-def _build_candidate_spec(edge_id: str) -> dict:
+def _build_candidate_spec(edge_id: str, registry_path: Path) -> dict:
     """Look up the registry entry and turn it into a candidate spec dict."""
     from engines.engine_a_alpha.edge_registry import EdgeRegistry
-    registry = EdgeRegistry(store_path=str(REPO_ROOT / "data" / "governor" / "edges.yml"))
+    registry = EdgeRegistry(store_path=str(registry_path))
     spec = registry.get(edge_id)
     if spec is None:
         return None
@@ -138,12 +156,20 @@ def _build_candidate_spec(edge_id: str) -> dict:
     reason="Prod data cache or edges.yml missing",
 )
 @pytest.mark.parametrize("candidate_id", FALSIFIABLE_CANDIDATES)
-def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id):
+def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, registry_copy):
     """A known-positive contributor must pass Gate 1 in the rewritten gauntlet.
 
     This is the specification of correctness in the architectural fix doc:
     candidates that produce real ensemble contribution should not be killed
     by Gate 1.
+
+    T-138 update: Gate-0 MBL (CLAUDE.md #7, T-083) now correctly
+    short-circuits sub-MBL windows BEFORE any backtest fires — this test's
+    6-month fixture can never clear MBL, so on the DEFAULT path the
+    correct behavior is a Gate-0 refusal (asserted first). The original
+    gauntlet-correctness spec is then exercised through the documented
+    `enable_mbl_gate=False` escape hatch. The PRODUCT is right; the
+    pre-T-138 version of this test predated Gate-0.
 
     NOTE: this is an expensive integration test (two full backtests).
     Skipped on CI without prod data. Run locally to confirm the architectural
@@ -151,7 +177,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id):
     """
     from engines.engine_d_discovery.discovery import DiscoveryEngine
 
-    spec = _build_candidate_spec(candidate_id)
+    spec = _build_candidate_spec(candidate_id, registry_copy)
     if spec is None:
         pytest.skip(f"Candidate spec {candidate_id} unavailable")
 
@@ -170,16 +196,35 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id):
         pytest.skip("Insufficient cached data for falsifiable test")
 
     disc = DiscoveryEngine(
-        registry_path=str(REPO_ROOT / "data" / "governor" / "edges.yml"),
+        registry_path=str(registry_copy),
         processed_data_dir=str(PROCESSED_DIR),
     )
 
+    # --- Default path: Gate-0 MBL must REFUSE this sub-MBL window -------
+    gate0_result = disc.validate_candidate(
+        spec, data_map,
+        significance_threshold=None,
+        start_date="2024-01-01",
+        end_date="2024-06-30",
+        gate1_contribution_threshold=0.0,
+    )
+    assert gate0_result.get("gate_0_passed") is False, (
+        "Gate-0 MBL must short-circuit a 6-month window (CLAUDE.md #7); "
+        f"got {gate0_result}"
+    )
+    assert "gate_0_reason" in gate0_result
+    assert "contribution_sharpe" not in gate0_result, (
+        "No backtest may fire on a window that cannot clear MBL"
+    )
+
+    # --- Escape hatch: exercise the original gauntlet-correctness spec --
     result = disc.validate_candidate(
         spec, data_map,
         significance_threshold=None,  # defer to BH-FDR-style batch
         start_date="2024-01-01",
         end_date="2024-06-30",
         gate1_contribution_threshold=0.0,  # require positive lift, not strict
+        enable_mbl_gate=False,  # documented bypass: testing gates 1-6, not Gate-0
     )
 
     # The contribution should be measurable (non-NaN) and the gate should

@@ -38,6 +38,10 @@ SNAP_HEADER_T034 = [
     "timestamp", "cash", "market_value", "realized_pnl",
     "unrealized_pnl", "equity", "positions",
     "peak_equity", "current_drawdown_pct",
+    # T-120 sleeve_equity + T-124 gross_notional, ordered as the writer
+    # dict emits them (T-138 re-sync; sleeve_equity was being DROPPED
+    # by the keyed reindex before T-138 added the column).
+    "sleeve_equity", "gross_notional",
     "open_pos_by_edge", "run_id",
 ]
 

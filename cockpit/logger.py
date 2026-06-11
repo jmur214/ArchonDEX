@@ -66,6 +66,13 @@ class CockpitLogger:
         "positions",
         "peak_equity",
         "current_drawdown_pct",
+        # T-2026-06-06-120 (column added in T-138): spot-sleeve PnL
+        # contribution. snapshot() has emitted this since T-120, but the
+        # keyed reindex in _append_to_csv silently DROPPED it because the
+        # column was never added here — sleeve campaigns were losing the
+        # per-bar sleeve attribution. Position mirrors the writer dict
+        # order (T-034 invariant, tests/test_cockpit_metrics_alignment).
+        "sleeve_equity",
         # T-2026-06-06-124: Σ|qty·px| per bar. Needed by C's T-118
         # de-gross campaign + T-116 count×size double-count diagnostic
         # (this book shorts → net market_value ≠ gross). Reuses the

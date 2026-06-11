@@ -61,22 +61,43 @@ def test_earnings_vol_compute_signals_does_not_raise_on_tz_naive_timestamp(tmp_p
     assert "AAPL" in scores
 
 
-def test_earnings_vol_cached_dates_are_tz_naive(tmp_path):
+def test_earnings_vol_cached_dates_are_tz_naive(tmp_path, monkeypatch):
     """After _get_earnings_dates runs once, the cache must hold tz-naive
     Timestamps. This is the structural invariant that prevents the
-    comparison error from ever firing again."""
+    comparison error from ever firing again.
+
+    T-138 (tests/ network sweep): previously this triggered a LIVE
+    yfinance call ("trigger the cache load via a real call") — flaky
+    under rate-limits and a network call inside the suite. The yfinance
+    response is now a synthetic tz-AWARE frame injected via a fake
+    Ticker, which is exactly the input shape the 2026-05-08 regression
+    came from; the invariant under test (cache normalizes to tz-naive)
+    is unchanged and now deterministic."""
+    import sys
+    import types
+
+    fake_dates = pd.DataFrame(
+        {"EPS Estimate": [1.0, 1.1, 1.2]},
+        index=pd.DatetimeIndex(
+            ["2024-01-25", "2024-04-25", "2024-07-25"],
+            tz="America/New_York",
+            name="Earnings Date",
+        ),
+    )
+
+    class _FakeTicker:
+        def __init__(self, _symbol):
+            self.earnings_dates = fake_dates
+
+    fake_yf = types.ModuleType("yfinance")
+    fake_yf.Ticker = _FakeTicker
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+
     edge = EarningsVolEdge()
     edge._earnings_cache = {}
 
-    # Trigger the cache load via a real call
     dates = edge._get_earnings_dates("AAPL")
-
-    # If yfinance returned no data (network or rate-limit), accept that
-    # and skip the assertion — the test's purpose is the tz-property,
-    # not yfinance availability.
-    if not dates:
-        pytest.skip("yfinance returned no earnings dates for AAPL "
-                    "(network / rate-limit / API change)")
+    assert dates, "synthetic tz-aware fixture must produce cached dates"
 
     for d in dates:
         ts = pd.Timestamp(d)

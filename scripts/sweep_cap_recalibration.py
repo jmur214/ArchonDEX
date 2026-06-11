@@ -54,6 +54,11 @@ LIFECYCLE_FILES = [
     GOVERNOR_DIR / "edge_weights.json",
     GOVERNOR_DIR / "regime_edge_performance.json",
     GOVERNOR_DIR / "lifecycle_history.csv",
+    # T-138: keep in lockstep with scripts/run_isolated.py ISOLATED_FILES
+    # (ga_population.yml entered that scope 2026-05-11, T-026 — Discovery's
+    # GA must start from anchor state). The contract test
+    # tests/test_oos_validation_isolation_default.py enforces set-equality.
+    GOVERNOR_DIR / "ga_population.yml",
 ]
 SWEEP_ANCHOR_DIR = GOVERNOR_DIR / "_cap_recal_anchor"
 
