@@ -105,7 +105,20 @@ class BacktestController:
         batch_flush_interval: int = 500,
         portfolio_cfg: Optional[Any] = None,
         regime_detector=None,
+        pit_membership_mask: Optional[pd.DataFrame] = None,
     ):
+        # T-2026-06-11-154: optional point-in-time universe mask
+        # (date x ticker bool). None (default) = behavior unchanged. When
+        # provided, names NOT in-index at bar t are excluded from SIGNAL
+        # GENERATION only — held positions keep full data for risk
+        # management and exit via normal engine logic (index-tracking
+        # semantics; avoids the bagholder data-gap trap flagged below).
+        self.pit_membership_mask: Optional[pd.DataFrame] = None
+        if pit_membership_mask is not None:
+            _m = pit_membership_mask.copy()
+            _m.index = _to_naive_datetime_index(_m.index)
+            self.pit_membership_mask = _m.sort_index()
+
         # Normalize data
         self.data_map: Dict[str, pd.DataFrame] = {}
         for t, df in data_map.items():
@@ -1246,7 +1259,20 @@ class BacktestController:
 
                 self._update_trailing_stops(slice_map, regime_meta)
 
-                signals = self._generate_signals(ts, slice_map, regime_meta, BACKTEST_DEBUG)
+                # T-2026-06-11-154: PIT universe — non-members at ts are
+                # invisible to signal generation only (risk/regime/exits
+                # above and order management below keep the full slice).
+                if self.pit_membership_mask is not None:
+                    try:
+                        row = self.pit_membership_mask.asof(ts)
+                        signal_slice = {t: df for t, df in slice_map.items()
+                                        if bool(row.get(t, False))}
+                    except Exception:
+                        signal_slice = slice_map
+                else:
+                    signal_slice = slice_map
+
+                signals = self._generate_signals(ts, signal_slice, regime_meta, BACKTEST_DEBUG)
 
                 orders, top_edge_by_ticker = self._prepare_orders(signals, ts, slice_map, equity_cache, close_prices_df, tickers, BACKTEST_DEBUG, regime_meta=regime_meta)
 
