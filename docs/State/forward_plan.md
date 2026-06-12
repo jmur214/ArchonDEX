@@ -47,6 +47,15 @@
 >    (managed-futures/trend ETF allocation) rather than replicable (our own
 >    trend sleeve measured negative at our scale so far). Gauntlet evaluates
 >    the ALLOCATION, not the replication.
+> 6. *(added 2026-06-11, from the r/algotrading retail-alpha thread — see
+>    `docs/Sources/Alpha/reddit_retail_alpha_thread_2026_06_11.md`)*
+>    **Mandate-constraint persistence rationale for the de-gross lane**: "a $10B
+>    fund can't go 80% cash because VIX is elevated; you can" — regime-conditional
+>    de-grossing persists BECAUSE the price-setting players are mandate-forbidden
+>    from the trade. Attach to T-118's read. Plus: **capacity ceiling joins regime
+>    as conditional-shelf metadata** (some edges are valid only below $X AUM —
+>    limits-to-arbitrage is a CONDITION), and the **conflation guard** ("can this
+>    account make money" ≠ "does alpha exist" — verdicts stay account-conditional).
 >
 > **Guardrail (non-negotiable):** conditionality is the royal road to
 > overfitting — every condition is a new degree of freedom and an N_trials
