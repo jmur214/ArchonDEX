@@ -27,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
-OUT = REPO / "data" / "earnings" / "earnings_dates_pinned.parquet"
+OUT = REPO / "data" / "processed" / "earnings_dates_pinned.parquet"  # baked+pinned dir (T-155)
 
 
 def main() -> int:

@@ -127,7 +127,18 @@ if [ "${ARCHONDEX_BUILD_PUSH:-0}" = "1" ]; then
         */*) : ;;
         *) echo "[build] ERROR: ARCHONDEX_BUILD_PUSH=1 requires TAG to be a full registry ref, got '$TAG'" >&2; exit 70 ;;
     esac
+    # --provenance/--sbom=false: buildx attestation manifests present as
+    # platform unknown/unknown in the OCI index; ECS/Fargate then pulls
+    # the attestation instead of the image -> "exec format error"
+    # (T-155: killed all 9 anchor cells from the first CI-built image).
+    # --platform: the FLEET IS ARM64 (T-155 discovery: the Batch job defs
+    # set runtimePlatform cpuArchitecture=ARM64, and every historical
+    # image was built natively arm64 on the M-series Mac — which is also
+    # why local and cloud canons are FP-comparable). Default arm64;
+    # override via ARCHONDEX_PLATFORM only with a matching job def.
     docker build -f "$STAGE/Dockerfile.backtest" \
+        --platform "${ARCHONDEX_PLATFORM:-linux/arm64}" \
+        --provenance=false --sbom=false \
         --label "org.archondex.commit=$SHA" \
         --label "org.archondex.substrate-manifest-md5=$SUBSTRATE_MD5" \
         -t "$TAG" -t "$REPO:sha-$SHORT" \
