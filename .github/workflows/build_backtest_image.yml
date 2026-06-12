@@ -51,7 +51,9 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60  # T-155: QEMU arm64 cross-build (pip under
+    # emulation) needs well over the old 20 — two runs died at exactly
+    # 20m21s reported as 'cancelled' (GitHub's job-timeout label)
 
     env:
       AWS_REGION: us-east-1
