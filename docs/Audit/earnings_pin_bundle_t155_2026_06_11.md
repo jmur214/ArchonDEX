@@ -33,3 +33,28 @@ Expectation to pre-register: 2022 cloud canon should now equal local `0145c03a�
 
 ## Files
 NEW `scripts/pin_earnings_dates.py`, `data/earnings/earnings_dates_pinned.parquet`, `data/processed/SP500TR_1d_pinned.parquet` (data: manifest-pinned, not git), this audit. MOD `engines/engine_a_alpha/edges/earnings_vol_edge.py` (parquet-primary), `requirements.lock.txt`, `scripts/build_backtest_image.sh` (pre-flight), `config/substrate_manifest.sha256` (07dd0d9e), `docs/Cloud/CLOUD_USAGE.md` (:dev retired).
+
+---
+
+# Part 3 — COMPLETED (2026-06-12): THE ANCHORS (9/9 cells, every window 3/3 bitwise-unanimous)
+
+## THE PUBLISHED RELAUNCH ANCHORS (image `sha-5323a3c`, arm64, hermetic, substrate `553edca7…`, job def `archondex-backtest-t155-anchor:3`)
+
+| Window | canon_md5 | Sharpe | Unanimity | Wall/cell | Continuity |
+|---|---|---|---|---|---|
+| 2022 | `0a62b7541d3dfe697905d279b3eb1431` | 1.6 | **3/3** | ~5.8-6.2 min (~25% faster than historic ~8) | ≡ historical cloud 2022 canon |
+| 16-yr | `62db5c0db75f4d6c148a7e53d472cb1e` | 1.021 | **3/3** | ~1.9 h | ≡ T-109's 16-yr — **the T-128 lottery is RESOLVED: with thread-pins, 1.021/`62db5c0d` is THE deterministic 16-yr**; T-125's 0.945/`9153ff15` and T-134's banked native-16 were the other attractor |
+| 26-yr | `529e55204a92462337169fb0b3f3a4fd` | 0.237 | **3/3** | ~3.8 h | **≡ T-127's clean baseline bitwise** — canon continuity across earnings-pin + hermetic + arm64-pinned build |
+
+**Unanimity by construction confirmed** — zero splits across 9 tasks. The relaunches fire on these anchors.
+
+## Findings of record
+
+1. **Local↔cloud divergence hypothesis REFUTED:** with byte-identical pinned earnings data, identical substrate, same arch (arm64 both sides) and hermetic on, cloud 2022 = `0a62b754…` while local = `0145c03a…` — the split persists, so the mechanism is platform-level FP (macOS Accelerate vs Linux OpenBLAS), NOT data. **Cloud is the measurement substrate of record**; local canons are a parallel (internally-consistent) family.
+2. **Canon continuity everywhere:** the earnings pin + hermetic mode + the CI-built arm64 image changed NO window's canon vs its best prior clean reference (2022 ≡ historic, 16-yr ≡ T-109, 26-yr ≡ T-127). T-142's feared re-baseline did not materialize — the cloud cells' yfinance calls were evidently returning nothing usable all along.
+3. **Hermetic wall-time, honest:** ~25% on 1-yr cells; negligible at 26-yr (the ~42 memoized earnings calls are fixed overhead — the "52% of wall" T-134 profile was a 1-yr-cell phenomenon and does not extrapolate to depth).
+4. **THE FLEET IS ARM64** (discovery): Batch job defs pin `runtimePlatform cpuArchitecture=ARM64`; every historical image was an Apple-Silicon-native build. CI images must be arm64 (QEMU cross-build, now the workflow default).
+
+## CI build path — the durable outcome (fix chain, one-time costs all paid)
+
+OIDC trust repo-rename + ref-pin (`repo:jmur214/ArchonDEX:*`, StringLike) → role S3 read (`s3:GetObject/ListBucket` on the results bucket) → `--provenance=false --sbom=false` (attestation manifests broke Fargate: "exec format error") → `--platform linux/arm64` + QEMU → `timeout-minutes: 60` (QEMU pip > 20 min) → ref-scoped concurrency group (main pushes were cancelling branch dispatches). **Residual cosmetic gap:** the role lacks `ecr:BatchGetImage`, so the SECOND tag push fails after the first succeeds — one-line IAM addendum recommended. Local Docker remains corrupted (buildkit `metadata_v2.db`) — CI is now the canonical build path, making the local daemon non-critical.
