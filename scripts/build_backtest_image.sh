@@ -127,7 +127,14 @@ if [ "${ARCHONDEX_BUILD_PUSH:-0}" = "1" ]; then
         */*) : ;;
         *) echo "[build] ERROR: ARCHONDEX_BUILD_PUSH=1 requires TAG to be a full registry ref, got '$TAG'" >&2; exit 70 ;;
     esac
+    # --provenance/--sbom=false: buildx attestation manifests present as
+    # platform unknown/unknown in the OCI index; ECS/Fargate then pulls
+    # the attestation instead of the image -> "exec format error"
+    # (T-155: killed all 9 anchor cells from the first CI-built image).
+    # --platform pins amd64 explicitly (Fargate job defs are X86_64).
     docker build -f "$STAGE/Dockerfile.backtest" \
+        --platform linux/amd64 \
+        --provenance=false --sbom=false \
         --label "org.archondex.commit=$SHA" \
         --label "org.archondex.substrate-manifest-md5=$SUBSTRATE_MD5" \
         -t "$TAG" -t "$REPO:sha-$SHORT" \
