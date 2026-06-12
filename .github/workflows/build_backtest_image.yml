@@ -38,7 +38,9 @@ on:
 # Concurrency: cancel any in-flight build when a newer commit arrives.
 # Each main push only needs the latest image.
 concurrency:
-  group: build-backtest-image
+  # T-155: ref-scoped — a main-push build must not cancel a branch
+  # dispatch (it did: cancelled the arm64 anchor-image build mid-run).
+  group: build-backtest-image-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
