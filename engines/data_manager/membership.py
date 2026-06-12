@@ -29,7 +29,7 @@ from typing import Iterable
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-MEMBERSHIP_PARQUET = ROOT / "data" / "universe" / "sp500_membership.parquet"
+MEMBERSHIP_PARQUET = ROOT / "data" / "universe" / "sp500_membership_pit.parquet"
 
 
 @lru_cache(maxsize=1)

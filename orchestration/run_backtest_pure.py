@@ -360,6 +360,7 @@ def run_backtest_pure(
     use_governor: bool = True,
     project_root: Optional[Path] = None,
     seed: int = 0,
+    pit_membership_mask: Optional[pd.DataFrame] = None,
 ) -> PureBacktestResult:
     """Run a production-equivalent backtest without governance side-effects.
 
@@ -502,6 +503,7 @@ def run_backtest_pure(
         initial_capital=initial_capital,
         regime_detector=regime_detector,
         portfolio_cfg=pp_cfg,
+        pit_membership_mask=pit_membership_mask,
     )
     controller.run(start_date, end_date)
 

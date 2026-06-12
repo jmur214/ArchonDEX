@@ -14,8 +14,8 @@ data-vendor research):
     dates). We FLAG disagreements rather than trusting either blindly.
 
 Output:
-  data/universe/sp500_membership.parquet     (ticker, start, end intervals)
-  data/universe/sp500_membership_meta.json   (provenance, cross-check report)
+  data/universe/sp500_membership_pit.parquet     (ticker, start, end intervals)
+  data/universe/sp500_membership_pit_meta.json   (provenance, cross-check report)
   Loader: in_index(ticker, date) via scripts.membership_loader_t136
 
 Caveats documented: pre-2000 accuracy is weaker in all free sources (the
@@ -39,8 +39,8 @@ sys.path.insert(0, str(ROOT))
 
 OUT_DIR = ROOT / "data" / "universe"
 RAW_DIR = OUT_DIR / "raw_membership_sources"
-OUT_PARQUET = OUT_DIR / "sp500_membership.parquet"
-OUT_META = OUT_DIR / "sp500_membership_meta.json"
+OUT_PARQUET = OUT_DIR / "sp500_membership_pit.parquet"
+OUT_META = OUT_DIR / "sp500_membership_pit_meta.json"
 UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}
 
 REPO_RAW = "https://raw.githubusercontent.com/fja05680/sp500/master/"
