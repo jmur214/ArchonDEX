@@ -1,6 +1,62 @@
-# Forward Plan — live (last substantive update 2026-06-06, research-driven two-track pivot: de-gross overlay + literature edges)
+# Forward Plan — live (last substantive update 2026-06-11, user directive: decomposed/conditional strategy thinking — fork agenda input)
 
-> ## 2026-06-06 — Research-driven plan-delta (THE CURRENT PLAN; everything below this block is historical narrative)
+> ## 2026-06-11 — User directive: stop requiring every candidate to be ALL-WEATHER (fork agenda input; extends, does not replace, the 2026-06-06 block)
+>
+> User insight (verbatim intent): we may have been seeking one perfect system —
+> outperform AND perfect risk control simultaneously — and thereby killing
+> strategies that are viable SOME of the time (by regime, account size, or
+> capital-lifecycle stage). Decompose: find aggressive-alpha and
+> drawdown-control SEPARATELY, then combine.
+>
+> **Director assessment: substantially correct, with two prior convictions in
+> our own ledger** — T-055e was diagnosed "regime-conditional restructurer, not
+> uniform lift" (2024 +1.30 rescue / 2025 −0.94 trap) and T-057 "regime-dependent
+> floor-raiser (helps when OFF weak, hurts when strong)"; both were then retired
+> for failing as UNIFORM lifts, discarding the measured conditional profile. The
+> 16-yr/26-yr split (1.02 crisis-free vs 0.24 with crises) was filed as a failure
+> verdict when it is also a JOB DESCRIPTION (a bull machine missing a switch).
+> Architecture enforced the narrowness silently: policy.py normalization cancels
+> uniform timing signals algebraically (T-156/T-122), prod-mode overlays
+> unreachable, validated HMM wired to a dead path (T-100) — the production path
+> could not EXPRESS conditional behavior even when we wanted it.
+>
+> **Already in motion that matches this** (the answer to "have we been doing
+> that?" is: for the last ~10 days, yes; before that, no): T-118/T-118b is the
+> drawdown-reducer measured on its own decomposed terms (crisis ΔMaxDD + calm-drag
+> ceiling — the first non-Sharpe-shaped gate we've ever run); T-151 safe-f already
+> conditions sizing on account (Roth 1.602 vs taxable 0.273 — same book, ~6×);
+> T-158 (C) is mapping which levers can express conditioning at all.
+>
+> **NEW fork-agenda items this directive adds:**
+> 1. **Bull-sleeve re-cast** — evaluate the current book as the BULL SLEEVE of a
+>    switched composite (book × bull-state + defense × crisis-state), testable on
+>    the full 26-yr. T-118 is most of that test. Pre-register the composite read.
+> 2. **Risk-control-as-return-amplifier accounting** — MDD shrink → CAR25/safe-f
+>    rises → deployable fraction rises → higher CAGR at constant drawdown
+>    tolerance. The defensive lane is NOT "return very little"; it buys sizing
+>    headroom. Quote future defensive verdicts in safe-f terms, not Sharpe-only.
+> 3. **The conditional shelf** — registry convention: strategies killed at the
+>    unconditional gate get their measured conditional profile + a NAMED
+>    activation condition recorded at burial. The regime layer shops the shelf
+>    once the switch is validated. Seed by re-reading closed audits (cheap, no
+>    new N). Each shelf re-test is a NEW pre-registered trial (honest N).
+> 4. **Glide path** — risk appetite (the CAR25 drawdown-tolerance knob) as an
+>    explicit declining function of AUM/lifecycle; aggressive sleeve lives in
+>    the Roth. Implementable as a config schedule on T-151's shipped machinery.
+> 5. **Buy-vs-build for sleeves** — at $5-50K, crisis-alpha may be purchasable
+>    (managed-futures/trend ETF allocation) rather than replicable (our own
+>    trend sleeve measured negative at our scale so far). Gauntlet evaluates
+>    the ALLOCATION, not the replication.
+>
+> **Guardrail (non-negotiable):** conditionality is the royal road to
+> overfitting — every condition is a new degree of freedom and an N_trials
+> multiplier. Gates do NOT loosen; the QUESTION changes. Conditional hypotheses
+> get conditional pre-registrations (T-118b is the template), the switch must be
+> validated before anything it gates is trusted (one switch, many consumers),
+> and conditional behavior is expressed DOWNSTREAM of normalization
+> (capital/position layer — the T-156 design rule), never at signal level.
+
+> ## 2026-06-06 — Research-driven plan-delta (everything below this block is historical narrative)
 >
 > Two rounds of external research (2026-05-31 + 2026-06-06, a dev *with* codebase
 > access + an AI research model) independently converged on the same sequence our
