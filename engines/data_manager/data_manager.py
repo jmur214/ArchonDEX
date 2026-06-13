@@ -1,5 +1,6 @@
 # engines/data_manager/data_manager.py
 import os
+import socket
 from pathlib import Path
 import pandas as pd
 import threading
@@ -7,6 +8,17 @@ import time
 from dotenv import load_dotenv
 
 from debug_config import is_debug_enabled
+
+# T-2026-06-12-161: local-harness seatbelt. The Alpaca client and the yfinance
+# fallback do a C-level blocking socket read with NO timeout — a hung fetch
+# stalled the 12-yr A/B four times (T-154) at 0% CPU, and a Python SIGALRM
+# cannot interrupt a C-level read. ensure_data() bounds the network path with
+# socket.setdefaulttimeout() (the only mechanism that reaches the C read) and
+# fails LOUD-but-non-fatal: a timed-out ticker is named + counted, the run
+# continues with empty data for it (same as a legitimately-missing name), and
+# a summary line fires at the end. Cached tickers never enter this path, so the
+# common/offline cases are bitwise-unchanged. Override via env if needed.
+DATA_FETCH_TIMEOUT_S = float(os.getenv("ARCHON_DATA_FETCH_TIMEOUT", "30"))
 
 def is_info_enabled() -> bool:
     from debug_config import DEBUG_LEVELS
@@ -731,7 +743,13 @@ class DataManager:
 
         if offline and is_debug_enabled("DATA_MANAGER"):
             print("[DATA_MANAGER] Running in OFFLINE mode (cache only).")
-            
+
+        # T-161 seatbelt: bound the C-level blocking read on the network path.
+        # Set/restore the process socket default timeout ONLY while a fetch is
+        # actually attempted (cached tickers `continue` before this), so the
+        # common path is untouched. Named failures are counted + summarized.
+        fetch_failures: list[tuple[str, str]] = []   # (ticker, feed)
+
         out = {}
         for t in tickers:
             if t.startswith("SYNTH-"):
@@ -745,22 +763,28 @@ class DataManager:
             if cached is not None and not cached.empty and len(cached) > 10:
                 out[t] = cached
                 continue
-            
-            df = None
-            if not offline:
-                try:
-                    df = fetch_from_alpaca(t, timeframe, start, end)
-                except Exception:
-                    df = None
 
-            # Fallback to yfinance if Alpaca failed or offline
-            if (df is None or df.empty):
-                try:
-                    df = self._fetch_yfinance(t, start, end, timeframe)
-                except Exception as e:
-                    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                        print(f"[DATA_MANAGER][ERROR] yfinance failed for {t}: {e}")
-                    df = pd.DataFrame()
+            # --- network path (uncached only) — bounded by the seatbelt ---
+            df = None
+            _prev_to = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(DATA_FETCH_TIMEOUT_S)
+            try:
+                if not offline:
+                    try:
+                        df = fetch_from_alpaca(t, timeframe, start, end)
+                    except Exception:
+                        df = None
+
+                # Fallback to yfinance if Alpaca failed or offline
+                if (df is None or df.empty):
+                    try:
+                        df = self._fetch_yfinance(t, start, end, timeframe)
+                    except Exception as e:
+                        if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
+                            print(f"[DATA_MANAGER][ERROR] yfinance failed for {t}: {e}")
+                        df = pd.DataFrame()
+            finally:
+                socket.setdefaulttimeout(_prev_to)
 
             if df is not None and not df.empty:
                 self.save_cache(t, timeframe, df)
@@ -768,5 +792,19 @@ class DataManager:
                     print(f"[DATA_MANAGER][INFO] Downloaded data for {t} ({len(df)} rows)")
                 out[t] = df
             else:
+                # FAIL LOUD (non-fatal): a network fetch was attempted and got
+                # nothing — name the ticker + feed so a stalled/blocked fetch
+                # is visible, not silent. Run continues with empty data.
+                feed = "alpaca-iex/yfinance" if not offline else "yfinance(offline)"
+                fetch_failures.append((t, feed))
+                print(f"[DATA_MANAGER][FETCH-FAIL] {t}: no data after "
+                      f"{DATA_FETCH_TIMEOUT_S:.0f}s timeout via {feed}", flush=True)
                 out[t] = pd.DataFrame()
+
+        if fetch_failures:
+            names = ", ".join(tk for tk, _ in fetch_failures[:20])
+            more = "" if len(fetch_failures) <= 20 else f" (+{len(fetch_failures) - 20} more)"
+            print(f"[DATA_MANAGER][FETCH-FAIL] {len(fetch_failures)} uncached "
+                  f"ticker(s) failed network fetch (timeout="
+                  f"{DATA_FETCH_TIMEOUT_S:.0f}s): {names}{more}", flush=True)
         return out
