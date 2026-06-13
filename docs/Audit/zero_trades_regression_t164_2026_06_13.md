@@ -1,6 +1,6 @@
 ---
 task_id: T-2026-06-13-164
-title: P0 — current main makes ZERO cloud trades (hermetic fundamentals-fetch abort)
+title: P0 — make the cloud substrate COMPLETE (GAP 1 zero-trades + GAP 2 regime-blind)
 date: 2026-06-13
 author: Agent D (alpha/edge lane)
 outcome: FIXED + PROVEN. Root cause = the LIVE yfinance fall-through in
@@ -19,7 +19,36 @@ reproduce: |
   python -m scripts.gen_substrate_manifest verify                  (OK, membership pinned)
 ---
 
-# T-164 — the zero-cloud-trades P0
+# T-164 — make the cloud substrate complete (two gaps)
+
+## GAP 2 (scope-expanded 2026-06-13) — the cloud regime layer was DEAD
+
+**Mechanism (director-pinned via C's T-118fc):** the macro panel lives in
+`data/macro/` (VIX, VIX3M, VIX6M, VIX9D, VIXCLS + FRED series) but
+`Dockerfile.backtest` copied only `data/processed/` + `data/raw/` +
+`data/governor/` — **never `data/macro/`**. So in the cloud the regime
+detector (`engines/engine_e_regime/macro_features.py`: vix_level /
+vix_term_spread / vix_zscore_60d) had no VIX → regime degraded to "unknown"
+×438 → the HMM/de-gross overlay was starved. **Every cloud run ever — including
+the anchors — ran regime-blind** (anchors traded but blind; that's why all 52
+T-118 cells were lottery attractors per C). The macro panel was also absent
+from the manifest (0 lines).
+
+**Fix (autonomous infra):** `COPY data/macro/ ./data/macro/` (1 MB) +
+`data/macro` added to `SUBSTRATE_DIRS` → 25 macro files now baked + pinned
+(manifest 14093 → 14118; diff = ONLY the macro additions, no other drift).
+
+**Proof (controlled A/B, both arms in hand):**
+- POSITIVE (macro present): my local hermetic arm0 run logged **LIVE regimes**
+  — robust_expansion / emerging_expansion / cautious_decline across ~13k rows,
+  only 6 warmup "unknown". So the detector works the instant macro is on disk.
+- NEGATIVE (macro absent): C's T-118fc cloud cells logged "regime: unknown
+  ×438" — the exact pre-bake condition.
+- Unit tests confirm the causal link directly: VIX loads non-empty with macro
+  present; empty when the loader points at an empty dir (→ regime degrades).
+The bake moves the cloud from the NEGATIVE to the POSITIVE arm.
+
+# T-164 GAP 1 — the zero-cloud-trades abort
 
 ## Root cause (pinned with evidence — and an honest divergence from the brief)
 
@@ -102,11 +131,19 @@ the local hermetic completion is the equivalent controlled proof.
 call IS reached (the cloud hang point); cached ticker served from parquet
 regardless (common path byte-unchanged).
 
+## DUAL SUCCESS BAR (the brief's): a cloud cell that TRADES + has a LIVE regime
+- TRADES: local hermetic arm0 = 14,492 trades (GAP 1 fix). ✓
+- LIVE regime: same run logged live regimes (GAP 2 fix — macro now baked). ✓
+Both proven locally (the controlled equivalent of the cloud cell); B builds the
+image from this branch+manifest for the on-cloud confirmation + re-anchor.
+
 ## Files
-- `engines/data_manager/data_manager.py` (hermetic guard on the fundamentals fetch)
-- `scripts/gen_substrate_manifest.py` (curated SUBSTRATE_FILES) + `config/substrate_manifest.sha256` (regenerated, +membership)
-- `Dockerfile.backtest` (bake membership file)
-- `tests/test_fundamentals_hermetic_t164.py` (NEW), this audit.
+- `engines/data_manager/data_manager.py` (GAP 1: hermetic guard on the fundamentals fetch)
+- `Dockerfile.backtest` (bake membership file + GAP 2: bake data/macro/)
+- `scripts/gen_substrate_manifest.py` (curated SUBSTRATE_FILES + data/macro in SUBSTRATE_DIRS)
+  + `config/substrate_manifest.sha256` (regenerated: +membership +25 macro files, verify OK)
+- `tests/test_fundamentals_hermetic_t164.py` (GAP 1, 3 tests) +
+  `tests/test_macro_baked_t164.py` (GAP 2, 4 tests), this audit.
 
 ## Follow-ups
 - **B:** rebuild current-main image with this source+manifest → confirm the

@@ -34,7 +34,7 @@ import hashlib
 import sys
 from pathlib import Path
 
-SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor"]
+SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
 # T-2026-06-13-164: curated individual files pinned WITHOUT walking their whole
 # parent dir. sp500_membership.parquet drives the resolved universe and is
 # gitignored — its silent regeneration (T-154) broke historical-universe runs
