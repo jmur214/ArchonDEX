@@ -73,6 +73,24 @@ Run it. Pull the manifests. **The two cells' `canon_md5` MUST differ.** If they 
 
 For determinism validation specifically (cross-container reproducibility), also run a 2-cell OFF-vs-OFF empty-patch check; canon must MATCH between the two reps. Catches the T-057c-determinism class of bug (dict-iteration-order FP-summation drift) which local `--runs N` cannot see.
 
+### ⚠️ Trigger/overlay campaigns: the "mildest-config-fires" pre-flight (mandatory; T-118 lesson)
+
+For any campaign whose arms are gated behind a TRIGGER (a de-gross overlay, a regime
+switch, a confidence gate — anything that only acts when a condition crosses a threshold),
+the 2-cell verify above is necessary but NOT sufficient: a clean patch can still produce
+arm == arm0 in every cell because **the trigger never fired**. T-118 spent a full 52-cell
+cloud grid where the overlay armed in ZERO cells — every arm reproduced an arm0 canon — because
+the grid's δ-floor (0.30) sat above the trigger's firing threshold. The whole campaign was a
+null-by-non-firing (it never tested the thesis), and it predates this note.
+
+**The gate:** BEFORE the grid spend, prove the MILDEST armed config actually fires on a
+KNOWN activation event, locally. For a transition de-gross overlay: pick a window containing
+an unambiguous regime transition (e.g. 2022), and confirm the lowest-δ arm produces a canon
+that DIFFERS from arm0 (i.e. it changed at least one trade). If nothing in the proposed grid
+fires on a known transition, the grid is mis-specified — fix the thresholds (or the trigger
+formulation) BEFORE launching. A firing-curve sweep (δ from low→the grid floor on the known
+event) is the cheapest way to locate a firing δ and set the grid floor below it.
+
 ---
 
 ## How to submit a campaign
