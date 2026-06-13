@@ -37,6 +37,27 @@ B's T-155 Part 3 attributed the persistent local↔cloud 2022 canon split — lo
 
 ---
 
-## Results (EMPTY at pre-registration commit — filled after the cell)
+## Results (appended after the cell; pre-registration above unchanged)
 
-_(to be appended)_
+**Mechanism check: PASS.** With the artifact displaced, the T-158 probe on the 2022-Q1 window: 61/61 live allocate calls ran the optimizer, **0** overlay calls, **0** mode flips. The cell measured what it claimed (true mean_variance, like the cloud).
+
+**The cell (strict hermetic, thread-pinned, earnings-pinned, full local 2022, artifact displaced):**
+
+| | Sharpe | canon md5 |
+|---|---|---|
+| Local, artifact present (B's cell + historical lineage) | 0.464 | `0145c03a6496…` |
+| Cloud anchor (T-155, mean_variance) | 1.6 | `0a62b754…` |
+| **THIS CELL — local, artifact displaced (mean_variance)** | **1.542** | **`4402a0a9074710b5a1ff2cc7acaa77db`** |
+
+**Artifact restoration: VERIFIED** — post-restore md5 `bfa539466599066c35dc985c667848dd` == pre-displacement; safety copy `.t162_held` retained (same md5).
+
+## Verdict: **H-mix** (the pre-registered honest prior)
+
+Matching the allocator moved the local cell from Sharpe 0.464 into the cloud's family (1.542 vs 1.6) — **the allocator explains essentially the entire local↔cloud split**; B's 0.464-vs-1.6 comparison was indeed two different trading systems, not platform FP. But the canon is **not** `0a62b754` and the Sharpe is not exactly 1.6 — a **real platform-FP residual** (macOS Accelerate vs Linux OpenBLAS) survives thread pins and flips enough individual trades to move Sharpe ~0.06. Both mechanisms are real; the allocator is ~20× the magnitude.
+
+**Implications (per the pre-committed decision table):**
+1. **B's "cloud is the substrate of record" framing: UNCHANGED** — cloud is internally consistent; this cell strengthens it (local can approximate but never bitwise-match).
+2. **The allocator-identity decision (director-held) is now the binding lever:** the Apr-23 artifact is worth ~1.1 Sharpe on this cell (0.464 vs 1.542) — whichever way the decision goes (archive it vs commit `mode: adaptive` to config intent), it determines which system every local number describes. This cell is the key evidence: the artifact's override is NOT a hygiene footnote; it is the largest single behavioral lever found since the metrics-pipeline bug.
+3. **Cross-substrate comparison rule going forward:** local↔cloud comparisons require (a) allocator state matched (artifact displaced or committed both sides) AND (b) thread pins, and even then expect **Sharpe-family agreement only — never bitwise** (platform BLAS residual is irreducible across OS). Bitwise expectations are within-platform only. Cloud canons remain the only canons of record.
+
+**Files:** this audit; no engine/config edits; artifact displaced + restored (md5-proven); zero N_trials.
