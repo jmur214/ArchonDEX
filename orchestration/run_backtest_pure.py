@@ -512,6 +512,13 @@ def run_backtest_pure(
         cockpit.snaps, cockpit.trades, initial_capital
     )
 
+    # T-161: surface the PIT-mask fallback counter so a contaminated
+    # measurement is self-announcing. Added ONLY when the mask is active —
+    # the OFF/cached path's metrics dict stays byte-identical (determinism +
+    # contract-test invariant preserved; no new producer key on the common path).
+    if pit_membership_mask is not None:
+        metrics["pit_mask_fallback_bars"] = int(controller.pit_mask_fallback_bars)
+
     # Sortino / Sharpe present in metrics; build daily returns
     daily_returns = (
         equity_curve.pct_change().dropna() if len(equity_curve) > 1 else pd.Series(dtype=float)

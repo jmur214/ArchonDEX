@@ -114,6 +114,12 @@ class BacktestController:
         # management and exit via normal engine logic (index-tracking
         # semantics; avoids the bagholder data-gap trap flagged below).
         self.pit_membership_mask: Optional[pd.DataFrame] = None
+        # T-161: fail-loud accounting for the PIT mask. A measurement flag
+        # must NOT silently revert to survivor behavior mid-run; any bar where
+        # the mask read falls back is counted + logged-once, and surfaced so a
+        # contaminated measurement is self-announcing.
+        self.pit_mask_fallback_bars: int = 0
+        self._pit_fallback_logged: bool = False
         if pit_membership_mask is not None:
             _m = pit_membership_mask.copy()
             _m.index = _to_naive_datetime_index(_m.index)
@@ -393,6 +399,32 @@ class BacktestController:
             except Exception as e:
                 if is_debug_enabled("BACKTEST_CONTROLLER"):
                     print(f"[BACKTEST][WARN] Trailing stop update failed: {e}")
+
+    def _apply_pit_mask(self, slice_map, ts):
+        """T-161: point-in-time signal-universe filter (pure, unit-tested).
+
+        OFF (mask is None): returns the IDENTICAL slice_map object — byte-inert
+        vs the pre-hook code (`_generate_signals(ts, slice_map, ...)`), which is
+        the definitive inertness proof (no full backtest needed). ON: keeps only
+        names in-index at `ts`. FAIL-LOUD: a mask read that raises does NOT
+        silently revert to the survivor slice (that would corrupt the very
+        measurement the flag exists for) — it is counted in
+        `pit_mask_fallback_bars` and logged once."""
+        if self.pit_membership_mask is None:
+            return slice_map
+        try:
+            row = self.pit_membership_mask.asof(ts)
+            return {t: df for t, df in slice_map.items()
+                    if bool(row.get(t, False))}
+        except Exception as exc:
+            self.pit_mask_fallback_bars += 1
+            if not self._pit_fallback_logged:
+                self._pit_fallback_logged = True
+                print(f"[BACKTEST][PIT-FALLBACK] mask read failed at {ts} "
+                      f"({type(exc).__name__}: {exc}); falling back to full slice "
+                      f"— MEASUREMENT CONTAMINATED, pit_mask_fallback_bars > 0 in "
+                      f"the summary.", flush=True)
+            return slice_map
 
     def _generate_signals(self, ts, slice_map, regime_meta, BACKTEST_DEBUG):
         """Engine A: signal generation + signal gate + bagholder protection."""
@@ -1268,15 +1300,7 @@ class BacktestController:
                 # T-2026-06-11-154: PIT universe — non-members at ts are
                 # invisible to signal generation only (risk/regime/exits
                 # above and order management below keep the full slice).
-                if self.pit_membership_mask is not None:
-                    try:
-                        row = self.pit_membership_mask.asof(ts)
-                        signal_slice = {t: df for t, df in slice_map.items()
-                                        if bool(row.get(t, False))}
-                    except Exception:
-                        signal_slice = slice_map
-                else:
-                    signal_slice = slice_map
+                signal_slice = self._apply_pit_mask(slice_map, ts)
 
                 signals = self._generate_signals(ts, signal_slice, regime_meta, BACKTEST_DEBUG)
 
