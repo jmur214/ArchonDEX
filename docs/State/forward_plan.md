@@ -1,4 +1,53 @@
-# Forward Plan — live (last substantive update 2026-06-11, user directive: decomposed/conditional strategy thinking — fork agenda input)
+# Forward Plan — live (last substantive update 2026-06-13, paper-phase directive: treat paper as an active paper-only measurement program, not just a graduation gate)
+
+> ## 2026-06-13 — User directive: the paper phase must RUN PAPER-ONLY EXPERIMENTS (input for the eventual PR-3/go-live; not actionable until paper starts)
+>
+> User point: "when we start paper trading, we should also be running tests on
+> things we could ONLY find out from live paper." Correct, and it sharpens the
+> T-159 design. That design has operational PROMOTION CRITERIA (pass/fail gates
+> the machine must clear) but NOT a pre-registered **paper-only measurement
+> agenda** — the active program of facts no backtest can ever yield. Fold the
+> agenda below into the paper build when PR-3 / go-live is approved.
+>
+> **The principle:** a backtest is a MODEL of the market's response to our orders.
+> Paper is the only place that model's unknown/assumed parameters become
+> measurable. Pre-register each paper measurement (hypothesis + what we measure +
+> how it feeds back) exactly like a cloud campaign — no "stare at paper P&L and
+> rationalize." Honest-N: paper is ~60 days, so P&L claims are noise; the robust
+> paper outputs are per-event-rate measurements (≥100 fills, etc.).
+>
+> **Paper-only measurement agenda (the things only live paper reveals):**
+> 1. **Realized fill/auction slippage — the highest-value one, because it FEEDS
+>    BACK into the backtest cost model and can RE-OPEN held verdicts.** The T-146
+>    auction model assumes `auction_safety_bps = 1.0/side` as a conservative
+>    buffer, not a measurement. T-157 showed the LPS overnight harvest is ci-dead
+>    at 1.0bp but FLIPS to harvestable (+6.7%/yr, ci_low +3.0) at ≤0.5bp. A paper-
+>    measured auction deviation < 0.5bp literally re-opens a closed alpha verdict.
+>    Measure: |fill − T-146-expected auction print| over ≥100 OPG/CLS fills →
+>    re-fit `auction_safety_bps` → re-run the cost-sensitive verdicts.
+> 2. **Short-side reality** (T-157 assumed 0.30%/yr borrow): actual borrow
+>    availability + rate + hard-to-borrow rejects on the short tercile.
+> 3. **OPG/CLS fill behavior at OUR size**: do we get filled at the open auction
+>    at all? partial-fill rate? (the model assumes full fills at zero impact).
+> 4. **The divergence-monitor null distribution under LIVE noise (recalibrates
+>    T-152).** The CUSUM/PH operating points were calibrated on backtest equity
+>    curves; paper gives the real (paper − backtest-expected) null distribution
+>    with live microstructure noise the backtest lacks. If that null is wider than
+>    assumed, the monitors need re-tuning BEFORE they can detect anything real —
+>    a paper-only calibration that gates the kill layer's credibility.
+> 5. **Broker/API operational map**: rejection taxonomy + rates, ack latency, the
+>    real 9:28 ET OPG cutoff behavior, corporate-action reporting, halts/LULD,
+>    data-feed (IEX vs SIP) quirks vs the clean historical bars.
+> 6. **Crash-recovery + reconciliation in the wild** (the T-160 machine): which of
+>    the 7 divergence classes actually fire, how often, were the pre-registered
+>    responses right; does journal-replay+broker-reconcile survive a real crash.
+>
+> **The boundary (state it so we don't waste paper days):** ALPHA validity and TAX
+> drag are NOT paper-learnable — 60 days is statistical noise on alpha, and paper
+> has no taxes (runs as an as-if counterfactual). Paper validates the MACHINE and
+> measures the MODEL's blind spots; the edge stays with the deep-window cadence.
+> The payoff loop is #1: paper-measured costs flow back to re-resolve the
+> cost-sensitive backtest verdicts (LPS first).
 
 > ## 2026-06-11 — User directive: stop requiring every candidate to be ALL-WEATHER (fork agenda input; extends, does not replace, the 2026-06-06 block)
 >
