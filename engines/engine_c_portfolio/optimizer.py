@@ -6,6 +6,37 @@ import pandas as pd
 from scipy.optimize import minimize
 from typing import Dict, List, Optional, Tuple
 
+
+def deterministic_cov(returns_df: pd.DataFrame) -> pd.DataFrame:
+    """Sample covariance (ddof=1) with a FIXED reduction order — no BLAS gemm.
+
+    T-2026-06-13-140-followup-3 (the real cov→MVO determinism fix). pandas
+    `DataFrame.cov()` routes the demeaned cross-product through OpenBLAS
+    `gemm`, whose blocked-SIMD accumulation order varies with buffer
+    alignment / kernel dispatch ACROSS Fargate tasks (even single-threaded —
+    the T-140 OMP/OPENBLAS pins fixed eigh/SLSQP but NOT the gemm in cov()).
+    That yields a ~1e-15 difference in Sigma per task → two different SLSQP
+    fixed points (~5e-9 in active weights, T-140-fu2 capture) → a flipped
+    trade → the placement lottery (measured p(minority)≈0.4 at N=5).
+
+    This replaces the gemm with `np.einsum(..., optimize=False)` — numpy's
+    own fixed-order C reduction loop, independent of alignment/threads — so
+    Sigma is byte-identical across tasks BY CONSTRUCTION. It is a DETERMINISM
+    fix, NOT a math change: it equals pandas `.cov()` to ~7e-16 (a canonical
+    reduction order of the IDENTICAL statistic; verified math-safe via the
+    golden master). Set ARCHONDEX_DET_COV=0 to fall back to pandas `.cov()`
+    (for the snap-off-style baseline capture on cloud).
+    """
+    if os.environ.get("ARCHONDEX_DET_COV", "1") == "0":
+        return returns_df.cov()
+    X = np.asarray(returns_df.values, dtype=np.float64)
+    n = X.shape[0]
+    if n < 2:
+        return returns_df.cov()  # degenerate; mirror pandas
+    Xc = X - X.mean(axis=0)
+    S = np.einsum("ti,tj->ij", Xc, Xc, optimize=False) / (n - 1)
+    return pd.DataFrame(S, index=returns_df.columns, columns=returns_df.columns)
+
 class PortfolioOptimizer:
     """
     Mean-Variance Optimizer (MVO) for professional portfolio construction.

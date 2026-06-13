@@ -206,7 +206,11 @@ class PortfolioPolicy:
             if len(returns_df) < 5:
                 pass 
             else:
-                sigma_df = returns_df.cov() * 252.0
+                # T-140-fu3: deterministic (fixed-reduction-order) cov — pandas
+                # .cov() routes through OpenBLAS gemm whose accumulation order
+                # varies across Fargate tasks (~1e-15 Sigma drift → the lottery).
+                from .optimizer import deterministic_cov
+                sigma_df = deterministic_cov(returns_df) * 252.0
                 mu_series = mu_series.reindex(sigma_df.columns).fillna(0.0)
 
                 # T-140-fu2 env-gated capture probe: byte-hash each
@@ -370,7 +374,8 @@ class PortfolioPolicy:
         if len(returns_df) < 5:
             return self.cfg.target_volatility
 
-        cov = returns_df.cov() * 252.0  # annualized
+        from .optimizer import deterministic_cov  # T-140-fu3 (same fixed-order cov)
+        cov = deterministic_cov(returns_df) * 252.0  # annualized
         w_arr = np.array([weights.get(t, 0.0) for t in cov.columns])
         port_var = float(w_arr @ cov.values @ w_arr)
         return float(np.sqrt(max(port_var, 1e-12)))
