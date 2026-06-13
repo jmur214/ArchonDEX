@@ -169,7 +169,8 @@ class TestIdempotencyAndRecovery:
         mgr.poll(o)
         from paper_trader._jsonl import JsonlStore
         events = [r["event"] for r in JsonlStore(jp).read_all()]
-        assert events[0] == "stage" and "submit" in events
+        # T-163 crit-1: intent ("submitting") is journaled before the POST.
+        assert events[0] == "stage" and "submitting" in events
         assert events[-1] in ("broker_update", "broker_poll")
 
 

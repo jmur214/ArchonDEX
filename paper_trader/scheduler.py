@@ -69,13 +69,24 @@ class DaySummary:
         }
 
 
+# T-163: the 5 PR-3 entry criteria are closed in code (see
+# docs/Audit/paper_trader_pr3_t163_2026_06_13.md). Live PAPER submission
+# may only arm when this is True AND the caller passes armed=True. It is
+# the single switch that links "submit for real" to "the criteria that
+# gate it" — flipping it False instantly reverts the loop to no-submit.
+PR3_ENTRY_CRITERIA_CLOSED = True
+
+
 class PaperScheduler:
     def __init__(self, order_manager: OrderManager, reconcile_log_path: str,
-                 dry_run: bool = True):
+                 dry_run: bool = True, armed: bool = False):
         self.om = order_manager
         self.recon = ReconciliationEngine()
         self.reconcile_log = JsonlStore(reconcile_log_path)
         self.dry_run = dry_run
+        # Arming requires BOTH an explicit caller opt-in AND the
+        # code-level criteria gate. Never arm in dry-run.
+        self.armed = bool(armed) and not dry_run and PR3_ENTRY_CRITERIA_CLOSED
 
     def run_day(
         self,
@@ -96,21 +107,42 @@ class PaperScheduler:
                 log.note = "would pull close bars → data cache append"
             elif kind == "compute":
                 log.note = (f"staged {len(staged_orders)} orders "
-                            f"({len(opg)} OPG / {len(cls)} CLS); NOT submitted")
+                            f"({len(opg)} OPG / {len(cls)} CLS)")
             elif kind in ("submit_opg", "submit_cls"):
                 batch = opg if kind == "submit_opg" else cls
                 log.would_submit = len(batch)
-                if self.dry_run:
-                    log.note = (f"DRY-RUN: would submit {len(batch)} "
-                                f"{'OPG' if kind == 'submit_opg' else 'CLS'} "
+                tag = "OPG" if kind == "submit_opg" else "CLS"
+                # T-163 crit-4: a computed halt GATES submission — it is
+                # no longer cosmetic. If any prior reconcile this day
+                # halted, the batch is BLOCKED.
+                if summary.halted:
+                    log.note = f"HALTED — {tag} batch BLOCKED ({len(batch)} orders held)"
+                elif self.dry_run:
+                    log.note = (f"DRY-RUN: would submit {len(batch)} {tag} "
                                 "orders — submitting NOTHING")
-                else:
-                    # PR-3+ live arm: self.om.submit(o) per order. Not here.
-                    raise NotImplementedError(
-                        "live submission is armed in PR-3 (propose-first)"
+                elif not self.armed:
+                    raise RuntimeError(
+                        "live submission requested but scheduler not armed "
+                        "(PR-3 entry criteria gate). Pass armed=True only "
+                        "when the 5 criteria are closed."
                     )
+                else:
+                    # ARMED, PAPER-ONLY: actually submit + poll the batch.
+                    n = 0
+                    for o in batch:
+                        self.om.submit(o)
+                        self.om.poll(o)
+                        if o.state != "rejected":
+                            n += 1
+                    summary.submitted_count += n
+                    log.note = f"ARMED(paper): submitted {n}/{len(batch)} {tag}"
             elif kind == "ack":
-                log.note = "would sweep acks (every order acked or alarm)"
+                # Sweep acks; orders still SUBMITTED (no ack) are flagged
+                # by the next reconcile (crit-3 covers SUBMITTED).
+                if not self.dry_run and self.armed:
+                    for o in self.om.open_orders():
+                        self.om.poll(o)
+                log.note = "ack sweep (poll open orders)"
             elif kind in ("preflight", "reconcile", "eod"):
                 res = self.recon.reconcile(reconcile_inputs_fn(step))
                 self._log_cycle(trade_date, step, res)
@@ -123,8 +155,12 @@ class PaperScheduler:
                 if kind == "preflight":
                     log.note = ("preflight reconcile "
                                 + ("CLEAN — proceed" if res.clean
-                                   else "NOT CLEAN — would block submission"))
+                                   else "NOT CLEAN — submission will be BLOCKED"))
                 elif kind == "eod":
+                    # Expire any order that never filled within its window.
+                    if not self.dry_run and self.armed:
+                        for o in self.om.open_orders():
+                            self.om.expire_unfilled(o)
                     log.note = "EOD reconcile + snapshot + monitor update + flush"
                 else:
                     log.note = "fill reconciliation"

@@ -80,6 +80,18 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
 }
 
 
+def _is_duplicate_coid(exc: Exception) -> bool:
+    """A broker reject for a reused client_order_id (Alpaca 422
+    'client_order_id must be unique') means the order is ALREADY live —
+    a prior POST landed. Detected by message substring (the SDK surfaces
+    it as a generic APIError)."""
+    msg = str(exc).lower()
+    return (
+        "client_order_id" in msg
+        and ("unique" in msg or "already exists" in msg or "duplicate" in msg)
+    )
+
+
 def make_client_order_id(
     trade_date: str, ticker: str, side: str, qty: int, config_hash: str
 ) -> str:
@@ -122,22 +134,55 @@ class OrderManager:
     journaled and to apply broker status updates honestly.
     """
 
-    def __init__(self, client, journal_path: str):
+    def __init__(self, client, journal_path: str,
+                 reconcile_on_start: bool = True):
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
         self._replay_from_journal()
+        # T-163 crit-2: a restart must reconcile its replayed belief
+        # against broker TRUTH before acting — the journal alone can be
+        # stale (a SUBMITTED-intent record whose POST landed, or didn't).
+        if reconcile_on_start:
+            self.reconcile_with_broker()
 
     # ------------------------------------------------------------------ #
     def _replay_from_journal(self) -> None:
         """Rebuild in-memory order state from the append-only journal —
-        the crash-recovery path. Last event per client_order_id wins."""
+        the crash-recovery path. Last event per client_order_id wins.
+
+        Tolerant to OrderRecord schema drift (extra journal keys are
+        dropped) so an older journal still replays."""
+        import inspect
+        fields = set(inspect.signature(OrderRecord).parameters)
         for rec in self.journal.read_all():
             coid = rec.get("client_order_id")
             if not coid:
                 continue
-            payload = {k: v for k, v in rec.items() if k != "event"}
+            payload = {k: v for k, v in rec.items()
+                       if k != "event" and k in fields}
             self.orders[coid] = OrderRecord(**payload)
+
+    def reconcile_with_broker(self) -> None:
+        """T-163 crit-2: for every replayed non-terminal order, ask the
+        broker for truth and adopt it. A SUBMITTED order the broker has
+        NO record of (POST never landed) reverts to STAGED — safe to
+        resubmit. A SUBMITTED order the broker DOES know is adopted
+        (acked/filled/etc.) — never re-POSTed. This is what makes
+        restart idempotent against the broker, not just the journal."""
+        for order in list(self.orders.values()):
+            st = OrderState(order.state)
+            if st.is_terminal or st == OrderState.STAGED:
+                continue
+            resp = self.client.get_order(order.client_order_id)
+            if resp is not None:
+                self._apply_broker(order, resp)
+            elif st == OrderState.SUBMITTED:
+                # The broker never saw it → the POST didn't land. Revert
+                # to STAGED so a fresh, deliberate submit can happen
+                # (NOT a blind re-POST of an order we think is live).
+                self._record(order, event="broker_absent_revert_staged",
+                             new_state=OrderState.STAGED)
 
     def _record(self, order: OrderRecord, event: str,
                 new_state: Optional[OrderState] = None) -> None:
@@ -165,17 +210,38 @@ class OrderManager:
 
     def submit(self, order: OrderRecord) -> OrderRecord:
         """Submit a STAGED order. Idempotent: if already SUBMITTED-or-
-        later, returns it untouched (the restart double-submit guard)."""
+        later, returns it untouched (the restart double-submit guard).
+
+        T-163 crit-1: the SUBMITTED intent record is journaled BEFORE
+        the broker POST, so a crash in the POST window leaves a
+        SUBMITTED record (not STAGED) — and ``reconcile_with_broker``
+        then routes it through a broker GET, never a blind re-POST.
+
+        T-163 crit-2: a duplicate-client_order_id reject means the order
+        is ALREADY LIVE at the broker (a prior POST landed) — we adopt
+        broker truth, NOT mark it terminal-REJECTED."""
         if order.state != OrderState.STAGED.value:
             return order
-        resp = self.client.submit_order(
-            client_order_id=order.client_order_id,
-            symbol=order.ticker, qty=order.qty,
-            side=order.side, tif=order.tif,
-        )
+        # 1. Journal intent FIRST (durable before the side-effecting POST).
+        self._record(order, event="submitting", new_state=OrderState.SUBMITTED)
+        # 2. POST.
+        try:
+            resp = self.client.submit_order(
+                client_order_id=order.client_order_id,
+                symbol=order.ticker, qty=order.qty,
+                side=order.side, tif=order.tif,
+            )
+        except Exception as exc:
+            if _is_duplicate_coid(exc):
+                # Already live at the broker — adopt its truth.
+                existing = self.client.get_order(order.client_order_id)
+                if existing is not None:
+                    self._apply_broker(order, existing)
+                    return order
+            raise
         order.broker_order_id = resp.get("broker_order_id")
         order.last_broker_status = resp.get("status")
-        self._record(order, event="submit", new_state=OrderState.SUBMITTED)
+        self._record(order, event="submit_acked")
         # An immediate ack in the submit response is applied right away.
         self._apply_broker(order, resp)
         return order
@@ -193,12 +259,47 @@ class OrderManager:
 
     def cancel(self, order: OrderRecord) -> OrderRecord:
         """Request cancel (e.g. an OPG order still open past its window).
-        Terminal orders are left untouched."""
+        Terminal orders are left untouched.
+
+        T-163 crit-3: if we never captured a broker_order_id (a
+        SUBMITTED order that never acked), look it up by client_order_id
+        first; if the broker has no record, the order is not live →
+        mark CANCELED locally (nothing to cancel)."""
         if order.state in (s.value for s in OrderState if s.is_terminal):
             return order
-        if order.broker_order_id is not None:
-            self.client.cancel_order(order.broker_order_id)
+        broker_id = order.broker_order_id
+        if broker_id is None:
+            resp = self.client.get_order(order.client_order_id)
+            if resp is not None:
+                broker_id = resp.get("broker_order_id")
+                if broker_id and not order.broker_order_id:
+                    order.broker_order_id = broker_id
+        if broker_id is not None:
+            self.client.cancel_order(broker_id)
         self._record(order, event="cancel", new_state=OrderState.CANCELED)
+        return order
+
+    def expire_unfilled(self, order: OrderRecord) -> OrderRecord:
+        """T-163 crit-3: an order that did not fill by the close of its
+        auction window. Cancels at the broker if live, then EXPIRED.
+        Covers SUBMITTED-but-never-acked (otherwise invisible) as well
+        as ACKED-unfilled."""
+        st = OrderState(order.state)
+        if st.is_terminal or st == OrderState.STAGED:
+            return order
+        if order.filled_qty > 0:
+            # Partial: cancel the remainder, keep the fill (terminal
+            # CANCELED with a recorded partial — reconciliation handles
+            # the partial-fill class).
+            return self.cancel(order)
+        broker_id = order.broker_order_id
+        if broker_id is None:
+            resp = self.client.get_order(order.client_order_id)
+            if resp is not None:
+                broker_id = resp.get("broker_order_id")
+        if broker_id is not None:
+            self.client.cancel_order(broker_id)
+        self._record(order, event="window_expired", new_state=OrderState.EXPIRED)
         return order
 
     # ------------------------------------------------------------------ #
