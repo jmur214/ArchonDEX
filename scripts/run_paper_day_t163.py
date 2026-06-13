@@ -36,8 +36,19 @@ from paper_trader import (
 
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--confirm", action="store_true",
+                    help="required to ARM (actually submit to the paper account)")
+    ap.add_argument("--allocator", default="adaptive",
+                    help="EXPLICIT allocator (no silent default in the loop)")
+    args = ap.parse_args()
+
     if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
         sys.exit("no creds — set ALPACA_API_KEY/ALPACA_SECRET_KEY")
+    if not args.confirm:
+        sys.exit("refusing to arm without --confirm (this submits to the "
+                 "PAPER account). Re-run with --confirm.")
     client = AlpacaPaperClient()
     from alpaca.trading.client import TradingClient
     raw = TradingClient(api_key=os.getenv("ALPACA_API_KEY"),
@@ -49,14 +60,19 @@ def main() -> None:
           f"account={acct['status']} ===")
 
     d = Path(tempfile.mkdtemp())
-    cfg = PaperConfig()            # roth / $5K / dyn-opt ON / moo_moc
+    cfg = PaperConfig(allocator=args.allocator)   # EXPLICIT; roth/$5K/dyn-opt ON
     print(f"allocator-visibility (logged every cycle): {cfg.log_dict()}")
     om = OrderManager(client, journal_path=str(d / "orders.jsonl"))
     led = LedgerStore(str(d / "ledger.jsonl"), starting_cash=bcash, account="roth")
     report = PromotionReport()
+    # M4: arming requires the director-designated allocator to MATCH the
+    # paper config. For this driver the designated == the explicit
+    # --allocator; in production it is the director's decision.
     sched = PaperScheduler(om, reconcile_log_path=str(d / "recon.jsonl"),
-                           dry_run=False, armed=True)
-    print(f"scheduler armed={sched.armed} (criteria gate + explicit opt-in)")
+                           dry_run=False, armed=True, paper_config=cfg,
+                           designated_allocator=args.allocator)
+    print(f"scheduler armed={sched.armed} "
+          f"(criteria + allocator interlock: {cfg.allocator})")
 
     trade_date = "2026-06-15"
     o = om.stage(trade_date, "SPY", "buy", 1, TimeInForce.OPG, cfg.config_hash())

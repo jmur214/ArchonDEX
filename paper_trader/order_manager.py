@@ -31,6 +31,12 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from paper_trader._jsonl import JsonlStore
+from paper_trader.paper_client import ORDER_ABSENT, ORDER_UNKNOWN
+
+
+def _is_order_dict(resp) -> bool:
+    """A get_order result that is an actual order (not a sentinel)."""
+    return isinstance(resp, dict)
 
 
 class OrderState(str, Enum):
@@ -81,14 +87,22 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
 
 
 def _is_duplicate_coid(exc: Exception) -> bool:
-    """A broker reject for a reused client_order_id (Alpaca 422
-    'client_order_id must be unique') means the order is ALREADY live —
-    a prior POST landed. Detected by message substring (the SDK surfaces
-    it as a generic APIError)."""
-    msg = str(exc).lower()
-    return (
-        "client_order_id" in msg
-        and ("unique" in msg or "already exists" in msg or "duplicate" in msg)
+    """A reused client_order_id reject means the order is ALREADY live (a
+    prior POST landed). T-163-fix B2: detect by Alpaca's STRUCTURED error
+    code (42210000) first — the real APIError stringifies to its JSON
+    body ``{"code":42210000,"message":"client order id must be unique."}``
+    ("client order id" with SPACES), which the old underscore-substring
+    matcher missed entirely (dead safety net). Message fallback matches
+    the REAL text."""
+    try:
+        code = getattr(exc, "code", None)
+        if code is not None and int(code) == 42210000:
+            return True
+    except Exception:
+        pass
+    msg = str(getattr(exc, "message", "") or exc).lower()
+    return "must be unique" in msg and (
+        "client order id" in msg or "client_order_id" in msg
     )
 
 
@@ -164,25 +178,28 @@ class OrderManager:
             self.orders[coid] = OrderRecord(**payload)
 
     def reconcile_with_broker(self) -> None:
-        """T-163 crit-2: for every replayed non-terminal order, ask the
-        broker for truth and adopt it. A SUBMITTED order the broker has
-        NO record of (POST never landed) reverts to STAGED — safe to
-        resubmit. A SUBMITTED order the broker DOES know is adopted
-        (acked/filled/etc.) — never re-POSTed. This is what makes
-        restart idempotent against the broker, not just the journal."""
+        """T-163 crit-2 (+fix B1): for every replayed non-terminal order,
+        ask the broker for truth and adopt it. A SUBMITTED order the
+        broker PROVABLY does not have (definitive 404 → ORDER_ABSENT)
+        reverts to STAGED — safe to resubmit. A SUBMITTED order the
+        broker DOES know is adopted (never re-POSTed). On ORDER_UNKNOWN
+        (a transient GET failure) we leave the order EXACTLY as-is — we
+        do NOT revert (that would risk a double-submit of a live order).
+        Fail-safe is the rule."""
         for order in list(self.orders.values()):
             st = OrderState(order.state)
             if st.is_terminal or st == OrderState.STAGED:
                 continue
             resp = self.client.get_order(order.client_order_id)
-            if resp is not None:
+            if _is_order_dict(resp):
                 self._apply_broker(order, resp)
-            elif st == OrderState.SUBMITTED:
-                # The broker never saw it → the POST didn't land. Revert
-                # to STAGED so a fresh, deliberate submit can happen
-                # (NOT a blind re-POST of an order we think is live).
+            elif resp is ORDER_ABSENT and st == OrderState.SUBMITTED:
+                # PROVABLY not at the broker → the POST didn't land.
                 self._record(order, event="broker_absent_revert_staged",
                              new_state=OrderState.STAGED)
+            elif resp is ORDER_UNKNOWN:
+                # Indeterminate — DO NOT act. Leave belief untouched.
+                self._record(order, event="broker_unknown_left_as_is")
 
     def _record(self, order: OrderRecord, event: str,
                 new_state: Optional[OrderState] = None) -> None:
@@ -233,11 +250,15 @@ class OrderManager:
             )
         except Exception as exc:
             if _is_duplicate_coid(exc):
-                # Already live at the broker — adopt its truth.
+                # Already live at the broker (B2). Adopt its truth IF we
+                # can read it; on UNKNOWN, leave SUBMITTED (do NOT mark
+                # rejected and do NOT re-POST — the intent record stands).
                 existing = self.client.get_order(order.client_order_id)
-                if existing is not None:
+                if _is_order_dict(existing):
                     self._apply_broker(order, existing)
-                    return order
+                else:
+                    self._record(order, event="duplicate_coid_unresolved_left_submitted")
+                return order
             raise
         order.broker_order_id = resp.get("broker_order_id")
         order.last_broker_status = resp.get("status")
@@ -247,59 +268,75 @@ class OrderManager:
         return order
 
     def poll(self, order: OrderRecord) -> OrderRecord:
-        """Pull the broker's current truth for one order and apply it."""
+        """Pull the broker's current truth and apply it. On ORDER_ABSENT
+        or ORDER_UNKNOWN, leave belief as-is (fail-safe — never infer a
+        terminal state from a poll)."""
         if order.state == OrderState.STAGED.value or order.state in (
             s.value for s in OrderState if s.is_terminal
         ):
             return order
         resp = self.client.get_order(order.client_order_id)
-        if resp is not None:
+        if _is_order_dict(resp):
             self._apply_broker(order, resp)
         return order
 
-    def cancel(self, order: OrderRecord) -> OrderRecord:
-        """Request cancel (e.g. an OPG order still open past its window).
-        Terminal orders are left untouched.
+    def _resolve_broker_id(self, order: OrderRecord):
+        """Return (broker_id, lookup_result). lookup_result is None when
+        no lookup was needed, else the tri-state get_order result."""
+        if order.broker_order_id is not None:
+            return order.broker_order_id, None
+        resp = self.client.get_order(order.client_order_id)
+        if _is_order_dict(resp):
+            bid = resp.get("broker_order_id")
+            if bid and not order.broker_order_id:
+                order.broker_order_id = bid
+            return bid, resp
+        return None, resp
 
-        T-163 crit-3: if we never captured a broker_order_id (a
-        SUBMITTED order that never acked), look it up by client_order_id
-        first; if the broker has no record, the order is not live →
-        mark CANCELED locally (nothing to cancel)."""
+    def cancel(self, order: OrderRecord) -> OrderRecord:
+        """Cancel an open order. T-163-fix B1: terminalize to CANCELED
+        ONLY when we have a CONFIRMED broker cancel OR the order is
+        PROVABLY absent (ORDER_ABSENT). On a transient/unknown failure we
+        DO NOT mark it flat (a live OPG could still fill) — we leave it
+        open and log, to keep watching it."""
         if order.state in (s.value for s in OrderState if s.is_terminal):
             return order
-        broker_id = order.broker_order_id
-        if broker_id is None:
-            resp = self.client.get_order(order.client_order_id)
-            if resp is not None:
-                broker_id = resp.get("broker_order_id")
-                if broker_id and not order.broker_order_id:
-                    order.broker_order_id = broker_id
+        broker_id, lookup = self._resolve_broker_id(order)
         if broker_id is not None:
-            self.client.cancel_order(broker_id)
-        self._record(order, event="cancel", new_state=OrderState.CANCELED)
+            if self.client.cancel_order(broker_id):
+                self._record(order, event="cancel", new_state=OrderState.CANCELED)
+            else:
+                self._record(order, event="cancel_failed_left_open")
+            return order
+        # No broker id: terminalize only if provably absent.
+        if lookup is ORDER_ABSENT:
+            self._record(order, event="cancel_absent", new_state=OrderState.CANCELED)
+        else:   # ORDER_UNKNOWN — cannot confirm; never believe-flat.
+            self._record(order, event="cancel_unknown_left_open")
         return order
 
     def expire_unfilled(self, order: OrderRecord) -> OrderRecord:
         """T-163 crit-3: an order that did not fill by the close of its
-        auction window. Cancels at the broker if live, then EXPIRED.
-        Covers SUBMITTED-but-never-acked (otherwise invisible) as well
-        as ACKED-unfilled."""
+        auction window → EXPIRED. Fail-safe (B1): EXPIRE only on a
+        confirmed broker cancel or provable absence; on unknown, leave
+        open (never believe-flat while it could still be live)."""
         st = OrderState(order.state)
         if st.is_terminal or st == OrderState.STAGED:
             return order
         if order.filled_qty > 0:
-            # Partial: cancel the remainder, keep the fill (terminal
-            # CANCELED with a recorded partial — reconciliation handles
-            # the partial-fill class).
+            # Partial: cancel the remainder, keep the fill.
             return self.cancel(order)
-        broker_id = order.broker_order_id
-        if broker_id is None:
-            resp = self.client.get_order(order.client_order_id)
-            if resp is not None:
-                broker_id = resp.get("broker_order_id")
+        broker_id, lookup = self._resolve_broker_id(order)
         if broker_id is not None:
-            self.client.cancel_order(broker_id)
-        self._record(order, event="window_expired", new_state=OrderState.EXPIRED)
+            if self.client.cancel_order(broker_id):
+                self._record(order, event="window_expired", new_state=OrderState.EXPIRED)
+            else:
+                self._record(order, event="expire_cancel_failed_left_open")
+            return order
+        if lookup is ORDER_ABSENT:
+            self._record(order, event="window_expired_absent", new_state=OrderState.EXPIRED)
+        else:   # ORDER_UNKNOWN
+            self._record(order, event="expire_unknown_left_open")
         return order
 
     # ------------------------------------------------------------------ #

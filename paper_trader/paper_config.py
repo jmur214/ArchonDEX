@@ -23,10 +23,15 @@ VALID_ALLOCATORS = ("adaptive", "mean_variance", "parrondo_fixed")
 
 @dataclass
 class PaperConfig:
+    # T-163-fix M4 + T-158: the allocator is a REQUIRED field — NO silent
+    # default. Constructing a PaperConfig without naming the allocator
+    # raises (a bare `PaperConfig()` is the trap the review caught: it
+    # would silently run the local/adaptive machine). It is also a hard
+    # arm interlock in PaperScheduler (arming requires it to match the
+    # director-designated allocator), not merely a log line.
+    allocator: str
     account: str = "roth"                  # Roth-emulation (T-141 verdict)
     starting_equity: float = 5_000.0       # T-159 §5
-    # ALLOCATOR VISIBILITY (T-158): explicit, never silently inherited.
-    allocator: str = "adaptive"
     # whole-share integer book — REQUIRED for auction (OPG/CLS) orders.
     dynamic_optimization_enabled: bool = True
     position_buffering_enabled: bool = False

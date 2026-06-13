@@ -200,13 +200,25 @@ class TestCrit4HaltGatesSubmit:
 # Crit-5: corporate-action-on-held-name classification
 # ===================================================================== #
 class TestCrit5CorporateActionOnHeldName:
-    @pytest.mark.parametrize("ledger,broker", [(10, 20), (10, 40), (10, 30),
-                                               (20, 10), (100, 25)])
-    def test_clean_ratio_on_held_name_is_corporate_action(self, ledger, broker):
+    # T-163-fix M3: a clean ratio ALONE must NOT downgrade — it has the
+    # same shape as a double-counted fill / manual doubling, so it still
+    # HALTS as position_drift unless the corporate-action FEED confirms.
+    @pytest.mark.parametrize("ledger,broker", [(10, 20), (10, 40), (20, 10),
+                                               (100, 25)])
+    def test_clean_ratio_without_feed_still_halts(self, ledger, broker):
         res = ENGINE.reconcile(ReconcileInputs(
             ledger_positions={"AAPL": ledger}, ledger_cash=5000.0,
             broker_positions={"AAPL": broker}, broker_cash=5000.0,
             known_tickers={"AAPL"}))
+        assert res.counts[CLASS_POSITION_DRIFT] == 1     # HALT, not soothed
+        assert res.counts[CLASS_CORPORATE_ACTION] == 0
+        assert res.halt is True
+
+    def test_clean_ratio_WITH_feed_is_corporate_action(self):
+        res = ENGINE.reconcile(ReconcileInputs(
+            ledger_positions={"AAPL": 10}, ledger_cash=5000.0,
+            broker_positions={"AAPL": 20}, broker_cash=5000.0,
+            known_tickers={"AAPL"}, corporate_action_tickers={"AAPL"}))
         assert res.counts[CLASS_CORPORATE_ACTION] == 1
         assert res.counts[CLASS_POSITION_DRIFT] == 0
         f = next(f for f in res.findings if f.klass == CLASS_CORPORATE_ACTION)
@@ -221,14 +233,13 @@ class TestCrit5CorporateActionOnHeldName:
         assert res.counts[CLASS_CORPORATE_ACTION] == 0
 
     def test_sign_flip_is_position_drift_not_split(self):
-        # 10 long → 10 short is a |ratio| of 1 but a sign flip — never a split
         res = ENGINE.reconcile(ReconcileInputs(
             ledger_positions={"AAPL": 10}, ledger_cash=5000.0,
             broker_positions={"AAPL": -10}, broker_cash=5000.0,
             known_tickers={"AAPL"}))
         assert res.counts[CLASS_POSITION_DRIFT] == 1
 
-    def test_explicit_corporate_action_feed_overrides(self):
+    def test_explicit_feed_reclassifies_non_ratio_too(self):
         res = ENGINE.reconcile(ReconcileInputs(
             ledger_positions={"AAPL": 10}, ledger_cash=5000.0,
             broker_positions={"AAPL": 13}, broker_cash=5000.0,

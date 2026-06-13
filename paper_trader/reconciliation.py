@@ -206,27 +206,36 @@ class ReconciliationEngine:
                 continue   # an open order legitimately explains the gap
             ca_feed = inp.corporate_action_tickers or set()
             unknown_symbol = t not in known and t not in inp.ledger_positions
-            # T-163 crit-5: a split/morph on a HELD name (clean ratio) OR
-            # an explicitly-fed corporate action is the MANUAL class — not
-            # a halt-class position drift. An unknown symbol appearing
-            # (ticker change) is also a corporate action.
-            held_split = (lq != 0 and _looks_like_corporate_action(lq, bq))
-            if unknown_symbol or held_split or t in ca_feed:
+            # T-163-fix M3: a clean integer ratio on a held name is the
+            # SAME shape as a double-counted fill or a manual doubling —
+            # so a ratio ALONE must NOT downgrade a position drift. A
+            # held-name morph is the MANUAL corporate_action class ONLY
+            # when the explicit corporate-action FEED confirms it. Absent
+            # that confirmation, a ratio match still HALTS as
+            # position_drift. (An unknown symbol we never traded is a
+            # different signal — a ticker change — and stays manual.)
+            confirmed_ca = t in ca_feed
+            ratio_hint = (lq != 0 and _looks_like_corporate_action(lq, bq))
+            if unknown_symbol or confirmed_ca:
                 detail = (f"unknown symbol {t} at broker (qty {bq}) — "
                           "suspected ticker change" if unknown_symbol else
-                          f"{t} held {lq} → broker {bq} (clean ratio — "
-                          "suspected split)" if held_split else
-                          f"{t} on corporate-action feed (ledger {lq}, broker {bq})")
+                          f"{t} on corporate-action feed "
+                          f"(ledger {lq}, broker {bq})")
                 findings.append(ReconcileFinding(
                     klass=CLASS_CORPORATE_ACTION, ticker=t, manual=True,
                     action="halt the ticker; manual review", detail=detail,
                 ))
             else:
+                hint = (" (clean ratio — possible split; NOT downgraded "
+                        "without corporate-action feed confirmation)"
+                        if ratio_hint else "")
                 findings.append(ReconcileFinding(
                     klass=CLASS_POSITION_DRIFT, ticker=t, halt=True,
                     action="HALT new submissions; adopt broker truth only "
-                           "after the journal explains it",
-                    detail=f"{t} ledger {lq} vs broker {bq}",
+                           "after the journal explains it" + (
+                               " — if a split, add it to the corporate-action "
+                               "feed to reclassify" if ratio_hint else ""),
+                    detail=f"{t} ledger {lq} vs broker {bq}{hint}",
                 ))
 
         counts = {c: 0 for c in ALL_CLASSES}

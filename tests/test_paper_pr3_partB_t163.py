@@ -28,13 +28,19 @@ from paper_trader import (
 # --------------------------------------------------------------------- #
 class TestPaperConfig:
     def test_defaults_are_t159_roth(self):
-        c = PaperConfig()
+        c = PaperConfig(allocator="adaptive")
         assert c.account == "roth" and c.starting_equity == 5_000.0
         assert c.dynamic_optimization_enabled is True   # whole-share for auctions
 
     def test_allocator_must_be_explicit_and_valid(self):
         with pytest.raises(ValueError, match="allocator"):
             PaperConfig(allocator="magic")
+
+    def test_allocator_has_no_silent_default(self):
+        # M4/T-158: a bare PaperConfig() must RAISE — never silently
+        # pick the local/adaptive machine.
+        with pytest.raises(TypeError):
+            PaperConfig()
 
     def test_allocator_is_in_log_dict_every_cycle(self):
         c = PaperConfig(allocator="mean_variance")
@@ -43,7 +49,7 @@ class TestPaperConfig:
         assert "config_hash" in d
 
     def test_config_hash_deterministic_and_sensitive(self):
-        assert PaperConfig().config_hash() == PaperConfig().config_hash()
+        assert PaperConfig(allocator="adaptive").config_hash() == PaperConfig(allocator="adaptive").config_hash()
         assert PaperConfig(allocator="adaptive").config_hash() != \
             PaperConfig(allocator="mean_variance").config_hash()
 
@@ -93,7 +99,7 @@ class TestOrderConstructor:
         signals = [{"ticker": "AAPL", "side": "long", "strength": 0.8, "edge": "mom"},
                    {"ticker": "MSFT", "side": "short", "strength": 0.5}]
         ctor = PaperOrderConstructor(_FakeAlpha(signals), _FakePortfolio(),
-                                     _FakeRisk(), PaperConfig())
+                                     _FakeRisk(), PaperConfig(allocator="adaptive"))
         specs = ctor.construct(_bars(["AAPL", "MSFT"]),
                                pd.Timestamp("2026-06-15"), 5_000.0)
         assert len(specs) == 2
@@ -106,7 +112,7 @@ class TestOrderConstructor:
         signals = [{"ticker": "AAPL", "side": "long", "strength": 0.8},
                    {"ticker": "MSFT", "side": "short", "strength": 0.6},
                    {"ticker": "SPY", "side": "none", "strength": 0.0}]
-        ctor = PaperOrderConstructor(_FakeAlpha(signals), port, _FakeRisk(), PaperConfig())
+        ctor = PaperOrderConstructor(_FakeAlpha(signals), port, _FakeRisk(), PaperConfig(allocator="adaptive"))
         ctor.construct(_bars(["AAPL", "MSFT", "SPY"]), pd.Timestamp("2026-06-15"), 5_000.0)
         assert port.last_signal_map["AAPL"] == pytest.approx(0.8)
         assert port.last_signal_map["MSFT"] == pytest.approx(-0.6)   # short → negative
@@ -115,14 +121,14 @@ class TestOrderConstructor:
     def test_exit_routes_to_cls_under_moo_moc(self):
         signals = [{"ticker": "AAPL", "side": "exit", "strength": 1.0}]
         ctor = PaperOrderConstructor(_FakeAlpha(signals), _FakePortfolio(),
-                                     _FakeRisk(), PaperConfig(auction_execution="moo_moc"))
+                                     _FakeRisk(), PaperConfig(allocator="adaptive", auction_execution="moo_moc"))
         specs = ctor.construct(_bars(["AAPL"]), pd.Timestamp("2026-06-15"), 5_000.0)
         assert specs[0].side == "sell" and specs[0].tif == "cls"
 
     def test_exit_routes_to_opg_under_moo(self):
         signals = [{"ticker": "AAPL", "side": "exit", "strength": 1.0}]
         ctor = PaperOrderConstructor(_FakeAlpha(signals), _FakePortfolio(),
-                                     _FakeRisk(), PaperConfig(auction_execution="moo"))
+                                     _FakeRisk(), PaperConfig(allocator="adaptive", auction_execution="moo"))
         specs = ctor.construct(_bars(["AAPL"]), pd.Timestamp("2026-06-15"), 5_000.0)
         assert specs[0].tif == "opg"
 
@@ -130,7 +136,7 @@ class TestOrderConstructor:
         from paper_trader import OrderManager, FakePaperClient, TimeInForce
         signals = [{"ticker": "AAPL", "side": "long", "strength": 0.8}]
         ctor = PaperOrderConstructor(_FakeAlpha(signals), _FakePortfolio(),
-                                     _FakeRisk(), PaperConfig())
+                                     _FakeRisk(), PaperConfig(allocator="adaptive"))
         spec = ctor.construct(_bars(["AAPL"]), pd.Timestamp("2026-06-15"), 5_000.0)[0]
         # stage_args feed straight into OrderManager.stage(**args)
         mgr = OrderManager(FakePaperClient(), journal_path="/tmp/_t163_x.jsonl",
