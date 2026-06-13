@@ -220,7 +220,19 @@ class DataManager:
 
             # Standard YFinance Path (Live/Current only)
             pass
-            
+
+        # T-2026-06-13-164 (P0): hermetic gate on the LIVE fundamentals fetch.
+        # This fall-through was the ONE network path T-155 left unguarded (cf.
+        # _fetch_yfinance above + the earnings pin). Under hermetic/measured
+        # runs the live yfinance call aborts the whole run — current main made
+        # ZERO cloud trades because a resolved name without a baked fundamentals
+        # parquet reached here. Gate BEFORE the try (strict mode not swallowed);
+        # empty frame == the no-data outcome fundamental_value already handles
+        # (scores 0 + continues), so the run COMPLETES instead of aborting.
+        from core.hermetic import hermetic_block
+        if hermetic_block("data_manager.fetch_historical_fundamentals", ticker):
+            return pd.DataFrame()
+
         try:
             print(f"DEBUG: Deep fetch for {ticker}...")
             t = yf.Ticker(ticker)
