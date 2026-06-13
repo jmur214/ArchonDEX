@@ -157,3 +157,42 @@ sustained **60-day paper run (go-live) is a separate step**, gated on:
 - PR-4 (hard-gated): archive `live_trader/` + `storage/state_manager.py`
   + `brokers/alpaca_broker.py`; move the deployment boundary.
 - A real weekday fill transcript (one driver run on a trading day).
+
+---
+
+# ADDENDUM — T-163-fix (2026-06-13): adversarial-review blockers + majors closed
+
+The 17-agent adversarial review returned **block** on two dimensions —
+all findings in the real-Alpaca-broker-vs-test-stub gap (the
+silent-failure class). The architecture was affirmed ("the core design
+is the right shape"); the holes were in error handling. All seven are
+now closed, each with a test that fails-before / passes-after. 91 paper
+tests green; re-verified on the live paper account.
+
+| ID | Defect | Fix | Test |
+|---|---|---|---|
+| **B1** | `get_order`/`cancel_order` swallowed ALL exceptions → None/False; consumers reverted-to-STAGED / marked-flat on a transient failure (double-submit / believe-flat-while-live) | `get_order` is TRI-STATE (dict / `ORDER_ABSENT` 404 / `ORDER_UNKNOWN`); `cancel_order` True only on confirmed-or-provably-absent. `reconcile_with_broker` reverts SUBMITTED→STAGED ONLY on definitive ABSENT; `cancel`/`expire_unfilled` terminalize ONLY on a confirmed cancel or provable absence — UNKNOWN leaves the order OPEN | `TestB1TransientVsAbsent` ×5 |
+| **B2** | `_is_duplicate_coid` required `client_order_id` (underscores); Alpaca's real body is `{"code":42210000,"message":"client order id must be unique."}` (spaces) → adopt-on-duplicate was DEAD | detect by structured `code==42210000` + message fallback matching the REAL text | `TestB2RealApiError` ×4 (constructs the real `APIError`) |
+| **M1** | armed batch-submit/expire had no per-order handling + no try/finally → one raise aborted the day mid-batch (partially-submitted, unreconciled book) | per-order try/except (record + continue) + a try/finally guaranteeing the EOD reconcile/snapshot always runs | `TestM1ErrorHandling` ×2 |
+| **M2** | preflight logged "BLOCKED" on `not clean` but the gate fires on `halt` → non-halt findings printed BLOCKED while submission PROCEEDED | the log now matches the gate: only HALT → BLOCKED; non-halt findings → PROCEEDS | `TestM2TruthfulPreflightLog` ×2 |
+| **M3** | a clean integer qty-ratio on a held name was soothed to corporate_action (manual, no halt) — same shape as a double-counted fill | a ratio ALONE no longer downgrades; held-name morph is corporate_action ONLY with the explicit feed; ratio-without-feed still HALTS | `TestCrit5*` (updated) |
+| **M4** | allocator had a silent `"adaptive"` default + was never a gate → paper would silently run the local machine (the T-158 trap) | `PaperConfig.allocator` is REQUIRED (bare `PaperConfig()` raises); arming is a HARD interlock that FAILS LOUD unless paper allocator == director-designated | `TestM4AllocatorInterlock` ×4 |
+| **M5** | halt-gates-submit was tested only in dry-run (vacuously true) | a test with `armed=True, dry_run=False` + a halt asserts ZERO broker POSTs | `TestM5ArmedHaltZeroPosts` |
+
+Minors folded: the paper client refuses any non-paper `url_override`;
+the driver requires `--confirm` to arm.
+
+**The false positives the review's refutation pass cleared were NOT
+chased** (transient-GET-as-standalone — subsumed by B1+B2;
+crit-2-untested — already covered; done_for_day — auction orders are
+single-session; not-armed-untested — already covered).
+
+**Re-verification on the live paper account** (armed, `--confirm`):
+real chain staged → submit_opg ARMED (real POST, `accepted`, broker_id)
+→ 3/3 reconcile clean → eod confirmed-cancel; account left FLAT;
+preflight log now reads "CLEAN — proceed". The allocator interlock and
+the `--confirm` refusal both fired as designed.
+
+**Scope:** `paper_trader/` + its tests + the driver only (diff-stat
+above). No live_trader/Engine B/config edits; engine imports read-only.
+Ready for director re-review.
