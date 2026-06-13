@@ -35,7 +35,20 @@ from paper_trader.reconciliation import (
     ReconcileFinding,
     ALL_CLASSES,
 )
-from paper_trader.scheduler import PaperScheduler, DaySummary, DAILY_CLOCK
+from paper_trader.scheduler import (
+    PaperScheduler,
+    DaySummary,
+    DAILY_CLOCK,
+    PR3_ENTRY_CRITERIA_CLOSED,
+)
+from paper_trader.paper_config import PaperConfig, VALID_ALLOCATORS
+from paper_trader.order_construction import PaperOrderConstructor, OrderSpec
+from paper_trader.paper_telemetry import (
+    DivergenceShadow,
+    PromotionReport,
+    RouterShadow,
+    SafefWeeklyJob,
+)
 
 __all__ = [
     "OrderManager",
@@ -56,4 +69,13 @@ __all__ = [
     "PaperScheduler",
     "DaySummary",
     "DAILY_CLOCK",
+    "PR3_ENTRY_CRITERIA_CLOSED",
+    "PaperConfig",
+    "VALID_ALLOCATORS",
+    "PaperOrderConstructor",
+    "OrderSpec",
+    "DivergenceShadow",
+    "PromotionReport",
+    "RouterShadow",
+    "SafefWeeklyJob",
 ]
