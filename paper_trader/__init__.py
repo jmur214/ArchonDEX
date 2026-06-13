@@ -28,6 +28,14 @@ from paper_trader.paper_client import (
     FakePaperClient,
     PaperClient,
 )
+from paper_trader.reconciliation import (
+    ReconciliationEngine,
+    ReconcileInputs,
+    ReconcileResult,
+    ReconcileFinding,
+    ALL_CLASSES,
+)
+from paper_trader.scheduler import PaperScheduler, DaySummary, DAILY_CLOCK
 
 __all__ = [
     "OrderManager",
@@ -40,4 +48,12 @@ __all__ = [
     "AlpacaPaperClient",
     "FakePaperClient",
     "PaperClient",
+    "ReconciliationEngine",
+    "ReconcileInputs",
+    "ReconcileResult",
+    "ReconcileFinding",
+    "ALL_CLASSES",
+    "PaperScheduler",
+    "DaySummary",
+    "DAILY_CLOCK",
 ]
