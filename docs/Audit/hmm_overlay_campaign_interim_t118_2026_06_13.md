@@ -46,6 +46,23 @@ Contrast the original T-118 firing proof (`docs/Audit/hmm_transition_trigger_ove
 
 > The empirical cloud result corroborates beyond 2022: the 26yr window contains fresh benign→stress transitions (2008, 2020, 2011, 2018) — yet **no 26yr cell across any config produced a novel canon**, so the crisis-model overlay didn't arm on those either (or armed so marginally it changed nothing). The combination {crisis model × δ≥0.30 grid} is inert end-to-end.
 
+## 3b. CORRECTION (full 52/52 + the v1-blind disambiguator) — the primary cause is the THRESHOLD, not the model
+
+The interim above (written at 42/52) hypothesized the non-firing was primarily **model-driven** (crisis posterior level-like) and predicted the v1-blind arm (V1 model + δ=0.30) would likely ARM. **The data refuted that prediction.** Final 52/52, still **0 novel canons**, and both v1-blind cells are inert:
+
+| Model | δ | Window | Armed? | Source |
+|---|---|---|---|---|
+| V1 | 0.20 | 2022 | **YES** (`97875aeb`) | original T-118 firing proof |
+| crisis | 0.20 | 2022 | NO | T-153-style mech test, RUN C |
+| crisis | 0.30 | 2022 | NO | mech test RUN B |
+| **V1** | **0.30** | **16yr** | **NO** (`62db5c0d`) | v1-blind cloud cell |
+| **V1** | **0.30** | **26yr** | **NO** (`529e5520`) | v1-blind cloud cell |
+| crisis | 0.30–0.50 | 16yr/26yr | NO (all 24 grid arms) | the campaign |
+
+**Corrected attribution:** the dominant, **model-independent** cause is that **the grid's δ floor (0.30) sits above the trigger's firing threshold** — δ=0.30 fired in *nothing* tested (V1 or crisis, any window). The crisis model is a **secondary, compounding** factor: at δ=0.20 the V1 posterior fires but the crisis posterior does not (so the crisis model needs an even lower δ than V1 — consistent with its more level-like posterior). But that distinction is moot for THIS grid, which never goes below δ=0.30. **Headline: the pre-registered grid (δ∈{0.30,0.40,0.50}) was calibrated above the firing threshold for both models — the experiment was structurally incapable of firing the overlay regardless of which model drove it.**
+
+This sharpens §4: the re-run's binding fix is **a lower δ that is firing-verified on a known transition** (and a re-examination of whether a Δ-trigger is the right formulation at all, per T-105). The model choice (crisis vs V1) is a second-order tuning question beneath that.
+
 ## 4. Implication: the LOCKED grid cannot answer the question on the crisis model
 
 The frozen T-118 gate (ci_low>0 on the Sharpe DIFFERENCE, MDD −≥25%, no single-event) and the LOCKED T-118b crisis-replay read presuppose an overlay that *acts*. On the crisis model with the pre-registered δ-grid, the overlay does not act, so:
