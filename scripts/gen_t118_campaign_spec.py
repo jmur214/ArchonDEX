@@ -123,6 +123,18 @@ def main() -> None:
         "campaign_id": "t118-hmm-transition-overlay",
         "windows": WINDOWS,
         "reps": args.reps,
+        # T-140 canon-anchor gate: arm0 carries the crisis-model patch (which
+        # is PROVEN canon-invariant at overlay-OFF — T-118-RUN STEP 1), so the
+        # launcher needs the explicit anchor block. These are B's T-155 Part 3
+        # published anchors (9/9 bitwise-unanimous, canon continuity): the
+        # in-campaign arm0 cells must reproduce them on the same image.
+        "anchor": {
+            "canon_md5": "529e55204a92462337169fb0b3f3a4fd",
+            "source": ("T-155 Part 3 anchors, 26yr arm0 (≡T-127 bitwise; Sharpe 0.237). "
+                       "16yr companion anchor: 62db5c0d/1.021. arm0's crisis-model patch "
+                       "is canon-invariant at overlay-OFF per T-118-RUN STEP 1."),
+            "image": "sha-5323a3c",
+        },
         "arms": arms,
     }
     out = Path(args.out)
