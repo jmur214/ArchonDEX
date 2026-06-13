@@ -40,14 +40,20 @@ biased upper bound, and **0 of 11 edges clear a factor-α t>2 bar**. So the prog
 2. **New-alpha track** — industrialize published literature through the falsification
    gauntlet rather than inventing artisanal edges.
 
-**The current objective (this week).** The full reproducibility/anchor saga is
-**closed** — the cloud anchors are published and bitwise-reproducible. Two cloud
-campaigns are **in flight on those anchors**: **C's T-118 HMM transition-trigger
-de-gross overlay** (the headline risk-track experiment) and **A's sleeve A/B
-close-out**. When those land, "the fork" convenes — a strategic decision on
-architecture/mission direction — with its full measurement base now complete. In
-parallel, **paper trading was just approved** (design-only so far) and E is building
-the order-execution plumbing.
+**The current objective (this week).** ⚠️ **UPDATED 2026-06-13 — the reproducibility
+saga is NOT closed (see §9).** The T-155 anchors were published 2026-06-12 and the
+director fired two relaunches on them, but A's sleeve relaunch (T-128-CO) immediately
+caught the anchors **failing to reproduce on their own certified image** — the
+placement lottery survives T-140's thread pins (a composition-level FP source in the
+cov()→MVO path). So the live objective is now: **B bisects and pins/characterizes that
+FP source (T-140-followup-2, the P0 critical path)**, after which the held verdicts
+re-run. The two cloud campaigns — **C's T-118 HMM transition-trigger de-gross overlay**
+(the headline risk-track experiment) and **A's sleeve A/B close-out** — are
+**lottery-exposed**: A's is INVALID at 16-yr/ungated at 26-yr; C's T-118 verdict is
+HELD. When the determinism fix lands and those verdicts re-run clean, "the fork"
+convenes (its non-determinism inputs are otherwise complete). In parallel, **paper
+trading was approved** (design-only so far) and E is building the order-execution
+plumbing (T-160).
 
 A newer user directive (2026-06-11, `docs/State/forward_plan.md` top block) reframes
 the search: **stop requiring every candidate to be all-weather** — decompose into
@@ -299,11 +305,19 @@ launch CSV at `data/cloud_runs/substrate_<ts>.csv`; the narrative verdict → a
 ## 6. Evaluation — how we judge success
 
 **The unit of determinism: `canon_md5`** — the md5 of the run's `trades.csv`. Two runs
-of the same commit+substrate must produce the **same canon** (proven 3-builds-1-canon).
-Cross-container determinism is the gold standard (local `--runs N` can't see the
-FP-summation-order class of bug). **Anchors** are the published reference canons:
-26-yr `529e5520`/Sharpe 0.237, 16-yr `62db5c0d`/1.021, 2022 `0a62b754`/1.6 — image
-`sha-5323a3c`, job def `archondex-backtest-t155-anchor:3` (per Agent B's T-155 outbox).
+of the same commit+substrate *should* produce the **same canon**. Cross-container
+determinism is the gold standard (local `--runs N` can't see the FP-summation-order
+class of bug). **⚠️ As of 2026-06-13 cloud determinism is NOT fully achieved (see §9):**
+the T-140 thread pins fixed the eigh/SLSQP *kernels* (proven 8/8 + 6/6 bitwise) but a
+*composition-level* FP source in the cov()→MVO path survives, so a fraction of cloud
+cells draw a minority canon ("the placement lottery"). The **anchors** (26-yr
+`529e5520`/0.237, 16-yr `62db5c0d`/1.021, 2022 `0a62b754`/1.6 — image `sha-5323a3c`,
+job def `archondex-backtest-t155-anchor:3`) are the *majority-attractor* canons but are
+**NOT durable**: A's relaunch drew 16-yr `9153ff15`/0.945 and split the 2022 canary
+2-vs-1 on the certified image. **Standing gate: no cloud verdict clears until its arm0
+anchor reproduces at N≥5-per-window unanimity AND arm cells are reproducible** —
+single draws are exploratory only. Every campaign carries the arm0 anchor cell as a
+hard gate (which is what caught this).
 
 **Statistical gates (non-negotiables in `CLAUDE.md`; full numbers in
 `docs/Core/NON_NEGOTIABLES.md` and `docs/Audit/honest_n_mbl_computation_2026_05_12.md`):**
@@ -339,45 +353,51 @@ the live dashboard `docs/State/CURRENT_STATE.md`.
 
 ## 7. Current state & next steps
 
-**Most recently completed (merged to main):**
-- **T-155 Part 3 — THE ANCHORS** (`4dbbbf0`): 9/9 bitwise-unanimous, **canon
-  continuity on every window** (the feared hermetic re-baseline never happened). The
-  T-128 placement-lottery + bytecode + data-drift saga is fully closed. Fleet is ARM64;
-  CI (GitHub Actions) is the canonical build venue.
-- T-154 (survivor inflation −3.54pp lower bound; risk-adjusted verdicts survive),
-  T-157 (LPS unharvestable verdict survives the auction model), T-158 (the **allocator
-  divergence** — see §9), T-159 (paper-trading readiness design), T-156 (outside-dev
-  review, independently verified).
+> **⚠️ This section was rewritten 2026-06-13 after the T-128-CO P0.** The 2026-06-12
+> snapshot here said the anchor saga was closed and the campaigns were clean — both
+> reversed by A's relaunch. Below is the corrected state.
 
-**In flight (per worker outboxes / branch HEADs at this snapshot):**
-- **C — T-118 de-gross campaign RUNNING** on the published anchors: 52 cells, ~34
-  running / ~21 runnable, 0 failed (per C's outbox). Launch branch
-  `feature/hmm-transition-trigger-overlay-t118-launch`. Verdict is hours out; analysis
-  follows the frozen gate + the LOCKED T-118b read.
-- **C — T-162 reported DONE but NOT YET MERGED** (see the loose end below).
-- **A — sleeve A/B close-out relaunch** dispatched (`feature/spot-sleeve-closeout-relaunch`);
-  self-report not yet in (status UNCONFIRMED).
-- **E — T-160** (paper-loop PR-1 OrderManager/journal/ledger + PR-2 reconciliation/
-  dry-run scheduler, pure-new `paper_trader/`) dispatched; not yet confirmed started.
-- **D — T-161** (harness fixes: `ensure_data` timeout, PIT-mask fail-loud, OFF-proof
-  close-out) dispatched; not yet confirmed started.
-- **B — FREE** (T-155 closed).
+**Most recently completed (merged to main):**
+- **T-128-CO (`734d204`) — P0: THE ANCHORS ARE NOT DURABLE.** A's sleeve relaunch caught
+  the T-155 anchors failing to reproduce on their own certified image; the placement
+  lottery survives the T-140 thread pins (composition-level cov()→MVO FP source). This
+  **supersedes T-155's "canon continuity / lottery resolved" claim** (`4dbbbf0`) — that
+  9/9 was a lucky N=3/window draw. See §9.
+- **T-162 (`e2b757a`) — allocator-vs-BLAS = H-mix:** the Apr-23 allocator artifact
+  explains ~all of the local↔cloud Sharpe split (~1.1 Sharpe on the 2022 cell); small
+  irreducible BLAS residual. LOCAL result, unaffected by the (cloud) lottery.
+- Earlier this cycle: T-154 (survivor inflation −3.54pp lower bound; risk-adjusted
+  verdicts survive), T-157 (LPS unharvestable survives the auction model), T-158
+  (allocator divergence — see §9), T-159 (paper-readiness design), T-156 (outside-dev
+  review), T-155 (anchors published, ARM64/CI build path — but see the P0 above).
+
+**In flight:**
+- **B — T-140-followup-2 (THE P0 CRITICAL PATH, dispatched 2026-06-13):** bisect the
+  cov()→MVO composition, capture the Σ-matrix bytes per task in a real run, name + pin
+  the surviving FP source (or prove it irreducible → N≥5/cell becomes permanent).
+  **Everything downstream waits on this.**
+- **C — T-118 de-gross campaign: VERDICT HELD (lottery-exposed).** Cells ran on the
+  anchors, but it spans 16-yr (arm0 anchor == the unstable 1.021) + 26-yr with
+  independent-task arms, so the Sharpe-difference gate inherits lottery noise. C
+  dispatched to report per-window arm0 anchor checks, treat the batch as exploratory,
+  and re-run the gate after B's fix or with N≥5/cell.
+- **A — sleeve A/B DONE as a P0** (T-128-CO); harness staged to re-run post-B. A free.
+- **E — T-160** (paper-loop PR-1/PR-2, pure-new `paper_trader/`); status: confirm.
+- **D — T-161** (harness fixes: `ensure_data` timeout, PIT-mask fail-loud); status: confirm.
 
 **Concrete next tasks the collaborator (as director) should pick up, in order:**
-1. **⚠️ Merge T-162** — Agent C's outbox reports it DONE (branch
-   `feature/allocator-disambig-t162`, pre-reg commit `48393fd`, result `e2cba84`) with a
-   clean **H-mix** verdict (the Apr-23 allocator artifact explains ~all of the local↔cloud
-   Sharpe split — worth ~1.1 Sharpe on the 2022 cell — with a small irreducible BLAS
-   residual). It is verified-pre-registered and ready; the director just needs to merge +
-   write the ledger row + reconcile CURRENT_STATE. **This is the top loose end.**
-2. **Monitor the T-118 campaign**; when cells land, run the frozen-gate + T-118b analysis.
-3. **The director-held allocator-identity decision** (now evidence-complete via T-162):
+1. **Wait on / monitor B's T-140-followup-2** — it is the critical path; the lottery
+   blocks every cloud verdict (sleeve, T-118, and the future enable-A/B batch).
+2. **When B reports:** if the FP source is pinned → re-run C's T-118 gate read + A's
+   sleeve harness clean (single draws OK again). If irreducible → adopt N≥5/cell as the
+   permanent cloud measurement protocol and re-run with reps.
+3. **The director-held allocator-identity decision** (evidence-complete via T-162):
    archive the `data/research/allocation_recommendations.json` Apr-23 artifact vs commit
-   its intent to config. **Deliberately deferred to post-anchors**; it decides which
-   system every *local* number describes. Largest single behavioral lever since the
-   metrics-pipeline bug.
-4. **Pre-register the enable-A/B batch** (T-148 buffering enable + T-153 vol-estimator
-   enable specs) BEFORE dispatching to the (free) Agent B.
+   its intent to config. It decides which system every *local* number describes (~1.1
+   Sharpe lever). Still deferred until the lottery is resolved (don't perturb local
+   canons mid-investigation).
+4. **Pre-register the enable-A/B batch** (T-148 buffering + T-153 vol-estimator) BEFORE
+   dispatching to B — but only after the lottery fix, since these are cloud A/Bs too.
 5. **When T-118 + sleeve verdicts are in → convene "the fork"** (the architecture/mission
    decision) with the 2026-06-11 conditional-sleeve directive on the table.
 6. **Optional/cosmetic (user, AWS console):** add `ecr:BatchGetImage` to the CI role —
@@ -437,7 +457,27 @@ before); write a session summary to `docs/Sessions/<YYYY-MM>/`.
 
 ## 9. Known issues & gotchas
 
-- **🔴 THE ALLOCATOR DIVERGENCE (T-158, the biggest live gotcha).** Local and cloud
+- **🔴🔴 THE PLACEMENT LOTTERY IS LIVE (T-128-CO, the #1 P0 — added 2026-06-13).** Cloud
+  backtest canons are **not fully deterministic**: a fraction of Fargate tasks draw a
+  *minority* canon for the same image+config+substrate. T-140's thread pins fixed the
+  eigh/SLSQP **kernels** (proven 8/8 + 6/6 bitwise) but a **composition-level FP source
+  in the `returns_df.cov() → MVO` path** survives — FP-dust on zero-weight names (e.g.
+  `BKNG 3.73e-17` vs `0.0`) tips a downstream rounding/min-notional/whole-share threshold
+  and flips a trade, which the `canon_md5` over `trades.csv` records. **Evidence:** A's
+  relaunch on the *certified* image drew 16-yr `9153ff15`/0.945 instead of the published
+  `62db5c0d`/1.021, and split the 2022 canary **2-vs-1 within one pinned batch**;
+  cross-check shows 3/6 cells reproduce bitwise across two images, 3 flip (image-
+  independent). **Consequences:** (a) the T-155 anchors are NOT durable — do not trust a
+  single cloud cell; (b) **every cloud verdict needs its arm0 anchor to reproduce at
+  N≥5/window unanimity AND its arm cells to be reproducible** before it clears a gate
+  (single draws = exploratory); (c) **A/B deltas across independent task draws carry the
+  lottery noise of both arms** — this is why C's T-118 verdict is HELD. The fix is B's
+  T-140-followup-2 (bisect + pin the cov/MVO FP source, or adopt N≥5/cell permanently).
+  Note this is the **mean_variance/cov→MVO path the CLOUD runs** (per the allocator
+  divergence below) — local (adaptive) runs don't exercise it the same way.
+  *(Director note: the prior "lottery resolved" stamp was a premature read of a lucky
+  9/9 batch; the launcher's hard anchor-gate is what caught the error.)*
+- **🔴 THE ALLOCATOR DIVERGENCE (T-158).** Local and cloud
   have run **different trading systems** since 2026-04-23. A learned artifact,
   `data/research/allocation_recommendations.json` (fail-quiet loader, `mode` in the
   override safe-keys at `engines/engine_c_portfolio/policy.py:138`), flips every **local**
