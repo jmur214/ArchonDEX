@@ -65,11 +65,21 @@ git archive "$SHA" | tar -x -C "$STAGE"
 
 echo "[build] staging data substrate (symlinks followed, junk excluded)"
 mkdir -p "$STAGE/data"
-for d in processed raw; do
+# T-2026-06-13-164: data/macro added — the Dockerfile now COPYs it (the regime
+# detector's VIX/FRED panel; never baked before → cloud regime was 'unknown'
+# on every run). It is also in the manifest's SUBSTRATE_DIRS. Staging MUST
+# match the Dockerfile COPY set + the manifest, or the build fails at COPY /
+# the verify drifts.
+for d in processed raw macro; do
     rsync -aL \
         --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
         "data/$d" "$STAGE/data/"
 done
+# T-164: the PIT S&P-500 membership panel — a single curated file (NOT all of
+# data/universe/, which holds the bulky rebuildable scrape cache). Mirrors the
+# manifest's SUBSTRATE_FILES and the Dockerfile's file-level COPY.
+mkdir -p "$STAGE/data/universe"
+rsync -aL "data/universe/sp500_membership.parquet" "$STAGE/data/universe/"
 # T-2026-06-10-133: LIVE mutable governor files are NOT baked. T-131
 # proved they are canon-irrelevant (isolated() restores every scoped
 # file from _isolated_anchor/ ON ENTRY; edge_metrics/decision_diary are
