@@ -1,4 +1,6 @@
 
+import os
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
@@ -86,12 +88,46 @@ class PortfolioOptimizer:
         
         # Run Solver
         res = minimize(objective, w0, method='SLSQP', bounds=bounds, constraints=cons)
-        
+
         if not res.success:
             print(f"[OPTIMIZER] Warning: Optimization failed: {res.message}")
             return pd.Series(w0, index=tickers) # Fallback
-            
-        return pd.Series(res.x, index=tickers)
+
+        # T-2026-06-13-140-followup-2: canonicalize zero-weight dust.
+        # The cross-task placement lottery (A's T-128-CO bounding) reduces
+        # to FP-dust SLSQP leaves on names it drove toward zero — e.g.
+        # `BKNG 3.73e-17` on one Fargate task vs `0.0` on another, real
+        # weights agreeing to ~15 digits. That sub-epsilon residue tips a
+        # downstream whole-share / min-notional threshold in order
+        # construction and flips a single trade, which canon_md5 records.
+        # Snapping |w| < SNAP_EPS to exactly 0.0 makes the trade decision
+        # robust to it. This is DETERMINISM-ONLY, NOT a math change:
+        # SNAP_EPS=1e-9 is ~8 orders above the observed dust and ~7 orders
+        # BELOW the smallest economically-real weight (a 109-name long-only
+        # book sums to 1 → min real weight ~1e-2), so every meaningful
+        # weight is bitwise-untouched (verified pre/post on a stable cell).
+        # If cross-task canon still splits after this, the residue lives in
+        # the ACTIVE weights (Sigma dust at ~1e-15) — irreducible in
+        # Engine C without a math change — and the protocol falls back to
+        # N>=5-per-cell + minority-canon discard.
+        w = np.asarray(res.x, dtype=np.float64).copy()
+        snap_eps = float(os.environ.get("ARCHONDEX_MVO_SNAP_EPS", "1e-9"))
+        if snap_eps > 0:
+            w[np.abs(w) < snap_eps] = 0.0
+
+        # Env-gated capture probe (T-140-fu2): emit a byte-hash of the RAW
+        # (pre-snap) solver output so a multi-task cloud run can NAME the
+        # first divergent intermediate without any math change. Off by
+        # default; zero cost when unset.
+        if os.environ.get("ARCHONDEX_COV_MVO_PROBE"):
+            import hashlib
+            raw = np.ascontiguousarray(np.asarray(res.x, dtype=np.float64))
+            dust = int(np.sum((np.abs(res.x) > 0) & (np.abs(res.x) < snap_eps)))
+            print(f"[COVMVO_PROBE] raw_w_hash={hashlib.md5(raw.tobytes()).hexdigest()[:12]} "
+                  f"snapped_dust_names={dust} n={n} nit={getattr(res, 'nit', '?')}",
+                  flush=True)
+
+        return pd.Series(w, index=tickers)
 
     def calculate_metrics(self, weights: pd.Series, mu: pd.Series, sigma: pd.DataFrame) -> dict:
         w = weights.values
