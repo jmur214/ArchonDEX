@@ -34,7 +34,15 @@ import hashlib
 import sys
 from pathlib import Path
 
-SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor"]
+SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
+# T-2026-06-13-164: curated individual files pinned WITHOUT walking their whole
+# parent dir. sp500_membership.parquet drives the resolved universe and is
+# gitignored — its silent regeneration (T-154) broke historical-universe runs
+# repo-wide. Pinning it makes any future drift a LOUD manifest-verify failure
+# (the T-131 discipline). We pin the file only, NOT data/universe/ — that dir
+# also holds the bulky Wikipedia/Clenow scrape cache (raw_membership_sources/)
+# which is rebuildable and must NOT bloat the image.
+SUBSTRATE_FILES = ["data/universe/sp500_membership.parquet"]
 JUNK_NAMES = {".DS_Store"}
 JUNK_SUFFIXES = {".pyc"}
 JUNK_DIRS = {"__pycache__"}
@@ -104,6 +112,12 @@ def iter_substrate_files(root: Path):
             if rel.as_posix() in LIVE_MUTABLE_GOVERNOR:
                 continue
             yield rel
+    # curated individual files (T-164)
+    for f in SUBSTRATE_FILES:
+        if (root / f).resolve().is_file():
+            yield Path(f)
+        else:
+            print(f"WARN: curated substrate file missing: {root / f}", file=sys.stderr)
 
 
 def hash_file(path: Path) -> str:
