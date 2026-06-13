@@ -43,3 +43,11 @@ With p(minority)≈0.4 (measured), a simple majority over N reps mis-calls the c
 - `engines/engine_c_portfolio/policy.py` — both cov sites wired to the helper.
 - `/tmp/t140fu3_covpin.py` — candidate eval (einsum-no-opt vs addreduce vs pandas; einsum chosen: 1.6ms, 7.8e-16, byte-stable).
 - Branch `feature/determinism-cov-pin-t140fu3` @ 11ff735 (pushed, NOT merged).
+
+## Cloud-proof attempt #1 (2026-06-13) — STILL BLOCKED (current main zero-trades)
+Ran N=5 / 2022 on `sha-599e577` (current main HEAD, **includes the merged cov-pin**), cov-pin ON, hermetic ON. **All 5 cells empty** (`d41d8cd9`/0.0) → current main STILL produces zero trades. So:
+- The cloud determinism proof remains BLOCKED on T-164 substrate-completeness (D's reframe: `data/macro` never baked → regime layer dead; the fundamentals-fetch zero-trades persists on the newest image).
+- This independently confirms the zero-trades is the **baseline substrate, not my image** (the newest main image `sha-599e577` is empty too — my earlier `d0cdf6e` was not special).
+- The all-empty unanimity is trivial (empty≡empty) and says NOTHING about the lottery (which only manifests with trades). The cov-pin proof is genuinely un-runnable until a trading current-main image exists.
+
+**Decision (not spinning):** I will NOT burn a QEMU build proving the cov-pin on the old `5323a3c` source right now — D is mid-reframe of the entire substrate (regime layer dead, T-164 expanded to trades-AND-regime-live), so any pre-T-164 build would prove the determinism point on a soon-superseded, regime-blind substrate. The mechanistic case (gemm removed → Sigma deterministic by construction) + the local byte-stability + 7.8e-16 math-safety stand; the cross-task cloud proof fires the moment T-164 lands a trading+regime-live image. (If the director wants the determinism question answered immediately regardless of regime-completeness, the unblocked path is: cherry-pick the cov-pin onto `5323a3c` source → build → N≥5 — offered, not taken unilaterally.)
