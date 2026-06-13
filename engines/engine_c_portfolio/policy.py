@@ -1,6 +1,8 @@
 # engines/engine_c_portfolio/policy.py
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
@@ -206,7 +208,21 @@ class PortfolioPolicy:
             else:
                 sigma_df = returns_df.cov() * 252.0
                 mu_series = mu_series.reindex(sigma_df.columns).fillna(0.0)
-                
+
+                # T-140-fu2 env-gated capture probe: byte-hash each
+                # intermediate so a multi-task cloud run can NAME the first
+                # bitwise-divergent array (returns_df -> Sigma -> mu) in the
+                # cov->MVO composition. Off by default; zero cost when unset.
+                if os.environ.get("ARCHONDEX_COV_MVO_PROBE"):
+                    import hashlib as _hl
+                    def _h(a):
+                        return _hl.md5(np.ascontiguousarray(
+                            np.asarray(a, dtype=np.float64)).tobytes()).hexdigest()[:12]
+                    _cols = _hl.md5("|".join(map(str, returns_df.columns)).encode()).hexdigest()[:12]
+                    print(f"[COVMVO_PROBE] cols={_cols} returns_hash={_h(returns_df.values)} "
+                          f"sigma_hash={_h(sigma_df.values)} mu_hash={_h(mu_series.values)} "
+                          f"nrows={len(returns_df)}", flush=True)
+
                 # --- Diversification: Load Sector Map ---
                 import json
                 import os
