@@ -41,7 +41,11 @@ from paper_trader.scheduler import (
     DAILY_CLOCK,
     PR3_ENTRY_CRITERIA_CLOSED,
 )
-from paper_trader.paper_config import PaperConfig, VALID_ALLOCATORS
+from paper_trader.paper_config import (
+    PaperConfig,
+    VALID_ALLOCATORS,
+    load_designated_allocator,
+)
 from paper_trader.order_construction import PaperOrderConstructor, OrderSpec
 from paper_trader.paper_telemetry import (
     DivergenceShadow,
@@ -72,6 +76,7 @@ __all__ = [
     "PR3_ENTRY_CRITERIA_CLOSED",
     "PaperConfig",
     "VALID_ALLOCATORS",
+    "load_designated_allocator",
     "PaperOrderConstructor",
     "OrderSpec",
     "DivergenceShadow",

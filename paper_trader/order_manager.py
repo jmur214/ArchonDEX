@@ -31,12 +31,24 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from paper_trader._jsonl import JsonlStore
-from paper_trader.paper_client import ORDER_ABSENT, ORDER_UNKNOWN
+from paper_trader.paper_client import (
+    ORDER_ABSENT,
+    ORDER_UNKNOWN,
+    classify_broker_error,
+    ERR_DUPLICATE,
+)
 
 
 def _is_order_dict(resp) -> bool:
     """A get_order result that is an actual order (not a sentinel)."""
     return isinstance(resp, dict)
+
+
+def _is_duplicate_coid(exc: Exception) -> bool:
+    """T-163-fix2 SURFACE 1: delegate to the SINGLE hardened broker-error
+    classifier (never raises; structured-signal absence; body-safe
+    message). One classifier, applied everywhere."""
+    return classify_broker_error(exc) == ERR_DUPLICATE
 
 
 class OrderState(str, Enum):
@@ -75,6 +87,10 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
     "suspended": OrderState.ACKED,
     "partially_filled": OrderState.PARTIALLY_FILLED,
     "filled": OrderState.FILLED,
+    # done_for_day → CANCELED is SAFE for an OPG/CLS auction order: it is
+    # terminal (the session ended unfilled), and any filled_qty is adopted
+    # SEPARATELY from `resp` before this map is applied — so no fill is
+    # ever lost by terminalizing here (T-163-fix2 minor confirmed).
     "done_for_day": OrderState.CANCELED,
     "canceled": OrderState.CANCELED,
     "expired": OrderState.EXPIRED,
@@ -84,26 +100,6 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
     "pending_replace": None,
     "replaced": None,
 }
-
-
-def _is_duplicate_coid(exc: Exception) -> bool:
-    """A reused client_order_id reject means the order is ALREADY live (a
-    prior POST landed). T-163-fix B2: detect by Alpaca's STRUCTURED error
-    code (42210000) first — the real APIError stringifies to its JSON
-    body ``{"code":42210000,"message":"client order id must be unique."}``
-    ("client order id" with SPACES), which the old underscore-substring
-    matcher missed entirely (dead safety net). Message fallback matches
-    the REAL text."""
-    try:
-        code = getattr(exc, "code", None)
-        if code is not None and int(code) == 42210000:
-            return True
-    except Exception:
-        pass
-    msg = str(getattr(exc, "message", "") or exc).lower()
-    return "must be unique" in msg and (
-        "client order id" in msg or "client_order_id" in msg
-    )
 
 
 def make_client_order_id(
@@ -153,20 +149,28 @@ class OrderManager:
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
+        self.quarantined: List[Dict[str, Any]] = []   # malformed journal lines
         self._replay_from_journal()
         # T-163 crit-2: a restart must reconcile its replayed belief
-        # against broker TRUTH before acting — the journal alone can be
-        # stale (a SUBMITTED-intent record whose POST landed, or didn't).
+        # against broker TRUTH before acting. T-163-fix2 SURFACE 1: a
+        # broker OUTAGE on restart must NOT crash construction — degrade
+        # gracefully (every order then stays exactly as the journal left
+        # it, which is the fail-safe state).
         if reconcile_on_start:
-            self.reconcile_with_broker()
+            try:
+                self.reconcile_with_broker()
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------ #
     def _replay_from_journal(self) -> None:
         """Rebuild in-memory order state from the append-only journal —
         the crash-recovery path. Last event per client_order_id wins.
 
-        Tolerant to OrderRecord schema drift (extra journal keys are
-        dropped) so an older journal still replays."""
+        T-163-fix2 SURFACE 2: DEFENSIVE — a malformed/schema-incomplete
+        line (e.g. a raw error-event missing required fields, or a torn
+        record) is QUARANTINED (logged + skipped), never crashing
+        construction. Extra keys are dropped (schema-drift tolerant)."""
         import inspect
         fields = set(inspect.signature(OrderRecord).parameters)
         for rec in self.journal.read_all():
@@ -175,7 +179,12 @@ class OrderManager:
                 continue
             payload = {k: v for k, v in rec.items()
                        if k != "event" and k in fields}
-            self.orders[coid] = OrderRecord(**payload)
+            try:
+                self.orders[coid] = OrderRecord(**payload)
+            except Exception as exc:
+                # Quarantine, do NOT brick the restart. A prior good
+                # record for this coid (if any) stays in self.orders.
+                self.quarantined.append({"line": rec, "error": type(exc).__name__})
 
     def reconcile_with_broker(self) -> None:
         """T-163 crit-2 (+fix B1): for every replayed non-terminal order,
@@ -208,6 +217,14 @@ class OrderManager:
             order.history.append(new_state.value)
         self.orders[order.client_order_id] = order
         self.journal.append(order.to_journal(event))
+
+    def note_event(self, order: OrderRecord, event: str) -> None:
+        """Journal an annotation (no state change) through the SAME
+        schema-complete path every write uses. T-163-fix2 SURFACE 2: the
+        scheduler's submit-error path MUST use this — a raw partial dict
+        appended directly to the journal bricks the next restart's
+        replay (OrderRecord(**payload) with missing required fields)."""
+        self._record(order, event=event)
 
     # ------------------------------ lifecycle -------------------------- #
     def stage(self, trade_date: str, ticker: str, side: str, qty: int,

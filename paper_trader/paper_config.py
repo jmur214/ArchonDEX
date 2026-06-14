@@ -21,6 +21,25 @@ from typing import Any, Dict
 VALID_ALLOCATORS = ("adaptive", "mean_variance", "parrondo_fixed")
 
 
+def load_designated_allocator(path: str = None):
+    """T-163-fix2 SURFACE 3: the director-owned allocator-identity
+    decision, read from an INDEPENDENT committed source
+    (config/paper_designated_allocator.json) — NOT from the same input
+    that sets the runtime allocator (that was the tautology). Returns the
+    designated allocator string, or None when unset (→ arming refuses).
+    Never raises."""
+    from pathlib import Path
+    import json as _json
+    p = Path(path) if path else (
+        Path(__file__).resolve().parents[1] / "config" /
+        "paper_designated_allocator.json")
+    try:
+        with open(p, "r") as fh:
+            return (_json.load(fh) or {}).get("designated_allocator")
+    except Exception:
+        return None
+
+
 @dataclass
 class PaperConfig:
     # T-163-fix M4 + T-158: the allocator is a REQUIRED field — NO silent

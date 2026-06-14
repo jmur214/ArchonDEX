@@ -1,0 +1,14 @@
+{
+    "_doc": [
+        "T-158 allocator-identity decision — the INDEPENDENT source of truth for the",
+        "paper-loop arm interlock (T-163-fix2 SURFACE 3). PaperScheduler arms only when",
+        "the runtime PaperConfig.allocator EQUALS designated_allocator below. This file",
+        "is DIRECTOR-OWNED: it must NOT be set from the same place that picks the runtime",
+        "allocator (that was the tautology the re-review caught).",
+        "STATUS: PLACEHOLDER ('adaptive') pending the director's real allocator-identity",
+        "decision (held alongside the T-162 controlled-cell evidence). Overwrite this",
+        "value with the deployed allocator before the 60-day go-live run; set it to null",
+        "to HARD-REFUSE arming until the decision is made."
+    ],
+    "designated_allocator": "adaptive"
+}

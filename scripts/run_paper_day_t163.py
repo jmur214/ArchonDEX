@@ -27,6 +27,7 @@ from paper_trader import (
     AlpacaPaperClient,
     LedgerStore,
     OrderManager,
+    OrderState,
     PaperConfig,
     PaperScheduler,
     PromotionReport,
@@ -37,11 +38,14 @@ from paper_trader import (
 
 def main() -> None:
     import argparse
+    from paper_trader import load_designated_allocator
     ap = argparse.ArgumentParser()
     ap.add_argument("--confirm", action="store_true",
                     help="required to ARM (actually submit to the paper account)")
-    ap.add_argument("--allocator", default="adaptive",
-                    help="EXPLICIT allocator (no silent default in the loop)")
+    ap.add_argument("--allocator", required=True,
+                    help="EXPLICIT runtime allocator (no silent default). The "
+                         "designation comes from config/paper_designated_allocator.json "
+                         "— an INDEPENDENT source — so the interlock can actually fire.")
     args = ap.parse_args()
 
     if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
@@ -49,6 +53,12 @@ def main() -> None:
     if not args.confirm:
         sys.exit("refusing to arm without --confirm (this submits to the "
                  "PAPER account). Re-run with --confirm.")
+    designated = load_designated_allocator()   # INDEPENDENT of --allocator
+    if designated is None:
+        sys.exit("no designated allocator set (config/paper_designated_allocator.json) "
+                 "— the director's T-158 decision is pending; cannot arm.")
+    print(f"runtime allocator (CLI): {args.allocator!r} | "
+          f"designated (independent file): {designated!r}")
     client = AlpacaPaperClient()
     from alpaca.trading.client import TradingClient
     raw = TradingClient(api_key=os.getenv("ALPACA_API_KEY"),
@@ -65,14 +75,17 @@ def main() -> None:
     om = OrderManager(client, journal_path=str(d / "orders.jsonl"))
     led = LedgerStore(str(d / "ledger.jsonl"), starting_cash=bcash, account="roth")
     report = PromotionReport()
-    # M4: arming requires the director-designated allocator to MATCH the
-    # paper config. For this driver the designated == the explicit
-    # --allocator; in production it is the director's decision.
-    sched = PaperScheduler(om, reconcile_log_path=str(d / "recon.jsonl"),
-                           dry_run=False, armed=True, paper_config=cfg,
-                           designated_allocator=args.allocator)
+    # M4 (de-tautologized): the runtime allocator comes from --allocator;
+    # the DESIGNATION comes from the INDEPENDENT committed file. The
+    # interlock fires if they differ (try --allocator mean_variance).
+    try:
+        sched = PaperScheduler(om, reconcile_log_path=str(d / "recon.jsonl"),
+                               dry_run=False, armed=True, paper_config=cfg,
+                               designated_allocator=designated)
+    except ValueError as e:
+        sys.exit(f"ARM REFUSED: {e}")
     print(f"scheduler armed={sched.armed} "
-          f"(criteria + allocator interlock: {cfg.allocator})")
+          f"(runtime {cfg.allocator!r} == designated {designated!r})")
 
     trade_date = "2026-06-15"
     o = om.stage(trade_date, "SPY", "buy", 1, TimeInForce.OPG, cfg.config_hash())
@@ -126,14 +139,22 @@ def main() -> None:
         broker_cash=led.cash(), known_tickers={"SPY"}))
     print(f"5. RECONCILED post-fill -> clean={post.clean} halt={post.halt}")
 
-    # Clean up the real queued order so the paper account stays flat.
-    if not o.state == "filled":
+    # Clean up the real queued order so the paper account stays flat, then
+    # VERIFY (minor): check the ACTUAL broker state, WARN if not flat.
+    if not OrderState(o.state).is_terminal:
         om.cancel(o)
-        print(f"6. CLEANUP  canceled the queued real order -> {o.state}")
+        print(f"6. CLEANUP  cancel requested -> {o.state}")
+    bpos = client.list_positions()
+    bopen = [x for x in client.list_orders()
+             if x["status"] in ("new", "accepted", "partially_filled", "pending_new")]
+    flat = (len(bpos) == 0 and len(bopen) == 0)
+    if not flat:
+        print(f"   !! WARN: paper account NOT flat after cleanup "
+              f"(positions={len(bpos)}, open_orders={len(bopen)})")
 
     print(f"\nRESULT: armed paper day complete | real chain reached '{o.state}' "
           f"on the live paper account | fill leg = {leg} | "
-          f"post-fill reconcile clean={post.clean}")
+          f"post-fill reconcile clean={post.clean} | account_flat={flat}")
     print(f"promotion telemetry so far: {report.snapshot()['slippage_vs_t146']}")
 
 

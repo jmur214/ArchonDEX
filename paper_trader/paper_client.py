@@ -34,34 +34,89 @@ class _Sentinel:
     def __repr__(self) -> str:
         return f"<{self._name}>"
 
+    def __bool__(self) -> bool:
+        # T-163-fix2 minor: sentinels are FALSY so a stray `if resp:` can
+        # never mistake ABSENT/UNKNOWN for a real order.
+        return False
+
 
 ORDER_ABSENT = _Sentinel("ORDER_ABSENT")     # broker PROVABLY has no such order (404)
 ORDER_UNKNOWN = _Sentinel("ORDER_UNKNOWN")   # could not determine — fail-safe, never act
 GetOrderResult = Union[Dict[str, Any], _Sentinel]
 
-# Alpaca error codes we special-case.
+# Alpaca structured error codes (the ONLY signals we trust).
 _DUP_COID_CODE = 42210000        # "client order id must be unique."
 _ORDER_NOT_FOUND_CODE = 40410000  # order not found
 
+# Broker-error classification (the SINGLE hardened classifier — T-163-fix2
+# SURFACE 1). Used by BOTH the absent and the duplicate checks. NEVER
+# raises. Absence is determined by STRUCTURED SIGNAL ONLY (code 40410000
+# or HTTP 404); the old "not found"/"does not exist" message-substring
+# fallback is DELETED — a transient ConnectionError("Name or service not
+# found") must NOT be read as absence (that re-opened the B1 believe-
+# flat-while-live hazard). Everything not provably absent/duplicate →
+# UNKNOWN (fail-safe).
+ERR_ABSENT = "absent"
+ERR_DUPLICATE = "duplicate"
+ERR_UNKNOWN = "unknown"
 
-def _api_error_code(exc: Exception) -> Optional[int]:
-    """Safely read APIError.code (it json-parses the body and can raise)."""
+
+def _safe_code(exc: Exception) -> Optional[int]:
+    """Read APIError.code WITHOUT raising. The .code property json-parses
+    the body and raises on a non-JSON (502/503/timeout) body; getattr's
+    default only catches a MISSING attribute, not an exception thrown
+    INSIDE the property."""
     try:
-        c = getattr(exc, "code", None)
+        c = exc.code           # may raise (property)
         return int(c) if c is not None else None
     except Exception:
         return None
 
 
+def _safe_status_code(exc: Exception) -> Optional[int]:
+    try:
+        return getattr(exc, "status_code", None)
+    except Exception:
+        return None
+
+
+def _safe_message(exc: Exception) -> str:
+    """Read a lowercased message WITHOUT raising (the .message property
+    also json-parses and can raise)."""
+    try:
+        m = exc.message        # may raise (property)
+        if m:
+            return str(m).lower()
+    except Exception:
+        pass
+    try:
+        return str(exc).lower()
+    except Exception:
+        return ""
+
+
+def classify_broker_error(exc: Exception) -> str:
+    """ERR_ABSENT | ERR_DUPLICATE | ERR_UNKNOWN. NEVER raises."""
+    code = _safe_code(exc)
+    if code == _DUP_COID_CODE:
+        return ERR_DUPLICATE
+    if code == _ORDER_NOT_FOUND_CODE:
+        return ERR_ABSENT
+    if _safe_status_code(exc) == 404:
+        return ERR_ABSENT
+    # Duplicate has a body-safe message fallback (the duplicate path is
+    # not a safety hazard if over-detected — it adopts). ABSENCE has NO
+    # message fallback: provable-structured-only.
+    msg = _safe_message(exc)
+    if "must be unique" in msg and (
+        "client order id" in msg or "client_order_id" in msg
+    ):
+        return ERR_DUPLICATE
+    return ERR_UNKNOWN
+
+
 def _is_definitive_absent(exc: Exception) -> bool:
-    """True iff the exception PROVES the order is not at the broker (404 /
-    order-not-found) — as opposed to a transient/indeterminate failure."""
-    if _api_error_code(exc) == _ORDER_NOT_FOUND_CODE:
-        return True
-    if getattr(exc, "status_code", None) == 404:
-        return True
-    msg = str(getattr(exc, "message", "") or exc).lower()
-    return "not found" in msg or "does not exist" in msg
+    return classify_broker_error(exc) == ERR_ABSENT
 
 
 class PaperClient(Protocol):

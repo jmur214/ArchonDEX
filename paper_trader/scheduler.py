@@ -180,16 +180,22 @@ class PaperScheduler:
                             n, errs = 0, 0
                             for o in batch:
                                 try:
+                                    prev = o.state
                                     self.om.submit(o)
                                     self.om.poll(o)
-                                    if o.state != "rejected":
+                                    # Count a genuine submission only: the
+                                    # order LEFT staged and isn't rejected.
+                                    # An idempotent no-op (already SUBMITTED)
+                                    # is NOT a fresh success.
+                                    if (prev == "staged" and o.state != "staged"
+                                            and o.state != "rejected"):
                                         n += 1
                                 except Exception as exc:
                                     errs += 1
-                                    self.om.journal.append({
-                                        "client_order_id": o.client_order_id,
-                                        "event": "submit_error",
-                                        "error": type(exc).__name__})
+                                    # SURFACE 2: schema-complete error
+                                    # record (NOT a raw partial dict).
+                                    self.om.note_event(
+                                        o, f"submit_error:{type(exc).__name__}")
                             summary.submitted_count += n
                             log.note = (f"ARMED(paper): submitted {n}/{len(batch)} "
                                         f"{tag}" + (f" ({errs} errored)" if errs else ""))
