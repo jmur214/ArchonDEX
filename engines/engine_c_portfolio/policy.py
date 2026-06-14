@@ -228,8 +228,15 @@ class PortfolioPolicy:
                           f"nrows={len(returns_df)}", flush=True)
 
                 # --- Diversification: Load Sector Map ---
+                # T-2026-06-13-167: `os` is module-level (line 4). A function-local
+                # `import os` HERE made `os` local to allocate() for the whole
+                # scope, so the earlier os.environ.get(...) at the T-140-fu2
+                # cov→MVO probe (~line 220) raised UnboundLocalError on EVERY
+                # mean_variance bar. The controller's broad except swallowed it →
+                # silent 0-trades. The Apr-23 allocator artifact (adaptive mode)
+                # masked this locally; archiving it (mean_variance = production)
+                # exposed it. Removed the shadowing local import.
                 import json
-                import os
                 sector_map = {}
                 try:
                     # Try default location

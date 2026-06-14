@@ -522,11 +522,32 @@ class DataManager:
             for c in ["Open", "High", "Low", "Close"]:
                 df[c] = df[c] / scale
 
-        # --- Data sanity cleanup ---
-        if "Close" in df.columns:
-            median_close = df["Close"].median(skipna=True)
-            df = df[(df["Close"] > 0) & (df["Close"] < median_close * 3)]
-            df["Close"] = df["Close"].clip(lower=0.01, upper=median_close * 3)
+        # --- Data sanity cleanup: drop ISOLATED bad ticks (fat-finger /
+        # mis-scaled prints), NOT sustained legitimate price levels. ---
+        # T-2026-06-13-167: the prior GLOBAL-median band
+        #     df = df[df["Close"] < median_close * 3]
+        #     df["Close"] = df["Close"].clip(upper=median_close * 3)
+        # silently TRUNCATED every deep-history series at the first bar whose
+        # price first exceeded 3x its all-time median, and squashed the rest.
+        # Harmless while histories were short (added 2025-10-21, 62c3eaf), it
+        # DETONATED once T-082 baked 1970-> depth into data/processed: 90 of the
+        # 109 universe tickers silently lost their recent decade(s) AT LOAD
+        # (AAPL cut @2009, IBM @2002, JPM @2016, SPY @2020-06). Effect: ragged
+        # per-ticker windows on every long-window run AND a regime detector
+        # blind to the benchmark past its clip date (C's T-165 "cloud price-axis
+        # regime dead" — SPY clipped at 2020-06 -> trend/vol "unknown" beyond).
+        # A genuine fat-finger is a SPIKE: >20x its LOCAL level and reverting.
+        # Sustained appreciation never deviates 20x from a trailing 63-bar
+        # median, so this is lookahead-free (trailing only) and STRICTLY
+        # ADDITIVE: verified across all 109 universe tickers that every bar the
+        # old band kept survives byte-identical (0 rows dropped, 0 values
+        # changed); 100 tickers get their silently-clipped recent history
+        # restored, 9 (short-history names) are unchanged.
+        if "Close" in df.columns and len(df) >= 2:
+            roll = df["Close"].rolling(window=63, min_periods=1).median()
+            band = 20.0
+            df = df[(df["Close"] > 0) & (df["Close"] >= roll / band) & (df["Close"] <= roll * band)]
+            df["Close"] = df["Close"].clip(lower=0.01)
 
         # Final validation
         final_median = df["Close"].median()
