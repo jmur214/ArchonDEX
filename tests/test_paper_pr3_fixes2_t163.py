@@ -46,6 +46,28 @@ def _api_error(body):
     return APIError(body)
 
 
+def _api_error_with_status(body, status):
+    """The PRODUCTION shape: APIError(non-JSON body, http_error) where
+    http_error.response.status_code == status (the SDK attaches this)."""
+    from alpaca.common.exceptions import APIError
+
+    class _Resp:
+        status_code = status
+
+    class _HttpErr:
+        response = _Resp()
+
+    return APIError(body, http_error=_HttpErr())
+
+
+def _exc_with_status(status):
+    class E(Exception):
+        pass
+    e = E("transient")
+    e.status_code = status      # stringy or int — must int-coerce
+    return e
+
+
 # ===================================================================== #
 # SURFACE 1 — the REQUIRED error-classifier CONTRACT/PROPERTY test
 # ===================================================================== #
@@ -71,6 +93,14 @@ class TestErrorClassifierContract:
          lambda: TimeoutError("read timed out"), ERR_UNKNOWN),
         ("generic 429 message",
          lambda: RuntimeError("429 too many requests"), ERR_UNKNOWN),
+        # fix3 minor A: the PRODUCTION 404 shape — a non-JSON body with a
+        # real http_error whose response.status_code == 404 → ABSENT
+        # (the structured signal, even when the body isn't JSON).
+        ("APIError non-JSON body + http 404 (production shape)",
+         lambda: _api_error_with_status("<html>404 Not Found</html>", 404), ERR_ABSENT),
+        # fix3 minor B: a stringy "404" status code still int-coerces.
+        ("status_code as string '404'",
+         lambda: _exc_with_status("404"), ERR_ABSENT),
     ]
 
     @pytest.mark.parametrize("desc,factory,expected",
@@ -252,6 +282,112 @@ class TestM4IndependentDesignation:
 
     def test_loader_returns_none_on_missing_file(self, tmp_path):
         assert load_designated_allocator(str(tmp_path / "nope.json")) is None
+
+
+# ===================================================================== #
+# fix3 major-1 — LedgerStore read-back is defensive (sibling path)
+# ===================================================================== #
+class TestLedgerStoreDefensiveReadback:
+    def test_malformed_last_ledger_line_does_not_crash(self, tmp_path):
+        from paper_trader import LedgerStore
+        p = str(tmp_path / "led.jsonl")
+        led = LedgerStore(p, starting_cash=5000.0)
+        led.apply_fill("AAPL", "buy", 10, 100.0)       # a good snapshot
+        # simulate a crash mid-ledger-write: a malformed last line.
+        JsonlStore(p).append({"cash": "not-a-number", "positions": {}})
+        led2 = LedgerStore(p)                            # must NOT crash
+        assert led2.positions().get("AAPL") == 10        # last GOOD line adopted
+        assert len(led2.quarantined) == 1
+
+    def test_invalid_positions_shape_is_quarantined(self, tmp_path):
+        from paper_trader import LedgerStore
+        p = str(tmp_path / "led.jsonl")
+        led = LedgerStore(p, starting_cash=5000.0)
+        led.apply_fill("AAPL", "buy", 5, 100.0)
+        JsonlStore(p).append({"cash": 4000.0, "positions": "not-a-dict", "seq": 9})
+        led2 = LedgerStore(p)
+        assert led2.positions().get("AAPL") == 5
+        assert len(led2.quarantined) == 1
+
+    def test_torn_last_ledger_line_recovers_prior(self, tmp_path):
+        from paper_trader import LedgerStore
+        p = str(tmp_path / "led.jsonl")
+        led = LedgerStore(p, starting_cash=5000.0)
+        led.apply_fill("SPY", "buy", 3, 400.0)
+        with open(p, "a") as fh:
+            fh.write('{"cash": 99, "positi')   # torn (the JsonlStore skips it)
+        led2 = LedgerStore(p)
+        assert led2.positions().get("SPY") == 3
+
+
+# ===================================================================== #
+# fix3 major-2 — value validation on order replay (not just shape)
+# ===================================================================== #
+class TestReplayValueValidation:
+    def _base(self, coid, **over):
+        rec = {
+            "client_order_id": coid, "trade_date": "2026-06-15",
+            "ticker": "AAPL", "side": "buy", "qty": 10, "tif": "opg",
+            "state": "submitted", "broker_order_id": None, "filled_qty": 0,
+            "filled_avg_price": None, "last_broker_status": None,
+            "history": ["staged", "submitted"], "event": "submitting",
+        }
+        rec.update(over)
+        return rec
+
+    @pytest.mark.parametrize("bad", [
+        {"state": "not_a_state"},      # invalid enum
+        {"tif": "gtc"},                # invalid tif (auction-only)
+        {"side": "long"},              # invalid side (must be buy/sell)
+        {"qty": -5},                   # invalid qty
+        {"qty": "ten"},                # wrong type
+        {"filled_qty": -1},            # invalid filled_qty
+    ])
+    def test_invalid_value_record_is_quarantined(self, tmp_path, bad):
+        jp = str(tmp_path / "o.jsonl")
+        JsonlStore(jp).append(self._base("c-bad", **bad))
+        mgr = OrderManager(FakePaperClient(), journal_path=jp,
+                           reconcile_on_start=False)
+        assert mgr.get("c-bad") is None             # NOT replayed into bad state
+        assert len(mgr.quarantined) == 1
+
+    def test_valid_record_still_replays(self, tmp_path):
+        jp = str(tmp_path / "o.jsonl")
+        JsonlStore(jp).append(self._base("c-good"))
+        mgr = OrderManager(FakePaperClient(), journal_path=jp,
+                           reconcile_on_start=False)
+        assert mgr.get("c-good") is not None
+        assert mgr.quarantined == []
+
+    def test_missing_coid_line_is_quarantined_not_dropped(self, tmp_path):
+        jp = str(tmp_path / "o.jsonl")
+        JsonlStore(jp).append({"event": "weird", "state": "submitted"})  # no coid
+        mgr = OrderManager(FakePaperClient(), journal_path=jp,
+                           reconcile_on_start=False)
+        assert len(mgr.quarantined) == 1            # observable, not silent
+        assert mgr.quarantined[0]["error"] == "missing_client_order_id"
+
+
+# ===================================================================== #
+# fix3 nit — reconcile_start_error is recorded, not silently swallowed
+# ===================================================================== #
+class TestReconcileStartErrorObservable:
+    def test_restart_outage_records_the_error(self, tmp_path):
+        jp = str(tmp_path / "o.jsonl")
+        coid = make_client_order_id("2026-06-15", "AAPL", "buy", 10, CFG)
+        JsonlStore(jp).append({
+            "client_order_id": coid, "trade_date": "2026-06-15", "ticker": "AAPL",
+            "side": "buy", "qty": 10, "tif": "opg", "state": "submitted",
+            "broker_order_id": None, "filled_qty": 0, "filled_avg_price": None,
+            "last_broker_status": None, "history": ["staged", "submitted"],
+            "event": "submitting"})
+
+        class _Outage(FakePaperClient):
+            def get_order(self, coid):
+                raise ConnectionError("boom")
+        mgr = OrderManager(_Outage(), journal_path=jp)    # must not crash
+        assert mgr.reconcile_start_error is not None       # observable
+        assert "ConnectionError" in mgr.reconcile_start_error
 
 
 # ===================================================================== #

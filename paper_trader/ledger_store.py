@@ -36,20 +36,52 @@ class _LedgerState:
     seq: int = 0                  # monotonic snapshot counter
 
 
+def _parse_ledger_state(rec: Dict[str, Any]) -> "_LedgerState":
+    """Validate + parse one ledger snapshot line by VALUE (T-163-fix3
+    major-1/2): cash/realized_pnl must be finite floats, seq an int, and
+    positions a dict of {ticker: {qty:int, ...}}. Raises ValueError on
+    any invalid value so the caller can quarantine it (the SAME
+    defensive contract as the order-journal replay)."""
+    import math
+    cash = float(rec["cash"])
+    if not math.isfinite(cash):
+        raise ValueError("non-finite cash")
+    pnl = float(rec.get("realized_pnl", 0.0))
+    if not math.isfinite(pnl):
+        raise ValueError("non-finite realized_pnl")
+    seq = int(rec.get("seq", 0))
+    positions = rec.get("positions", {})
+    if not isinstance(positions, dict):
+        raise ValueError("positions is not a dict")
+    clean_pos: Dict[str, Any] = {}
+    for tkr, p in positions.items():
+        if not isinstance(p, dict):
+            raise ValueError(f"position {tkr} is not a dict")
+        int(p["qty"])           # must be int-coercible
+        float(p.get("avg_price", 0.0))
+        clean_pos[str(tkr)] = p
+    return _LedgerState(cash=cash, positions=clean_pos, realized_pnl=pnl, seq=seq)
+
+
 class LedgerStore:
     def __init__(self, path: str, starting_cash: float = 0.0,
                  account: str = "roth"):
         self.store = JsonlStore(path)
         self.account = account
-        existing = self.store.read_all()
-        if existing:
-            last = existing[-1]
-            self.state = _LedgerState(
-                cash=float(last["cash"]),
-                positions=dict(last["positions"]),
-                realized_pnl=float(last.get("realized_pnl", 0.0)),
-                seq=int(last.get("seq", 0)),
-            )
+        self.quarantined: list = []      # malformed/invalid ledger lines
+        # T-163-fix3 major-1: DEFENSIVE read-back — walk the snapshots and
+        # adopt the LAST VALID one. A malformed/invalid last line (e.g. a
+        # crash mid-ledger-write — the exact recovery scenario) is
+        # QUARANTINED, never crashing construction; good earlier lines
+        # still load.
+        last_valid: "_LedgerState | None" = None
+        for rec in self.store.read_all():
+            try:
+                last_valid = _parse_ledger_state(rec)
+            except Exception as exc:
+                self.quarantined.append({"line": rec, "error": type(exc).__name__})
+        if last_valid is not None:
+            self.state = last_valid
         else:
             self.state = _LedgerState(cash=float(starting_cash))
             self._snapshot(event="init")

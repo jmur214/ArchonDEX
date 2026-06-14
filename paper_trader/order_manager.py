@@ -135,6 +135,37 @@ class OrderRecord:
         return rec
 
 
+_VALID_SIDES = ("buy", "sell")
+
+
+def _validate_order_values(order: "OrderRecord") -> None:
+    """T-163-fix3 major-2: validate replayed field VALUES (not just
+    shape). A schema-complete but wrong-typed / invalid-enum record must
+    be REJECTED on replay (quarantined), not loaded into bad state.
+    Raises ValueError on any invalid value."""
+    if order.state not in (s.value for s in OrderState):
+        raise ValueError(f"invalid state {order.state!r}")
+    if order.tif not in (t.value for t in TimeInForce):
+        raise ValueError(f"invalid tif {order.tif!r}")
+    if order.side not in _VALID_SIDES:
+        raise ValueError(f"invalid side {order.side!r}")
+    if not isinstance(order.qty, int) or order.qty <= 0:
+        raise ValueError(f"invalid qty {order.qty!r}")
+    if not isinstance(order.filled_qty, int) or order.filled_qty < 0:
+        raise ValueError(f"invalid filled_qty {order.filled_qty!r}")
+    if order.filled_avg_price is not None:
+        fap = float(order.filled_avg_price)
+        if fap < 0 or not _finite(fap):
+            raise ValueError(f"invalid filled_avg_price {order.filled_avg_price!r}")
+    if not isinstance(order.history, list):
+        raise ValueError("history is not a list")
+
+
+def _finite(x: float) -> bool:
+    import math
+    return math.isfinite(x)
+
+
 class OrderManager:
     """Drives staged orders to a terminal state against a PaperClient.
 
@@ -156,31 +187,43 @@ class OrderManager:
         # broker OUTAGE on restart must NOT crash construction — degrade
         # gracefully (every order then stays exactly as the journal left
         # it, which is the fail-safe state).
+        self.reconcile_start_error: Optional[str] = None
         if reconcile_on_start:
             try:
                 self.reconcile_with_broker()
-            except Exception:
-                pass
+            except Exception as exc:
+                # fix3 nit: a restart broker outage must not crash
+                # construction, but RECORD the swallowed error so a
+                # non-outage logic bug is observable (not silently
+                # masked). Belief is left exactly as the journal had it.
+                self.reconcile_start_error = f"{type(exc).__name__}: {exc}"
 
     # ------------------------------------------------------------------ #
     def _replay_from_journal(self) -> None:
         """Rebuild in-memory order state from the append-only journal —
         the crash-recovery path. Last event per client_order_id wins.
 
-        T-163-fix2 SURFACE 2: DEFENSIVE — a malformed/schema-incomplete
-        line (e.g. a raw error-event missing required fields, or a torn
-        record) is QUARANTINED (logged + skipped), never crashing
-        construction. Extra keys are dropped (schema-drift tolerant)."""
+        T-163-fix2 SURFACE 2 + fix3: DEFENSIVE — a malformed/schema-
+        incomplete line (raw error-event, torn record) OR a
+        schema-complete-but-INVALID-VALUE line (bad enum/type) is
+        QUARANTINED (logged + skipped), never crashing construction or
+        replaying into bad state. A line missing client_order_id is also
+        quarantined (was silently dropped — no observability)."""
         import inspect
         fields = set(inspect.signature(OrderRecord).parameters)
         for rec in self.journal.read_all():
             coid = rec.get("client_order_id")
             if not coid:
+                # fix3 minor: quarantine (don't silently drop) so a
+                # missing-coid line is observable.
+                self.quarantined.append({"line": rec, "error": "missing_client_order_id"})
                 continue
             payload = {k: v for k, v in rec.items()
                        if k != "event" and k in fields}
             try:
-                self.orders[coid] = OrderRecord(**payload)
+                order = OrderRecord(**payload)
+                _validate_order_values(order)   # fix3 major-2: value check
+                self.orders[coid] = order
             except Exception as exc:
                 # Quarantine, do NOT brick the restart. A prior good
                 # record for this coid (if any) stays in self.orders.

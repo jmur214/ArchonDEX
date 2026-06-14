@@ -74,8 +74,12 @@ def _safe_code(exc: Exception) -> Optional[int]:
 
 
 def _safe_status_code(exc: Exception) -> Optional[int]:
+    """Read an HTTP status code WITHOUT raising, int-coerced (fix3 minor
+    B: mirror the code-path's int() coercion — a stringy "404" still
+    matches)."""
     try:
-        return getattr(exc, "status_code", None)
+        sc = getattr(exc, "status_code", None)
+        return int(sc) if sc is not None else None
     except Exception:
         return None
 
