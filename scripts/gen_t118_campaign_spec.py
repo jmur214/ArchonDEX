@@ -37,8 +37,15 @@ from pathlib import Path
 DEGROSS_LEVELS = [1.0, 0.5, 0.0]
 K_DAYS = [3, 5, 10]
 # (degross_delta tau_on, regross_level tau_off, regross_bars n_off)
+# HA is the LOCKED T-118b PRIMARY-config hysteresis = the shipped RiskConfig
+# overlay defaults (degross_delta 0.4 / regross_level 0.3 / regross_bars 10).
+# So arm_L05_k5_HA == the pre-registered primary config the gate is evaluated
+# on (level 0.5 × k=5 × 0.4/0.3/10). The original HA used regross_bars=5 — a
+# DEFECT (the grid did not contain the locked primary config); corrected to 10
+# per t118b_preregistration_2026_06_10.md §v2.4. This is a grid-coverage fix to
+# satisfy the LOCKED gate, NOT a threshold edit.
 HYSTERESIS = {
-    "HA": (0.40, 0.30, 5),
+    "HA": (0.40, 0.30, 10),   # PRIMARY (shipped defaults)
     "HB": (0.30, 0.25, 10),
     "HC": (0.50, 0.25, 10),
     "HD": (0.30, 0.20, 15),
@@ -48,25 +55,51 @@ WINDOWS = [
     {"start": "2000-01-01", "end": "2025-12-31", "label": "26yr"},
 ]
 RISK_CFG = "config/risk_settings.prod.json"
+REGIME_CFG = "config/regime_settings.json"
+
+# T-118b §v2.2: the overlay is driven by the CRISIS-trained HMM
+# (hmm_3state_crisis_v1, 2006-04→2019-12; the validated AUC@5d 0.914 signal).
+# Held constant across ALL arms (incl arm0) so overlay-on vs overlay-off is an
+# identical base (pre-reg §116). arm0 = crisis-model + overlay-OFF, which is
+# canon-invariant to the prod v1 model at overlay-OFF (T-118-RUN STEP 1: the
+# HMM is invisible to Path A except through the overlay) → arm0 must reproduce
+# the published v1 prod anchor (the launcher's hard anchor gate confirms it).
+CRISIS_MODEL = "engines/engine_e_regime/models/hmm_3state_crisis_v1.pkl"
+V1_MODEL = "engines/engine_e_regime/models/hmm_3state_v1.pkl"
 
 
-def build_arms(include_null: bool) -> dict:
-    arms = {"arm0_off": {"config_patch": {}}}  # == T-092 baseline
+def _arm_patch(lvl, k, dd, rl, rb, model):
+    return {
+        RISK_CFG: {
+            "regime_transition_overlay_enabled": True,
+            "regime_overlay_degross_level": lvl,
+            "regime_overlay_k_days": k,
+            "regime_overlay_degross_delta": dd,
+            "regime_overlay_regross_level": rl,
+            "regime_overlay_regross_bars": rb,
+            "advisory_risk_scalar_apply_on_path_a": False,  # T-116 lift OFF
+        },
+        REGIME_CFG: {"hmm.model_path": model},
+    }
+
+
+def build_arms(include_null: bool, v1_blind: bool) -> dict:
+    # arm0: crisis model + overlay OFF → reproduces the published anchor.
+    arms = {"arm0_off": {"config_patch": {REGIME_CFG: {"hmm.model_path": CRISIS_MODEL}}}}
     for lvl in DEGROSS_LEVELS:
         if lvl == 1.0 and not include_null:
-            continue  # null/placebo control — skip unless explicitly requested
+            continue  # null/placebo control
         for k in K_DAYS:
             for hname, (dd, rl, rb) in HYSTERESIS.items():
                 lvl_tag = str(lvl).replace(".", "")
-                arm = f"arm_L{lvl_tag}_k{k}_{hname}"
-                arms[arm] = {"config_patch": {RISK_CFG: {
-                    "regime_transition_overlay_enabled": True,
-                    "regime_overlay_degross_level": lvl,
-                    "regime_overlay_k_days": k,
-                    "regime_overlay_degross_delta": dd,
-                    "regime_overlay_regross_level": rl,
-                    "regime_overlay_regross_bars": rb,
-                }}}
+                arms[f"arm_L{lvl_tag}_k{k}_{hname}"] = {
+                    "config_patch": _arm_patch(lvl, k, dd, rl, rb, CRISIS_MODEL)}
+    if v1_blind:
+        # mechanism-commentary only (pre-reg §147 — never gates): the PRIMARY
+        # config on the BLIND v1 posterior.
+        dd, rl, rb = HYSTERESIS["HA"]
+        arms["arm_v1blind_L05_k5_HA"] = {
+            "config_patch": _arm_patch(0.5, 5, dd, rl, rb, V1_MODEL)}
     return arms
 
 
@@ -76,13 +109,25 @@ def main() -> None:
     ap.add_argument("--include-null-arms", action="store_true",
                     help="include the 12 degross_level=1.0 placebo controls")
     ap.add_argument("--out", default="data/cloud_runs/specs/t118_overlay.json")
+    ap.add_argument("--v1-blind-disambig", action="store_true",
+                    help="add the primary config on the blind v1 model (mechanism only)")
     args = ap.parse_args()
 
-    arms = build_arms(args.include_null_arms)
+    arms = build_arms(args.include_null_arms, args.v1_blind_disambig)
     spec = {
-        "campaign_id": "t118-hmm-transition-overlay",
+        "campaign_id": "t118r-hmm-transition-overlay",
         "windows": WINDOWS,
         "reps": args.reps,
+        # T-140 canon-anchor gate — the T-167 re-anchor (2026-06-14, cov-pin,
+        # N=5 bitwise-unanimous; mean_variance config-true; regime LIVE).
+        # arm0 (crisis+OFF) must reproduce 26yr 158fe678 by model-invariance.
+        "anchor": {
+            "canon_md5": "158fe678",  # 26yr arm0 / Sharpe 0.751 / ci_low 0.382 / MDD -33%
+            "source": ("T-167 re-anchor 2026-06-14: 26yr 158fe678/0.751, "
+                       "16yr 3e9ea427/1.162, 2022 eb48742e/1.512. arm0's crisis-model "
+                       "patch is canon-invariant at overlay-OFF (T-118-RUN STEP 1)."),
+            "image": "sha-4c0fc16",
+        },
         "arms": arms,
     }
     out = Path(args.out)
