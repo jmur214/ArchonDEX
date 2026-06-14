@@ -1,4 +1,4 @@
-sharpe=0.08369440430537763
-n_trades=351
-turnover_notional=3428923.415205421
-max_position_notional=28838.868835118275
+sharpe=0.04946327837452345
+n_trades=171
+turnover_notional=4047969.472844009
+max_position_notional=47956.63615283001

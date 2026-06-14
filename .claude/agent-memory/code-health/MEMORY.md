@@ -3,3 +3,4 @@
 - [Duplicate orchestrator pattern](pattern_duplicate_orchestrators.md) — this codebase tends to grow `system_X.py` next to `X.py` instead of refactoring; check at every scan
 - [Charter-inversion imports](pattern_charter_inversion_imports.md) — A imports F, D imports B/A — symptom of features added in the closest module rather than the right one
 - [Silent-zero correctness in fundamentals edges](pattern_silent_zero_correctness.md) — denominator components (equity, invested capital) silently substituted with 0 instead of dropping the ticker; inconsistent across sibling files in the same cohort
+- [Unused-def scan false-positive classes](pattern_unused_def_false_positives.md) — pytest fixtures and same-file script helpers dominate; ~78% of raw unused-def candidates are these two classes

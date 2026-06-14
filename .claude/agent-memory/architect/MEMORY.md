@@ -1,0 +1,6 @@
+- [Verdict-buries-capability drift](pattern_verdict_buries_capability.md) — #1 doc-drift mode: refuted experiments record the negative verdict but leave shipped default-OFF code undocumented; trust source not CURRENT_STATE for "what exists"
+- [Flag-vs-path disconnect](pattern_flag_vs_path_disconnect.md) — enable-flag state lies about liveness; trace config-flag + wiring-guard + mode-reachability all three before claiming live/dead
+- [Crisis de-gross fragmented across 4 engines](boundary_crisis_degross_fragmentation.md) — same crisis fact cut in A/B/C/F; A's risk_scalar brake VIOLATES the Double-Counting Matrix; Path B kill-switch would be the 5th
+- [Advisory-dict key mismatch](pattern_advisory_key_mismatch.md) — untyped cross-engine advisory dict; correlation_regime consumer is DEAD (nested vs flat); needs contract-suite Layer 3
+- [Pre-reg template adoption defects](pattern_prereg_template_adoption.md) — T-118b: locked episode list contradicts its own mechanical rule; 4/6 episodes in-sample for the crisis HMM; benefit-side floor missing; re-derive locked sets independently
+- [Bitwise-proof scope over-extension](pattern_bitwise_proof_scope.md) — T-133 no-rerun ruling: single 2024-cell canon proof stretched over whole corpora; always quote which cell a proof covers + check comparator-canon origin
