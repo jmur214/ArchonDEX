@@ -276,3 +276,59 @@ auction orders (fills adopted separately).
 pass). Live re-verification: armed day + mismatch refusal both fire as
 designed; account flat. Scope: `paper_trader/` + tests + driver + one
 config file. Ready for the third re-review.
+
+---
+
+# ADDENDUM 3 — T-163-fix3 (2026-06-13): the final persistence-recovery majors, FINAL round
+
+The 3rd adversarial review CONFIRMED fix2 closed all 3 new blockers + the
+M4 tautology with NO new blockers — the structural approach converged
+(3 → 0). Classifier + M4 dimensions = `merge`. The journal dimension =
+`merge-with-followups`: 2 refutation-confirmed majors, both in the
+persistence-RECOVERY path, both the SAME class as NEW-BLOCKER-2. Closed
+by extending the existing hardening to the sibling path — no new schemes.
+
+## MAJOR-1 — LedgerStore read-back is now defensive (sibling of the order-journal fix)
+
+`LedgerStore.__init__` used `existing[-1]` + `float(last["cash"])`
+directly → a malformed/invalid last ledger line (a crash mid-ledger-
+write — the exact recovery scenario) bricked construction. Fixed with
+the IDENTICAL pattern as `_replay_from_journal`: walk all snapshots,
+adopt the LAST VALID one, quarantine bad lines (`self.quarantined`).
+`_parse_ledger_state` validates by VALUE (finite cash/pnl, int seq,
+positions a dict of int-qty). Tests: malformed last line → constructs
+(prior good line adopted), invalid-positions-shape → quarantined, torn
+last line → recovers prior.
+
+## MAJOR-2 — defensive replay validates VALUES, not just shape
+
+A schema-complete but wrong-typed / invalid-enum record passed
+`OrderRecord(**payload)` (a dataclass doesn't validate) and replayed
+into bad state. `_validate_order_values` now rejects an invalid
+state/side/tif enum, non-positive/wrong-type qty, negative filled_qty,
+or non-finite price → quarantined like a malformed line. Tests
+parametrize the bad-value space (6 cases) + assert a valid record still
+replays.
+
+## The 3 minors
+
+- **Journal minor**: a line missing `client_order_id` is now QUARANTINED
+  with an explicit `"missing_client_order_id"` error (was silently
+  dropped — no observability).
+- **Classifier minor A**: the contract sweep gains the PRODUCTION 404
+  shape — `APIError(non-JSON body, http_error.response.status_code=404)`
+  → ERR_ABSENT (the structured signal even when the body isn't JSON).
+- **Classifier minor B**: `_safe_status_code` int-coerces (a stringy
+  `"404"` still matches) — mirrors the code-path's `int()`.
+- **Nit**: `reconcile_with_broker`'s restart-outage swallow now RECORDS
+  the error (`self.reconcile_start_error`) instead of a silent
+  except-pass — a non-outage logic bug is observable.
+
+## Status
+
+No new raw-dict writes, no message-substring inferences (the two
+patterns that caused the prior rounds). 16 new tests extend the existing
+contract tests; **138 paper tests green**; contract suite + broader repo
+unaffected. The persistence/recovery layer (order journal + ledger +
+reconcile log) is now uniformly defensive. Ready for the director's
+TARGETED verification → merge.
