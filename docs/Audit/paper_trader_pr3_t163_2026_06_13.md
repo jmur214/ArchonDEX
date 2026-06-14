@@ -196,3 +196,83 @@ the `--confirm` refusal both fired as designed.
 **Scope:** `paper_trader/` + its tests + the driver only (diff-stat
 above). No live_trader/Engine B/config edits; engine imports read-only.
 Ready for director re-review.
+
+---
+
+# ADDENDUM 2 — T-163-fix2 (2026-06-13): the fix round's 3 new same-class blockers, fixed STRUCTURALLY
+
+The 14-agent re-review confirmed the original 2 blockers + 5 majors are
+CLOSED, but my point-fixes (commit 90df30f) introduced 3 new defects —
+all in **two small surfaces** (the broker-error classifier and the
+journal-write path). The re-review's key insight: point-fixes caused
+this; fix the surfaces ONCE, hardened, and lock them with
+contract/property tests. Done.
+
+## SURFACE 1 — one hardened broker-error classifier
+
+`classify_broker_error(exc) → absent | duplicate | unknown`, **never
+raises**, applied by BOTH `_is_definitive_absent` and
+`_is_duplicate_coid`. Two new blockers killed:
+
+- **NEW-BLOCKER-1**: `APIError.message`/`.code` are `@property`s that
+  `json.loads` the body and RAISE on a non-JSON 502/timeout body;
+  `getattr`'s default does NOT catch an exception thrown inside the
+  getter → `get_order` raised instead of returning `ORDER_UNKNOWN`,
+  crashing restart-reconcile. Fix: `_safe_code`/`_safe_message` read
+  through `try/except → ""/None`.
+- **NEW-BLOCKER-3** (the worst — a real believe-flat): the
+  `"not found" in msg` substring fallback misclassified
+  `ConnectionError("Name or service not found")` as ABSENT → reverted /
+  flattened a LIVE order (re-opening B1). Fix: **absence is
+  structured-signal ONLY** (`code==40410000` or `status_code==404`); the
+  message-substring absence fallback is DELETED. Everything not provably
+  absent/duplicate → UNKNOWN.
+
+Also: `reconcile_with_broker` in `__init__` is wrapped so a restart
+broker outage degrades gracefully (orders stay as the journal left
+them). **CONTRACT/PROPERTY TEST** (`TestErrorClassifierContract`) sweeps
+the error SPACE — APIError(JSON 40410000)→absent, (JSON 42210000)→
+duplicate, non-JSON 502→unknown, ConnectionError("...not found")→unknown,
+TimeoutError→unknown, status 404→absent — and asserts the classifier
+never raises on any shape.
+
+## SURFACE 2 — schema-complete journal writes + defensive replay
+
+- **NEW-BLOCKER-2**: M1's armed submit-error guard appended a raw partial
+  dict (`{client_order_id, event, error}`) bypassing `to_journal`; on
+  restart `_replay_from_journal` did `OrderRecord(**payload)` with the
+  5 required fields missing → TypeError → bricked restart. Fix (two
+  layers): (1) the submit-error path now journals via the
+  schema-complete `note_event`/`_record`; (2) `_replay_from_journal` is
+  DEFENSIVE — a malformed line is QUARANTINED (`self.quarantined`) and
+  skipped, never crashing construction (this also hardens the torn-
+  journal path). **CONTRACT TEST** (`TestJournalReplayDefensive`) writes
+  a schema-incomplete line and asserts construction survives + the
+  submit-error record is replay-safe.
+
+## SURFACE 3 — M4 interlock de-tautologized
+
+The driver fed BOTH `PaperConfig(allocator=args.allocator)` AND
+`designated_allocator=args.allocator` → designated == runtime by
+construction → the mismatch branch was unreachable. Fix:
+`designated_allocator` now comes from an INDEPENDENT committed source
+(`config/paper_designated_allocator.json`, director-owned, placeholder
+`"adaptive"` pending the T-158 decision); `--allocator` is required (no
+silent default). **Verified live**: `--allocator mean_variance` →
+`ARM REFUSED: paper allocator 'mean_variance' != director-designated
+'adaptive'`; `--allocator adaptive` → armed day runs, account left flat.
+
+## Minors folded
+
+Sentinels are falsy (`_Sentinel.__bool__`); the driver checks the actual
+broker state after cleanup and WARNs if not flat; `submitted_count`
+excludes idempotent no-ops; `done_for_day→CANCELED` confirmed safe for
+auction orders (fills adopted separately).
+
+## Status
+
+31 new fix2 tests (incl. the two required contract/property tests);
+**122 paper tests green**; original 7 fixes intact (their tests still
+pass). Live re-verification: armed day + mismatch refusal both fire as
+designed; account flat. Scope: `paper_trader/` + tests + driver + one
+config file. Ready for the third re-review.
