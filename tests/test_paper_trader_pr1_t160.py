@@ -169,7 +169,8 @@ class TestIdempotencyAndRecovery:
         mgr.poll(o)
         from paper_trader._jsonl import JsonlStore
         events = [r["event"] for r in JsonlStore(jp).read_all()]
-        assert events[0] == "stage" and "submit" in events
+        # T-163 crit-1: intent ("submitting") is journaled before the POST.
+        assert events[0] == "stage" and "submitting" in events
         assert events[-1] in ("broker_update", "broker_poll")
 
 
@@ -219,8 +220,10 @@ class TestLedgerStore:
 # Real paper-API smoke — skips cleanly without creds/SDK/network
 # --------------------------------------------------------------------- #
 @pytest.mark.skipif(
-    not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")),
-    reason="paper-API smoke needs ALPACA_API_KEY/ALPACA_SECRET_KEY",
+    not (os.getenv("ARCHONDEX_LIVE_SMOKE") and os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")),
+    reason="live paper-API smoke: opt-in via ARCHONDEX_LIVE_SMOKE=1 + ALPACA creds "
+           "(skipped in the default/CI suite; it hits the real paper API and needs an open "
+           "market session, so a creds-present weekend run would otherwise fail spuriously)",
 )
 def test_real_paper_opg_smoke(tmp_path):
     """submit 1 share OPG → poll → cancel, against the PAPER endpoint.

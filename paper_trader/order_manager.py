@@ -31,6 +31,24 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from paper_trader._jsonl import JsonlStore
+from paper_trader.paper_client import (
+    ORDER_ABSENT,
+    ORDER_UNKNOWN,
+    classify_broker_error,
+    ERR_DUPLICATE,
+)
+
+
+def _is_order_dict(resp) -> bool:
+    """A get_order result that is an actual order (not a sentinel)."""
+    return isinstance(resp, dict)
+
+
+def _is_duplicate_coid(exc: Exception) -> bool:
+    """T-163-fix2 SURFACE 1: delegate to the SINGLE hardened broker-error
+    classifier (never raises; structured-signal absence; body-safe
+    message). One classifier, applied everywhere."""
+    return classify_broker_error(exc) == ERR_DUPLICATE
 
 
 class OrderState(str, Enum):
@@ -69,6 +87,10 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
     "suspended": OrderState.ACKED,
     "partially_filled": OrderState.PARTIALLY_FILLED,
     "filled": OrderState.FILLED,
+    # done_for_day → CANCELED is SAFE for an OPG/CLS auction order: it is
+    # terminal (the session ended unfilled), and any filled_qty is adopted
+    # SEPARATELY from `resp` before this map is applied — so no fill is
+    # ever lost by terminalizing here (T-163-fix2 minor confirmed).
     "done_for_day": OrderState.CANCELED,
     "canceled": OrderState.CANCELED,
     "expired": OrderState.EXPIRED,
@@ -113,6 +135,37 @@ class OrderRecord:
         return rec
 
 
+_VALID_SIDES = ("buy", "sell")
+
+
+def _validate_order_values(order: "OrderRecord") -> None:
+    """T-163-fix3 major-2: validate replayed field VALUES (not just
+    shape). A schema-complete but wrong-typed / invalid-enum record must
+    be REJECTED on replay (quarantined), not loaded into bad state.
+    Raises ValueError on any invalid value."""
+    if order.state not in (s.value for s in OrderState):
+        raise ValueError(f"invalid state {order.state!r}")
+    if order.tif not in (t.value for t in TimeInForce):
+        raise ValueError(f"invalid tif {order.tif!r}")
+    if order.side not in _VALID_SIDES:
+        raise ValueError(f"invalid side {order.side!r}")
+    if not isinstance(order.qty, int) or order.qty <= 0:
+        raise ValueError(f"invalid qty {order.qty!r}")
+    if not isinstance(order.filled_qty, int) or order.filled_qty < 0:
+        raise ValueError(f"invalid filled_qty {order.filled_qty!r}")
+    if order.filled_avg_price is not None:
+        fap = float(order.filled_avg_price)
+        if fap < 0 or not _finite(fap):
+            raise ValueError(f"invalid filled_avg_price {order.filled_avg_price!r}")
+    if not isinstance(order.history, list):
+        raise ValueError("history is not a list")
+
+
+def _finite(x: float) -> bool:
+    import math
+    return math.isfinite(x)
+
+
 class OrderManager:
     """Drives staged orders to a terminal state against a PaperClient.
 
@@ -122,22 +175,83 @@ class OrderManager:
     journaled and to apply broker status updates honestly.
     """
 
-    def __init__(self, client, journal_path: str):
+    def __init__(self, client, journal_path: str,
+                 reconcile_on_start: bool = True):
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
+        self.quarantined: List[Dict[str, Any]] = []   # malformed journal lines
         self._replay_from_journal()
+        # T-163 crit-2: a restart must reconcile its replayed belief
+        # against broker TRUTH before acting. T-163-fix2 SURFACE 1: a
+        # broker OUTAGE on restart must NOT crash construction — degrade
+        # gracefully (every order then stays exactly as the journal left
+        # it, which is the fail-safe state).
+        self.reconcile_start_error: Optional[str] = None
+        if reconcile_on_start:
+            try:
+                self.reconcile_with_broker()
+            except Exception as exc:
+                # fix3 nit: a restart broker outage must not crash
+                # construction, but RECORD the swallowed error so a
+                # non-outage logic bug is observable (not silently
+                # masked). Belief is left exactly as the journal had it.
+                self.reconcile_start_error = f"{type(exc).__name__}: {exc}"
 
     # ------------------------------------------------------------------ #
     def _replay_from_journal(self) -> None:
         """Rebuild in-memory order state from the append-only journal —
-        the crash-recovery path. Last event per client_order_id wins."""
+        the crash-recovery path. Last event per client_order_id wins.
+
+        T-163-fix2 SURFACE 2 + fix3: DEFENSIVE — a malformed/schema-
+        incomplete line (raw error-event, torn record) OR a
+        schema-complete-but-INVALID-VALUE line (bad enum/type) is
+        QUARANTINED (logged + skipped), never crashing construction or
+        replaying into bad state. A line missing client_order_id is also
+        quarantined (was silently dropped — no observability)."""
+        import inspect
+        fields = set(inspect.signature(OrderRecord).parameters)
         for rec in self.journal.read_all():
             coid = rec.get("client_order_id")
             if not coid:
+                # fix3 minor: quarantine (don't silently drop) so a
+                # missing-coid line is observable.
+                self.quarantined.append({"line": rec, "error": "missing_client_order_id"})
                 continue
-            payload = {k: v for k, v in rec.items() if k != "event"}
-            self.orders[coid] = OrderRecord(**payload)
+            payload = {k: v for k, v in rec.items()
+                       if k != "event" and k in fields}
+            try:
+                order = OrderRecord(**payload)
+                _validate_order_values(order)   # fix3 major-2: value check
+                self.orders[coid] = order
+            except Exception as exc:
+                # Quarantine, do NOT brick the restart. A prior good
+                # record for this coid (if any) stays in self.orders.
+                self.quarantined.append({"line": rec, "error": type(exc).__name__})
+
+    def reconcile_with_broker(self) -> None:
+        """T-163 crit-2 (+fix B1): for every replayed non-terminal order,
+        ask the broker for truth and adopt it. A SUBMITTED order the
+        broker PROVABLY does not have (definitive 404 → ORDER_ABSENT)
+        reverts to STAGED — safe to resubmit. A SUBMITTED order the
+        broker DOES know is adopted (never re-POSTed). On ORDER_UNKNOWN
+        (a transient GET failure) we leave the order EXACTLY as-is — we
+        do NOT revert (that would risk a double-submit of a live order).
+        Fail-safe is the rule."""
+        for order in list(self.orders.values()):
+            st = OrderState(order.state)
+            if st.is_terminal or st == OrderState.STAGED:
+                continue
+            resp = self.client.get_order(order.client_order_id)
+            if _is_order_dict(resp):
+                self._apply_broker(order, resp)
+            elif resp is ORDER_ABSENT and st == OrderState.SUBMITTED:
+                # PROVABLY not at the broker → the POST didn't land.
+                self._record(order, event="broker_absent_revert_staged",
+                             new_state=OrderState.STAGED)
+            elif resp is ORDER_UNKNOWN:
+                # Indeterminate — DO NOT act. Leave belief untouched.
+                self._record(order, event="broker_unknown_left_as_is")
 
     def _record(self, order: OrderRecord, event: str,
                 new_state: Optional[OrderState] = None) -> None:
@@ -146,6 +260,14 @@ class OrderManager:
             order.history.append(new_state.value)
         self.orders[order.client_order_id] = order
         self.journal.append(order.to_journal(event))
+
+    def note_event(self, order: OrderRecord, event: str) -> None:
+        """Journal an annotation (no state change) through the SAME
+        schema-complete path every write uses. T-163-fix2 SURFACE 2: the
+        scheduler's submit-error path MUST use this — a raw partial dict
+        appended directly to the journal bricks the next restart's
+        replay (OrderRecord(**payload) with missing required fields)."""
+        self._record(order, event=event)
 
     # ------------------------------ lifecycle -------------------------- #
     def stage(self, trade_date: str, ticker: str, side: str, qty: int,
@@ -165,40 +287,116 @@ class OrderManager:
 
     def submit(self, order: OrderRecord) -> OrderRecord:
         """Submit a STAGED order. Idempotent: if already SUBMITTED-or-
-        later, returns it untouched (the restart double-submit guard)."""
+        later, returns it untouched (the restart double-submit guard).
+
+        T-163 crit-1: the SUBMITTED intent record is journaled BEFORE
+        the broker POST, so a crash in the POST window leaves a
+        SUBMITTED record (not STAGED) — and ``reconcile_with_broker``
+        then routes it through a broker GET, never a blind re-POST.
+
+        T-163 crit-2: a duplicate-client_order_id reject means the order
+        is ALREADY LIVE at the broker (a prior POST landed) — we adopt
+        broker truth, NOT mark it terminal-REJECTED."""
         if order.state != OrderState.STAGED.value:
             return order
-        resp = self.client.submit_order(
-            client_order_id=order.client_order_id,
-            symbol=order.ticker, qty=order.qty,
-            side=order.side, tif=order.tif,
-        )
+        # 1. Journal intent FIRST (durable before the side-effecting POST).
+        self._record(order, event="submitting", new_state=OrderState.SUBMITTED)
+        # 2. POST.
+        try:
+            resp = self.client.submit_order(
+                client_order_id=order.client_order_id,
+                symbol=order.ticker, qty=order.qty,
+                side=order.side, tif=order.tif,
+            )
+        except Exception as exc:
+            if _is_duplicate_coid(exc):
+                # Already live at the broker (B2). Adopt its truth IF we
+                # can read it; on UNKNOWN, leave SUBMITTED (do NOT mark
+                # rejected and do NOT re-POST — the intent record stands).
+                existing = self.client.get_order(order.client_order_id)
+                if _is_order_dict(existing):
+                    self._apply_broker(order, existing)
+                else:
+                    self._record(order, event="duplicate_coid_unresolved_left_submitted")
+                return order
+            raise
         order.broker_order_id = resp.get("broker_order_id")
         order.last_broker_status = resp.get("status")
-        self._record(order, event="submit", new_state=OrderState.SUBMITTED)
+        self._record(order, event="submit_acked")
         # An immediate ack in the submit response is applied right away.
         self._apply_broker(order, resp)
         return order
 
     def poll(self, order: OrderRecord) -> OrderRecord:
-        """Pull the broker's current truth for one order and apply it."""
+        """Pull the broker's current truth and apply it. On ORDER_ABSENT
+        or ORDER_UNKNOWN, leave belief as-is (fail-safe — never infer a
+        terminal state from a poll)."""
         if order.state == OrderState.STAGED.value or order.state in (
             s.value for s in OrderState if s.is_terminal
         ):
             return order
         resp = self.client.get_order(order.client_order_id)
-        if resp is not None:
+        if _is_order_dict(resp):
             self._apply_broker(order, resp)
         return order
 
+    def _resolve_broker_id(self, order: OrderRecord):
+        """Return (broker_id, lookup_result). lookup_result is None when
+        no lookup was needed, else the tri-state get_order result."""
+        if order.broker_order_id is not None:
+            return order.broker_order_id, None
+        resp = self.client.get_order(order.client_order_id)
+        if _is_order_dict(resp):
+            bid = resp.get("broker_order_id")
+            if bid and not order.broker_order_id:
+                order.broker_order_id = bid
+            return bid, resp
+        return None, resp
+
     def cancel(self, order: OrderRecord) -> OrderRecord:
-        """Request cancel (e.g. an OPG order still open past its window).
-        Terminal orders are left untouched."""
+        """Cancel an open order. T-163-fix B1: terminalize to CANCELED
+        ONLY when we have a CONFIRMED broker cancel OR the order is
+        PROVABLY absent (ORDER_ABSENT). On a transient/unknown failure we
+        DO NOT mark it flat (a live OPG could still fill) — we leave it
+        open and log, to keep watching it."""
         if order.state in (s.value for s in OrderState if s.is_terminal):
             return order
-        if order.broker_order_id is not None:
-            self.client.cancel_order(order.broker_order_id)
-        self._record(order, event="cancel", new_state=OrderState.CANCELED)
+        broker_id, lookup = self._resolve_broker_id(order)
+        if broker_id is not None:
+            if self.client.cancel_order(broker_id):
+                self._record(order, event="cancel", new_state=OrderState.CANCELED)
+            else:
+                self._record(order, event="cancel_failed_left_open")
+            return order
+        # No broker id: terminalize only if provably absent.
+        if lookup is ORDER_ABSENT:
+            self._record(order, event="cancel_absent", new_state=OrderState.CANCELED)
+        else:   # ORDER_UNKNOWN — cannot confirm; never believe-flat.
+            self._record(order, event="cancel_unknown_left_open")
+        return order
+
+    def expire_unfilled(self, order: OrderRecord) -> OrderRecord:
+        """T-163 crit-3: an order that did not fill by the close of its
+        auction window → EXPIRED. Fail-safe (B1): EXPIRE only on a
+        confirmed broker cancel or provable absence; on unknown, leave
+        open (never believe-flat while it could still be live)."""
+        st = OrderState(order.state)
+        if st.is_terminal or st == OrderState.STAGED:
+            return order
+        if order.filled_qty > 0:
+            # Partial: cancel the remainder, keep the fill.
+            return self.cancel(order)
+        broker_id, lookup = self._resolve_broker_id(order)
+        if broker_id is not None:
+            if self.client.cancel_order(broker_id):
+                self._record(order, event="window_expired", new_state=OrderState.EXPIRED)
+            else:
+                self._record(order, event="expire_cancel_failed_left_open")
+            return order
+        if lookup is ORDER_ABSENT:
+            self._record(order, event="window_expired_absent", new_state=OrderState.EXPIRED)
+        else:   # ORDER_UNKNOWN
+            self._record(order, event="expire_unknown_left_open")
         return order
 
     # ------------------------------------------------------------------ #

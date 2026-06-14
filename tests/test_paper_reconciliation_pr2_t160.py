@@ -149,9 +149,11 @@ class TestDivergenceClasses:
         assert f.manual is True and f.ticker == "GOOG"
 
     def test_halt_flag_aggregates(self):
+        # broker 7 vs ledger 10 = a non-ratio mismatch (genuine drift,
+        # NOT a clean split ratio — see corporate-action test).
         res = ENGINE.reconcile(_clean_inputs(
             ledger_cash=5000.0, broker_cash=4000.0,
-            ledger_positions={"AAPL": 10}, broker_positions={"AAPL": 5},
+            ledger_positions={"AAPL": 10}, broker_positions={"AAPL": 7},
             known_tickers={"AAPL"}))
         assert res.halt is True
         assert res.counts[CLASS_CASH_DRIFT] == 1
@@ -230,12 +232,14 @@ class TestDryRunDay:
         assert [r["clean"] for r in rows] == [True, True, False]
         assert rows[-1]["halt"] is True
 
-    def test_live_mode_submit_step_is_guarded(self, tmp_path):
+    def test_live_mode_unarmed_submit_step_raises(self, tmp_path):
+        # T-163: live mode (dry_run=False) WITHOUT armed=True must refuse
+        # to submit — the arm gate, not a NotImplementedError stub.
         client = FakePaperClient()
         om = OrderManager(client, journal_path=str(tmp_path / "o.jsonl"))
         sched = PaperScheduler(om, reconcile_log_path=str(tmp_path / "r.jsonl"),
-                               dry_run=False)
+                               dry_run=False, armed=False)
         o = om.stage("2026-06-15", "AAPL", "buy", 10, TimeInForce.OPG, CFG)
-        with pytest.raises(NotImplementedError, match="armed in PR-3"):
+        with pytest.raises(RuntimeError, match="not armed"):
             sched.run_day("2026-06-15", [o],
                           lambda s: ReconcileInputs({}, 5000.0, {}, 5000.0))

@@ -1,0 +1,15 @@
+{
+    "_doc": [
+        "T-158 allocator-identity decision — the INDEPENDENT source of truth for the",
+        "paper-loop arm interlock (T-163-fix2 SURFACE 3). PaperScheduler arms only when",
+        "the runtime PaperConfig.allocator EQUALS designated_allocator below. This file",
+        "is DIRECTOR-OWNED: it must NOT be set from the same place that picks the runtime",
+        "allocator (that was the tautology the re-review caught).",
+        "STATUS: SET to 'mean_variance' (director decision 2026-06-13, T-158 RESOLVED) — the",
+        "committed config value; the Apr-23 adaptive artifact was a stale gitignored silent",
+        "override (archived in T-167) and per T-162 did not outperform (mv 1.542 > adaptive",
+        "0.464 on 2022). The entire anchor/lottery/cov-pin history is mean_variance. Revisit",
+        "only via a deliberate, pre-registered allocator A/B; set to null to hard-refuse arming."
+    ],
+    "designated_allocator": "mean_variance"
+}

@@ -50,6 +50,10 @@ class ReconcileInputs:
     reject_reasons: Dict[str, str] = field(default_factory=dict)      # coid -> raw reason
     known_tickers: Optional[set] = None        # tickers the system trades
     window_closed: bool = False                # auction window has passed
+    # T-163 crit-5: explicit corporate-action feed (tickers with a known
+    # split / symbol change today) — authoritative over the ratio
+    # heuristic when present.
+    corporate_action_tickers: Optional[set] = None
     # price-drift threshold = auction_safety_bps + extra
     auction_safety_bps: float = 1.0
     price_drift_extra_bps: float = 5.0
@@ -87,6 +91,25 @@ class ReconcileResult:
         }
 
 
+def _looks_like_corporate_action(ledger_qty: int, broker_qty: int) -> bool:
+    """T-163 crit-5: a split / reverse-split morphs a HELD position by a
+    clean small-integer ratio (2:1, 3:1, 4:1, … or reverse 1:2 …). A
+    genuine position drift is an arbitrary mismatch. Same sign, ratio is
+    a near-exact small integer either way → treat as a corporate action
+    (manual review), NOT a halt-class position drift."""
+    if ledger_qty == 0 or broker_qty == 0:
+        return False
+    if (ledger_qty > 0) != (broker_qty > 0):
+        return False                       # a sign flip is never a split
+    a, b = abs(ledger_qty), abs(broker_qty)
+    hi, lo = max(a, b), min(a, b)
+    if lo == 0:
+        return False
+    ratio = hi / lo
+    nearest = round(ratio)
+    return 2 <= nearest <= 20 and abs(ratio - nearest) < 1e-6
+
+
 def _classify_reject(reason: str) -> str:
     r = (reason or "").lower()
     if "fractional" in r:
@@ -120,11 +143,15 @@ class ReconciliationEngine:
                 ))
                 continue
 
-            if st == OrderState.ACKED and inp.window_closed and o.filled_qty == 0:
+            # T-163 crit-3: a SUBMITTED-but-never-acked order past the
+            # window is ALSO a missed fill (previously invisible — only
+            # ACKED was checked).
+            if (st in (OrderState.ACKED, OrderState.SUBMITTED)
+                    and inp.window_closed and o.filled_qty == 0):
                 findings.append(ReconcileFinding(
                     klass=CLASS_MISSED_FILL, ticker=o.ticker,
-                    action="cancel; log; NO chase (re-enters via tomorrow's signal)",
-                    detail=f"{o.client_order_id} acked but unfilled past window",
+                    action="cancel/expire; log; NO chase (re-enters via tomorrow's signal)",
+                    detail=f"{o.client_order_id} {st.value} but unfilled past window",
                 ))
                 continue
 
@@ -177,21 +204,38 @@ class ReconciliationEngine:
                 continue
             if t in open_tickers:
                 continue   # an open order legitimately explains the gap
-            if t not in known and t not in inp.ledger_positions:
-                # a symbol we never traded showed up at the broker — a
-                # split/ticker-change morph (the manual class).
+            ca_feed = inp.corporate_action_tickers or set()
+            unknown_symbol = t not in known and t not in inp.ledger_positions
+            # T-163-fix M3: a clean integer ratio on a held name is the
+            # SAME shape as a double-counted fill or a manual doubling —
+            # so a ratio ALONE must NOT downgrade a position drift. A
+            # held-name morph is the MANUAL corporate_action class ONLY
+            # when the explicit corporate-action FEED confirms it. Absent
+            # that confirmation, a ratio match still HALTS as
+            # position_drift. (An unknown symbol we never traded is a
+            # different signal — a ticker change — and stays manual.)
+            confirmed_ca = t in ca_feed
+            ratio_hint = (lq != 0 and _looks_like_corporate_action(lq, bq))
+            if unknown_symbol or confirmed_ca:
+                detail = (f"unknown symbol {t} at broker (qty {bq}) — "
+                          "suspected ticker change" if unknown_symbol else
+                          f"{t} on corporate-action feed "
+                          f"(ledger {lq}, broker {bq})")
                 findings.append(ReconcileFinding(
                     klass=CLASS_CORPORATE_ACTION, ticker=t, manual=True,
-                    action="halt the ticker; manual review",
-                    detail=f"unknown symbol {t} at broker (qty {bq}) — "
-                           "suspected split/ticker change",
+                    action="halt the ticker; manual review", detail=detail,
                 ))
             else:
+                hint = (" (clean ratio — possible split; NOT downgraded "
+                        "without corporate-action feed confirmation)"
+                        if ratio_hint else "")
                 findings.append(ReconcileFinding(
                     klass=CLASS_POSITION_DRIFT, ticker=t, halt=True,
                     action="HALT new submissions; adopt broker truth only "
-                           "after the journal explains it",
-                    detail=f"{t} ledger {lq} vs broker {bq}",
+                           "after the journal explains it" + (
+                               " — if a split, add it to the corporate-action "
+                               "feed to reclassify" if ratio_hint else ""),
+                    detail=f"{t} ledger {lq} vs broker {bq}{hint}",
                 ))
 
         counts = {c: 0 for c in ALL_CLASSES}
