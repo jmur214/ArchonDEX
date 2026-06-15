@@ -22,10 +22,10 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
-### [MEDIUM] `brokers/alpaca_broker.py` reads a non-existent env var name → can never authenticate (dead stub)
+### [RESOLVED] `brokers/alpaca_broker.py` reads a non-existent env var name → can never authenticate (dead stub)
 - Engine: execution / live_trader (broker layer)
 - First flagged: 2026-06-13 (Agent E, during T-160)
-- Status: not started
+- Status: **RESOLVED 2026-06-15 (T-169 PR-4)** — `brokers/alpaca_broker.py`, `live_trader/`, and `storage/state_manager.py` archived to `Archive/pr4_dead_live_stub_t169/`; its only consumer (the never-constructed, fill-fabricating `AlpacaExecutionAdapter` in `mode_controller`) is deprecated (raises). The real order path is `paper_trader/`.
 - Description: `brokers/alpaca_broker.py` reads the env var **`ALPACA_API_SECRET`**, a name that does not exist in `.env` (which defines `ALPACA_SECRET_KEY`). So this broker stub could never have authenticated — it is dead on its own terms, independently of also being superseded by the T-160 `paper_trader/` package. Sibling of the silent-mismatch family (config/env key name ≠ the consuming reader's expected name). Doubly-dead: wrong env name AND superseded.
 - Resolution path: **PR-4 (hard-gated)** of the paper-trading build archives `brokers/alpaca_broker.py` + the `live_trader/` stub + `storage/state_manager.py` to `Archive/` and moves the deployment boundary. Until then leave it (don't repair a stub slated for archival) — flagged here so nobody mistakes it for a working broker path.
 - Cross-ref: `docs/Core/paper_trading_readiness_design_t159.md` §1 (stub-archival decision, user-ratified 2026-06-12); T-160 audit.
