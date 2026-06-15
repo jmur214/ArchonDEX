@@ -103,12 +103,14 @@ python scripts/submit_substrate_run.py --reps 3 --arms 1,2
 
 **`--job-timeout` defaults (T-109 lesson):** the job-definition default (30 min) only fits single-year cells. Deep windows need explicit overrides — and budget headroom over the naive estimate: T-109's 26-yr cell completed its full backtest and was SIGKILLed during the S3 upload because the timeout was 20 minutes too tight (the result needed a CloudWatch log-scrape to recover). Reference wall-times on the clean image: ~8-10 min/sim-year.
 
-| Window | `--job-timeout` |
-|---|---|
-| single-year | 3600 (1 h) |
-| 12-yr | 10800 (3 h) |
-| 16-yr | 14400 (4 h) |
-| **26-yr** | **21600 (6 h) — the default; never 14400** |
+| Window | `--job-timeout` (109-ticker static) | `--job-timeout` (T-167 full ~96-ticker universe) |
+|---|---|---|
+| single-year | 3600 (1 h) | 3600 (1 h) |
+| 12-yr | 10800 (3 h) | 18000 (5 h) |
+| 16-yr | 14400 (4 h) | 28800 (8 h) |
+| **26-yr** | 21600 (6 h) | **36000 (10 h) — full-universe deep windows; 12h is safer (T-128r/T-118r 2026-06-14: original 6h cells SIGKILLed mid-run; A relaunched at 10h, C used 12h)** |
+
+**⚠️ T-167 change (2026-06-14): the cloud now runs the FULL ~96-ticker historical universe (the `_normalize_df` load-truncation that ran a ~19-ticker universe is fixed), so deep-window cells take MUCH longer than the old static-109 numbers. Use the right-hand column for any full-universe run, and bump the launcher default.**
 
 **What this does (under the hood):**
 
