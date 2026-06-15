@@ -15,6 +15,9 @@ Here is the reference map:
 - **Operational Rules:** `docs/Core/agent_instructions.md` holds operating protocols and coding standards.
 - **Cognitive Lenses:** `docs/Core/roles.md` outlines specific parameter focuses and mindsets based on the problem at hand (Risk, Quant, UI/UX, etc.) - adopt the corresponding cognitive lens dynamically.
 
+## The concrete success bar (USER-SET 2026-06-15) — read this FIRST
+**Real capital lives in a Schwab robo portfolio (a low-cost index+satellite proxy) and is NOT deployed into this system until the system is (1) PAPER-VALIDATED (the machine works on the live paper API) AND (2) demonstrably OUTPERFORMING the robo benchmark net of costs and after-tax.** This is the deploy gate — concrete and real-world, not an abstract Sharpe threshold. Until it clears: the system is in **capability-build + edge-hunt** mode, paper-only, no real money. The honest near-term truth (2026-06-15): the borderline, bull-conditional, beta-driven base (26yr Sharpe 0.751/ci_low 0.382, Roth-only, −33% MDD, no working crisis-defense) likely does NOT beat a robo net-of-costs today — so the edge-hunt is real, and "the system remains a rigorous capability/falsification platform while the money stays in the robo" is an acceptable, honest outcome. Both in-house crisis defenses (de-gross overlay, capital-partitioned sleeve) are conclusively refuted; the live levers are a *bought* managed-futures sleeve + new alpha. See `docs/State/CURRENT_STATE.md` for live state.
+
 ## Current Mode
 When needed, route your capabilities through these core documents before initiating research or execution. You are not just writing scripts; you are building an institutional-grade, self-evolving portfolio manager. Operate with caution, scalability, and modularity in mind. Every component must fit into the larger machine. 
 
