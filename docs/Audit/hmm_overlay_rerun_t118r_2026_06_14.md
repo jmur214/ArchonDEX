@@ -19,7 +19,7 @@ On the trustworthy T-167 substrate (cov-pin N=5 unanimous, regime live, full uni
 | **26yr / crisis** (pre-reg model) | 0.752 / 0.370 / −32.61 | 0.680 / 0.287 / −32.61 | **FAIL** (Sharpe-diff <0; MDD 0% reduction) |
 | 16yr / crisis | 1.118 / 0.608 / −16.17 | 1.042 / 0.536 / −16.17 | FAIL |
 | 16yr / v1 (arm0 == anchor `3e9ea427`) | 1.162 / 0.658 / −16.17 | 0.984 / 0.444 / −16.17 | FAIL |
-| 26yr / v1 (arm0 must == `158fe678`) | _pending (12h re-run)_ | _pending_ | _expected FAIL_ |
+| **26yr / v1** (arm0 == anchor `158fe678` ✓ exact) | 0.751 / 0.380 / −32.61 | 0.654 / 0.266 / −32.61 | **FAIL** (the deployed base; ci_low 0.380→0.266) |
 
 The overlay lowers ci_low in **every** cell and reduces MaxDD in **none** (all MaxDDs bitwise-identical to arm0). The 26yr MaxDD is **dotcom** (2000-2002), which the crisis HMM is structurally blind to (data floor 2006-04, disclosed in pre-reg §v3) — so the frozen-gate MaxDD criterion is confounded, and the T-118b per-episode read governs.
 
@@ -49,6 +49,9 @@ Per-episode ΔMaxDD (positive = overlay shallower):
 | benefit/drag ratio | −0.23 vs 0.995 pp/yr | ≥ 3× | FAIL |
 
 The harness also reported the honest-derivation divergence (the locked episode list is not fully reproducible from the 15%-DD rule on the pinned SPX TR; the mechanical rule yields a single dotcom 2000-09→2002-10 −47.4%) — surfaced per the §4 finality clause, not patched; the gate uses the locked month-pinned list and FAILS regardless.
+
+### T-118b crisis-replay on the v1 (blind-signal) base — ALSO FAIL, IDENTICAL pattern
+v1-26yr primary vs arm0: VERDICT **FAIL** on all — median 0.0, sign 2/7, GFC +0, COVID +0, calm-drag **−131 bps**, terminal-wealth on 3.70 < off 5.26 (−30%), benefit/drag −0.22 vs 1.31. Per-episode: only **2022 +4.68pp, 2025 +2.76pp**; everything else +0.0. **The v1 (AUC 0.49) base reproduces the crisis (AUC 0.914) base's failure pattern almost exactly** — which proves the failure is in the **mechanism** (the Δ-trigger structurally catches only slow grinds and misses fast crashes/corrections), NOT in signal quality. A better signal would not save this trigger design.
 
 ## 2. Why it fails (mechanism, not a bug)
 The Δ-trigger over k days fires only on a **sustained benign→stress ramp** — present in 2022 and 2025 (slow grinds), absent in fast crashes (COVID spikes faster than the k=5 de-gross can act) and in the GFC (which sits IN the crisis-HMM training window with an already-elevated posterior → no in-window Δ). So the overlay de-grosses in scattered calm transitions (paying ~1%/yr) and is missing at the crises that drive the MaxDD. This is precisely the **power-critique failure pattern** the T-118b pre-reg was constructed to detect: narrow crisis benefit + large calm drag + Sharpe-CI moving the wrong way.
