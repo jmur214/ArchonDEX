@@ -67,8 +67,12 @@ from engines.engine_e_regime.regime_detector import RegimeDetector
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
 # --- StrategyGovernor ---
 from engines.engine_f_governance.governor import StrategyGovernor
-# --- NEW: Alpaca broker adapter ---
-from brokers.alpaca_broker import AlpacaBroker
+# T-2026-06-15-169 (PR-4): `from brokers.alpaca_broker import AlpacaBroker`
+# was removed from module scope. AlpacaBroker is archived (Archive/) — the
+# real order path is paper_trader/ (the order-state machine). The only
+# consumer was AlpacaExecutionAdapter (a never-constructed dead class that
+# FABRICATED fills at intended prices); it is deprecated below and imports
+# AlpacaBroker lazily so this archival doesn't touch the live backtest path.
 from analytics.edge_feedback import update_edge_weights_from_latest_trades
 
 # =============================================================================
@@ -143,36 +147,20 @@ class DryRunExecutionAdapter(ExecutionAdapter):
     
 # --- NEW: Alpaca Broker Adapter ---
 class AlpacaExecutionAdapter(ExecutionAdapter):
-    """
-    Adapter that routes live/paper trades through AlpacaBroker.
+    """DEPRECATED (T-2026-06-15-169, PR-4). This adapter FABRICATED fills
+    at intended prices ("Build synthetic fill to keep the portfolio
+    consistent" — the anti-pattern T-159 flagged: our books recorded
+    fills that never happened, at prices we made up). It was never
+    constructed anywhere. The real order path is the `paper_trader/`
+    package (a genuine order-state machine with broker-truth
+    reconciliation). Constructing this raises; do not resurrect it.
     """
     def __init__(self, paper: bool = True):
-        super().__init__(dry_run=False)
-        self.broker = AlpacaBroker(paper=paper)
-
-    def place_order(self, order: dict) -> Optional[dict]:
-        ticker = order.get("ticker")
-        side = order.get("side")
-        qty = float(order.get("qty", 0))
-        if not ticker or qty <= 0:
-            print(f"[ALPACA_ADAPTER][WARN] Invalid order: {order}")
-            return None
-
-        try:
-            result = self.broker.place_order(ticker, side, qty)
-            print(f"[ALPACA_ADAPTER][INFO] Sent {side.upper()} {qty} {ticker}")
-            # Build synthetic fill to keep the portfolio consistent
-            return {
-                "ticker": ticker,
-                "side": side,
-                "qty": int(qty),
-                "price": float(order.get("price", 0.0)),  # fallback to intended price
-                "commission": 0.0,
-                "edge": order.get("edge", "Unknown"),
-            }
-        except Exception as e:
-            print(f"[ALPACA_ADAPTER][ERROR] Failed to place order: {e}")
-            return None
+        raise NotImplementedError(
+            "AlpacaExecutionAdapter is deprecated (PR-4): it fabricated "
+            "fills at intended prices. Use the paper_trader/ package "
+            "(order-state machine + broker-truth reconciliation) instead."
+        )
 
 # =============================================================================
 # Paper Trade Controller (streaming simulation)

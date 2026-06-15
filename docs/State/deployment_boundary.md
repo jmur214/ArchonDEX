@@ -1,4 +1,34 @@
-# Deployment Boundary — Path 1 ship state (2026-05)
+# ⛳ CURRENT DEPLOYMENT BOUNDARY (2026-06-15, T-169 PR-4 — load-bearing)
+
+**PAPER trading is ALLOWED** (Alpaca paper account, **no real money**).
+The order path is the `paper_trader/` package (order-state machine +
+broker-truth reconciliation); the old `live_trader/` stub is archived
+(`Archive/pr4_dead_live_stub_t169/`).
+
+**LIVE money REMAINS HARD-GATED** on BOTH of:
+- **(a)** the machine **paper-validated** per the §5 promotion criteria
+  in `docs/Core/paper_trading_readiness_design_t159.md` (operational:
+  ≥60 trading days, auction slippage ≤5bps median vs the T-146 model,
+  reconcile clean-rate ≥99%, monitor false-alarms within calibration,
+  zero kill-rule violations); AND
+- **(b)** a strategy **demonstrably beating the Schwab robo benchmark
+  net-of-costs / after-tax** (the user bar set 2026-06-15 — capability-
+  first: real money stays in the Schwab robo until the system both
+  validates on paper AND outperforms the robo net of costs and tax).
+
+Paper validation proves the MACHINE; the EDGE is judged separately
+against the robo, NOT by paper P&L. Until BOTH (a) and (b) clear, **no
+real-money path is enabled** (`deploy-small` OFF; live submission code
+does not exist — only the paper endpoint). Live sizing, when it ever
+opens, is capped at `min(1, safe_f_deepwindow)` (the honest deep-window
+safe_f, expected < 1 on the −33%/−59%-MDD record — never > 1).
+
+*Everything below this block is the historical 2026-05 Path-1 boundary,
+SUPERSEDED by the above. Kept for context.*
+
+---
+
+# Deployment Boundary — Path 1 ship state (2026-05) [SUPERSEDED]
 
 **Date:** 2026-04-30 (filed under 2026-05 because that's the deployment month)
 **Phase:** 2.10d shipped + 2.11 (portfolio meta-learner) shipped within
