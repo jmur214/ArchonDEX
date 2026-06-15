@@ -94,3 +94,21 @@ T-164 was **necessary-but-insufficient** (C predicted insufficiency for regime; 
 - **If `mean_variance` is the intended path** (where the lottery + the T-155/T-128 anchors live — those cloud cells DID trade under mean_variance historically): diagnose why mean_variance now produces 0 trades (the governor soft-pause/lifecycle-divergence regression since T-162) + fix SPY truncation → re-anchor on **mean_variance**.
 
 These are substrate (D) + Engine-C allocator + director-premise questions. **B has STOPPED the cloud spend** (no N≥5 — empty canons prove nothing) and surfaced the decision rather than autonomously baking the artifact or changing the allocator. Cells run: 3 dual-purpose probes (2022/16yr/26yr rep1, all empty) + 1 COV_MVO_PROBE confirmation — no wasted N≥5.
+
+---
+
+# ADDENDUM 3 (2026-06-14) — RE-ANCHOR COMPLETE on T-167's substrate; cov-pin PROVEN cross-task; clean 26yr is NOT a collapse
+
+Director resolved the allocator decision: **mean_variance** (the artifact was a stale gitignored leftover; T-167 archived it). D's T-167 fixed the rest: full SPY history, live cloud price-axis regime, the `_normalize_df` 90/109-ticker load-truncation, and **the mean_variance 0-trades** — which was **T-140-fu2's OWN local `import os` shadow** in `policy.py` (a local import made `os` function-local, so the earlier `os.environ.get` at line 220 raised UnboundLocalError, swallowed by the broad except → mean_variance returned nothing). T-167 removed the shadow. So my fu2 ADDENDUM-2 "Finding 2" (governor soft-pause) was the WRONG mechanism — the real cause was my own import shadow. Owned.
+
+Built `sha-4c0fc16` (mean_variance + T-167 + cov-pin + re-applied build-staging fix). Reconciled a stray foreign simfin drift (restored canonical, not re-pinned). Ran N=5 per window:
+
+| Window | canon (×5 IDENTICAL) | Sharpe | ci_low (block-bootstrap) | CAGR | MDD |
+|---|---|---|---|---|---|
+| 2022 | `eb48742e` | 1.512 | −0.592 | 31.5% | −22.0% |
+| 16yr (2010–25) | `3e9ea427` | 1.162 | **0.676** | 10.2% | −16.2% |
+| 26yr (2000–25) | `158fe678` | 0.751 | **0.382** | 7.3% | −32.6% |
+
+**cov-pin verdict: COMPLETE.** All three windows bitwise-unanimous across 5 independent Fargate tasks → the placement lottery is dead at the source; N≥5 unanimity by construction; no N=11/quantization fallback. Acceptance fully met (local 7.8e-16 + cross-task 15/15 unanimous + golden-master clean).
+
+**Collapse verdict:** the clean 26yr = **0.751 (ci_low 0.382)**, vs the old degraded `529e5520`/0.237 — 3.2× higher. The 26yr "collapse" was a substrate-degradation artifact (truncated 19-ticker universe + lottery + regime-blind + static-fallback). **NOT a collapse — but NOT validated either**: ci_low 0.382 sits just under the 0.40 CI-aware kill line; after-tax taxable = 0.093 (Roth-first). The 16yr is strong (1.162, ci_low 0.676) but bull-dominated; the 16yr→26yr gap is the "bull machine" signature (decompose-directive evidence). These are the FIRST trustworthy anchors and unblock C's T-118 de-gross + A's sleeve + enable-A/B.
