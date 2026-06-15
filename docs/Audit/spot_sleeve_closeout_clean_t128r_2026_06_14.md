@@ -4,8 +4,8 @@ title: Spot 8-ETF crisis-diversifier sleeve A/B — does it lift the borderline 
 date: 2026-06-14
 substrate: image sha-4c0fc16, job def archondex-backtest-reanchor-mv-t167:1 (cov-pin + T-167 complete substrate + LIVE regime + config-true mean_variance). The first trustworthy substrate the sleeve has ever been tested on.
 scope: pure measurement (sleeve flag in arm config_patch only; no engine/flag changes)
-status: PRE-REGISTRATION committed BEFORE running (honest-N); results appended after
-outcome: "[PENDING — header updated after the A/B lands. Section 1 below is committed before any arm number is unblinded.]"
+status: CURRENT (pre-registration committed before running — see git history; results appended after)
+outcome: "**NOT RECOMMEND (per pre-registered rule) — the crisis-MDD thesis is REFUTED on the integrated path; the sleeve is a marginal calm-period return-diversifier instead.** Substrate VALID (anchor 16yr 5/5 bitwise 3e9ea427/1.162; 26yr arm0 4/5-canon/5/5-Sharpe 158fe678/0.751; sleeve arms 5/5 bitwise — the trustworthy test T-128/T-128b lacked). 26yr: spot@25% lifts Sharpe 0.751→0.897 and standalone ci_low 0.333→0.501 (clears the 0.40 line the base sat under) — BUT via calm-period return diversification (calm Sharpe 0.771→0.946), NOT drawdown reduction: MDD cut only +0.74pp (2.3%, vs the +16.2% T-115 analytical claimed), and the sleeve does WORSE in 2008/2020. Paired ON−OFF difference NOT significant (Δci_low −0.361). spot@30% over-dilutes (Sharpe flat, ci_low 0.340 < base 0.382). Decision rule fails criterion 1 (MDD-cut ≥15%) for both. 16yr drag bounded (−0.05/−0.02, criterion 3 PASS). Reclassifies conditional-shelf entry: the sleeve is NOT a crisis-MDD hedge (retire that framing); it is NOT a substitute for C's T-118 de-gross. N_trials += 1. Residual flagged: cov-pin not yet bitwise-perfect on arm0 (1/5 reps differ at trade level, identical Sharpe)."
 ---
 
 # Sleeve A/B Close-Out — Clean Substrate (T-128r)
@@ -136,23 +136,91 @@ cut. **The sleeve's case rests entirely on the 26-yr full-cycle leg
 (2008 GFC + 2000-02 dot-com), which is where the −33% MDD it's meant
 to flatten actually lives.**
 
-### 2.2 26-yr leg (2000-2025) — PENDING
+### 2.2 26-yr leg (2000-2025) — the decision-relevant full cycle
 
-Cells running on the 10h-cap relaunch (`t128r-sleeve-26yr-longcap`,
-job-timeout 36000) after the original 26-yr cells were terminated for
-projected timeout (the T-167 complete ~96-ticker universe runs ~430
-min/cell vs the original 360-min cap; confirmed a 26-yr cell at
-2015-05 after 220 min). Anchor gate: arm0 26-yr must reproduce
-`158fe678`/0.751 at 5/5. Results + the full pre-registered decision
-rule will be appended here when the cells land.
+Ran on the 10h-cap relaunch (`t128r-sleeve-26yr-longcap`, job-timeout
+36000) after the original 26-yr cells were terminated for projected
+timeout (T-167 complete ~96-ticker universe runs ~330 min/cell vs the
+360-min default cap).
 
-### 2.3 Verdict — INTERIM (16-yr only)
+**Anchor gate: arm0 26-yr reproduces `158fe678`/0.751 — 4/5 bitwise on
+canon, 5/5 on Sharpe.** rep2 carried a different trades-canon
+(`e801f11b`) with an IDENTICAL Sharpe 0.751 — a single-trade residual,
+NOT a lottery flip (the lottery swung Sharpe 0.237↔0.446; here all 5
+reps are 0.751). The sleeve arms are 5/5 bitwise-unanimous
+(on25 `520ef0ab`/0.897, on30 `11ea6c63`/0.738). The anchor VALUE
+reproduces and the arms are deterministic, so the A/B is interpretable.
+**Residual flagged for the determinism owners (B): the cov-pin is
+not yet bitwise-perfect on arm0 — one rep in five differs at the trade
+level without moving the metric; worth a look but it does not confound
+this A/B (Sharpe is unanimous).**
 
-The decision rule is 26-yr-gated, so no final verdict yet. The 16-yr
-leg establishes: (i) the substrate is valid (anchor + canary
-bitwise-unanimous — this run is trustworthy where T-128/T-128b were
-not); (ii) the sleeve's calm-window cost is small and bounded
-(criterion 3 satisfied); (iii) 16-yr offers no MDD evidence either way
-(no sustained drawdown to cut). **The sleeve question turns on whether
-the 26-yr leg shows the crisis-diversifier cutting the −33% full-cycle
-MDD enough to lift ci_low past 0.40.**
+| Arm | canon | Sharpe | ΔSharpe | ON ci_low | Δ-on-diff ci_low | MDD | ΔMDD (rel / abs) |
+|---|---|---|---|---|---|---|---|
+| arm0_off | `158fe678` (4/5; 5/5 Sharpe) | 0.751 | — | 0.333 | — | −32.6% | — |
+| on25% | `520ef0ab` (5/5) | **0.897** | **+0.146** | **0.501** | −0.361 | −31.9% | +2.3% / +0.74pp |
+| on30% | `11ea6c63` (5/5) | 0.738 | −0.013 | 0.340 | −0.519 | −30.3% | +7.1% / +2.31pp |
+
+Crisis/calm split (Sharpe; 2008 + 2020 are the full-cycle's two
+defining events):
+
+| Arm | 2008 Sh (ret) | 2020 Sh (ret) | calm Sh (ex-08/20) |
+|---|---|---|---|
+| arm0_off | −0.710 (−11.7%) | +3.125 (+32.7%) | +0.771 |
+| on25% | −0.954 (−12.8%) | +2.872 (+27.1%) | **+0.946** |
+| on30% | −0.739 (−10.8%) | +2.768 (+31.0%) | +0.750 |
+
+**The crisis-diversifier thesis is REFUTED on the integrated path.**
+The sleeve does NOT cut the −33% MDD meaningfully (+0.74pp at 25%,
++2.31pp at 30% — a 2-7% relative cut, vs the +16.2% the T-115
+analytical claimed on 17.9-yr), and it actually does WORSE in the
+actual crises (2008 −0.954 vs −0.710; 2020 +27% vs +33%). The
+analytical massively overstated the MDD reduction — the same
+integrated-vs-analytical gap T-120/T-121 found (the partition isn't
+scale-invariant).
+
+**What the sleeve DOES do at 25%:** it lifts the full-cycle Sharpe
+0.751 → 0.897 and its standalone ci_low 0.333 → 0.501 (clearing the
+0.40 CI-aware line the base sat under) — but via **calm-period return
+diversification** (calm Sharpe +0.771 → +0.946), NOT crisis hedging.
+And the paired ON−OFF difference is NOT statistically significant
+(Δ-on-difference ci_low −0.361, crossing zero). on30 over-dilutes
+(Sharpe flat, ci_low 0.340 drops below the base's 0.382).
+
+### 2.3 Verdict — NOT RECOMMEND (per the pre-registered rule), with a refined finding
+
+**Pre-registered decision rule, scored:**
+
+| Criterion | on25% | on30% |
+|---|---|---|
+| (1) 26-yr MDD reduction ≥ 15% rel | **FAIL** (+2.3%) | **FAIL** (+7.1%) |
+| (2) ON ci_low ≥ 0.40 (strong) or Δci_low>0 & ON≥0.382 (weak) | PASS-strong (0.501) | FAIL (0.340) |
+| (3) 16-yr calm-drag ≥ −0.20 | PASS (−0.05) | PASS (−0.02) |
+| **Overall (AND of 1+2+3)** | **NOT RECOMMEND** (fails 1) | **NOT RECOMMEND** (fails 1+2) |
+
+**Verdict: do NOT deploy the spot sleeve as a crisis-MDD lever.** The
+mechanism the dispatch asked about — "does the crisis-diversifier cut
+the −33% MDD and lift ci_low toward 0.40" — is answered NO on the cut:
+the integrated MDD reduction is 2-7%, not ≥15%, and the sleeve
+underperforms in 2008/2020. Criterion 1 fails, so the rule returns
+NOT RECOMMEND.
+
+**The refined finding (more useful than a bare fail):** the sleeve @
+25% IS a marginal risk-adjusted-return helper — it lifts the borderline
+base's Sharpe (0.751→0.897) and standalone ci_low (→0.501, over the
+0.40 line) — but through **calm-period return diversification, not
+drawdown reduction**, and the A/B difference is not statistically
+clean (paired ci_low crosses zero). This reclassifies the
+conditional-shelf entry (T-166 #4): the spot sleeve is **NOT a
+crisis-MDD hedge** (retire that framing) — it's a calm-period
+return-diversifier whose net is mildly positive at 25% and negative
+(over-diluting) at 30%. It is NOT a substitute for C's T-118 de-gross
+overlay, which remains the candidate MDD lever; the two are not
+redundant (the sleeve doesn't touch the −33%).
+
+**Fork input:** the borderline base (0.751 / ci_low 0.382) is lifted
+over the 0.40 line by the spot sleeve @ 25% on a Sharpe basis, but
+(a) not significantly and (b) not by cutting drawdown. The honest
+read for the deploy decision: the sleeve is not the drawdown fix; if
+the goal is to flatten the −33% MDD, the de-gross overlay is the lever
+to watch, not this sleeve.
