@@ -102,4 +102,57 @@ it). Pre-registered before unblinding per CLAUDE.md #7.
 
 ## 2. RESULTS
 
-[APPENDED AFTER THE PRE-REGISTRATION COMMIT — see git history.]
+(Appended after the pre-registration commit — verify section 1 predates these numbers in git history.)
+
+### 2.0 Substrate validity — CONFIRMED (the thing the prior run lacked)
+
+- **Canary 2022: 3/3 bitwise unanimous** (`eb48742e`/1.512). The prior
+  (broken-substrate) run split this 2-vs-1; the cov-pin fixed it.
+- **Anchor gate 16-yr: PASS, 5/5 bitwise.** arm0_off 16-yr reproduces
+  the published anchor `3e9ea427`/1.162 across all 5 reps. The sleeve
+  arms are also bitwise-unanimous across reps (on25 5/5 `b2dea6c5`,
+  on30 `f38e1966`) — the cov-pin holds on the capital-partitioned
+  sleeve path, not just arm0. This A/B is VALID (unlike T-128/T-128b).
+- 26-yr anchor gate pending (cells running on the 10h-cap relaunch).
+
+### 2.1 16-yr leg (2010-2025) — sleeve is a bounded calm-drag, trivial MDD help
+
+| Arm | canon | Sharpe | ΔSharpe | ON ci_low | Δ-on-diff ci_low | MDD | ΔMDD (rel / abs) |
+|---|---|---|---|---|---|---|---|
+| arm0_off | `3e9ea427` | 1.162 | — | 0.675 | — | −16.2% | — |
+| on25% | `b2dea6c5` | 1.110 | **−0.051** | 0.642 | −0.540 | −15.4% | +4.6% / +0.74pp |
+| on30% | `f38e1966` | 1.145 | **−0.016** | 0.694 | −0.559 | −15.7% | +2.9% / +0.46pp |
+
+Crisis(2020)/calm split (Sharpe): arm0 2020 +2.77 / calm +1.02; on25
+2020 +2.65 / calm +0.98; on30 2020 +2.44 / calm +1.04.
+
+**16-yr read:** the sleeve mildly dilutes a strong bull book (ΔSharpe
+−0.05/−0.02) — calm-drag criterion (≥ −0.20) **PASS**. But MDD help is
+trivial (+0.46-0.74pp), far under the 15% bar, and Δ-on-difference ci
+spans zero (statistically no effect). Expected: the 16-yr window's
+only crisis is the V-shaped 2020 the equity book already rode well
+(Sharpe +2.77), so there's no sustained drawdown for a diversifier to
+cut. **The sleeve's case rests entirely on the 26-yr full-cycle leg
+(2008 GFC + 2000-02 dot-com), which is where the −33% MDD it's meant
+to flatten actually lives.**
+
+### 2.2 26-yr leg (2000-2025) — PENDING
+
+Cells running on the 10h-cap relaunch (`t128r-sleeve-26yr-longcap`,
+job-timeout 36000) after the original 26-yr cells were terminated for
+projected timeout (the T-167 complete ~96-ticker universe runs ~430
+min/cell vs the original 360-min cap; confirmed a 26-yr cell at
+2015-05 after 220 min). Anchor gate: arm0 26-yr must reproduce
+`158fe678`/0.751 at 5/5. Results + the full pre-registered decision
+rule will be appended here when the cells land.
+
+### 2.3 Verdict — INTERIM (16-yr only)
+
+The decision rule is 26-yr-gated, so no final verdict yet. The 16-yr
+leg establishes: (i) the substrate is valid (anchor + canary
+bitwise-unanimous — this run is trustworthy where T-128/T-128b were
+not); (ii) the sleeve's calm-window cost is small and bounded
+(criterion 3 satisfied); (iii) 16-yr offers no MDD evidence either way
+(no sustained drawdown to cut). **The sleeve question turns on whether
+the 26-yr leg shows the crisis-diversifier cutting the −33% full-cycle
+MDD enough to lift ci_low past 0.40.**
