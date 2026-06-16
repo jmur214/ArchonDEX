@@ -48,6 +48,34 @@ The §5 criteria (all must hold before any real-money conversation):
   telemetry begins the first time the loop runs `submit_opg` inside the
   window at a market open.
 
+## Combined-candidate vs robo (the real deploy gate — director rec, T-172)
+
+Paper validates the MACHINE; the **EDGE** is judged separately against
+the Schwab robo, net-of-costs/after-tax (`GOAL.md`). Track BOTH lines:
+
+- **`base alone`** — the system's equity book (26yr re-anchor: Sharpe
+  0.751, ci_low 0.382, −33% MDD; honest near-term read: likely does NOT
+  beat a robo net-of-cost today — bull-conditional/beta-driven).
+- **`base + 20% DBMF`** (the real candidate) — 80% base + 20% bought
+  managed-futures sleeve (DBMF), monthly rebal. The 20% DBMF is
+  SIMULATED from its free daily returns (Stooq `dbmf.us`, inception
+  ~2019) — **not actually held in the paper account** (nothing to
+  validate in a buy-and-hold ETF). This is the validated crisis FLOOR
+  (T-170/171); the T-172 regime amplifier (if Step-2 clears) would
+  dynamically SIZE it.
+- **robo benchmark** — a low-cost moderate index+satellite proxy
+  (≈60/40: 60% SPY / 40% AGG, or Schwab SWYGX moderate-growth), net of
+  a typical robo fee (~0.08%/yr). Net-of-cost AND after-tax (taxable
+  sleeve via the T-141 model; Roth = pre-tax).
+
+**Status (2026-06-16):** methodology fixed; the live comparison accrues
+as the paper run produces base returns. The historical
+`base+20%DBMF vs robo` computation is the bought-MF-sleeve A/B lane's
+deliverable (A's T-170/171, on the 26yr re-anchor) — to be folded here
+once that A/B posts. The honest prior (GOAL.md): base-alone likely
+loses to the robo today; the combined line is where the real candidate
+must win.
+
 ## Next-cadence actions
 
 - Run the loop daily with the submit step inside the OPG window (the
