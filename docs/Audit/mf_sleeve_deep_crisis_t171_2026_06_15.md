@@ -8,6 +8,17 @@ status: CURRENT (pre-registration committed before running — see git history; 
 outcome: "**T-170's deep-crisis claim is now BACKTEST-SUPPORTED on MDD (net-of-haircut, haircut-robust) — no longer literature-only.** Net-of-haircut (k=0.71 GFC-match / 0.28 conservative 2008-match), base+20% trend-sleeve cuts the GFC drawdown −30.2%→−11.1%/−12.1% (+29%/+23%) and dotcom −19.0%→−7.7%/−8.0% (+30%/+28%); 30% cuts +35-51%. Clears the ≥25% MDD bar on dotcom (both haircuts) + GFC (primary; conservative +23% just under, 30% covers it). GFC point-Sharpe flips −0.262→+0.140. **Sharpe ci_low INDETERMINATE on monthly crisis windows** (24-35 obs, CI ~±1.8) — so MF is a MEASURED drawdown-defense, directionally Sharpe-positive, NOT a proven Sharpe-lifter (consistent with T-170's recent window). 20% remains the balanced recommendation (clears recent-window gates + dotcom + GFC-primary; 30% buys more crisis-cut at a recent-window cost). Caveats: AQR factor ≠ DBMF/KMLM product, monthly MDD approximate, survivorship, thin-N. AQR snapshot pinned (sha e75450e2), credited. N_trials += 1."
 ---
 
+> ## ⚠️ DIRECTOR CORRECTION (2026-06-15) — the combined-MDD cells below are ~2× OVERSTATED (combination-step bug). Read this first.
+>
+> An adversarial verification (5 agents) + an **independent director recomputation from the real S3 base curve (`158fe678`, `portfolio_snapshots.csv`) and the public AQR file** found the headline combined-MDD numbers are physically unreachable and do not reproduce. The BASE inputs are correct (full-cycle daily MDD −32.61%; per-window monthly dotcom −18.97%, GFC −30.15% — all match). The haircut calibration (k=0.711 / 0.278) is correct. **But the combined base+20% MDD cells are wrong — too shallow by ~2×.** Recomputed with the audit's own formula `r = (1−x)·r_base + x·r_mf_net` (monthly):
+>
+> | Window | base | base+20% (k=.711 / .278) | cut | clears ≥25%? | base+30% | 30% clears? |
+> |---|---|---|---|---|---|---|
+> | dotcom | −18.97% | **−11.8% / −13.5%** | 38% / 29% | YES both | −9.6% / −11.1% | yes |
+> | GFC | −30.15% | **−21.9% / −23.6%** | 27% / **22%** | **primary only; conservative FAILS** | −17.5% / −20.2% | yes both |
+>
+> **Corrected verdict:** the directional deep-crisis MDD-defense is REAL but (1) magnitudes are ~2× smaller than published; (2) the ≥25% bar is **haircut-FRAGILE at the GFC@20%** — clears primary (27%), fails conservative (22%); 30% is needed for a robust GFC cut; (3) these are an **OPTIMISTIC CEILING** — the scalar haircut preserves the AQR factor's crisis shape/convexity perfectly, but the buyable products (DBMF ~82% replication corr / 5.81% TE, 2020/2022 breakdowns; KMLM zero equity exposure) distort crisis SHAPE in fast-reversal moments → a real product would be shallower and later; (4) the GFC Sharpe "flip to +0.140" also does not reproduce (real +20%@k.711 = −0.187, still negative); (5) reproducibility gap: the analysis script + AQR snapshot were not committed (regenerable from S3 + public AQR, as the recompute did). **The "+X%" reduction labels in the tables below are ALSO inconsistent (≈half the true relative cut) — a separate, conservative-direction labeling bug.** Authoritative corrected record: `CURRENT_STATE.md` + `TASK_LEDGER.md` T-171. Fix dispatched as T-173 (A: find the combination bug, re-publish, commit the script+data). The `outcome:` field above and §2 below are SUPERSEDED by this banner.
+
 # T-171 — Deep-Crisis Backtest of the Bought-MF Sleeve
 
 ## 1. PRE-REGISTRATION (committed before any result)

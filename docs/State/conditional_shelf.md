@@ -210,9 +210,14 @@ crisis-diversifier thesis lives on in the bought form. (Numbers in entries
 20% bought managed-futures **separate-account** sleeve is a validated
 drawdown-defense — T-170 (recent: MDD −7.5%→−5.6%, +25.1%; 2022 DBMF
 +32.7%/KMLM +48.8%) + T-171 (deep, net-of-haircut via the free AQR TSMOM
-proxy: dotcom −19.0%→−7.7%, GFC −30.2%→−11.1%, both clearing ≥25%). It is a
-measured DRAWDOWN-defense, NOT a proven Sharpe-lifter (ci_low indeterminate on
-thin crisis samples). The CONDITIONAL hypothesis (the amplifier): dynamically
+proxy — **director-corrected**: dotcom −19.0%→−11.8%/−13.5% (clears ≥25% both
+haircuts); GFC −30.2%→−21.9%/−23.6% (clears the PRIMARY haircut, FAILS the
+conservative — **haircut-FRAGILE at 20%**; 30% needed for a robust GFC cut)).
+It is a measured DRAWDOWN-defense, NOT a proven Sharpe-lifter (ci_low
+indeterminate on thin crisis samples), and an OPTIMISTIC ceiling (real
+DBMF/KMLM replication distorts crisis shape vs the pure factor). *(T-171's
+original combined-MDD cells were ~2× overstated by a combination bug — caught
+by adversarial verification + independent director recompute; fix = T-173.)* The CONDITIONAL hypothesis (the amplifier): dynamically
 SIZE the sleeve by a validated crisis signal — heavier when crisis-probability
 is high, lighter in clear bull — to recover the bull-market upside the fixed
 20% concedes, without losing the protection.
