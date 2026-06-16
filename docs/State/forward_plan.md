@@ -1,4 +1,18 @@
-# Forward Plan — live (last substantive update 2026-06-13, paper-phase directive: treat paper as an active paper-only measurement program, not just a graduation gate)
+# Forward Plan — live (last substantive update 2026-06-15, crisis-defense resolved into a two-layer floor+amplifier architecture; regime detector elevated to an active lane per user directive)
+
+> ## 2026-06-15 — Crisis-defense RESOLVED into a TWO-LAYER architecture; the regime detector is an ACTIVE lane (USER DIRECTIVE)
+>
+> The bought managed-futures separate-account sleeve is the FIRST working crisis-defense in the whole arc: T-170 (recent window: MDD −7.5%→−5.6%, +25.1%; 2022 DBMF +32.7%/KMLM +48.8%) + T-171 (deep windows, net-of-haircut via the free AQR TSMOM proxy: dotcom −19.0%→−7.7%, GFC −30.2%→−11.1%, both clearing the ≥25% MDD bar). It is a MEASURED DRAWDOWN-defense across all four crises (dotcom/GFC/COVID/2022), NOT a proven Sharpe-lifter (Sharpe ci_low indeterminate on thin crisis samples). Both IN-HOUSE levers stay dead (de-gross T-118r, capital-partitioned sleeve T-128r). This resolves the crisis-defense question into two layers — **do NOT re-litigate it as "crashes are unpredictable":**
+>
+> **FLOOR (ship now): always-on 20% bought MF sleeve.** Robust, needs NO prediction — the product times itself internally (trend-following auto-shorts a developing downtrend), so it catches the crises our HMM misses. The bull-market upside give-up is real but small net (diversification math: an anti-correlated ~0.4-Sharpe stream, rebalanced, did NOT lower portfolio Sharpe ci_low in T-170/171).
+>
+> **AMPLIFIER (active research, GATED): a validated crash-signal → DYNAMIC sleeve sizing.** Lean heavier when crisis-probability is hot, lighter in clear bull — recovering the upside the fixed 20% concedes WITHOUT losing the crisis protection. This is the regime detector's job.
+>
+> **The honest epistemic correction (user, 2026-06-15):** "our detector couldn't YET make a deployable crash-timer without overfitting" is NOT "crashes are unpredictable." The `hmm_p_crisis` signal HAS demonstrated predictive power (T-087/T-089: AUC 0.887, fires 5/5 stress events with 27-60d lead). T-118r failed for two NARROWER reasons: (a) the de-gross ACTION didn't convert prediction → drawdown-cut, and (b) the model is dotcom-blind — no generalization to a crisis TYPE it never trained on.
+>
+> **THE BAR for the amplifier (anti-overfit, non-negotiable):** a deployable crash-timer must beat the always-on sleeve NET-of-cost, OUT-of-sample, on a crisis TYPE it did NOT train on. "Fires before 2018/2022" is cheap; "would have fired before a crisis it never saw" is the real test. Gates never loosen — the question changes from "does timing work?" to "does THIS signal beat always-on, OOS?" (T-118b template.)
+>
+> **USER DIRECTIVE: the regime detector is crucial to the system's functioning — do NOT defer it.** → **T-172 dispatched to E:** (step 1) regime-detector deep-history RE-TRAIN + OOS generalization test (leave-one-crisis-out: does it fire on a held-out crisis TYPE — the anti-dotcom-blindness, anti-overfit test); (step 2, GATED on step 1 passing) wire the validated detector to dynamic MF-sleeve sizing + A/B vs always-on 20%, OOS, net-of-cost. Newly possible because the substrate is finally trustworthy (re-anchored 26yr + deep-crisis data). Conditional-shelf entry #5 added.
 
 > ## 2026-06-13 — User directive: the paper phase must RUN PAPER-ONLY EXPERIMENTS (input for the eventual PR-3/go-live; not actionable until paper starts)
 >

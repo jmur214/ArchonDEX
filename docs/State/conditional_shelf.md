@@ -189,6 +189,50 @@ the cloud substrate so the integrated A/B is valid, THEN (ii) a fresh
 conditional pre-registration. Until (i), this entry cannot even be
 unconditionally re-measured.
 
+**UPDATE 2026-06-15.** Both blocks resolved, opposite ways. (i) Determinism
+FIXED (cov-pin, T-140-fu3) + substrate re-anchored (T-167). (ii) The
+INTEGRATED **in-house capital-partitioned** sleeve was re-tested and
+**REFUTED** (T-128r: 2-7% MDD cut not +16.2%, worse in 2008 — the analytical
+partition is not scale-invariant, T-120/121 mechanism confirmed). BUT the
+**separate-account BOUGHT** variant (own capital, no shared constraint stack)
+escapes that mechanism and is **VALIDATED as an always-on floor** — see entry
+#5. So this entry's IN-HOUSE form is retired-to-Archive-eligible; its
+crisis-diversifier thesis lives on in the bought form. (Numbers in entries
+#3 here predate the T-167 re-anchor — 26-yr is 0.751/−33% MDD, not
+0.246/−59.3%; CURRENT_STATE is the live truth.)
+
+---
+
+### 5. Dynamic MF-sleeve sizing — the AMPLIFIER on the always-on bought sleeve (the one shelf entry whose FLOOR already works)
+
+**Measured profile.** Unlike entries #1-4 (strategies killed at the
+*unconditional* gate), this entry's unconditional version WORKS: the always-on
+20% bought managed-futures **separate-account** sleeve is a validated
+drawdown-defense — T-170 (recent: MDD −7.5%→−5.6%, +25.1%; 2022 DBMF
++32.7%/KMLM +48.8%) + T-171 (deep, net-of-haircut via the free AQR TSMOM
+proxy: dotcom −19.0%→−7.7%, GFC −30.2%→−11.1%, both clearing ≥25%). It is a
+measured DRAWDOWN-defense, NOT a proven Sharpe-lifter (ci_low indeterminate on
+thin crisis samples). The CONDITIONAL hypothesis (the amplifier): dynamically
+SIZE the sleeve by a validated crisis signal — heavier when crisis-probability
+is high, lighter in clear bull — to recover the bull-market upside the fixed
+20% concedes, without losing the protection.
+
+**Activation condition.** A regime detector that clears the OOS-generalization
+bar: fires with lead on a crisis TYPE it did NOT train on, AND a dynamic-sized
+sleeve beats always-on 20% net-of-cost OUT-of-sample. (Not "fires before
+2018/2022" — that is in-sample-era cheap.)
+
+**Capacity ceiling.** Separate-account bought ETF (DBMF/KMLM), ~0.9% ER;
+retail-AUM fine.
+
+**Gating switch.** `hmm_p_crisis` is predictive (T-087/089) but does NOT yet
+clear the bar (dotcom-blind, T-118r). **T-172 tests whether a deep-history
+re-train fixes generalization.** Same family as the de-gross overlay (T-118r
+REFUTED) but a **DIFFERENT action — size the BOUGHT sleeve, not de-gross the
+equity book** — so the de-gross failure does not pre-doom it, but the
+dotcom-blindness must be fixed first. Re-test: does a `hmm_p_crisis`-sized
+sleeve beat always-on 20%, OOS, net-of-cost, on a held-out crisis?
+
 ---
 
 ## Not-yet-shelved candidates (flagged, not seeded — need an audit re-read)
