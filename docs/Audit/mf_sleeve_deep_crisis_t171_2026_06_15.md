@@ -101,104 +101,139 @@ haircut sensitivity arm is the same hypothesis, not a new trial.
 
 ---
 
-## 2. RESULTS
+## 2. RESULTS — CORRECTED (T-173, 2026-06-16)
 
-(Appended after the pre-registration commit — verify section 1 predates these numbers in git history.)
+> This section replaces the original (superseded) §2 per the DIRECTOR
+> CORRECTION banner above. The original cells were ~2× too shallow.
+> **Root cause (combination-step bug):** AQR's month-end dates and the
+> base `resample('ME')` month-end dates do not match day-for-day in ~7
+> of the 24 GFC months; the original code combined on the index
+> INTERSECTION and `dropna()`'d the non-aligning rows — silently
+> dropping the deep-trough months, so the combined MDD never reached
+> the real trough (base MDD on the surviving 17-month subset is only
+> −15.7% vs −30.15% on the full 24 months). **Fix:** align both monthly
+> series on calendar-month PERIODS (`.to_period('M')`) and combine on
+> the full window with NO `dropna`; assert mf-NaN-count == 0 per window.
+> The "+X%" reduction labels were separately ~half the true cut and are
+> corrected here too. Reproducible: `scripts/mf_sleeve_deep_crisis_t171.py`.
 
-### 2.1 Haircut calibration
+### 2.0 OPTIMISTIC-CEILING CAVEAT (read before the numbers)
+
+**Every cell below is an upper bound on what a real bought product
+delivers.** The scalar haircut `k` de-levers the AQR factor to a net
+return level but **preserves the factor's crisis SHAPE and convexity
+perfectly** — it assumes the investable product tracks trend's timing
+exactly and only scales the magnitude. Real products do not: DBMF
+replicates the trend factor at ~82% correlation with 5.81% tracking
+error and had documented 2020/2022 breakdowns; KMLM carries zero
+equity exposure and so distorts the crisis shape in fast reversals.
+**A real product's drawdown cut is therefore SHALLOWER and LATER than
+these figures** — the convexity that makes trend cut a crisis is
+exactly what replication error degrades in the fast-reversal moments
+that matter. Treat the MDD reductions below as the best case the
+asset class could provide, not the deployable number.
+
+### 2.1 Haircut calibration (unchanged — was correct)
 
 AQR TSMOM gross: GFC (2007-07→2009-06) **+13.9%**, 2008-calendar
-**+24.5%**. Net anchors (RYMFX, fees-embedded): GFC +9.9%, 2008-cal
-+6.8%.
-
-- **Primary haircut `k = 9.9/13.9 = 0.711`** (GFC-window match).
+**+24.5%**. Net anchors (RYMFX, fees-embedded): GFC +9.9%, 2008-cal +6.8%.
+- **Primary `k = 9.9/13.9 = 0.711`** (GFC-window match).
 - **Conservative `k = 6.8/24.5 = 0.278`** (2008-calendar match — RYMFX
-  captured only 28% of AQR's gross spike year). The wide gap between
-  the two is itself the finding: an investable fund tracks a far
-  smaller fraction of the leveraged academic factor in a peak-crisis
-  month than over a fuller window. We report under BOTH.
+  captured only 28% of AQR's gross spike year).
 
-### 2.2 Deep-crisis A/B (month-end; MDD is conservative/approximate)
+### 2.2 Deep-crisis A/B — CORRECTED (month-end MDD; conservative/approximate)
 
-**dotcom 2000-01→2002-12 (35 mo), base-alone MDD −19.0%, Sharpe 0.009 (cum −3.8%):**
+**dotcom 2000-01→2002-12 (35 mo), base-alone MDD −18.97%:**
 
 | Haircut | base+10% | base+20% | base+30% |
 |---|---|---|---|
-| GROSS | MDD −8.9% (+20%) | −7.5% (+32%) | −6.5% (+42%) |
-| net k=0.71 | −8.9% (+19%) | **−7.7% (+30%)** | −6.5% (+41%) |
-| net-consv k=0.28 | −9.2% (+17%) | **−8.0% (+28%)** | −6.9% (+38%) |
+| net k=.711 | −15.0% (cut 21%) | **−11.8% (cut 38%)** | −9.6% (cut 49%) |
+| net-consv k=.278 | −16.0% (cut 16%) | **−13.5% (cut 29%)** | −11.1% (cut 42%) |
 
-**GFC 2007-07→2009-06 (24 mo), base-alone MDD −30.2%, Sharpe −0.262 (cum −11.2%):**
+**GFC 2007-07→2009-06 (24 mo), base-alone MDD −30.15%:**
 
 | Haircut | base+10% | base+20% | base+30% |
 |---|---|---|---|
-| GROSS | MDD −13.1% (+17%) | −10.4% (+34%) | −7.8% (+51%) |
-| net k=0.71 | −13.4% (+15%) | **−11.1% (+29%)** | −8.7% (+44%) |
-| net-consv k=0.28 | −13.9% (+12%) | **−12.1% (+23%)** | −10.2% (+35%) |
+| net k=.711 | −26.1% (cut 13%) | **−21.9% (cut 27%)** | −17.5% (cut 42%) |
+| net-consv k=.278 | −26.9% (cut 11%) | **−23.6% (cut 22%)** | −20.2% (cut 33%) |
 
-Sharpe (point) flips positive in the GFC at every ON allocation
-(base −0.262 → base+20% +0.140 net / +0.081 conservative); dotcom
-Sharpe rises from ~0 toward positive at 30%. **But the Sharpe ci_low
-is uninformative on these windows** — monthly bootstrap over 24-35
-observations gives CI half-widths of ~1.8 Sharpe units (base GFC
-ci_low itself is −1.654), so criterion 2 (ci_low not down) cannot be
-cleanly evaluated; the ON-arm ci_low moves within noise of the base.
+Base full-cycle daily MDD = −32.61% (sanity-anchor, matches T-128r).
+GFC point-Sharpe does NOT flip positive under the corrected combine
+(the earlier "+0.140" was part of the same truncation artifact); a
+real +20% blend at k=.711 leaves the GFC Sharpe still negative
+(≈−0.19). The Sharpe leg is in any case uninformative on 24-35 monthly
+obs (CI half-widths ~±1.8) — do not claim a risk-adjusted-return lift.
 
-### 2.3 Verdict — the T-170 deep-crisis claim is now BACKTEST-SUPPORTED on MDD (net, haircut-robust); the Sharpe leg stays indeterminate on monthly crisis data
+### 2.3 Verdict — CORRECTED: directional deep-crisis MDD-defense is REAL but smaller, haircut-fragile at the GFC, and a ceiling
 
-**Scored against the pre-registered rule, net-of-haircut, deep windows:**
+**Scored against the pre-registered rule (≥25% MDD cut, both haircuts):**
 
-| Criterion | dotcom | GFC |
+| Cell | dotcom | GFC |
 |---|---|---|
-| (1) MDD reduction ≥ 25% @ 20% | **PASS** (net +30%, consv +28%) | net **PASS** (+29%); consv +23% (clears at 30%: +35%) |
-| (2) Sharpe ci_low not down | INDETERMINATE (CI ~±1.8 on 24-35 mo) | INDETERMINATE; point Sharpe flips −0.26→+0.14 |
+| @20% primary (k=.711) | PASS (38%) | PASS (27%) |
+| @20% conservative (k=.278) | PASS (29%) | **FAIL (22%)** |
+| @30% primary | PASS (49%) | PASS (42%) |
+| @30% conservative | PASS (42%) | PASS (33%) |
+| Sharpe ci_low not down | INDETERMINATE | INDETERMINATE |
 
-**The headline answer: YES — net-of-haircut, the bought-trend sleeve
-cuts the deep-crisis drawdown the base cannot escape, and the cut
-survives even the conservative 0.28 haircut.** The GFC −30.2% base MDD
-drops to −11.1% (net) / −12.1% (conservative) at 20%, and the dotcom
-−19.0% to −7.7% / −8.0%. **This converts T-170's literature citation
-(SG Trend +20.9%, 2008) into a measured, net-of-cost result on real
-crisis data — the deep-crisis MDD-defense thesis is no longer
-literature-only; it is backtest-supported and haircut-robust.**
+**The deep-crisis MDD-defense is real and now backtest-grounded (not
+literature-only) — but materially weaker than T-171 originally
+published.** Net-of-haircut, a 20% sleeve cuts the dotcom −18.97% to
+−11.8%/−13.5% and the GFC −30.15% to −21.9%/−23.6% — meaningful, but
+the GFC trough still sits near −22% even with the sleeve (it does not
+collapse to ~−11% as originally claimed). **The ≥25% bar is
+haircut-FRAGILE at the GFC@20%** (clears the primary 27%, fails the
+conservative 22%); only at **30%** does the GFC clear under both
+haircuts (42%/33%). On the Sharpe dimension nothing is established
+(indeterminate on monthly data; the earlier GFC-Sharpe "flip" was an
+artifact). **Composite: MF is a measured PARTIAL deep-crisis
+drawdown-mitigant — it shaves roughly a quarter to a third off the
+GFC/dotcom trough at 20-30%, net-of-haircut, as an optimistic ceiling
+— not the near-halving the original (buggy) T-171 implied.**
 
-**What is NOT established:** the risk-adjusted-RETURN improvement. Point
-Sharpe rises (GFC flips negative→positive), but monthly crisis-window
-CIs are too wide (24-35 obs) to claim a ci_low lift. So the sleeve's
-value on the deep crises is demonstrated as **drawdown reduction**, not
-as a statistically-clean Sharpe gain — consistent with T-170's recent
-window (where the gain was real but the paired difference wasn't
-significant either). The honest composite: **MF is a measured
-drawdown-defense, directionally Sharpe-positive, not a proven
-Sharpe-lifter.**
+### 2.4 Allocation re-examination (20 vs 30%) — corrected
 
-**Does 20% still hold on the deep windows?** Yes on dotcom (clears ≥25%
-under both haircuts). On the GFC it clears under the primary haircut
-(+29%) and just misses under the conservative (+23%); 30% clears
-everywhere (+35-44%). So the deep crises argue mildly for ≥20%, with
-30% buying more crisis-MDD-cut — but T-170 showed 30% over-dilutes the
-recent window (0.43-Sharpe product drag). **20% remains the balanced
-recommendation** (clears recent-window gates per T-170 + the dotcom
-deep gate + the GFC primary gate; conservative-GFC is the one cell it
-narrowly misses, which 30% would cover at a recent-window cost). No
-allocation overfit to a single episode — the ranking is consistent
-across both deep crises and the recent window.
+The corrected GFC fragility sharpens the trade-off the original missed:
 
-### 2.4 Residual caveats (honest)
+- **20%:** dotcom-robust (clears ≥25% both haircuts), recent-window-optimal
+  (T-170: Sharpe 1.452, +25.1% recent MDD cut), but the **GFC defense is
+  haircut-fragile** (27% primary / 22% conservative — a partial cut to
+  ~−22%, not a robust one).
+- **30%:** robust deep-crisis cut under both haircuts (GFC 42%/33%,
+  dotcom 49%/42%), but T-170 showed 30% **over-dilutes the recent
+  window** (Sharpe 1.341 vs 1.452, recent MDD cut +16% vs +25% — paying
+  more to a 0.43-Sharpe product in the 95% of time that isn't a deep
+  crisis).
 
-- **AQR TSMOM (pure diversified TSMOM) ≠ DBMF/KMLM** (manager
-  idiosyncrasy + multi-strat). AQR establishes the trend SHAPE and
-  crisis-convexity on the deep windows; the specific bought products
-  were validated on their post-2019 live records (T-170). The two
-  legs are complementary, not interchangeable.
-- **Monthly MDD understates** intra-month daily peak-to-trough (base
-  GFC monthly −30.2% vs daily −32.6%); the true ON-arm MDDs are
-  somewhat deeper than shown, but the relative reduction is the robust
-  quantity.
+**Recommendation (the rule is unchanged from T-170/T-171; only the
+corrected numbers move which cells clear it — no re-pre-registration,
+this is a correction not a goalpost move):** the honest call is a
+**20-25% range, defaulting to 20%**, with the explicit understanding
+that **at 20% the GFC defense is partial and haircut-fragile, and the
+optimistic-ceiling caveat means the deployable cut is shallower still.**
+If the user weights deep-crisis robustness over recent-window return,
+30% is the lever that makes the GFC cut survive the conservative
+haircut — but given the ceiling caveat (a real product won't deliver
+even the 30% figures cleanly in a fast reversal), chasing the exact
+≥25% threshold by sizing up to 30% is partly illusory precision. The
+defensible posture: **20% as a partial crisis mitigant with eyes open,
+not a crisis solution; size toward 30% only if deep-crisis protection
+is the explicit priority and the recent-window Sharpe cost is accepted.**
+
+### 2.5 Residual caveats (honest)
+
+- **Optimistic ceiling (§2.0) is the load-bearing caveat** — real
+  DBMF/KMLM (replication error, 2020/2022 breakdowns, KMLM zero-equity)
+  delivers a shallower, later cut than the scalar-haircut figures.
+- **AQR TSMOM (pure diversified TSMOM) ≠ DBMF/KMLM** — AQR gives the
+  trend crisis-SHAPE on the deep windows; the products were validated
+  on post-2019 records (T-170). Complementary, not interchangeable.
+- **Monthly MDD understates** daily peak-to-trough (base GFC monthly
+  −30.15% vs daily −32.61%); relative reduction is the robust quantity.
 - **Survivorship/backfill** in the academic factor → directional
-  crisis-diversification evidence, not achievable returns. The haircut
-  to RYMFX-net partially corrects this; the conservative haircut is
-  the safer read.
-- **Thin N** (2 deep crises + COVID/2022 from T-170). The MDD-cut is
-  consistent across all four episodes, which is the strongest claim
-  the data supports; do not over-precision the allocation.
+  evidence, not achievable returns; the conservative haircut is the
+  safer read.
+- **Thin N** (2 deep crises + COVID/2022) → do not over-precision the
+  allocation.
+- **The original T-171 §2 was wrong by ~2×** (combination bug, §2 head);
+  this corrected record + the banner are the authoritative version.

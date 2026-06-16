@@ -59,3 +59,4 @@ docs/Coordination/agent_*_inbox.md
 docs/Coordination/agent_*_outbox.md
 docs/Coordination/task_queue.md
 data/external/aqr/
+data/external/base_curve/
