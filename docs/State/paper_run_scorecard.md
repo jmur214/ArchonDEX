@@ -86,3 +86,7 @@ must win.
   (followup: gate `submit_opg` on `7pm ≤ now < 9:28am`).
 - Kill ACTIONS stay SHADOW for the first stretch (observe the divergence
   null + false-alarm rate); arm reduce/flatten later per the criteria.
+
+## Live-size cap — canonical deep-window safe_f (T-178)
+
+**safe_f = 0.928** on the canonical 26yr re-anchor curve (158fe678, MDD −33%; mdd95@f1 21.3%). The eventual live size cap = `min(1, safe_f)` = **0.928** (book ~7% oversized at f=1). Supersedes the benign-2024 1.602 and the 12yr-interim 1.104.
