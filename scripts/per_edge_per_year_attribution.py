@@ -70,6 +70,129 @@ def _load_lifecycle_status() -> Dict[str, Dict[str, str]]:
     }
 
 
+# --------------------------------------------------------------------------- #
+# T-2026-06-17-187 — per-edge × per-REGIME attribution (the reusable API).
+#
+# Extends the per-year tooling above to condition each edge's realized PnL on
+# the Engine-E regime label carried on every trade row. The closing
+# (exit/stop/take_profit) row carries the realized `pnl` AND the
+# `regime_label` AT CLOSE — so this attributes each edge's earned/lost PnL to
+# the regime in which the position was REALIZED. Per-regime sub-samples are
+# small and non-contiguous in time, so we deliberately do NOT compute a
+# daily-axis Sharpe here (that needs a contiguous calendar): the honest
+# per-cell statistics are trade-count N, total/mean PnL, win-rate, and a
+# bootstrap CI on mean PnL-per-trade, with a `thin` flag for low-N cells.
+#
+# Pure function (takes a trades DataFrame, returns a tidy DataFrame) so BOTH
+# D's `--discover` evaluation and C's dashboard API/data layer call the same
+# code on whatever trades they already hold.
+# --------------------------------------------------------------------------- #
+
+CLOSING_TRIGGERS = ("exit", "stop", "take_profit", "cover")
+DEFAULT_MIN_N = 20  # cells below this are flagged `thin` (don't over-read)
+
+
+def _bootstrap_mean_ci(
+    values: np.ndarray, *, n_boot: int = 1000, seed: int = 42,
+    lo_pct: float = 2.5, hi_pct: float = 97.5,
+) -> tuple[float, float]:
+    """Percentile bootstrap CI on the MEAN of `values` (per-trade PnL).
+
+    Per-trade (not block) because trades within a regime are not a contiguous
+    time series; the resampling unit is the trade. Returns (nan, nan) for
+    fewer than 2 observations."""
+    n = values.shape[0]
+    if n < 2:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, size=(n_boot, n))
+    means = values[idx].mean(axis=1)
+    return float(np.percentile(means, lo_pct)), float(np.percentile(means, hi_pct))
+
+
+def attribute_by_edge_regime(
+    trades: pd.DataFrame,
+    *,
+    edge_col: str = "edge",
+    regime_col: str = "regime_label",
+    pnl_col: str = "pnl",
+    trigger_col: str = "trigger",
+    min_n: int = DEFAULT_MIN_N,
+    n_boot: int = 1000,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Per-edge × per-regime PnL attribution with per-cell N + bootstrap CI.
+
+    Parameters
+    ----------
+    trades
+        A trades frame with at least ``edge_col``, ``regime_col``,
+        ``pnl_col`` and (optionally) ``trigger_col``. Only closing rows
+        (``trigger`` in CLOSING_TRIGGERS) carry realized PnL; if a
+        ``trigger_col`` is present it is used to select them, otherwise all
+        non-null-PnL rows are treated as realizations.
+    min_n
+        Cells with fewer than ``min_n`` realized trades are flagged
+        ``thin=True`` (small non-contiguous sub-sample — do not over-read,
+        per the census/MBL discipline).
+
+    Returns
+    -------
+    Tidy DataFrame, one row per (edge, regime):
+        edge, regime, n_trades, total_pnl, mean_pnl, win_rate,
+        pnl_ci_low, pnl_ci_high, thin
+    Sorted by edge then descending total_pnl. The CI is a per-trade-mean
+    percentile bootstrap (seed-pinned, deterministic).
+    """
+    df = trades.copy()
+    if trigger_col in df.columns:
+        df = df[df[trigger_col].isin(CLOSING_TRIGGERS)]
+    df = df[df[pnl_col].notna()].copy()
+    df[edge_col] = df[edge_col].fillna("Unknown")
+    df[regime_col] = df[regime_col].fillna("unknown")
+
+    rows: List[dict] = []
+    for (edge, regime), g in df.groupby([edge_col, regime_col], sort=True):
+        pnl_vals = g[pnl_col].to_numpy(dtype=float)
+        n = pnl_vals.shape[0]
+        lo, hi = _bootstrap_mean_ci(pnl_vals, n_boot=n_boot, seed=seed)
+        rows.append({
+            "edge": edge,
+            "regime": regime,
+            "n_trades": int(n),
+            "total_pnl": float(pnl_vals.sum()),
+            "mean_pnl": float(pnl_vals.mean()),
+            "win_rate": float((pnl_vals > 0).mean()),
+            "pnl_ci_low": lo,
+            "pnl_ci_high": hi,
+            "thin": bool(n < min_n),
+        })
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    return out.sort_values(["edge", "total_pnl"], ascending=[True, False]).reset_index(drop=True)
+
+
+def load_trades(run_dirs: List[str]) -> pd.DataFrame:
+    """Concatenate trades.csv from one or more run dirs/UUIDs (under
+    data/trade_logs/ or an absolute path). Adds `year` from the timestamp.
+    The flexible loader behind the `--per-regime` CLI; the reusable
+    attribution function above takes the resulting frame."""
+    frames: List[pd.DataFrame] = []
+    for rd in run_dirs:
+        p = Path(rd)
+        if not p.is_absolute() and not (p / "trades.csv").exists():
+            p = ROOT / "data" / "trade_logs" / rd
+        csv = p if str(p).endswith(".csv") else p / "trades.csv"
+        df = pd.read_csv(csv)
+        df["__run"] = str(rd)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["year"] = df["timestamp"].dt.year
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
+
+
 def _per_edge_per_year_pnl(trades: pd.DataFrame) -> pd.DataFrame:
     """$ PnL summed per (edge, year). Only exit rows carry PnL."""
     exits = trades.loc[
@@ -249,11 +372,50 @@ def _md_table_int(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+def _run_per_regime(run_dirs: List[str], regime_csv_out: str, min_n: int) -> int:
+    """T-187 CLI mode: per-edge × per-regime attribution on the given run
+    dir(s), printed + written to CSV. Uses the reusable
+    `attribute_by_edge_regime` API (the same function D's --discover eval and
+    C's dashboard call)."""
+    trades = load_trades(run_dirs)
+    print(f"[ATTRIB-REGIME] Loaded {len(trades):,} trade rows from {len(run_dirs)} run(s)")
+    table = attribute_by_edge_regime(trades, min_n=min_n)
+    if table.empty:
+        print("[ATTRIB-REGIME] no realized (closing) trades found")
+        return 1
+    n_thin = int(table["thin"].sum())
+    print(f"[ATTRIB-REGIME] {len(table)} (edge×regime) cells, "
+          f"{n_thin} thin (N<{min_n}) — flagged, do not over-read")
+    with pd.option_context("display.max_rows", None, "display.width", 160):
+        show = table.copy()
+        for c in ("total_pnl", "mean_pnl", "pnl_ci_low", "pnl_ci_high"):
+            show[c] = show[c].round(1)
+        show["win_rate"] = show["win_rate"].round(2)
+        print(show.to_string(index=False))
+    outp = ROOT / regime_csv_out
+    outp.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(outp, index=False)
+    print(f"[ATTRIB-REGIME] wrote {outp}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="docs/Measurements/2026-04/per_edge_per_year_attribution_2026_04.md")
     ap.add_argument("--csv-out", default="data/research/per_edge_per_year_2026_04.csv")
+    # T-187 per-regime mode (extends, does not replace, the per-year report).
+    ap.add_argument("--per-regime", action="store_true",
+                    help="run per-edge × per-regime attribution instead of the per-year report")
+    ap.add_argument("--run-dir", action="append", default=[],
+                    help="run dir/UUID under data/trade_logs/ (or a path to trades.csv); repeatable")
+    ap.add_argument("--regime-csv-out", default="data/research/per_edge_per_regime_t187.csv")
+    ap.add_argument("--min-n", type=int, default=DEFAULT_MIN_N,
+                    help=f"cells with fewer realized trades are flagged thin (default {DEFAULT_MIN_N})")
     args = ap.parse_args()
+
+    if args.per_regime:
+        run_dirs = args.run_dir or [ANCHOR_UUID, OOS_UUID]
+        return _run_per_regime(run_dirs, args.regime_csv_out, args.min_n)
 
     print(f"[ATTRIB] Loading trade logs: {ANCHOR_UUID} + {OOS_UUID}")
     trades = _load_trades()
