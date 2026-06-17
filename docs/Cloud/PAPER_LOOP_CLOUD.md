@@ -63,6 +63,14 @@ pushed to S3 so C's dashboard (T-182) surfaces the same `alert` flag.
 
 ## Deploy
 
+> **PREREQUISITE (T-186-exec blocker):** the `claude-code-cli` automation
+> user is scoped for backtest campaigns only (ecr/s3/batch-submit/logs) and
+> is DENIED on Secrets Manager, IAM-create, EventBridge Scheduler, SNS, and
+> CloudWatch-alarm — every service the deploy needs. Before the deploy can
+> run, EITHER attach `infra/paper_cloud/iam_policy_provisioner_delta.json`
+> to `claude-code-cli`, OR run `deploy_paper_cloud_trigger.sh` once with an
+> admin AWS profile. The delta is scoped to `archondex-paper-*` resources.
+
 ```bash
 # 1. Build + push the paper image (SANCTIONED path only — never raw docker build):
 ARCHONDEX_BUILD_PUSH=1 scripts/build_backtest_image.sh HEAD \
