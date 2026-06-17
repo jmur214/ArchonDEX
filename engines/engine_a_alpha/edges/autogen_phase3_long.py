@@ -18,10 +18,17 @@ class AutogenPhase3Long(EdgeBase, EdgeTemplate):
 
     def __init__(self, params=None):
         super().__init__()
-        self.set_params(params)
-        self.direction = self.params.get("direction", "long")
         self.dm = DataManager()
         self.fundamental_cache = {}
+        self.set_params(params)   # hydrates self.direction (see below)
+
+    def set_params(self, params=None):
+        # T-2026-06-16-179: same set-once-in-__init__ bug class as CompositeEdge
+        # — re-derive self.direction on EVERY set so construct-then-set_params
+        # (the Discovery instantiation path) refreshes it. Harmless today
+        # (default matches the hardcoded long direction); fixed for the class.
+        super().set_params(params)
+        self.direction = self.params.get("direction", "long")
     def compute_signals(self, data_map, as_of):
         scores = {}
 

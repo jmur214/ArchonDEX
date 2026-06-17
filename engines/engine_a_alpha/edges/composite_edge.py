@@ -49,12 +49,27 @@ class CompositeEdge(EdgeBase, EdgeTemplate):
 
     def __init__(self, params=None):
         super().__init__()
-        self.set_params(params) 
         self.dm = DataManager()
-        self.fundamental_cache = {} 
+        self.fundamental_cache = {}
+        self.set_params(params)   # hydrates self.genes + self.direction (see below)
+
+    def set_params(self, params=None):
+        """Re-derive self.genes/self.direction from params on EVERY set.
+
+        T-2026-06-16-179: previously these were bound ONCE in __init__, but
+        the base set_params (edge_base.py) only updates self.params. Discovery
+        instantiates candidates via `cls_()` THEN `set_params(spec_params)`
+        (discovery.py _instantiate_candidate), so the genes never reached
+        self.genes -> every GA-evolved composite/foundry genome was INERT
+        (0 signals -> 0 fitness -> selected out). The whole "GA only does
+        rsi_bounce_v1 / vocabulary delivers 0" history (T-021) is this bug.
+        Overriding set_params makes the working state refresh on ANY
+        instantiation path (constructor or construct-then-set_params).
+        """
+        super().set_params(params)
         self.genes = self.params.get("genes", [])
-        self.direction = self.params.get("direction", "long") # long | short
-        
+        self.direction = self.params.get("direction", "long")  # long | short
+
     def compute_signals(self, data_map, as_of):
         scores = {}
 
@@ -294,8 +309,16 @@ class CompositeEdge(EdgeBase, EdgeTemplate):
         elif indicator == "residual_momentum":
             # Strategy 3.7 (Residual Momentum)
             # Epsilon = R_stock - Beta * R_market
-            spy_df = self.regime_cache.get("spy_df_ref") # Need access to SPY
-            if spy_df is None: return None # Can't calc without benchmark
+            # T-2026-06-16-179: previously read `self.regime_cache` — an
+            # attribute NOTHING ever set, so this raised AttributeError (a
+            # propagating programmer-error) for ANY genome carrying a
+            # residual_momentum gene. Dormant while composite edges were inert
+            # (the gene loop never ran); exposed the instant the Phase-0a wiring
+            # fix made them run. Read the benchmark from the live data_map
+            # (set in compute_signals) instead; abstain (None) if absent.
+            data_map = getattr(self, "_current_data_map", None) or {}
+            spy_df = data_map.get("SPY")
+            if spy_df is None or spy_df.empty: return None # Can't calc without benchmark
             
             # Align timestamps
             stock_rets = close.pct_change().dropna()[-window:]
