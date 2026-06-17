@@ -1,0 +1,11 @@
+{
+  "_comment": "Trust policy for the EventBridge Scheduler invocation role (T-186). Lets the Scheduler service assume the role to call batch:SubmitJob.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {"Service": "scheduler.amazonaws.com"},
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}

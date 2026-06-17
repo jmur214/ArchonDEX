@@ -1,0 +1,41 @@
+{
+  "_comment": "T-186 daily paper-loop Batch job definition (Fargate, ARM64). Rendered by scripts/deploy_paper_cloud_trigger.sh — __IMAGE__, __EXEC_ROLE_ARN__, __JOB_ROLE_ARN__, __SECRET_ARN__, __RESULTS_BUCKET__ are substituted at deploy. PAPER creds arrive via the `secrets` block (Secrets Manager), never baked into the image or printed.",
+  "jobDefinitionName": "archondex-paper-cloud-day",
+  "type": "container",
+  "platformCapabilities": ["FARGATE"],
+  "containerProperties": {
+    "image": "__IMAGE__",
+    "command": ["scripts/paper_cloud_entrypoint.sh"],
+    "executionRoleArn": "__EXEC_ROLE_ARN__",
+    "jobRoleArn": "__JOB_ROLE_ARN__",
+    "runtimePlatform": {
+      "cpuArchitecture": "ARM64",
+      "operatingSystemFamily": "LINUX"
+    },
+    "resourceRequirements": [
+      {"type": "VCPU", "value": "1"},
+      {"type": "MEMORY", "value": "2048"}
+    ],
+    "networkConfiguration": {"assignPublicIp": "ENABLED"},
+    "environment": [
+      {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
+      {"name": "ARCHONDEX_PAPER_STATE_BUCKET", "value": "__RESULTS_BUCKET__"},
+      {"name": "ARCHONDEX_PAPER_STATE_PREFIX", "value": "paper_state"},
+      {"name": "ARCHONDEX_PAPER_ALLOCATOR", "value": "mean_variance"}
+    ],
+    "secrets": [
+      {"name": "ALPACA_API_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_API_KEY::"},
+      {"name": "ALPACA_SECRET_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_SECRET_KEY::"}
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/aws/batch/job",
+        "awslogs-region": "us-east-1",
+        "awslogs-stream-prefix": "paper-cloud"
+      }
+    }
+  },
+  "retryStrategy": {"attempts": 1},
+  "timeout": {"attemptDurationSeconds": 1800}
+}

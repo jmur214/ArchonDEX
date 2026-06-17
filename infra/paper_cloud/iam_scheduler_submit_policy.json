@@ -1,0 +1,15 @@
+{
+  "_comment": "Attached to the EventBridge Scheduler invocation role: lets the schedule submit the paper job to the existing Batch queue. Scoped to the paper job definition + the backtest queue. __ACCOUNT__/__REGION__ substituted at deploy.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SubmitPaperJob",
+      "Effect": "Allow",
+      "Action": "batch:SubmitJob",
+      "Resource": [
+        "arn:aws:batch:__REGION__:__ACCOUNT__:job-definition/archondex-paper-cloud-day:*",
+        "arn:aws:batch:__REGION__:__ACCOUNT__:job-queue/archondex-backtest-queue"
+      ]
+    }
+  ]
+}
