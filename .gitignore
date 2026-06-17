@@ -60,3 +60,4 @@ docs/Coordination/agent_*_outbox.md
 docs/Coordination/task_queue.md
 data/external/aqr/
 data/external/base_curve/
+data/external/vrp/
