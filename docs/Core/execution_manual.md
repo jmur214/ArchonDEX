@@ -165,6 +165,9 @@ python -m scripts.run_backtest --mode alpha --debug # (Legacy)
 python -m cockpit.dashboard_v2.app
 # Launch on custom port (default 8050)
 python -m cockpit.dashboard_v2.app --port 8055
+# Live mode (2s pulse refresh) — drives the Paper tab (T-182): census/health
+# banner, paper run status, §5 scorecard, equity-vs-robo. Read-only.
+python -m cockpit.dashboard_v2.app --live --port 8050
 
 # Run Governor weight update from latest results
 python -m analytics.edge_feedback

@@ -19,6 +19,7 @@ from .tabs.settings_tab import settings_layout
 from .tabs.intel_tab import create_intel_layout
 from .tabs.backtest_tab import backtest_layout
 from .tabs.trading_tab import trading_layout
+from .tabs.paper_tab import paper_layout
 from .tabs.command_tab import command_layout
 
 # --- Sub-Tabs Imports ---
@@ -40,6 +41,7 @@ from .callbacks.intel_callbacks import register_intel_callbacks
 from .callbacks.evolution_callbacks import register_evolution_callbacks
 from .callbacks.backtest_callbacks import register_backtest_callbacks
 from .callbacks.trading_callbacks import register_trading_callbacks
+from .callbacks.paper_callbacks import register_paper_callbacks
 from .callbacks.command_callbacks import register_command_callbacks
 from .callbacks.capital_allocation_callbacks import register_capital_allocation_callbacks
 from .callbacks.feature_foundry_callbacks import register_feature_foundry_callbacks
@@ -115,6 +117,7 @@ def create_dash_app(live: bool = False) -> dash.Dash:
                             dcc.Tab(label="Dashboard", value="tab-dashboard", style=tab_style, selected_style=selected_tab_style),
                             dcc.Tab(label="Backtest", value="tab-backtest", style=tab_style, selected_style=selected_tab_style),
                             dcc.Tab(label="Trading", value="tab-trading", style=tab_style, selected_style=selected_tab_style),
+                            dcc.Tab(label="Paper", value="tab-paper", style=tab_style, selected_style=selected_tab_style),
                             dcc.Tab(label="Analytics", value="tab-analytics-parent", style=tab_style, selected_style=selected_tab_style),
                             dcc.Tab(label="Command Center", value="tab-command", style=tab_style, selected_style=selected_tab_style),
                             dcc.Tab(label="Intel", value="tab-intel", style=tab_style, selected_style=selected_tab_style),
@@ -143,6 +146,7 @@ def create_dash_app(live: bool = False) -> dash.Dash:
             "tab-dashboard": dashboard_layout,
             "tab-backtest": backtest_layout,
             "tab-trading": trading_layout,
+            "tab-paper": paper_layout,
             "tab-analytics-parent": analytics_parent_layout,
             "tab-command": command_layout,
             "tab-intel": create_intel_layout,
@@ -162,6 +166,7 @@ def create_dash_app(live: bool = False) -> dash.Dash:
     register_evolution_callbacks(app)
     register_backtest_callbacks(app)
     register_trading_callbacks(app)
+    register_paper_callbacks(app)
     register_command_callbacks(app)
     register_capital_allocation_callbacks(app)
     register_feature_foundry_callbacks(app)
