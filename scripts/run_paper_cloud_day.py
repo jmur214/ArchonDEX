@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+# scripts/run_paper_cloud_day.py
+"""T-186 — one paper day in the cloud (EventBridge → Fargate → here).
+
+The host-bound trigger fires this once per day. Everything host-INDEPENDENT
+(calendar self-skip, auction-window DEFER, the dead-man's-switch heartbeat,
+reconcile-on-restart) is T-185; this driver adds the cloud glue:
+
+  1. PULL durable state from S3 (orders journal / ledger / heartbeat /
+     alert log) → local disk, so a fresh container resumes yesterday's
+     memory (Fargate disk is ephemeral). A first-ever run starts clean.
+  2. Run the T-185 calendar-aware daily cycle (run_trading_day) — it
+     self-skips weekends/holidays and DEFERS out-of-window auctions.
+  3. PUSH durable state back to S3 + EMIT the CloudWatch dead-man's-switch
+     datapoints (PaperRunHappened / PaperRunCanonical).
+  4. EXIT NON-ZERO if the run was non-canonical, so Batch marks the job
+     FAILED and the failure alarm fires (defence-in-depth with the
+     metric alarm + the heartbeat status file the dashboard reads).
+
+By default this runs the daily PULSE (reconcile broker truth + record the
+heartbeat) with NO staged orders — it proves the loop ran and the account
+state reconciles, WITHOUT accumulating a position. The engine-driven order
+set (PaperOrderConstructor, the content layer) is wired separately; this
+is the trigger/persistence/heartbeat milestone.
+
+Creds: ALPACA_API_KEY / ALPACA_SECRET_KEY arrive as env vars injected by
+the Batch job definition's ``secrets`` block (AWS Secrets Manager) — this
+script never fetches or logs them. PAPER endpoint only.
+
+Run (locally, against the paper account, durable state in S3):
+  ARCHONDEX_PAPER_STATE_BUCKET=archondex-results-407539788432 \\
+  AWS_PROFILE=archondex \\
+  python -m scripts.run_paper_cloud_day --allocator mean_variance
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+from paper_trader import (
+    AlpacaPaperClient,
+    LedgerStore,
+    MarketCalendar,
+    OrderManager,
+    PaperConfig,
+    PaperHeartbeat,
+    PaperScheduler,
+    ReconcileInputs,
+    load_designated_allocator,
+    now_et,
+)
+from paper_trader.cloud_state import CloudState
+
+STATE_DIR = "data/paper_state"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--allocator", required=True,
+                    help="EXPLICIT runtime allocator; designation is the "
+                         "independent config/paper_designated_allocator.json")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="run the cycle WITHOUT arming submission (observe only)")
+    args = ap.parse_args()
+
+    if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
+        print("FATAL: no Alpaca creds in env (expected from Secrets Manager).",
+              file=sys.stderr)
+        return 64
+    designated = load_designated_allocator()
+    if designated is None:
+        print("FATAL: no designated allocator.", file=sys.stderr)
+        return 65
+
+    root = Path(__file__).resolve().parents[1]
+    cloud = CloudState(root=str(root))
+    now = now_et()
+    today = now.date()
+    print(f"=== T-186 cloud paper day | {now.isoformat()} ({now.strftime('%A')}) "
+          f"| state={'S3:' + cloud.cfg.s3_root if cloud.cfg.enabled else 'LOCAL'} ===")
+
+    # --- 1. pull durable state (resume yesterday's memory) ------------- #
+    pulled = cloud.pull()
+    print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)")
+
+    cal = MarketCalendar(client=AlpacaPaperClient())
+    hb = PaperHeartbeat()
+
+    # Non-trading day: skip cleanly. Still emit a 'happened' pulse so the
+    # silent-stop alarm sees the schedule fired (the calendar — not a dead
+    # loop — is why nothing traded). The heartbeat check() treats it alive.
+    if not cal.is_trading_day(today):
+        print(f"2. CALENDAR  {today} is not a trading day → SKIP (no run).")
+        cloud.emit_metrics(happened=True, canonical=True)
+        cloud.push()
+        v = hb.check(today, is_trading_day=False)
+        print(f"3. HEARTBEAT alive={v.alive} alert={v.alert} ({v.reason})")
+        return 0
+
+    # --- 2. armed daily cycle ----------------------------------------- #
+    client = AlpacaPaperClient()
+    cfg = PaperConfig(allocator=args.allocator)
+    state = root / STATE_DIR
+    state.mkdir(parents=True, exist_ok=True)
+    acct = client.get_account()
+    om = OrderManager(client, journal_path=str(state / "orders.jsonl"))
+    led = LedgerStore(str(state / "ledger.jsonl"),
+                      starting_cash=acct["cash"], account="roth")
+    armed = not args.dry_run
+    try:
+        sched = PaperScheduler(
+            om, reconcile_log_path=str(state / "recon.jsonl"),
+            dry_run=args.dry_run, armed=armed,
+            paper_config=cfg if armed else None,
+            designated_allocator=designated if armed else None,
+            calendar=cal, heartbeat=hb)
+    except ValueError as e:
+        print(f"FATAL: ARM REFUSED (interlock): {e}", file=sys.stderr)
+        cloud.emit_metrics(happened=True, canonical=False)
+        cloud.push()
+        return 66
+    print(f"2. ARMED     armed={sched.armed} (runtime {cfg.allocator!r} "
+          f"== designated {designated!r})")
+
+    def inputs_fn(step):
+        return ReconcileInputs(
+            ledger_positions=led.positions(), ledger_cash=led.cash(),
+            broker_positions={p["symbol"]: p["qty"] for p in client.list_positions()},
+            broker_cash=client.get_account()["cash"],
+            orders=list(om.orders.values()),
+            known_tickers=set(),
+            window_closed=False,
+        )
+
+    flat = len(client.list_positions()) == 0
+    # The daily PULSE: reconcile + heartbeat, no staged orders (account
+    # stays flat). Engine-driven orders are the separate content layer.
+    summary = sched.run_trading_day(str(today), [], inputs_fn, account_flat=flat)
+
+    # --- 3. heartbeat verdict → metrics + exit code ------------------- #
+    v = hb.check(today, is_trading_day=True)
+    canonical = bool(v.alive and not v.alert)
+    print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
+          f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
+    print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
+
+    cloud.emit_metrics(happened=True, canonical=canonical)
+    cloud.push()
+    print(f"5. STATE     pushed-to-s3={cloud.cfg.enabled} | "
+          f"metrics: PaperRunHappened=1 PaperRunCanonical={int(canonical)}")
+
+    if not canonical:
+        print("RESULT: NON-CANONICAL — exiting non-zero so the job is marked "
+              "FAILED and the alarm fires.", file=sys.stderr)
+        return 70
+    print("RESULT: canonical/alive.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
