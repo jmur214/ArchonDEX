@@ -177,6 +177,50 @@ T-057 closed negative on the 12-yr window (T-055h Δ -0.214; T-057/T-053b refute
 **Why hard:** Measurement-discipline non-negotiable. Directly gates production
 flag-flips that change real-money behavior.
 
+## Fail closed in the measurement path; never degrade to a plausible number
+
+**Rule:** Any code that produces a headline metric (Sharpe, Sortino, MDD, CAGR,
+trade count, ci_low) must HALT — raise or exit non-zero — when a load-bearing
+input is missing, unbaked, stale, or unparseable AND the corresponding
+edge/overlay/allocator is in the active set. It must NOT abstain to zeros, fall
+back to a different-but-plausible code path, or emit a clean 0.0/NaN that reads
+like a real (bad) measurement. When genuine graceful degradation IS required (a
+test sandbox, the offline/paper live path), set an explicit
+`degraded=True`/`skip_reason` flag the gate treats as a FAIL, never a silent
+pass. Mandatory in measured/hermetic/cloud/anchor runs; the
+offline-graceful-degradation constraint applies ONLY outside the measurement path.
+
+**Why hard:** "Missing required input → abstain/None/fallback" is the SINGLE
+repeating defect behind the program's worst clouded-number incidents — T-088 (5×
+risk on all-defaults), T-167 (truncated universe → 0.237 collapse artifact),
+T-171 (dropna'd trough → 2× MDD understatement), T-175 (simfin-blind 17-edge book
+quoted as the 21-edge 0.751), T-177 (genes-inert candidates → Discovery promotes
+nothing). A degraded measurement that does not announce itself is not a
+measurement; it is a wrong number that looks right. Full diagnosis +
+catalog: `docs/Audit/measurement_integrity_audit_2026_06_16.md`.
+
+## Every backtest emits and gates on an execution census
+
+**Rule:** Each canonical/measured run writes a `census` block to
+`performance_summary.json` with at minimum: `edges_blind` (active edges that
+emitted 0 non-zero signals, minus an explicit expected-dormant allowlist),
+`n_resolved`/`n_in_panel`, `n_trades`, `trades_canon_md5`, `fundamentals_blind`,
+`regime_unknown_bars`, `macro_panel_complete`, `config_paths` + per-config
+filtered-key md5. A run is NON-CANONICAL (must not publish, upload to S3, certify
+deterministic, or be quoted as a headline) if any census check fails:
+`edges_blind` non-empty, `n_in_panel` < `n_resolved` − allowlist, `n_trades == 0`,
+`trades_canon_md5` == empty-file md5, `fundamentals_blind > 0` while a value edge
+is active, regime 100% unknown, or a config loaded from `{}`/a one-key fallback.
+The cloud path MUST call the SAME `assert_census` as the local smoke runners.
+Census std/var guards use tolerance (`std < 1e-12 or not np.isfinite`), never
+bare `== 0`, everywhere in the measurement path. Census keys are guarded by
+`tests/test_contracts.py` the same way summary keys are.
+
+**Why hard:** Converts the silent-fail-open defect class (above) from a
+months-later audit catch into a run-time refusal — the machine cannot produce a
+corrupted headline number without announcing it. Rollout + the 6 invariants:
+`docs/Audit/measurement_integrity_audit_2026_06_16.md`.
+
 ## Never commit secrets
 
 **Rule:** `.env`, anything in `config/alpaca_keys.json`, API tokens, broker

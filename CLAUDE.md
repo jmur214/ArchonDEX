@@ -176,6 +176,53 @@ required" until re-tested. This is orthogonal to MBL Gate-0 (CLAUDE.md
 #7) — that catches window length; this catches OFF-baseline change. 
 See `memory/feedback_substrate_re_verify_before_recommend_2026_05_24.md`.
 
+**Fail closed in the measurement path; never degrade to a 
+plausible number.** Any code that produces a headline metric 
+(Sharpe, Sortino, MDD, CAGR, trade count, ci_low) must HALT — 
+raise or exit non-zero — when a load-bearing input is missing, 
+unbaked, stale, or unparseable AND the corresponding 
+edge/overlay/allocator is in the active set. It must NOT abstain 
+to zeros, fall back to a different-but-plausible code path, or 
+emit a clean 0.0/NaN that reads like a real (bad) measurement. 
+"Missing required input → abstain/None/fallback" is the single 
+repeating defect behind T-088 (5× risk on all-defaults), T-167 
+(truncated universe → 0.237 collapse artifact), T-171 (dropna'd 
+trough → 2× MDD understatement), T-175 (simfin-blind 17-edge book 
+quoted as 21-edge 0.751), and T-177 (genes-inert candidates → 
+Discovery promotes nothing). A degraded measurement that does not 
+announce itself is not a measurement; it is a wrong number that 
+looks right. When genuine graceful degradation IS required (a test 
+sandbox, the offline/paper live path), it must set an explicit 
+`degraded=True`/`skip_reason` flag the gate treats as a FAIL, 
+never a silent pass. Mandatory in measured/hermetic/cloud/anchor 
+runs; the offline-graceful-degradation constraint applies ONLY 
+outside the measurement path. See 
+`docs/Audit/measurement_integrity_audit_2026_06_16.md`.
+
+**Every backtest emits and gates on an execution census.** Each 
+canonical/measured run writes a `census` block to 
+`performance_summary.json` with at minimum: `edges_blind` (active 
+edges that emitted 0 non-zero signals over the window, minus an 
+explicit expected-dormant allowlist), `n_resolved`/`n_in_panel` 
+(resolved universe vs panel actually built), `n_trades`, 
+`trades_canon_md5`, `fundamentals_blind`, `regime_unknown_bars`, 
+`macro_panel_complete`, and `config_paths` + per-config 
+filtered-key md5. A run is NON-CANONICAL and must NOT be 
+published, uploaded to S3, certified deterministic, or quoted as 
+a headline if: `edges_blind` is non-empty, `n_in_panel` < 
+`n_resolved` minus the manifested allow-list, `n_trades == 0`, 
+`trades_canon_md5` == the empty-file md5, `fundamentals_blind > 0` 
+while a value edge is active, regime is 100% unknown, or any 
+load-bearing config loaded from `{}`/a fabricated one-key 
+fallback. The cloud path (`scripts/cloud_entrypoint.sh`, 
+`scripts/run_isolated.py`) MUST call the SAME `assert_census` as 
+the local smoke runners — they may not diverge. Census keys are 
+guarded by `tests/test_contracts.py` the same way summary keys 
+are. Census std/var guards use tolerance (`std < 1e-12 or not 
+np.isfinite`), never bare `== 0`, everywhere in the measurement 
+path. See 
+`docs/Audit/measurement_integrity_audit_2026_06_16.md`.
+
 ## Git discipline
 
 **Commit early and often.** After any logically-complete unit of 
