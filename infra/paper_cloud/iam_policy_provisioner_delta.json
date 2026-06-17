@@ -1,0 +1,80 @@
+{
+  "_comment": "T-186-exec BLOCKER FIX. The claude-code-cli automation user is scoped for backtest campaigns only (ecr/s3/batch-submit/logs/iam-self-read) and is DENIED on every service the paper-cloud provisioning needs. Attach this as an ADDITIONAL inline/managed policy to claude-code-cli (or run scripts/deploy_paper_cloud_trigger.sh once with an admin profile instead). Scoped to archondex-paper-* resources where the API allows. After attaching, the deploy is one command. Region us-east-1, account 407539788432.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PaperSecretProvision",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:407539788432:secret:archondex/alpaca-paper*"
+    },
+    {
+      "Sid": "PaperRoleProvision",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::407539788432:role/archondex-paper-*"
+    },
+    {
+      "Sid": "PassPaperRolesToBatchAndScheduler",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::407539788432:role/archondex-paper-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "ecs-tasks.amazonaws.com",
+            "scheduler.amazonaws.com",
+            "batch.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "PaperJobDefRegister",
+      "Effect": "Allow",
+      "Action": "batch:RegisterJobDefinition",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PaperAlertTopic",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:GetTopicAttributes"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
+    },
+    {
+      "Sid": "PaperDeadMansSwitchAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:DescribeAlarms"
+      ],
+      "Resource": "arn:aws:cloudwatch:us-east-1:407539788432:alarm:archondex-paper-*"
+    },
+    {
+      "Sid": "PaperSchedule",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:GetSchedule"
+      ],
+      "Resource": "arn:aws:scheduler:us-east-1:407539788432:schedule/default/archondex-paper-daily"
+    }
+  ]
+}

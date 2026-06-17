@@ -100,7 +100,7 @@ def main() -> int:
     print(f"SUBMIT   -> {o.state} | broker_order_id={o.broker_order_id}")
 
     if o.state not in (OrderState.ACKED.value, OrderState.FILLED.value,
-                       OrderState.PARTIAL.value):
+                       OrderState.PARTIALLY_FILLED.value):
         print(f"\nUNEXPECTED post-submit state {o.state!r} — NOT leaving a "
               "half-known order; inspect before retry (fail-safe).", file=sys.stderr)
         cloud.push()

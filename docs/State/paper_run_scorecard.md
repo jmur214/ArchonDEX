@@ -122,10 +122,15 @@ host-bound trigger T-185 left is now built (code + IaC on
   `docs/Cloud/PAPER_LOOP_CLOUD.md`; audit:
   `docs/Audit/paper_cloud_trigger_t186_2026_06_17.md`.
 
-**First REAL fill:** bootstrapped manually in-window via
-`scripts/first_real_fill_t186.py` (one OPG, left queued → fills at the
-next open → reconciled into the ledger by the next cloud cycle). Pending
-the OPG window at the time of writing.
+**First REAL fill — ON THE BOARD (2026-06-17 19:00 ET).** First real paper
+order submitted in-window via `first_real_fill_t186.py`: **SPY 1-share OPG
+→ ACKED → broker status `accepted`, queued for the 6/18 open**
+(`broker_order_id 4dcffc7c-6965-40c7-9be6-7c0a143e7d29`, `client_order_id
+archondex-2026-06-17-SPY-d3ca45f6092febd1`). The full live
+submit→ack→broker-accepted→queued path ran end-to-end; durably journaled
+(`data/paper_state/orders.jsonl`). The fill prints at the 6/18 09:30 ET
+open by auction semantics → the next cycle reconciles it into the ledger
+and the **first slippage-vs-T-146 datapoint** lands.
 
 ## Combined-candidate vs robo (the real deploy gate — director rec, T-172)
 
