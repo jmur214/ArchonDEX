@@ -61,8 +61,10 @@ the Schwab robo, net-of-costs/after-tax (`GOAL.md`). Track BOTH lines:
   SIMULATED from its free daily returns (Stooq `dbmf.us`, inception
   ~2019) — **not actually held in the paper account** (nothing to
   validate in a buy-and-hold ETF). This is the validated crisis FLOOR
-  (T-170/171); the T-172 regime amplifier (if Step-2 clears) would
-  dynamically SIZE it.
+  (T-170/171). The T-172/178 regime amplifier was TESTED (T-178) and did
+  NOT beat always-on 20% net-of-cost OOS → **always-on 20% is the
+  deployable sleeve; the combined line uses the fixed 20%, not a
+  dynamic sizer.**
 - **robo benchmark** — a low-cost moderate index+satellite proxy
   (≈60/40: 60% SPY / 40% AGG, or Schwab SWYGX moderate-growth), net of
   a typical robo fee (~0.08%/yr). Net-of-cost AND after-tax (taxable
@@ -86,3 +88,7 @@ must win.
   (followup: gate `submit_opg` on `7pm ≤ now < 9:28am`).
 - Kill ACTIONS stay SHADOW for the first stretch (observe the divergence
   null + false-alarm rate); arm reduce/flatten later per the criteria.
+
+## Live-size cap — canonical deep-window safe_f (T-178)
+
+**safe_f = 0.928** on the canonical 26yr re-anchor curve (158fe678, MDD −33%; mdd95@f1 21.3%). The eventual live size cap = `min(1, safe_f)` = **0.928** (book ~7% oversized at f=1). Supersedes the benign-2024 1.602 and the 12yr-interim 1.104.
