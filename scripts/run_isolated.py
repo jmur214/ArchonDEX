@@ -482,11 +482,33 @@ def main() -> int:
             "cagr_pct": summary.get("CAGR (%)"),
             "trades_canon_md5": _trades_canon_md5(run_id) if run_id != "?" else "(no run_id)",
         }
+        # T-181 census gate — a NON-CANONICAL run cannot PASS even if it is
+        # perfectly deterministic (determinism of a clouded number is still a
+        # clouded number). Read the census the controller emitted.
+        try:
+            from core.census import assert_census_file
+            _perf = TRADES_DIR / run_id / "performance_summary.json"
+            _cv = assert_census_file(str(_perf)) if run_id != "?" else None
+        except Exception as _e:
+            _cv = None
+            print(f"  [CENSUS][WARN] gate unavailable: {_e!r}")
+        record["census_canonical"] = (bool(_cv.canonical) if _cv else None)
         results.append(record)
         print(f"  Sharpe: {record['sharpe']}")
         print(f"  CAGR%:  {record['cagr_pct']}")
         print(f"  run_id: {record['run_id']}")
         print(f"  trades_canon_md5: {record['trades_canon_md5']}")
+        if _cv is not None:
+            print(f"  census: {'CANONICAL' if _cv.canonical else 'NON-CANONICAL'}")
+            for _f in _cv.failures:
+                print(f"  [CENSUS][FAIL] {_f}")
+            for _w in _cv.warnings:
+                print(f"  [CENSUS][WARN] {_w}")
+
+    # T-181: census across all reps. None (gate unavailable) is treated as
+    # non-blocking; an explicit False blocks PASS.
+    census_vals = [r.get("census_canonical") for r in results]
+    census_blocking = any(v is False for v in census_vals)
 
     if args.runs > 1:
         sharpes = [r["sharpe"] for r in results]
@@ -497,8 +519,13 @@ def main() -> int:
         print(f"Sharpes:          {sharpes}")
         print(f"Sharpe range:     {sharpe_range:.4f}")
         print(f"Canon md5 unique: {canon_unique} / {len(canons)}")
+        print(f"Census canonical: {census_vals}")
+        if census_blocking:
+            print("[RESULT] FAIL — census NON-CANONICAL on ≥1 rep; a deterministic "
+                  "clouded number is still a clouded number. Do not certify.")
+            return 2
         if sharpe_range <= 0.02 and canon_unique == 1:
-            print("[RESULT] PASS — Sharpe within ±0.02 AND bitwise-identical canon md5")
+            print("[RESULT] PASS — Sharpe within ±0.02 AND bitwise-identical canon md5 AND census canonical")
             return 0
         if sharpe_range <= 0.02:
             print("[RESULT] PARTIAL — Sharpes converge but trade-log canon md5s differ.")
@@ -508,6 +535,9 @@ def main() -> int:
         print("[RESULT] FAIL — same-config runs produce >0.02 Sharpe spread.")
         print(f"                Spread {sharpe_range:.4f} indicates governor-state drift "
               "is not fully bounded by the harness.")
+        return 2
+    if census_blocking:
+        print("[RESULT] FAIL — census NON-CANONICAL; the run must not be certified or published.")
         return 2
     return 0
 

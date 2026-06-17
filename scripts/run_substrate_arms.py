@@ -262,6 +262,28 @@ def run_smoke() -> int:
         print(f"[SUBSTRATE] SMOKE BLOCKED (zero-trade) — see {sentinel}", flush=True)
         return 3
 
+    # T-181 census gate — the EMPTY_MD5 check above only catches zero-trade.
+    # The full census also blocks a NON-CANONICAL run for blind edges, panel
+    # shrink, regime-off, degraded config, or a starved fundamentals panel —
+    # the same publish gate the cloud path uses (shared assert_census).
+    try:
+        from core.census import assert_census_file
+        _run_id = rec.get("run_id", "?")
+        _perf = TRADES_DIR / _run_id / "performance_summary.json"
+        _cv = assert_census_file(str(_perf)) if _run_id not in ("?", "(no run_id)") else None
+    except Exception as _e:
+        _cv = None
+        print(f"[SUBSTRATE][CENSUS][WARN] gate unavailable: {_e!r}", flush=True)
+    if _cv is not None and not _cv.canonical:
+        sentinel = RESULTS_DIR / "SMOKE_BLOCKED.txt"
+        sentinel.write_text(
+            "BLOCKED — census NON-CANONICAL.\n"
+            + "\n".join(_cv.failures) + "\n"
+            + f"canon md5: {canon}\nsharpe: {sharpe}\n"
+        )
+        print(f"[SUBSTRATE] SMOKE BLOCKED (census) — {_cv.failures}; see {sentinel}", flush=True)
+        return 3
+
     sentinel = RESULTS_DIR / "SMOKE_PASS.txt"
     sentinel.write_text(
         f"smoke 2021 Arm 1: Sharpe {sharpe}, canon {canon}\n"

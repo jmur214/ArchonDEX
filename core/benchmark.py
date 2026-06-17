@@ -143,7 +143,7 @@ def compute_benchmark_metrics(
 
     sub["ret"] = sub["Close"].pct_change()
     sub = sub.dropna(subset=["ret"])
-    if len(sub) < 2 or sub["ret"].std() == 0:
+    if len(sub) < 2 or not np.isfinite(sub["ret"].std()) or sub["ret"].std() < 1e-12:
         return BenchmarkMetrics(
             ticker=ticker, start=start, end=end,
             sharpe=0.0, cagr=0.0, mdd=0.0, vol=0.0, total_return=0.0, n_obs=len(sub),
@@ -215,7 +215,7 @@ def compute_blend_metrics(
 
     bw = 1.0 - equity_weight
     merged["port_ret"] = equity_weight * merged["eq_ret"] + bw * merged["bond_ret"]
-    if merged["port_ret"].std() == 0:
+    if not np.isfinite(merged["port_ret"].std()) or merged["port_ret"].std() < 1e-12:
         return BenchmarkMetrics(
             ticker=f"{int(equity_weight*100)}/{int((1-equity_weight)*100)}_{equity_ticker}_{bond_ticker}",
             start=start, end=end,

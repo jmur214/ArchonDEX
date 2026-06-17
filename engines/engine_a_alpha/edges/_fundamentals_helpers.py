@@ -92,6 +92,17 @@ def get_panel() -> Optional[pd.DataFrame]:
         return None
 
 
+def panel_is_blind() -> bool:
+    """T-181 census accessor — True iff a fundamentals panel load was
+    attempted and failed (so every value/accruals/quality edge is silently
+    abstaining to zeros). Observation only; triggers `get_panel()` once if
+    no load has been attempted yet, matching what the edges themselves do.
+    """
+    if _PANEL_CACHE is None and not _PANEL_LOAD_FAILED:
+        get_panel()  # attempt-once, same cached path the edges hit
+    return _PANEL_CACHE is None
+
+
 def reset_panel_cache() -> None:
     """Test helper: drop the cached panel so a fixture can inject its own."""
     global _PANEL_CACHE, _PANEL_LOAD_FAILED

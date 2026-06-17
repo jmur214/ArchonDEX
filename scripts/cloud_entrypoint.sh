@@ -132,8 +132,23 @@ if [ ! -d "$RUN_DIR" ]; then
     exit 66
 fi
 
+# T-181 execution-census gate — the SAME assert_census the local paths call
+# (run_isolated PASS-gate, run_substrate_arms smoke gate), so cloud and local
+# cannot diverge on the canonical/non-canonical verdict. A NON-CANONICAL run
+# still uploads its artifacts (for forensics) but the cell exits non-zero and
+# is marked non-canonical so the launcher never certifies/counts it.
+PERF_JSON="${RUN_DIR}/performance_summary.json"
+CENSUS_RC=0
+python -m core.census "$PERF_JSON" || CENSUS_RC=$?
+if [ "$CENSUS_RC" -eq 0 ]; then
+    CENSUS_CANONICAL=true
+else
+    CENSUS_CANONICAL=false
+    echo "[entrypoint] CENSUS NON-CANONICAL (rc=$CENSUS_RC) — uploading artifacts for forensics, marking cell non-canonical." >&2
+fi
+
 aws s3 cp --recursive --no-progress "$RUN_DIR" "$S3_PREFIX/" \
-    --metadata "canon-md5=${CANON_MD5},sharpe=${SHARPE},cell-id=${CELL_ID}"
+    --metadata "canon-md5=${CANON_MD5},sharpe=${SHARPE},cell-id=${CELL_ID},census-canonical=${CENSUS_CANONICAL}"
 
 # Also upload a small manifest summarizing the run for the launcher
 MANIFEST=/tmp/manifest.json
@@ -144,6 +159,8 @@ cat > "$MANIFEST" <<EOF
   "canon_md5":      "$CANON_MD5",
   "sharpe":         "$SHARPE",
   "s3_prefix":      "$S3_PREFIX",
+  "census_canonical": $CENSUS_CANONICAL,
+  "census_rc":      $CENSUS_RC,
   "completed_at":   "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
@@ -154,3 +171,11 @@ echo "CANON_MD5=$CANON_MD5"
 echo "CELL_ID=$CELL_ID"
 echo "S3_PREFIX=$S3_PREFIX"
 echo "SHARPE=$SHARPE"
+echo "CENSUS_CANONICAL=$CENSUS_CANONICAL"
+
+# Fail the cell (after artifacts are safely uploaded) if non-canonical, so the
+# launcher's exit-code check never certifies a clouded number.
+if [ "$CENSUS_CANONICAL" != "true" ]; then
+    echo "ERROR: run is NON-CANONICAL per execution census (rc=$CENSUS_RC); do not certify this cell" >&2
+    exit 70
+fi

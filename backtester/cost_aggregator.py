@@ -63,7 +63,7 @@ def _annualized_sharpe(equity: pd.Series, periods_per_year: int = 252) -> float:
     if equity is None or len(equity) < 3:
         return 0.0
     rets = equity.pct_change().dropna()
-    if len(rets) == 0 or rets.std() == 0:
+    if len(rets) == 0 or not np.isfinite(rets.std()) or rets.std() < 1e-12:
         return 0.0
     return float(rets.mean() / rets.std() * np.sqrt(periods_per_year))
 

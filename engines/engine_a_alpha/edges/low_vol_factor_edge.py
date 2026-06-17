@@ -100,7 +100,7 @@ class LowVolFactorEdge(EdgeBase):
             close = df["Close"].astype(float).iloc[-(lookback + 1):]
             # Use log returns to handle big moves cleanly
             log_ret = np.log(close).diff().dropna()
-            if len(log_ret) < 2 or log_ret.std() == 0:
+            if len(log_ret) < 2 or not np.isfinite(log_ret.std()) or log_ret.std() < 1e-12:
                 continue
             ann_vol = float(log_ret.std() * np.sqrt(252))
             if not np.isfinite(ann_vol):

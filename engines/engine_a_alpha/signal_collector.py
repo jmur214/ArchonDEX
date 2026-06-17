@@ -9,6 +9,12 @@ class SignalCollector:
     def __init__(self, edges: Dict[str, object], debug: bool = False):
         self.edges = dict(edges or {})
         self.debug = bool(debug)
+        # T-181 execution census (observation only — never affects signals).
+        # Cumulative count of NON-ZERO signals each edge has emitted across
+        # the whole run; an edge that finishes at 0 is "blind". Seeded with
+        # every loaded edge so a never-firing edge still appears as a 0.
+        self._signal_counts: Dict[str, int] = {name: 0 for name in self.edges}
+        self._bars_collected: int = 0
 
     # --- introspection helpers --- #
     def _call_edge(self, edge_obj: object, data_map: Dict[str, pd.DataFrame], now: pd.Timestamp) -> Dict[str, float]:
@@ -419,4 +425,16 @@ class SignalCollector:
             tkr: dict(sorted(scores[tkr].items()))
             for tkr in sorted(scores.keys())
         }
+        # T-181 census tally (pure observation; reads the final scores, does
+        # not mutate them). Count this bar's non-zero emissions per edge.
+        self._bars_collected += 1
+        for _edge_map in scores.values():
+            for _edge_name, _val in _edge_map.items():
+                try:
+                    if _val is not None and abs(float(_val)) > 1e-12:
+                        self._signal_counts[_edge_name] = (
+                            self._signal_counts.get(_edge_name, 0) + 1
+                        )
+                except (TypeError, ValueError):
+                    continue
         return scores

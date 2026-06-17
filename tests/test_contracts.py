@@ -182,6 +182,17 @@ LAYER1_CONTRACTS: List[Tuple[str, str, str, str, Set[str]]] = [
         "PortfolioPolicyConfig",
         {"lt_hold_preference", "portfolio_optimizer", "wash_sale_avoidance"},
     ),
+    # T-181 Layer 1c — RegimeConfig coverage. The regime layer silently
+    # degrading to "unknown" every bar (T-164 GAP-2) is partly a config-drift
+    # class: a renamed/dropped regime key falls to a default. Currently clean
+    # (JSON keys ⊆ dataclass fields, no aliases needed).
+    (
+        "RegimeConfig vs regime_settings.json",
+        "config/regime_settings.json",
+        "engines.engine_e_regime.regime_config",
+        "RegimeConfig",
+        set(),
+    ),
 ]
 
 
@@ -230,6 +241,93 @@ def test_layer1_config_key_in_dataclass_field(
         f" add to known_aliases with a justification comment.\n"
         f"    4. If the key is GENUINELY DEAD (0 consumers), add to"
         f" KNOWN_DEAD_CONFIG_KEYS as a cleanup candidate."
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Layer 1c — REQUIRED risk keys must be PRESENT in the prod JSON (T-181).
+# Layer 1 catches EXTRA JSON keys silently dropped; the inverse bug (T-088)
+# is a REQUIRED key MISSING from the JSON → the dataclass silently uses its
+# default → the run trades at unintended risk. A bare point-estimate looks
+# identical. So the live risk knobs must literally appear in the prod file.
+# --------------------------------------------------------------------------- #
+REQUIRED_RISK_KEYS = {
+    "max_positions",         # live position-count cap (T-088: LIVE knob)
+    "max_position_value",    # live per-position notional cap (T-088: LIVE knob)
+    "position_sizing",       # selects the sizing path
+    "risk_per_trade_pct",    # present even though Path-B dead — its ABSENCE
+                             # must not silently re-fabricate the one-key fallback
+}
+
+
+def test_layer1c_required_risk_keys_present_in_prod_json():
+    """The live risk knobs must be explicitly present in
+    risk_settings.prod.json — a missing key silently falls to a dataclass
+    default (the T-088 class) and the run trades at unintended risk."""
+    json_path = REPO / "config" / "risk_settings.prod.json"
+    if not json_path.exists():
+        pytest.skip("config/risk_settings.prod.json missing")
+    cfg = json.loads(json_path.read_text())
+    assert isinstance(cfg, dict) and len(cfg) > 1, (
+        "risk_settings.prod.json is empty or a one-key fallback — the "
+        "fabricated-config (run_backtest_pure.py:443) degradation."
+    )
+    missing = sorted(REQUIRED_RISK_KEYS - set(cfg.keys()))
+    assert not missing, (
+        "[Layer 1c] live risk knobs MISSING from risk_settings.prod.json "
+        f"(would silently fall to dataclass defaults — T-088 class): {missing}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Layer 2d — execution-census producer/consumer contract (T-181).
+# The census the controller EMITS (backtest_controller.py:_build_census) and
+# the keys the gate READS (core/census.py:assert_census) must agree, or a
+# renamed census key silently reads None and the gate passes a clouded run.
+# Static source scan — same idiom as Layer 2a (no backtest required).
+# --------------------------------------------------------------------------- #
+CENSUS_GATING_KEYS = {
+    "edges_blind",
+    "n_resolved",
+    "n_in_panel",
+    "n_trades",
+    "trades_canon_md5",
+    "trades_empty",
+    "fundamentals_blind",
+    "regime_unknown_frac",
+    "regime_total_bars",
+    "config_provenance",
+}
+
+
+def test_layer2d_census_producer_emits_all_gating_keys():
+    """Every key the gate relies on must be emitted by the producer
+    (`_build_census`). A producer that stops writing a gating key would let
+    the gate silently read None and pass a non-canonical run."""
+    src = (REPO / "backtester" / "backtest_controller.py").read_text()
+    # producer assigns via census["key"] = ...
+    emitted = set(re.findall(r'census\[\s*["\']([a-z0-9_]+)["\']\s*\]\s*=', src))
+    missing = sorted(CENSUS_GATING_KEYS - emitted)
+    assert not missing, (
+        "[Layer 2d] census keys the gate reads but the producer "
+        "(_build_census) does NOT emit:\n  " + "\n  ".join(missing)
+        + "\n  A renamed/dropped producer key makes the gate read None silently."
+    )
+
+
+def test_layer2d_census_consumer_keys_subset_of_contract():
+    """Every census key the gate READS (`census.get("...")` in
+    core/census.py) must be in the declared CENSUS_GATING_KEYS contract, so
+    the producer test above actually covers it."""
+    src = (REPO / "core" / "census.py").read_text()
+    read = set(re.findall(r'census\.get\(\s*["\']([a-z0-9_]+)["\']', src))
+    # keys read for messaging only (not gating) — allowlisted as non-binding
+    NON_GATING = {"fundamentals_edges_active"}
+    uncovered = sorted((read - NON_GATING) - CENSUS_GATING_KEYS)
+    assert not uncovered, (
+        "[Layer 2d] core/census.py reads census keys not in the "
+        "CENSUS_GATING_KEYS contract (add them, so Layer 2d covers them):\n  "
+        + "\n  ".join(uncovered)
     )
 
 

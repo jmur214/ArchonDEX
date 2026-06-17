@@ -113,7 +113,7 @@ class DataManager:
             }
             # Only keep columns we need
             df = df[[c for c in rename_map.keys() if c in df.columns]]
-            df = self._normalize_df(df)
+            df = self._normalize_df(df, ticker=ticker)
             return df
             
         except Exception as e:
@@ -425,10 +425,14 @@ class DataManager:
             return {}
 
     @staticmethod
-    def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
+    def _normalize_df(df: pd.DataFrame, ticker: str = "") -> pd.DataFrame:
         """
         Ensure datetime index (tz-naive), numeric OHLCV,
         fix scaling, and compute ATR with proper warmup.
+
+        ``ticker`` is advisory (default "") — used only to label the
+        band-drop WARN so a silent universe-shrink (the T-167 class of
+        bug) is observable. It does not affect normalization output.
         """
         if df.empty:
             return df
@@ -546,7 +550,19 @@ class DataManager:
         if "Close" in df.columns and len(df) >= 2:
             roll = df["Close"].rolling(window=63, min_periods=1).median()
             band = 20.0
+            _n_before = len(df)
             df = df[(df["Close"] > 0) & (df["Close"] >= roll / band) & (df["Close"] <= roll * band)]
+            _n_dropped = _n_before - len(df)
+            # Band-drop visibility (T-181): the band filter silently dropping
+            # rows was the T-167 universe-shrink class. Always WARN when it
+            # bites so a measured run can SEE the shrink instead of inheriting
+            # a plausible-but-degraded series. Observation only — the filter
+            # itself is unchanged.
+            if _n_dropped > 0:
+                _lbl = ticker or "<unknown>"
+                print(f"[DATA_MANAGER][WARN][BAND_DROP] {_lbl}: dropped {_n_dropped}/"
+                      f"{_n_before} rows ({100.0 * _n_dropped / _n_before:.1f}%) "
+                      f"outside the {band:g}x median band.")
             df["Close"] = df["Close"].clip(lower=0.01)
 
         # Final validation
@@ -601,7 +617,7 @@ class DataManager:
         if pq_path.exists():
             try:
                 df = pd.read_parquet(pq_path)
-                df = self._normalize_df(df)
+                df = self._normalize_df(df, ticker=ticker)
                 if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                     print(f"[DATA_MANAGER][INFO] Loaded Parquet cache for {ticker} ({timeframe})")
                 return df
@@ -619,7 +635,7 @@ class DataManager:
             return None
         try:
             df = pd.read_csv(path)
-            df = self._normalize_df(df)
+            df = self._normalize_df(df, ticker=ticker)
             return df
         except Exception as e:
             if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
@@ -763,7 +779,7 @@ class DataManager:
                         "close": "Close", "volume": "Volume"
                     }, inplace=True)
                     
-                    df = self._normalize_df(df)
+                    df = self._normalize_df(df, ticker=ticker)
                     return df
 
                 except Exception as e:

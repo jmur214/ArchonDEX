@@ -35,7 +35,7 @@ DEFAULT_ALPHA = 0.05
 
 def _tstat(col: np.ndarray) -> float:
     v = col[np.isfinite(col)]
-    if len(v) < 30 or v.std() == 0:
+    if len(v) < 30 or not np.isfinite(v.std()) or v.std() < 1e-12:
         return 0.0
     return float(v.mean() / (v.std(ddof=1) / np.sqrt(len(v))))
 
