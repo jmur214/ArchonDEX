@@ -126,3 +126,16 @@ class TestMetrics:
         m = self._metric_calls(rec)
         assert m["PaperRunHappened"] == 1.0
         assert m["PaperRunCanonical"] == 0.0
+
+
+# ===================================================================== #
+# Regression: the first-fill script references only real OrderState members
+# (it crashed the first live run on a non-existent OrderState.PARTIAL after
+#  the order had already ACKED — cosmetic, but lock it).
+# ===================================================================== #
+class TestFirstFillEnumRefs:
+    def test_terminal_acceptable_states_exist(self):
+        from paper_trader import OrderState
+        for name in ("ACKED", "FILLED", "PARTIALLY_FILLED"):
+            assert hasattr(OrderState, name), f"OrderState.{name} missing"
+        assert not hasattr(OrderState, "PARTIAL")  # the old wrong name
