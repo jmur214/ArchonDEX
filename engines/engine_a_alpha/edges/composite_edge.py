@@ -309,8 +309,16 @@ class CompositeEdge(EdgeBase, EdgeTemplate):
         elif indicator == "residual_momentum":
             # Strategy 3.7 (Residual Momentum)
             # Epsilon = R_stock - Beta * R_market
-            spy_df = self.regime_cache.get("spy_df_ref") # Need access to SPY
-            if spy_df is None: return None # Can't calc without benchmark
+            # T-2026-06-16-179: previously read `self.regime_cache` — an
+            # attribute NOTHING ever set, so this raised AttributeError (a
+            # propagating programmer-error) for ANY genome carrying a
+            # residual_momentum gene. Dormant while composite edges were inert
+            # (the gene loop never ran); exposed the instant the Phase-0a wiring
+            # fix made them run. Read the benchmark from the live data_map
+            # (set in compute_signals) instead; abstain (None) if absent.
+            data_map = getattr(self, "_current_data_map", None) or {}
+            spy_df = data_map.get("SPY")
+            if spy_df is None or spy_df.empty: return None # Can't calc without benchmark
             
             # Align timestamps
             stock_rets = close.pct_change().dropna()[-window:]
