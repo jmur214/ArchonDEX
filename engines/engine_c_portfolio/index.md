@@ -55,6 +55,7 @@
   - `def __init__()`
   - `def optimize()`: Derive optimal weights.
   - `def calculate_metrics()`
+- **Function `deterministic_cov()`**: Sample covariance (ddof=1) with a FIXED reduction order — no BLAS gemm.
 
 ### `policy.py`
 - **Class `PortfolioPolicyConfig`**: Configuration for the portfolio policy allocator.

@@ -106,6 +106,11 @@
 - **Function `render_markdown()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `analyze_t118r.py`
+**Module Docstring:** scripts/analyze_t118r.py
+- **Function `analyze_cell()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `analyze_vrp_factor_t122.py`
 **Module Docstring:** scripts/analyze_vrp_factor_t122.py
 - **Function `build_market_return()`**: Equal-weight daily return of the processed universe — the market proxy
@@ -131,6 +136,12 @@
 - **Function `pull_naaim()`**: No docstring
 - **Function `pull_finra_margin()`**: No docstring
 - **Function `pull_finra_short_interest()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `assess_vol_collapse_t153.py`
+**Module Docstring:** scripts/assess_vol_collapse_t153.py
+- **Function `portfolio_sweep()`**: No docstring
+- **Function `per_name_sweep()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `audit_data_gaps.py`
@@ -183,6 +194,10 @@
 ### `build_ohlc_features_t150.py`
 **Module Docstring:** scripts/build_ohlc_features_t150.py
 - **Function `load_ohlc_features()`**: Loader for the Part-A feature panel (long format).
+- **Function `main()`**: No docstring
+
+### `calibrate_divergence_monitors_t152.py`
+**Module Docstring:** T-152 calibration — false-alarm grid + injected-divergence power.
 - **Function `main()`**: No docstring
 
 ### `cointegration_pair_screen.py`
@@ -380,6 +395,10 @@
 - **Function `fetch_one()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `firing_curve_sweep_t118fc.py`
+**Module Docstring:** scripts/firing_curve_sweep_t118fc.py
+- **Function `main()`**: No docstring
+
 ### `gen_substrate_manifest.py`
 **Module Docstring:** Generate (or verify) the pinned data-substrate manifest.
 - **Function `iter_substrate_files()`**: No docstring
@@ -474,6 +493,17 @@
 - **Function `run_phase0()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `measure_pit_strategy_t154.py`
+**Module Docstring:** scripts/measure_pit_strategy_t154.py
+- **Class `_ArmTimeout`**: No docstring
+- **Function `build_data_map()`**: LOCAL-ONLY data_map: resolve the historical universe (pure, reads the
+- **Function `arm0_edges()`**: No docstring
+- **Function `membership_mask()`**: No docstring
+- **Function `canon_md5()`**: No docstring
+- **Function `run_arm()`**: No docstring
+- **Function `trade_filter_estimate()`**: ROBUST per-strategy survivor-inflation via membership-filtering the
+- **Function `main()`**: No docstring
+
 ### `measure_survivor_inflation_t136.py`
 **Module Docstring:** scripts/measure_survivor_inflation_t136.py
 - **Function `load_price_panel()`**: No docstring
@@ -505,6 +535,14 @@
 - **Function `resolve_run_ids()`**: Return list of (run_id, label) tuples per CLI args.
 - **Function `render_per_run_table()`**: ASCII table of per-run metrics for terminal output.
 - **Function `render_markdown()`**: Generate the audit-doc Markdown.
+- **Function `main()`**: No docstring
+
+### `mf_sleeve_deep_crisis_t171.py`
+**Module Docstring:** T-171/T-173: deep-crisis backtest of a bought managed-futures sleeve.
+- **Function `load_aqr_monthly()`**: No docstring
+- **Function `load_base_monthly_returns()`**: No docstring
+- **Function `mdd()`**: No docstring
+- **Function `cum()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `migrate_edge_graveyard_tags.py`
@@ -566,6 +604,56 @@
 **Module Docstring:** Phase 2.10c diagnostic: per-edge per-year PnL attribution across the
 - **Function `main()`**: No docstring
 
+### `pin_earnings_dates.py`
+**Module Docstring:** T-2026-06-11-155 — one-time pin of earnings dates into the substrate.
+- **Function `main()`**: No docstring
+
+### `probe_engine_c_reachability_t158.py`
+**Module Docstring:** scripts/probe_engine_c_reachability_t158.py
+- **Function `install_probes()`**: No docstring
+- **Function `cancellation_replay()`**: Offline S-vs-0.5S replays on captured real inputs, both modes.
+- **Function `main()`**: No docstring
+
+### `prove_backtest_trades_regime_t167.py`
+**Module Docstring:** T-2026-06-13-167 — the DUAL+ bar: a real controller-path backtest that
+- **Function `main()`**: No docstring
+
+### `prove_regime_live_full_window_t167.py`
+**Module Docstring:** T-2026-06-13-167 GAP 4 — prove the PRICE-axis regime is LIVE across the FULL
+- **Function `build_data_map()`**: No docstring
+- **Function `run_arm()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `regen_spy_full_history_t167.py`
+**Module Docstring:** T-2026-06-13-167 GAP 3 — regenerate data/processed/SPY_1d.csv with FULL history.
+- **Function `fetch_deep_tr()`**: yfinance SPY on total-return basis (matches the existing file).
+- **Function `compute_atr_prevclose()`**: Project convention: ATR = 14d rolling MEAN of True Range (min 14).
+- **Function `main()`**: No docstring
+
+### `regime_footprint_t165.py`
+**Module Docstring:** scripts/regime_footprint_t165.py
+- **Function `main()`**: No docstring
+
+### `regime_oos_loco_t172.py`
+**Module Docstring:** T-172 — regime-detector leave-one-crisis-out OOS generalization test.
+- **Function `build_deep_panel()`**: No docstring
+- **Function `loco_fold()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `regime_sleeve_sizer_t178.py`
+**Module Docstring:** T-178 — dynamic MF-sleeve SIZER A/B vs always-on 20% (Step 2).
+- **Function `main()`**: No docstring
+
+### `reprice_lps_auction_t157.py`
+**Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED
+- **Function `cost_per_day_decimal()`**: All channels in decimal daily return units (of capital).
+- **Function `ann_ret_pct()`**: No docstring
+- **Function `ann_vol_pct()`**: No docstring
+- **Function `sharpe()`**: No docstring
+- **Function `block_bootstrap_ann_ci()`**: No docstring
+- **Function `account_views()`**: Roth (pre-tax) and taxable-IL (annual-netting approximation).
+- **Function `main()`**: No docstring
+
 ### `reset_base_edges.py`
 **Module Docstring:** scripts/reset_base_edges.py
 - **Function `load_edges()`**: No docstring
@@ -608,6 +696,10 @@
 - **Function `retrain_metalearner()`**: Invoke train_metalearner.py on the filtered run. Returns the
 - **Function `backtest_year()`**: Backtest single-year window with the currently-loaded metalearner.
 - **Function `attach_benchmarks()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `run_combined_scorecard.py`
+**Module Docstring:** scripts/run_combined_scorecard.py
 - **Function `main()`**: No docstring
 
 ### `run_deterministic.py`
@@ -691,6 +783,10 @@
 - **Function `run_q2()`**: Universe-B (50 held-out tickers, seed=42) on same in-sample window.
 - **Function `run_q3()`**: 2021-2024 IS on prod universe with production-equivalent ensemble.
 - **Function `attach_benchmarks()`**: Add SPY / QQQ / 60-40 metrics over the same window.
+- **Function `main()`**: No docstring
+
+### `run_paper_day_t163.py`
+**Module Docstring:** T-163 Part C — run ONE armed paper day end-to-end on the PAPER account.
 - **Function `main()`**: No docstring
 
 ### `run_paper_loop.py`
@@ -1014,6 +1110,13 @@
 **Module Docstring:** scripts/verify_gate1_cache_determinism.py
 - **Function `load_data_map()`**: No docstring
 - **Function `build_candidate_spec()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `vrp_edge_t174.py`
+**Module Docstring:** T-174: VRP (variance risk premium) equity-implementable edge backtest.
+- **Function `sharpe()`**: No docstring
+- **Function `mdd()`**: No docstring
+- **Function `boot_diff()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `walk_forward_affinity.py`

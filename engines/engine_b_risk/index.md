@@ -61,6 +61,7 @@
 - **Function `compute_vol_scale()`**: Standard Moreira-Muir scaling clamped to [floor, ceiling].
 - **Function `compute_realized_vol_from_history()`**: Annualized realized portfolio vol from the trailing `window_days`
 - **Function `compute_realized_vol_from_history_ewma()`**: Annualized realized portfolio vol via RiskMetrics 1996 EWMA.
+- **Function `apply_vol_floor()`**: T-153 Fix A: floor a near-zero sigma before the target/sigma divide.
 - **Function `compute_portfolio_vol_scale()`**: Composer: realized vol from snapshot history → bounded scale.
 
 ### `wash_sale_avoidance.py`
@@ -72,3 +73,8 @@
   - `def stats()`
   - `def record_fill()`: Push a fill into the ledger. Only loss-realizing closes register.
   - `def should_block_buy()`: True iff `ticker` had a loss-realizing close within window_days of `now`.
+
+### `yz_vol.py`
+**Module Docstring:** engines/engine_b_risk/yz_vol.py
+- **Function `yang_zhang_vol()`**: Latest annualized Yang-Zhang vol from a trailing OHLC frame.
+- **Function `portfolio_yang_zhang_vol()`**: Gross-weighted average of per-name YZ vols over open positions.

@@ -21,9 +21,8 @@
 - **Class `DryRunExecutionAdapter`**: Default "live" adapter that does NOT send to a broker.
   - `def __init__()`
   - `def place_order()`: For dry-run, we simulate an immediate fill at provided 'price' (post-slippage).
-- **Class `AlpacaExecutionAdapter`**: Adapter that routes live/paper trades through AlpacaBroker.
+- **Class `AlpacaExecutionAdapter`**: DEPRECATED (T-2026-06-15-169, PR-4). This adapter FABRICATED fills
   - `def __init__()`
-  - `def place_order()`
 - **Class `PaperParams`**: Parameters for paper trading realism.
 - **Class `PaperTradeController`**: Streaming-like controller that *simulates* a live feed from historical data.
   - `def __init__()`

@@ -44,8 +44,18 @@ Wired at the three publish boundaries:
 
 Test status: contract suite + census + forbidden-patterns all green locally (see §6).
 
-## 5. Additivity proof (the hard constraint)
-The census is observation-only and the std-guards change only the degenerate branch, so trades must be bitwise-identical. Verified by canon-md5 across the change on a 2021 backtest (`run_isolated --runs 3` my-branch vs `git stash` baseline): **<RESULTS PENDING — filled on completion>**. `--runs 3` determinism: **<PENDING>**.
+## 5. Additivity proof (the hard constraint) — PASSED
+The census is observation-only and the std-guards change only the degenerate near-constant branch, so trades must be bitwise-identical. **Verified by canon-md5 across the change** on a 2021 backtest (`run_isolated --runs 1`, full 109-ticker universe, regime live, 398 trades):
+
+| build | trades_canon_md5 |
+|---|---|
+| origin/main (trade-path files checked out) | `af9f4dc65a1e122515a934f1d0e9e7f0` |
+| this branch (census ON, all guards) | `af9f4dc65a1e122515a934f1d0e9e7f0` |
+
+**Bitwise identical → the change is additive; not a single trade moved.** Determinism: the canon reproduced across **3 independent my-branch processes**. The baseline exits 0; this branch exits 2 — the census gate correctly fires (see §5a). No degenerate-std case was hit on real 2021 data, so the guard fixes were inert here (as expected).
+
+### 5a. Two runtime bugs the live run caught (static tests could not)
+Building the census surfaced two scope bugs that the static Layer-2d test passed over (it scans source, not runtime): `_build_census`/`_census_config_provenance` referenced `os`/`json` which the controller imports *per-method*, not module-level → `census_error: NameError`. Fixed (local imports added). This is the exact lesson of the audit — only a live run that ASSERTS its own census reveals a clouded census. The corrected census on 2021: regime_unknown_frac 0.0, n_in_panel==n_resolved==109, fundamentals_blind 0, config not degraded, n_trades 398, and **`edges_blind: ['news_sentiment_edge']`** — a genuinely-dormant edge (no news feed in the hermetic substrate) → the run is correctly flagged NON-CANONICAL. **Operational consequence:** an offline/backtest canonical run must either pause `news_sentiment_edge` or pass `CENSUS_EXPECTED_DORMANT=news_sentiment_edge`; surfaced here, not silently tolerated (a real finding for the director).
 
 ## 6. Scope honesty / non-goals
 - **Phase 1 does NOT halt inside loaders.** A degraded run still completes and emits its census; the GATE acts only at the publish boundaries. Missing-input→HALT in data_manager/simfin/macro/universe_resolver, Engine-B-adjacent guards, the fundamentals bake, and the policy.py allocator census are **Phase 2 (propose-first)**.
