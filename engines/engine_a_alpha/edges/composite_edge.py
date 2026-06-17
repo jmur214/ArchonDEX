@@ -49,12 +49,27 @@ class CompositeEdge(EdgeBase, EdgeTemplate):
 
     def __init__(self, params=None):
         super().__init__()
-        self.set_params(params) 
         self.dm = DataManager()
-        self.fundamental_cache = {} 
+        self.fundamental_cache = {}
+        self.set_params(params)   # hydrates self.genes + self.direction (see below)
+
+    def set_params(self, params=None):
+        """Re-derive self.genes/self.direction from params on EVERY set.
+
+        T-2026-06-16-179: previously these were bound ONCE in __init__, but
+        the base set_params (edge_base.py) only updates self.params. Discovery
+        instantiates candidates via `cls_()` THEN `set_params(spec_params)`
+        (discovery.py _instantiate_candidate), so the genes never reached
+        self.genes -> every GA-evolved composite/foundry genome was INERT
+        (0 signals -> 0 fitness -> selected out). The whole "GA only does
+        rsi_bounce_v1 / vocabulary delivers 0" history (T-021) is this bug.
+        Overriding set_params makes the working state refresh on ANY
+        instantiation path (constructor or construct-then-set_params).
+        """
+        super().set_params(params)
         self.genes = self.params.get("genes", [])
-        self.direction = self.params.get("direction", "long") # long | short
-        
+        self.direction = self.params.get("direction", "long")  # long | short
+
     def compute_signals(self, data_map, as_of):
         scores = {}
 
