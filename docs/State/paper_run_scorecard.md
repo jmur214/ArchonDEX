@@ -94,6 +94,39 @@ decision): the actual scheduler trigger — launchd plist (Mac) OR
 EventBridge→Fargate (cloud). The loop logic is host-agnostic; only the
 "fire once per trading day" trigger is host-bound.
 
+## Cloud trigger (2026-06-17) — the loop goes daily-autonomous (T-186)
+
+User chose **cloud** (a sleeping Mac is itself a silent-stop mode). The
+host-bound trigger T-185 left is now built (code + IaC on
+`feature/paper-cloud-trigger-t186`):
+
+- **Trigger:** EventBridge Scheduler (daily 13:00 UTC = 08:00-09:00 ET,
+  inside the OPG window year-round) → Batch `archondex-paper-cloud-day`
+  (Fargate ARM64, reusing the existing queue) → `paper_cloud_entrypoint.sh`
+  → `run_paper_cloud_day.py`.
+- **Durable state:** the order journal / ledger / heartbeat / alert-log
+  live in S3 (`paper_state/`) and are pulled on start / pushed on exit —
+  Fargate disk is ephemeral, so this is the loop's memory between days.
+- **Creds:** Alpaca PAPER creds in Secrets Manager, injected via the
+  job-def `secrets` binding (never baked/echoed). PAPER only.
+- **Cloud dead-man's-switch — 3 signals:** `archondex-paper-silent-stop`
+  (CloudWatch alarm on `PaperRunHappened`, missing-data=breaching → fires
+  on the ABSENCE of a daily pulse); `archondex-paper-non-canonical`
+  (`PaperRunCanonical < 1`); Batch FAILED state (non-canonical exits
+  non-zero). All → SNS `archondex-paper-alerts`; heartbeat status file →
+  S3 for this dashboard.
+- **Verified:** 7 cloud tests green; driver dry-run live vs the paper
+  account (3/3 reconcile clean, exit 0); first-fill window gate proven.
+- **Gated:** LIVE AWS provisioning awaits the director's scope decision
+  (provision+prove / IaC-only / provision-schedule-disabled). Runbook:
+  `docs/Cloud/PAPER_LOOP_CLOUD.md`; audit:
+  `docs/Audit/paper_cloud_trigger_t186_2026_06_17.md`.
+
+**First REAL fill:** bootstrapped manually in-window via
+`scripts/first_real_fill_t186.py` (one OPG, left queued → fills at the
+next open → reconciled into the ledger by the next cloud cycle). Pending
+the OPG window at the time of writing.
+
 ## Combined-candidate vs robo (the real deploy gate — director rec, T-172)
 
 Paper validates the MACHINE; the **EDGE** is judged separately against
