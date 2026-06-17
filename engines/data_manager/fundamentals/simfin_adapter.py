@@ -33,13 +33,27 @@ PROCESSED_PATH = REPO_ROOT / "data" / "processed" / "fundamentals_simfin.parquet
 # ---------------------------------------------------------------------------
 
 def _ensure_simfin_configured() -> None:
+    # T-2026-06-17-180: a CACHED read needs no API key — `sf.load_*` reads the
+    # bulk quarterly CSVs straight from disk (the manifest-pinned, image-baked
+    # data/raw/simfin/*.csv). Only a fresh DOWNLOAD contacts the network. The
+    # old unconditional raise meant the hermetic cloud (no key) could not even
+    # read the cache → `get_panel()` fails-open → the 4 value/accruals edges go
+    # silently blind (the T-175/T-180 finding). Relaxed: if the cache is present
+    # we configure sf with a placeholder so the offline read proceeds; a genuine
+    # cache miss still raises (a network fetch under hermetic SHOULD fail loud).
+    SIMFIN_RAW_DIR.mkdir(parents=True, exist_ok=True)
     api_key = os.environ.get("SIMFIN_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "SIMFIN_API_KEY not set in environment. Source .env first."
-        )
+        cache_present = (SIMFIN_RAW_DIR / "us-income-quarterly.csv").exists()
+        if not cache_present:
+            raise RuntimeError(
+                "SIMFIN_API_KEY not set and no cached simfin CSVs present "
+                "(a fresh download needs the key)."
+            )
+        # Placeholder so set_api_key state is configured; the cached read below
+        # never contacts the API (simfin loads the local CSV when present).
+        api_key = "offline-cache-read"
     sf.set_api_key(api_key)
-    SIMFIN_RAW_DIR.mkdir(parents=True, exist_ok=True)
     sf.set_data_dir(str(SIMFIN_RAW_DIR))
 
 
