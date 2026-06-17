@@ -190,9 +190,19 @@ def build_and_cache(force: bool = False) -> Path:
 
     if PROCESSED_PATH.exists() and not force:
         # Cheap freshness check — if processed is newer than the income raw,
-        # assume nothing changed
+        # assume nothing changed.
         raw_income = SIMFIN_RAW_DIR / "us-income-quarterly.csv"
-        if not raw_income.exists() or PROCESSED_PATH.stat().st_mtime >= raw_income.stat().st_mtime:
+        # T-2026-06-17-180: also return the cached parquet when no SIMFIN_API_KEY
+        # is set (e.g. the hermetic cloud container). A rebuild needs the key
+        # (`_ensure_simfin_configured` raises without it), so a stale-mtime
+        # rebuild attempt would just fail and `get_panel()` would silently
+        # blind the 4 value/accruals edges. The baked parquet IS the canonical,
+        # manifest-pinned panel there, so trust it. Without this, a benign
+        # mtime inversion from the build/S3-sync order (raw uploaded after the
+        # parquet) made the cloud re-anchor run simfin-blind (T-175 finding).
+        if (not raw_income.exists()
+                or PROCESSED_PATH.stat().st_mtime >= raw_income.stat().st_mtime
+                or not os.environ.get("SIMFIN_API_KEY")):
             return PROCESSED_PATH
 
     panel = build_panel()
