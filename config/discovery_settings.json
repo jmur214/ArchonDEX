@@ -1,0 +1,5 @@
+{
+  "_comment": "Engine-D Discovery settings. T-2026-06-17-183: foundry_seed_fraction makes the Gen-0 GA seed fairly represent the Foundry vocabulary so the first honest --discover cycle (Phase-0b) actually TESTS whether Foundry features have alpha, instead of near-rerunning the legacy technical edges (the 'no-alpha' history was a bug artifact, T-177/T-179). Seed diversity ONLY — the gauntlet/DSR gates are unchanged. Pre-registered fraction; see docs/Audit/foundry_seeding_t183_2026_06_17.md.",
+  "use_bayesian_opt": false,
+  "foundry_seed_fraction": 0.5
+}
