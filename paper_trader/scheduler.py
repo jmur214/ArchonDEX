@@ -80,16 +80,28 @@ PR3_ENTRY_CRITERIA_CLOSED = True
 class PaperScheduler:
     def __init__(self, order_manager: OrderManager, reconcile_log_path: str,
                  dry_run: bool = True, armed: bool = False,
-                 paper_config=None, designated_allocator: str = None):
+                 paper_config=None, designated_allocator: str = None,
+                 calendar=None, heartbeat=None, now_fn=None):
         self.om = order_manager
         self.recon = ReconciliationEngine()
         self.reconcile_log = JsonlStore(reconcile_log_path)
         self.dry_run = dry_run
         self.paper_config = paper_config
         self.designated_allocator = designated_allocator
+        # T-185: trading-calendar + auction-window awareness + the
+        # dead-man's-switch heartbeat. `now_fn` lets tests inject ET time.
+        self.calendar = calendar
+        self.heartbeat = heartbeat
+        self._now_fn = now_fn
         # T-163-fix M4: arming FAILS LOUD on any misconfiguration rather
         # than silently downgrading to no-submit.
         self.armed = self._resolve_armed(bool(armed))
+
+    def _now(self):
+        if self._now_fn is not None:
+            return self._now_fn()
+        from paper_trader.market_calendar import now_et
+        return now_et()
 
     def _resolve_armed(self, armed: bool) -> bool:
         if not armed:
@@ -119,6 +131,7 @@ class PaperScheduler:
         trade_date: str,
         staged_orders: List[OrderRecord],
         reconcile_inputs_fn: Callable[[str], ReconcileInputs],
+        account_flat: Optional[bool] = None,
     ) -> DaySummary:
         """Walk the §1.1 clock for one trade date. In dry-run, submits
         nothing; runs reconcile at preflight + reconcile_1 + eod."""
@@ -173,6 +186,17 @@ class PaperScheduler:
                         elif self.dry_run:
                             log.note = (f"DRY-RUN: would submit {len(batch)} "
                                         f"{tag} orders — submitting NOTHING")
+                        elif (self.calendar is not None and batch
+                              and not self.calendar.auction_window_open(
+                                  "opg" if kind == "submit_opg" else "cls", self._now())):
+                            # T-185: GATE the submit on the auction window.
+                            # Outside the window → DEFER (refuse + log), do
+                            # NOT submit (which would 40310000-reject). The
+                            # orders stay STAGED for the in-window cadence.
+                            tif = "opg" if kind == "submit_opg" else "cls"
+                            log.note = (f"DEFERRED — {tag} batch outside the "
+                                        f"submission window ({len(batch)} held). "
+                                        + self.calendar.window_reason(tif, self._now()))
                         else:   # armed (entry guard already enforced this)
                             # ARMED, PAPER-ONLY: submit + poll, PER-ORDER
                             # guarded (M1) so one failure can't abort the
@@ -246,8 +270,44 @@ class PaperScheduler:
                 except Exception as exc:
                     forced.note += f" [eod error: {type(exc).__name__}]"
                 summary.steps.append(forced)
+            # T-185: ALWAYS record the heartbeat (even on a crash) — this
+            # is the dead-man's-switch: a run that started must leave a
+            # trace, canonical or not, so a silent stop is detectable.
+            self._record_heartbeat(trade_date, summary, account_flat=account_flat)
 
         return summary
+
+    def _record_heartbeat(self, trade_date: str, summary: "DaySummary",
+                          account_flat: Optional[bool] = None,
+                          summary_dict: Optional[Dict] = None) -> None:
+        if self.heartbeat is None:
+            return
+        try:
+            fills = sum(1 for o in self.om.orders.values() if o.state == "filled")
+            self.heartbeat.record_run(
+                trade_date,
+                reconcile_clean_cycles=summary.reconcile_clean_cycles,
+                reconcile_total_cycles=summary.reconcile_total_cycles,
+                halted=summary.halted, submitted=summary.submitted_count,
+                fills=fills, account_flat=account_flat, summary=summary_dict)
+        except Exception:
+            pass
+
+    def run_trading_day(self, trade_date: str, staged_orders, reconcile_inputs_fn,
+                        account_flat: Optional[bool] = None):
+        """Calendar-aware entry: only run on a trading day. On a
+        non-trading day, log + record a 'skipped' heartbeat (which the
+        dead-man's-switch treats as expected) and return None."""
+        from datetime import date as _date
+        d = _date.fromisoformat(trade_date)
+        if self.calendar is not None and not self.calendar.is_trading_day(d):
+            print(f"[PAPER] {trade_date} is not a trading day — skipping (no run).")
+            # No heartbeat is written for a skip: the dead-man's-switch
+            # check() treats non-trading days as alive regardless, so a
+            # skip must NOT leave a (would-be non-canonical) run record.
+            return None
+        return self.run_day(trade_date, staged_orders, reconcile_inputs_fn,
+                            account_flat=account_flat)
 
     def _safe_reconcile(self, trade_date: str, step: str,
                         reconcile_inputs_fn, summary: DaySummary):

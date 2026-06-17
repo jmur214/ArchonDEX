@@ -53,6 +53,8 @@ from paper_trader.paper_telemetry import (
     RouterShadow,
     SafefWeeklyJob,
 )
+from paper_trader.market_calendar import MarketCalendar, now_et
+from paper_trader.heartbeat import PaperHeartbeat, RunHeartbeat, HeartbeatVerdict
 
 __all__ = [
     "OrderManager",
@@ -83,4 +85,9 @@ __all__ = [
     "PromotionReport",
     "RouterShadow",
     "SafefWeeklyJob",
+    "MarketCalendar",
+    "now_et",
+    "PaperHeartbeat",
+    "RunHeartbeat",
+    "HeartbeatVerdict",
 ]

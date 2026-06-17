@@ -254,6 +254,21 @@ class AlpacaPaperClient:
         req = GetOrdersRequest(status=QueryOrderStatus.ALL, after=after)
         return [_normalize_order(o) for o in self._client.get_orders(req)]
 
+    def trading_days(self, start: str, end: str):
+        """Set of trading dates in [start, end] from the broker calendar
+        (T-185 calendar awareness). Authoritative — includes ad-hoc
+        closures. start/end are ISO date strings."""
+        from datetime import date as _date
+        from alpaca.trading.requests import GetCalendarRequest
+        cal = self._client.get_calendar(GetCalendarRequest(start=start, end=end))
+        out = set()
+        for d in cal:
+            dt = getattr(d, "date", None)
+            if dt is None:
+                continue
+            out.add(dt if isinstance(dt, _date) else _date.fromisoformat(str(dt)[:10]))
+        return out
+
 
 class FakePaperClient:
     """Deterministic cassette double — no network.

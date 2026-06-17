@@ -15,16 +15,17 @@ The §5 criteria (all must hold before any real-money conversation):
 5. **Operational uptime**: missed-cycle ≤ 2%; zero missed-OPG-cutoff days (our pipeline)
 6. **Zero kill-rule violations** (no manual action other than REDUCE/FLATTEN)
 
-| metric | target | status (Day 1, 2026-06-15) |
+| metric | target | status (thru Day 2, 2026-06-17) |
 |---|---|---|
-| trading days | ≥60 | **1** |
-| auction fills (real) | ≥100 | **0** (see OPG-window note) |
+| trading days | ≥60 | **2** |
+| auction fills (real) | ≥100 | **0** (see OPG-window note — first fill lands the first in-window run) |
 | slippage median / p95 vs T-146 | ≤5 / ≤20 bps | pending real fills |
-| reconcile clean-rate | ≥99% | **100%** (3/3 cycles Day 1) |
-| unexplained drifts | 0 | **0** (account verified flat) |
+| reconcile clean-rate | ≥99% | **100%** (3/3 Day 1, 3/3 Day 2) |
+| unexplained drifts | 0 | **0** (account verified flat both days) |
 | tier-1 monitor false-alarms | ≤1/window | 0 (shadow; ~0 obs) |
 | missed-OPG-cutoff (our pipeline) | 0 | 0 |
 | kill-rule violations | 0 | 0 |
+| heartbeat / dead-man's-switch | canonical daily | **canonical** (Day 2 — `paper_heartbeat.json`, alert=false) |
 
 ## Day 1 (2026-06-15) — machine armed end-to-end on the LIVE paper account
 
@@ -47,6 +48,51 @@ The §5 criteria (all must hold before any real-money conversation):
 - No real fill yet (market closed + the OPG window). The fill→slippage
   telemetry begins the first time the loop runs `submit_opg` inside the
   window at a market open.
+
+## Day 2 (2026-06-17) — the HOST-INDEPENDENT persistence pieces, live (T-185)
+
+The OPG-window pre-check from Day 1's "Next-cadence" list is now BUILT.
+The Day-2 driver (`scripts/run_paper_day_t185.py`) wires the three
+host-independent persistence pieces against the live paper account:
+
+- **Trading-calendar awareness** (`paper_trader/market_calendar.py`):
+  `is_trading_day(2026-06-17)=True` via the authoritative Alpaca
+  `get_calendar` (offline fallback skips weekends + a hard holiday set
+  incl. Juneteenth 6/19). Non-trading days SKIP with no false alert.
+- **Auction-window gate** (the T-169 finding, FIXED): the `submit_opg`
+  step ran at 16:08 ET → outside the 7pm–9:28am window → the OPG batch
+  was **DEFERRED (held STAGED), NOT error-submitted**. No code-40310000
+  reject is generated anymore; orders wait for the window instead of
+  bouncing off the broker. (The first real fill lands the first time the
+  loop runs `submit_opg` inside the window at a market open.)
+- **Dead-man's-switch heartbeat** (`paper_trader/heartbeat.py`): every
+  run records to `data/state/paper_heartbeat.json` (schema
+  `paper_heartbeat/v1`) in `run_day`'s `finally` (so even a crash leaves
+  a trace); a daily `check()` verifies today RAN and was CANONICAL,
+  alerting on a miss or non-canonical run via three channels (loud log +
+  status-file `alert` flag the dashboard reads + append-only alert log /
+  optional `PAPER_NOTIFY_WEBHOOK`). Day-2 verdict: **canonical, alive,
+  alert=false** ("today's run happened + canonical"). Canonical for a
+  paper run reuses C's `core/census.py:assert_census` so the
+  canonical/non-canonical verdict can't diverge between paths.
+
+Day-2 result: **3/3 reconcile cycles clean** vs live broker truth,
+account left FLAT, OPG correctly deferred, heartbeat green. The machine
+is now safe to run unattended on a trading day — it refuses to fire
+outside the window, skips non-trading days, and screams if a day is
+missed or non-canonical.
+
+**Reconcile-on-restart self-heal: PROVEN** (not assumed) —
+`tests/test_paper_persistence_t185.py::TestReconcileOnRestart`: a crash
+mid-cycle → restart from the journal → re-adopts broker truth, ZERO new
+POSTs (idempotent `client_order_id` across restart), resumes to fill;
+and a crash after the SUBMITTED intent but before the POST landed →
+restart reverts to STAGED (deliberate re-submit, never blind-resubmit).
+
+Still host-SPECIFIC and NOT yet built (awaits director+user host
+decision): the actual scheduler trigger — launchd plist (Mac) OR
+EventBridge→Fargate (cloud). The loop logic is host-agnostic; only the
+"fire once per trading day" trigger is host-bound.
 
 ## Combined-candidate vs robo (the real deploy gate — director rec, T-172)
 
@@ -82,10 +128,13 @@ must win.
 
 - Run the loop daily with the submit step inside the OPG window (the
   §1.1 09:00 ET slot) → real fills → slippage-vs-T-146 telemetry begins.
-- Reject-rate map: code 40310000 (outside-window) is a wall-clock
-  artifact, not an order reject — exclude it from the genuine-reject
-  rate; map it to a "submission-window" pre-check in the scheduler
-  (followup: gate `submit_opg` on `7pm ≤ now < 9:28am`).
+  The first in-window run (e.g. a 7pm–9:28am ET invocation) submits the
+  queued OPG → fills at the next open → the slippage line starts moving.
+- ~~Reject-rate map: code 40310000 (outside-window)... map it to a
+  "submission-window" pre-check in the scheduler~~ **DONE (T-185)** —
+  the scheduler now DEFERS an outside-window auction batch (holds it
+  STAGED), so 40310000 is no longer generated. The genuine-reject rate
+  is clean of wall-clock artifacts by construction.
 - Kill ACTIONS stay SHADOW for the first stretch (observe the divergence
   null + false-alarm rate); arm reduce/flatten later per the criteria.
 
