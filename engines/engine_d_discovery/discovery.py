@@ -861,9 +861,20 @@ class DiscoveryEngine:
         from importlib import import_module
         mod = import_module(candidate_spec["module"])
         cls_ = getattr(mod, candidate_spec["class"])
-        edge = cls_()
-        if "params" in candidate_spec and candidate_spec["params"]:
-            edge.set_params(candidate_spec["params"])
+        params = candidate_spec.get("params") or {}
+        # T-2026-06-16-179: prefer the params-CONSTRUCTOR (the form the
+        # production loader at ~discovery.py:835 already uses) so params-derived
+        # state (e.g. CompositeEdge.genes) hydrates in __init__ even if a future
+        # edge forgets to override set_params. Belt-and-suspenders alongside the
+        # CompositeEdge.set_params override (measurement_integrity_audit_2026_06_16).
+        # Fall back to construct-then-set_params for any edge whose __init__ does
+        # not accept params= (which now ALSO hydrates, via the set_params override).
+        try:
+            edge = cls_(params=params)
+        except TypeError:
+            edge = cls_()
+            if params:
+                edge.set_params(params)
         return edge
 
     def validate_candidate(

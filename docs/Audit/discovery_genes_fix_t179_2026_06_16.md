@@ -42,6 +42,18 @@ sibling `autogen_phase3_{long,short}` edges (direction only; latent/harmless the
 since the default matched the hardcoded direction). `RuleBasedEdge`/`xsec_momentum`
 already override `set_params` correctly (the template).
 
+**Belt-and-suspenders (per `measurement_integrity_audit_2026_06_16.md`):** the two
+construction sites that used `cls_(); set_params(params)` —
+`discovery._instantiate_candidate` (~discovery.py:864) and
+`wfo._quick_backtest` (~wfo.py:244) — now use the params-CONSTRUCTOR
+`cls_(params=params)` (mirroring the production loader at ~discovery.py:835, with
+its `TypeError` fallback for edges whose `__init__` doesn't accept `params=`, e.g.
+the template-mutation edges). So genes hydrate in `__init__` even if a future
+evolutionary edge forgets the `set_params` override — two independent guarantees.
+Verified: composite via `_instantiate_candidate` → genes=1 + fires; `RSIBounceEdge`
+(no `params` kwarg) → TypeError fallback instantiates + applies set_params; empty
+spec → genes=[] safe.
+
 ### Bug 2 (exposed by fixing Bug 1) — residual_momentum crash
 Once composite genomes actually RUN, any genome with a `residual_momentum`
 technical gene crashed at `composite_edge.py` — `self.regime_cache.get(...)`
@@ -126,7 +138,9 @@ not (it was the bug).
 - `engines/engine_a_alpha/edges/composite_edge.py` — set_params override (Bug 1) +
   residual_momentum benchmark-from-data_map (Bug 2)
 - `engines/engine_a_alpha/edges/autogen_phase3_{long,short}.py` — sibling set_params
-- `tests/test_composite_genes_wiring_t179.py` — 5 regression tests (fail-on-old)
+- `engines/engine_d_discovery/discovery.py` — `_instantiate_candidate` → params-constructor (belt-and-suspenders)
+- `engines/engine_d_discovery/wfo.py` — `_quick_backtest` → params-constructor (belt-and-suspenders)
+- `tests/test_composite_genes_wiring_t179.py` — 7 regression tests (fail-on-old + constructor-form + TypeError fallback)
 - `docs/Audit/gene_encoding_extension_design_t177_2026_06_16.md` — the T-177 design
 
 ## NOT included

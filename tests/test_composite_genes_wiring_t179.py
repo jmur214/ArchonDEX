@@ -122,5 +122,32 @@ def test_rsi_bounce_v1_non_regression():
     assert isinstance(sig, dict)  # produces a signal map without error
 
 
+def test_instantiate_candidate_constructor_form_hydrates_genes():
+    """Belt-and-suspenders (T-179): the ACTUAL Discovery helper
+    _instantiate_candidate now uses the params-constructor, so genes hydrate
+    even if a future edge forgets the set_params override."""
+    from engines.engine_d_discovery.discovery import DiscoveryEngine
+    spec = {"module": "engines.engine_a_alpha.edges.composite_edge",
+            "class": "CompositeEdge",
+            "params": {"genes": [{"type": "foundry_feature", "feature_id": "mom_12_1",
+                                 "operator": "top_percentile", "threshold": 70}],
+                       "direction": "long"}}
+    edge = DiscoveryEngine._instantiate_candidate(spec)
+    assert len(edge.genes) == 1 and edge.direction == "long"
+    sig = edge.compute_signals(_data_map(), AS_OF)
+    assert sum(1 for v in sig.values() if v != 0) > 0
+
+
+def test_instantiate_candidate_typeerror_fallback_for_no_params_edge():
+    """Edges whose __init__ does not accept params= (e.g. RSIBounceEdge) must
+    still instantiate via the construct-then-set_params fallback, with params set."""
+    from engines.engine_d_discovery.discovery import DiscoveryEngine
+    spec = {"module": "engines.engine_a_alpha.edges.rsi_bounce",
+            "class": "RSIBounceEdge", "params": {"rsi_period": 14}}
+    edge = DiscoveryEngine._instantiate_candidate(spec)
+    assert type(edge).__name__ == "RSIBounceEdge"
+    assert edge.params.get("rsi_period") == 14  # fallback applied set_params
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])

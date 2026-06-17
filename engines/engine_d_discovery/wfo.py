@@ -241,9 +241,15 @@ class WalkForwardOptimizer:
         from importlib import import_module
         mod = import_module(spec["module"])
         cls_ = getattr(mod, spec["class"])
-        edge = cls_()
-        edge.set_params(params)
-        
+        # T-2026-06-16-179: params-constructor first so genes/params-derived
+        # state hydrates in __init__ even absent a set_params override; fall
+        # back to construct-then-set_params (also hydrates via the override).
+        try:
+            edge = cls_(params=params)
+        except TypeError:
+            edge = cls_()
+            edge.set_params(params)
+
         alpha = AlphaEngine(edges={spec["edge_id"]: edge}, debug=False)
         risk = RiskEngine({"risk_per_trade_pct": 0.01}) # fixed
         
