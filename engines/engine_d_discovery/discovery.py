@@ -77,6 +77,30 @@ class DiscoveryEngine:
         # lazy-initializes on first access.
         self._gate1_signal_cache = None  # type: ignore[assignment]
 
+        # T-2026-06-17-183: fair-foundry Gen-0 seed fraction. The legacy GA
+        # population is technical-heavy, so the first --discover cycle off it
+        # under-tests the Foundry vocabulary (1/32 foundry genes, T-179). This
+        # fraction of the FRESH Gen-0 population is allocated to single-gene
+        # foundry genomes with feature_ids drawn uniformly at random across the
+        # whole tier-A/B registry (NO hand-picking — the GA + the UNCHANGED
+        # gauntlet/DSR gates decide what survives). Default 0.0 preserves prior
+        # behavior; read from config/discovery_settings.json. Seed diversity
+        # only — gates are untouched. Pre-registered (see the T-183 audit).
+        self.foundry_seed_fraction: float = 0.0
+        try:
+            import json as _json
+            _cfg_path = (
+                Path(__file__).resolve().parents[2]
+                / "config" / "discovery_settings.json"
+            )
+            if _cfg_path.exists():
+                _cfg = _json.loads(_cfg_path.read_text())
+                self.foundry_seed_fraction = float(
+                    _cfg.get("foundry_seed_fraction", 0.0) or 0.0
+                )
+        except Exception:
+            self.foundry_seed_fraction = 0.0
+
     def _get_gate1_signal_cache(self):
         """Return the Gate 1 signal cache, lazy-initializing on first
         access. Defensive against tests that bypass __init__ via
@@ -342,6 +366,32 @@ class DiscoveryEngine:
                     "direction": "long",
                 })
 
+            # T-2026-06-17-183: FAIR foundry representation in the Gen-0 seed so
+            # the first honest --discover cycle actually TESTS the Foundry
+            # vocabulary instead of near-rerunning the legacy technical edges.
+            # Allocate `foundry_seed_fraction` of the population to single-gene
+            # foundry genomes whose feature_ids are drawn UNIFORMLY AT RANDOM
+            # across the whole tier-A/B registry (no hand-picking — the GA + the
+            # UNCHANGED gauntlet/DSR gates decide which survive). Each is a
+            # long-direction single-gene genome (the GA combines/mutates them
+            # over generations). Population SIZE is unchanged, so the per-cycle
+            # candidate count (and thus honest-N pressure) is ~neutral — only
+            # WHAT is explored shifts. Deterministic (seeded random).
+            n_foundry_target = int(round(self.foundry_seed_fraction * ga.population_size))
+            n_foundry_added = 0
+            while (n_foundry_added < n_foundry_target
+                   and len(ga.population) < ga.population_size):
+                fgene = self._make_random_foundry_gene()
+                if fgene is None:
+                    break  # registry unavailable — skip fair-foundry seeding
+                suffix = "".join(random.choices("abcdef0123456789", k=6))
+                ga.population.append({
+                    "edge_id": f"composite_foundryseed_{suffix}",
+                    "genes": [fgene],
+                    "direction": "long",
+                })
+                n_foundry_added += 1
+
             # Fill remaining with random genomes
             while len(ga.population) < ga.population_size:
                 n_genes = random.randint(1, 3)
@@ -401,6 +451,50 @@ class DiscoveryEngine:
                 fitnesses[eid] = 0.5
 
         return fitnesses
+
+    def _make_random_foundry_gene(self) -> Optional[Dict[str, Any]]:
+        """Build ONE random foundry-feature gene: feature_id drawn UNIFORMLY AT
+        RANDOM from the live tier-A/B Foundry registry (NO hand-picking), with
+        the T-022 operator/threshold distribution (70% percentile / 30%
+        absolute). Returns None when the registry is unavailable in this context
+        (caller falls through).
+
+        Factored out of _create_random_gene (T-179/183) so the fair-foundry
+        Gen-0 seeding reuses the SAME generator. The RNG call sequence is
+        IDENTICAL to the prior inline foundry branch, so the gene factory stays
+        bit-identical (verified: seed-0 2000-gene md5 unchanged).
+        """
+        try:
+            from core.feature_foundry import get_feature_registry
+            import core.feature_foundry.features  # noqa: F401  trigger register
+            reg = get_feature_registry()
+            eligible_ids = [
+                f.feature_id for f in reg._features.values()
+                if f.tier in ("A", "B")
+            ]
+        except Exception:
+            eligible_ids = []
+        if not eligible_ids:
+            return None
+        feature_id = random.choice(sorted(eligible_ids))
+        if random.random() < 0.70:
+            # Percentile operator path (cross-sectional ranking)
+            operator = random.choice(["top_percentile", "bottom_percentile"])
+            threshold = (
+                random.choice([80, 90, 95])
+                if operator == "top_percentile"
+                else random.choice([5, 10, 20])
+            )
+        else:
+            # Absolute-comparison path (return-like / score-like features)
+            operator = random.choice(["greater", "less"])
+            threshold = 0.0
+        return {
+            "type": "foundry_feature",
+            "feature_id": feature_id,
+            "operator": operator,
+            "threshold": threshold,
+        }
 
     def _create_random_gene(self) -> Dict[str, Any]:
         """
@@ -569,47 +663,16 @@ class DiscoveryEngine:
         # tier-A + tier-B registry — adversarial-tier features are
         # excluded since they're permuted twins, not signal-bearing.
         if roll < 0.85:
-            try:
-                from core.feature_foundry import get_feature_registry
-                reg = get_feature_registry()
-                # Force-import the features package so it registers if
-                # this is the first import in the process.
-                import core.feature_foundry.features  # noqa: F401
-                all_feats = list(reg._features.values())
-                eligible_ids = [
-                    f.feature_id for f in all_feats
-                    if f.tier in ("A", "B")
-                ]
-            except Exception:
-                eligible_ids = []
-            if not eligible_ids:
-                # Foundry not importable in this context — fall through
-                # to the technical bucket so the gene factory always
-                # returns a gene (preserves caller contract).
-                roll = 0.95  # forces technical path below
-            else:
-                feature_id = random.choice(sorted(eligible_ids))
-                if random.random() < 0.70:
-                    # Percentile operator path (cross-sectional ranking)
-                    operator = random.choice(
-                        ["top_percentile", "bottom_percentile"]
-                    )
-                    threshold = (
-                        random.choice([80, 90, 95])
-                        if operator == "top_percentile"
-                        else random.choice([5, 10, 20])
-                    )
-                else:
-                    # Absolute-comparison path (works best for
-                    # return-like / score-like features)
-                    operator = random.choice(["greater", "less"])
-                    threshold = 0.0
-                return {
-                    "type": "foundry_feature",
-                    "feature_id": feature_id,
-                    "operator": operator,
-                    "threshold": threshold,
-                }
+            # T-2026-06-17-183: foundry-gene generation factored into
+            # _make_random_foundry_gene() (identical RNG sequence — gene-factory
+            # determinism preserved, verified bit-identical seed-0 2000-gene md5)
+            # so the fair-foundry Gen-0 seeding can reuse the SAME generator.
+            foundry_gene = self._make_random_foundry_gene()
+            if foundry_gene is not None:
+                return foundry_gene
+            # Foundry not importable in this context — fall through to the
+            # technical bucket so the gene factory always returns a gene.
+            roll = 0.95  # forces technical path below
 
         # --- Technical (15% — remainder) ---
         indicators = [
