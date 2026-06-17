@@ -162,7 +162,7 @@ class VolatilityRiskPremiumEdge(EdgeBase):
         if len(rets) < int(self.params.get("min_universe", 10)):
             return None
         mkt = pd.concat(rets, axis=1).mean(axis=1)  # equal-weight market return
-        if len(mkt) < 2 or mkt.std() == 0 or not np.isfinite(mkt.std()):
+        if len(mkt) < 2 or not np.isfinite(mkt.std()) or mkt.std() < 1e-12:
             return None
         return float(mkt.std() * np.sqrt(252))
 

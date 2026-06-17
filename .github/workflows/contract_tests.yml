@@ -23,28 +23,34 @@ on:
   pull_request:
     paths:
       - "tests/test_contracts.py"
+      - "tests/test_census.py"
       - "tests/test_forbidden_patterns.py"
       - "tests/test_invariants_property.py"
       - "tests/test_golden_master.py"
       - "tests/golden/**"
       - "config/**.json"
       - "engines/**/*.py"
+      - "backtester/**/*.py"
+      - "orchestration/**/*.py"
+      - "core/**/*.py"
       - "cockpit/metrics.py"
-      - "core/observability/**"
       - "scripts/**.py"
       - ".github/workflows/contract_tests.yml"
   push:
     branches: [main]
     paths:
       - "tests/test_contracts.py"
+      - "tests/test_census.py"
       - "tests/test_forbidden_patterns.py"
       - "tests/test_invariants_property.py"
       - "tests/test_golden_master.py"
       - "tests/golden/**"
       - "config/**.json"
       - "engines/**/*.py"
+      - "backtester/**/*.py"
+      - "orchestration/**/*.py"
+      - "core/**/*.py"
       - "cockpit/metrics.py"
-      - "core/observability/**"
       - "scripts/**.py"
 
 jobs:
@@ -82,7 +88,7 @@ jobs:
         env:
           PYTHONHASHSEED: "0"
         run: |
-          python -m pytest tests/test_contracts.py -v
+          python -m pytest tests/test_contracts.py tests/test_census.py -v
 
       # T-2026-06-10-138 — agent-code safety gate (blind-spots research
       # §AREA 1). Three tiers, cheapest first:

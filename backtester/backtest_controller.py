@@ -126,6 +126,13 @@ class BacktestController:
             self.pit_membership_mask = _m.sort_index()
 
         # Normalize data
+        # T-181 census: record how many tickers were HANDED to the controller
+        # (n_resolved) vs how many SURVIVE normalization into the panel
+        # (n_in_panel = len(self.data_map)). A silent gap is the T-167
+        # universe-shrink class of bug.
+        self._census_n_resolved: int = len(data_map)
+        self._census_regime_total_bars: int = 0
+        self._census_regime_unknown_bars: int = 0
         self.data_map: Dict[str, pd.DataFrame] = {}
         for t, df in data_map.items():
             if df is None or df.empty:
@@ -371,6 +378,20 @@ class BacktestController:
                     learned = tracker.get_learned_affinity(label)
                     if learned:
                         regime_meta.setdefault("advisory", {})["learned_edge_affinity"] = learned
+
+        # T-181 census tally (observation only): a bar is "regime-unknown" if
+        # no regime_meta was produced or its macro label resolves to unknown.
+        # 100% unknown = the regime layer was silently OFF (T-164 GAP-2).
+        self._census_regime_total_bars += 1
+        _unknown = True
+        if regime_meta:
+            _macro = regime_meta.get("macro_regime")
+            if isinstance(_macro, dict):
+                _unknown = _macro.get("label", "unknown") == "unknown"
+            elif isinstance(_macro, str):
+                _unknown = _macro == "unknown"
+        if _unknown:
+            self._census_regime_unknown_bars += 1
 
         return regime_meta
 
@@ -1080,13 +1101,26 @@ class BacktestController:
                 # Bootstrap distribution layer: 95% block-bootstrap CI on
                 # Sharpe + Sortino. Surfaces "Sharpe 0.85 [CI 0.32, 1.41]"
                 # alongside the bare point estimate. Read-only post-processor.
+                # T-181: a CI failure must NEVER ship a summary with silently
+                # missing bootstrap CI (violates the CLAUDE.md ci_low rule).
+                # Every non-CI outcome sets an explicit `bootstrap_ci_skip_reason`
+                # + emits an UNCONDITIONAL warn. The success path is byte-for-byte
+                # unchanged (same `bootstrap_distribution`, no extra key).
                 try:
                     from core.metrics_engine import MetricsEngine
                     snap_df_boot = _pd.read_csv(snapshots_path_for_metrics)
-                    if not snap_df_boot.empty and "equity" in snap_df_boot.columns:
+                    if snap_df_boot.empty or "equity" not in snap_df_boot.columns:
+                        stats["bootstrap_ci_skip_reason"] = "snapshots empty or missing 'equity' column"
+                        print(f"[BACKTEST][BOOTSTRAP][WARN] {stats['bootstrap_ci_skip_reason']}")
+                    else:
                         equity = _pd.to_numeric(snap_df_boot["equity"], errors="coerce").dropna()
                         rets = equity.pct_change().dropna()
-                        if len(rets) >= 32:  # need a meaningful sample
+                        if len(rets) < 32:  # need a meaningful sample
+                            stats["bootstrap_ci_skip_reason"] = (
+                                f"insufficient returns for bootstrap CI (n={len(rets)} < 32)"
+                            )
+                            print(f"[BACKTEST][BOOTSTRAP][WARN] {stats['bootstrap_ci_skip_reason']}")
+                        else:
                             sharpe_boot = MetricsEngine.bootstrap_distribution(
                                 rets, MetricsEngine.sharpe_ratio,
                                 n_iterations=500, seed=0,
@@ -1101,8 +1135,19 @@ class BacktestController:
                                 "n_returns": int(len(rets)),
                             }
                 except Exception as be:
-                    if is_debug_enabled("BACKTEST_CONTROLLER"):
-                        print(f"[BACKTEST][BOOTSTRAP][WARN] {be}")
+                    stats["bootstrap_ci_skip_reason"] = f"bootstrap CI failed: {be!r}"
+                    print(f"[BACKTEST][BOOTSTRAP][WARN] {stats['bootstrap_ci_skip_reason']}")
+
+                # T-181 execution census — self-announcing measurement integrity.
+                # Pure observation assembled at summary time; never alters trades
+                # (the canon is over trades.csv, not this summary). The gate that
+                # ACTS on the census lives at the publish boundaries
+                # (assert_census in run_isolated / run_substrate_arms / cloud).
+                try:
+                    stats["census"] = self._build_census(trades_path_for_metrics)
+                except Exception as _ce:
+                    stats["census"] = {"census_error": repr(_ce)}
+                    print(f"[BACKTEST][CENSUS][WARN] census assembly failed: {_ce!r}")
 
                 # Save the summary next to the (possibly filtered) snapshots
                 perf_dir = os.path.dirname(snapshots_path_for_metrics)
@@ -1158,6 +1203,139 @@ class BacktestController:
                 print(f"[BACKTEST][PATHS] trades={trade_path}")
         except Exception:
             pass
+
+    # --------------------------- T-181 census --------------------------- #
+
+    # MD5 of an empty trades file / empty content — the zero-trade sentinel
+    # shared with scripts/run_substrate_arms.py.
+    CENSUS_EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e"
+
+    def _census_config_provenance(self) -> Dict[str, Any]:
+        """Per-config existence + key-count + content md5 (invariant 6).
+
+        Reads the canonical prod config files so a silent ``{}`` / one-key
+        fabricated fallback (the T-088 risk-key class) is visible. NOTE:
+        observes the prod-suffixed files, not an arbitrary env-resolved
+        override — a Phase-1 best-effort, sufficient to catch an empty or
+        degenerate config.
+        """
+        import hashlib as _hashlib
+        import json
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        files = {
+            "risk": os.path.join(root, "config", "risk_settings.prod.json"),
+            "alpha": os.path.join(root, "config", "alpha_settings.prod.json"),
+            "regime": os.path.join(root, "config", "regime_settings.json"),
+        }
+        out: Dict[str, Any] = {}
+        recs = {}
+        for name, path in files.items():
+            rec = {"path": os.path.relpath(path, root),
+                   "exists": os.path.exists(path), "n_keys": 0, "md5": ""}
+            try:
+                if rec["exists"]:
+                    raw = open(path, "r").read()
+                    rec["md5"] = _hashlib.md5(raw.encode()).hexdigest()
+                    d = json.loads(raw)
+                    rec["n_keys"] = len(d) if isinstance(d, dict) else 0
+            except Exception as e:  # parse failure is itself a degradation
+                rec["error"] = repr(e)
+            recs[name] = rec
+            out[name] = rec
+        # degraded := any required config missing, unparseable, or fabricated
+        # (<=1 key, the run_backtest_pure.py:443 one-key risk fallback).
+        out["degraded"] = any(
+            (not r.get("exists")) or r.get("n_keys", 0) <= 1 or "error" in r
+            for r in recs.values()
+        )
+        return out
+
+    def _build_census(self, trades_path: str) -> Dict[str, Any]:
+        """Assemble the execution census (the 6 invariants). PURE OBSERVATION
+        — reads run state + artifacts, never mutates engine state or trades."""
+        import hashlib as _hashlib
+        import os
+        census: Dict[str, Any] = {}
+
+        # Invariant 1 — edges_blind + per-edge signal counts.
+        try:
+            collector = getattr(self.alpha, "collector", None)
+            processor = getattr(self.alpha, "processor", None)
+            loaded = set(getattr(self.alpha, "edges", {}) or {})
+            paused = set(getattr(processor, "paused_edge_ids", set()) or set())
+            counts = dict(getattr(collector, "_signal_counts", {}) or {})
+            active = sorted(loaded - paused)
+            census["edge_signal_counts"] = {k: int(counts.get(k, 0)) for k in sorted(loaded)}
+            census["bars_collected"] = int(getattr(collector, "_bars_collected", 0))
+            census["n_active_edges"] = len(active)
+            census["edges_paused"] = sorted(paused)  # the expected_dormant allowlist
+            census["edges_blind"] = [e for e in active if int(counts.get(e, 0)) == 0]
+        except Exception as e:
+            census["edges_blind"] = []
+            census["edges_blind_error"] = repr(e)
+
+        # Invariant 2 — universe didn't silently shrink.
+        census["n_resolved"] = int(getattr(self, "_census_n_resolved", 0))
+        census["n_in_panel"] = int(len(self.data_map))
+
+        # Invariant 4 — regime + macro actually ON.
+        tot = int(getattr(self, "_census_regime_total_bars", 0))
+        unk = int(getattr(self, "_census_regime_unknown_bars", 0))
+        census["regime_total_bars"] = tot
+        census["regime_unknown_bars"] = unk
+        census["regime_unknown_frac"] = round(unk / tot, 4) if tot else 1.0
+        census["macro_panel_complete"] = bool(tot > 0 and unk < tot)
+
+        # Invariant 1/4 — fundamentals overlay actually fed.
+        try:
+            from engines.engine_a_alpha.edges._fundamentals_helpers import panel_is_blind
+            _FUND_HINTS = ("value", "quality", "accruals", "earnings_yield",
+                           "book_to_market", "gross_profitability", "roic")
+            loaded = set(getattr(self.alpha, "edges", {}) or {})
+            fund_active = sorted([e for e in loaded if any(h in e.lower() for h in _FUND_HINTS)])
+            census["fundamentals_edges_active"] = fund_active
+            census["fundamentals_blind"] = int(bool(fund_active) and panel_is_blind())
+        except Exception as e:
+            census["fundamentals_blind"] = 0
+            census["fundamentals_blind_error"] = repr(e)
+
+        # Invariant 3 — the run actually traded.
+        try:
+            n_trades, canon = 0, self.CENSUS_EMPTY_MD5
+            if trades_path and os.path.exists(trades_path):
+                _td = pd.read_csv(trades_path)
+                n_trades = int(len(_td))
+                if n_trades:
+                    for c in ("run_id", "meta"):
+                        if c in _td.columns:
+                            _td = _td.drop(columns=[c])
+                    canon = _hashlib.md5(
+                        pd.util.hash_pandas_object(_td, index=False).values.tobytes()
+                    ).hexdigest()
+            census["n_trades"] = n_trades
+            census["trades_canon_md5"] = canon
+            census["trades_empty"] = bool(n_trades == 0 or canon == self.CENSUS_EMPTY_MD5)
+        except Exception as e:
+            census["n_trades"] = -1
+            census["trades_empty"] = True
+            census["trades_canon_error"] = repr(e)
+
+        # Invariant 6 — config provenance.
+        census["config_provenance"] = self._census_config_provenance()
+
+        # One-line operator summary (visibility; the gate runs at publish).
+        try:
+            print(
+                f"[BACKTEST][CENSUS] trades={census.get('n_trades')} "
+                f"panel={census.get('n_in_panel')}/{census.get('n_resolved')} "
+                f"regime_unknown={census.get('regime_unknown_frac')} "
+                f"edges_blind={len(census.get('edges_blind', []))} "
+                f"fund_blind={census.get('fundamentals_blind')}"
+            )
+        except Exception:
+            pass
+        return census
 
     # ------------------------------- run ------------------------------- #
 

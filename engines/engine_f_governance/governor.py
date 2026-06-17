@@ -269,7 +269,7 @@ class StrategyGovernor:
                 # Sortino Ratio (Penalize only downside volatility)
                 # Downside Deviation: std of returns < 0
                 downside = ret[ret < 0]
-                if downside.empty or downside.std() == 0:
+                if downside.empty or not np.isfinite(downside.std()) or downside.std() < 1e-12:
                     # Ideal case: no downside. Cap sortino at a high number to avoid inf
                     sortino = 10.0
                 else:

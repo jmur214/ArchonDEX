@@ -292,7 +292,7 @@ def _compute_metrics(
         trades_df["timestamp"] = pd.to_datetime(trades_df["timestamp"])
 
     daily_ret = equity.pct_change().dropna()
-    if len(daily_ret) < 2 or daily_ret.std() == 0:
+    if len(daily_ret) < 2 or not np.isfinite(daily_ret.std()) or daily_ret.std() < 1e-12:
         sharpe = 0.0
         sortino = 0.0
         vol = 0.0
@@ -302,7 +302,7 @@ def _compute_metrics(
         sigma = float(daily_ret.std())
         sharpe = (mu / sigma) * ann
         downside = daily_ret[daily_ret < 0]
-        if len(downside) > 0 and downside.std() > 0:
+        if len(downside) > 0 and np.isfinite(downside.std()) and downside.std() > 1e-12:
             sortino = (mu / float(downside.std())) * ann
         else:
             sortino = 0.0

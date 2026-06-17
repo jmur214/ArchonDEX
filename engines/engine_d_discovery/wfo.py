@@ -206,7 +206,7 @@ class WalkForwardOptimizer:
         # Calc OOS Sharpe from the stitched per-day return series.
         if len(oos_returns) > 1:
             ret = pd.Series(oos_returns).dropna()
-            if ret.std() == 0:
+            if not np.isfinite(ret.std()) or ret.std() < 1e-12:
                 oos_sharpe = 0
             else:
                 oos_sharpe = ret.mean() / ret.std() * np.sqrt(252)
@@ -268,7 +268,7 @@ class WalkForwardOptimizer:
         if len(equity) < 2: return {"sharpe": 0, "equity_curve": []}
         
         ret = pd.Series(equity).pct_change().dropna()
-        if ret.std() == 0: return {"sharpe": 0, "equity_curve": equity}
+        if not np.isfinite(ret.std()) or ret.std() < 1e-12: return {"sharpe": 0, "equity_curve": equity}
         
         sharpe = ret.mean() / ret.std() * np.sqrt(252)
         return {"sharpe": sharpe, "equity_curve": equity}

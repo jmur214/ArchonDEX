@@ -19,6 +19,7 @@ validators), NOT research/.
 """
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -133,3 +134,68 @@ def test_allowlist_entries_still_exist():
         if not p.exists() or snippet not in p.read_text():
             stale.append(f"{suffix} [{pname}] {snippet[:60]}")
     assert not stale, "Stale allowlist entries (prune them):\n  " + "\n  ".join(stale)
+
+
+# --------------------------------------------------------------------------- #
+# T-181 — pure-AST guard: no bare `.std() == 0` (or `.var() == 0`) anywhere in
+# the measurement path. CLAUDE.md non-negotiable #8: pandas std on numerically
+# identical floats returns ~2e-19, not exactly 0, so a bare `== 0` guard fails
+# to fire and a downstream division explodes to ~1e15. The required form is the
+# tolerance guard (`std < 1e-12 or not np.isfinite(std)`). This is a STRUCTURE
+# check (regex can't tell `x.std() == 0` from a comment), so it parses the AST.
+# --------------------------------------------------------------------------- #
+STD_GUARD_DIRS = ["backtester", "orchestration", "core", "engines"]
+
+
+def _std_guard_files():
+    for d in STD_GUARD_DIRS:
+        base = REPO / d
+        if not base.is_dir():
+            continue
+        for p in sorted(base.rglob("*.py")):
+            if "Archive" in p.parts or "archive" in p.parts:
+                continue
+            yield p
+
+
+def _is_std_or_var_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in ("std", "var")
+    )
+
+
+def _is_zero(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+        and not isinstance(node.value, bool) and float(node.value) == 0.0
+
+
+def test_no_bare_std_equals_zero_guard():
+    """No `X.std() == 0` / `0 == X.std()` (or `.var()`) in the measurement
+    path. Use the tolerance guard instead (CLAUDE.md #8). If this trips, your
+    new guard is a latent ~1e15 explosion on near-constant input — replace it
+    with `not np.isfinite(s) or s < 1e-12`."""
+    violations = []
+    for f in _std_guard_files():
+        try:
+            tree = ast.parse(f.read_text())
+        except (UnicodeDecodeError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Compare):
+                continue
+            # only flag exact-equality comparisons against literal zero
+            if not all(isinstance(op, ast.Eq) for op in node.ops):
+                continue
+            operands = [node.left, *node.comparators]
+            has_std = any(_is_std_or_var_call(o) for o in operands)
+            has_zero = any(_is_zero(o) for o in operands)
+            if has_std and has_zero:
+                rel = f.relative_to(REPO).as_posix()
+                violations.append(f"{rel}:{node.lineno}")
+    assert not violations, (
+        "Bare `.std()/.var() == 0` guard(s) found in the measurement path "
+        "(CLAUDE.md #8 — use `not np.isfinite(s) or s < 1e-12`):\n  "
+        + "\n  ".join(violations)
+    )
