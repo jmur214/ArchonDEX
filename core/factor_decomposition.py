@@ -54,7 +54,10 @@ class FactorDecomp:
 
     Convention: ``alpha_daily`` is the intercept of the regression on
     EXCESS returns (edge_return - RF). ``alpha_annualized`` = alpha_daily
-    × 252. ``alpha_tstat`` is the t-statistic for the intercept.
+    × 252. ``alpha_tstat`` is the t-statistic for the intercept, computed
+    with **Newey-West HAC** standard errors (NOT homoskedastic OLS SE) so
+    that serial correlation in daily returns does not inflate it. ``hac_lag``
+    records the automatic Bartlett-kernel lag used.
     """
     edge: str
     n_obs: int
@@ -64,6 +67,7 @@ class FactorDecomp:
     alpha_tstat: float
     r_squared: float
     betas: Dict[str, float]
+    hac_lag: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +164,44 @@ def load_factor_data(
 
 
 # ---------------------------------------------------------------------------
+# Newey-West HAC covariance (hand-rolled; no statsmodels dependency)
+# ---------------------------------------------------------------------------
+# Homoskedastic OLS standard errors UNDERSTATE the intercept SE on
+# serially-correlated daily returns, which inflates the alpha t-stat and
+# makes Gate 6 MORE permissive than advertised. The project standard is
+# HAC everywhere in the measurement path; this mirrors the already-trusted
+# estimator in scripts/factor_decomp_substrate_honest.py so the two paths
+# converge numerically (Newey-West 1987/1994, Bartlett kernel, Politis-style
+# automatic lag).
+
+def newey_west_lag(n: int) -> int:
+    """Automatic Newey-West lag: floor(4 * (T/100)^(2/9))."""
+    if n < 4:
+        return 0
+    return int(np.floor(4.0 * (n / 100.0) ** (2.0 / 9.0)))
+
+
+def newey_west_cov(X: np.ndarray, resid: np.ndarray, lag: int) -> np.ndarray:
+    """Hand-rolled Newey-West (Bartlett-kernel) HAC covariance.
+
+    cov_hat = (X'X)^-1 S (X'X)^-1, where
+      S = sum_{l=-L..L} (1 - |l|/(L+1)) * sum_t (e_t e_{t-l} x_t x_{t-l}')
+    The ``lag = 0`` case reduces to the White (HC0) heteroskedasticity-
+    robust sandwich.
+    """
+    n = X.shape[0]
+    XtX_inv = np.linalg.pinv(X.T @ X)
+    e = resid.reshape(-1, 1)
+    weighted_x = X * e  # row t -> e_t * x_t
+    S = weighted_x.T @ weighted_x  # the l=0 term
+    for l in range(1, lag + 1):
+        w = 1.0 - l / (lag + 1.0)
+        Gamma = weighted_x[l:].T @ weighted_x[: n - l]
+        S = S + w * (Gamma + Gamma.T)
+    return XtX_inv @ S @ XtX_inv
+
+
+# ---------------------------------------------------------------------------
 # Regression
 # ---------------------------------------------------------------------------
 
@@ -206,9 +248,10 @@ def regress_returns_on_factors(
     n, k = X_design.shape
     if n - k < 1:
         return None
-    sigma2 = float((resid @ resid) / (n - k))
-    XtX_inv = np.linalg.pinv(X_design.T @ X_design)
-    var_coefs = sigma2 * np.diag(XtX_inv)
+    # Newey-West HAC SE (NOT homoskedastic OLS) — see helper note above.
+    hac_lag = newey_west_lag(n)
+    cov_hac = newey_west_cov(X_design, resid, hac_lag)
+    var_coefs = np.diag(cov_hac)
     se = np.sqrt(np.maximum(var_coefs, 0.0))
     alpha_tstat = float(alpha / se[0]) if se[0] > 0 else 0.0
 
@@ -228,6 +271,7 @@ def regress_returns_on_factors(
         alpha_tstat=alpha_tstat,
         r_squared=r2,
         betas=betas,
+        hac_lag=hac_lag,
     )
 
 
@@ -275,6 +319,8 @@ __all__ = [
     "load_factor_data",
     "regress_returns_on_factors",
     "gate_factor_alpha",
+    "newey_west_lag",
+    "newey_west_cov",
     "DEFAULT_FACTOR_COLS",
     "DEFAULT_ALPHA_TSTAT_MIN",
     "DEFAULT_ALPHA_ANNUAL_MIN",

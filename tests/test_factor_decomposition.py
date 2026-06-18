@@ -30,6 +30,8 @@ from core.factor_decomposition import (
     DEFAULT_FACTOR_COLS,
     FactorDecomp,
     gate_factor_alpha,
+    newey_west_cov,
+    newey_west_lag,
     regress_returns_on_factors,
 )
 
@@ -198,6 +200,98 @@ def test_regression_does_not_mutate_inputs():
     _ = regress_returns_on_factors(returns, factors, edge_name="immut")
     pd.testing.assert_frame_equal(factors, factors_before)
     pd.testing.assert_series_equal(returns, returns_before)
+
+
+# ---------------------------------------------------------------------------
+# Newey-West HAC standard errors — the Gate-6 SE correction
+# ---------------------------------------------------------------------------
+
+def _homoskedastic_alpha_tstat(returns: pd.Series, factors: pd.DataFrame) -> float:
+    """Replicate the OLD homoskedastic-OLS intercept t-stat for comparison
+    against the new HAC path."""
+    factor_cols = [c for c in DEFAULT_FACTOR_COLS if c in factors.columns]
+    aligned = pd.concat(
+        [returns.rename("edge"), factors], axis=1, join="inner",
+    ).dropna()
+    excess = (aligned["edge"] - aligned["RF"]).values
+    X = aligned[factor_cols].values
+    Xd = np.hstack([np.ones((len(excess), 1)), X])
+    coefs, _, _, _ = np.linalg.lstsq(Xd, excess, rcond=None)
+    resid = excess - Xd @ coefs
+    n, k = Xd.shape
+    sigma2 = float((resid @ resid) / (n - k))
+    var = sigma2 * np.diag(np.linalg.pinv(Xd.T @ Xd))
+    se0 = float(np.sqrt(var[0]))
+    return float(coefs[0] / se0) if se0 > 0 else 0.0
+
+
+def _autocorr_alpha_returns(
+    factors: pd.DataFrame,
+    rho: float = 0.6,
+    daily_alpha: float = 0.0006,
+    seed: int = 7,
+) -> pd.Series:
+    """Constant alpha + AR(1) positively-autocorrelated noise, zero factor
+    exposure. Positive serial correlation inflates the homoskedastic-OLS
+    intercept t-stat — exactly the regime HAC must correct."""
+    rng = np.random.default_rng(seed)
+    n = len(factors)
+    eps = rng.normal(0.0, 0.003, n)
+    e = np.empty(n)
+    e[0] = eps[0]
+    for t in range(1, n):
+        e[t] = rho * e[t - 1] + eps[t]
+    return pd.Series(
+        factors["RF"].values + daily_alpha + e,
+        index=factors.index,
+        name="ar1_alpha",
+    )
+
+
+def test_newey_west_lag_formula():
+    assert newey_west_lag(3) == 0          # too few obs
+    assert newey_west_lag(100) == 4        # floor(4 * 1^(2/9)) = 4
+    assert newey_west_lag(500) == int(np.floor(4.0 * (5.0) ** (2.0 / 9.0)))
+
+
+def test_newey_west_cov_lag0_equals_white_hc0_and_is_symmetric():
+    rng = np.random.default_rng(0)
+    n = 200
+    X = np.column_stack([np.ones(n), rng.normal(size=(n, 2))])
+    resid = rng.normal(size=n)
+    cov = newey_west_cov(X, resid, 0)
+    XtX_inv = np.linalg.pinv(X.T @ X)
+    wx = X * resid.reshape(-1, 1)
+    white = XtX_inv @ (wx.T @ wx) @ XtX_inv
+    assert np.allclose(cov, white)
+    assert np.allclose(cov, cov.T)
+
+
+def test_hac_tstat_more_conservative_than_ols_on_autocorrelated_returns():
+    """The whole point of the fix: on serially-correlated returns the HAC
+    t-stat is strictly smaller in magnitude than the homoskedastic-OLS one,
+    so Gate 6 becomes harder to clear, not easier."""
+    factors = _synthetic_factor_panel(n=500)
+    returns = _autocorr_alpha_returns(factors, rho=0.6, daily_alpha=0.0006)
+    decomp = regress_returns_on_factors(returns, factors, edge_name="ar1")
+    assert decomp is not None
+    assert decomp.hac_lag == newey_west_lag(decomp.n_obs)
+    assert decomp.hac_lag > 0
+    ols_t = _homoskedastic_alpha_tstat(returns, factors)
+    assert abs(decomp.alpha_tstat) < abs(ols_t)
+
+
+def test_hac_and_ols_agree_on_iid_returns():
+    """No serial correlation => HAC ≈ homoskedastic OLS (within finite-sample
+    tolerance), so the iid recovery tests stay valid and alpha is still
+    significant."""
+    factors = _synthetic_factor_panel(n=400)
+    returns = _returns_with_pure_alpha(factors, daily_alpha=0.0008, seed=3)
+    decomp = regress_returns_on_factors(returns, factors, edge_name="iid")
+    assert decomp is not None
+    ols_t = _homoskedastic_alpha_tstat(returns, factors)
+    assert decomp.alpha_tstat == pytest.approx(ols_t, rel=0.25)
+    assert decomp.alpha_tstat > 2.0
 
 
 # ---------------------------------------------------------------------------
