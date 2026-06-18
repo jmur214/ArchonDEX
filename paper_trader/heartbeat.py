@@ -43,7 +43,12 @@ class RunHeartbeat:
     halted: bool = False
     submitted: int = 0
     fills: int = 0
-    account_flat: Optional[bool] = None
+    # T-198: was ``account_flat`` (a flat-account assumption). A loop that
+    # legitimately HOLDS positions is canonical too — what matters is that
+    # the held state is EXPLAINED (attributable to known fills) + reconciled,
+    # not that the account is empty. True = flat OR explained-held;
+    # False = a genuine UNEXPLAINED position (which stays non-canonical).
+    account_explained: Optional[bool] = None
     census_failures: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -70,11 +75,15 @@ class PaperHeartbeat:
     # ------------------------------------------------------------------ #
     def record_run(self, run_date: str, *, reconcile_clean_cycles: int,
                    reconcile_total_cycles: int, halted: bool, submitted: int,
-                   fills: int, account_flat: Optional[bool],
+                   fills: int, account_explained: Optional[bool],
                    summary: Optional[Dict[str, Any]] = None,
                    run_ts: Optional[str] = None) -> RunHeartbeat:
         """Write a run's heartbeat. Canonical = completed + reconcile
-        clean + not halted + (if summary) census-clean."""
+        clean + not halted + account state EXPLAINED + (if summary)
+        census-clean. T-198: ``account_explained`` (was ``account_flat``)
+        — a loop that legitimately holds reconciled positions is canonical;
+        only a genuine UNEXPLAINED position (account_explained is False)
+        forces non-canonical."""
         census_failures: List[str] = []
         if summary is not None:
             try:
@@ -88,14 +97,14 @@ class PaperHeartbeat:
         reconcile_clean = (reconcile_total_cycles > 0
                            and reconcile_clean_cycles == reconcile_total_cycles)
         canonical = (reconcile_clean and not halted
-                     and account_flat is not False and not census_failures)
+                     and account_explained is not False and not census_failures)
         reasons = []
         if not reconcile_clean:
             reasons.append(f"reconcile {reconcile_clean_cycles}/{reconcile_total_cycles}")
         if halted:
             reasons.append("halted")
-        if account_flat is False:
-            reasons.append("account not flat")
+        if account_explained is False:
+            reasons.append("UNEXPLAINED position")
         if census_failures:
             reasons.append(f"census: {census_failures}")
         hb = RunHeartbeat(
@@ -103,7 +112,7 @@ class PaperHeartbeat:
             reason="; ".join(reasons) if reasons else "clean",
             reconcile_clean_cycles=reconcile_clean_cycles,
             reconcile_total_cycles=reconcile_total_cycles, halted=halted,
-            submitted=submitted, fills=fills, account_flat=account_flat,
+            submitted=submitted, fills=fills, account_explained=account_explained,
             census_failures=census_failures,
         )
         self._write_status(hb, alert=not canonical,

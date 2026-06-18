@@ -131,7 +131,7 @@ class PaperScheduler:
         trade_date: str,
         staged_orders: List[OrderRecord],
         reconcile_inputs_fn: Callable[[str], ReconcileInputs],
-        account_flat: Optional[bool] = None,
+        account_explained: Optional[bool] = None,
     ) -> DaySummary:
         """Walk the §1.1 clock for one trade date. In dry-run, submits
         nothing; runs reconcile at preflight + reconcile_1 + eod."""
@@ -273,12 +273,12 @@ class PaperScheduler:
             # T-185: ALWAYS record the heartbeat (even on a crash) — this
             # is the dead-man's-switch: a run that started must leave a
             # trace, canonical or not, so a silent stop is detectable.
-            self._record_heartbeat(trade_date, summary, account_flat=account_flat)
+            self._record_heartbeat(trade_date, summary, account_explained=account_explained)
 
         return summary
 
     def _record_heartbeat(self, trade_date: str, summary: "DaySummary",
-                          account_flat: Optional[bool] = None,
+                          account_explained: Optional[bool] = None,
                           summary_dict: Optional[Dict] = None) -> None:
         if self.heartbeat is None:
             return
@@ -289,12 +289,12 @@ class PaperScheduler:
                 reconcile_clean_cycles=summary.reconcile_clean_cycles,
                 reconcile_total_cycles=summary.reconcile_total_cycles,
                 halted=summary.halted, submitted=summary.submitted_count,
-                fills=fills, account_flat=account_flat, summary=summary_dict)
+                fills=fills, account_explained=account_explained, summary=summary_dict)
         except Exception:
             pass
 
     def run_trading_day(self, trade_date: str, staged_orders, reconcile_inputs_fn,
-                        account_flat: Optional[bool] = None):
+                        account_explained: Optional[bool] = None):
         """Calendar-aware entry: only run on a trading day. On a
         non-trading day, log + record a 'skipped' heartbeat (which the
         dead-man's-switch treats as expected) and return None."""
@@ -307,7 +307,7 @@ class PaperScheduler:
             # skip must NOT leave a (would-be non-canonical) run record.
             return None
         return self.run_day(trade_date, staged_orders, reconcile_inputs_fn,
-                            account_flat=account_flat)
+                            account_explained=account_explained)
 
     def _safe_reconcile(self, trade_date: str, step: str,
                         reconcile_inputs_fn, summary: DaySummary):

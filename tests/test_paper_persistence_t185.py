@@ -139,7 +139,7 @@ class TestHeartbeat:
                             alert_log=str(tmp_path / "al.log"))
         hb.record_run("2026-06-17", reconcile_clean_cycles=3,
                       reconcile_total_cycles=3, halted=False, submitted=1,
-                      fills=1, account_flat=True)
+                      fills=1, account_explained=True)
         v = hb.check(date(2026, 6, 17), is_trading_day=True)
         assert v.alive and not v.alert
 
@@ -148,7 +148,7 @@ class TestHeartbeat:
                             alert_log=str(tmp_path / "al.log"))
         hb.record_run("2026-06-15", reconcile_clean_cycles=3,
                       reconcile_total_cycles=3, halted=False, submitted=1,
-                      fills=1, account_flat=True)
+                      fills=1, account_explained=True)
         # today is 06-17 (trading day) but the last run was 06-15 → MISS
         v = hb.check(date(2026, 6, 17), is_trading_day=True)
         assert not v.alive and v.alert and "silently stopped" in v.reason
@@ -159,7 +159,7 @@ class TestHeartbeat:
                             alert_log=str(tmp_path / "al.log"))
         hb.record_run("2026-06-17", reconcile_clean_cycles=2,   # 2/3 = not clean
                       reconcile_total_cycles=3, halted=True, submitted=1,
-                      fills=0, account_flat=True)
+                      fills=0, account_explained=True)
         v = hb.check(date(2026, 6, 17), is_trading_day=True)
         assert not v.alive and v.alert
         import json
@@ -186,7 +186,7 @@ class TestHeartbeat:
         bad_summary = {"census": {"n_trades": 0, "trades_empty": True}}
         rec = hb.record_run("2026-06-17", reconcile_clean_cycles=3,
                             reconcile_total_cycles=3, halted=False, submitted=1,
-                            fills=1, account_flat=True, summary=bad_summary)
+                            fills=1, account_explained=True, summary=bad_summary)
         assert rec.canonical is False and rec.census_failures
 
 
