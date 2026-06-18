@@ -82,8 +82,13 @@ cross). Gated LAST on purpose so its near-certain null is cheap + unambiguous on
   front with evidence instead of an open "someday."
 
 ## Kill / Defer (honest)
-- **KILL pure intraday/HFT** (78-390× wall-time, PDT-blocked <$25K, DOA). Daily post-close timing
-  aggregates as an optional pre-registered Phase-3 sub-experiment is the only survivor.
+- **DEPRIORITIZE (not hard-kill) low timeframes / intraday** — the binding reason is **SPEED
+  competition** (big funds have a structural edge at small timeframes we can't beat), NOT PDT.
+  **CORRECTION (user 2026-06-18): the PDT rule is effectively gone — $2k account min now, not $25k —
+  so PDT is NOT a constraint** (and AUM could exceed $25k if the system works). Pure intraday stays
+  deprioritized on the speed argument + 78-390× wall-time, but it is not absolutely closed ("if
+  something works, who cares"). Daily post-close timing aggregates remain the cheap, pre-registered
+  Phase-3 timing sub-experiment.
 - **DEFER microcap thrust** (gate-permit only).
 - **KILL the refuted in-house crisis defenses** (de-gross T-118r, sleeve T-128r) — don't re-litigate.
 - **DEFER new engines/deps/3+-engine changes** — this rides on wiring/measuring EXISTING OFF machinery
