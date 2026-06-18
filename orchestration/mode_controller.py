@@ -1289,22 +1289,28 @@ class ModeController:
                         raise TimeoutError(f"validate_candidate exceeded {_diag_per_cand_timeout}s")
                     _prev_handler = _signal.signal(_signal.SIGALRM, _to_handler)
                     _signal.alarm(_diag_per_cand_timeout)
-                # Validation window: pass an explicit 24-month window so
-                # Gate 1's "quick filter" runs over a calibrated training
-                # interval rather than the full ~6yr data_map extent
-                # (~30-35 min/candidate observed pre-fix per
-                # health_check.md). Gate 3 (WFO) does proper multi-window
-                # OOS via train_months / test_months, so a short Gate 1
-                # window is fine for the cheap pass/fail filter.
-                # Override via DISCOVERY_VALIDATION_MONTHS env var if a
-                # specific campaign needs longer history.
-                _val_months = int(_os_diag.environ.get("DISCOVERY_VALIDATION_MONTHS", "24"))
+                # Validation window. T-2026-06-17-197 FIX: MBL Gate-0 (and DSR)
+                # must be computed on the FULL MBL-clearing evaluation extent,
+                # NOT a 24-month quick-filter sub-window. The prior default
+                # (last 24 months) made Gate-0 compute T_years=2.0 vs the MBL
+                # minimum (~9.66yr at N~125) → EVERY candidate died at Gate-0
+                # before any alpha gate ran (T-193/T-195 root-cause). The
+                # quick-filter is a PRE-SCREEN, not the validation extent.
+                # DEFAULT is now the full data_map extent; an explicit
+                # DISCOVERY_VALIDATION_MONTHS env var still selects a legacy
+                # sub-window for anyone who deliberately wants the cheap screen
+                # (Gate-0 will then correctly fail unless that window clears MBL).
+                # Gate-3 (WFO) still does proper multi-window OOS internally.
+                _val_months_env = _os_diag.environ.get("DISCOVERY_VALIDATION_MONTHS")
                 _first_tkr = next(iter(data_map.keys()), None)
                 _val_start = _val_end = None
                 if _first_tkr is not None and not data_map[_first_tkr].empty:
-                    _last_idx = data_map[_first_tkr].index[-1]
-                    _val_end = _last_idx.isoformat()
-                    _val_start = (_last_idx - pd.DateOffset(months=_val_months)).isoformat()
+                    _idx = data_map[_first_tkr].index
+                    _val_end = _idx[-1].isoformat()
+                    if _val_months_env:
+                        _val_start = (_idx[-1] - pd.DateOffset(months=int(_val_months_env))).isoformat()
+                    else:
+                        _val_start = _idx[0].isoformat()  # full MBL-clearing extent
                 try:
                     result = discovery.validate_candidate(
                         cand, data_map, significance_threshold=None,
