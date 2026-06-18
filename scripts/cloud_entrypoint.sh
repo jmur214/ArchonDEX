@@ -37,6 +37,14 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_DYNAMIC=FALSE
 
+# T-2026-06-17-194 (D's T-189): a cloud/anchor run IS a canonical measurement →
+# fail-closed at the data-load source. With this set, a missing load-bearing input
+# for an ACTIVE consumer (simfin panel for value edges; membership panel for a
+# historical-universe run) HALTs at the loader (exit non-zero) instead of silently
+# publishing a degraded number (the T-175 simfin-blind 0.751 / T-167 truncated
+# universe). Local/paper/test runs do NOT set this → graceful degradation preserved.
+export ARCHONDEX_MEASURED=1
+
 if [ -z "${ARCHONDEX_RESULTS_BUCKET:-}" ]; then
     echo "ERROR: ARCHONDEX_RESULTS_BUCKET not set" >&2
     exit 64

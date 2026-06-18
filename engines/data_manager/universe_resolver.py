@@ -189,7 +189,19 @@ def resolve_universe(
     membership_parquet = (
         Path(cache_dir) / "universe" / "sp500_membership.parquet"
     )
+    # T-2026-06-17-194 (D's T-189 site M / the T-167 class): reaching resolve_universe
+    # means the caller requested the historical survivorship-aware universe. If the
+    # membership panel is absent or unloadable, a MEASURED run must HALT rather than
+    # silently substitute the truncated static list (survivorship bias masquerading
+    # as a real universe — exactly the degradation that produced the truncated-universe
+    # anchors). Outside measured mode the static fallback is preserved EXACTLY.
+    from core.measured import halt_or_degrade
     if not membership_parquet.exists():
+        halt_or_degrade(
+            "universe_resolver.membership_absent",
+            load_bearing=True, active=True,
+            reason=f"missing membership parquet at {membership_parquet}",
+        )
         info["mode"] = "fallback_to_static"
         info["fallback_reason"] = (
             f"missing membership parquet at {membership_parquet}; run "
@@ -214,6 +226,11 @@ def resolve_universe(
                 membership_df, start, end, anchor_dates=list(anchor_dates),
             )
     except (UniverseError, ValueError, OSError) as exc:
+        halt_or_degrade(
+            "universe_resolver.membership_load_failed",
+            load_bearing=True, active=True,
+            reason=f"{type(exc).__name__}: {exc}",
+        )
         info["mode"] = "fallback_to_static"
         info["fallback_reason"] = f"{type(exc).__name__}: {exc}"
         return list(static_tickers), info
