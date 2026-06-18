@@ -87,7 +87,21 @@ def get_panel() -> Optional[pd.DataFrame]:
         from engines.data_manager.fundamentals.simfin_adapter import load_panel
         _PANEL_CACHE = load_panel()
         return _PANEL_CACHE
-    except Exception:
+    except Exception as exc:
+        # T-2026-06-17-194 (D's T-189): in a MEASURED run a value/accruals edge is
+        # asking for the panel right now (the call itself is the activeness signal),
+        # so a missing/unloadable panel is a load-bearing+active failure → HALT at
+        # the source instead of silently swallowing to None (the T-175 17-edge-blind
+        # 0.751). Outside measured mode this returns a Degraded sentinel and we keep
+        # the EXACT pre-existing behavior: cache the failure + return None (paper /
+        # local / tests degrade gracefully; the census still trips fundamentals_blind).
+        from core.measured import halt_or_degrade
+        halt_or_degrade(
+            "fundamentals.get_panel",
+            load_bearing=True,   # the panel feeds the 4 value/accruals edges
+            active=True,         # a value edge is the caller → it is active this run
+            reason=f"simfin panel unavailable ({type(exc).__name__}: {exc})",
+        )
         _PANEL_LOAD_FAILED = True
         return None
 

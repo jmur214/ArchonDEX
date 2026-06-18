@@ -455,6 +455,11 @@ def main() -> int:
               "Decisions append to LifecycleJournal; "
               "journal_apply runs at end-of-run.")
 
+    # T-2026-06-17-194: a measured-mode data-load HALT (MeasurementHalt) maps to the
+    # SAME non-zero exit family as a census NON-CANONICAL block — fail loud + fast,
+    # naming the exact load site, instead of finishing a clouded backtest.
+    from core.measured import MeasurementHalt, MEASUREMENT_HALT_EXIT
+
     results = []
     for i in range(args.runs):
         print(f"\n===== ISOLATED RUN {i + 1} / {args.runs} =====")
@@ -465,11 +470,18 @@ def main() -> int:
         with isolated(journal_mode=args.journal_mode):
             if args.show_hashes:
                 _print_state("PRE  RUN  ", journal_mode=args.journal_mode)
-            summary = _run_q1_inside_context(
-                apply_journal_at_end=args.journal_mode,
-                override_start=override_start,
-                override_end=override_end,
-            )
+            try:
+                summary = _run_q1_inside_context(
+                    apply_journal_at_end=args.journal_mode,
+                    override_start=override_start,
+                    override_end=override_end,
+                )
+            except MeasurementHalt as _mh:
+                print(f"\n[RESULT] FAIL — MeasurementHalt at a data-load site: {_mh}")
+                print("         A load-bearing input for an ACTIVE consumer was missing "
+                      "in this MEASURED run; halted at the source. Do not certify/publish "
+                      "— bake the input (or run non-measured to degrade) and re-run.")
+                return MEASUREMENT_HALT_EXIT
             if args.show_hashes:
                 _print_state("POST RUN  ", journal_mode=args.journal_mode)
         if args.show_hashes:
