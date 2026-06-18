@@ -171,5 +171,88 @@ def test_format_taxable_states_assumptions():
     assert "AFTER-TAX (taxable)" in text and "ST " in text and "indictment" in text
 
 
+# --------------------------------------------------------------------------- #
+# T-203 — evaluate_deploy_readiness (the robo deploy gate)
+# --------------------------------------------------------------------------- #
+from core.combined_candidate_scorecard import (  # noqa: E402
+    DeployVerdict, RoboComparison, evaluate_deploy_readiness, format_deploy_verdict,
+)
+
+
+def _equity_from_returns(r: pd.Series) -> pd.Series:
+    return 100_000 * (1 + r).cumprod()
+
+
+def test_deploy_verdict_shape_and_accessors():
+    idx = pd.bdate_range("2019-06-01", periods=252 * 6)
+    rng = np.random.default_rng(1)
+    base = _equity_from_returns(pd.Series(rng.normal(0.0006, 0.009, len(idx)), index=idx))
+    v = evaluate_deploy_readiness(base, account="roth", n_boot=100)
+    assert isinstance(v, DeployVerdict)
+    assert v.deploy_verdict in ("DEPLOY", "DO NOT DEPLOY")
+    assert v.vs_60_40 is None or isinstance(v.vs_60_40, RoboComparison)
+    assert "DEPLOY GATE" in format_deploy_verdict(v)
+
+
+def test_window_bias_blocks_deploy_when_tail_unverified():
+    # base spans 2006-2025 with a -45% 2008 crash; the DBMF window (2019+) misses
+    # it → full-cycle tail UNVERIFIED → cannot certify deploy even if it beats.
+    idx = pd.bdate_range("2006-01-02", periods=252 * 19)
+    rng = np.random.default_rng(2)
+    r = pd.Series(rng.normal(0.0007, 0.009, len(idx)), index=idx)
+    crash = (idx >= "2008-09-01") & (idx <= "2009-03-01")
+    r[crash] = -0.004  # a sustained ~-45% drawdown well before the DBMF era
+    v = evaluate_deploy_readiness(_equity_from_returns(r), account="roth", n_boot=100)
+    assert v.window_excludes_base_tail is True
+    assert v.full_cycle_tail_verified is False
+    assert v.passed is False                          # tail unverified → DO NOT DEPLOY
+    assert abs(v.base_full_maxdd_pct) > abs(v.window_maxdd_pct)  # full tail deeper
+
+
+def test_mdd_does_not_carry_a_window_flattered_verdict():
+    # Same window-biased base: every proxy's MDD-improvement is discounted, so a
+    # comparison only "beats" on ci_low (never on the window-flattered MDD alone).
+    idx = pd.bdate_range("2006-01-02", periods=252 * 19)
+    rng = np.random.default_rng(5)
+    r = pd.Series(rng.normal(0.0004, 0.012, len(idx)), index=idx)
+    r[(idx >= "2008-09-01") & (idx <= "2009-03-01")] = -0.004
+    v = evaluate_deploy_readiness(_equity_from_returns(r), account="roth", n_boot=100)
+    for c in v.comparisons.values():
+        # beats reduces to the ci_low test when the window excludes the tail
+        assert c.beats == c.sharpe_ci_low_beats
+
+
+def test_taxable_is_weaker_than_roth():
+    idx = pd.bdate_range("2019-06-01", periods=252 * 6)
+    rng = np.random.default_rng(7)
+    base = _equity_from_returns(pd.Series(rng.normal(0.0008, 0.01, len(idx)), index=idx))
+    roth = evaluate_deploy_readiness(base, account="roth", n_boot=100)
+    tax = evaluate_deploy_readiness(base, account="taxable", n_boot=100)
+    # after-tax sharpe of the candidate is <= roth for every proxy (tax is a drag)
+    for name in roth.comparisons:
+        assert tax.comparisons[name].sharpe_cand <= roth.comparisons[name].sharpe_cand + 1e-9
+
+
+def test_require_any_vs_all():
+    idx = pd.bdate_range("2019-06-01", periods=252 * 6)
+    rng = np.random.default_rng(9)
+    base = _equity_from_returns(pd.Series(rng.normal(0.0006, 0.009, len(idx)), index=idx))
+    v_all = evaluate_deploy_readiness(base, account="roth", require="all", n_boot=80)
+    v_any = evaluate_deploy_readiness(base, account="roth", require="any", n_boot=80)
+    # 'any' is never stricter than 'all' (given identical tail-verification)
+    if v_all.full_cycle_tail_verified == v_any.full_cycle_tail_verified:
+        assert not (v_all.passed and not v_any.passed)
+
+
+def test_gate_uses_ci_low_not_point_estimate():
+    # the comparison stores ci_low for both sides and gates on it (CLAUDE.md #6)
+    idx = pd.bdate_range("2019-06-01", periods=252 * 6)
+    rng = np.random.default_rng(11)
+    base = _equity_from_returns(pd.Series(rng.normal(0.0006, 0.009, len(idx)), index=idx))
+    v = evaluate_deploy_readiness(base, account="roth", n_boot=100)
+    for c in v.comparisons.values():
+        assert c.sharpe_ci_low_beats == (c.ci_low_cand > c.ci_low_robo)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

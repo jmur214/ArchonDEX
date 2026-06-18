@@ -1530,8 +1530,29 @@ class DiscoveryEngine:
             result["factor_alpha_reason"] = factor_alpha_reason
             result["gate_6_passed"] = bool(factor_alpha_passed)
             _stamp("gate_6", _g6_t0)
+            # T-203 Phase-0 re-aim: Gate-6 (factor-orthogonality) is DIAGNOSTIC-
+            # ONLY by default (factor_gate_mode='report') — the resolved goal is
+            # beat-the-robo, not academic factor-orthogonal alpha. The verdict is
+            # still computed + recorded (now with the HAC-corrected t-stat) but
+            # does not KILL unless mode=='kill'. The deploy-readiness check is the
+            # robo scorecard gate (core.combined_candidate_scorecard).
+            _fgm = "report"
+            try:
+                import json as _json
+                from pathlib import Path as _Path
+                if hasattr(self, "cfg") and isinstance(self.cfg, dict) and "factor_gate_mode" in self.cfg:
+                    _fgm = str(self.cfg.get("factor_gate_mode", "report"))
+                else:
+                    _cfgp = _Path(__file__).resolve().parents[2] / "config" / "discovery_settings.json"
+                    if _cfgp.exists():
+                        _fgm = str(_json.loads(_cfgp.read_text()).get("factor_gate_mode", "report"))
+            except Exception:
+                _fgm = "report"
+            result["factor_gate_mode"] = _fgm
+            factor_alpha_passed_for_gate = factor_alpha_passed if _fgm == "kill" else True
             if not factor_alpha_passed:
-                print(f"[DISCOVERY] {cand_id} failed Gate 6 ({factor_alpha_reason})")
+                _tag = "failed Gate 6 (KILL)" if _fgm == "kill" else "Gate 6 report-only (diagnostic, not killed)"
+                print(f"[DISCOVERY] {cand_id} {_tag} ({factor_alpha_reason})")
 
             # ---- Gate 7: Substrate-transfer (historical-S&P 500 universe) ----
             # Added 2026-05-09 evening per F6 audit-machinery gap. Catches
@@ -1695,7 +1716,7 @@ class DiscoveryEngine:
                 and survival_rate >= gate2_survival_threshold
                 and sig_passed
                 and universe_b_passed
-                and factor_alpha_passed
+                and factor_alpha_passed_for_gate  # T-203: report-only unless factor_gate_mode=='kill'
                 and bool(result.get("gate_7_passed", True))
                 and bool(result.get("gate_8_passed", True))
             )
