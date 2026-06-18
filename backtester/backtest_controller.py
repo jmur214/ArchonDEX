@@ -1272,8 +1272,17 @@ class BacktestController:
             census["n_active_edges"] = len(active)
             census["edges_paused"] = sorted(paused)  # the expected_dormant allowlist
             census["edges_blind"] = [e for e in active if int(counts.get(e, 0)) == 0]
+            # T-199 — swallowed-crash census. edges_blind only catches a TOTALLY
+            # blind edge; a PARTIAL crash (an edge that dies on some bars but
+            # fires on others) has counts>0 and slips through. `_edge_errors`
+            # records every caught crash → a partial crash is now visible.
+            errs = dict(getattr(collector, "_edge_errors", {}) or {})
+            samples = dict(getattr(collector, "_edge_error_samples", {}) or {})
+            census["edges_errored"] = {k: {"crash_bars": int(v), "last_error": samples.get(k, "")}
+                                       for k, v in sorted(errs.items()) if int(v) > 0}
         except Exception as e:
             census["edges_blind"] = []
+            census["edges_errored"] = {}
             census["edges_blind_error"] = repr(e)
 
         # Invariant 2 — universe didn't silently shrink.

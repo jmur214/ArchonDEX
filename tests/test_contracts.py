@@ -288,6 +288,7 @@ def test_layer1c_required_risk_keys_present_in_prod_json():
 # --------------------------------------------------------------------------- #
 CENSUS_GATING_KEYS = {
     "edges_blind",
+    "edges_errored",
     "n_resolved",
     "n_in_panel",
     "n_trades",

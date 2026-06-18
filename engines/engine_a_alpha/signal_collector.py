@@ -15,6 +15,39 @@ class SignalCollector:
         # every loaded edge so a never-firing edge still appears as a 0.
         self._signal_counts: Dict[str, int] = {name: 0 for name in self.edges}
         self._bars_collected: int = 0
+        # T-199 swallowed-crash census (mirrors D's T-197 gate1 fix). A genuine
+        # no-signal NEVER appears here (errors stay 0); only a CAUGHT exception
+        # from an edge does. This distinguishes a PARTIAL crash (an edge that
+        # dies on some bars — invisible to the edges_blind check because it
+        # fires on the others) from a legitimate no-signal. Observation only.
+        self._edge_errors: Dict[str, int] = {}        # per-edge swallowed-crash bar count
+        self._edge_error_samples: Dict[str, str] = {}  # first/last error repr per edge
+
+    def _record_edge_crash(self, edge_name: str, exc: BaseException) -> None:
+        """Record a swallowed edge crash (T-199), and in MEASURED mode HALT.
+
+        Recording is pure observation (a dict increment) → it surfaces in the
+        census `edges_errored`, which `assert_census` treats as NON-CANONICAL.
+        Additionally, in a measured run (cloud / anchor / hermetic-strict) a
+        real crash in the canon signal path must fail LOUD at the load site:
+        ``halt_or_degrade`` raises MeasurementHalt there and returns a Degraded
+        sentinel otherwise. Imported at call-time so a CLEAN run (which never
+        crashes → never calls this) is bit-for-bit unaffected — the only
+        behaviour change is on an actual swallowed crash.
+        """
+        self._edge_errors[edge_name] = self._edge_errors.get(edge_name, 0) + 1
+        self._edge_error_samples[edge_name] = f"{type(exc).__name__}: {exc}"
+        try:
+            from core.measured import halt_or_degrade
+        except Exception:
+            return  # core.measured unavailable → recording-only (still census-visible)
+        halt_or_degrade(
+            site=f"signal_collector.collect[{edge_name}]",
+            load_bearing=True,   # signals feed the canon trade path
+            active=True,         # the edge is loaded into the live collector book
+            reason=f"edge raised {type(exc).__name__} and was swallowed on a bar "
+                   f"(partial/whole crash, not a legitimate no-signal): {exc}",
+        )
 
     # --- introspection helpers --- #
     def _call_edge(self, edge_obj: object, data_map: Dict[str, pd.DataFrame], now: pd.Timestamp) -> Dict[str, float]:
@@ -258,6 +291,7 @@ class SignalCollector:
                                 from debug_config import is_debug_enabled
                                 if is_debug_enabled("COLLECTOR"):
                                     print(f"[COLLECTOR][DEBUG] Edge '{edge_name}' failed after retry: {exc2}")
+                            self._record_edge_crash(edge_name, exc2)  # T-199: swallowed crash
                             signals = None
                     else:
                         raise
@@ -389,6 +423,10 @@ class SignalCollector:
                 # producing zero signals across the whole backtest.
                 if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
                     raise
+                # T-199: a non-programmer ("data-shaped") exception is swallowed
+                # here so the run continues — but it is a CRASH, not a legitimate
+                # no-signal. Record it so a partial crash is census-detectable.
+                self._record_edge_crash(edge_name, e)
                 if self.debug:
                     from debug_config import is_debug_enabled
                     if is_debug_enabled("COLLECTOR"):
