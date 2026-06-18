@@ -79,7 +79,8 @@ class CachedEdgeWrapper:
       edge still see the underlying object.
     """
 
-    __slots__ = ("_wrapped", "_cache", "_edge_id", "_hits", "_misses")
+    __slots__ = ("_wrapped", "_cache", "_edge_id", "_hits", "_misses",
+                 "_eval_calls", "_eval_errors", "_last_error")
 
     def __init__(self, wrapped_edge: Any, edge_id: str) -> None:
         self._wrapped = wrapped_edge
@@ -87,6 +88,12 @@ class CachedEdgeWrapper:
         self._edge_id = edge_id
         self._hits = 0
         self._misses = 0
+        # T-2026-06-17-197: structurally track swallowed compute_signals
+        # crashes so a swallowed exception (which returns {}) is no longer
+        # INDISTINGUISHABLE from a legitimate "edge produced no signal".
+        self._eval_calls = 0      # actual delegated calls (cache misses)
+        self._eval_errors = 0     # of those, how many raised + were swallowed
+        self._last_error: Optional[str] = None
 
     @property
     def edge_id(self) -> str:
@@ -99,6 +106,25 @@ class CachedEdgeWrapper:
     @property
     def misses(self) -> int:
         return self._misses
+
+    @property
+    def eval_errors(self) -> int:
+        return self._eval_errors
+
+    @property
+    def eval_calls(self) -> int:
+        return self._eval_calls
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
+
+    @property
+    def eval_error_rate(self) -> float:
+        """Fraction of delegated calls that raised + were swallowed. A SYSTEMATIC
+        rate (most bars) is the degenerate-baseline signature; a tiny rate is a
+        transient per-bar data gap (the legitimate narrow-catch case)."""
+        return (self._eval_errors / self._eval_calls) if self._eval_calls else 0.0
 
     def __getattr__(self, name: str) -> Any:
         # Proxy attribute access to the wrapped edge for everything
@@ -140,11 +166,22 @@ class CachedEdgeWrapper:
             return dict(cached)
 
         self._misses += 1
+        self._eval_calls += 1
         try:
             result = self._wrapped.compute_signals(data_map, now)
         except _PROGRAMMER_ERRORS:
             raise
         except Exception as e:
+            # T-2026-06-17-197: a swallowed crash must NOT silently masquerade
+            # as empty signals (the T-189-class fail-open behind the degenerate
+            # baseline, T-195). Keep returning {} so one bad bar doesn't abort
+            # the whole backtest mid-loop (the controller swallows raises here
+            # anyway), but RECORD the crash structurally so the caller can
+            # distinguish "edge crashed" from "edge legitimately abstained" and
+            # FAIL LOUD when the failure is systematic (see
+            # Gate1SignalCache.assert_baseline_healthy / eval_error_report).
+            self._eval_errors += 1
+            self._last_error = f"{type(e).__name__}: {e}"
             logger.warning(
                 "[%s] compute_signals failed at %s: %s: %s",
                 self._edge_id, now, type(e).__name__, e,
@@ -258,5 +295,43 @@ class Gate1SignalCache:
             "per_edge": {eid: w.cache_stats() for eid, w in self._wrappers.items()},
         }
 
+    # ---- T-2026-06-17-197: swallowed-crash surfacing (fail-open closure) ----
+    def eval_error_report(self) -> Dict[str, Dict[str, Any]]:
+        """{edge_id: {errors, calls, rate, last_error}} for every wrapped edge
+        that swallowed >=1 compute_signals crash. Empty dict == clean run.
+        Census/caller-detectable: distinguishes a swallowed crash from a genuine
+        no-signal (which never appears here)."""
+        return {
+            eid: {"errors": w.eval_errors, "calls": w.eval_calls,
+                  "rate": round(w.eval_error_rate, 4), "last_error": w.last_error}
+            for eid, w in self._wrappers.items() if w.eval_errors > 0
+        }
 
-__all__ = ["CachedEdgeWrapper", "Gate1SignalCache"]
+    def assert_baseline_healthy(self, *, systematic_rate: float = 0.5) -> None:
+        """FAIL LOUD if any wrapped baseline edge crashed on a SYSTEMATIC fraction
+        of bars (>= `systematic_rate`) — the degenerate-baseline signature (T-195).
+        A swallowed crash on most bars means the baseline ensemble is broken, so
+        any contribution computed against it is meaningless; raising here turns a
+        silent fake Sharpe-0 into a named, actionable failure. Transient per-bar
+        gaps (a tiny rate) are NOT systematic and do not raise — they remain a
+        logged + structurally-counted degrade (visible via eval_error_report)."""
+        broken = {eid: r for eid, r in self.eval_error_report().items()
+                  if r["calls"] >= 4 and r["rate"] >= systematic_rate}
+        if broken:
+            detail = "; ".join(
+                f"{eid}: crashed {r['errors']}/{r['calls']} bars "
+                f"({r['rate']:.0%}) — {r['last_error']}"
+                for eid, r in broken.items())
+            raise DiscoveryBaselineError(
+                "discovery baseline ensemble is degenerate — a swallowed edge "
+                "crash produced empty signals (NOT a legitimate no-signal); "
+                f"contribution against it would be meaningless: {detail}")
+
+
+class DiscoveryBaselineError(RuntimeError):
+    """Raised when the discovery validation baseline is structurally degenerate
+    (a systematically-crashing edge swallowed to empty signals). T-2026-06-17-197
+    — closes the T-189-class fail-open that produced a silent fake Sharpe-0."""
+
+
+__all__ = ["CachedEdgeWrapper", "Gate1SignalCache", "DiscoveryBaselineError"]

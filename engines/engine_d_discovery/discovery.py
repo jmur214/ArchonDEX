@@ -1287,6 +1287,14 @@ class DiscoveryEngine:
                 edge_weights=baseline_weights,
                 **run_kwargs,
             )
+            # T-2026-06-17-197: fail LOUD if the wrapped baseline ensemble is
+            # structurally degenerate (a swallowed edge crash → empty signals →
+            # a silent fake Sharpe-0, T-195). Only meaningful when the signal
+            # cache is active (use_signal_cache=True); a degenerate baseline
+            # makes every candidate's contribution meaningless, so this raises a
+            # named DiscoveryBaselineError instead of publishing a fake 0.
+            if use_signal_cache:
+                self._get_gate1_signal_cache().assert_baseline_healthy()
             with_candidate_result = run_backtest_pure(
                 edges=with_edges,
                 edge_weights=with_weights,
