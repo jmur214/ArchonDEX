@@ -25,6 +25,7 @@ on:
       - "tests/test_contracts.py"
       - "tests/test_census.py"
       - "tests/test_forbidden_patterns.py"
+      - "tests/test_no_private_sharpe_reimpl.py"
       - "tests/test_invariants_property.py"
       - "tests/test_golden_master.py"
       - "tests/golden/**"
@@ -42,6 +43,7 @@ on:
       - "tests/test_contracts.py"
       - "tests/test_census.py"
       - "tests/test_forbidden_patterns.py"
+      - "tests/test_no_private_sharpe_reimpl.py"
       - "tests/test_invariants_property.py"
       - "tests/test_golden_master.py"
       - "tests/golden/**"
@@ -104,4 +106,4 @@ jobs:
         env:
           PYTHONHASHSEED: "0"
         run: |
-          python -m pytest tests/test_forbidden_patterns.py tests/test_invariants_property.py tests/test_golden_master.py -v
+          python -m pytest tests/test_forbidden_patterns.py tests/test_invariants_property.py tests/test_golden_master.py tests/test_no_private_sharpe_reimpl.py -v
