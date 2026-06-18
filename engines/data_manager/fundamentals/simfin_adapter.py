@@ -33,13 +33,27 @@ PROCESSED_PATH = REPO_ROOT / "data" / "processed" / "fundamentals_simfin.parquet
 # ---------------------------------------------------------------------------
 
 def _ensure_simfin_configured() -> None:
+    # T-2026-06-17-180: a CACHED read needs no API key — `sf.load_*` reads the
+    # bulk quarterly CSVs straight from disk (the manifest-pinned, image-baked
+    # data/raw/simfin/*.csv). Only a fresh DOWNLOAD contacts the network. The
+    # old unconditional raise meant the hermetic cloud (no key) could not even
+    # read the cache → `get_panel()` fails-open → the 4 value/accruals edges go
+    # silently blind (the T-175/T-180 finding). Relaxed: if the cache is present
+    # we configure sf with a placeholder so the offline read proceeds; a genuine
+    # cache miss still raises (a network fetch under hermetic SHOULD fail loud).
+    SIMFIN_RAW_DIR.mkdir(parents=True, exist_ok=True)
     api_key = os.environ.get("SIMFIN_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "SIMFIN_API_KEY not set in environment. Source .env first."
-        )
+        cache_present = (SIMFIN_RAW_DIR / "us-income-quarterly.csv").exists()
+        if not cache_present:
+            raise RuntimeError(
+                "SIMFIN_API_KEY not set and no cached simfin CSVs present "
+                "(a fresh download needs the key)."
+            )
+        # Placeholder so set_api_key state is configured; the cached read below
+        # never contacts the API (simfin loads the local CSV when present).
+        api_key = "offline-cache-read"
     sf.set_api_key(api_key)
-    SIMFIN_RAW_DIR.mkdir(parents=True, exist_ok=True)
     sf.set_data_dir(str(SIMFIN_RAW_DIR))
 
 
@@ -190,9 +204,19 @@ def build_and_cache(force: bool = False) -> Path:
 
     if PROCESSED_PATH.exists() and not force:
         # Cheap freshness check — if processed is newer than the income raw,
-        # assume nothing changed
+        # assume nothing changed.
         raw_income = SIMFIN_RAW_DIR / "us-income-quarterly.csv"
-        if not raw_income.exists() or PROCESSED_PATH.stat().st_mtime >= raw_income.stat().st_mtime:
+        # T-2026-06-17-180: also return the cached parquet when no SIMFIN_API_KEY
+        # is set (e.g. the hermetic cloud container). A rebuild needs the key
+        # (`_ensure_simfin_configured` raises without it), so a stale-mtime
+        # rebuild attempt would just fail and `get_panel()` would silently
+        # blind the 4 value/accruals edges. The baked parquet IS the canonical,
+        # manifest-pinned panel there, so trust it. Without this, a benign
+        # mtime inversion from the build/S3-sync order (raw uploaded after the
+        # parquet) made the cloud re-anchor run simfin-blind (T-175 finding).
+        if (not raw_income.exists()
+                or PROCESSED_PATH.stat().st_mtime >= raw_income.stat().st_mtime
+                or not os.environ.get("SIMFIN_API_KEY")):
             return PROCESSED_PATH
 
     panel = build_panel()

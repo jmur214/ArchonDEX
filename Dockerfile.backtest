@@ -116,6 +116,13 @@ COPY --chown=archondex:archondex scripts/ ./scripts/
 
 # Config + data layer
 COPY --chown=archondex:archondex config/ ./config/
+# This wholesale copy bakes the OHLCV _1d.csv/parquet AND, per T-2026-06-17-180,
+# data/processed/fundamentals_simfin.parquet — the SimFin PIT panel the 4
+# value/accruals edges read (simfin_adapter.load_panel). It is a tracked +
+# manifest-pinned input (config/substrate_manifest.sha256 @ 6e36e42d). A fresh
+# image therefore CARRIES it; the loader (simfin_adapter._ensure_simfin_configured)
+# reads it offline without SIMFIN_API_KEY — without this the hermetic cloud went
+# simfin-blind (T-175 finding). data/raw/simfin/*.csv (baked below) is its source.
 COPY --chown=archondex:archondex data/processed/ ./data/processed/
 COPY --chown=archondex:archondex data/raw/ ./data/raw/
 
