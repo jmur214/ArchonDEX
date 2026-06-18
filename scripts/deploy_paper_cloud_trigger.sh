@@ -83,12 +83,16 @@ ensure_role() {  # name trust-file
   local name="$1" trust="$2"
   if ! _aws iam get-role --role-name "$name" >/dev/null 2>&1; then
     log "creating role $name"
+    # strip any _comment field — IAM rejects unknown fields in policy docs
+    local clean="/tmp/trust_$name.json"
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d.pop("_comment",None); json.dump(d,open(sys.argv[2],"w"))' "$trust" "$clean"
     _aws iam create-role --role-name "$name" \
-      --assume-role-policy-document "file://$trust" >/dev/null
+      --assume-role-policy-document "file://$clean" >/dev/null
   fi
 }
 render() { sed -e "s|__SECRET_ARN__|$SECRET_ARN|g" -e "s|__RESULTS_BUCKET__|$RESULTS_BUCKET|g" \
-              -e "s|__ACCOUNT__|$ACCOUNT|g" -e "s|__REGION__|$REGION|g" "$1"; }
+              -e "s|__ACCOUNT__|$ACCOUNT|g" -e "s|__REGION__|$REGION|g" "$1" \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); d.pop("_comment",None); print(json.dumps(d))'; }
 
 EXEC_ROLE="archondex-paper-exec-role"
 JOB_ROLE="archondex-paper-job-role"

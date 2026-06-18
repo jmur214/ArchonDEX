@@ -117,10 +117,18 @@ host-bound trigger T-185 left is now built (code + IaC on
   S3 for this dashboard.
 - **Verified:** 7 cloud tests green; driver dry-run live vs the paper
   account (3/3 reconcile clean, exit 0); first-fill window gate proven.
-- **Gated:** LIVE AWS provisioning awaits the director's scope decision
-  (provision+prove / IaC-only / provision-schedule-disabled). Runbook:
-  `docs/Cloud/PAPER_LOOP_CLOUD.md`; audit:
-  `docs/Audit/paper_cloud_trigger_t186_2026_06_17.md`.
+- **PROVISIONED LIVE (2026-06-17, rec-C — schedule DISABLED).** Secret,
+  3 least-priv IAM roles, Batch job def (rev 3, lean `Dockerfile.paper`
+  image `paper-sha-0b9d8b3` — the full backtest image won't fit local
+  disk), SNS topic, both CloudWatch alarms, EventBridge schedule (OFF).
+  **Cloud verify PASSED** (Fargate job `d6b16d45`: Secrets-Manager creds →
+  pull S3 → reconcile 3/3 clean vs broker → heartbeat canonical → push S3
+  → metrics 1/1 → exit 0; cross-run S3 persistence proven). **Dead-man's-
+  switch PROVEN** via a real failure (mismatched allocator → exit 66 →
+  Batch FAILED + non-canonical alarm OK→ALARM→SNS). **Open items:** SNS
+  email subscription pending the user's confirmation click; enable the
+  schedule on the director's word. Runbook: `docs/Cloud/PAPER_LOOP_CLOUD.md`;
+  audit: `docs/Audit/paper_cloud_trigger_t186_2026_06_17.md`.
 
 **First REAL fill — ON THE BOARD (2026-06-17 19:00 ET).** First real paper
 order submitted in-window via `first_real_fill_t186.py`: **SPY 1-share OPG
