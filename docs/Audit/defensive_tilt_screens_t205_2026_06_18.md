@@ -3,7 +3,7 @@ task_id: T-2026-06-18-205
 title: Defensive-tilt signals — quality/profitability tilt + high-IVOL/lottery exclusion (Phase 1 beta-engineering)
 date: 2026-06-18
 scope: cross-sectional SIGNALS/SCREENS only (OFF-default, NOT wired into Engine-B admission — that is propose-first); standalone validation only; NO beat-the-robo measurement (post-gate, after C's T-203)
-status: PRE-REGISTRATION committed BEFORE any backtest; results appended after
+status: CURRENT (pre-registration committed before any backtest — see git history; results appended after)
 references: docs/State/re_architecture_plan_2026_06_18.md (Phase 1); research brief Tier-1 #3 / Q7 (Novy-Marx)
 ---
 
@@ -92,4 +92,74 @@ For each ticker with both metrics present as-of T:
 
 ## 2. RESULTS
 
-[APPENDED AFTER THE PRE-REGISTRATION COMMIT — see git history.]
+(Appended after the pre-registration commit — verify §1 predates these in git history. Reproducible: `scripts/defensive_tilt_screens_t205.py`; tests `tests/test_defensive_tilt_screens_t205.py`.)
+
+### 2.0 Fundamentals fed + canon-unchanged (the invariants)
+
+- **`fundamentals_blind = False`** (panel loads, 51,133 rows; gross_profit
+  / operating_income / total_assets / total_equity / long_term_debt all
+  present) — the quality signal is fed, not starved.
+- **Prod canon UNCHANGED — by construction.** This task is ADDITIVE-ONLY:
+  `git diff --name-only HEAD` is empty; the only changes are new files
+  (`engines/engine_a_alpha/screens/`, the harness, the test). Nothing on
+  the production backtest path was modified, and a contract test
+  (`test_signals_are_pure_not_wired`) asserts `backtest_controller` does
+  not import the screens. The Engine-B admission/sizing application is
+  propose-first and NOT wired here.
+
+### 2.1 What shipped (repoint, not rebuild)
+
+- `engines/engine_a_alpha/screens/defensive_tilt.py`:
+  - `quality_score(data_map, now)` — composite cross-sectional quality
+    score = mean(pctrank(gp/assets), pctrank(roic)); REUSES the exact PIT
+    formulas of `quality_gross_profitability_v1` + `quality_roic_v1` (both
+    metrics required; distressed equity≤0 dropped; min_universe=30 abstain).
+  - `quality_tilt_longs(..., quality_quantile)` — top-quantile tilt basket.
+  - `high_ivol_exclusion(..., ivol_cutoff, lookback=30)` — returns the
+    EXCLUDED set (trailing-30d annualized realized vol above the
+    cross-sectional cutoff percentile; idiosyncratic-vol PROXY, honestly
+    labeled — not market-residualized this round).
+- 6 unit tests (fixture-fed, deterministic) — all pass.
+
+### 2.2 Quality tilt — standalone composition (as-of 2026-05-21)
+
+102 of 200 processed tickers scorable (≈51% — matches SimFin FREE
+fundamentals coverage). Basket sizes per pre-registered quantile:
+
+| quality_quantile | basket size |
+|---|---|
+| 0.15 | 16 names |
+| 0.20 | 21 names |
+| 0.25 | 27 names |
+
+### 2.3 High-IVOL exclusion — the HONEST bull/bear under-participation
+
+Excluded (= high-vol names we sit out) vs retained, mean forward return
+per sub-period. **This is the conscious cost, surfaced explicitly:**
+
+| cutoff | bull_2009 (R−E) | bull_2020 (R−E) | bear_2008 (R−E) | bear_2022 (R−E) |
+|---|---|---|---|---|
+| 0.60 | −97.4pp | −95.5pp | +12.0pp | +20.0pp |
+| 0.75 | −110.4pp | −120.3pp | +8.2pp | +21.9pp |
+| 0.90 | −138.4pp | −146.0pp | +0.5pp | +22.1pp |
+
+(R−E = retained mean − excluded mean.) The high-vol/lottery names
+**rip in the 2009/2020 recovery rallies** (excluded basket +160% to +228%
+vs retained +61% to +88%) — so the screen GIVES UP large rally upside —
+and **fall harder in 2008/2022 bears** — so the screen cushions
+drawdowns. Textbook high-vol-anomaly tradeoff: a beta/vol-reduction,
+defensive UNDER-participation tilt. Net Sharpe/tail value is for the
+post-gate beat-robo measurement to decide; this task only surfaces the
+tradeoff honestly, which it does starkly (the rally cost is enormous —
+the higher the cutoff, the more extreme-only the exclusion and the
+larger the per-name rally give-up).
+
+### 2.4 Verdict (scope-appropriate)
+
+Both signals are built, composable, OFF-by-construction, fed, tested, and
+standalone-validated; the grid is pre-registered (9 arms, N consumed at
+the eventual gate). The quality tilt selects a coherent high-profitability
+basket; the IVOL exclusion is a real defensive cushion with an
+honestly-quantified rally-under-participation cost. **No beat-the-robo
+measurement run** (deferred to the post-gate composition after C's T-203).
+Wiring either into Engine-B admission/sizing is propose-first.
