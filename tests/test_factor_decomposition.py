@@ -307,3 +307,71 @@ def test_load_factor_data_no_download_raises_when_missing(tmp_path):
     missing = tmp_path / "missing.csv"
     with pytest.raises(FileNotFoundError):
         load_factor_data(auto_download=False, ff5_cache=missing, mom_cache=missing)
+
+
+# --------------------------------------------------------------------------- #
+# T-203 — HAC/Newey-West SE correctness (the Gate-6 OLS→HAC fix)
+# --------------------------------------------------------------------------- #
+def _ols_se_alpha(X_design, resid):
+    """The pre-T-203 homoskedastic OLS SE for the intercept (for comparison)."""
+    import numpy as np
+    n, k = X_design.shape
+    sigma2 = float((resid @ resid) / (n - k))
+    XtX_inv = np.linalg.pinv(X_design.T @ X_design)
+    return float(np.sqrt(max(sigma2 * np.diag(XtX_inv)[0], 0.0)))
+
+
+def _design_resid(edge, mkt, RF):
+    import numpy as np
+    excess = edge - RF
+    X = np.column_stack([np.ones_like(mkt), mkt])
+    coefs, _, _, _ = np.linalg.lstsq(X, excess, rcond=None)
+    return X, excess - X @ coefs
+
+
+def test_hac_se_matches_ols_on_white_noise():
+    """On white-noise (no autocorrelation) residuals, the HAC SE collapses to
+    ~the OLS SE — the identity case."""
+    import numpy as np
+    from core.factor_decomposition import _bartlett_hac_se, _nw_auto_lag
+    rng = np.random.default_rng(3)
+    n = 3000
+    mkt = rng.normal(0.0003, 0.01, n); RF = np.full(n, 5e-5)
+    edge = 0.4 * mkt + rng.normal(0, 0.008, n) + RF   # iid residual
+    X, resid = _design_resid(edge, mkt, RF)
+    hac = _bartlett_hac_se(X, resid, _nw_auto_lag(n))[0]
+    ols = _ols_se_alpha(X, resid)
+    assert abs(hac - ols) / ols < 0.25   # close (finite-sample noise only)
+
+
+def test_hac_se_wider_than_ols_on_ar1_residuals():
+    """On positively-autocorrelated residuals the HAC SE is STRICTLY wider than
+    OLS → the alpha t-stat DROPS. This is the defect being fixed."""
+    import numpy as np
+    from core.factor_decomposition import _bartlett_hac_se, _nw_auto_lag
+    rng = np.random.default_rng(7)
+    n = 3000
+    mkt = rng.normal(0.0003, 0.01, n); RF = np.full(n, 5e-5)
+    e = np.zeros(n)
+    for t in range(1, n):
+        e[t] = 0.6 * e[t - 1] + rng.normal(0, 0.006)
+    edge = 0.4 * mkt + e + RF
+    X, resid = _design_resid(edge, mkt, RF)
+    hac = _bartlett_hac_se(X, resid, _nw_auto_lag(n))[0]
+    ols = _ols_se_alpha(X, resid)
+    assert hac > ols * 1.2   # materially wider on autocorrelated residuals
+
+
+def test_regress_reports_hac_method_and_lag():
+    import numpy as np
+    import pandas as pd
+    from core.factor_decomposition import regress_returns_on_factors
+    rng = np.random.default_rng(1)
+    n = 1200
+    idx = pd.bdate_range("2016-01-01", periods=n)
+    mkt = rng.normal(0.0003, 0.01, n); RF = np.full(n, 5e-5)
+    edge = pd.Series(0.5 * mkt + rng.normal(0, 0.008, n) + RF, index=idx)
+    factors = pd.DataFrame({"MKT": mkt, "RF": RF}, index=idx)
+    d = regress_returns_on_factors(edge, factors, factor_cols=["MKT"], min_observations=100)
+    assert d.se_method == "HAC-NW"
+    assert d.hac_lag >= 1
