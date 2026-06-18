@@ -783,7 +783,8 @@ class BacktestController:
                     else:
                         fill["regime_label"] = "unknown"
 
-                    print(f"[DEBUG_BACKTEST_FILL_CREATED] {fill}")
+                    if is_controller_debug():
+                        print(f"[DEBUG_BACKTEST_FILL_CREATED] {fill}")
                     self.portfolio.apply_fill(fill)
                     if hasattr(self.logger, "set_portfolio"):
                         self.logger.set_portfolio(self.portfolio)
