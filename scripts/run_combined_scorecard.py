@@ -57,6 +57,8 @@ def main() -> int:
     ap.add_argument("--w-dbmf", type=float, default=0.20)
     ap.add_argument("--rf", type=float, default=0.04, help="annual risk-free rate (cash-drag + Sharpe)")
     ap.add_argument("--rebalance", default="monthly", choices=["daily", "monthly", "quarterly"])
+    ap.add_argument("--account", default="roth", choices=["roth", "taxable"],
+                    help="roth = no tax (after-tax==pre-tax); taxable = T-191 after-tax layer")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
@@ -65,11 +67,12 @@ def main() -> int:
     else:
         base = _base_from_series(a.series, a.date_col, a.value_col)
 
-    rows = build_scorecard(base, w_dbmf=a.w_dbmf, rf_annual=a.rf, rebalance=a.rebalance)
+    rows = build_scorecard(base, w_dbmf=a.w_dbmf, rf_annual=a.rf, rebalance=a.rebalance,
+                           account=a.account)
     if a.json:
         print(json.dumps(rows_to_dicts(rows), indent=2))
     else:
-        print(format_scorecard(rows, rf_annual=a.rf))
+        print(format_scorecard(rows, rf_annual=a.rf, account=a.account))
     return 0
 
 

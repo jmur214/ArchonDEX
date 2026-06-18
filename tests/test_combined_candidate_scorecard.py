@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.combined_candidate_scorecard import (  # noqa: E402
-    ROBO_PROXIES, ScorecardRow, build_scorecard, combine_fixed_weight,
-    format_scorecard, robo_proxy_returns, rows_to_dicts, score, to_returns,
+    DEFAULT_TAX_PROFILES, ROBO_PROXIES, ScorecardRow, TaxProfile, TaxRates,
+    after_tax_returns, build_scorecard, combine_fixed_weight, format_scorecard,
+    load_tax_rates, robo_proxy_returns, rows_to_dicts, score, to_returns,
 )
 
 
@@ -97,9 +98,77 @@ def test_format_and_json_roundtrip():
     base = _ret_series(n=700, seed=9)
     blocks = build_scorecard(base, robo="60_40", n_boot=100)
     text = format_scorecard(blocks)
-    assert "deploy-bar" in text and "PRE-TAX" in text
+    assert "deploy-bar" in text and "account:" in text.lower()
     d = rows_to_dicts(blocks)
     assert d["60_40"][0]["label"] == "base"
+
+
+# --------------------------------------------------------------------------- #
+# T-191 — after-tax layer
+# --------------------------------------------------------------------------- #
+def _multiyear(seed: int = 11, mu: float = 0.0006) -> pd.Series:
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range("2017-01-02", periods=252 * 5)
+    return pd.Series(rng.normal(mu, 0.009, len(idx)), index=idx)
+
+
+def test_load_tax_rates_from_config():
+    rt = load_tax_rates()
+    # fed ST 0.30 + IL 0.0495 = 0.3495; LT 0.15 + 0.0495 = 0.1995 (or defaults)
+    assert 0.30 <= rt.st <= 0.45 and 0.15 <= rt.lt <= 0.30
+    assert rt.lt < rt.st  # long-term is always the lower rate
+
+
+def test_after_tax_reduces_a_gaining_book():
+    r = _multiyear()  # positive drift → realized gains → tax drag
+    at = after_tax_returns(r, TaxProfile(1.0, 1.0), load_tax_rates())
+    assert float((1 + at).prod()) < float((1 + r).prod())  # strictly less wealth
+    # st-heavy (base) is taxed harder than lt-heavy (robo) for the same series
+    at_robo = after_tax_returns(r, TaxProfile(0.20, 0.30), load_tax_rates())
+    assert float((1 + at).prod()) < float((1 + at_robo).prod())
+
+
+def test_loss_year_pays_no_tax():
+    # a strictly-negative year realizes no gain → after-tax == pre-tax that year
+    idx = pd.bdate_range("2020-01-02", periods=252)
+    r = pd.Series(-0.001, index=idx)
+    at = after_tax_returns(r, TaxProfile(1.0, 1.0), load_tax_rates())
+    assert np.allclose((1 + at).prod(), (1 + r).prod(), atol=1e-9)
+
+
+def test_higher_realization_means_more_tax():
+    r = _multiyear()
+    rates = load_tax_rates()
+    low = float((1 + after_tax_returns(r, TaxProfile(0.2, 1.0), rates)).prod())
+    high = float((1 + after_tax_returns(r, TaxProfile(1.0, 1.0), rates)).prod())
+    assert high < low  # realizing more of the gain each year → more tax → less wealth
+
+
+def test_roth_block_equals_pretax_taxable_block_is_worse():
+    base = _multiyear(seed=7)
+    roth = build_scorecard(base, robo="60_40", account="roth", n_boot=100)
+    tax = build_scorecard(base, robo="60_40", account="taxable", n_boot=100)
+    # Roth base CAGR == the untaxed score; taxable base CAGR is lower (gaining book)
+    roth_base, tax_base = roth["60_40"][0], tax["60_40"][0]
+    assert tax_base.cagr_pct < roth_base.cagr_pct
+    # MaxDD is preserved (year-end haircut doesn't deepen an intra-year trough materially)
+    assert tax_base.maxdd_pct <= 0
+
+
+def test_default_profiles_encode_the_indictment():
+    # base = full realization + 100% short-term (the measured production reality)
+    assert DEFAULT_TAX_PROFILES["base"].realized_fraction == 1.0
+    assert DEFAULT_TAX_PROFILES["base"].st_fraction == 1.0
+    # robo = tax-efficient buy-hold (lower on both)
+    assert DEFAULT_TAX_PROFILES["robo"].realized_fraction < DEFAULT_TAX_PROFILES["base"].realized_fraction
+    assert DEFAULT_TAX_PROFILES["robo"].st_fraction < DEFAULT_TAX_PROFILES["base"].st_fraction
+
+
+def test_format_taxable_states_assumptions():
+    base = _multiyear()
+    blocks = build_scorecard(base, robo="60_40", account="taxable", n_boot=80)
+    text = format_scorecard(blocks, account="taxable")
+    assert "AFTER-TAX (taxable)" in text and "ST " in text and "indictment" in text
 
 
 if __name__ == "__main__":

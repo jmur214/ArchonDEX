@@ -38,9 +38,15 @@ The scorecard reports BOTH so the reader sees the proxy sensitivity; the
 structurally-faithful one. Neither is the real robo; the only definitive
 test is the paper run vs the user's actual Schwab account (GOAL.md).
 
-This module is PRE-TAX on return series. After-tax (Roth vs taxable) is a
-separate layer (the existing tax engine / after_tax_metrics) — the deploy
-bar is after-tax, so the consumer must apply that on top per account.
+AFTER-TAX (T-191): the deploy bar is "beat the robo net-of-cost AND
+after-tax", so ``build_scorecard(account=...)`` carries both halves. Roth =
+no tax (after-tax == pre-tax). Taxable = a per-line year-end tax on realized
+gains, REUSING the T-141 rates (config/backtest_settings.json::tax_drag_model
+via backtester.tax_drag_model.TaxDragConfig) with a per-line realization
+profile — because the robo/DBMF lines are synthetic series with no fill log.
+The base's authoritative after-tax number is its own backtest after_tax_detail
+(FIFO lots, measured 100% short-term); this layer approximates that so the
+robo and sleeve are judged on the same basis. See the After-tax section below.
 """
 from __future__ import annotations
 
@@ -199,6 +205,131 @@ def robo_proxy_returns(name: str = "60_40", rf_annual: float = 0.04) -> pd.Serie
 
 
 # --------------------------------------------------------------------- #
+# After-tax layer (T-191) — the second half of the deploy bar.
+# GOAL.md is "beat the robo net-of-cost AND after-tax". A Roth dollar and a
+# taxable dollar are not the same, so the comparison must be per-account.
+#
+# REUSES the existing tax model: rates come from
+# config/backtest_settings.json::tax_drag_model via the T-141
+# `backtester.tax_drag_model.TaxDragConfig` (single source — fed ST/LT +
+# additive IL state 4.95%). This is a SERIES-LEVEL layer because the robo
+# and DBMF lines are synthetic return series with no fill log: it applies a
+# year-end tax on each line's realized positive gains, scaled by a per-line
+# realization profile (a turnover proxy). The base's AUTHORITATIVE after-tax
+# number is its own backtest `after_tax_detail` (FIFO lots, measured 100%
+# short-term); this layer approximates that with `st_fraction`/
+# `realized_fraction` so the robo and sleeve can be judged on the SAME basis.
+#
+# STATED ASSUMPTIONS (honest, per the dispatch):
+#  - Roth = pre-tax (no tax); taxable = year-end tax on realized gains.
+#  - Per-line realization profiles below are ASSUMPTIONS (turnover→tax is the
+#    T-148 finding: turnover is a tax lever ~29x the cost lever). The base is
+#    the worst case (the 3rd taxable indictment: 100% ST, full realization →
+#    taxable CAGR craters vs Roth). Override via `tax_profiles=`.
+#  - Year-end synthetic realization; losses carry forward (no rebate); no
+#    wash-sale modelling at the series level (the FIFO model handles that for
+#    the base's own after_tax_detail). Planning estimates, not tax advice.
+# --------------------------------------------------------------------- #
+@dataclass
+class TaxRates:
+    """Effective combined (federal + state) cap-gains rates."""
+    st: float = 0.3495   # fed 0.30 + IL 0.0495  (== T-141 effective_st_rate)
+    lt: float = 0.1995   # fed 0.15 + IL 0.0495  (== T-141 effective_lt_rate)
+    source: str = "default(IL)"
+
+
+@dataclass
+class TaxProfile:
+    """Per-line realization profile for the series-level tax.
+
+    ``realized_fraction`` — fraction of each year's POSITIVE return realized
+    (taxed) that year; a turnover proxy (buy-hold ≈ 0.1-0.2, high-churn ≈ 1.0).
+    ``st_fraction`` — fraction of realized gains taxed at the short-term rate.
+    """
+    realized_fraction: float
+    st_fraction: float
+
+
+# Defaults keyed by line ROLE. base = the measured production reality
+# (after_tax_detail: pct_lots_short_term=100, full realization). combined =
+# 0.8*base + 0.2*DBMF (T-120 monthly-rebal sleeve: slow tilt, low realization,
+# harvestable losses → more LT). robo = tax-efficient buy-hold (low turnover,
+# mostly LT; some ordinary income from bond coupons).
+DEFAULT_TAX_PROFILES: Dict[str, TaxProfile] = {
+    "base":     TaxProfile(realized_fraction=1.00, st_fraction=1.00),
+    "combined": TaxProfile(realized_fraction=0.84, st_fraction=0.84),
+    "robo":     TaxProfile(realized_fraction=0.20, st_fraction=0.30),
+}
+
+_TAX_SETTINGS = ROOT / "config" / "backtest_settings.json"
+
+
+def load_tax_rates() -> TaxRates:
+    """Effective ST/LT rates from the SAME source the backtest tax model uses
+    (config/backtest_settings.json::tax_drag_model via TaxDragConfig). Falls
+    back to the IL defaults if the config/module is unavailable."""
+    try:
+        import json
+        from backtester.tax_drag_model import TaxDragConfig  # reuse, don't rebuild
+        blk = json.loads(_TAX_SETTINGS.read_text()).get("tax_drag_model", {})
+        cfg = TaxDragConfig(
+            short_term_rate=float(blk.get("short_term_rate", 0.30)),
+            long_term_rate=float(blk.get("long_term_rate", 0.15)),
+            state_st_rate=float(blk.get("state_st_rate", 0.0)),
+            state_lt_rate=float(blk.get("state_lt_rate", 0.0)),
+        )
+        return TaxRates(st=round(cfg.short_term_rate + cfg.state_st_rate, 4),
+                        lt=round(cfg.long_term_rate + cfg.state_lt_rate, 4),
+                        source="backtest_settings.json::tax_drag_model")
+    except Exception:
+        return TaxRates()
+
+
+def after_tax_returns(
+    returns: pd.Series,
+    profile: TaxProfile,
+    rates: Optional[TaxRates] = None,
+    *,
+    carry_forward: bool = True,
+) -> pd.Series:
+    """Series-level after-tax DAILY returns for a TAXABLE account.
+
+    Within-year daily returns are unchanged (vol/MDD shape preserved); a
+    year-end tax haircut is applied to each year's realized positive gain.
+    Taxes paid reduce the capital that compounds into the next year. Returns
+    the after-tax daily-return series (Roth callers should not call this).
+    """
+    rates = rates or TaxRates()
+    r = returns.dropna()
+    if r.empty:
+        return r
+    rate = profile.st_fraction * rates.st + (1.0 - profile.st_fraction) * rates.lt
+    after_eq = pd.Series(index=r.index, dtype=float)
+    base_eq = 1.0
+    cf_loss = 0.0  # carry-forward loss, in equity-dollar terms
+    for yr in sorted(set(r.index.year)):
+        seg = r[r.index.year == yr]
+        path = base_eq * (1.0 + seg).cumprod()
+        end_pre = float(path.iloc[-1])
+        realized = (end_pre - base_eq) * profile.realized_fraction
+        tax = 0.0
+        if realized > 0:
+            taxable = realized - cf_loss
+            cf_loss = max(0.0, cf_loss - realized)
+            if taxable > 0:
+                tax = taxable * rate
+        elif realized < 0 and carry_forward:
+            cf_loss += -realized
+        if tax > 0 and end_pre > 0:
+            path.iloc[-1] = end_pre - tax
+        after_eq.loc[seg.index] = path
+        base_eq = float(path.iloc[-1])
+    at = after_eq.pct_change()
+    at.iloc[0] = float(after_eq.iloc[0]) - 1.0  # first day's return vs start=1.0
+    return at.dropna()
+
+
+# --------------------------------------------------------------------- #
 # Scoring
 # --------------------------------------------------------------------- #
 def score(returns: pd.Series, label: str, rf_annual: float = 0.0,
@@ -232,6 +363,9 @@ def build_scorecard(
     rebalance: str = "monthly",
     rebalance_cost_bps: float = 2.0,
     n_boot: int = 1000,
+    account: str = "roth",
+    tax_profiles: Optional[Dict[str, TaxProfile]] = None,
+    tax_rates: Optional[TaxRates] = None,
 ) -> Dict[str, List[ScorecardRow]]:
     """One self-consistent block PER robo proxy: base / base+20%DBMF / robo.
 
@@ -242,6 +376,12 @@ def build_scorecard(
     block all three rows share one window → apples-to-apples. ``base`` may
     be an equity curve OR a return series (paper or backtest).
 
+    ``account`` — ``"roth"`` (default; net-of-cost == after-tax, no tax) or
+    ``"taxable"`` (the T-191 after-tax layer applies a per-line year-end tax;
+    each line uses its role profile in ``tax_profiles`` / DEFAULT_TAX_PROFILES,
+    rates from ``tax_rates`` / ``load_tax_rates()``). The deploy bar is
+    after-tax, so the taxable block is the per-account comparison.
+
     Returns ``{robo_name: [base_row, combined_row, robo_row]}``.
     """
     base_ret = to_returns(base)
@@ -250,25 +390,38 @@ def build_scorecard(
     robo_names = [robo] if isinstance(robo, str) else list(robo)
     cand_label = f"base + {int(w_dbmf*100)}% DBMF"
 
+    taxable = account.lower() == "taxable"
+    profiles = {**DEFAULT_TAX_PROFILES, **(tax_profiles or {})}
+    rates = tax_rates or load_tax_rates()
+
+    def _tax(series: pd.Series, role: str) -> pd.Series:
+        """Apply the after-tax layer for the taxable account; pass-through for Roth."""
+        if not taxable:
+            return series
+        return after_tax_returns(series, profiles[role], rates)
+
     blocks: Dict[str, List[ScorecardRow]] = {}
     for n in robo_names:
         robo_ret = robo_proxy_returns(n, rf_annual)
         common = combined.index.intersection(robo_ret.index).intersection(base_ret.index)
         blocks[n] = [
-            score(base_ret.reindex(common).dropna(), "base", rf_annual, n_boot),
-            score(combined.reindex(common).dropna(), cand_label, rf_annual, n_boot),
-            score(robo_ret.reindex(common).dropna(), f"robo:{n}", rf_annual, n_boot),
+            score(_tax(base_ret.reindex(common).dropna(), "base"), "base", rf_annual, n_boot),
+            score(_tax(combined.reindex(common).dropna(), "combined"), cand_label, rf_annual, n_boot),
+            score(_tax(robo_ret.reindex(common).dropna(), "robo"), f"robo:{n}", rf_annual, n_boot),
         ]
     return blocks
 
 
-def format_scorecard(blocks: Dict[str, List[ScorecardRow]], rf_annual: float = 0.04) -> str:
+def format_scorecard(blocks: Dict[str, List[ScorecardRow]], rf_annual: float = 0.04,
+                     account: str = "roth") -> str:
     """Presentation only — one fixed-width block per robo + the deploy read."""
+    taxable = account.lower() == "taxable"
+    tag = "AFTER-TAX (taxable)" if taxable else "after-tax == pre-tax (Roth, no tax)"
     hdr = (f"{'candidate':22s} {'Sharpe':>7s} {'ci_low':>7s} {'MaxDD%':>8s} "
            f"{'CAGR%':>7s} {'vol%':>6s} {'days':>6s}")
-    out: List[str] = []
+    out: List[str] = [f"=== account: {account.upper()} — {tag} ==="]
     for name, rows in blocks.items():
-        out.append(f"\n=== vs robo:{name}  (window {rows[0].start}..{rows[0].end}) ===")
+        out.append(f"\n--- vs robo:{name}  (window {rows[0].start}..{rows[0].end}) ---")
         out.append(hdr); out.append("-" * len(hdr))
         for r in rows:
             out.append(f"{r.label:22s} {r.sharpe:7.3f} {r.ci_low:7.3f} {r.maxdd_pct:8.2f} "
@@ -280,9 +433,17 @@ def format_scorecard(blocks: Dict[str, List[ScorecardRow]], rf_annual: float = 0
                    f"MaxDD {cand.maxdd_pct:.1f}% vs {rb.maxdd_pct:.1f}%)")
     out.append(f"\nrf={rf_annual:.1%} | net-of-cost: base=backtest-net (already net of slippage/"
                f"commission); DBMF net-of-ER (embedded in NAV); robo net-of-ER + cash drag.")
-    out.append("PRE-TAX. After-tax (Roth vs taxable) is a separate layer — the deploy bar is "
-               "after-tax; apply per account. The only definitive robo test is the paper run "
-               "vs the user's actual Schwab account.")
+    if taxable:
+        rt = load_tax_rates()
+        out.append(f"after-tax: per-line year-end tax on realized gains; rates ST {rt.st:.2%} / "
+                   f"LT {rt.lt:.2%} ({rt.source}); profiles base={DEFAULT_TAX_PROFILES['base'].realized_fraction:.2f}"
+                   f"r/{DEFAULT_TAX_PROFILES['base'].st_fraction:.2f}st (measured 100% ST — the 3rd taxable "
+                   f"indictment), combined 0.84/0.84, robo 0.20/0.30 (tax-efficient buy-hold). "
+                   f"Base's authoritative after-tax is its own backtest after_tax_detail (FIFO).")
+    else:
+        out.append("Roth: after-tax == pre-tax. Run account='taxable' for the taxed comparison "
+                   "(the base book is 100% short-term → the taxable line is materially worse).")
+    out.append("The only definitive robo test is the paper run vs the user's actual Schwab account.")
     return "\n".join(out)
 
 

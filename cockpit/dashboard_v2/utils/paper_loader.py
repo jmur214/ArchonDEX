@@ -34,10 +34,12 @@ from core.census import assert_census_file, CensusVerdict
 # --------------------------------------------------------------------- #
 DATA_DIR = Path("data")
 TRADE_LOGS_DIR = DATA_DIR / "trade_logs"
-# Configurable persistent paper-run dir. Default points at a stable location
-# the loop SHOULD be pointed at (vs the current ephemeral mkdtemp). Absent in
-# the common case → loaders degrade to a "no paper run persisted yet" state.
-PAPER_DIR = DATA_DIR / "paper" / "latest"
+# Persistent paper-run state. T-191 repoint: the T-185 persistence layer
+# writes the JSONL belief/journal/recon to data/paper_state/ and the
+# dead-man's-switch heartbeat to data/state/paper_heartbeat.json (NOT the
+# guessed data/paper/latest/). Absent → loaders degrade to "no paper run yet".
+PAPER_DIR = DATA_DIR / "paper_state"
+HEARTBEAT_PATH = DATA_DIR / "state" / "paper_heartbeat.json"
 SCORECARD_DOC = Path("docs") / "State" / "paper_run_scorecard.md"
 
 
@@ -171,12 +173,37 @@ def load_paper_run(paper_dir: Path = PAPER_DIR) -> PaperRunStatus:
     orders_path = paper_dir / "orders.jsonl"
     recon_path = paper_dir / "recon.jsonl"
 
+    # T-191: the heartbeat (data/state/paper_heartbeat.json) is the per-run
+    # dead-man's-switch summary the T-185 loop writes EVEN on dry-run / flat
+    # days (when no ledger fill is appended). Read it first so the tab shows
+    # "the loop ran today, canonical" even before any fill lands.
+    hb = {}
+    try:
+        if HEARTBEAT_PATH.exists():
+            hb = json.loads(HEARTBEAT_PATH.read_text()).get("last_run", {}) or {}
+    except Exception:
+        hb = {}
+
     if not paper_dir.exists() or not ledger_path.exists():
+        if hb:
+            return PaperRunStatus(
+                persisted=True,
+                paper_dir=str(paper_dir),
+                last_modified=hb.get("run_ts"),
+                n_reconcile_cycles=int(hb.get("reconcile_total_cycles", 0) or 0),
+                reconcile_clean_cycles=int(hb.get("reconcile_clean_cycles", 0) or 0),
+                last_reconcile_clean=(int(hb.get("reconcile_clean_cycles", 0) or 0)
+                                      == int(hb.get("reconcile_total_cycles", 0) or 0)
+                                      and int(hb.get("reconcile_total_cycles", 0) or 0) > 0) or None,
+                note=f"Heartbeat {hb.get('run_date','?')}: canonical={hb.get('canonical')}, "
+                     f"submitted={hb.get('submitted')}, fills={hb.get('fills')}, "
+                     f"account_flat={hb.get('account_flat')} — no ledger fills yet (flat/dry day).",
+            )
         return PaperRunStatus(
             persisted=False,
             paper_dir=str(paper_dir),
-            note="No paper run persisted yet — the live loop writes to an "
-                 "ephemeral tempdir. Point it at this dir to surface state.",
+            note="No paper run persisted yet — neither data/paper_state/ledger.jsonl "
+                 "nor data/state/paper_heartbeat.json found.",
         )
 
     ledger = _read_jsonl(ledger_path)
