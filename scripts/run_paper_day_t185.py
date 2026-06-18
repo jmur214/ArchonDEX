@@ -114,9 +114,11 @@ def main() -> None:
             window_closed=False,
         )
 
-    # account_flat: is the paper book flat right now? (True ⇒ canonical-eligible)
+    # account_explained: a flat book is trivially explained (this local
+    # Day-N driver runs flat); the cloud loop additionally adopts held
+    # positions that known fills explain (T-198).
     flat = len(client.list_positions()) == 0
-    summary = sched.run_trading_day(str(today), [o], inputs_fn, account_flat=flat)
+    summary = sched.run_trading_day(str(today), [o], inputs_fn, account_explained=flat)
     if summary is None:
         print("   run_trading_day returned None (skipped) — unexpected on a trading day.")
         return

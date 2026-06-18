@@ -44,6 +44,7 @@ from paper_trader import (
     LedgerStore,
     MarketCalendar,
     OrderManager,
+    OrderState,
     PaperConfig,
     PaperHeartbeat,
     PaperScheduler,
@@ -52,20 +53,27 @@ from paper_trader import (
     now_et,
 )
 from paper_trader.cloud_state import CloudState
+from paper_trader.held_reconcile import (
+    adopt_explained_broker_truth,
+    known_tickers_for,
+)
 
 STATE_DIR = "data/paper_state"
 
 
-def main() -> int:
+def main(argv=None, *, now=None, client=None, cloud=None) -> int:
+    """Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
+    for tests (drive a non-trading day, a held position, etc. without a
+    real broker); production passes none and they are constructed live."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--allocator", required=True,
                     help="EXPLICIT runtime allocator; designation is the "
                          "independent config/paper_designated_allocator.json")
     ap.add_argument("--dry-run", action="store_true",
                     help="run the cycle WITHOUT arming submission (observe only)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
-    if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
+    if client is None and not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
         print("FATAL: no Alpaca creds in env (expected from Secrets Manager).",
               file=sys.stderr)
         return 64
@@ -75,9 +83,10 @@ def main() -> int:
         return 65
 
     root = Path(__file__).resolve().parents[1]
-    cloud = CloudState(root=str(root))
-    now = now_et()
+    cloud = cloud if cloud is not None else CloudState(root=str(root))
+    now = now or now_et()
     today = now.date()
+    client = client or AlpacaPaperClient()
     print(f"=== T-186 cloud paper day | {now.isoformat()} ({now.strftime('%A')}) "
           f"| state={'S3:' + cloud.cfg.s3_root if cloud.cfg.enabled else 'LOCAL'} ===")
 
@@ -85,7 +94,7 @@ def main() -> int:
     pulled = cloud.pull()
     print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)")
 
-    cal = MarketCalendar(client=AlpacaPaperClient())
+    cal = MarketCalendar(client=client)
     hb = PaperHeartbeat()
 
     # Non-trading day: skip cleanly. Still emit a 'happened' pulse so the
@@ -100,7 +109,6 @@ def main() -> int:
         return 0
 
     # --- 2. armed daily cycle ----------------------------------------- #
-    client = AlpacaPaperClient()
     cfg = PaperConfig(allocator=args.allocator)
     state = root / STATE_DIR
     state.mkdir(parents=True, exist_ok=True)
@@ -124,20 +132,43 @@ def main() -> int:
     print(f"2. ARMED     armed={sched.armed} (runtime {cfg.allocator!r} "
           f"== designated {designated!r})")
 
+    # --- T-198: converge the ledger to broker truth for the EXPLAINED part
+    # BEFORE the reconcile cycles run, so a legitimately-held position (e.g.
+    # the manual first fill, filled at the open) does NOT read as drift. ---
+    # Poll non-terminal orders so the journal reflects any fills.
+    for o in list(om.orders.values()):
+        st = OrderState(o.state)
+        if not st.is_terminal and st != OrderState.STAGED:
+            try:
+                om.poll(o)
+            except Exception:
+                pass   # FAIL-SAFE: an indeterminate poll ⇒ assume nothing
+    broker_positions = {p["symbol"]: int(p["qty"]) for p in client.list_positions()}
+    broker_cash = client.get_account()["cash"]
+    journal_orders = list(om.orders.values())
+    account_explained = adopt_explained_broker_truth(
+        led, broker_positions, broker_cash, journal_orders,
+        reason=f"cloud cycle {today}")
+    ktickers = known_tickers_for(journal_orders, led.positions())
+    print(f"   RECONCILE  broker_positions={broker_positions} "
+          f"account_explained={account_explained} (adopted into ledger)"
+          if broker_positions else "   RECONCILE  account flat")
+
     def inputs_fn(step):
         return ReconcileInputs(
             ledger_positions=led.positions(), ledger_cash=led.cash(),
-            broker_positions={p["symbol"]: p["qty"] for p in client.list_positions()},
+            broker_positions={p["symbol"]: int(p["qty"]) for p in client.list_positions()},
             broker_cash=client.get_account()["cash"],
             orders=list(om.orders.values()),
-            known_tickers=set(),
+            known_tickers=ktickers,
             window_closed=False,
         )
 
-    flat = len(client.list_positions()) == 0
-    # The daily PULSE: reconcile + heartbeat, no staged orders (account
-    # stays flat). Engine-driven orders are the separate content layer.
-    summary = sched.run_trading_day(str(today), [], inputs_fn, account_flat=flat)
+    # The daily PULSE: reconcile + heartbeat, no NEW staged orders. The loop
+    # correctly TRACKS held positions (adopted above) but does NOT generate
+    # orders — the engine-driven order set is the separate content layer.
+    summary = sched.run_trading_day(str(today), [], inputs_fn,
+                                    account_explained=account_explained)
 
     # --- 3. heartbeat verdict → metrics + exit code ------------------- #
     v = hb.check(today, is_trading_day=True)
