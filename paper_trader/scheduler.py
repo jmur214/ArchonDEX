@@ -103,6 +103,22 @@ class PaperScheduler:
         from paper_trader.market_calendar import now_et
         return now_et()
 
+    def _auction_window_closed(self, order, now) -> bool:
+        """T-201: has the order's auction window CLOSED (so it can no longer
+        fill, and is safe to expire)? An OPG fills at the next open while its
+        7pm-9:28am window is open; a CLS fills at the close while its
+        <15:50 window is open. Expiring an order whose window is still OPEN
+        cancels it before its auction — the bug that killed the first OPG.
+        No calendar → preserve the legacy unconditional behavior."""
+        if self.calendar is None:
+            return True
+        tif = str(getattr(order, "tif", "")).lower()
+        if tif == "opg":
+            return not self.calendar.is_opg_window(now)
+        if tif == "cls":
+            return not self.calendar.is_cls_window(now)
+        return True
+
     def _resolve_armed(self, armed: bool) -> bool:
         if not armed:
             return False
@@ -159,7 +175,19 @@ class PaperScheduler:
             if res is not None:
                 log.reconcile = res.to_dict()
             if not self.dry_run and self.armed:
+                now = self._now()
                 for o in self.om.open_orders():
+                    # T-201: only expire an order whose auction window has
+                    # CLOSED. The daily pulse walks a SIMULATED day clock in
+                    # ~seconds of WALL time, so the "eod" step fires while the
+                    # real auction is still UPCOMING (the pulse runs ~09:00 ET,
+                    # the open is 09:30, the close is 16:00). Expiring an order
+                    # whose auction hasn't happened CANCELS it before it can
+                    # fill — exactly what killed the first real OPG (canceled
+                    # at 01:14 ET, in the OPG window, by an armed re-verify).
+                    if not self._auction_window_closed(o, now):
+                        log.note += f" [hold {o.client_order_id}: auction upcoming]"
+                        continue
                     try:
                         self.om.expire_unfilled(o)   # M1: per-order guard
                     except Exception as exc:
