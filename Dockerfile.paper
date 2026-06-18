@@ -1,0 +1,40 @@
+# Dockerfile.paper — the LEAN paper-loop image (T-186-exec).
+#
+# Why a variant (not Dockerfile.backtest): the daily paper loop hits the
+# Alpaca API + reconciles + syncs S3 state. It does NOT run a backtest, so
+# it needs NONE of the data substrate (~3GB) and only a tiny slice of the
+# dependency tree (pandas + alpaca-py + the aws CLI). The full backtest
+# image won't even build on a tight local disk (the substrate stage + the
+# full requirements.lock exhaust it). This image is ~600MB and builds in
+# seconds of pip.
+#
+# Build ONLY via scripts/build_paper_image.sh (git-archive context — never
+# a raw worktree build; same provenance discipline as the backtest image).
+# Same pinned base digest as Dockerfile.backtest for parity.
+FROM python:3.14-slim@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97 AS runtime
+
+WORKDIR /app
+
+# awscli (Debian pkg, ~30MB) for cloud_state's `aws s3` / `aws cloudwatch`
+# calls; ca-certificates for TLS to Alpaca + AWS. bash ships in debian-slim
+# (the entrypoint is a bash script).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        awscli ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# The only 3rd-party Python deps the paper loop's import tree needs.
+RUN pip install --no-cache-dir \
+        pandas==3.0.1 \
+        alpaca-py==0.43.2
+
+# Code + config from the git-archive staging dir (NO data/ — the wrapper
+# stages only the archived commit; the paper loop reads none of it).
+COPY . /app
+RUN chmod +x scripts/paper_cloud_entrypoint.sh scripts/run_paper_cloud_day.py 2>/dev/null || true
+
+ENV PYTHONUNBUFFERED=1 \
+    AWS_DEFAULT_REGION=us-east-1
+
+# The Batch job definition overrides the command to
+# scripts/paper_cloud_entrypoint.sh; this default is for local docker run.
+CMD ["bash", "scripts/paper_cloud_entrypoint.sh"]
