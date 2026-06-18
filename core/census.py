@@ -98,6 +98,17 @@ def assert_census(
     if blind:
         failures.append(f"edges_blind non-empty: {sorted(blind)} (0 non-zero signals over the window)")
 
+    # 1b — edges_errored (T-199). A swallowed edge crash is NEVER a legitimate
+    # no-signal, so unlike edges_blind there is NO allowlist: any caught
+    # exception in the signal_collector canon path → NON-CANONICAL. This
+    # catches a PARTIAL crash (an edge that dies on some bars but fires on
+    # others) that edges_blind structurally misses.
+    errored = census.get("edges_errored") or {}
+    if errored:
+        detail = {e: (v.get("crash_bars") if isinstance(v, dict) else v) for e, v in errored.items()}
+        failures.append(f"edges_errored non-empty: {detail} — an edge raised + was "
+                        f"swallowed on some bars (partial crash, not a no-signal)")
+
     # 2 — universe shrink
     n_resolved = int(census.get("n_resolved", 0) or 0)
     n_in_panel = int(census.get("n_in_panel", 0) or 0)

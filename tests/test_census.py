@@ -26,6 +26,7 @@ def _clean_census() -> dict:
         "trades_empty": False,
         "fundamentals_blind": 0,
         "fundamentals_edges_active": ["value_book_to_market"],
+        "edges_errored": {},
         "regime_unknown_frac": 0.03,
         "regime_total_bars": 6000,
         "config_provenance": {"degraded": False,
@@ -57,6 +58,8 @@ def test_missing_census_allowed_when_not_required():
 
 @pytest.mark.parametrize("mutate,needle", [
     (lambda c: c.update(edges_blind=["accruals_inv_sloan"]), "edges_blind"),
+    (lambda c: c.update(edges_errored={"rsi_bounce_v1": {"crash_bars": 37, "last_error": "KeyError: 'Close'"}}),
+     "edges_errored"),
     (lambda c: c.update(n_in_panel=19), "panel shrank"),
     (lambda c: c.update(n_trades=0, trades_empty=True), "zero-trade"),
     (lambda c: c.update(trades_canon_md5=EMPTY_MD5, n_trades=1, trades_empty=False), "EMPTY_MD5"),

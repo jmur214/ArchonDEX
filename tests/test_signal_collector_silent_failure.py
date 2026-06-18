@@ -186,3 +186,63 @@ def test_class_with_instantiation_typeerror_propagates():
     collector = SignalCollector(edges={"buggy_class": _EdgeBadInit})
     with pytest.raises(TypeError):
         collector.collect(_make_data_map(), pd.Timestamp("2024-01-03"))
+
+
+# --------------------------------------------------------------------------- #
+# T-199 — a swallowed (non-programmer) crash is RECORDED, not invisible.
+# edges_blind only catches a TOTALLY blind edge; a partial crash (an edge that
+# dies on SOME bars but fires on others) slips through it. _edge_errors makes
+# the swallowed crash census-detectable; in measured mode it HALTs.
+# --------------------------------------------------------------------------- #
+class _EdgePartialCrash:
+    """Fires a real signal on the first bar, raises a data error thereafter —
+    the exact partial-crash shape edges_blind cannot see (signal_counts > 0)."""
+    def __init__(self):
+        self._n = 0
+
+    def compute_signals(self, _data_map, _now):
+        self._n += 1
+        if self._n == 1:
+            return {"AAPL": 1.0}
+        raise ValueError("data-shaped crash on a later bar")
+
+
+def test_swallowed_value_error_is_recorded():
+    """The swallowed ValueError (a crash, NOT a no-signal) is recorded in
+    _edge_errors with the error text — distinguishable from a clean edge."""
+    collector = SignalCollector(edges={"crasher": _EdgeRaisingValueError(),
+                                       "good_edge": _EdgeWithCorrectMethod()})
+    collector.collect(_make_data_map(), pd.Timestamp("2024-01-03"))
+    assert collector._edge_errors.get("crasher", 0) >= 1
+    assert "ValueError" in collector._edge_error_samples.get("crasher", "")
+    # a clean edge NEVER appears in the error map (crash != no-signal)
+    assert "good_edge" not in collector._edge_errors
+
+
+def test_partial_crash_is_visible_even_though_not_blind():
+    """An edge that fires once then crashes has signal_counts > 0 (so it is
+    NOT in edges_blind) yet IS in _edge_errors — the gap T-199 closes."""
+    collector = SignalCollector(edges={"partial": _EdgePartialCrash()})
+    dm = _make_data_map()
+    collector.collect(dm, pd.Timestamp("2024-01-03"))   # fires
+    collector.collect(dm, pd.Timestamp("2024-01-04"))   # crashes (swallowed)
+    assert collector._signal_counts.get("partial", 0) >= 1   # not blind
+    assert collector._edge_errors.get("partial", 0) >= 1      # but errored
+
+
+def test_clean_run_records_no_errors():
+    """Canon-invariance at the unit level: a clean run never touches the
+    recorder, so _edge_errors stays empty (no behaviour change)."""
+    collector = SignalCollector(edges={"good_edge": _EdgeWithCorrectMethod()})
+    collector.collect(_make_data_map(), pd.Timestamp("2024-01-03"))
+    assert collector._edge_errors == {}
+
+
+def test_measured_mode_halts_on_swallowed_crash(monkeypatch):
+    """In a MEASURED run (cloud/anchor/hermetic-strict) a swallowed crash in
+    the canon signal path must fail LOUD via core.measured.halt_or_degrade."""
+    from core.measured import MeasurementHalt
+    monkeypatch.setenv("ARCHONDEX_MEASURED", "1")
+    collector = SignalCollector(edges={"crasher": _EdgeRaisingValueError()})
+    with pytest.raises(MeasurementHalt):
+        collector.collect(_make_data_map(), pd.Timestamp("2024-01-03"))
