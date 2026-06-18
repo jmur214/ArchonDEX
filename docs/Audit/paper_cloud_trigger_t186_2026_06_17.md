@@ -71,6 +71,65 @@ also pushed to S3 for C's dashboard.
   first-fill script refuses with the exact reason (code-40310000 would
   reject) — the gate works before any real order is sent.
 
+## T-186-exec — PROVISIONED LIVE + VERIFIED (2026-06-17, rec-C: schedule DISABLED)
+
+Director chose rec-C. The IAM provisioner delta
+(`infra/paper_cloud/iam_policy_provisioner_delta.json`) was granted to
+`claude-code-cli` and the deploy ran clean. Two deploy-script bugs were
+found + fixed in the process: IAM rejects the `_comment` field in policy +
+trust docs (MalformedPolicyDocument) — `render()` and `ensure_role` now
+strip it.
+
+**Image — lean variant required.** The full `Dockerfile.backtest` image
+won't build on the available disk (~4-9GB free): the ~3GB data-substrate
+stage + the full `requirements.lock` install exhaust it (pip died at 0
+bytes). The paper loop reads NONE of the substrate, so a lean variant was
+built: **`Dockerfile.paper`** (pinned `python:3.14-slim` + `awscli` + just
+`pandas==3.0.1` + `alpaca-py==0.43.2`, ~130MB compressed) via the
+sanctioned git-archive wrapper **`scripts/build_paper_image.sh`**. Pushed
+as `archondex-backtest:paper-sha-0b9d8b3`; job def rev 3 points at it.
+
+**Provisioned (all live, schedule DISABLED):** secret
+`archondex/alpaca-paper`; IAM roles `archondex-paper-exec-role` /
+`-job-role` / `-scheduler-role`; Batch job def `archondex-paper-cloud-day`
+(rev 3); SNS `archondex-paper-alerts`; CloudWatch alarms
+`archondex-paper-silent-stop` (PaperRunHappened, treat-missing=breaching)
++ `archondex-paper-non-canonical` (PaperRunCanonical<1); EventBridge
+schedule `archondex-paper-daily` `cron(0 13 * * ? *)` UTC, **state
+DISABLED**.
+
+**Verify — cloud cycle PASSED end-to-end** (manual Fargate job
+`d6b16d45`): container fetched creds from Secrets Manager, `state=S3:...`,
+`pulled-from-s3=False` (clean first run), interlock fired (runtime ==
+designated), **reconcile 3/3 clean** vs the real paper account from inside
+Fargate, heartbeat canonical, **pushed state to S3** (`paper_heartbeat.json`
+confirmed in `s3://archondex-results-407539788432/paper_state/...`),
+emitted `PaperRunHappened=1 PaperRunCanonical=1`, exit 0. A second run
+(`22697123`) showed `pulled-from-s3=True` — **cross-run S3 persistence
+proven**.
+
+**Dead-man's-switch — PROVEN via a real failure path** (not a synthetic
+set-alarm-state): a job submitted with a mismatched allocator
+(`adaptive` ≠ designated `mean_variance`) → the interlock REFUSED →
+driver emitted `PaperRunCanonical=0` → **exit 66 → Batch FAILED**
+(signal #3) → the `archondex-paper-non-canonical` alarm transitioned
+**OK → ALARM in ~90s** (*"1 datapoint [0.0] was less than the threshold
+(1.0)"*) → fired to SNS (signal #2). The `silent-stop` alarm
+(missing-data) is config-proven (treat-missing=breaching, observed
+tracking the pulse: OK because `PaperRunHappened=1` arrived) and shares
+the identical SNS wiring; forcing it live needs `cloudwatch:SetAlarmState`
+(not in the scoped role) or a 24h missed day. The non-canonical alarm
+self-heals once the forced `0` ages out of the 1-day window (well before
+the schedule is enabled).
+
+**Remaining (flagged):** (1) the SNS topic has an email subscription
+PENDING the user's confirmation click — until confirmed, alarms fire to
+SNS but reach no human. (2) The EventBridge schedule stays DISABLED until
+the director enables it on confirmation that verify + first-fill are clean
+(both are). Enable with:
+`aws scheduler update-schedule --name archondex-paper-daily --state ENABLED ...`
+(or re-run the deploy without `--schedule-disabled`).
+
 ## Least privilege (the three roles)
 
 - exec role: ECR pull + Logs (managed policy) + read the ONE paper secret.
