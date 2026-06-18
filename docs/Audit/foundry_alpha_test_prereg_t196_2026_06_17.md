@@ -30,3 +30,18 @@ Registered BEFORE any cell is launched. The verdict reported afterward is bound 
 ## Decision rule (bound now)
 - Any candidate meeting ALL gate conditions above → flagged as a **CANDIDATE for director cloud-validation**. **Promote NOTHING by hand** (no `edge_weights.json` edits).
 - If none → report H0 (honest null): the existing-book Foundry vocabulary has no alpha; the forward alpha lever is elsewhere (new vocabulary / gene-encoding extension), not this sweep.
+
+---
+## UPDATE (2026-06-18) — ACTUAL launch shape (director GO; committed BEFORE results)
+The full-35-sweep-per-cell design is INFEASIBLE: a 13yr backtest is ~3-4h (verify: 1yr 2022 = ~26min), and one candidate's gauntlet runs several → many hours; a serial 35-sweep would be days/cell. **Pivoted to 35 per-candidate parallel cells** (each `T195_FEATURES=<one feature>`, its own clean baseline + gauntlet), >24h timeout each, census-gated. The probe `mom_12_1` is candidate #1.
+
+**DSR honesty (the bar is not n_trials=35):**
+- **In-cell screen:** D's `T195_NTRIALS` override (T-200) is NOT yet merged, so a per-candidate cell runs the in-cell DSR at `n_trials = len(feats) = 1` (LENIENT). Per the director: launch anyway, don't block. **A candidate that fails the gauntlet even at n=1 is definitively out at any higher N** → an H0-at-n=1 verdict is ROBUST (no post-process needed; more trials only raise the bar).
+- **Authoritative deploy bar:** DSR at the **cumulative honest-N**, NOT 35. Per CURRENT_STATE the real count is `run_registry` **125 rows; effective ~260+** (cloud cells not all back-synced) — +35 this campaign. The MBL/DSR bar at N≈260+ is brutal (SR≫1.55), consistent with "no validated edge in the existing book."
+- **Survivors only:** any candidate that passes the gauntlet at n=1 is a CANDIDATE → must be re-screened at n_trials=35 (via T-200 once merged) AND clear the cumulative-honest-N deploy bar AND reproduce at cloud N≥5 before it is trusted. **Promote NOTHING by hand.**
+
+**Reproducibility gate:** the 35 cells each compute the SAME clean-governor baseline → assert all 35 `baseline_sharpe` are bitwise-identical (cov-pin should guarantee it; verified `--runs 3` on this image). ANY baseline divergence ⇒ STOP + report (the verdict is untrustworthy). This is the standing arm0-N≥5 rule, here N=35.
+
+**Guardrails:** per-cell timeout 30h (108000s, > the multi-year-cell footgun); census-gate every cell (`fundamentals_blind=0`); a timed-out or non-canonical cell is VOID, not a verdict. Cost ~$20 / ~1 day (user-approved); pause+flag if concurrency caps push it toward 2+ days.
+
+**N_trials consumed:** +35 (this campaign) toward the cumulative count; logged in the outbox verdict.
