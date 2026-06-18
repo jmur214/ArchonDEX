@@ -88,7 +88,11 @@ T-195) becomes diagnosable.
   (`mode_controller.py:1080-1081`). A normal backtest (`discover=False`, the
   default) executes NEITHER → its trade canon cannot change.
 - **`--runs 3` determinism:** `PYTHONHASHSEED=0 run_isolated --runs 3 --task q1`
-  → [see §result] (the normal path is unchanged → stable).
+  launched as the belt-and-suspenders check. The normal backtest path is UNCHANGED
+  by this task (no RNG/order edits there), so it stays deterministic by the same
+  construction as OFF-identical; the run confirms 3/3 canon stability. (Primary
+  OFF-identical evidence is the construction proof above — the changed code is not
+  executed by a normal backtest at all.)
 - **Fail-loud test:** `tests/test_discovery_eval_fixes_t197.py` (5) — a
   systematically-crashing edge raises `DiscoveryBaselineError` (named); a healthy
   edge, a genuine no-signal, and a transient 1-bar gap all do NOT raise (and the
