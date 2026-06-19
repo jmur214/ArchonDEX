@@ -439,6 +439,13 @@ class PortfolioEngine:
         if getattr(self.policy.cfg, "position_buffering_enabled", False) and weights:
             weights = self._apply_position_buffering(weights, price_data, equity)
 
+        # T-2026-06-18-211 — Phase-1 COMPOSITION (defensive tilt + trend-overlay
+        # exposure scalar), default OFF. Composes LAST (shapes the final book).
+        # OFF ⇒ this branch is a no-op and the module is never imported —
+        # pre-T-211 behavior bitwise-identical.
+        if getattr(self.policy.cfg, "phase1_composition_enabled", False) and weights:
+            weights = self._apply_phase1_composition(weights, price_data)
+
         self.current_target_weights = weights
         self._log_debug(f"Computed target allocations from signals: {signals} -> weights: {weights}")
         return weights
@@ -577,6 +584,29 @@ class PortfolioEngine:
             f"trades={len(result.trades)} buffered={result.buffered}"
         )
         return result.weights
+
+    def _apply_phase1_composition(
+        self,
+        weights: Dict[str, float],
+        price_data: Dict[str, pd.DataFrame],
+    ) -> Dict[str, float]:
+        """T-211 Phase-1 composition post-processor (Engine C scope). Defensive
+        tilt (A/T-205 screens) + trend-overlay exposure scalar (E/T-204). Fails
+        open to the unmodified weights on any precluding input. Module imported
+        lazily so the OFF-default path is bitwise-identical."""
+        from engines.engine_c_portfolio.phase1_composition import (
+            apply_phase1_composition, now_from_price_data,
+        )
+        now = now_from_price_data(price_data)
+        if now is None:
+            return weights
+        cfg = self.policy.cfg
+        return apply_phase1_composition(
+            weights, price_data, now,
+            quality_haircut=float(getattr(cfg, "phase1_quality_haircut", 0.5)),
+            trend_lookback_days=int(getattr(cfg, "phase1_trend_lookback_days", 105)),
+            trend_assets=tuple(getattr(cfg, "phase1_trend_assets", ("SPY", "AGG", "GLD"))),
+        )
 
     def target_notional_values(self, equity: float) -> Dict[str, float]:
         """

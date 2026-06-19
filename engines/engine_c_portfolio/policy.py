@@ -80,6 +80,19 @@ class PortfolioPolicyConfig:
     position_buffering_enabled: bool = False
     buffer_fraction: float = 0.10                # Carver convention
 
+    # T-2026-06-18-211 — Phase-1 COMPOSITION (default OFF; OFF ⇒ bitwise-identical
+    # canon). When ON, a post-processor (engines/engine_c_portfolio/
+    # phase1_composition.py) shapes the book: (a) defensive tilt — zero the A/T-205
+    # high-IVOL/lottery exclusions + haircut non-quality longs toward the quality
+    # set, renormalized so the tilt is a RELATIVE shift not a de-gross; (b) trend
+    # overlay — scale gross by the E/T-204 EW SPY/AGG/GLD 5-month long/flat
+    # exposure scalar (the drawdown-cutting lever; cash when flat). Engine-C scope
+    # only — NOT an Engine-B admission gate; vol-target (Engine B) is EXCLUDED.
+    phase1_composition_enabled: bool = False
+    phase1_quality_haircut: float = 0.5          # non-quality long multiplier (1.0 = off)
+    phase1_trend_lookback_days: int = 105        # 5-month SMA (E/T-204 best config)
+    phase1_trend_assets: tuple = ("SPY", "AGG", "GLD")
+
 
 class PortfolioPolicy:
     """
