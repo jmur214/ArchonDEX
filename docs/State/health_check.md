@@ -447,7 +447,7 @@ then LOW. Within each severity, list newest at the top.
 
 ### [MEDIUM] Inter-edge correlation roughly DOUBLES under adverse regimes (mean off-diag ρ +0.154 benign → +0.315 adverse)
 - Category: regime-conditional diversification
-- Files: `scripts/inter_edge_correlation_regime.py`, `docs/Measurements/2026-05/inter_edge_correlation_regime_2026_05_08.md`
+- Files: `Archive/scripts/inter_edge_correlation_regime.py`, `docs/Measurements/2026-05/inter_edge_correlation_regime_2026_05_08.md`
 - First flagged: 2026-05-08
 - Status: FINDING SHIPPED. 11 of 15 edge pairs become more correlated under stress; 1 pair decorrelates further; 3 flat. Biggest jumpers: gap_fill × volume_anomaly (−0.092 → +0.273, Δ +0.365), value_b2m × value_earnings_yield (+0.337 → +0.642). The 6-active set's effective independent-edge count drops in stress — exactly when diversification would matter most. **Validates the drawdown-gated kill switch design (commit `3acec41`)**: de-grossing in adverse regimes is doing the right thing because effective diversification halves.
 
