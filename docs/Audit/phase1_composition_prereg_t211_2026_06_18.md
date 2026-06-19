@@ -27,3 +27,16 @@ This pre-registers **N_trials += 1** against the PIT × realistic-cost substrate
 
 ## Compute plan
 Local first-cut on a tractable crisis-inclusive window (signal + plumbing verification), then the canonical full-cycle PIT × realistic-cost run as a **cloud cell** (compute-bound). Canon-unchanged proof (mode OFF) precedes everything.
+
+---
+
+## ADDENDUM (post director-review) — FIX 2 monthly-cache RE-PRE-REGISTRATION [NN-MBL] [NN-SUBSTRATE-REVERIFY]
+**Declared BEFORE the re-run.** The director approved exactly one caching bar. The defensive screens recompute every bar (no rebalance gate on the post-processor) and their output changes daily (30d IVOL window; quarterly fundamentals shift). Computing them MONTHLY is therefore NOT bit-identical to per-bar → this is **BAR B (a deliberate strategy change), not BAR A (a transparent optimization).** Honestly classified as B.
+
+- **Causal-by-construction:** the cache key is the TRAILING last-completed-month (`_trailing_month_asof`: now's month − 1, asof = that month's last calendar day ≤ now). NEVER first-of-month-forward (intra-month lookahead) or end-of-month-retroactive (future leak). Verified by test + a lookahead spot-check (the overlay still reproduces 0.0 exposure across 2008/2020; screens reference only data ≤ asof).
+- **Fail-closed [NN-FAIL-CLOSED]:** in a measured run a missing overlay/screen input now raises `MeasurementHalt` (census-FAIL) instead of a silent full-exposure pass; fail-open only outside the measurement path (paper/thin).
+- **Expected delta (declared before unblinding):** the screens are SLOW-MOVING (quarterly fundamentals + 30d vol), so monthly vs daily staleness is a minor perturbation → **expected |ΔSharpe| < 0.10 and |ΔMaxDD| < 3pp** vs the per-bar variant; **H1/H0 unchanged.** If the realized delta materially exceeds this, the cache is NOT a benign optimization and the result must be re-examined.
+- **N_trials:** the monthly-cached composition is the canonical cloud config; **N_trials += 1** (replacing, not adding to, the per-bar variant — the per-bar variant is retired, not a separate live arm). The local GFC re-run remains EXPLORATORY (no deploy claim).
+
+## ADDENDUM — FIX 1 (overlay source) is result-affecting, reported either way
+The first-cut overlay read `data/processed` (a different substrate than E/T-204's validated STOOQ source; its GLD only started 2020-04 → the pre-2020 overlay was SPY+AGG-only). The corrected overlay consumes `TrendOverlay` on the full STOOQ SPY/AGG/GLD. This MAY move the −21.5% GFC tail-cut (GLD now contributes pre-2020). The re-run reports the corrected number regardless of direction.

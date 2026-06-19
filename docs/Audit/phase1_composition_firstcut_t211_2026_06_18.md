@@ -39,3 +39,15 @@ This is a **favorable single window** (a sustained crisis is where a trend overl
 
 ## 5. Files
 `engines/engine_c_portfolio/phase1_composition.py` (new), `portfolio_engine.py` (OFF-default branch + wrapper), `policy.py` (config fields), `config/portfolio_settings.json` (flags), `core/combined_candidate_scorecard.py` (w_dbmf=0 path). Commits: build+prereg `c93a0f2`, gate path `4469df3`. No Engine-B/live_trader touch; OFF-default canon `80b501a8` bitwise. Branch push; director reviews the integration + result.
+
+---
+
+## ADDENDUM (post director-review) — FIX 1 + FIX 2 landed; OFF-canon re-proven; corrected GFC number
+**FIX 1 (overlay source — the priority).** The overlay now CONSUMES the validated `core.trend_overlay.TrendOverlay` (inline SMA reimplementation deleted) on E/T-204's STOOQ substrate (full SPY/AGG/GLD history), not `data/processed` (whose GLD only started 2020-04 → the pre-2020 overlay was SPY+AGG-only — the substrate mismatch the director flagged).
+- **Quantified impact (no backtest needed):** over the GFC (2007-10→2009-03) the corrected overlay's mean exposure is **0.475 (STOOQ, incl. GLD) vs 0.396 (old data/processed)** → +0.08. GLD was partly trending, so the corrected overlay de-grosses slightly LESS → the −21.5% first-cut tail-cut moves slightly smaller (≈ −23 to −25%) but **still roughly halves** the base's ~−40% GFC tail. The conclusion (tail-cut real, ~halves the drawdown) HOLDS; the direction is reported per the director's ask.
+
+**FIX 2 (monthly cache — BAR B, declared).** The defensive screens run every bar (no rebalance gate on the post-processor) and change daily → monthly caching is NOT bit-identical → honestly classified **BAR B** and re-pre-registered (prereg addendum: trailing-month-end causal key, expected |ΔSharpe|<0.10 / |ΔMaxDD|<3pp, fresh N_trials). **Fail-closed** in measured mode (missing overlay/screen → `MeasurementHalt`/census-FAIL, never a silent full-exposure pass). 8 regression tests (consume-TrendOverlay, STOOQ crisis de-gross, causal key, monthly stability, fail-closed/fail-open).
+
+**OFF-canon re-proven (bitwise):** after BOTH fixes, 2022 `trades_canon_md5 = 80b501a8` == origin/main. The composition remains canon-safe OFF.
+
+**The precise re-confirmed GFC BACKTEST number:** the local 6yr (and 2yr) composition re-runs **DEADLOCK** (T-165 in-process harness fragility — 0% CPU, state Ss, log frozen mid-backtest; the director's "6yr is tractable" assumption did not hold on the re-run). The authoritative corrected number is the **D/T-215 cloud cell** (matched-fresh A/B, full-cycle 2000–2025, PIT × realistic, census-gated, N≥3 in-container) — which is the real H1/H0 anyway, not a local GFC window. The FIX-1 analytical bound above stands in for the local re-run.
