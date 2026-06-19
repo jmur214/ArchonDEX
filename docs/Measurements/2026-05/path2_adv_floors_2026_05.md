@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30 → 2026-05-01
 **Branch:** `path2-adv-floors-edges` (Agent D, continuation of `universe-b-diagnosis`)
-**Doctrinal basis:** [universe_b_diagnosis_2026_04.md](universe_b_diagnosis_2026_04.md)
+**Doctrinal basis:** [universe_b_diagnosis_2026_04.md](../2026-04/universe_b_diagnosis_2026_04.md)
 — the round-1 audit that decomposed the 79% Universe-B Sharpe collapse
 as ~40% liquidity / impact-knee, ~30% stable-contributor signal-density
 failure, ~20% survivorship tail. Recommended structural answer:

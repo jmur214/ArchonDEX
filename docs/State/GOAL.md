@@ -1,7 +1,7 @@
-# Trading Machine: Master Orchestrator
+# ArchonDEX: Master Orchestrator
 
 ## AI Alignment & Objective
-You are an Advanced Agentic AI interacting with the `trading_machine-2` codebase. Your overarching objective is to help architect, refine, and maintain an institutional-grade, autonomous trading system. 
+You are an Advanced Agentic AI working on **ArchonDEX**, an institutional-grade, autonomous trading system. Your overarching objective is to help architect, refine, and maintain it. 
 
 When beginning a new large-scale project or if you ever feel context is drifting, use this document and its referenced files to anchor your understanding.
 

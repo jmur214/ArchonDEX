@@ -1,9 +1,9 @@
-# Trading Machine: Project Context & Philosophy
+# ArchonDEX: Project Context & Philosophy
 
-## What is the Trading Machine?
-The Trading Machine is a professional-grade, autonomous algorithmic trading system. Its ultimate goal is to discover market edges, actively learn, compound returns, manage risk, and significantly outperform the market. It merges research, backtesting, and live execution into a single, cohesive, self-evolving pipeline.
+## What is ArchonDEX?
+ArchonDEX is a professional-grade, autonomous algorithmic trading system. Its ultimate goal is to discover market edges, actively learn, compound returns, manage risk, and significantly outperform the market. It merges research, backtesting, and live execution into a single, cohesive, self-evolving pipeline.
 
-The Trading Machine is a modular Python trading research and execution framework. It is intended to be a full-spectrum, self-updating trading lab that merges algorithmic precision with human-level transparency. 
+ArchonDEX is a modular Python trading research and execution framework. It is intended to be a full-spectrum, self-updating trading lab that merges algorithmic precision with human-level transparency. 
 
 It is designed to eventually function like a "Schwab Intelligent Portfolio" (SIP) crossed with an adaptive Quant Fund. It does not just hold passive ETFs; it actively generates "signals" across different sleeves of capital (Technical, Fundamental, True Edge) and dynamically rebalances its trust in those strategies based on how well they perform in current market regimes.
 
@@ -15,7 +15,7 @@ The system is built on six core engines:
    - Utilizes pluggable "Edges" (strategies based on mean reversion, momentum, sentiment, or news).
    - Reads edge weights from Governance (F) and regime state from Regime (E) to produce ranked signals.
    - Houses `SignalGate` (ML confidence gating) in `engine_a_alpha/learning/`.
-   - Applies True Edge combination rules (discovered by D) during ensemble aggregation.
+   - **[INTENDED — NEVER-BUILT as of 2026-06-18; see `docs/State/DESIGN_FIDELITY.md` / T-208 / T-216]** *Will apply* True Edge combination rules (the conjunctive fundamental→technical-confirm→regime-gate selector) during ensemble aggregation. Today A does **weighted-sum averaging only** (`signal_processor.py` `weighted_sum`); the multiplicative AND-logic selector is the project's stated "holy grail" and is being built now (default-OFF), not yet live.
 
 2. **Engine B: Risk & Order Placement (The Safety Net & Executor)** — `engines/engine_b_risk/`
    - Converts theoretical signals into actionable orders and executes them with the broker.
@@ -83,7 +83,7 @@ Both Discovery (D) and Governance (F) write to `data/governor/edges.yml`:
 | Data Manager | ✅ Functional | Alpaca + cache + normalization |
 | Backtester | ✅ Functional | Walk-forward capable |
 | Dashboard (V2) | ✅ Functional | V1 deprecated |
-| Live Trading | ⚠️ Scaffolded | Broker interface exists, not fully tested |
+| Live Trading | ⛔ Not deployed (paper-only) | The old 64-line `live_trader/` stub was archived (T-169 PR-4 → `Archive/pr4_dead_live_stub_t169/`). A real **paper** loop runs on cloud (E: T-185/186/198/201, dead-man's-switch proven), schedule DISABLED pending user-enable. NO real capital until paper-validated AND beating the Schwab robo net-of-costs (see `docs/State/GOAL.md` success bar). |
 
 ## What is an Edge?
 At its core, an **Edge** is simply *a pattern that produces profitable trades*. It is not restricted to complex mathematical equations; it is a vast net of independent, real-world anomalies that can be cataloged and exploited. It is a repeatable factor that lets you consistently make money over many trades, and produces a positive expected value (EV).
@@ -98,8 +98,8 @@ There are **6 Core Edges** the system must track:
 - **Evolutionary / Synthetic:** CompositeEdge genomes combine genes from any category above. The GA discovers cross-category combinations (e.g., "buy when RSI < 30 AND overnight gap down AND gold rising"). RuleBasedEdge captures patterns from decision tree scanning.
 - **Execution:** While another form of an edge, outside of proper coding, we will not be able to compete with HFTs and large firms on this so it will not be a focus. However, it can be seen as gaining fractions of a percent through smarter routing or lower slippage.
 
-**The "True Edge"**:
-The ultimate goal of the system is to combine these individual edges. The holy grail of the system, a "True Edge", does not rely on a single edge; but instead activates when multiple independent categories (e.g., a strong technical setup aligns perfectly with positive news sentiment and favorable macro conditions) align simultaneously to create a high-conviction, massive-win-rate signal.
+**The "True Edge"** — **[INTENDED — NEVER-BUILT as of 2026-06-18; see `docs/State/DESIGN_FIDELITY.md` (RANK 1) / T-208 design / T-216 build]**:
+The ultimate goal of the system is to combine these individual edges. The holy grail of the system, a "True Edge", does not rely on a single edge; but instead activates when multiple independent categories (e.g., a strong technical setup aligns perfectly with positive news sentiment and favorable macro conditions) align simultaneously to create a high-conviction, massive-win-rate signal. **This conjunctive/multiplicative AND-logic selector is the stated ultimate goal but has NEVER been built** — the live aggregation path is weighted-sum averaging (T-156 proved averaging washes the conjunction out). It is being built now (A/T-216), default-OFF; do not read this section as describing a shipped capability.
 
 
 ## The Long-Term Vision

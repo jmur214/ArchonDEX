@@ -1,5 +1,5 @@
 # Core File Index
-This is a high-level, quick-reference guide to the primary directories of the Trading Machine. For deep, module-level details, see the `index.md` file inside each directory listed below.
+This is a high-level, quick-reference guide to the primary directories of ArchonDEX. For deep, module-level details, see the `index.md` file inside each directory listed below.
 
 ## Engines (Core Trading Logic)
 

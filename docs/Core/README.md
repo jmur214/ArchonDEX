@@ -103,12 +103,12 @@ SESSION START
 
 | Location | Purpose |
 |----------|---------|
-| `docs/Audit/` | Living code-health tracking. Contains `health_check.md` (current findings, maintained by subagents) and `high_level-engine_function.md` (what each engine does today). Compare the latter against `docs/Core/engine_charters.md` to see refactoring drift. |
-| `docs/Sessions/` | Session summaries (`YYYY-MM-DD_session.md`), `lessons_learned.md`, and the `_template.md` used for new summaries. |
-| `docs/Sessions/Other-dev-opinion/` | Outside-reviewer takes captured at end-of-session after a push. The user typically asks a separate Claude instance to review what shipped; that response is saved here as `<MM-DD-YY>_<tag>.md`. Multiple user follow-ups within one file are separated by horizontal underscore dividers (`_____________________`). When acting on one of these files, also update `docs/Core/forward_plan_<YYYY-MM-DD>.md` and `ROADMAP.md` if the review proposes new phases or re-sequencing. See `SESSION_PROCEDURES.md` "Post-push outside-opinion review" for the full convention. |
-| `docs/Archive/` | Gitignored historical content — old audits, retired specs, prior roadmaps. Snapshots, not current state. |
+| `docs/Audit/` | Per-task audit records (one doc per T-ID / question; frozen once committed). Topic index: `docs/Audit/README.md`. *(Current code-health findings live in `docs/State/health_check.md`, NOT here; "what each engine does today" is `docs/Core/high_level_engine_function.md` — compare it against `docs/Core/engine_charters.md` to see refactoring drift.)* |
+| `docs/Sessions/` | Session summaries (`YYYY-MM-DD_session.md`) and the `_template.md` used for new summaries. *(`lessons_learned.md` lives in `docs/State/`.)* |
+| `docs/Sessions/Other-dev-opinion/` | Outside-reviewer takes captured at end-of-session after a push. The user typically asks a separate Claude instance to review what shipped; that response is saved here as `<MM-DD-YY>_<tag>.md`. Multiple user follow-ups within one file are separated by horizontal underscore dividers (`_____________________`). When acting on one of these files, also update `docs/State/forward_plan.md` and `docs/State/ROADMAP.md` if the review proposes new phases or re-sequencing. See `SESSION_PROCEDURES.md` "Post-push outside-opinion review" for the full convention. |
+| `docs/Archive/` | Tracked-in-git historical content — old audits, retired specs, prior roadmaps. Snapshots, not current state. (Per "Archive, never delete," `docs/Archive/` is deliberately NOT gitignored; only stray archived DATA is ignored.) |
 | `.claude/agents/` | Subagent definitions implementing the cognitive lenses in `roles.md`. |
 | `.claude/skills/` | Reusable skills (e.g. `commit/SKILL.md` for commit-message format). |
 | `.claude/settings.json` | Project hooks — SessionStart banner, Stop reminder, PostToolUse `sync_docs.py` trigger on `engines/**/*.py`. |
 | `CLAUDE.md` (repo root) | Operating constitution — non-negotiable rules, autonomy boundaries, git discipline. |
-| `DOCUMENTATION_SYSTEM.md` (repo root) | Universal guide describing the documentation system's design philosophy. |
+| `docs/Archive/DOCUMENTATION_SYSTEM_legacy.md` | Universal guide describing the **prior** documentation system's design philosophy (retired; the live doc-system rules are in `CLAUDE.md` + `docs/Core/SESSION_PROCEDURES.md`). |

@@ -1,6 +1,6 @@
-# Trading Machine Execution Manual
+# ArchonDEX Execution Manual
 
-> **AI Agent Notice:** Use the commands below as your absolute reference for interacting with the Trading Machine. Never guess arbitrary python scripts or pathways. If you are tasked with a specific operation, search this manual for the exact execution syntax. When using the command line, you must track what works, what fails, and what it does in your reasoning. If you utilize or create a NEW command that is not in this document, you MUST immediately add it here.
+> **AI Agent Notice:** Use the commands below as your absolute reference for interacting with ArchonDEX. Never guess arbitrary python scripts or pathways. If you are tasked with a specific operation, search this manual for the exact execution syntax. When using the command line, you must track what works, what fails, and what it does in your reasoning. If you utilize or create a NEW command that is not in this document, you MUST immediately add it here.
 
 ---
 

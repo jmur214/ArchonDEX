@@ -1,4 +1,4 @@
-# The Trading Machine Team (Plain English Engine Roles)
+# The ArchonDEX Team (Plain English Engine Roles)
 
 If our trading system was a room full of human professionals working at a prestigious hedge fund, here is exactly who would be in the room, what their job title is, and what single question they are responsible for answering.
 
