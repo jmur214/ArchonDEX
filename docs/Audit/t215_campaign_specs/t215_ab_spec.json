@@ -1,0 +1,41 @@
+{
+  "campaign_id": "t215-beat-robo",
+  "windows": [
+    {"start": "2000-01-01", "end": "2025-12-31", "label": "2000-2025-fullcycle"}
+  ],
+  "reps": 3,
+  "anchor": {
+    "canon_md5": "FILL_FROM_PREFLIGHT",
+    "source": "T-215 pre-flight (t215-preflight/arm_base_pit_rc, 2008-2009-gfc, 3-rep cross-task determinism verified)",
+    "image": "407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:sha-9bec2f7"
+  },
+  "arms": {
+    "arm0_base": {
+      "config_patch": {
+        "config/backtest_settings.json": {
+          "use_historical_universe": true,
+          "slippage_extra.realistic_retail_costs": true
+        },
+        "config/portfolio_settings.json": {
+          "phase1_composition_enabled": false,
+          "mode": "mean_variance"
+        }
+      }
+    },
+    "arm1_composition": {
+      "config_patch": {
+        "config/backtest_settings.json": {
+          "use_historical_universe": true,
+          "slippage_extra.realistic_retail_costs": true
+        },
+        "config/portfolio_settings.json": {
+          "phase1_composition_enabled": true,
+          "phase1_trend_lookback_days": 105,
+          "phase1_quality_haircut": 0.5,
+          "position_buffering_enabled": true,
+          "mode": "mean_variance"
+        }
+      }
+    }
+  }
+}
