@@ -43,7 +43,7 @@ This is a high-level, quick-reference guide to the primary directories of Archon
 | Directory | Purpose |
 |-----------|---------|
 | `debug_config.py` | **Root-level** — Global debug flag system (`DEBUG_LEVELS` dict) used by all engines for conditional logging |
-| `scripts/` | CLI tools — run_backtest, run_diagnostics, fetch_data, sync_docs, run_deterministic (pinned-state A/B harness), walk_forward_regime / walk_forward_affinity / walk_forward_risk_advisory / walk_forward_factor_edge (per-feature OOS validation harnesses), reset_base_edges (Phase ε demote tool, --confirm required) |
+| `scripts/` | CLI tools — run_backtest, run_diagnostics, fetch_data, sync_docs, run_deterministic (pinned-state A/B harness), walk_forward_affinity / walk_forward_risk_advisory / walk_forward_factor_edge (per-feature OOS validation harnesses), reset_base_edges (Phase ε demote tool, --confirm required). Canonical regime/HMM: `regime_oos_loco_t172.py` (offline) + `engines/engine_e_regime/regime_detector.py` (prod); superseded HMM scripts → `Archive/scripts/` (T-222) |
 | `config/` | Configuration — universe definitions, edge configs, backtest settings |
 | `core/` | Shared utilities and base classes — includes `metrics_engine.py` (MetricsEngine used by Discovery + Governance) and `benchmark.py` (LRU-cached SPY rolling Sharpe + benchmark-relative gate utility, used by Discovery validation and Governance lifecycle) |
 | `utils/` | General-purpose helper functions |
