@@ -40,8 +40,17 @@ storage/*.csv
 .claude/*.lock
 .claude/plans/
 
-# Archived info
+# Archived info.
+# DO NOT blanket-ignore Archive/ — "Archive, never delete" (CLAUDE.md) relies
+# on git history to preserve archived code/docs. A bare `Archive/` silently
+# untracks every archival (the data-loss trap the 2026-06 doc-system audit
+# caught: a ~16K-LOC archive would have vanished). Ignore stray archived DATA
+# only; ALWAYS track the source/doc archives below.
 Archive/
+!/Archive/
+!/Archive/**
+!/docs/Archive/
+!/docs/Archive/**
 # Agent worktree isolation directories (created by Agent tool isolation:worktree)
 .claude/worktrees/
 

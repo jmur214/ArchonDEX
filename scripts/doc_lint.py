@@ -74,9 +74,13 @@ TASK_LEDGER_REQUIRED_COLUMNS = [
     "cells_attempted", "cells_succeeded", "outcome", "audit doc",
 ]
 
-# Statuses allowed in TASK_LEDGER.
+# Statuses allowed in TASK_LEDGER. One canonical token per state — these match
+# actual ledger usage (`dispatched` = sent to a worker / in flight is the term
+# the ledger uses; `in-flight` was aspirational and never used). Keep this set
+# small and unambiguous; do not invent variants like `done (prep)` — use
+# `blocked` for staged-waiting-on-a-dependency.
 TASK_LEDGER_VALID_STATUSES = {
-    "done", "refuted", "superseded", "in-flight", "blocked",
+    "done", "refuted", "superseded", "dispatched", "blocked",
 }
 
 

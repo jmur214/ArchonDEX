@@ -1,0 +1,47 @@
+# Doc-system lint — machine-enforced current-truth consistency.
+#
+# Runs scripts/doc_lint.py on every PR/push that touches docs/ or the linter
+# itself. The linter is the doc-system's structural guard (the 2026-06 doc
+# audit's "machine-enforced consistency" fix): it FAILs the build on a
+# malformed TASK_LEDGER (bad status token, wrong column count), a stale
+# CURRENT_STATE, or an unresolved MEMORY supersession marker — so the
+# accretion/contradiction failure mode can't merge silently.
+#
+# The memory checks (MEMORY.md size/refs) target a USER-LOCAL path
+# (~/.claude/.../memory) that does not exist on the CI runner; doc_lint
+# degrades those to WARN when the dir is absent, so this gate enforces only
+# the repo-tracked docs. WARN-only runs exit 0; any FAIL exits non-zero.
+#
+# Runtime: <2s (stdlib-only — no pip install, no backtest).
+
+name: Doc lint
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "scripts/doc_lint.py"
+      - ".github/workflows/doc_lint.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "scripts/doc_lint.py"
+      - ".github/workflows/doc_lint.yml"
+
+jobs:
+  doc-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Run doc_lint
+        run: python scripts/doc_lint.py
