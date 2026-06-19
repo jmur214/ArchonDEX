@@ -4,7 +4,7 @@ title: Phase-1 canonical cloud run — the first honest beat-the-robo verdict (m
 date: 2026-06-19
 author: Agent D (substrate + cloud lane)
 type: cloud measurement — build + pre-registration + execution
-status: IN PROGRESS — see "Execution status" (image build is the gating step)
+status: RUNNING — image built (CI), pre-flight VALIDATED (N=3 determinism), canonical A/B LIVE on Batch (verdict pending ~9-18h)
 outcome: >
   The matched A/B (base vs Phase-1 composition) is fully prepared and pre-registered;
   D owns build + pre-flight + submit. Image built off main @ 9bec2f7 (carries T-211
@@ -92,7 +92,52 @@ citing the pre-flight canon for the T-140 canon-anchor gate). Job-def: clone of
 determinism config) repointed to this image, with an extended attemptDurationSeconds for
 the 26-yr cell (~9h, B/T-180 reference).
 
-## 6. Execution status — BLOCKED on local image build (honest hard blocker)
+## 6b. Execution UPDATE (2026-06-19) — UNBLOCKED via remote CI build; A/B is LIVE
+The local-disk blocker (§6, below) was routed around per the director's guidance:
+- **Substrate to S3 without the 2-hour slow uplink:** the manifest md5 changed from the
+  T-175 prefix (`6e36e42d…`) ONLY by the added `market_cap_tiers.json`. Server-side-copied
+  the 14119-object T-175 prefix → my prefix (`9fe5c27e…`) with `--copy-props none` (the CI
+  user lacks `s3:GetObjectTagging`), then uploaded the one 33 KB cap json → **14120 objects
+  = my manifest**. Minutes, not hours.
+- **Remote CI build** (`.github/workflows/build_backtest_image.yml`) on my pushed branch →
+  **image `:sha-3863ef8` in ECR** (1.366 GB). The CI run reports `failure` but the image
+  + manifest landed (describe-images confirms): the CI role `archondex-github-ci-role`
+  lacks `ecr:BatchGetImage`, which denied a POST-push read AFTER all layers pushed. **This
+  is a real-but-non-blocking CI defect to fix** (add `ecr:BatchGetImage` to the CI role so
+  the workflow goes green + is reliable). The build's manifest-verify passed (it reached
+  the push), so the baked substrate matches the committed manifest incl. the cap cache.
+- **Job-def `archondex-backtest-t215`** repointed at `:sha-3863ef8` (rev 2), then rev 3
+  adds the justified `CENSUS_EXPECTED_DORMANT=news_sentiment_edge`.
+
+### Pre-flight (single-arm PIT×rc, 2008-2009-GFC, N=3) — VALIDATED with one census caveat
+- **Image healthy** (Fargate ARM64), **config patch applies** (PIT + realistic_retail_costs
+  set, entrypoint-logged), **fund_blind=0**, **regime_unknown=0.0**, **trades=998>0**.
+- **N=3 cross-task in-container determinism CONFIRMED** — all three reps =
+  `67784c1ba70ce75a5ed62056f81d2ba1` (the T-057c FP-summation risk is resolved on this
+  image; satisfies the N≥3 requirement's hardest part).
+- **Census NON-CANONICAL on the 2yr window (expected, window-length):** `edges_blind=5`
+  = `news_sentiment_edge` (STRUCTURALLY dormant historically — a stray edge not in the
+  governor's `edges.yml`, needs `data/intel` news history that isn't baked / doesn't exist
+  pre-~2020) + the 4 value/accruals edges (T-180-v2 measured them firing on the 26yr
+  window → window-length, not structural). `panel 396/398` (2 names resolved-not-built;
+  minor). The 2yr GFC window is simply too short for the slow fundamental edges.
+
+### Census handling for the canonical run (conservative, gate-respecting)
+- `CENSUS_EXPECTED_DORMANT=news_sentiment_edge` ONLY — objectively justified (no historical
+  news data baked; verified). **NOT** allowlisting value/accruals (they must fire on the
+  26yr window — if blind there, that is a REAL finding and census SHOULD fail) and **NOT**
+  pre-setting a panel allowlist (let the full-window census honestly report any shrink).
+  This avoids the "force-a-pass" anti-pattern `[NN-CENSUS]` warns against.
+
+### Canonical A/B — LIVE
+6 cells submitted on `archondex-backtest-t215:3`: `arm0_base`×3 + `arm1_composition`×3,
+window 2000-2025, anchor = the pre-flight canon (same image, N=3-verified). Each 26yr PIT
+cell ≈ 9-18h; running in parallel; launcher `submit_arms_campaign.py` polls + writes a
+summary. **Verdict pending completion.** On completion: per-arm N=3 determinism, census
+(value/accruals fire? panel?), then `evaluate_deploy_readiness(roth, after-tax, w_dbmf=0)`
+vs 60/40 + schwab_like + `is_it_beta_or_edge` + the E/T-221 regime-sanity checklist.
+
+## 6. (historical) Execution status — BLOCKED on local image build (honest hard blocker)
 D's side is fully prepared; the ONE gating artifact — the canonical image — **cannot be
 built on this Mac**. This is the known local-disk hazard (CLAUDE.md build-script
 T-107/T-126/containerd lineage), now definitively characterized:

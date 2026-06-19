@@ -1,13 +1,17 @@
 {
   "campaign_id": "t215-beat-robo",
   "windows": [
-    {"start": "2000-01-01", "end": "2025-12-31", "label": "2000-2025-fullcycle"}
+    {
+      "start": "2000-01-01",
+      "end": "2025-12-31",
+      "label": "2000-2025-fullcycle"
+    }
   ],
   "reps": 3,
   "anchor": {
-    "canon_md5": "FILL_FROM_PREFLIGHT",
-    "source": "T-215 pre-flight (t215-preflight/arm_base_pit_rc, 2008-2009-gfc, 3-rep cross-task determinism verified)",
-    "image": "407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:sha-9bec2f7"
+    "canon_md5": "67784c1ba70ce75a5ed62056f81d2ba1",
+    "source": "T-215 pre-flight (t215-preflight/arm_base_pit_rc, 2008-2009-gfc, N=3 bitwise-unanimous on sha-3863ef8)",
+    "image": "407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:sha-3863ef8"
   },
   "arms": {
     "arm0_base": {
