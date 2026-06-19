@@ -1,0 +1,83 @@
+{
+  "campaign_id": "voltarget-ab-t212",
+  "windows": [
+    {"start": "2000-01-01", "end": "2025-12-31", "label": "2000-2025"},
+    {"start": "2013-01-01", "end": "2025-12-31", "label": "2013-2025"}
+  ],
+  "reps": 3,
+  "arms": {
+    "arm0_off": {
+      "config_patch": {}
+    },
+    "arm1_rolling": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "portfolio_vol_target_enabled": true,
+          "portfolio_vol_target_annual_vol": 0.10,
+          "portfolio_vol_target_window_days": 60,
+          "portfolio_vol_target_floor": 0.5,
+          "portfolio_vol_target_ceiling": 2.0,
+          "portfolio_vol_target_min_returns_required": 60,
+          "portfolio_vol_target_estimator_type": "rolling",
+          "portfolio_vol_target_regime_aware": false,
+          "portfolio_vol_target_floor_enabled": true,
+          "portfolio_vol_target_floor_annual": 0.05,
+          "portfolio_vol_target_floor_full_sample_frac": 0.5
+        }
+      }
+    },
+    "arm2_ewma": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "portfolio_vol_target_enabled": true,
+          "portfolio_vol_target_annual_vol": 0.10,
+          "portfolio_vol_target_window_days": 60,
+          "portfolio_vol_target_floor": 0.5,
+          "portfolio_vol_target_ceiling": 2.0,
+          "portfolio_vol_target_min_returns_required": 60,
+          "portfolio_vol_target_estimator_type": "ewma",
+          "portfolio_vol_target_ewma_lambda": 0.94,
+          "portfolio_vol_target_regime_aware": false,
+          "portfolio_vol_target_floor_enabled": true,
+          "portfolio_vol_target_floor_annual": 0.05,
+          "portfolio_vol_target_floor_full_sample_frac": 0.5
+        }
+      }
+    },
+    "arm3_yz": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "portfolio_vol_target_enabled": true,
+          "portfolio_vol_target_annual_vol": 0.10,
+          "portfolio_vol_target_window_days": 60,
+          "portfolio_vol_target_floor": 0.5,
+          "portfolio_vol_target_ceiling": 2.0,
+          "portfolio_vol_target_min_returns_required": 60,
+          "portfolio_vol_target_estimator_type": "yang_zhang",
+          "portfolio_vol_target_yz_window_days": 21,
+          "portfolio_vol_target_regime_aware": false,
+          "portfolio_vol_target_floor_enabled": true,
+          "portfolio_vol_target_floor_annual": 0.05,
+          "portfolio_vol_target_floor_full_sample_frac": 0.5
+        }
+      }
+    },
+    "arm4_rolling_tight": {
+      "config_patch": {
+        "config/risk_settings.prod.json": {
+          "portfolio_vol_target_enabled": true,
+          "portfolio_vol_target_annual_vol": 0.10,
+          "portfolio_vol_target_window_days": 60,
+          "portfolio_vol_target_floor": 0.7,
+          "portfolio_vol_target_ceiling": 1.5,
+          "portfolio_vol_target_min_returns_required": 60,
+          "portfolio_vol_target_estimator_type": "rolling",
+          "portfolio_vol_target_regime_aware": false,
+          "portfolio_vol_target_floor_enabled": true,
+          "portfolio_vol_target_floor_annual": 0.07,
+          "portfolio_vol_target_floor_full_sample_frac": 0.5
+        }
+      }
+    }
+  }
+}
