@@ -132,6 +132,15 @@ COPY --chown=archondex:archondex data/raw/ ./data/raw/
 # File only (NOT data/universe/, which holds the rebuildable scrape cache).
 COPY --chown=archondex:archondex data/universe/sp500_membership.parquet ./data/universe/sp500_membership.parquet
 
+# T-2026-06-18-210/215: bake the market-cap snapshot join so the realistic-retail
+# cost mode (realistic_retail_costs=true) actually applies cap-tier half-spreads in
+# the cloud. WITHOUT it the cap cache loads empty -> every ticker silently falls
+# back to the ADV bucket -> the realistic-cost mode is INERT (the honest robo-gate
+# cell would then under-cost on the cloud, a silent fail-open). Pinned in the
+# manifest against drift. (Delisted PIT names have no current cap -> ADV fallback;
+# true PIT cap history is a Norgate/FMP follow-on, T-210 limitation.)
+COPY --chown=archondex:archondex data/universe/market_cap_tiers.json ./data/universe/market_cap_tiers.json
+
 # T-2026-06-13-164 GAP 2: bake the macro panel (VIX family + FRED series). It
 # was NEVER copied, so the regime detector (engines/engine_e_regime/
 # macro_features.py: vix_level/vix_term_spread/vix_zscore_60d) had no VIX in the
