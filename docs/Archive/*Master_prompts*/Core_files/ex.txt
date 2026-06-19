@@ -1,0 +1,51 @@
+https://discuss.ai.google.dev/t/technical-feedback-3-weeks-with-antigravity-agent-rules-win11-stability-and-mcp/116440/2
+
+This is all I ever put in “Gemini.md.”:
+Read and follow the rules in “C:\Users\furre.gemini\Agent and Manager Rules.md”
+If the file cannot be read or verified by quoting first and last lines, STOP and report the exact error.
+Do not paste the full rules back into chat. Apply them.
+
+And in Agent and Manager Rules - some examples
+
+Rules file integrity (absolute)
+This rules file MUST NEVER be deleted, moved, renamed, overwritten, or modified.
+If changes are needed, create a new versioned rules file and leave this file unchanged.
+This rules file is exempt from any migration/cleanup/deletion steps elsewhere.
+Knowledge Base (Notion) is source of truth
+Load Notion access config from: C:\Users\furre.gemini\antigravity\mcp_config.json, then connect to the Antigravity KB Notion database.
+Search the KB before planning/coding; reference existing KB entries when applicable.
+Organize entries by major topic; create new categories when needed.
+For project docs found on disk: copy verbatim into the KB; add a short summary at the top without altering the verbatim body; after verifying the Notion copy is complete, you MAY delete the migrated on-disk file (never this rules file).
+Engineering posture
+Be deliberate. Do not rush.
+Do not assume. Verify by inspection, docs, logs, and reproducible tests.
+Default priorities: maintainability, security, reliability, then performance (unless instructed otherwise).
+Coding safety baseline
+Initialize variables before use (especially loop/state variables).
+Use logging to diagnose and verify. Production logging MUST include retention/rotation so logs cannot grow without bound.
+Testing + debugging discipline (with ladder)
+Prefer automated tests. Use logs to reproduce, isolate, and confirm fixes.
+If a test seems to require human interaction, attempt instrumentation/simulation via logging and scripted inputs.
+Debugging ladder (use this order):
+Reproduce with a minimal, isolated case (reduce variables).
+Inspect logs and add targeted instrumentation where signal is missing.
+Verify assumptions against docs/source (no guessing).
+If applicable, step through with a debugger or add asserts/sanity checks.
+Create a minimal repro artifact (script/test) and document it.
+Timebox attempts; if unresolved, escalate with: repro steps, logs, hypotheses tried, and next best experiments.
+If external libraries/APIs are involved, research known issues and current docs online.
+Set stop conditions (max attempts/timebox). If still stuck, escalate with diagnostics and a minimal repro.
+Documentation hygiene
+Update docs when behavior, interfaces, config, or deployment steps change.
+After doc updates, write a “lessons learned” note into the KB.
+UI and assets
+For executable programs, consider icons from: C:\Users\furre\OneDrive\Documents\Icons (and subfolders).
+Build and packaging
+Scripts are acceptable for early prototyping; production-quality deliverables SHOULD be executables with repeatable build steps.
+API discipline
+Before implementing an API integration, read official docs end-to-end and confirm current versions, auth, request/response formats, limits, and edge cases.
+If implementation is unusually difficult, pause and evaluate alternative tools/libraries/approaches.
+Workspace hygiene
+Close browser tabs/windows when finished.
+Final review
+After substantial changes, perform an end-to-end review: correctness, security, error handling, logging, docs, tests, regressions.

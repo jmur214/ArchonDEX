@@ -59,6 +59,15 @@ Archive/**/.DS_Store
 docs/Archive/**/__pycache__/
 docs/Archive/**/*.pyc
 docs/Archive/**/.DS_Store
+# Intentionally NOT git-tracked (2026-06-19 "code/docs only" archive-backlog
+# decision): archived bulk diagnostic / concatenation dumps + archived DATA.
+# Kept on disk (never deleted), just not enshrined in git history.
+Archive/anchor_divergence_t133/
+Archive/governor_drift_2026_06_10/
+Archive/data/
+Archive/Docs/Core/extensive_files.md
+docs/Archive/all.txt
+docs/Archive/*Master_prompts*/Core_files/files.txt
 # Agent worktree isolation directories (created by Agent tool isolation:worktree)
 .claude/worktrees/
 

@@ -1,0 +1,54 @@
+{
+  "task_id": "T-2026-05-22-069",
+  "generated_at": "2026-05-22T09:14:52.690301+00:00",
+  "n_runs": 5,
+  "per_run": [
+    {
+      "run_id": "e5e95c32-2123-412a-9548-fade71fb539b",
+      "label": "e5e95c32",
+      "n_returns": 251,
+      "sharpe_naive": 1.7911920275915931,
+      "sharpe_lo_corrected": 1.58592698928729,
+      "lo_eta": 14.055338612023846,
+      "lo_haircut_pct": 11.45968914233607,
+      "expected_shortfall_975_pct": -0.7901551201071912,
+      "max_drawdown_pct": -2.6693775697205036,
+      "cdar_95_pct": -1.5433246569228465,
+      "rolling_psr_median": 0.6267691016130317,
+      "psr_window_used": 60,
+      "cusum_alarm_fired": false,
+      "cusum_max_minus": -9.059640319065558
+    },
+    {
+      "run_id": "48d8fb51-1b75-4ee4-bf52-4f7c1c1dba80",
+      "label": "48d8fb51",
+      "error": "no_equity"
+    },
+    {
+      "run_id": "c9a5dbd0-13fa-49ee-baf8-5db3a87e4a59",
+      "label": "c9a5dbd0",
+      "error": "no_equity"
+    },
+    {
+      "run_id": "66bbaecc-0fbf-4d6a-aa15-fb2ec9e8e51c",
+      "label": "66bbaecc",
+      "error": "no_equity"
+    },
+    {
+      "run_id": "01f06c0a-d4d6-4bc1-bf36-d33ce3df669e",
+      "label": "01f06c0a",
+      "error": "no_equity"
+    }
+  ],
+  "aggregate": {
+    "n_valid_runs": 1,
+    "mean_sharpe_naive": 1.7911920275915931,
+    "mean_sharpe_lo_corrected": 1.58592698928729,
+    "min_sharpe_lo_corrected": 1.58592698928729,
+    "max_sharpe_lo_corrected": 1.58592698928729,
+    "n_alarms_fired": 0
+  },
+  "pbo_cscv": {
+    "error": "only 1 runs have usable data"
+  }
+}
