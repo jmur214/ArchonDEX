@@ -42,7 +42,12 @@ SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
 # (the T-131 discipline). We pin the file only, NOT data/universe/ — that dir
 # also holds the bulky Wikipedia/Clenow scrape cache (raw_membership_sources/)
 # which is rebuildable and must NOT bloat the image.
-SUBSTRATE_FILES = ["data/universe/sp500_membership.parquet"]
+SUBSTRATE_FILES = [
+    "data/universe/sp500_membership.parquet",
+    # T-2026-06-18-210/215: the realistic-retail cap-tier join. Baked +
+    # pinned so realistic_retail_costs=true is not silently inert on the cloud.
+    "data/universe/market_cap_tiers.json",
+]
 JUNK_NAMES = {".DS_Store"}
 JUNK_SUFFIXES = {".pyc"}
 JUNK_DIRS = {"__pycache__"}
