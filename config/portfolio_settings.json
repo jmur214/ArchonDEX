@@ -18,6 +18,9 @@
     "dynopt_use_ledoit_wolf": true,
     "position_buffering_enabled": false,
     "buffer_fraction": 0.10,
+    "phase1_composition_enabled": false,
+    "phase1_quality_haircut": 0.5,
+    "phase1_trend_lookback_days": 105,
     "portfolio_optimizer": {
         "method": "weighted_sum",
         "hrp": {
