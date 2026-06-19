@@ -3,7 +3,7 @@ task_id: T-2026-06-18-213
 title: Industry/sector momentum on GICS SPDRs, sector-neutral (Moskowitz-Grinblatt) — composable OFF-default signal
 date: 2026-06-18
 scope: cross-sectional SIGNAL only (OFF-default, NOT wired to the live portfolio — composition is a later Engine-C step); standalone validation only; NO beat-the-robo measurement
-status: PRE-REGISTRATION committed BEFORE any backtest; results appended after
+status: CURRENT (pre-registration committed before any backtest — see git history; results appended after)
 references: research brief Tier-2 #5 (Moskowitz-Grinblatt 1999, industry momentum)
 ---
 
@@ -76,4 +76,57 @@ trap the brief warns about).
 
 ## 2. RESULTS
 
-[APPENDED AFTER THE PRE-REGISTRATION COMMIT — see git history.]
+(Appended after the pre-registration commit — §1 predates these in git
+history. Reproducible: `scripts/industry_momentum_t213.py`; tests
+`tests/test_industry_momentum_t213.py`. ADDITIVE-ONLY: `git diff
+--name-only HEAD` empty → prod canon UNCHANGED; a contract test asserts
+the backtest path doesn't import the module.)
+
+### 2.1 Standalone validation (9 SPDRs, 2005-02→2026-05, 5,089 days)
+
+| Portfolio | Sharpe (ci_low) | MDD | CAGR |
+|---|---|---|---|
+| **L/S sector momentum** (dollar-neutral top-3/bottom-3, monthly) | **0.057 (−0.348)** | −45.8% | −0.35% |
+| equal-weight-9 benchmark (long beta) | 0.601 | −53.9% | +9.89% |
+
+- **Sector-neutrality — CONFIRMED:** time-avg net weight per sector sums
+  to −0.000; max |avg net| = 0.115 (a mild residual long-XLK lean from
+  tech's persistent momentum, not a structural tilt). Dollar-neutral by
+  construction; annualized turnover ≈ 10.3×.
+- **Orthogonality — CONFIRMED:** corr(L/S, equal-weight-9) = **−0.207**
+  (low/negative → a genuine cross-sectional rotation, NOT hidden beta).
+
+### 2.2 Verdict — NULL standalone (orthogonal but unprofitable on our window)
+
+**Sector-neutral industry momentum is NOT a harvestable standalone lever
+on the 2005-2025 9-SPDR universe.** L/S Sharpe 0.057 with ci_low −0.348
+fails any `ci_low > 0` bar, CAGR is ~flat-negative, and the −45.8% MDD is
+the classic **momentum-crash signature** (the 2009 short-covering rally
+annihilates the short-losers leg — the well-documented fragility of L/S
+momentum). The MG effect either decayed post-publication (momentum
+crowding) or is too weak across only 9 coarse GICS sectors in the
+post-2009 low-dispersion regime.
+
+**The one genuinely positive structural finding: it IS orthogonal**
+(ρ −0.21, dollar-neutral verified) — so it adds diversification but no
+return. For the eventual beat-the-robo composition (C/T-211) that makes
+it a weak candidate: orthogonality without positive expected return
+doesn't lift a portfolio's risk-adjusted/tail profile enough to matter,
+and a −0.35 ci_low standalone Sharpe argues against giving it weight.
+
+**Honest expectation met:** the brief flagged "robust-but-modest";
+measured cleanly, it's a NULL, not modest. A clean, well-measured null on
+a pre-registered single structure is the deliverable — it closes the
+"industry momentum" lever honestly without a fishing expedition.
+
+### 2.3 What was NOT done (no overfitting / no fishing)
+
+- The pre-registered ONE structure (12-1, dollar-neutral top-3/bottom-3,
+  9 SPDRs, monthly) was measured AS-IS. A long-only sector-momentum tilt
+  (overweight strong sectors, no shorts — which avoids the momentum-crash
+  short leg) is a DIFFERENT structure = a NEW pre-registration + N_trials
+  increment; it was deliberately NOT run here (running it post-hoc because
+  the L/S null disappointed would be exactly the search-the-space overfit
+  the brief warns against). Flagged as a possible separate dispatch, not
+  smuggled in.
+- NO beat-the-robo measurement (post-composition step).
