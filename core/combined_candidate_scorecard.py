@@ -449,3 +449,178 @@ def format_scorecard(blocks: Dict[str, List[ScorecardRow]], rf_annual: float = 0
 
 def rows_to_dicts(blocks: Dict[str, List[ScorecardRow]]) -> Dict[str, List[dict]]:
     return {name: [asdict(r) for r in rows] for name, rows in blocks.items()}
+
+
+# --------------------------------------------------------------------- #
+# T-203 — the deploy gate. The robo scorecard is PROMOTED from report-only
+# to the PRIMARY deploy-readiness gate (re-architecture Phase 0). The resolved
+# goal (GOAL.md): beat the Schwab robo net-of-cost AND after-tax on
+# risk-adjusted / tail terms — NOT academic factor-orthogonal alpha (demoted to
+# diagnostic-only). A candidate is deploy-ready vs a robo proxy iff it beats it
+# on EITHER axis: risk-adjusted (block-bootstrap `ci_low(Sharpe)`, NOT the point
+# estimate) OR a material tail improvement (~≥20% shallower MaxDD). The honest
+# win for this beta book is the TAIL, so MDD counts as a pass on its own.
+#
+# Primary account = Roth (the realistic deployment account; tax/turnover lever
+# OFF → the bar sharpens to risk-adjusted + tail). Run `account="taxable"` as a
+# SECONDARY diagnostic for the after-tax story.
+# --------------------------------------------------------------------- #
+@dataclass
+class RoboComparison:
+    robo_name: str
+    sharpe_cand: float
+    ci_low_cand: float
+    sharpe_robo: float
+    ci_low_robo: float
+    maxdd_cand_pct: float
+    maxdd_robo_pct: float
+    sharpe_ci_low_beats: bool       # ci_low(cand) > ci_low(robo) — risk-adjusted
+    mdd_improvement_frac: float     # (|mdd_robo|-|mdd_cand|)/|mdd_robo|; +ve = shallower
+    mdd_materially_better: bool     # mdd_improvement_frac >= threshold
+    beats: bool                     # ci_low OR material-MDD — deploy-ready vs THIS proxy
+
+
+@dataclass
+class DeployVerdict:
+    passed: bool
+    account: str
+    candidate_label: str
+    window: str
+    comparisons: Dict[str, RoboComparison]
+    deploy_verdict: str             # "DEPLOY" | "DO NOT DEPLOY"
+    reason: str
+    # T-203 window-honesty: the candidate (base+DBMF) is only measurable where
+    # DBMF exists (2019+), a post-COVID-mostly-bull window. If that window
+    # excludes the base's full-cycle drawdown, a tail "win" is a window artifact,
+    # NOT evidence the sleeve cuts the real tail — so a window-flattered MDD does
+    # NOT carry the verdict, and the full-cycle tail is flagged UNVERIFIED.
+    base_full_maxdd_pct: float = 0.0
+    window_maxdd_pct: float = 0.0
+    window_excludes_base_tail: bool = False
+    full_cycle_tail_verified: bool = True
+
+    # named convenience accessors (the dispatch's return shape)
+    @property
+    def vs_60_40(self) -> Optional[RoboComparison]:
+        return self.comparisons.get("60_40")
+
+    @property
+    def vs_schwab_like(self) -> Optional[RoboComparison]:
+        return self.comparisons.get("schwab_like")
+
+    def as_dict(self) -> dict:
+        d = {k: v for k, v in asdict(self).items()}
+        return d
+
+
+def evaluate_deploy_readiness(
+    candidate_equity: pd.Series,
+    *,
+    account: str = "roth",
+    robo: Union[str, Sequence[str]] = ("60_40", "schwab_like"),
+    w_dbmf: float = 0.20,
+    mdd_improve_threshold: float = 0.20,
+    require: str = "all",
+    rf_annual: float = 0.04,
+    n_boot: int = 1000,
+) -> DeployVerdict:
+    """The PRIMARY deploy gate (T-203). Evaluates the REAL candidate
+    (``base + w_dbmf·DBMF`` — set ``w_dbmf=0.0`` to gate the base alone)
+    against the robo proxies, after-tax (per ``account``) + net-of-cost.
+
+    Pass vs a proxy = ``ci_low(Sharpe_cand) > ci_low(Sharpe_robo)`` OR a
+    ≥``mdd_improve_threshold`` shallower MaxDD. Overall ``passed`` = beats
+    ``all`` proxies (default; the conservative bar — 60/40 has no cash drag so
+    it's the harder proxy) or ``any``. Roth is the primary account; run
+    ``account="taxable"`` for the secondary after-tax diagnostic.
+    """
+    # The base's FULL-cycle drawdown (over everything passed in) — the binding
+    # tail reality, independent of the DBMF measurement window.
+    base_ret_full = to_returns(candidate_equity)
+    base_full_eq = (1 + base_ret_full).cumprod()
+    base_full_mdd = float(MetricsEngine.max_drawdown(base_full_eq)) * 100 if len(base_ret_full) else 0.0
+
+    blocks = build_scorecard(candidate_equity, w_dbmf=w_dbmf, robo=robo,
+                             rf_annual=rf_annual, account=account, n_boot=n_boot)
+    comparisons: Dict[str, RoboComparison] = {}
+    cand_label = ""
+    window = ""
+    window_mdd = 0.0
+    for name, rows in blocks.items():
+        cand, rb = rows[1], rows[2]          # [base, candidate(base+DBMF), robo]
+        cand_label, window, window_mdd = cand.label, f"{cand.start}..{cand.end}", cand.maxdd_pct
+        ci_beats = cand.ci_low > rb.ci_low
+        mdd_imp = ((abs(rb.maxdd_pct) - abs(cand.maxdd_pct)) / abs(rb.maxdd_pct)
+                   if rb.maxdd_pct else 0.0)
+        mdd_better = mdd_imp >= mdd_improve_threshold
+        comparisons[name] = RoboComparison(
+            robo_name=name,
+            sharpe_cand=cand.sharpe, ci_low_cand=cand.ci_low,
+            sharpe_robo=rb.sharpe, ci_low_robo=rb.ci_low,
+            maxdd_cand_pct=cand.maxdd_pct, maxdd_robo_pct=rb.maxdd_pct,
+            sharpe_ci_low_beats=ci_beats,
+            mdd_improvement_frac=round(mdd_imp, 4),
+            mdd_materially_better=mdd_better,
+            beats=ci_beats or mdd_better,  # provisional; window-honesty applied below
+        )
+
+    # WINDOW HONESTY: if the measurement window misses most of the base's
+    # full-cycle drawdown, a tail "win" is a window artifact (dotcom/GFC/COVID
+    # are outside the DBMF era) → a window-flattered MDD must NOT carry the
+    # verdict, and the full-cycle tail is UNVERIFIED.
+    window_excludes_tail = (abs(base_full_mdd) > 1e-9
+                            and abs(window_mdd) < 0.6 * abs(base_full_mdd))
+    if window_excludes_tail:
+        for c in comparisons.values():
+            c.beats = c.sharpe_ci_low_beats  # discount the window-flattered MDD pass
+
+    beats = [c.beats for c in comparisons.values()]
+    beats_robos = (all(beats) if require == "all" else any(beats)) if beats else False
+    # Deploy-readiness requires BOTH beating the robo AND a crisis-tested tail:
+    # you cannot certify deploy when the candidate's behaviour over real
+    # drawdowns (dotcom/GFC/COVID) is untested by the measurement window.
+    passed = bool(beats_robos and not window_excludes_tail)
+    won = [n for n, c in comparisons.items() if c.beats]
+    lost = [n for n, c in comparisons.items() if not c.beats]
+    verdict = "DEPLOY" if passed else "DO NOT DEPLOY"
+    tail_note = (
+        f" ⚠ WINDOW-BIASED: measured over {window} excludes the base's full-cycle "
+        f"MaxDD ({base_full_mdd:.1f}% vs window {window_mdd:.1f}%) — the sleeve's "
+        f"tail-cut is UNVERIFIED on dotcom/GFC/COVID; MDD-improvement discounted, "
+        f"verdict rests on ci_low only. Full-cycle deploy-readiness NOT established."
+        if window_excludes_tail else ""
+    )
+    reason = (
+        f"{cand_label} ({account}, after-tax+net-of-cost, {window}): "
+        + (f"beats {sorted(won)} on ci_low" if won else "beats nothing")
+        + (f"; trails {sorted(lost)}" if lost else "")
+        + (" — clears the deploy bar." if passed
+           else " — does NOT clear the deploy bar (need ci_low(Sharpe) > robo OR "
+                f"≥{int(mdd_improve_threshold*100)}% shallower MaxDD vs "
+                f"{'every' if require == 'all' else 'a'} proxy).")
+        + tail_note
+    )
+    return DeployVerdict(passed=passed, account=account, candidate_label=cand_label,
+                         window=window, comparisons=comparisons,
+                         deploy_verdict=verdict, reason=reason,
+                         base_full_maxdd_pct=round(base_full_mdd, 2),
+                         window_maxdd_pct=round(window_mdd, 2),
+                         window_excludes_base_tail=window_excludes_tail,
+                         full_cycle_tail_verified=not window_excludes_tail)
+
+
+def format_deploy_verdict(v: DeployVerdict) -> str:
+    """Presentation only — the deploy-gate readout."""
+    out = [f"=== DEPLOY GATE [{v.account.upper()}] — {v.deploy_verdict} ===",
+           f"candidate: {v.candidate_label} | window {v.window}", ""]
+    hdr = (f"{'vs robo':14s} {'cand_Sh':>8s} {'cand_cil':>8s} {'robo_Sh':>8s} "
+           f"{'robo_cil':>8s} {'cand_MDD':>9s} {'robo_MDD':>9s} {'ΔMDD':>7s} {'beats':>6s}")
+    out += [hdr, "-" * len(hdr)]
+    for c in v.comparisons.values():
+        flag = ("ci_low" if c.sharpe_ci_low_beats else "") + ("+mdd" if c.mdd_materially_better else "")
+        out.append(f"{c.robo_name:14s} {c.sharpe_cand:8.3f} {c.ci_low_cand:8.3f} "
+                   f"{c.sharpe_robo:8.3f} {c.ci_low_robo:8.3f} {c.maxdd_cand_pct:9.2f} "
+                   f"{c.maxdd_robo_pct:9.2f} {c.mdd_improvement_frac*100:6.1f}% "
+                   f"{('YES' if c.beats else 'no'):>6s} {flag}")
+    out += ["", v.reason]
+    return "\n".join(out)

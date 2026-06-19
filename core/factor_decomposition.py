@@ -64,6 +64,12 @@ class FactorDecomp:
     alpha_tstat: float
     r_squared: float
     betas: Dict[str, float]
+    # T-203: the alpha_tstat SE estimator. "HAC-NW" = Newey-West heteroskedasticity-
+    # and-autocorrelation-consistent (Bartlett kernel); `hac_lag` is the truncation.
+    # The pre-T-203 homoskedastic OLS SE understated the alpha SE on autocorrelated
+    # returns → inflated alpha t-stats → Gate-6 more permissive than advertised.
+    se_method: str = "HAC-NW"
+    hac_lag: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -163,14 +169,44 @@ def load_factor_data(
 # Regression
 # ---------------------------------------------------------------------------
 
+def _nw_auto_lag(n: int) -> int:
+    """Newey-West (1994) deterministic plug-in lag truncation:
+    ``L = floor(4 * (n/100) ** (2/9))``. Standard, data-driven, deterministic
+    (so the diagnostic stays reproducible). Matches the block-bootstrap
+    discipline already used for the Sharpe CIs."""
+    return max(1, int(np.floor(4.0 * (max(n, 1) / 100.0) ** (2.0 / 9.0))))
+
+
+def _bartlett_hac_se(X_design: np.ndarray, resid: np.ndarray, lag: int) -> np.ndarray:
+    """Newey-West HAC standard errors (Bartlett kernel) for OLS coefficients.
+
+    V = (X'X)^-1 · S · (X'X)^-1 with the heteroskedasticity-and-autocorrelation-
+    consistent meat S = Γ_0 + Σ_{l=1..L} w_l (Γ_l + Γ_l'), w_l = 1 − l/(L+1).
+    With white-noise homoskedastic residuals the off-diagonal lags vanish in
+    expectation → S ≈ σ²(X'X) → V ≈ the OLS variance (identity). On positively
+    autocorrelated residuals the lag terms ADD variance → WIDER, honest SEs.
+    """
+    n, k = X_design.shape
+    XtX_inv = np.linalg.pinv(X_design.T @ X_design)
+    g = X_design * resid[:, None]              # (n,k) per-obs scores x_t·u_t
+    S = g.T @ g                                # Γ_0
+    for l in range(1, int(lag) + 1):
+        w = 1.0 - l / (lag + 1.0)              # Bartlett weight
+        Gamma_l = g[l:].T @ g[:-l]             # (k,k) lag-l autocovariance
+        S += w * (Gamma_l + Gamma_l.T)
+    V = XtX_inv @ S @ XtX_inv                  # sandwich
+    return np.sqrt(np.maximum(np.diag(V), 0.0))
+
+
 def regress_returns_on_factors(
     returns: pd.Series,
     factors: pd.DataFrame,
     factor_cols: Optional[List[str]] = None,
     edge_name: str = "?",
     min_observations: int = DEFAULT_MIN_OBSERVATIONS,
+    hac_lag: Optional[int] = None,
 ) -> Optional[FactorDecomp]:
-    """OLS regression of excess returns on factor columns.
+    """OLS regression of excess returns on factor columns, HAC-NW t-stats.
 
     Returns None when overlap between `returns` and `factors` has fewer
     than `min_observations` rows, or when the regression is degenerate.
@@ -206,10 +242,11 @@ def regress_returns_on_factors(
     n, k = X_design.shape
     if n - k < 1:
         return None
-    sigma2 = float((resid @ resid) / (n - k))
-    XtX_inv = np.linalg.pinv(X_design.T @ X_design)
-    var_coefs = sigma2 * np.diag(XtX_inv)
-    se = np.sqrt(np.maximum(var_coefs, 0.0))
+    # T-203 — HAC/Newey-West SEs (replaces the homoskedastic OLS SE
+    # `σ²·(X'X)⁻¹` that ignored residual autocorrelation and inflated the alpha
+    # t-stat → Gate-6 too permissive). lag = Newey-West auto rule unless set.
+    lag = _nw_auto_lag(n) if hac_lag is None else int(hac_lag)
+    se = _bartlett_hac_se(X_design, resid, lag)
     alpha_tstat = float(alpha / se[0]) if se[0] > 0 else 0.0
 
     ss_res = float(resid @ resid)
@@ -228,6 +265,8 @@ def regress_returns_on_factors(
         alpha_tstat=alpha_tstat,
         r_squared=r2,
         betas=betas,
+        se_method="HAC-NW",
+        hac_lag=int(lag),
     )
 
 
