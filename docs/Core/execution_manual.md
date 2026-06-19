@@ -63,20 +63,58 @@ md5 data/trade_logs/trades.csv      # should match run 1
 
 **Determinism also requires `PYTHONHASHSEED=0`** — Python 3 randomizes string hashing per-process by default, which makes `set()` iteration order differ across invocations. `run_deterministic.py` sets this automatically via a self-reexec guard at the top of the module; no manual action needed. When running `scripts/run_backtest` directly for A/B comparisons, prefix with `PYTHONHASHSEED=0 python -m scripts.run_backtest --no-governor`.
 
-### WALK-FORWARD VALIDATION (regime-conditional governor)
+### Regime / HMM — THE CANONICAL PATH (T-222 consolidation)
 
-Any regime-conditional mechanism (governor-per-regime weights, per-edge kill-switches conditioned on regime stats) must pass walk-forward before re-enabling. In-sample A/B (anchor trained and evaluated on the same window) hides overfitting — we saw this on 2026-04-23 where an in-sample Sharpe penalty of -0.15 revealed itself as -0.50 under walk-forward, decisively falsifying the per-edge-per-regime kill mechanism.
+There are exactly **two** live regime-HMM paths; everything else under
+`scripts/*hmm*` / `scripts/*regime*` was early exploration and is now in
+`Archive/scripts/` (superseded — see the T-222 archive list). Do NOT re-derive
+or re-tune the HMM; the regime science is settled (see the **"Validated regime
+findings"** block in `docs/Core/engine_charters.md` → Engine E — canonical).
 
-```bash
-# Run the walk-forward harness: train regime_tracker on 2021-2022, evaluate
-# 2023-2024 under three policy variants (baseline / hard-kill / soft-kill).
-# Backs up config + governor state, auto-restores on exit.
-PYTHONHASHSEED=0 python -m scripts.walk_forward_regime
-```
+1. **Production regime HMM** — `engines/engine_e_regime/regime_detector.py`
+   (+ `hmm_classifier.py`, `macro_features.py`). The backtest's ModeController
+   calls `RegimeDetector.detect_regime()` once per bar; it trains the HMM at
+   init from the macro feature panel and publishes the causal posterior at
+   `regime_meta["hmm_regime"]["probabilities"]` (the lookahead-clean
+   `predict_proba_at` forward filter; T-089). Consumers read **`hmm_regime`**,
+   NOT the 5-axis `advisory["regime_summary"]` (which is not a validated
+   predictor). This is the live, load-bearing path — do not touch its model.
 
-Output: a 3-row report with OOS Sharpe, CAGR, MDD, WR per variant. Acceptance for re-enabling any regime-conditional feature: **OOS Sharpe of the activated variant ≥ OOS baseline Sharpe.** Anything below is a no-go regardless of in-sample result.
+2. **Canonical RESEARCH / measurement HMM** — `scripts/regime_oos_loco_t172.py`
+   (`build_deep_panel()` + `_causal_filtered_posterior()`). The deep reduced
+   feature panel (spy_ret_5d, spy_vol_20d, bond_ret_20d, vix_level,
+   yield_curve_spread, credit_spread; sources: `data/processed/SPY_1d.csv`,
+   `data/macro/{DGS10,DGS3MO,BAA10Y,AAA10Y}.parquet`,
+   `data/research/vix_deep_t172.csv`), a seed-pinned GaussianHMM, and the
+   causal forward filter. **Single source of truth** for offline regime
+   labels; reused (not forked) by `regime_conditional_overlay_t220.py`,
+   `regime_ground_truth_deepwindow_t221.py`, and `regime_sleeve_sizer_t178.py`.
+   Deterministic (SEED=0). To regenerate the deep-window regime ground-truth:
+   `python -m scripts.regime_ground_truth_deepwindow_t221`.
 
-Date windows are hardcoded in the script (TRAIN_START/END, EVAL_START/END); edit those constants to test other splits.
+   The HMM is **regime-grade, not timing-grade**: it fires only ~20% into
+   every historical drawdown. Tail protection is the always-on trend overlay
+   (`core/trend_overlay.py`, T-204/T-220/T-221), NOT the regime flip.
+   Regime-GATING a defensive signal net-negatives (T-178 sizer, T-220 overlay)
+   — always-on is the ceiling.
+
+A minimal-HMM variant path (`scripts/train_minimal_hmm.py` +
+`validate_minimal_hmm.py`, artifacts `engines/engine_e_regime/models/hmm_minimal_*_v1.pkl`)
+is retained for the `test_minimal_hmm` fixture but is not on the canonical
+deploy path.
+
+### WALK-FORWARD VALIDATION (regime-conditional governor) — the principle
+
+Any regime-conditional mechanism (governor-per-regime weights, per-edge
+kill-switches conditioned on regime stats) must pass **walk-forward** before
+re-enabling. In-sample A/B hides overfitting — on 2026-04-23 an in-sample
+Sharpe penalty of −0.15 revealed itself as −0.50 under walk-forward,
+falsifying the per-edge-per-regime kill mechanism. Acceptance: **OOS Sharpe of
+the activated variant ≥ OOS baseline Sharpe** — anything below is a no-go
+regardless of in-sample result. (The original `walk_forward_regime` harness is
+archived; the canonical walk-forward for the HMM regime is the LOCO design in
+`regime_oos_loco_t172.py`, and the standing finding is that regime-conditional
+defensive gating does NOT clear this bar — T-178/T-220.)
 
 ```bash
 # Phase 2.10 year-by-year walk-forward: run all 9 Phase 2.10 edges on each
