@@ -6,6 +6,10 @@
 #   - Layer 2: every consumer-read summary key (scripts/ + observability)
 #     is in the producer's emit-set (cockpit/metrics.py:_compute_summary).
 #   - Layer 3: cross-engine signal-dict contract (deferred — landmark).
+#   - Layer 4: categorical gate-dict keys ⊆ emitter vocabulary (T-223)
+#     — a gate keyed on a vocab its emitter never produces is a DEAD
+#     gate (every label silently hits the .get default); the T-216
+#     g_regime class, now structurally unmergeable.
 #
 # History: the silent-mismatch family has bitten the project >= 9 times
 # (cockpit peak_equity, hunt() ticker=, env-config, T-055g v1 patch keys,

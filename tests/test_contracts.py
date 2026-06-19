@@ -45,6 +45,18 @@ mismatch appears.
     a producer-side TypedDict + runtime assert; landmark test below
     is the anchor.
 
+  Layer 4 — Categorical GATE-DICT keys subset-of EMITTER vocabulary
+    (T-223). A "gate dict" maps a categorical string vocabulary -> a
+    numeric multiplier (or a field-name selecting one), consumed via
+    `GATE.get(label, default)` where `label` comes from a classifier
+    (emitter). If the gate is keyed on a DIFFERENT vocabulary than the
+    emitter produces, every real label misses and silently collapses
+    to the default -> a DEAD gate (the T-216 g_regime bug). A
+    maintained registry of (gate_dict, emitter) pairings asserts gate
+    keys subset-of the producing vocabulary, resolved from the SOURCE
+    (live import of the producer's constant, or AST-scrape of its
+    return-string literals) so the guard itself can't rot.
+
 ## History
 
   T-090 (2026-05-31) — built suite; on-main 4 failures all real
@@ -59,9 +71,22 @@ mismatch appears.
     output-level, NOT inside advisory). Treated as an OPEN BUG via
     KNOWN_DEAD_ADVISORY_READS allowlist — Engine B propose-first to
     fix; the test will fire structurally if any NEW reader appears.
+  T-223 (2026-06-19) — Layer 4: categorical gate-dict keys subset-of
+    emitter vocabulary. Built in response to the T-216 g_regime dead
+    gate (macro-vocab dict vs hmm_regime_label's {calm,cautious,crisis}
+    -> g_regime ≡ 1.0, caught by hand in director review). 5 pairings
+    registered (g_regime↔hmm_regime_label seed; vol_target regime-mult
+    ↔ _risk_to_summary; MACRO_EDGE_AFFINITY + NORMAL/STRESS_WEIGHTS ↔
+    their axis/macro vocab) — all green on main (each currently
+    correct); the layer locks them against future drift. Surveyed but
+    NOT registered: governor._regime_weights (runtime-built per-instance
+    dict — keys + lookup share the macro_regime source; a static test
+    can't introspect it).
 """
 from __future__ import annotations
 
+import ast
+import importlib
 import json
 import re
 from dataclasses import fields
@@ -1197,3 +1222,223 @@ def test_layer3_signal_dict_contract_deferred():
     side TypedDict or runtime assertion is in place."""
     # ALWAYS PASS — landmark, not a guard.
     assert True
+
+
+# ----------------------------------------------------------------------
+# Layer 4 — categorical GATE-DICT keys ⊆ EMITTER vocabulary (T-223)
+# ----------------------------------------------------------------------
+#
+# The silent-vocabulary-mismatch disease, GATE-DICT edition. A "gate
+# dict" maps a CATEGORICAL string vocabulary → a numeric multiplier (or
+# a field-name that selects one). It is consumed via
+# `GATE.get(label, default)`, where `label` comes from a PRODUCER — an
+# emitter that classifies the world into a FIXED vocabulary. If the
+# gate's KEYS are drawn from a DIFFERENT vocabulary than the emitter
+# actually produces, every real label misses and silently collapses to
+# the default: the gate is DEAD.
+#
+# This is exactly the T-216 g_regime bug (2026-06-19, director-caught by
+# hand): `_CONJ_REGIME_GATE` was keyed on a macro_regime-style vocab but
+# the emitter `hmm_regime_label` produces {calm, cautious, crisis}; only
+# "cautious" overlapped, so g_regime ≡ 1.0 on every other bar — a 2-way
+# selector mislabeled as a 3-way, and the audit's H0 was the 2-way's.
+# Sibling of T-088 (dead risk-knob) and the Layer 1/2 null-read family.
+# This layer makes the NEXT dead gate a CI failure, not a lucky catch.
+#
+# CONTRACT (per registered pairing): the gate's keys must be a SUBSET of
+# the vocabulary the emitter actually produces. A key no emitter emits
+# is dead weight; the catastrophic case (every key foreign → gate ≡
+# default) is the all-foreign extreme and fires the same assert. Where a
+# gate is meant to be EXHAUSTIVE over the vocabulary (so no real label
+# can fall through to the default), `full_coverage=True` also asserts
+# vocab ⊆ gate-keys — catching the inverse bug: a new emitter label that
+# the gate forgot, silently defaulting.
+#
+# The emitter vocabulary is resolved from the PRODUCING SOURCE (a live
+# import of the producer's own constant, or an AST scrape of its
+# return-string literals) — NEVER hardcoded in this test, so the guard
+# can't itself rot: if the emitter's vocabulary changes, the gate must
+# track it or this test fires.
+
+GATE_EMITTER_CONTRACTS: List[dict] = [
+    {
+        # T-216 SEED — the bug this layer exists for. Engine A's
+        # conjunctive g_regime gate ← Engine E's validated causal-HMM
+        # label primitive. Keys must == regime_gate.REGIMES.
+        "label": "g_regime ↔ hmm_regime_label (T-216; A←E)",
+        "gate": {
+            "module": "engines.engine_a_alpha.signal_processor",
+            "cls": "SignalProcessor",
+            "attr": "_CONJ_REGIME_GATE",
+        },
+        "emitter": {
+            "const_module": "engines.engine_e_regime.regime_gate",
+            "const_attr": "REGIMES",
+        },
+        "emitter_desc": "regime_gate.hmm_regime_label() → one of regime_gate.REGIMES",
+        "full_coverage": True,
+    },
+    {
+        # T-055e — Engine B vol-target regime multiplier ← Engine E's
+        # advisory regime_summary. Keys must == the labels
+        # AdvisoryEngine._risk_to_summary() actually returns. (Currently
+        # CORRECT — included to lock it against future drift; this is the
+        # gate T-216 should have mirrored but didn't.)
+        "label": "vol_target regime-multiplier ↔ _risk_to_summary (T-055e; B←E)",
+        "gate": {
+            "module": "engines.engine_b_risk.vol_target",
+            "attr": "_REGIME_SUMMARY_TO_MULTIPLIER_FIELD",
+        },
+        "emitter": {
+            "scrape_file": "engines/engine_e_regime/advisory.py",
+            "scrape_func": "_risk_to_summary",
+        },
+        "emitter_desc": "AdvisoryEngine._risk_to_summary() return-string literals",
+        "full_coverage": True,
+    },
+    {
+        # Engine E internal — macro edge-affinity table ← the macro
+        # regime label _compute_macro_regime() emits (MACRO_RULES keys
+        # plus the literal "transitional" fallback, advisory.py ~:308).
+        # Consumed via MACRO_EDGE_AFFINITY.get(regime, ...["transitional"]).
+        "label": "MACRO_EDGE_AFFINITY ↔ macro_regime labels (E internal)",
+        "gate": {
+            "module": "engines.engine_e_regime.advisory",
+            "attr": "MACRO_EDGE_AFFINITY",
+        },
+        "emitter": {
+            "const_module": "engines.engine_e_regime.advisory",
+            "const_attr": "MACRO_RULES",
+            "extra": {"transitional"},
+        },
+        "emitter_desc": "AdvisoryEngine._compute_macro_regime() → MACRO_RULES keys ∪ {'transitional'}",
+        "full_coverage": True,
+    },
+    {
+        # Engine E internal — dynamic axis-weight maps. _compute_risk_score
+        # iterates `weights.items()` and looks each axis up in AXIS_RISK via
+        # `AXIS_RISK.get(axis, {}).get(state, 0.5)`; a weight-map axis NOT in
+        # AXIS_RISK silently injects the 0.5 default. So the axis VOCABULARY
+        # (AXIS_RISK keys) is the producing set; the weight maps' keys must be
+        # a subset. NOT full_coverage — a weighted-but-unscored axis is the
+        # only dangerous direction; an AXIS_RISK axis the weights omit is an
+        # intentional 0-weight, not a silent default.
+        "label": "NORMAL_WEIGHTS axes ⊆ AXIS_RISK axes (E internal)",
+        "gate": {"module": "engines.engine_e_regime.advisory", "attr": "NORMAL_WEIGHTS"},
+        "emitter": {"const_module": "engines.engine_e_regime.advisory", "const_attr": "AXIS_RISK"},
+        "emitter_desc": "AXIS_RISK axis vocabulary (the scored axes)",
+        "full_coverage": False,
+    },
+    {
+        "label": "STRESS_WEIGHTS axes ⊆ AXIS_RISK axes (E internal)",
+        "gate": {"module": "engines.engine_e_regime.advisory", "attr": "STRESS_WEIGHTS"},
+        "emitter": {"const_module": "engines.engine_e_regime.advisory", "const_attr": "AXIS_RISK"},
+        "emitter_desc": "AXIS_RISK axis vocabulary (the scored axes)",
+        "full_coverage": False,
+    },
+]
+
+
+def _resolve_gate_keys(gate_spec: dict) -> Set[str]:
+    """Import the gate dict (module-level OR class attribute) and return
+    its keys. Class attrs (e.g. SignalProcessor._CONJ_REGIME_GATE) need
+    no instantiation — getattr on the class object suffices."""
+    mod = importlib.import_module(gate_spec["module"])
+    owner = getattr(mod, gate_spec["cls"]) if "cls" in gate_spec else mod
+    gate = getattr(owner, gate_spec["attr"])
+    return set(gate.keys())
+
+
+def _scrape_return_str_literals(file_rel: str, func_name: str) -> Set[str]:
+    """AST-scrape the set of string literals a function `return`s — the
+    authoritative emitter vocabulary for a classifier whose vocab lives
+    as inline `return "..."` statements rather than a named constant."""
+    src = (REPO / file_rel).read_text()
+    tree = ast.parse(src)
+    out: Set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
+            for sub in ast.walk(node):
+                if (
+                    isinstance(sub, ast.Return)
+                    and isinstance(sub.value, ast.Constant)
+                    and isinstance(sub.value.value, str)
+                ):
+                    out.add(sub.value.value)
+    return out
+
+
+def _resolve_emitter_vocab(emitter_spec: dict) -> Set[str]:
+    """Resolve the producing vocabulary from the SOURCE — either a live
+    import of the producer's own constant (tuple/set/dict→keys) or an
+    AST scrape of its return-string literals. Never hardcoded here."""
+    if "scrape_file" in emitter_spec:
+        vocab = _scrape_return_str_literals(
+            emitter_spec["scrape_file"], emitter_spec["scrape_func"]
+        )
+    else:
+        mod = importlib.import_module(emitter_spec["const_module"])
+        const = getattr(mod, emitter_spec["const_attr"])
+        vocab = set(const.keys()) if isinstance(const, dict) else set(const)
+    vocab |= set(emitter_spec.get("extra", set()))
+    return vocab
+
+
+@pytest.mark.parametrize(
+    "entry",
+    GATE_EMITTER_CONTRACTS,
+    ids=[e["label"] for e in GATE_EMITTER_CONTRACTS],
+)
+def test_layer4_gate_keys_subset_of_emitter_vocab(entry: dict):
+    """A categorical gate dict's keys must be a SUBSET of the vocabulary
+    its emitter actually produces. A foreign key is silently swallowed
+    by the consuming `.get(label, default)` → a DEAD gate (T-216)."""
+    gate_keys = _resolve_gate_keys(entry["gate"])
+    vocab = _resolve_emitter_vocab(entry["emitter"])
+
+    # Sanity: both sides must resolve to something — an empty resolution
+    # means the gate moved/renamed or the scrape/import broke (itself a
+    # contract break worth failing on, not silently passing).
+    assert gate_keys, f"{entry['label']}: gate dict resolved to EMPTY (moved/renamed?)"
+    assert vocab, (
+        f"{entry['label']}: emitter vocabulary resolved to EMPTY "
+        f"({entry['emitter_desc']}) — scrape/import broke"
+    )
+
+    foreign = gate_keys - vocab
+    assert not foreign, (
+        f"\n[Layer 4 dead-gate contract violation] {entry['label']}\n"
+        f"  gate keys        : {sorted(gate_keys)}\n"
+        f"  emitter vocab    : {sorted(vocab)}  ({entry['emitter_desc']})\n"
+        f"  FOREIGN gate keys: {sorted(foreign)}\n"
+        f"  No emitter produces these labels → the consuming .get(label, default) "
+        f"silently swallows them → the gate is (partly or wholly) DEAD. This is the "
+        f"T-216 g_regime disease. FIX the gate's keys (or the emitter), do NOT allowlist "
+        f"— a gate key no emitter emits is never legitimate."
+    )
+
+    if entry.get("full_coverage"):
+        uncovered = vocab - gate_keys
+        assert not uncovered, (
+            f"\n[Layer 4 gate-coverage violation] {entry['label']} (full_coverage)\n"
+            f"  gate keys     : {sorted(gate_keys)}\n"
+            f"  emitter vocab : {sorted(vocab)}  ({entry['emitter_desc']})\n"
+            f"  UNCOVERED emitter labels: {sorted(uncovered)}\n"
+            f"  This gate is declared EXHAUSTIVE, but the emitter can produce labels it "
+            f"doesn't key → those bars silently fall through to the consuming .get default. "
+            f"Add the missing label(s) to the gate, or drop full_coverage if a default "
+            f"fall-through is intentional for this gate."
+        )
+
+
+def test_layer4_registry_nonempty_and_seeds_t216_gate():
+    """Landmark: the gate↔emitter registry exists, is non-empty, and
+    still contains the T-216 seed pairing (g_regime ↔ hmm_regime_label).
+    If a refactor drops the seed, this fires — the guard must never
+    silently lose the bug it was built for."""
+    assert GATE_EMITTER_CONTRACTS, "Layer 4 gate↔emitter registry is empty"
+    labels = [e["label"] for e in GATE_EMITTER_CONTRACTS]
+    assert any("g_regime" in lbl for lbl in labels), (
+        "Layer 4 lost its T-216 seed pairing (g_regime ↔ hmm_regime_label). "
+        "Re-add it — this is the bug the layer exists to catch."
+    )
