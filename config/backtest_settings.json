@@ -128,7 +128,11 @@
     "mid_cap_threshold_usd": 100000000.0,
     "mega_cap_half_spread_bps": 1.0,
     "mid_cap_half_spread_bps": 5.0,
-    "small_cap_half_spread_bps": 15.0
+    "small_cap_half_spread_bps": 15.0,
+    "_comment_realistic_retail": "T-210: realistic_retail_costs=true switches the half-spread from ADV buckets to MARKET-CAP tiers (mega/large/mid/small/micro = 2/3/8/35/75 bps) grounded in retail effective-spread evidence. DEFAULT-OFF (false) so the current canon is byte-unchanged; the honest beat-the-robo gate (C scorecard / cloud re-baseline) turns it ON. Needs data/universe/market_cap_tiers.json (scripts/build_market_cap_tiers_t210).",
+    "realistic_retail_costs": false,
+    "cap_tier_half_spread_bps": [2.0, 3.0, 8.0, 35.0, 75.0],
+    "market_cap_tiers_path": "data/universe/market_cap_tiers.json"
   },
   "alpaca_fees": {
     "enabled": true,

@@ -50,6 +50,27 @@ class SlippageConfig:
     mid_cap_half_spread_bps: float = 5.0
     small_cap_half_spread_bps: float = 15.0
 
+    # ---- T-2026-06-18-210: realistic RETAIL cost mode (default-OFF) ----
+    # The ADV buckets above (1/5/15 bps) understate true RETAIL friction
+    # (T-207: at ~26x book turnover the optimistic small-cap spread is worth
+    # -0.12 to -0.74 Sharpe). This mode replaces the ADV half-spread with a
+    # MARKET-CAP-tiered half-spread grounded in retail effective-spread evidence.
+    # DEFAULT-OFF so the current anchors' canon is byte-unchanged; the honest
+    # beat-the-robo gate (C's scorecard / cloud re-baseline) turns it ON.
+    #
+    # Cap tiers (current-cap snapshot join; see market_cap_tiers.json):
+    #   mega   >= $200B   : 2 bps    large  $10B-200B : 3 bps
+    #   mid    $2B-10B    : 8 bps    small  $300M-2B  : 35 bps
+    #   micro  < $300M    : 75 bps   (unknown cap -> ADV bucket fallback)
+    # Basis: effective-spread microstructure evidence (Corwin-Schultz 2012;
+    # SEC Tick-Size Pilot 2016-18 small-cap effective spreads ~20-50 bps; FINRA/
+    # academic microcap evidence ~50-100+ bps) at retail (no rebate/internalizer
+    # edge). Mid/conservative point chosen within each band; tunable here.
+    realistic_retail_costs: bool = False
+    cap_tier_thresholds_usd: tuple = (200e9, 10e9, 2e9, 300e6)  # mega/large/mid/small floors
+    cap_tier_half_spread_bps: tuple = (2.0, 3.0, 8.0, 35.0, 75.0)  # mega,large,mid,small,micro
+    market_cap_tiers_path: str = "data/universe/market_cap_tiers.json"
+
 
 class SlippageModel(ABC):
     """Abstract base class for slippage models."""
@@ -193,6 +214,59 @@ class RealisticSlippageModel(SlippageModel):
             return self.config.mid_cap_half_spread_bps
         return self.config.small_cap_half_spread_bps
 
+    # ---- T-2026-06-18-210: realistic-retail cap-tier classification ----
+    def _cap_cache(self) -> dict:
+        """Lazy-load + memoize the {ticker: marketCap_usd} snapshot join."""
+        c = getattr(self, "_cap_cache_d", None)
+        if c is not None:
+            return c
+        c = {}
+        try:
+            import json
+            from pathlib import Path
+            p = Path(self.config.market_cap_tiers_path)
+            if p.exists():
+                raw = json.loads(p.read_text())
+                # accept {ticker: cap} or {ticker: {"marketCap": cap}}
+                for k, v in raw.items():
+                    cap = v.get("marketCap") if isinstance(v, dict) else v
+                    if cap is not None:
+                        try:
+                            c[k] = float(cap)
+                        except (TypeError, ValueError):
+                            pass
+        except Exception:
+            c = {}
+        self._cap_cache_d = c
+        return c
+
+    def _cap_tier_half_spread(self, market_cap_usd: float) -> float:
+        """Half-spread bps for a market cap, via the configured tier floors."""
+        t = self.config.cap_tier_thresholds_usd       # (mega, large, mid, small) floors
+        hs = self.config.cap_tier_half_spread_bps      # (mega, large, mid, small, micro)
+        if market_cap_usd >= t[0]:
+            return hs[0]
+        if market_cap_usd >= t[1]:
+            return hs[1]
+        if market_cap_usd >= t[2]:
+            return hs[2]
+        if market_cap_usd >= t[3]:
+            return hs[3]
+        return hs[4]
+
+    def _classify_cap_bucket(self, ticker: str, fallback_adv_usd: float | None) -> float:
+        """Realistic-retail half-spread for ``ticker`` from the market-cap join.
+        Unknown cap (delisted / not in the snapshot) -> ADV bucket fallback (or
+        the small-cap half-spread when ADV is also unavailable), so a missing cap
+        never silently UNDER-prices: the fallback is the existing realistic model.
+        """
+        cap = self._cap_cache().get(ticker)
+        if cap is not None and cap > 0:
+            return self._cap_tier_half_spread(cap)
+        if fallback_adv_usd is not None:
+            return self._classify_adv_bucket(fallback_adv_usd)
+        return self.config.small_cap_half_spread_bps
+
     def _compute_adv_usd(self, bar_data: pd.DataFrame) -> float | None:
         """20-day rolling-mean dollar ADV, or None if insufficient data."""
         if "Volume" not in bar_data.columns or "Close" not in bar_data.columns:
@@ -237,14 +311,26 @@ class RealisticSlippageModel(SlippageModel):
     ) -> float:
         # Single-row bar_data (Series) cannot support ADV/volatility — fall
         # back to mega-cap half-spread as a conservative lower bound.
+        # T-210: realistic-retail mode uses the cap-tier floor (ticker lookup,
+        # no ADV needed) for this edge case; OFF path is byte-identical.
         if isinstance(bar_data, pd.Series) or not isinstance(bar_data, pd.DataFrame):
+            if self.config.realistic_retail_costs:
+                return self._classify_cap_bucket(ticker, None)
             return self.config.mega_cap_half_spread_bps
 
         adv_usd = self._compute_adv_usd(bar_data)
         if adv_usd is None:
+            if self.config.realistic_retail_costs:
+                return self._classify_cap_bucket(ticker, None)
             return self.config.mega_cap_half_spread_bps
 
-        half_spread_bps = self._classify_adv_bucket(adv_usd)
+        # T-210: cap-tier half-spread when realistic-retail mode is ON; OFF =
+        # the original ADV bucket (byte-identical).
+        half_spread_bps = (
+            self._classify_cap_bucket(ticker, adv_usd)
+            if self.config.realistic_retail_costs
+            else self._classify_adv_bucket(adv_usd)
+        )
 
         # Market impact only computable when we know qty AND have a price
         # to convert qty into a dollar amount, AND have volatility.
@@ -313,6 +399,14 @@ def get_slippage_model(config_dict: dict) -> SlippageModel:
         small_cap_half_spread_bps=float(
             config_dict.get("small_cap_half_spread_bps", 15.0)
         ),
+        # T-210: realistic-retail cap-tier mode (default-OFF → unset = current canon)
+        realistic_retail_costs=bool(config_dict.get("realistic_retail_costs", False)),
+        cap_tier_thresholds_usd=tuple(config_dict.get(
+            "cap_tier_thresholds_usd", (200e9, 10e9, 2e9, 300e6))),
+        cap_tier_half_spread_bps=tuple(config_dict.get(
+            "cap_tier_half_spread_bps", (2.0, 3.0, 8.0, 35.0, 75.0))),
+        market_cap_tiers_path=str(config_dict.get(
+            "market_cap_tiers_path", "data/universe/market_cap_tiers.json")),
     )
 
     if cfg.model_type == "volatility":
