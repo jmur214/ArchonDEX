@@ -486,12 +486,18 @@ class SignalProcessor:
 
     _TECHNICAL_CATS = frozenset({"momentum", "trend_following", "mean_reversion"})
     _FUNDAMENTAL_CATS = frozenset({"fundamental"})
-    # Regime gate ∈ [0,1] keyed on advisory.regime_summary (the same string
-    # the per-edge regime_gate hook reads). Unknown/benign → 1.0 (pass).
-    _CONJ_REGIME_GATE = {
-        "robust_expansion": 1.0, "emerging_expansion": 1.0,
-        "cautious_decline": 0.5, "market_turmoil": 0.0,
-    }
+    # T-216 FIX (director review): g_regime keyed on E/T-217's VALIDATED
+    # causal-HMM 3-state label vocabulary {calm, cautious, crisis} — what
+    # `engines.engine_e_regime.regime_gate.hmm_regime_label` emits (causal
+    # p_crisis, T-087/089). The ORIGINAL dict was keyed on the macro_regime
+    # vocab {robust_expansion,...} which `regime_summary` NEVER emits →
+    # `.get(regime,1.0)` hit the default for every real value → g_regime ≡ 1.0
+    # → the shipped selector was a 2-way (s_tech × g_fund); the 3-way was
+    # never tested. Consuming E's validated label fixes the dead gate AND the
+    # boundary. (Per-edge RegimeGate.gate() is for per-edge OVERLAY gating
+    # off measured stats; the conjunctive selector needs a PORTFOLIO-level
+    # regime-favorability multiplier, for which the label primitive is right.)
+    _CONJ_REGIME_GATE = {"calm": 1.0, "cautious": 0.5, "crisis": 0.0}
 
     @staticmethod
     def _edge_category(edge_name: str) -> str:
@@ -531,9 +537,14 @@ class SignalProcessor:
             return 0.0
         f_agg = (fund_ws / fund_wt) if fund_wt > 0 else 0.0
         g_fund = min(1.0, max(0.0, 0.5 + f_agg))
-        # g_regime: favorable-regime gate from regime_summary.
-        advisory = regime_meta.get("advisory") if regime_meta else None
-        regime = advisory.get("regime_summary", "benign") if advisory else "benign"
+        # g_regime: favorable-regime gate keyed on E/T-217's VALIDATED causal
+        # HMM 3-state label (calm/cautious/crisis), NOT the macro_regime
+        # vocab. hmm_regime_label fail-safes to "calm" (g_regime 1.0) when
+        # the HMM posterior is absent — so a fully-regime-blind run silently
+        # degrades to a 2-way; the deep-window census guards `regime_unknown
+        # _bars not ~100%` to catch that. Lazy import avoids any A↔E cycle.
+        from engines.engine_e_regime.regime_gate import hmm_regime_label
+        regime = hmm_regime_label(regime_meta)
         g_regime = self._CONJ_REGIME_GATE.get(regime, 1.0)
         return max(-1.0, min(1.0, s_tech * g_fund * g_regime))
 

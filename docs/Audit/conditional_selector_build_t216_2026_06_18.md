@@ -4,7 +4,7 @@ title: Conjunctive "trade like a trader" selector — BUILD + honest test vs the
 date: 2026-06-18
 scope: Engine-A signal construction (ensemble_mode=conjunctive, default-OFF, additive/canon-safe); measured vs the T-203 robo gate; builds T-208's design
 status: CURRENT (pre-registration committed before build/run — see git history; results appended after)
-outcome: "**H0 — the central conjunctive thesis is CLEANLY CLOSED with evidence (recent-window first-cut).** Built ensemble_mode=conjunctive (default-OFF, canon-inert PROVEN: 4055ead6 with-change == stashed-base). Mode fires (canon 6c8251f7, 328 trades vs legacy 465 — fundamental-confirmation gate prunes ~30%, not zeroed). 2018-2025 robo gate (Roth, after-tax, w_dbmf=0): passed=False / DO NOT DEPLOY — beats 60/40 (ci_low −0.075>−0.273) but FAILS schwab_like (ci_low −0.239<−0.135 + worse MDD); beta-or-edge = 'beta' (alpha +3.99%/yr, t_hac +1.18 < signif). Consistent with the <20% prior. The thesis is now TESTED not 'never tried.' CAVEAT: 2018-2025 is bull-heavy (worst case for a defensive gate); the canonical crisis-inclusive 26-yr PIT-universe robo-gate is flagged as a CLOUD cell (the fuller test) before declaring it permanently dead. Bug caught: env-suffixed-config trap (first run patched alpha_settings.json but run reads alpha_settings.prod.json — identical canon was the tell). N_trials += 1."
+outcome: "**[SUPERSEDED by §3 — director review caught g_regime DEAD: the §2 H0 was a 2-WAY, not the 3-way.]** §2 below built ensemble_mode=conjunctive (default-OFF, canon-inert proven) and reported H0 on the robo gate — but the regime gate was identically 1.0 (vocabulary mismatch), so what was measured was `s_tech × g_fund` (2-way), NOT the 3-way thesis. §3 (T-216 director-review FIX) owns it: g_regime now consumes E/T-217's validated `hmm_regime_label` (re-keyed {calm:1.0,cautious:0.5,crisis:0.0}); canon-inert RE-PROVEN on the merged tree (canon_A==canon_B==4055ead6 MATCH); 6 tests added incl the one that catches this (crisis≠calm). The genuine 3-way re-run is infeasible LOCALLY on the merged tree (~6h/8yr post-T-215 realistic-cost) → routed to a CLOUD A/B post-merge. Per T-221 (HMM fires ~20% INTO drawdowns = structurally late) the 3-way is EXPECTED to stay H0 on the regime dimension, and the deep-window 26-yr cloud cell is DE-PRIORITIZED (do not pre-commit spend). Thesis status: UNFALSIFIED (only the 2-way was measured); the fix is merge-ready, the 3-way verdict is the post-merge cloud cell."
 references: docs/Audit/conditional_selection_design_t208_2026_06_18.md (the design); T-205 quality; T-156 (averaging washes out); core/combined_candidate_scorecard.evaluate_deploy_readiness; engine_b_risk/factor_analysis.is_it_beta_or_edge
 ---
 
@@ -165,3 +165,97 @@ test before the thesis is declared permanently dead.
   CLOUD cell (per the dispatch's "local first-cut + flag a cloud cell").
 - Default-OFF preserved; config reverted (git diff = only signal_processor
   + alpha_engine).
+
+---
+
+## 3. DIRECTOR REVIEW (T-216) — g_regime was DEAD; the §2 H0 was a 2-way. FIX + re-proof.
+
+### 3.1 The bug (owned)
+
+The adversarial review caught a load-bearing bug that I should have
+caught with one test: **`g_regime` was identically 1.0.** The
+`_CONJ_REGIME_GATE` dict was keyed on the macro_regime vocabulary
+`{robust_expansion, emerging_expansion, cautious_decline, market_turmoil}`,
+but `_conjunctive_aggregate` resolved `regime = advisory.get("regime_summary",
+...)`, and `regime_summary` only emits `{benign, cautious, stressed,
+crisis}` — the two vocabularies don't intersect, so `.get(regime, 1.0)`
+hit the default for every real value. **The shipped/tested selector was
+`s_tech × g_fund × 1.0` — a 2-WAY conjunction. The §2 "H0" is the 2-way's
+H0; the 3-way central thesis was never tested.** This is the
+silent-contract-mismatch class — and my own code three lines away used
+the correct `regime_summary in ("stressed","crisis")` vocabulary, which
+is exactly why it should have been caught. No conjunctive tests shipped;
+a single g_regime-resolution test would have exposed it.
+
+### 3.2 The fix
+
+`g_regime` now consumes **E/T-217's validated causal-HMM label**,
+`engines.engine_e_regime.regime_gate.hmm_regime_label(regime_meta)`
+(causal `p_crisis`, T-087/089), with `_CONJ_REGIME_GATE` re-keyed to the
+ACTUAL emitted vocabulary `{calm:1.0, cautious:0.5, crisis:0.0}`. This
+fixes the dead gate AND the boundary (consume E's validated signal, not
+a hand-rolled macro-dict). The per-edge `RegimeGate.gate()` is for
+per-edge overlay gating off measured stats; the conjunctive selector
+needs a PORTFOLIO-level regime-favorability multiplier, for which the
+label primitive is the right consumption. Fail-safe: `hmm_regime_label`
+returns "calm" (g_regime 1.0) when the HMM posterior is absent — so a
+regime-blind run silently degrades to a 2-way; the deep-window census
+guards `regime_unknown_bars not ~100%` to catch that.
+
+### 3.3 Canon-inert RE-PROVEN on the merged tree
+
+Rebased onto main (past T-215 realistic-cost + T-220). 2024 cell:
+with-change mode-default `canon_A = 4055ead6…`; change-stashed
+`canon_B = 4055ead6…` — **MATCH, bitwise** → the fixed conjunctive code
+is a strict no-op when OFF (prod canon unchanged on the merged tree).
+
+### 3.4 Tests added (6, all green) — incl. the one that catches THIS bug
+
+`tests/test_conjunctive_selector_t216.py`: (a) default mode =
+weighted_mean; (b) multiplicative veto (s_tech==0→0, n_fund==0→0);
+(c) **g_regime resolves to the intended value for a real regime input —
+crisis≠calm** (on the old dead-gate code these were equal; this test
+fails pre-fix); (d) score bounds [-1,1]; (e) regime-absent fail-safe
+(no suppression). The systemic follow-up (contract suite asserting
+gate-dict keys ⊆ producing vocabulary) is the director's to track.
+
+### 3.5 The genuine 3-way re-run — routed to CLOUD (local infeasible)
+
+The merged tree's realistic-cost path (T-215) makes local multi-year
+runs ~3-4× slower: a single 2024 cell ≈ 15 min, and the 8-yr 2018-2025
+3-way reached only ~10% (195/~2011 snapshots) after 36 min CPU →
+projecting ~5-6 h locally. Untenable on a laptop. **The 3-way A/B is
+therefore routed to a CLOUD cell**, which also needs my fix in an image
+→ **post-merge** (the image rebuilds from main once the canon-safe fix
+merges). I did NOT launch a cloud cell from the unmerged branch.
+
+Cloud 3-way A/B spec (post-merge): arm0 `ensemble_mode=weighted_mean`
+vs arm1 `ensemble_mode=conjunctive` (g_regime FIXED), identical
+window/universe/cost/seed; census-gated incl. **`regime_unknown_bars`
+not ~100%** (else g_regime silently 1.0 again → invalid) + `fundamentals
+_blind=0`; CI-aware ci_low; robo gate (Roth, w_dbmf=0) + is_it_beta_or
+_edge. **First-cut window = 2018-2025** (matches §2 for comparability).
+
+### 3.6 T-221 input — expectation + de-prioritization
+
+E/T-221: the HMM first crosses `p_crisis ≥ 0.5` only after SPY is
+already −19% to −24% off the peak — it fires **~20% INTO** every
+drawdown, structurally too late for tail-avoidance. So even with
+g_regime now live, the regime gate engages LATE exactly where slow bears
+bite → **the 3-way is expected to stay H0 on the regime dimension**
+(the early tail protection lives in C's always-on overlay, not this
+conjunctive gate). Therefore the **deep-window 26-yr cloud cell is
+DE-PRIORITIZED** (likely-H0 + cloud spend) — decide after the 2018-2025
+first-cut, weighed against C's composition cell. Do NOT pre-commit the
+spend.
+
+### 3.7 Status
+
+- **FIX 1 (g_regime consumes T-217): DONE.**
+- **FIX 3 (tests incl the bug test): DONE (6 green).**
+- **Canon-inert re-proof on merged tree: DONE (MATCH).**
+- **FIX 2 (genuine 3-way re-run): routed to a post-merge CLOUD cell**
+  (local infeasible on the merged tree).
+- **Thesis: UNFALSIFIED** — only the 2-way was ever measured; the
+  honest 3-way verdict is the post-merge cloud A/B. The fix is
+  merge-ready and canon-safe.
