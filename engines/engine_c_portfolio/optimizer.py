@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 
 def deterministic_cov(returns_df: pd.DataFrame) -> pd.DataFrame:
