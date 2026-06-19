@@ -141,6 +141,37 @@ Detect, score, and publish the current multi-axis market environment as an offic
 6. E is **descriptive + advisory** — it describes the weather and suggests what to wear, but each engine dresses itself
 7. Advisory hints are explicitly non-binding — each downstream engine retains full authority over its own decisions
 
+### Validated regime findings (empirical — canonical; do not re-derive)
+These are measured, reproduced facts about what E's regime signal CAN and
+CANNOT do. They bound how downstream engines should (and should not) use it.
+
+1. **The HMM `p_crisis` is regime-GRADE, not timing-grade** (T-087/089 causal,
+   AUC 0.887; T-172 OOS; T-221 deep-window). It correctly identifies you are
+   IN a crisis, but for tail-AVOIDANCE it fires **late**: its first sustained
+   `p_crisis ≥ 0.50` only after SPY has already fallen **−19% to −24% from the
+   peak in every historical crisis** (dotcom/GFC/COVID/2022). Use it as a
+   regime *confirmer* / context, **never as an early de-gross trigger**.
+2. **Structurally blind to the slow-grind phase of valuation bears.** During
+   dotcom (2000-2001) and 2022-H1 the HMM stays `calm` (no vol spike yet) and
+   only fires on the eventual late vol leg. Slow bears are carried by the
+   price-trend overlay, not by the regime label.
+3. **The 5-axis `advisory["regime_summary"]` is NOT a validated predictor** —
+   it net-negatived the per-edge `regime_gate` walk-forward (RANK 2). The
+   validated regime label is the causal HMM `p_crisis`, NOT the advisory
+   summary. Consumers that gate on regime should read `hmm_regime`.
+4. **Regime-GATING a defensive signal HURTS — always-on is the ceiling.** Two
+   independent nulls: the dynamic MF-sleeve sizer (T-178; ≤ always-on 20%) and
+   gating the trend overlay on HMM cautious/crisis (T-220; gated −17.7% MDD vs
+   always-on −10.6%, because the gate drops protection in the slow 2022 bear
+   the HMM labels calm). A self-timing signal (absolute momentum) does not
+   benefit from a lagging regime gate on top. Compose defensive overlays
+   **always-on**, not regime-conditioned.
+5. **Correct uses of the HMM regime:** descriptive context/feature for A
+   (`g_regime` per-edge SELECTION gate, T-217 — pending composition measure);
+   B's vol/stop policy adaptation; F's edge-affinity. **Incorrect uses:** an
+   early crash-timer / kill-switch (it lags ~20%), or a gate on an
+   already-self-timing trend overlay.
+
 ### Orchestration
 ModeController calls `RegimeDetector.detect_regime()` once per bar and passes the regime state object to A, B, and F as a parameter. Engines do not import RegimeDetector directly (reduces coupling). D (Discovery) may import RegimeDetector directly for offline research use.
 
