@@ -65,7 +65,7 @@ config opts in.
   crisis-inclusive. Compute-bound full-cycle → **local first-cut now +
   flag a cloud cell for the canonical** (like C/T-211).
 - **N_trials += 1** (this ONE structure). No space search; any variant
-  is a new trial. Pre-registered before the run (CLAUDE.md #7).
+  is a new trial. Pre-registered before the run (CLAUDE.md `[NN-MBL]`).
 
 ### 1.5 Honest deliverable either way
 
