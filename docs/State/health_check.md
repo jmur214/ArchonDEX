@@ -22,6 +22,22 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] Documentation-system integrity findings (external fresh-eyes audit 2026-06-19)
+- Engine: docs/knowledge-system (cross-cutting)
+- First flagged: 2026-06-19 (external reviewer, read-only audit; commissioned via commit `3717210`)
+- Status: not started — itemized below. Full write-up: `docs/Sessions/Other-dev-opinion/06-19-26_doc-system-audit.md`.
+- Description: cold-onboarding + verification audit of the doc system found the self-correction layer is partly dead and the always-loaded constitution carries stale headline numbers. Items (severity in brackets; **PROPOSE-FIRST** = touches the doc system itself per CLAUDE.md "Changes to the documentation system itself", so user-gated, NOT autonomous):
+  - **[HIGH] `doc_lint.py` runs, prints `[FAIL]`, and exits `0`.** Live `python scripts/doc_lint.py --pre-commit`: `[FAIL] TASK_LEDGER rows complete: 11 issue(s)` + 3× `[WARN]` because `MEMORY_DIR` is hardcoded to `/root/.claude/projects/-Users-jacksonmurphy-Dev-trading-machine-2/memory/` (macOS/old-repo path, absent) → `EXIT: 0`. `--no-verify`-skippable; no CI backstop (`feature_ablation.yml` only backs the Foundry gate). The one automated guard for memory/supersession hygiene protects nothing here. **[PROPOSE-FIRST]**
+  - **[HIGH] "MEMORY.md" is a phantom file.** CLAUDE.md (supersession non-negotiable) + CURRENT_STATE.md reference a single "MEMORY.md" that does not exist; only 6 per-agent `.claude/agent-memory/<agent>/MEMORY.md` exist. `SESSION_PROCEDURES.md:463` adds a third dead path. "Follow the supersession pointer" is unresolvable. **[PROPOSE-FIRST]**
+  - **[HIGH] Constitution carries stale numbers that "win".** `CLAUDE.md:131`/`NON_NEGOTIABLES.md:116` baseline `0.598` (+ `~75` N_trials, `CLAUDE.md:129`) vs live `0.751`/`~0.81` and `125`/`~260+` (`CURRENT_STATE.md:13,73,74`). `health_check.md` (this file, ~L689) already says "Do not quote 0.598 as current," yet CLAUDE.md (auto-loaded, precedence) still does → wrong DSR/MBL bar seeded every session. **[PROPOSE-FIRST]**
+  - **[HIGH] "Archive, never delete" data-loss path.** `.gitignore:44` bare `Archive/` also matches `docs/Archive/` (`git check-ignore` confirmed) → any *newly*-archived doc is silently un-committable and lost on ephemeral-container reclaim. **[PROPOSE-FIRST]**
+  - **[MEDIUM] Generated `index.md` systemically stale.** `sync_docs.py` output staged/committed in only ~2/22 engine-code commits; e.g. `engine_b_risk/index.md` missing the T-209 `decompose()` backbone. Fix = doc_lint check that `index.md` matches a fresh regen. **[PROPOSE-FIRST]**
+  - **[MEDIUM] Second, contradictory instruction system at root.** `.agent/` + `.aider.conf.yml` (GPT-4.1-mini): broken charter path (`.agent/rules.md:7` → `docs/Audit/engine_charters.md`, absent), looser approval rules than CLAUDE.md (`.agent/rules/terminal-commands.md`), stale governor filenames. Archive or reconcile. **[PROPOSE-FIRST]**
+  - **[MEDIUM] CURRENT_STATE.md internal contradiction + uncapped header.** 26yr ci_low printed as both `0.371` (`:13` table) and `0.382` (`:17,37`); ~1,100-word header exempt from the §`:27` hard caps. **[PROPOSE-FIRST]**
+  - **[MEDIUM] SessionStart surfacing grep is brittle.** `grep -E "^### \[(HIGH|MEDIUM)\]"` misses live findings titled `### [MEDIUM 2026-06-04 by engine-auditor] …`; 4 are never surfaced. **[PROPOSE-FIRST]**
+  - **[LOW] Content drift (autonomous-eligible, not yet done):** `trading_machine-2` → ArchonDEX sweep in current-truth docs (`GOAL.md:4`, `PROJECT_CONTEXT.md`); 4 broken pointers in `docs/Core/README.md` (`:106,108,109,114`); `PROJECT_CONTEXT.md:18,79,86` build-status re-tag.
+- Recommended next step: triage the [PROPOSE-FIRST] items with the user (they touch CLAUDE.md/hooks/linter/gitignore). The [LOW] content-drift sweep is within autonomous doc-authority and can be done without a gate. AI-memory rot + the director-invisible "is the autonomous vehicle even right?" objection (`architect/strategic_frame_..._2026_06_15.md:41`) are captured in the full note §3-I.
+
 ### [RESOLVED] `brokers/alpaca_broker.py` reads a non-existent env var name → can never authenticate (dead stub)
 - Engine: execution / live_trader (broker layer)
 - First flagged: 2026-06-13 (Agent E, during T-160)
