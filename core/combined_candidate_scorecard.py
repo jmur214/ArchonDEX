@@ -386,9 +386,18 @@ def build_scorecard(
     """
     base_ret = to_returns(base)
     dbmf = load_dbmf_returns()
-    combined = combine_fixed_weight(base_ret, dbmf, w_dbmf, rebalance, rebalance_cost_bps)
+    # w_dbmf == 0 → the candidate IS the base series itself (a self-contained
+    # strategy, e.g. the T-211 composition that carries its OWN trend overlay).
+    # Skip the DBMF combine so the candidate is NOT truncated to the DBMF era —
+    # it is judged over its full (crisis-inclusive) window. w_dbmf > 0 keeps the
+    # original base + DBMF-sleeve candidate.
+    if abs(w_dbmf) < 1e-12:
+        combined = base_ret
+        cand_label = "candidate"
+    else:
+        combined = combine_fixed_weight(base_ret, dbmf, w_dbmf, rebalance, rebalance_cost_bps)
+        cand_label = f"base + {int(w_dbmf*100)}% DBMF"
     robo_names = [robo] if isinstance(robo, str) else list(robo)
-    cand_label = f"base + {int(w_dbmf*100)}% DBMF"
 
     taxable = account.lower() == "taxable"
     profiles = {**DEFAULT_TAX_PROFILES, **(tax_profiles or {})}
