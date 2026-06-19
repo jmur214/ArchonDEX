@@ -67,6 +67,13 @@ class EnsembleSettings:
     enable_shrink: bool = True
     shrink_lambda: float = 0.35  # ridge-like shrinkage
     combine: str = "weighted_mean"  # 'weighted_mean' only for now
+    # T-2026-06-18-216 — conjunctive "trade like a trader" selector.
+    # mode="weighted_mean" (default) = legacy averaged ensemble
+    # (bitwise-unchanged). mode="conjunctive" replaces the averaged
+    # aggregate with s_tech × g_fund × g_regime (fundamentals + regime
+    # GATE the technical entry rather than voting as independent addends,
+    # which T-156 showed washes out). Default OFF → prod canon unchanged.
+    mode: str = "weighted_mean"
 
 
 @dataclass
@@ -475,6 +482,61 @@ class SignalProcessor:
             return False
         return max(long_count, short_count) >= n
 
+    # ---- T-216 conjunctive selector ---- #
+
+    _TECHNICAL_CATS = frozenset({"momentum", "trend_following", "mean_reversion"})
+    _FUNDAMENTAL_CATS = frozenset({"fundamental"})
+    # Regime gate ∈ [0,1] keyed on advisory.regime_summary (the same string
+    # the per-edge regime_gate hook reads). Unknown/benign → 1.0 (pass).
+    _CONJ_REGIME_GATE = {
+        "robust_expansion": 1.0, "emerging_expansion": 1.0,
+        "cautious_decline": 0.5, "market_turmoil": 0.0,
+    }
+
+    @staticmethod
+    def _edge_category(edge_name: str) -> str:
+        el = str(edge_name).lower()
+        for pattern, category in EDGE_CATEGORY_MAP.items():
+            if pattern in el:
+                return category
+        return "fundamental"  # default matches the regime-bias code path
+
+    def _conjunctive_aggregate(self, details: List[dict], regime_meta) -> float:
+        """T-216: conjunctive_score = s_tech × g_fund × g_regime.
+
+        Fundamentals + regime GATE the technical entry (a product of
+        gates) instead of voting as independent addends. `details` holds
+        per-edge {edge, raw, norm, weight} for the edges that fired.
+        """
+        tech_ws = tech_wt = fund_ws = fund_wt = 0.0
+        n_fund = 0
+        for d in details:
+            cat = self._edge_category(d["edge"])
+            norm = float(d["norm"]); w = float(d["weight"])
+            if cat in self._TECHNICAL_CATS:
+                tech_ws += norm * w
+                if abs(norm) > 1e-6:
+                    tech_wt += abs(w)
+            elif cat in self._FUNDAMENTAL_CATS:
+                fund_ws += norm * w
+                if abs(norm) > 1e-6:
+                    fund_wt += abs(w); n_fund += 1
+        # s_tech: the technical entry signal (no technical edge → no trade).
+        s_tech = (tech_ws / tech_wt) if tech_wt > 0 else 0.0
+        if s_tech == 0.0:
+            return 0.0
+        # g_fund: require fundamental confirmation. No fundamental edge fired
+        # → g_fund = 0 (the conjunction: don't buy on technicals alone).
+        if n_fund == 0:
+            return 0.0
+        f_agg = (fund_ws / fund_wt) if fund_wt > 0 else 0.0
+        g_fund = min(1.0, max(0.0, 0.5 + f_agg))
+        # g_regime: favorable-regime gate from regime_summary.
+        advisory = regime_meta.get("advisory") if regime_meta else None
+        regime = advisory.get("regime_summary", "benign") if advisory else "benign"
+        g_regime = self._CONJ_REGIME_GATE.get(regime, 1.0)
+        return max(-1.0, min(1.0, s_tech * g_fund * g_regime))
+
     # ---- public ---- #
 
     def process(
@@ -612,10 +674,17 @@ class SignalProcessor:
             if weight_total <= 0.0:
                 continue
 
-            agg = weighted_sum / weight_total
-            # ensemble shrinkage (ridge-style)
-            if self.ensemble.enable_shrink:
-                agg = agg * (1.0 - self.ensemble.shrink_lambda)
+            if getattr(self.ensemble, "mode", "weighted_mean") == "conjunctive":
+                # T-216 conjunctive selector: fundamentals + regime GATE the
+                # technical entry (s_tech × g_fund × g_regime) instead of the
+                # averaged vote. Replaces agg; shrinkage (a weighted-mean
+                # concept) does not apply in this mode.
+                agg = self._conjunctive_aggregate(details, regime_meta)
+            else:
+                agg = weighted_sum / weight_total
+                # ensemble shrinkage (ridge-style)
+                if self.ensemble.enable_shrink:
+                    agg = agg * (1.0 - self.ensemble.shrink_lambda)
 
             # ----------------- Layer 3: meta-learner contribution -----------------
             # Adds a profile-aware non-linear term over tier=feature edges.

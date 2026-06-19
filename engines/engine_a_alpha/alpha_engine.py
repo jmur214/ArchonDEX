@@ -431,6 +431,9 @@ class AlphaEngine:
             enable_shrink=bool(cfg_raw.get("ensemble", {}).get("enable_shrink", True)),
             shrink_lambda=_coerce_float(cfg_raw.get("ensemble", {}).get("shrink_lambda", 0.35)),
             combine="weighted_mean",
+            # T-216: default "weighted_mean" preserves the legacy averaged
+            # ensemble bitwise; "conjunctive" opts into s_tech×g_fund×g_regime.
+            mode=str(cfg_raw.get("ensemble", {}).get("mode", "weighted_mean")),
         )
 
         # Layer 3 meta-learner integration. Default OFF — set
