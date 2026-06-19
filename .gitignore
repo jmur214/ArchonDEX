@@ -51,6 +51,14 @@ Archive/
 !/Archive/**
 !/docs/Archive/
 !/docs/Archive/**
+# ...but NEVER track bytecode or OS junk, even inside the archives (these
+# re-exclusions come AFTER the negations, so last-match wins for these paths):
+Archive/**/__pycache__/
+Archive/**/*.pyc
+Archive/**/.DS_Store
+docs/Archive/**/__pycache__/
+docs/Archive/**/*.pyc
+docs/Archive/**/.DS_Store
 # Agent worktree isolation directories (created by Agent tool isolation:worktree)
 .claude/worktrees/
 
