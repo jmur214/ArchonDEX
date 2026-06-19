@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from engines.engine_b_risk.risk_engine import RiskConfig, RiskEngine
 from engines.engine_b_risk.vol_target import (
@@ -163,6 +164,11 @@ def test_vol_target_does_not_override_killswitch():
         portfolio_vol_target_enabled=True,
         portfolio_vol_target_annual_vol=0.50,  # ridiculous high target
         portfolio_vol_target_ceiling=10.0,
+        # T-212: vol-target enabled requires a valid sigma-floor
+        # (target/ceiling = 0.05). Orthogonal to this test's kill-switch
+        # invariant, but the config must be legal to reach the scalar.
+        portfolio_vol_target_floor_enabled=True,
+        portfolio_vol_target_floor_annual=0.05,
     )
     re = RiskEngine(cfg=asdict(cfg))
     # Build a portfolio mock whose history shows -20% drawdown.
@@ -206,6 +212,9 @@ def test_vol_target_does_not_override_drawdown_halt():
         # over-sizing on a degraded position.
         portfolio_vol_target_annual_vol=0.50,
         portfolio_vol_target_ceiling=10.0,
+        # T-212: valid sigma-floor required to reach the scalar (bound 0.05).
+        portfolio_vol_target_floor_enabled=True,
+        portfolio_vol_target_floor_annual=0.05,
     )
     re = RiskEngine(cfg=asdict(cfg))
     # The composition order matters: in path B, drawdown_degrade_scaler
@@ -270,21 +279,39 @@ def test_vol_target_integration_smoke():
     re.portfolio = pf
     assert re._compute_portfolio_vol_scalar() == 1.0  # disabled default
 
-    # Now enable: with synthetic low-vol history, scale should be > 1.0
-    # (target 10% / realized very-low → cap at ceiling).
+    # T-212: enabling vol-target WITHOUT the sigma-floor guard is now a
+    # HARD-PRECONDITION violation — it must fail-loud (VolTargetGuardError,
+    # an AssertionError that _PROGRAMMER_ERRORS re-raises), NOT silently
+    # fall back to 1.0.
+    from engines.engine_b_risk.vol_target import VolTargetGuardError
+    cfg_no_floor = RiskConfig(
+        portfolio_vol_target_enabled=True,
+        portfolio_vol_target_annual_vol=0.10,
+        portfolio_vol_target_ceiling=2.0,
+        portfolio_vol_target_floor=0.5,
+        # portfolio_vol_target_floor_enabled defaults False → illegal
+    )
+    re_no_floor = RiskEngine(cfg=asdict(cfg_no_floor))
+    re_no_floor.portfolio = pf
+    with pytest.raises(VolTargetGuardError):
+        re_no_floor._compute_portfolio_vol_scalar()
+
+    # With a VALID floor (annual ≥ target/ceiling = 0.05) the precondition
+    # passes and the scalar is bounded in [floor, ceiling].
     cfg_on = RiskConfig(
         portfolio_vol_target_enabled=True,
         portfolio_vol_target_annual_vol=0.10,
         portfolio_vol_target_ceiling=2.0,
         portfolio_vol_target_floor=0.5,
+        portfolio_vol_target_floor_enabled=True,
+        portfolio_vol_target_floor_annual=0.05,
+        portfolio_vol_target_floor_full_sample_frac=0.5,
     )
     re_on = RiskEngine(cfg=asdict(cfg_on))
     re_on.portfolio = pf
     scalar = re_on._compute_portfolio_vol_scalar()
     # Synthetic equity history is monotone-linear → variance ≈ 0 →
-    # realized vol < ~1e-3 → ratio explodes → clipped to ceiling=2.0.
-    # The fallback for sigma_daily<=0 returns None → passthrough 1.0.
-    # Accept either outcome but assert it's bounded.
+    # realized vol < ~1e-3 → floored → ratio bounded → within [floor, ceil].
     assert 0.5 <= scalar <= 2.0
 
 

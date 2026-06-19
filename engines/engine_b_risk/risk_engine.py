@@ -549,6 +549,7 @@ class RiskEngine:
         try:
             from engines.engine_b_risk.vol_target import (
                 VolTargetConfig, compute_portfolio_vol_scale,
+                validate_vol_target_config,
             )
             vt_cfg = VolTargetConfig(
                 enabled=True,
@@ -571,6 +572,16 @@ class RiskEngine:
                 vol_floor_full_sample_frac=self.cfg.portfolio_vol_target_floor_full_sample_frac,
                 yz_window_days=self.cfg.portfolio_vol_target_yz_window_days,
             )
+            # T-2026-06-18-212: HARD precondition — vol-target may not run
+            # with the sigma-floor guard off/under-configured (the T-150/
+            # T-153 collapse pins the ceiling off a near-zero sigma). This
+            # raises VolTargetGuardError (an AssertionError) which the
+            # _PROGRAMMER_ERRORS handler below re-raises fail-loud rather
+            # than swallowing into the 1.0 fallback. Only reachable when
+            # portfolio_vol_target_enabled=True (gated above) — the
+            # default-OFF path never validates, so the OFF canon is
+            # byte-identical.
+            validate_vol_target_config(vt_cfg)
             history = getattr(self.portfolio, "history", None) or []
             return compute_portfolio_vol_scale(
                 history, vt_cfg, advisory=advisory,

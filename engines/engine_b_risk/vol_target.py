@@ -34,6 +34,23 @@ import numpy as np
 TRADING_DAYS_PER_YEAR = 252
 
 
+class VolTargetGuardError(AssertionError):
+    """T-2026-06-18-212: a vol-target HARD-PRECONDITION violation.
+
+    Raised by `validate_vol_target_config` when vol-targeting is enabled
+    but the sigma-floor guard is OFF or under-configured — the T-150/T-153
+    collapse state (the estimator emits sigma < target/ceiling on ~14% of
+    canonical bars, min observed 3e-06) would otherwise pin leverage at
+    the ceiling off a garbage estimate (over-levering into the calm-before-
+    storm). This is a configuration/programming error, NOT a missing-data
+    condition, so it subclasses AssertionError: it propagates fail-loud
+    through `risk_engine`'s `_PROGRAMMER_ERRORS` re-raise (the same
+    discipline as the drawdown kill switch) instead of being swallowed by
+    the operational fallback-to-1.0 path. No vol-target run is valid while
+    this can be raised.
+    """
+
+
 @dataclass
 class VolTargetConfig:
     """Portfolio-level vol-targeting configuration.
@@ -313,6 +330,65 @@ def apply_vol_floor(
     if floor <= 0.0:
         return realized_vol
     return max(float(realized_vol), floor)
+
+
+def validate_vol_target_config(cfg: VolTargetConfig) -> None:
+    """T-2026-06-18-212: HARD precondition — fail-loud if vol-targeting is
+    enabled with the sigma-floor guard off/under-configured.
+
+    No-op (returns) when `cfg.enabled is False` — the production default —
+    so this NEVER fires on the default-OFF path and leaves the OFF canon
+    byte-identical. When `cfg.enabled is True` it enforces two conditions
+    and raises `VolTargetGuardError` otherwise:
+
+    1. **Floor must be ON.** `vol_floor_enabled=True` is mandatory. A
+       vol-target run with the guard off is the T-150/T-153 collapse
+       machine and is not a valid run.
+    2. **Floor must be high enough to neutralize the collapse.** A
+       collapsed sigma pins the ceiling iff `target/sigma >= ceiling`, i.e.
+       iff `sigma <= target/ceiling`. So the floor must satisfy
+       `vol_floor_annual >= target_annual_vol / leverage_ceiling` — the
+       GUARANTEED (absolute) component, because the relative component
+       (`vol_floor_full_sample_frac * sigma_full`) degrades to 0 on
+       degenerate history. At the production grid (target 0.10, ceiling
+       2.0) the bound is 0.05; the dataclass default 0.02 is BELOW it and
+       is correctly rejected. The relative component adds adaptive margin
+       ON TOP of this floor on normal bars (on the canonical 26yr book,
+       sigma_full=0.157 → frac=0.5 gives 0.0787, de-pinning all 928
+       collapse bars), but it is never RELIED ON for the guarantee.
+
+    The bound uses the BASE `target_annual_vol` (not a regime-muted
+    target): regime multipliers only LOWER the effective target, which
+    only LOWERS the bound — so the base target is the conservative
+    (binding) case.
+    """
+    if not cfg.enabled:
+        return
+    if not getattr(cfg, "vol_floor_enabled", False):
+        raise VolTargetGuardError(
+            "vol-target is enabled (portfolio_vol_target_enabled=True) but the "
+            "sigma-floor guard is OFF (vol_floor_enabled=False). The realized-vol "
+            "estimator collapses to sigma < target/ceiling on ~14% of canonical "
+            "bars (min 3e-06), pinning leverage at the ceiling off a garbage "
+            "estimate. Set vol_floor_enabled=True (T-212 hard precondition)."
+        )
+    ceiling = float(cfg.leverage_ceiling)
+    target = float(cfg.target_annual_vol)
+    if ceiling <= 0.0 or target <= 0.0:
+        raise VolTargetGuardError(
+            f"vol-target enabled with non-positive target_annual_vol={target} or "
+            f"leverage_ceiling={ceiling}; cannot define a valid sigma-floor."
+        )
+    bound = target / ceiling
+    guaranteed_floor = float(cfg.vol_floor_annual)
+    if guaranteed_floor < bound:
+        raise VolTargetGuardError(
+            f"sigma-floor too low: vol_floor_annual={guaranteed_floor:g} < "
+            f"target_annual_vol/leverage_ceiling={bound:g}. A collapsed sigma "
+            f"would still pin the ceiling (the absolute floor is the GUARANTEED "
+            f"component; vol_floor_full_sample_frac degrades to 0 on degenerate "
+            f"history). Raise vol_floor_annual to >= {bound:g} (T-212)."
+        )
 
 
 # T-055e regime-summary → multiplier-field mapping. Centralized so
