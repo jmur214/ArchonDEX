@@ -15,7 +15,7 @@ T-057's +0.793 Sharpe lift (Alpaca-only substrate, 2018-2026 depth) **does not s
 | Δ Sharpe point | **-0.0752** (vs original T-057 +0.793) |
 | Δ Sharpe ci_low (iid 25-paired) | -0.5318 |
 | Δ Sharpe ci_low (block 5-year) | -1.1540 |
-| Verdict per CLAUDE.md #6 | **DEFER** (ci_low < 0 on both bootstraps) |
+| Verdict per CLAUDE.md `[NN-SHARPE-CI]` | **DEFER** (ci_low < 0 on both bootstraps) |
 
 **Recommendation: DO NOT commit the flag-flip. `confidence_gate.enabled` stays `False` on main.** This is a load-bearing negative result — the original T-057 lift was substrate-conditional.
 
@@ -23,8 +23,8 @@ T-057's +0.793 Sharpe lift (Alpaca-only substrate, 2018-2026 depth) **does not s
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Bootstrap CI per arm Sharpe per CLAUDE.md #6 | **PASS** — iid (25-paired) AND block (5-year) |
-| 2 | MBL Gate-0 per CLAUDE.md #7 | **FAIL** — 5-yr window insufficient for SR=1.0 at N=230 trials (needs 10.88 yr) |
+| 1 | Bootstrap CI per arm Sharpe per CLAUDE.md `[NN-SHARPE-CI]` | **PASS** — iid (25-paired) AND block (5-year) |
+| 2 | MBL Gate-0 per CLAUDE.md `[NN-MBL]` | **FAIL** — 5-yr window insufficient for SR=1.0 at N=230 trials (needs 10.88 yr) |
 | 3 | Verdict report on extended substrate | **PASS** — DEFER, see § Diagnosis |
 | 4 | Flag-flip if ci_low > 0 | **N/A** — ci_low < 0, no flip |
 | 5 | Document collapse if applicable | **PASS** — see § Diagnosis |
@@ -101,7 +101,7 @@ Per `project_determinism_floor_2026_05_01` memory: edges.yml end-of-run mutation
 
 For aggregation purposes: each cell's first-rep value differs from rep-2-to-5 only marginally (Sharpe differs in 4th decimal or so for the drift cells). I used the cell MEAN across all 5 reps, which dilutes the drift to ~1/5 weight per cell. Block-bootstrap on the 5 per-year means is the cleanest CI estimate.
 
-## MBL Gate-0 (CLAUDE.md non-negotiable #7)
+## MBL Gate-0 (CLAUDE.md non-negotiable `[NN-MBL]`)
 
 - N_trials estimate: ~230 cumulative (T-057's ~45 + T-055c's 30 + T-055d's 15 + T-055e's 15 + T-057b's 50 + prior ~75 per `docs/Audit/honest_n_mbl_computation_2026_05_12.md`)
 - SR target for "lift claim": SR=1.0
@@ -132,8 +132,8 @@ For aggregation purposes: each cell's first-rep value differs from rep-2-to-5 on
 
 ## Hard constraints — confirmed met
 
-- [x] Bootstrap CI per CLAUDE.md #6 — iid AND block-bootstrap; both fail the gate.
-- [x] MBL Gate-0 evaluated per CLAUDE.md #7 — fails by 5.88 yr.
+- [x] Bootstrap CI per CLAUDE.md `[NN-SHARPE-CI]` — iid AND block-bootstrap; both fail the gate.
+- [x] MBL Gate-0 evaluated per CLAUDE.md `[NN-MBL]` — fails by 5.88 yr.
 - [x] DID NOT flip `confidence_gate.enabled=True` on main (or in branch config).
 - [x] Branch push only; this is the audit doc, no production state change.
 - [x] No Engine A code changed — `signal_processor.py` confidence-gate implementation untouched.
@@ -148,8 +148,8 @@ For aggregation purposes: each cell's first-rep value differs from rep-2-to-5 on
 
 ## T-057-flag-flip recommendation: NOT RECOMMENDED
 
-Per CLAUDE.md #6: ci_low < 0 → gate NOT cleared → flip NOT defensible.
-Per CLAUDE.md #7: MBL Gate-0 FAIL → even if ci_low cleared, the lift claim wouldn't survive multiple-testing correction at SR=1.0 deployment threshold.
+Per CLAUDE.md `[NN-SHARPE-CI]`: ci_low < 0 → gate NOT cleared → flip NOT defensible.
+Per CLAUDE.md `[NN-MBL]`: MBL Gate-0 FAIL → even if ci_low cleared, the lift claim wouldn't survive multiple-testing correction at SR=1.0 deployment threshold.
 
 `confidence_gate.enabled` stays `False` on main pending further investigation.
 

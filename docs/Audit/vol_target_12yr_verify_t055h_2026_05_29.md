@@ -5,7 +5,7 @@ date: 2026-05-29
 substrate: Stooq+Alpaca merged (post-T-082b)
 window: 2014-01-01 → 2025-12-31 (11.99 yr, 3,017 aligned trading days)
 data_source: cloud — s3://archondex-results-407539788432/t055h-vol-target-12yr-{verify-precheck,proof}/
-outcome: VOL-TARGET CHAPTER CLOSED — Δ Sharpe -0.214, ci_low -0.688; fails CLAUDE.md #6 on all three readings
+outcome: VOL-TARGET CHAPTER CLOSED — Δ Sharpe -0.214, ci_low -0.688; fails CLAUDE.md `[NN-SHARPE-CI]` on all three readings
 ---
 
 # T-055h — Vol-Target Chapter Close-Out (12-yr Re-test)
@@ -14,7 +14,7 @@ outcome: VOL-TARGET CHAPTER CLOSED — Δ Sharpe -0.214, ci_low -0.688; fails CL
 
 **VOL-TARGET CHAPTER CLOSED.** The T-055e regime-conditional vol-target
 overlay (multipliers 0.85 / 0.60 / 0.40 for cautious / stressed /
-crisis), which "DEFENSIBLY" cleared CLAUDE.md #6 on the 5-yr
+crisis), which "DEFENSIBLY" cleared CLAUDE.md `[NN-SHARPE-CI]` on the 5-yr
 Alpaca-only substrate (+0.549 Δ Sharpe, ci_low +0.047), **fails on
 the 12-yr MBL-clearing extended-substrate re-test**:
 
@@ -25,7 +25,7 @@ the 12-yr MBL-clearing extended-substrate re-test**:
 | Sharpe ci_high (97.5%) | +1.392 | +1.159 | +0.260 |
 | p(Δ > 0) | — | — | **18.9%** |
 
-**Fails CLAUDE.md #6 by all three readings**: strict ci_low > 0 gate
+**Fails CLAUDE.md `[NN-SHARPE-CI]` by all three readings**: strict ci_low > 0 gate
 (no, -0.688), point > 0 (no, -0.214), one-sided p(Δ>0) > 95% (no,
 18.9%). T-055b user-decision flag-flip framing is REFUTED. Confidence
 gate (T-057) is REFUTED. Both yesterday's "DEFENSIBLE" 5-yr findings
@@ -36,13 +36,13 @@ retire on properly-powered 11.5+ yr measurement.
 Second consecutive 5-yr "win" demoted on 12-yr re-test. The pattern
 is now category lesson, not coincidence: **the 5-yr window at the
 project's current N (≈265 trials) is statistically incapable of
-validating engine-completion flag-flips**. Per CLAUDE.md #9 the
+validating engine-completion flag-flips**. Per CLAUDE.md `[NN-SUBSTRATE-REVERIFY]` the
 substrate/window-conditional re-verification protocol is doing
 exactly what it was designed to do — surfacing the lifts that
 were small-N artifacts.
 
 Forward narrative:
-- **No engine-completion lift currently clears CLAUDE.md #6 on a
+- **No engine-completion lift currently clears CLAUDE.md `[NN-SHARPE-CI]` on a
   MBL-clearing window.** T-057 confidence gate REFUTED. T-055e
   vol-target REFUTED. The 0.598 substrate-honest baseline stands.
 - **T-055f VVIX-z kill switch** becomes the next-best vol-target
@@ -111,10 +111,10 @@ deterministic (or near-deterministic; see Determinism section).
 - **Seed**: 0
 
 Results per the table above. Δ Sharpe ci straddles zero with a
-negative point and a low p(>0). Three independent CLAUDE.md #6
+negative point and a low p(>0). Three independent CLAUDE.md `[NN-SHARPE-CI]`
 readings all fail.
 
-### MBL Gate-0 (CLAUDE.md #7) — PASSES
+### MBL Gate-0 (CLAUDE.md `[NN-MBL]`) — PASSES
 
 - N_trials accumulated (post-T-053b): **265** (T-053b added 1, T-055h
   adds 4: one verify + one proof per arm)
@@ -212,7 +212,7 @@ S3:
   reading was a leading indicator; 12-yr confirms.
 - New memory entry: "5-yr window is statistically incapable of
   validating any flag-flip at N≈265. Mandatory 11.5+ yr re-test
-  per CLAUDE.md #9 — pattern confirmed by T-057 REFUTED (T-053b)
+  per CLAUDE.md `[NN-SUBSTRATE-REVERIFY]` — pattern confirmed by T-057 REFUTED (T-053b)
   and now T-055e REFUTED (T-055h)."
 
 ## NOT done in T-055h

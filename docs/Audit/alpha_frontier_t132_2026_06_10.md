@@ -65,7 +65,7 @@ vs pead — exactly the Phase-0 twins). Target: 1-day forward log return.
 Subsample 30,000 rows, seed 0. **Null = circular time-shift of the (date×ticker)
 forward-return matrix by random offset k∈[21,T−21], same k across tickers** —
 preserves the target's autocorrelation AND cross-sectional dependence (iid
-shuffles inadmissible per CLAUDE.md #6). MI (KSG kNN, k=3) vs 200 nulls;
+shuffles inadmissible per CLAUDE.md `[NN-SHARPE-CI]`). MI (KSG kNN, k=3) vs 200 nulls;
 Friedman-Popescu pairwise H² (GBM 200×depth-3, PD on 8×8 quantile grid,
 cell-frequency weighted) on all 28 pairs, top-3 tested vs 60 GBM-refit nulls.
 **Verdict rule (pre-registered): GO iff ≥1 pair has H² > its null p97.5 AND

@@ -10,7 +10,7 @@
 
 Point estimate **clears** the Moreira-Muir +0.20 upper bound
 (+0.256 Sharpe lift, mean over 5 years × 3 reps). Bootstrap ci_low
-**crosses zero** (-0.140). Per CLAUDE.md non-negotiable #6 ("kill
+**crosses zero** (-0.140). Per CLAUDE.md non-negotiable `[NN-SHARPE-CI]` ("kill
 thresholds and gating decisions follow ci_low, not point"), this is
 the MARGINAL bucket from the dispatch's verdict ladder.
 
@@ -185,7 +185,7 @@ not the unsuffixed default. Worth adding to lessons_learned.
    stress) is the principled fix.
 
 4. **Should we ship T-055b anyway given the +0.256 point lift?** Per
-   CLAUDE.md #6 strict reading: no. The ci_low overlaps 0, so the
+   CLAUDE.md `[NN-SHARPE-CI]` strict reading: no. The ci_low overlaps 0, so the
    lift is not statistically distinguishable from zero at 95 %.
    Pre-Moreira-Muir-claim follow-ups (EWMA, regime-conditional) are
    the disciplined path.
@@ -197,7 +197,7 @@ not the unsuffixed default. Worth adding to lessons_learned.
   preserved; the `risk_settings.prod.json` patch is restored after
   each arm via `vol_target_patch`'s finally clause).
 - [x] Engine A / C / D / E / F untouched.
-- [x] Bootstrap CI on every Sharpe per CLAUDE.md #6.
+- [x] Bootstrap CI on every Sharpe per CLAUDE.md `[NN-SHARPE-CI]`.
 - [x] Determinism: 10/10 cells canon-stable across 3 reps.
 
 ## Files
@@ -240,7 +240,7 @@ the canonical Moreira-Muir result and T-055b becomes defensible.
 
 ## T-055b flag-flip recommendation
 
-**DO NOT DISPATCH T-055b YET.** Per CLAUDE.md #6: the ci_low(Δ
+**DO NOT DISPATCH T-055b YET.** Per CLAUDE.md `[NN-SHARPE-CI]`: the ci_low(Δ
 Sharpe) = -0.140 does NOT clear the 0 threshold required to
 distinguish the lift from noise at 95 % confidence. The +0.256
 point estimate is encouraging but per-year variance dominates.

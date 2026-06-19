@@ -202,7 +202,7 @@ measure, then extend.**
 - **Overfitting / honest-N (the biggest):** Phase 0 turns a dead search branch
   LIVE. The instant foundry genomes can score, the GA will mint many distinct
   candidate configurations — each is a trial against the same substrate, so
-  `N_effective` climbs and MBL Gate-0 (`T_years ≥ 2·ln(N)/SR²`, CLAUDE.md #6)
+  `N_effective` climbs and MBL Gate-0 (`T_years ≥ 2·ln(N)/SR²`, CLAUDE.md `[NN-SHARPE-CI]`)
   tightens and Gate-8 DSR (`discovery.py:898-905`, default `n_trials_for_dsr=1`)
   MUST be turned on with an honest trial count. Pre-register the re-measurement
   (hypothesis + threshold + N_trials consumed) BEFORE running, per CLAUDE.md.

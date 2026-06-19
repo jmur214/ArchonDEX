@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-06
 **Agent:** C (worktree `trading_machine-agent-c`, branch `feature/hmm-transition-trigger-overlay-t118`)
-**Status:** PROPOSE-FIRST. **Pre-registration + default-OFF overlay built + canon-proven inert.** The ~36-config A/B campaign is **NOT yet run** — it is gated on three director decisions (§7). This document is the pre-registration required by CLAUDE.md #7 *before* any cell runs.
+**Status:** PROPOSE-FIRST. **Pre-registration + default-OFF overlay built + canon-proven inert.** The ~36-config A/B campaign is **NOT yet run** — it is gated on three director decisions (§7). This document is the pre-registration required by CLAUDE.md `[NN-MBL]` *before* any cell runs.
 **Builds on:** T-116 (HMM `risk_scalar` Path-A wire, merged `9ba28f8`). The overlay reuses the exact T-111/T-116 Path-A `target_notional`-multiplier shape.
 **Source spec:** `docs/Sessions/Other-dev-opinion/6-6-26_gaps.md` Q7 (ranked #1-priority experiment) + "SINGLE HIGHEST-EV EXPERIMENT" §.
 
@@ -75,7 +75,7 @@ Per the gaps-doc Q7 grid: **de-gross levels × k-day Δ lookback × 4 hysteresis
 
 - **H1:** A de-gross multiplier triggered by an upward transition in `p_combined` (with hysteresis) raises the full-26-yr Sharpe from 0.246 toward the bull-cell level AND reduces MaxDD by ≥25%, vs arm0, out-of-sample.
 - **H0:** The overlay does not improve deflated Sharpe vs the static book after accounting for the ~36-config trial cost.
-- **Recommend the overlay IFF ALL hold** (honest, CI-aware per CLAUDE.md #6):
+- **Recommend the overlay IFF ALL hold** (honest, CI-aware per CLAUDE.md `[NN-SHARPE-CI]`):
   1. **Block-bootstrap `ci_low > 0` on the DIFFERENCE in Sharpe** (best arm − arm0), not on each arm alone; AND
   2. **MaxDD reduction ≥ 25% on the 26-yr** window; AND
   3. **Holds across BOTH crisis and non-crisis sub-samples** (no single-event dependence — an overlay that "works" only because of 2008 is rejected).

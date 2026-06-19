@@ -1,6 +1,6 @@
 # Wider-Breadth Trend Sleeve — PRE-REGISTRATION (T-214, 2026-06-18)
 
-**Written BEFORE any backtest** (CLAUDE.md #7). Tests whether MORE
+**Written BEFORE any backtest** (CLAUDE.md `[NN-MBL]`). Tests whether MORE
 cross-asset breadth strengthens the positive-skew convexity that T-204 found
 appears only in the diversified sleeve (not SPY-long/flat alone). Reuses the
 merged `core/trend_overlay.py` (no rebuild). Every arm counts toward

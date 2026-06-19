@@ -10,7 +10,7 @@ Writes:
   docs/Audit/engine_b_vol_target_ewma_t055d_2026_05_22.md (audit doc)
 
 Bootstrap CI uses block-bootstrap on the per-(year, rep) Sharpes;
-per CLAUDE.md non-negotiable #6 (ci_low is what gates kill/promote
+per CLAUDE.md non-negotiable `[NN-SHARPE-CI]` (ci_low is what gates kill/promote
 decisions, never the point estimate).
 """
 from __future__ import annotations

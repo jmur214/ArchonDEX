@@ -88,7 +88,7 @@ The bought MF sleeve is a **recommend-to-paper candidate** iff:
 Plus the benchmark gate: **does base+MF-sleeve beat the robo** (60/40)
 on the same window where base-alone does/doesn't? Report explicitly.
 
-Per CLAUDE.md #6 the gate is ci_low. Per #9 verdicts are on the
+Per CLAUDE.md `[NN-SHARPE-CI]` the gate is ci_low. Per #9 verdicts are on the
 current substrate. The deep-window estimate is NOT gate-eligible
 (literature, not measurement) — it informs, it doesn't decide.
 
@@ -97,7 +97,7 @@ current substrate. The deep-window estimate is NOT gate-eligible
 **N_trials += 1** for the recent-window real-ETF allocation test (a new
 measurement of the bought-sleeve hypothesis). The deep-window
 literature citation is N += 0 (no backtest). Pre-registered before
-unblinding per CLAUDE.md #7.
+unblinding per CLAUDE.md `[NN-MBL]`.
 
 ---
 

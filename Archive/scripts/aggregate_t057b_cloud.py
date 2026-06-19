@@ -8,7 +8,7 @@ data/cloud_runs/t057b-confidence-gate-flip-verify_<launch_ts>.json
 - per-arm headline Sharpe with bootstrap CI
 - per-year Δ table (arm2_n3 vs arm0_off)
 - paired-Δ bootstrap CI on the mean Sharpe lift
-- FLIP / DEFER verdict per CLAUDE.md #6
+- FLIP / DEFER verdict per CLAUDE.md `[NN-SHARPE-CI]`
 
 Output:
   docs/Audit/confidence_gated_flag_flip_t057b_2026_05_24.json
@@ -180,7 +180,7 @@ def main() -> int:
     decisive_ci_low = ci_low_block
     if decisive_ci_low is not None and decisive_ci_low > 0:
         verdict = "FLIP"
-        verdict_reason = f"block-bootstrap ci_low(Δ Sharpe) = {decisive_ci_low:.4f} > 0 — clears CLAUDE.md #6"
+        verdict_reason = f"block-bootstrap ci_low(Δ Sharpe) = {decisive_ci_low:.4f} > 0 — clears CLAUDE.md `[NN-SHARPE-CI]`"
     elif ci_delta_iid['mean'] is not None:
         verdict = "DEFER"
         verdict_reason = (

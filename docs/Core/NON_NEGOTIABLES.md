@@ -20,7 +20,7 @@ bolded-rule order changes.
 
 ---
 
-## Archive, never delete (deny-list-backed)
+## `[NN-ARCHIVE]` Archive, never delete (deny-list-backed)
 
 **Rule:** Legacy code goes to `Archive/` or `docs/Archive/`. The deny list at
 the permission layer blocks `rm`, `git clean`, and `git reset --hard` for a
@@ -29,7 +29,7 @@ reason — if you think you need them, stop and ask.
 **Why hard:** Deny-list-backed at the permission layer. Data-integrity +
 irreversibility. Enforced by the permission layer, not by goodwill.
 
-## Engine boundaries are inviolable
+## `[NN-ENGINE-BOUNDARIES]` Engine boundaries are inviolable
 
 **Rule:** No engine does another's job. Before modifying engine logic, read the
 relevant charter in `docs/Core/engine_charters.md`. Risk logic does not belong
@@ -42,14 +42,23 @@ Engine B (Risk) ↔ Engine A (Alpha) cross-contamination is a correctness/safety
 failure that can silently corrupt risk sizing on real-money paths. Coupled with
 the Engine-B approval gate ("Autonomous improvement — propose-first list").
 
-## Never edit `cockpit/dashboard/` (deprecated)
+## `[NN-NO-GUESS-CLI]` Never guess CLI commands
+
+**Rule:** Consult `docs/Core/execution_manual.md`. If you use a new command, add
+it there in the same turn.
+
+**Why hard:** A guessed command can corrupt state, run the wrong substrate, or
+silently no-op a measurement. The execution manual is the single source of truth
+for how to invoke the system.
+
+## `[NN-NO-EDIT-DASHBOARD]` Never edit `cockpit/dashboard/` (deprecated)
 
 **Rule:** It is deprecated. Use `cockpit/dashboard_v2/` only.
 
 **Why hard:** Absolute "never" with no judgment call — a bright-line prohibition
 on a deprecated path.
 
-## Never manually edit `data/governor/edge_weights.json` or promote edges by hand
+## `[NN-NO-MANUAL-EDGES]` Never manually edit `data/governor/edge_weights.json` or promote edges by hand
 
 **Rule:** Engine F manages lifecycle autonomously. The discovery cycle
 (`--discover` flag) handles promotion.
@@ -59,7 +68,7 @@ autonomous lifecycle state and feed directly into capital allocation (sizing) �
 a money-path-adjacent silent regression. See memory: registry status-stomp bug
 (2026-04-25), production ensemble includes soft-paused edges at 0.25×.
 
-## `.env` is readable; never echo into chat / never commit derived literals
+## `[NN-ENV-READABLE]` `.env` is readable; never echo into chat / never commit derived literals
 
 **Rule:** Secrets intentionally live in `.env`. You may read it. Never echo its
 contents into chat output. Never commit literal values derived from it.
@@ -68,7 +77,7 @@ contents into chat output. Never commit literal values derived from it.
 a credential-leak / live-broker-key exposure event — direct money/safety
 regression. Bright-line, no judgment. Pairs with "Never commit secrets."
 
-## Historical audits are not current state
+## `[NN-AUDITS-NOT-CURRENT]` Historical audits are not current state
 
 **Rule:** Files in `docs/Archive/` are point-in-time snapshots superseded by the
 current docs — do not treat their findings as present-day truth. Files in
@@ -86,7 +95,30 @@ a finding tagged SUPERSEDED in `MEMORY.md` or `CURRENT_STATE.md`, or whose
 examples of this exact failure: T-087 reversal (a 5-yr false negative quoted as
 truth), the "0.539/phantom" first-pass error (JSON-key bug).
 
-## Sharpe headlines must report bootstrap CI; kill thresholds CI-aware
+## `[NN-SUPERSEDED]` Superseded findings are not current truth
+
+**Rule:** A finding tagged SUPERSEDED in `MEMORY.md` or `docs/State/CURRENT_STATE.md`,
+or whose matching `docs/State/TASK_LEDGER.md` row `status` has flipped (to
+`refuted`/`superseded`), is automatically no longer current truth — regardless of
+how confidently the original audit/measurement stated it. Do not quote it as
+present-day evidence; follow the supersession pointer to the current verdict.
+
+**Why hard:** Measurement-discipline + trust-integrity. Quoting a superseded
+verdict as live truth is the exact failure the doc system exists to prevent.
+
+## `[NN-PLAN-VS-STATE]` `forward_plan.md` vs `CURRENT_STATE.md` — which to edit when
+
+**Rule:** `forward_plan.md` is the verbose narrative strategy/plan ("why and where
+next"). `CURRENT_STATE.md` is the at-a-glance live-state dashboard ("what is true
+right now", with hard caps + the last-reconciled stamp the Stop hook checks). When
+the plan/direction changes, edit `forward_plan.md`; when measured or operational
+state changes, reconcile `CURRENT_STATE.md`. If they disagree, `CURRENT_STATE.md`
+is live truth.
+
+**Why hard:** Prevents the two current-truth surfaces from drifting — the
+single-canonical-surface discipline the AI-consumption doc overhaul targets.
+
+## `[NN-SHARPE-CI]` Sharpe headlines must report bootstrap CI; kill thresholds CI-aware
 
 **Rule:** Every measurement quoting a Sharpe (or Sortino, or any risk-adjusted
 metric) in an audit doc, session summary, or `health_check.md` entry must also
@@ -105,7 +137,7 @@ is not acceptable.
 goalpost-moving when noise straddles a threshold. Directly gates deploy/kill
 decisions that govern real-money exposure.
 
-## Backtest length must clear MBL given honest N
+## `[NN-MBL]` Backtest length must clear MBL given honest N
 
 **Rule:** Per Bailey-Borwein-López de Prado-Zhu (Notices AMS 2014): a backtest's
 window must satisfy `T_years ≥ 2 · ln(N_effective) / SR_target²` to have any
@@ -127,7 +159,7 @@ the substrate-re-verify rule below (which catches OFF-baseline change).
 **Why hard:** Measurement-discipline / determinism. A hard Gate-0 on what
 evidence can justify going live.
 
-## Floating-point std/var guards use tolerance, not exact equality
+## `[NN-FP-GUARDS]` Floating-point std/var guards use tolerance, not exact equality
 
 **Rule:** Pandas `Series.std()` on numerically-identical floats returns a
 tiny-but-nonzero value (~2e-19 for `pd.Series([0.001]*100)`), not exactly 0. A
@@ -145,7 +177,7 @@ latent bug, not just a style issue.
 **Why hard:** Determinism / numerical-correctness invariant in
 performance-metric code.
 
-## Substrate-conditional findings must be re-verified on the current canonical substrate before flag-flip recommendation
+## `[NN-SUBSTRATE-REVERIFY]` Substrate-conditional findings must be re-verified on the current canonical substrate before flag-flip recommendation
 
 **Rule:** A positive lift measured on one substrate cannot be assumed to hold on
 another, even when the substrate change is "just" extending historical depth.
@@ -177,7 +209,7 @@ T-057 closed negative on the 12-yr window (T-055h Δ -0.214; T-057/T-053b refute
 **Why hard:** Measurement-discipline non-negotiable. Directly gates production
 flag-flips that change real-money behavior.
 
-## Fail closed in the measurement path; never degrade to a plausible number
+## `[NN-FAIL-CLOSED]` Fail closed in the measurement path; never degrade to a plausible number
 
 **Rule:** Any code that produces a headline metric (Sharpe, Sortino, MDD, CAGR,
 trade count, ci_low) must HALT — raise or exit non-zero — when a load-bearing
@@ -199,7 +231,7 @@ nothing). A degraded measurement that does not announce itself is not a
 measurement; it is a wrong number that looks right. Full diagnosis +
 catalog: `docs/Audit/measurement_integrity_audit_2026_06_16.md`.
 
-## Every backtest emits and gates on an execution census
+## `[NN-CENSUS]` Every backtest emits and gates on an execution census
 
 **Rule:** Each canonical/measured run writes a `census` block to
 `performance_summary.json` with at minimum: `edges_blind` (active edges that

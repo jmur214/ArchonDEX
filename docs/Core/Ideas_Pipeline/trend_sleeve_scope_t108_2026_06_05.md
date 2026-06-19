@@ -30,7 +30,7 @@ So this task is NOT "wire the existing sleeve." It is: **does cross-asset manage
 **Q2 — Standalone skew/crisis test (the make-or-break).** Run `run_diversified_futures_trend.py` (or a corrected copy) on the basket over the deepest clean window. The ONLY questions that matter:
   - Is realized-return **skewness POSITIVE** (vs equity-trend's -0.133)? This is the structural property; if skew is still negative, managed-futures-on-ETFs doesn't deliver the cure either and the task ends NEGATIVE (a valuable result).
   - Does it make money (or lose much less) in **2008 / COVID / 2022** — the crisis-alpha claim? Report per-crisis return.
-  - Standalone Sharpe/Sortino/MDD with block-bootstrap CI (CLAUDE.md #6).
+  - Standalone Sharpe/Sortino/MDD with block-bootstrap CI (CLAUDE.md `[NN-SHARPE-CI]`).
 
 **Q3 — Correlation to the base.** Compute the diversified-trend sleeve's return correlation to the existing 6-edge equity book. The diversification value is the whole point — if it's highly correlated to the base, it adds little even if standalone-decent.
 

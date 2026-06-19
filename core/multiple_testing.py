@@ -19,7 +19,7 @@ Contents:
 
 Both are deterministic given `seed` (CLAUDE.md determinism discipline) and use
 block bootstraps (iid resampling underestimates CI width on serially-
-correlated financial series — CLAUDE.md #6).
+correlated financial series — CLAUDE.md `[NN-SHARPE-CI]`).
 """
 from __future__ import annotations
 

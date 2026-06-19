@@ -198,7 +198,7 @@ applies a 30% ceiling independently.
    three additional FP-fixes (xsec_momentum, composer HRP,
    moonshot sleeve) appear sufficient.
 
-**MBL Gate-0 check (CLAUDE.md #7):** at N_trials ≈ 269 (post-T-088:
+**MBL Gate-0 check (CLAUDE.md `[NN-MBL]`):** at N_trials ≈ 269 (post-T-088:
 T-087 added 1 dispatch + per-method-and-per-stress-event signal-
 validation arms ≈ 2; T-055h added 4; T-088 adds 3 backtest cells), MBL
 required at SR=1.0 is `2·ln(269)/1² = 11.19 yr`. The 12-yr window

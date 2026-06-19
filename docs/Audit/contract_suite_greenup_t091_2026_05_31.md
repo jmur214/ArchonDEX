@@ -58,7 +58,7 @@ updated to include all three; `test_layer2a` source-scrape now matches.
 |---|---|---|
 | Total Trades | 13 | T-088 fixed producer (added `"Total Trades"` to `_compute_summary`) |
 | Sortino Ratio | 13 + 1 legacy fallback | **Producer-add + consumer-rename**. 12 harnesses renamed `summary.get("Sortino Ratio")` → `summary.get("Sortino")`. (13th was `run_vol_target_arms_ewma_t055d.py` line 162 — also renamed.) `run_registry.py:124` keeps its T-088 backward-compat fallback for historical JSONs — allowlisted with site-specific comment in `KNOWN_CONSUMER_ALIAS_KEYS`. |
-| PSR | 1 (run_registry.py:117) | **Producer-add.** Pure-additive emit in `_compute_summary`. `_engine_metrics()` already computes via `MetricsEngine.calculate_all()`; just surface it. Per CLAUDE.md #6, PSR is a headline statistic — belongs in the summary. |
+| PSR | 1 (run_registry.py:117) | **Producer-add.** Pure-additive emit in `_compute_summary`. `_engine_metrics()` already computes via `MetricsEngine.calculate_all()`; just surface it. Per CLAUDE.md `[NN-SHARPE-CI]`, PSR is a headline statistic — belongs in the summary. |
 | Sortino | 1 (run_registry.py:122) | Same fix as Sortino Ratio above — now emitted by producer |
 | Sharpe | 2 (run_vol_target_arms.py:77, run_deterministic.py:167) | **1 archived, 1 fixed.** `run_vol_target_arms.py` → archived (see below). `run_deterministic.py:167` rewrote `stats.get("sharpe") or stats.get("Sharpe")` to canonical `stats.get("Sharpe Ratio")`. |
 | Max Drawdown | 1 (walk_forward_phase210.py:94) | **Fixed.** Dropped defensive `stats.get("Max Drawdown")` fallback; canonical key is reliable. |

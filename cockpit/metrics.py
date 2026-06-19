@@ -401,7 +401,7 @@ class PerformanceMetrics:
             "Total Trades": n_trades,
             # T-091: PSR (Probabilistic Sharpe Ratio, Bailey-Lopez de Prado
             # 2012) is computed in _engine_metrics() but was not surfaced
-            # in the summary path. Per CLAUDE.md #6 PSR is a headline
+            # in the summary path. Per CLAUDE.md `[NN-SHARPE-CI]` PSR is a headline
             # statistic — run_registry.py:117 was reading it via
             # _safe_float(perf, "PSR") and getting NULL silently.
             "PSR": None if psr_raw is None or pd.isna(psr_raw) else round(float(psr_raw), 4),

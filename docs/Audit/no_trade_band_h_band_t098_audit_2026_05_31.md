@@ -9,7 +9,7 @@
 
 The dispatch predicted a **Pareto win** across Sharpe, turnover, and skew at ±20-25% bands: "turnover −60-70%, skew → more positive, Sharpe roughly flat-to-slightly-up." The 12-yr substrate-honest measurement does NOT replicate that prediction:
 
-- **Sharpe: statistically indistinguishable.** Δ +0.008 (arm1_b20) / +0.018 (arm2_b25) with block-bootstrap CIs that cross zero (ci_low −0.32 / −0.21). Per CLAUDE.md NON_NEGOTIABLE #6 (kill-thresholds compare against ci_low, not point), neither arm clears.
+- **Sharpe: statistically indistinguishable.** Δ +0.008 (arm1_b20) / +0.018 (arm2_b25) with block-bootstrap CIs that cross zero (ci_low −0.32 / −0.21). Per CLAUDE.md NON_NEGOTIABLE `[NN-SHARPE-CI]` (kill-thresholds compare against ci_low, not point), neither arm clears.
 - **Turnover: barely moves.** Δ −0.44 / +1.11 round-trip units of equity — **roughly two orders of magnitude smaller than the −60-70% prediction**.
 - **Skew: mixed.** arm1 +0.08, arm2 **−0.22 (more negative)**. The "structural skew fix" claim does not survive the 12-yr window — arm2_b25 actually makes skew worse on the cross-year mean.
 - **Trade COUNT drops 17-19%** while turnover (dollar-volume) is flat. Mechanism: the proportional band suppresses many small-Δw rebalances (which contribute little turnover) but the large daily vol-target rebalances pass through (which dominate dollar turnover).
@@ -110,7 +110,7 @@ The arm0_off 12-yr Sharpe of **1.314 [1.029, 1.654]** is materially higher than 
 | arm1_b20 | **+0.008** | **-0.316** | +0.433 | -0.444 | +0.078 | -0.233 | +0.376 |
 | arm2_b25 | **+0.018** | **-0.211** | +0.207 | +1.114 | -0.221 | -0.092 | +0.388 |
 
-Block-bootstrap CIs (Künsch 1989, circular, auto-block-length via Politis-White): both arms' Δ Sharpe ci_low is NEGATIVE — neither arm clears the gate at ci_low > 0 (CLAUDE.md NON_NEGOTIABLE #6). Block length resolved to 2 for both deltas (small n=12 + low serial correlation in yearly deltas).
+Block-bootstrap CIs (Künsch 1989, circular, auto-block-length via Politis-White): both arms' Δ Sharpe ci_low is NEGATIVE — neither arm clears the gate at ci_low > 0 (CLAUDE.md NON_NEGOTIABLE `[NN-SHARPE-CI]`). Block length resolved to 2 for both deltas (small n=12 + low serial correlation in yearly deltas).
 
 ### Mechanism diagnosis — why the band doesn't deliver
 
@@ -135,7 +135,7 @@ Per-year Sharpes show high cross-year variance (2013 arm0=0.62 vs arm1=2.14; 201
 | 1 | no-trade band added in Engine C, config-gated, default OFF | DONE — `PortfolioPolicyConfig.no_trade_band_enabled` default False; `compute_target_allocations` gates the entire block on it |
 | 2 | canon-md5 OFF == pre-change baseline (bitwise); canon-md5 ON differs | DONE — `0145c03a6496…` matched on OFF baseline + 3 default-JSON post-code runs; `09c3769ac9d8…` and `197d68bb4860…` distinct on ON arms; every year's 3 arms produce 3 distinct canons in the full 36-cell campaign |
 | 3 | determinism `--runs 3` PASS on default path | DONE — 3 runs of 2022 default, all canon `0145c03a6496…` |
-| 4 | 12-yr A/B with Δ Sharpe + ci_low, Δ turnover, Δ skew, Δ MaxDD, Δ CAGR per arm | DONE — block-bootstrap CI per CLAUDE.md NON_NEGOTIABLE #6; per-arm + paired-year-Δ tables above |
+| 4 | 12-yr A/B with Δ Sharpe + ci_low, Δ turnover, Δ skew, Δ MaxDD, Δ CAGR per arm | DONE — block-bootstrap CI per CLAUDE.md NON_NEGOTIABLE `[NN-SHARPE-CI]`; per-arm + paired-year-Δ tables above |
 | 5 | audit doc | DONE (this) + harness-emitted `no_trade_band_h_band_t098_2026_05_31.md` (per-cell + per-arm machine-emitted) + `.json` (raw payload) |
 | 6 | TASK_LEDGER row | DONE — T-098 row flipped `in-flight` → `refuted` with one-line outcome |
 | 7 | Branch pushed; NOT merged | DONE — pushed; awaiting director merge |

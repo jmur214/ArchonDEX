@@ -6,10 +6,10 @@
 **User approval status:** APPROVED for this dispatch (inbox 2026-05-23).
 **Base:** T-055d merged on origin/main at `2afafe0`.
 
-## Verdict — DEFENSIBLE per CLAUDE.md #6 ✅
+## Verdict — DEFENSIBLE per CLAUDE.md `[NN-SHARPE-CI]` ✅
 
 **ci_low(Δ Sharpe) = +0.047 clears zero.** First T-055-series result
-where the strict CLAUDE.md #6 gate is met. **T-055b flag-flip is now
+where the strict CLAUDE.md `[NN-SHARPE-CI]` gate is met. **T-055b flag-flip is now
 defensible** (NOT autonomously recommended — still requires explicit
 user approval per Engine B propose-first).
 
@@ -35,7 +35,7 @@ on our 5-year × 3-rep substrate.
 | 5 | Audit doc with bootstrap CI per cell | **PASS** (this doc + `.json`) |
 | 6 | Per-year breakdown shows 2024 rescue preserved | **PASS** (+1.564 vs T-055d +1.622) |
 | 7 | Per-year breakdown shows 2025 trap-elimination preserved | **PASS** (-0.198 vs T-055d -0.128; both far from rolling -0.942) |
-| 8 | Bootstrap CI per CLAUDE.md #6; ci_low(Δ) reported | **PASS** — and CLEARS 0 |
+| 8 | Bootstrap CI per CLAUDE.md `[NN-SHARPE-CI]`; ci_low(Δ) reported | **PASS** — and CLEARS 0 |
 | 9 | Determinism: 10/10 cells canon-stable | **PASS** |
 | 10 | 8-10 tests covering regime-multiplier dispatch + passthrough + default | **PASS** — 10 shipped |
 
@@ -207,12 +207,12 @@ and changes effective_target_vol per the regime_summary value.
 - [x] Patched env-resolved config (`risk_settings.prod.json`) per
   T-055c lesson. Smoke verified canon md5 differs from T-055d arm1
   EWMA (`47b92eda` → `3845549f` in 2021) BEFORE full grid.
-- [x] Per CLAUDE.md #6: bootstrap CI on every Sharpe headline. AND
+- [x] Per CLAUDE.md `[NN-SHARPE-CI]`: bootstrap CI on every Sharpe headline. AND
   ci_low(Δ) is reported as the defensibility metric, NOT point.
 
 ## T-055b flag-flip recommendation
 
-Per CLAUDE.md #6 strict reading: **defensible.** ci_low(Δ Sharpe) =
+Per CLAUDE.md `[NN-SHARPE-CI]` strict reading: **defensible.** ci_low(Δ Sharpe) =
 +0.047 > 0 with paired-sample bootstrap on 15 obs per arm. All three
 headline metrics (Sharpe, CAGR, MDD) clear the same gate. MDD is
 particularly clean — improves in every single year.
@@ -222,7 +222,7 @@ cannot autonomously recommend T-055b. The evidence above is the
 director's input for the user-decision gate:
 
 - **Pro T-055b**: First T-055-series result that clears strict
-  CLAUDE.md #6. The dispatch's hypothesis "if T-055e clears
+  CLAUDE.md `[NN-SHARPE-CI]`. The dispatch's hypothesis "if T-055e clears
   ci_low > 0, T-055b becomes defensible" is empirically met.
 - **Con T-055b**: 2022 -0.997 Sharpe is the worst per-year loss in
   the entire series. If 2026 turns bear-like, the policy will

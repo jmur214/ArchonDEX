@@ -123,7 +123,7 @@ The canon delta proves the patch propagates: trades.csv is different when the co
 1. **Apply the 1-line `advisory.py` patch** above (Engine E autonomous from a scope perspective, but director-gated because it activates a dormant risk control).
 2. **Optionally run an A/B campaign on the 12-yr substrate** before flipping in prod, since the sector-cap tightening could:
    - reduce drawdown in high-correlation periods (intended effect — concentration risk control kicks in when sectors move together)
-   - reduce Sharpe in benign-correlation high-Sharpe years if the tighter cap cuts off winners (per CLAUDE.md NON_NEGOTIABLE #6 — measure with bootstrap CI, not point).
+   - reduce Sharpe in benign-correlation high-Sharpe years if the tighter cap cuts off winners (per CLAUDE.md NON_NEGOTIABLE `[NN-SHARPE-CI]` — measure with bootstrap CI, not point).
 3. **Remove `"correlation_regime"` from `KNOWN_DEAD_ADVISORY_READS`** in `tests/test_contracts.py` once the producer-side write lands. The `test_layer3b_advisory_reader_keys_subset_of_writer_keys_strict` xfail test will then XPASS strict — promote it to the enforcement test alongside the existing `test_layer3b_no_new_dead_advisory_consumers`.
 4. **Leave the Engine B reader code unchanged** — no Engine B edit needed; the reader already does the right thing; it just hasn't been receiving the right input.
 

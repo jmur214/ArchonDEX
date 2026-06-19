@@ -8,12 +8,12 @@
 ## Verdict — MARGINAL but materially better than rolling
 
 EWMA improves on EVERY metric vs T-055c rolling, including a **tighter
-ci_low (-0.046 vs -0.140)** that nearly clears the CLAUDE.md #6
+ci_low (-0.046 vs -0.140)** that nearly clears the CLAUDE.md `[NN-SHARPE-CI]`
 zero-threshold. The 2025 vol-shock trap that drove T-055c's
 catastrophic outlier is **fixed** (-0.942 → -0.128). The 2024
 fragility rescue is **preserved + amplified** (+1.303 → +1.622).
 
-**Strict CLAUDE.md #6 reading**: ci_low(Δ Sharpe) = -0.046 still
+**Strict CLAUDE.md `[NN-SHARPE-CI]` reading**: ci_low(Δ Sharpe) = -0.046 still
 crosses zero → still MARGINAL → T-055b flag-flip still NOT
 autonomously recommended.
 
@@ -32,7 +32,7 @@ to defensible than after T-055c.
 | 4 | 30-backtest A/B re-run (arm0 OFF + arm1 EWMA) | **PASS** (arm0 reused from T-055c; arm1 EWMA × 15 fresh) |
 | 5 | Per-cell determinism (3-rep canon md5 stable) | **PASS** — 10/10 cells canon_set_size=1 |
 | 6 | Δ point + Δ ci_low reported | **PASS** |
-| 7 | Bootstrap CI per CLAUDE.md #6 | **PASS** |
+| 7 | Bootstrap CI per CLAUDE.md `[NN-SHARPE-CI]` | **PASS** |
 
 ## Headline (vs T-055c rolling for direct comparison)
 
@@ -150,7 +150,7 @@ is materially affecting orders via the dispatcher fix.
   preserved; the prod-config patch reverts in `finally`).
 - [x] Engine A / C / D / E / F untouched.
 - [x] No look-ahead — verified by `test_ewma_no_lookahead`.
-- [x] Per CLAUDE.md #6: bootstrap CI on every Sharpe headline.
+- [x] Per CLAUDE.md `[NN-SHARPE-CI]`: bootstrap CI on every Sharpe headline.
 - [x] Patched the env-resolved file (`risk_settings.prod.json`) per
   the T-055c lesson; smoke verified canon differs before launching
   the full grid.
@@ -180,11 +180,11 @@ Per-arm raw JSON gitignored.
 
 ## T-055b flag-flip recommendation
 
-**Closer to defensible, but per strict CLAUDE.md #6 ci_low still < 0.**
+**Closer to defensible, but per strict CLAUDE.md `[NN-SHARPE-CI]` ci_low still < 0.**
 
 Path forward (director's call):
 
-1. **Strict CLAUDE.md #6**: hold T-055b until ci_low > 0. Try T-055e
+1. **Strict CLAUDE.md `[NN-SHARPE-CI]`**: hold T-055b until ci_low > 0. Try T-055e
    (regime-conditional target) or T-055f (VVIX-z kill switch) on top
    of EWMA. ci_low = -0.046 is so close to zero that one more layer
    may push it positive.

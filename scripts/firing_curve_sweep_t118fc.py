@@ -7,7 +7,7 @@ QUESTION (firing only): does a trigger δ exist that ARMS the HMM
 transition overlay on the 2022 known-transition window, and in what
 range, for each model {crisis, V1}?
 
-FIRING-ONLY INTEGRITY (CLAUDE.md #7): this script computes NO performance
+FIRING-ONLY INTEGRITY (CLAUDE.md `[NN-MBL]`): this script computes NO performance
 metric. It captures the per-bar CAUSAL combined posterior
 (p_crisis + p_stressed, from predict_proba_at / 60-bar — the production
 path) and characterizes the INSTRUMENT: at which δ does the Δ-trigger

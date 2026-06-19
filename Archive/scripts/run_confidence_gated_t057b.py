@@ -25,7 +25,7 @@ config lesson.
 Output:
   data/measurements/confidence_gated_t057b_2026_05_23/results.json
 
-Verdict gate per CLAUDE.md non-negotiable #6:
+Verdict gate per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`:
   * FLIP if ci_low(Δ Sharpe arm2_n3 vs arm0_off) > 0
   * DEFER if ci_low(Δ Sharpe) <= 0 or collapse vs T-057
 

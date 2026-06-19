@@ -87,7 +87,7 @@ as-of rule (not hindsight-curated).
   picks, the required SR to clear DSR is absurd and the window is far too
   short regardless. **A narrative sleeve cannot clear DSR/MBL on its clean-
   OOS sample — full stop.**
-- This is not pessimism; it's the same honest-N discipline (CLAUDE.md #7)
+- This is not pessimism; it's the same honest-N discipline (CLAUDE.md `[NN-MBL]`)
   applied. Pretending a 20-pick OOS Sharpe is "validated" would be the
   exact goalpost-moving the discipline exists to prevent.
 

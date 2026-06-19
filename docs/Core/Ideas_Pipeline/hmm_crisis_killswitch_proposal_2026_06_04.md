@@ -66,8 +66,8 @@ crisis_killswitch_n_off: int = 5              # ... for n_off consecutive bars
 
 ### Phase 2 — A/B validation (gated on T-099)
 - **Arms:** off / floor-0.25 / floor-0.50 / floor-0.0 (the hard-kill, for reference) / tiered-3-state (100/50/20 on benign/stressed/crisis).
-- **Windows:** 16-yr AND 26-yr (the crisis-bearing one is the whole point), block-bootstrap CI per CLAUDE.md #6.
-- **Calibrate-then-verify (CLAUDE.md #9):** fit θ/N/M on one window, verify OOS on the other; do NOT report the fitted window as evidence.
+- **Windows:** 16-yr AND 26-yr (the crisis-bearing one is the whole point), block-bootstrap CI per CLAUDE.md `[NN-SHARPE-CI]`.
+- **Calibrate-then-verify (CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`):** fit θ/N/M on one window, verify OOS on the other; do NOT report the fitted window as evidence.
 - **Decision gate:** adopt only if **MaxDD reduction ≥ 25% on the 26-yr window AND Sharpe ci_low does not DROP** (we'll accept flat Sharpe for big MDD cuts; we will NOT accept a Sharpe-killing overlay). Pre-register this before running.
 
 ---

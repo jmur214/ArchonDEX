@@ -86,7 +86,7 @@ overfit.** Controls:
 2. **Count EVERY branch toward N_trials.** Any variant ever evaluated —
    including a later re-spec — increments honest-N and re-inflates the
    DSR bar. The pre-registration records `N_trials_consumed` before the
-   run (CLAUDE.md #7).
+   run (CLAUDE.md `[NN-MBL]`).
 3. **OOS-only / walk-forward.** The structure is fixed on an in-sample
    blind; judged only on out-of-sample / forward data. No in-sample
    Sharpe is ever quoted as evidence.

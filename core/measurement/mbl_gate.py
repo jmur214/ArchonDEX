@@ -2,7 +2,7 @@
 ==============================
 T-083: MBL Gate-0 — Minimum Backtest Length check.
 
-Per CLAUDE.md non-negotiable #7 + the 2026-05-16 fourth research dive:
+Per CLAUDE.md non-negotiable `[NN-MBL]` + the 2026-05-16 fourth research dive:
 
     T_years >= 2 * ln(N_effective) / SR_target^2
 
@@ -132,7 +132,7 @@ def check_mbl_gate(
             f"FAIL: T_years={t_years:.2f} < MBL_min={mbl_min:.2f} "
             f"(N_effective={n_effective}, SR_target={sr_target}, short by {-margin:.2f}yr). "
             f"Backtest is statistically under-powered to clear DSR — "
-            f"per CLAUDE.md #7, no deployment decision is valid until the "
+            f"per CLAUDE.md `[NN-MBL]`, no deployment decision is valid until the "
             f"window extends or N_effective decreases."
         )
     return {

@@ -85,7 +85,7 @@ explored over generations. The fix makes composite/foundry genomes SURVIVABLE fo
 the first time; it does not instantly make the population foundry-heavy.
 
 ## Phase 0b — PRE-REGISTRATION (written before any gate result)
-Per CLAUDE.md #7. The canonical run is the multi-generation gated cycle on B's
+Per CLAUDE.md `[NN-MBL]`. The canonical run is the multi-generation gated cycle on B's
 T-180 panel-baked (simfin-live) image (B's coordination note: "share the image
 tag so D doesn't re-run blind"). Locally simfin IS present (T-175,
 `fundamentals_simfin.parquet` 9.9 MB) so a local cycle is not simfin-blind, but

@@ -21,7 +21,7 @@ outcome: T-057 lift REFUTED on MBL-clearing window; multi-year harness shipped +
 | Sharpe ci_high | +1.392 | +1.210 | +0.429 |
 | p(Δ > 0) | — | — | **32.3%** |
 
-Block-bootstrap (Politis-White block=8, n_iter=2000, seed=0) on 3017 aligned daily returns. The confidence gate **does not deliver a lift on the substrate-honest 11.5+ yr window**. ci on Δ straddles zero with a negative point estimate — fails CLAUDE.md #6 by both the strict ci_low gate AND the point estimate's sign.
+Block-bootstrap (Politis-White block=8, n_iter=2000, seed=0) on 3017 aligned daily returns. The confidence gate **does not deliver a lift on the substrate-honest 11.5+ yr window**. ci on Δ straddles zero with a negative point estimate — fails CLAUDE.md `[NN-SHARPE-CI]` by both the strict ci_low gate AND the point estimate's sign.
 
 The T-057 +0.793 Sharpe lift on the 2021-2025 5-yr window was the **floor-raiser artifact** B's T-057b analysis flagged: that window has small N_obs by MBL standards, and the 2024 fragility outlier dominated the Δ. On 12 yr of daily returns with proper block-bootstrap, the lift dissolves.
 
@@ -98,7 +98,7 @@ Each arm's 5 reps produced **byte-identical** trade logs (one canon_md5 per arm)
 
 ### Statistical inference — block-bootstrap on daily returns
 
-Because reps are identical, rep-resampling is degenerate. Proper inference uses the 3,017-day return series block-bootstrap per CLAUDE.md #6 (block-bootstrap on daily returns is the correct method when reps are deterministic).
+Because reps are identical, rep-resampling is degenerate. Proper inference uses the 3,017-day return series block-bootstrap per CLAUDE.md `[NN-SHARPE-CI]` (block-bootstrap on daily returns is the correct method when reps are deterministic).
 
 - **Aligned window**: 2014-01-03 → 2025-12-31 (3,017 trading days)
 - **Block length**: 8 days (Politis-White auto)
@@ -112,9 +112,9 @@ Because reps are identical, rep-resampling is degenerate. Proper inference uses 
 | ci_high (97.5%) | +1.392 | +1.210 | +0.429 |
 | p(Δ > 0) | — | — | **32.3%** |
 
-**Δ Sharpe's bootstrap CI straddles zero**, point is negative, p(Δ>0) below 50% by ~18pp. **Fails CLAUDE.md #6** under any reading: strict ci_low > 0 gate (no — ci_low = -0.696), point > 0 (no — -0.128), one-sided p>0 > 95% (no — 32.3%).
+**Δ Sharpe's bootstrap CI straddles zero**, point is negative, p(Δ>0) below 50% by ~18pp. **Fails CLAUDE.md `[NN-SHARPE-CI]`** under any reading: strict ci_low > 0 gate (no — ci_low = -0.696), point > 0 (no — -0.128), one-sided p>0 > 95% (no — 32.3%).
 
-### MBL Gate-0 (CLAUDE.md #7) — PASSES
+### MBL Gate-0 (CLAUDE.md `[NN-MBL]`) — PASSES
 
 - N_trials accumulated (post-T-057b + T-055g v2): **260** (estimate)
 - SR_target: 1.0
@@ -133,7 +133,7 @@ Because reps are identical, rep-resampling is degenerate. Proper inference uses 
    - T-055f VVIX-z kill switch — 12-yr provides the 2025 stress sample the policy needs to be tested against
    - Any future T-* with a Sharpe headline that the 5-yr-window era would have measured suspectly
 
-4. **The "load-bearing 2024 fragility" framing has substrate-conditional caveats.** On the extended Stooq+Alpaca substrate, 12-yr arm0 baseline = 0.81 Sharpe — material upside vs the 5-yr 0.270/0.598 baseline. Per CLAUDE.md #9, prior bear-year audits remain in the "must re-verify" queue.
+4. **The "load-bearing 2024 fragility" framing has substrate-conditional caveats.** On the extended Stooq+Alpaca substrate, 12-yr arm0 baseline = 0.81 Sharpe — material upside vs the 5-yr 0.270/0.598 baseline. Per CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`, prior bear-year audits remain in the "must re-verify" queue.
 
 ## Spec acceptance check
 

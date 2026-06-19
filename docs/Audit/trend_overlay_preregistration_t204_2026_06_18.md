@@ -1,6 +1,6 @@
 # Trend-Overlay — PRE-REGISTRATION (T-204, 2026-06-18)
 
-**Written BEFORE any backtest** (per CLAUDE.md #7 + the task). Every arm
+**Written BEFORE any backtest** (per CLAUDE.md `[NN-MBL]` + the task). Every arm
 below counts toward `N_trials`. No post-hoc grid changes, no cherry-pick;
 the verdict is read against the rules fixed here.
 

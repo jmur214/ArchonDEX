@@ -8,7 +8,7 @@ Reads:
 Writes:
   docs/Audit/confidence_gated_flag_flip_t057b_2026_05_23.json
 
-Verdict gate (per CLAUDE.md non-negotiable #6):
+Verdict gate (per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`):
   * FLIP if ci_low(Δ Sharpe arm2_n3 vs arm0_off) > 0
   * DEFER if ci_low(Δ Sharpe) ≤ 0
 """
@@ -158,12 +158,12 @@ def main() -> int:
     if ci_low_delta is not None and ci_low_delta > 0:
         verdict = "FLIP"
         verdict_reason = (
-            f"ci_low(Δ Sharpe) = {ci_low_delta:.4f} > 0 — clears CLAUDE.md #6 strict gate"
+            f"ci_low(Δ Sharpe) = {ci_low_delta:.4f} > 0 — clears CLAUDE.md `[NN-SHARPE-CI]` strict gate"
         )
     elif delta_point is not None:
         verdict = "DEFER"
         verdict_reason = (
-            f"ci_low(Δ Sharpe) = {ci_low_delta} ≤ 0 — does not clear CLAUDE.md #6"
+            f"ci_low(Δ Sharpe) = {ci_low_delta} ≤ 0 — does not clear CLAUDE.md `[NN-SHARPE-CI]`"
         )
     else:
         verdict = "INCOMPLETE"

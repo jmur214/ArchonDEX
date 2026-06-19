@@ -11,7 +11,7 @@ benchmark proxy**, over any return series (a paper window OR a backtest).
 Data-processing only — NO UI, NO real-money path. The 20% DBMF is a
 SIMULATED hold (DBMF daily returns from the STOOQ cache), never
 machine-traded. Reuses MetricsEngine (Sharpe + block-bootstrap CI per
-CLAUDE.md #6, MaxDD, CAGR) — the project measurement standard.
+CLAUDE.md `[NN-SHARPE-CI]`, MaxDD, CAGR) — the project measurement standard.
 
 PRE-REGISTERED ROBO PROXY (honest about what it does/doesn't capture)
 --------------------------------------------------------------------

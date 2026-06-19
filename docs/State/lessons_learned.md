@@ -842,7 +842,7 @@ use), not a cost windfall.
 **Lesson:** before adopting an external recommendation, re-price it
 against the CURRENT cost model on the actual book — "vs naive baseline"
 savings claims silently assume the naive baseline. Same family as
-re-verify-on-current-substrate (CLAUDE.md #9), applied to cost
+re-verify-on-current-substrate (CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`), applied to cost
 conventions instead of alpha.
 
 **T-146 addendum (same day):** the ON-path smoke caught the

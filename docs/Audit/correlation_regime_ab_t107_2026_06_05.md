@@ -171,7 +171,7 @@ not autonomous.
 
 **What a cloud A/B would add (forward-look):**
 - Block-bootstrap ci_low on the 16-yr / 26-yr horizon → formal
-  CLAUDE.md #6 gate verdict for the Sharpe metric.
+  CLAUDE.md `[NN-SHARPE-CI]` gate verdict for the Sharpe metric.
 - Per-arm canon-md5 stability across reps (T-099 floor).
 - 2008 GFC / dotcom-era performance (arm0_off had a deep window
   at -59.3% MDD per T-092 26-yr; whether arm1 or arm2 reduces

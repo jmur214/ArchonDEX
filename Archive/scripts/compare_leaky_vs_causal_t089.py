@@ -4,7 +4,7 @@ Computes BOTH leaky (predict_proba_sequence, forward-backward smoothed)
 AND causal (per-bar growing prefix, T-087 pattern) HMM posteriors over
 the same SPY panel/window, then computes AUC of p_crisis vs forward
 20-day drawdown for each path. Reports the inflation delta and a
-bootstrap CI on each AUC per CLAUDE.md non-negotiable #6.
+bootstrap CI on each AUC per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`.
 
 Output: docs/Audit/regime_validator_causal_fix_t089_2026_05_31.json
 """

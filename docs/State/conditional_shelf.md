@@ -43,7 +43,7 @@ paraphrase from memory.
 
 **RE-TEST (when a switch validates).** A shelf entry is re-tested only via a
 **fresh pre-registration** (hypothesis + threshold + N_trials consumed,
-written before the run, per CLAUDE.md #7). The conditional re-test is a NEW
+written before the run, per CLAUDE.md `[NN-MBL]`). The conditional re-test is a NEW
 measurement and **consumes honest-N** — the shelf does not grant a free pass.
 The re-test question is narrower than the original: not "does X lift
 unconditionally" but "does X lift WHEN the validated switch says regime R,"

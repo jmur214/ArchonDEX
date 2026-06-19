@@ -4,7 +4,7 @@ title: Re-price T-135's LPS overnight harvest under the SHIPPED auction-fill mod
 date: 2026-06-11
 scope: pure analysis on existing artifacts — no engine code, no flags, LOCAL only, zero behavior change
 status: CURRENT (pre-registration committed first — see git history; results appended after)
-outcome: "**UNHARVESTABLE VERDICT SURVIVES — in every account context, under both borrow arms.** But the margin story transforms: legacy 5bp/side said cost-dead 4-5× (net −36.8%/yr); the shipped auction model says net +1.68%/yr POINT-POSITIVE (Roth, 0.30% borrow) with ci [−2.01, +5.94] — Sharpe 0.09, ci_low < 0 → fails CLAUDE.md #6 decisively. Taxable-IL +1.09%/yr, same negative ci_low. The false-negative channel is now closed under the CORRECT cost model, not the wrong one: the overnight α is real (+13.6%/yr gross, ci_low +9.9) but the harvest consumes 12 of its 13.6 points in auction safety + fees + borrow, leaving a remainder indistinguishable from zero. N_trials += 0 per pre-registered policy. Fidelity gate PASSED (rebuilt panel reproduces artifact to 1e-6)."
+outcome: "**UNHARVESTABLE VERDICT SURVIVES — in every account context, under both borrow arms.** But the margin story transforms: legacy 5bp/side said cost-dead 4-5× (net −36.8%/yr); the shipped auction model says net +1.68%/yr POINT-POSITIVE (Roth, 0.30% borrow) with ci [−2.01, +5.94] — Sharpe 0.09, ci_low < 0 → fails CLAUDE.md `[NN-SHARPE-CI]` decisively. Taxable-IL +1.09%/yr, same negative ci_low. The false-negative channel is now closed under the CORRECT cost model, not the wrong one: the overnight α is real (+13.6%/yr gross, ci_low +9.9) but the harvest consumes 12 of its 13.6 points in auction safety + fees + borrow, leaving a remainder indistinguishable from zero. N_trials += 0 per pre-registered policy. Fidelity gate PASSED (rebuilt panel reproduces artifact to 1e-6)."
 ---
 
 # T-157 — LPS Overnight Harvest, Re-Priced Under Auction Fills
@@ -107,7 +107,7 @@ deterministic, factor-orthogonal).
 
 **Harvestable iff net annualized ci_low > 0 in at least one account
 context** (Roth pre-tax; taxable after-tax). Point-positive with
-ci_low ≤ 0 is NOT harvestable (CLAUDE.md #6 — ci_low, not point).
+ci_low ≤ 0 is NOT harvestable (CLAUDE.md `[NN-SHARPE-CI]` — ci_low, not point).
 
 ### 1.8 N-trials policy (stated before unblinding)
 

@@ -1,7 +1,7 @@
 # T-172 PRE-REGISTRATION — Regime-detector OOS generalization (leave-one-crisis-out)
 
 **Status:** LOCKED 2026-06-16, committed BEFORE running the leave-one-
-crisis-out tests. Per CLAUDE.md #7 (pre-register hypothesis + threshold
+crisis-out tests. Per CLAUDE.md `[NN-MBL]` (pre-register hypothesis + threshold
 + N before running). The whole point is OOS generalization — no
 in-sample-era victory laps.
 

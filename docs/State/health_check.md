@@ -52,7 +52,7 @@ then LOW. Within each severity, list newest at the top.
 - Status: not started
 - Description: `RegimePerformanceTracker.get_learned_affinity()` (regime_tracker.py:180) produces the `advisory["learned_edge_affinity"]` key that `engine_a_alpha/signal_processor.py:563` consumes (0.3-1.5x per-category multiplier on edge norms). The ONLY caller in the repo is `backtester/backtest_controller.py:346-348`, gated behind `regime_conditional_enabled`. In `config/governor_settings.json:13` that flag is `false`. So in production the multiplier is never injected, the consumer always sees `{}`, and the whole regime-conditional-weight chain (`_rebuild_regime_weights_from_tracker`, `get_edge_weights(regime_meta=...)` blending) is also disabled (same flag). Capability is shipped + wired end-to-end but switched OFF; NONE of CURRENT_STATE.md/MEMORY.md/index reflect the default-OFF state.
 - Charter reference: engine_charters.md §F Design Notes "Learned edge affinity | F computes per-category affinity via `get_learned_affinity(regime_label)` ... Injected into `regime_meta["advisory"]["learned_edge_affinity"]`". Charter presents as active; code default is inert.
-- Recommended next step: Document default-OFF in CURRENT_STATE/charters. For Path B this is the existing lever for regime-conditional crisis de-weighting (kills edges whose per-regime Sharpe <= 0 via `get_regime_weight`). Re-verify lift on canonical substrate before flag-flip (CLAUDE.md #9).
+- Recommended next step: Document default-OFF in CURRENT_STATE/charters. For Path B this is the existing lever for regime-conditional crisis de-weighting (kills edges whose per-regime Sharpe <= 0 via `get_regime_weight`). Re-verify lift on canonical substrate before flag-flip (CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`).
 
 ### [HIGH] Engine F factor-α retirement gate (T-043) is inert on every live/backtest lifecycle call
 - Engine: F
@@ -588,7 +588,7 @@ then LOW. Within each severity, list newest at the top.
 - Open question: HOW did A's edges.yml get those 1,604 bytes? Auto-register-on-import shouldn't write to edges.yml. Possibly an end-of-run lifecycle mutation in a non-journal-mode run. Worth a brief code audit (~30 min) to find the mutation path.
 - Resolved by: T-131 governor hygiene (anchor-vs-live proven canon-irrelevant bitwise; anchors write-protected; manifest policy) + T-133 follow-ups (all worktrees symlinked to the director's write-protected anchors; divergence class closed end-to-end). TASK_LEDGER: both `done` 2026-06-10. (triaged 2026-06-11)
 
-### [HIGH → SUPERSEDED 2026-05-29] T-055e regime-conditional vol-target — CLEARS CLAUDE.md #6 gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
+### [HIGH → SUPERSEDED 2026-05-29] T-055e regime-conditional vol-target — CLEARS CLAUDE.md `[NN-SHARPE-CI]` gate; T-055b flag-flip now DEFENSIBLE (user-decision gate)
 - Category: engine-completion / first T-055-series result to clear strict ci_low > 0
 - 15 fresh arm1 backtests (EWMA + regime_aware) reusing T-055d arm0. 10/10 cells canon-stable.
 - **Δ Sharpe = +0.549 with ci_low +0.047 (>0)** — first regime-conditional layer to clear the gate. ALL THREE headline metrics (Sharpe, CAGR, MDD) have ci_low > 0.
@@ -599,7 +599,7 @@ then LOW. Within each severity, list newest at the top.
 - **MDD improves in every single year** (+0.38 to +2.74pp range, +1.11pp mean, ci_low +0.68pp). Harvey-et-al-2018 defensive value finally showing up consistently.
 - **2022 outlier (-0.997 Sharpe)** is the only per-year loss — regime-conditional over-degrosses in sustained bear, missing partial recoveries. Worst per-year loss in entire T-055 series. Cost of the policy's 2021/2024 wins.
 - **2024 rescue preserved** (+1.564 vs T-055d +1.622) AND **2025 trap-elimination preserved** (-0.198 vs T-055d -0.128) — both T-055d wins survive the regime-conditional layer.
-- **T-055b flag-flip is now defensible** per strict CLAUDE.md #6. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
+- **T-055b flag-flip is now defensible** per strict CLAUDE.md `[NN-SHARPE-CI]`. NOT autonomously recommended (Engine B propose-first). Director surfaces to user-decision gate with full per-year evidence (2022 -0.997 cost included).
 - Branch `feature/engine-b-vol-target-regime-conditional-t055e` pushed.
 - Audit: `docs/Audit/engine_b_vol_target_regime_conditional_t055e_2026_05_23.md`.
 - Superseded by: T-055g multiplier sweep (refuted on canonical substrate; no arm clears ci_low>0; 2022 sign-flipped) and T-055h 12-yr verify (Δ Sharpe -0.214; vol-target chapter CLOSED, `docs/Audit/vol_target_12yr_verify_t055h_2026_05_29.md`). TASK_LEDGER marks T-055e `superseded`; CURRENT_STATE.md lists the +0.549 "DEFENSIBLE" verdict as retired. Not current truth per the CLAUDE.md supersession rule. (triaged 2026-06-11)
@@ -610,7 +610,7 @@ then LOW. Within each severity, list newest at the top.
 - **EWMA wins on every metric**: Δ Sharpe point +0.289 (vs rolling +0.256), ci_low -0.046 (vs -0.140; 67 % tighter), Δ MDD -0.03pp (vs rolling -0.62pp).
 - **Key wins**: 2024 fragility rescue AMPLIFIED (+1.622 vs rolling +1.303) and **2025 vol-shock trap FIXED** (-0.128 vs rolling -0.942). The catastrophic outlier that drove T-055c's wide CI is gone under EWMA.
 - **Trade-offs**: EWMA loses some 2021 bull lever-up (+0.289 vs +0.915) and gets 2022 bear WORSE (-0.594 vs -0.129) because the faster estimator misses partial recoveries.
-- Verdict **MARGINAL** per strict CLAUDE.md #6: ci_low(-0.046) still < 0; T-055b autonomous-recommend NOT cleared. **Director's call**: hold for T-055e (regime-conditional target) layered on EWMA, or surface to user with the +0.094 ci_low improvement evidence.
+- Verdict **MARGINAL** per strict CLAUDE.md `[NN-SHARPE-CI]`: ci_low(-0.046) still < 0; T-055b autonomous-recommend NOT cleared. **Director's call**: hold for T-055e (regime-conditional target) layered on EWMA, or surface to user with the +0.094 ci_low improvement evidence.
 - Branch `feature/engine-b-vol-target-ewma-t055d` pushed.
 - Audit: `docs/Audit/engine_b_vol_target_ewma_t055d_2026_05_22.md`.
 - Superseded by: T-055h 12-yr verify closed the vol-target chapter (Δ Sharpe -0.214; `docs/Audit/vol_target_12yr_verify_t055h_2026_05_29.md`); the held T-055e follow-up ran and was itself refuted (T-055g/T-055h). TASK_LEDGER: T-055d `done`, chapter closed. (triaged 2026-06-11)
@@ -618,7 +618,7 @@ then LOW. Within each severity, list newest at the top.
 ### [MEDIUM → SUPERSEDED 2026-05-29] T-055c A/B lift verification — MARGINAL verdict, T-055b flag-flip NOT YET recommended
 - Category: engine-completion measurement / Moreira-Muir 2017 verification
 - 30-backtest grid (3-rep × 5-yr × 2-arm) — 10/10 cells canon-stable.
-- **Mean Sharpe lift: +0.256 point estimate (ABOVE Moreira-Muir +0.10-0.20 band) but ci_low = -0.140 (CROSSES ZERO)**. Per CLAUDE.md #6: gate on ci_low, not point.
+- **Mean Sharpe lift: +0.256 point estimate (ABOVE Moreira-Muir +0.10-0.20 band) but ci_low = -0.140 (CROSSES ZERO)**. Per CLAUDE.md `[NN-SHARPE-CI]`: gate on ci_low, not point.
 - Per-year variance huge: 2024 fragility-year RESCUED (+1.303), 2025 vol-shock TRAP (-0.942). Net MDD slightly worse (-0.62pp) driven by 2025 outlier.
 - **Harness bug found mid-campaign**: `run_vol_target_arms_full.py` was patching `config/risk_settings.json` but mode_controller loads `config/risk_settings.{env}.json` → silent vol-target-disabled for first 4 arm1 runs. Diagnosed via offline scalar simulator, fixed, re-ran. Lesson: env-suffixed config files require env-suffixed patches.
 - **Recommended follow-up before T-055b**: T-055d (EWMA λ=0.94 estimator) addresses the 2025 vol-shock failure mode. T-055e (regime-conditional target) addresses the late-cycle trap.
@@ -639,7 +639,7 @@ then LOW. Within each severity, list newest at the top.
 ### [HIGH → RESOLVED 2026-05-25] T-057b verification — confidence-gate lift COLLAPSES on extended substrate; flag-flip NOT recommended
 - Category: engine-completion verification / substrate-conditional lift falsified
 - Cloud campaign: 50/50 cells succeeded (2 arms × 5 yrs × 5 reps). T-057's +0.793 Sharpe lift on Alpaca-only substrate REVERSES to **Δ -0.075** on the extended Stooq+Alpaca substrate.
-- ci_low(Δ Sharpe): iid -0.532, block-bootstrap (5-yr) -1.154. **Both fail CLAUDE.md #6 strict gate.**
+- ci_low(Δ Sharpe): iid -0.532, block-bootstrap (5-yr) -1.154. **Both fail CLAUDE.md `[NN-SHARPE-CI]` strict gate.**
 - **Per-year pattern reveals regime dependency**: gate helps when OFF is weak (2021 +0.72, 2024 +1.43) but HURTS when OFF is strong (2022 -1.79, 2023 -1.13). 3 of 5 years remain consistent-sign vs original T-057; 2 of 5 reverse sign (2022, 2023 — both years where extended substrate's stronger OFF baseline left less room for the gate).
 - **MBL Gate-0 also FAILS**: 5-yr window insufficient for SR=1.0 lift claim at N=230 trials (needs 10.88 yr). Maximum clearable SR on this design: 1.475.
 - **3 of 10 cells show 1-rep determinism drift** (arm0_off/2021, arm2_n3/2022, arm2_n3/2024). The 5-rep design eliminated T-057's original 2021 arm2_n3 drift but surfaced 3 new cells — within-container module-global drift, worth a T-057c-determinism-investigation follow-up.

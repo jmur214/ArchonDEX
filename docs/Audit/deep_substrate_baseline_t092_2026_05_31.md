@@ -35,10 +35,10 @@ DSR benchmark at N_trials = 270 (post-T-088: 260 + 10 from T-092): **0.6612**
 
 | Gate | 16-yr (Sharpe 1.018, ci_low 0.560) | 26-yr (Sharpe 0.246, ci_low -0.119) |
 |---|:-:|:-:|
-| ci_low > 0 (strict, CLAUDE.md #6) | ✓ PASS (0.560) | ✗ FAIL (-0.119) |
+| ci_low > 0 (strict, CLAUDE.md `[NN-SHARPE-CI]`) | ✓ PASS (0.560) | ✗ FAIL (-0.119) |
 | Sharpe point > DSR benchmark | ✓ PASS (1.018 > 0.661) | ✗ FAIL (0.246 < 0.661) |
 | ci_low > DSR benchmark (strict CLAUDE.md gate) | ✗ FAIL (0.560 < 0.661) | ✗ FAIL |
-| MBL: T_years ≥ 2·ln(N)/SR² (CLAUDE.md #7) | ✓ PASS (req 10.81 yr ≤ 16) | ✗ FAIL (req 185.5 yr ≫ 26) |
+| MBL: T_years ≥ 2·ln(N)/SR² (CLAUDE.md `[NN-MBL]`) | ✓ PASS (req 10.81 yr ≤ 16) | ✗ FAIL (req 185.5 yr ≫ 26) |
 
 **Net per CLAUDE.md:** 16-yr is BORDERLINE PASS (MBL + point-DSR + ci_low > 0
 all clear; the strict "ci_low > deflated-benchmark" gate fails by 0.10
@@ -189,7 +189,7 @@ fields**; recompute fresh:
 5. `MetricsEngine.cagr(equity)` and `MetricsEngine.max_drawdown(equity)`.
 
 ### Bootstrap configuration
-- Block-bootstrap on daily returns (CLAUDE.md #6 method).
+- Block-bootstrap on daily returns (CLAUDE.md `[NN-SHARPE-CI]` method).
 - Block length: Politis-White auto = `max(5, int(n ** (1/3)))`.
   For 16-yr (n=4023): block = 15. For 26-yr (n=6538): block = 18.
 - n_iterations = 1000, seed = 0.
@@ -201,7 +201,7 @@ fields**; recompute fresh:
   to N_trials. Conservative honest N = 270.
 - Scaled: `0.659 × sqrt(ln(270) / ln(260)) = 0.6612`.
 
-### MBL Gate-0 (CLAUDE.md #7)
+### MBL Gate-0 (CLAUDE.md `[NN-MBL]`)
 - `T_required_years = 2 × ln(N) / SR²`
 - At N=270:
   - 16-yr SR=1.018: required 10.81 yr; covered 16.0 → PASS

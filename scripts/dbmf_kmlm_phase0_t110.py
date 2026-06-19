@@ -12,7 +12,7 @@ Scope per inbox T-2026-06-05-110:
   - Make-or-break: realized SKEWNESS positive? (T-108 spot basket failed
     at -0.408; equity-trend reference -0.133.)
   - Crisis-alpha confirmation: 2022 + 2025 (+ COVID for DBMF only) vs SPY.
-  - Sharpe/Sortino/MDD with block-bootstrap CI per CLAUDE.md #6.
+  - Sharpe/Sortino/MDD with block-bootstrap CI per CLAUDE.md `[NN-SHARPE-CI]`.
   - Correlation to SPY (base equity-book proxy).
 
 Honest caveats to surface in audit:

@@ -88,7 +88,7 @@ Full pass on (1)+(2-strong)+(3) → RECOMMEND. (1)+(2-weak)+(3) → HELPS,
 conditional-shelf-confirmed, gate-on-`hmm_p_crisis` for the calm-drag.
 Fails (1) or (2) → sleeve does not lift this base; close negative.
 
-Per CLAUDE.md #6 the gate is ci_low, never point. Per #9 the verdict is on
+Per CLAUDE.md `[NN-SHARPE-CI]` the gate is ci_low, never point. Per #9 the verdict is on
 THIS (re-anchored) substrate, not the old one.
 
 ### 1.7 N-trials policy
@@ -96,7 +96,7 @@ THIS (re-anchored) substrate, not the old one.
 **N_trials += 1** (this is a new integrated measurement of the sleeve
 hypothesis on the current canonical substrate — the prior T-128/T-128b runs
 were invalid, so this is the first valid integrated test; honest-N counts
-it). Pre-registered before unblinding per CLAUDE.md #7.
+it). Pre-registered before unblinding per CLAUDE.md `[NN-MBL]`.
 
 ---
 

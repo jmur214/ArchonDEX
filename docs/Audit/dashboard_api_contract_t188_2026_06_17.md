@@ -13,7 +13,7 @@ The React app will NOT read files directly (the current Dash app does). It talks
 2. **Reuse the Python loaders, not the Dash UI.** Port `cockpit/dashboard_v2/utils/*_loader.py` into a shared `dashboard_api/loaders/` package that BOTH the (legacy) Dash app and the new FastAPI import. One data-loading source of truth; the rebuild replaces only the view layer. (§4.)
 3. **Localhost-bound, same trust model as the Dash app** (`127.0.0.1`, no LAN). If the React app is served separately, add a single allow-listed CORS origin; no auth in v1 (local single-user). Flag if the user wants remote access → then auth is required (IA-dependent, §5).
 4. **Nothing here is genuinely streaming.** The paper loop is **daily/batch**; backtests are discrete. "Real-time" = *file-mtime-changed* push, not a tick stream. SSE on the Live surface is a UX nicety over a 2–5s poll, NOT a market feed. Stated honestly so we don't over-engineer a websocket tier (§3).
-5. **One canonical metric path.** Sharpe/MDD/CAGR are recomputed from equity per CLAUDE.md #6 (the `core.metrics_engine` + `core.combined_candidate_scorecard` path); the API never re-derives metrics ad-hoc — it serves what the producers wrote + what those modules compute.
+5. **One canonical metric path.** Sharpe/MDD/CAGR are recomputed from equity per CLAUDE.md `[NN-SHARPE-CI]` (the `core.metrics_engine` + `core.combined_candidate_scorecard` path); the API never re-derives metrics ad-hoc — it serves what the producers wrote + what those modules compute.
 
 ---
 

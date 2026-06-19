@@ -2,7 +2,7 @@
 title: FOUNDATIONAL — baseline edge ensemble DSR + MBL on 12-yr window (CORRECTED)
 date: 2026-05-30
 author: director
-related: T-053b, T-055h, CLAUDE.md #6/#7/#9
+related: T-053b, T-055h, CLAUDE.md `[NN-SHARPE-CI]`/#7/#9
 status: CORRECTED 2026-05-30 — first version used wrong JSON keys and reported fabricated numbers; see correction notice
 ---
 
@@ -61,7 +61,7 @@ above when citing.
 | MaxDrawdown | -14.44% |
 | Window | 2014-01-02 → 2026-01-14 (11.9 yr, 2997 daily returns) |
 
-CI is block-bootstrap (Künsch, 1000 iter) per CLAUDE.md #6, computed from
+CI is block-bootstrap (Künsch, 1000 iter) per CLAUDE.md `[NN-SHARPE-CI]`, computed from
 the actual daily-return series.
 
 ## DSR check (deflated Sharpe)
@@ -76,7 +76,7 @@ Deflated-SR benchmark = expected max Sharpe over N trials (Bailey-LdP
 | 500 | 0.760 | **CLEARS** (+0.075) | fails |
 
 The **point estimate clears the deflated benchmark by a real margin**
-(not noise) at the current N. But per CLAUDE.md #6 (gate on ci_low), the
+(not noise) at the current N. But per CLAUDE.md `[NN-SHARPE-CI]` (gate on ci_low), the
 ci_low 0.331 sits below the benchmark — so the base is **not yet formally
 validated at 95% confidence**, though it is far from a phantom.
 

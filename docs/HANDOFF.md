@@ -509,7 +509,7 @@ before); write a session summary to `docs/Sessions/<YYYY-MM>/`.
 - **Substrate-conditional findings reverse on substrate change.** Multiple "DEFENSIBLE"
   5-yr lifts (T-055e, T-057) reversed on the extended window. Any positive lift measured
   on substrate X must be **re-verified on the production substrate** before any flag-flip
-  recommendation (`CLAUDE.md` non-negotiable #9).
+  recommendation (`CLAUDE.md` non-negotiable `[NN-SUBSTRATE-REVERIFY]`).
 - **Single-cell OFF-canon ≠ 26-yr-inert** (~0.009 benign leak, T-126) — a default-OFF
   proof on one cell doesn't prove deep-window inertness; add a deep-window canon check.
 - **T-162 brief-window shared-data caveat** (per C's outbox): during the ~10-min artifact

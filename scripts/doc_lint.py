@@ -359,6 +359,42 @@ def check_scripts_in_execution_manual() -> CheckResult:
 
 
 # ---------------------------------------------------------------------
+# Check 8 — non-negotiables cited by stable [NN-SLUG] anchor, not number
+# ---------------------------------------------------------------------
+
+# Positional numbers rot when the rule list grows: the 2026-06 doc audit
+# found 159 refs that ALL mispointed after the non-negotiable set grew from
+# ~9 to 15 (e.g. "CLAUDE.md #6" resolved to edge_weights.json when the author
+# meant the Sharpe-CI gate). Rules now carry stable `[NN-SLUG]` anchors in
+# CLAUDE.md / NON_NEGOTIABLES.md; any numbered reference is a regression.
+# NOTE: "lessons rule #N" points to lessons_learned.md (a different list) and
+# is intentionally NOT matched — the prefixes below are non-negotiable-only.
+NUMBERED_NONNEG_RE = re.compile(
+    r"(CLAUDE\.md|non[- ]?negotiable|NON_NEGOTIABLE)\s*#\d+", re.IGNORECASE
+)
+
+
+def check_no_numbered_nonneg_refs() -> CheckResult:
+    name = "Non-negotiables cited by stable anchor, not number"
+    targets = [REPO / "CLAUDE.md"] + sorted((REPO / "docs").rglob("*.md"))
+    offenders: List[str] = []
+    for f in targets:
+        if not f.is_file():
+            continue
+        for i, line in enumerate(f.read_text().splitlines(), 1):
+            if NUMBERED_NONNEG_RE.search(line):
+                offenders.append(f"{f.relative_to(REPO)}:{i}: {line.strip()[:80]}")
+    if offenders:
+        return CheckResult(
+            name, "FAIL",
+            f"{len(offenders)} numbered non-negotiable ref(s) — cite by "
+            f"`[NN-SLUG]` anchor instead (see CLAUDE.md)",
+            offenders,
+        )
+    return CheckResult(name, "PASS", "no numbered non-negotiable refs")
+
+
+# ---------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------
 
@@ -370,6 +406,7 @@ CHECKS = [
     check_memory_entries_have_dates,
     check_task_ledger_columns,
     check_scripts_in_execution_manual,
+    check_no_numbered_nonneg_refs,
 ]
 
 

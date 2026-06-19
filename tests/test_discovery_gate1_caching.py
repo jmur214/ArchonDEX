@@ -352,7 +352,7 @@ def test_gate1_cache_invalidates_on_window_change(synthetic_data_map, monkeypatc
 
     cand = {"edge_id": "cand_x", "module": "test", "class": "CountingEdge"}
 
-    # T-138: enable_mbl_gate=False — Gate-0 MBL (CLAUDE.md #7) correctly
+    # T-138: enable_mbl_gate=False — Gate-0 MBL (CLAUDE.md `[NN-MBL]`) correctly
     # short-circuits these sub-year fixture windows BEFORE the caching
     # block, so with the gate on the cache is never touched and the
     # fingerprint stays None for both calls (the pre-T-138 failure mode

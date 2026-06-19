@@ -75,7 +75,7 @@ REINFORCED by both products.
 
 7.0-year history (2019-05 → 2026-05) — covers COVID, 2022, 2025.
 
-| Metric | Point | ci_low | ci_high | Pass strict CLAUDE.md #6? |
+| Metric | Point | ci_low | ci_high | Pass strict CLAUDE.md `[NN-SHARPE-CI]`? |
 |---|---:|---:|---:|:-:|
 | Sharpe | +0.517 | -0.175 | +1.188 | ✗ ci_low < 0 |
 | Sortino | +0.458 | -0.149 | +1.069 | ✗ ci_low < 0 |
@@ -99,7 +99,7 @@ Per-crisis returns:
 
 5.4-year history (2020-12 → 2026-05) — POSTDATES COVID; covers 2022 + 2025 only.
 
-| Metric | Point | ci_low | ci_high | Pass strict CLAUDE.md #6? |
+| Metric | Point | ci_low | ci_high | Pass strict CLAUDE.md `[NN-SHARPE-CI]`? |
 |---|---:|---:|---:|:-:|
 | Sharpe | +0.409 | -0.346 | +1.249 | ✗ ci_low < 0 (5.4yr too thin) |
 | Sortino | +0.371 | -0.311 | +1.164 | ✗ ci_low < 0 |
@@ -205,7 +205,7 @@ NOT initiated this dispatch (Phase 0 only per inbox).
 ## Honest caveats (per inbox)
 
 - **Managed product + fees**: DBMF (~0.85% ER) and KMLM (~0.92% ER) embed a manager's discretionary trend model. A positive crisis return here is "this fund delivers it via futures contract trading," not "any futures-trend strategy would." Returns shown are POST-fee total returns.
-- **Short history**: DBMF 7yr, KMLM 5.4yr. Block-bootstrap Sharpe ci_low went negative on both — the point estimates are clearly positive but the bands are wide. We cannot strictly clear CLAUDE.md #6 on Sharpe alone with this much data. The crisis-alpha findings rest on 2-3 specific window observations, not a multi-year baseline.
+- **Short history**: DBMF 7yr, KMLM 5.4yr. Block-bootstrap Sharpe ci_low went negative on both — the point estimates are clearly positive but the bands are wide. We cannot strictly clear CLAUDE.md `[NN-SHARPE-CI]` on Sharpe alone with this much data. The crisis-alpha findings rest on 2-3 specific window observations, not a multi-year baseline.
 - **KMLM postdates COVID**: only 2 testable crises (2022, 2025). The 2022 +73pp result is genuinely extreme but rests on a single 196-day window.
 - **The negative skew at -0.75/-0.85 IS large.** A standalone allocation would expose the book to chunky single-day losses (a 4-sigma left-tail day on a -0.85-skew distribution is much more likely than on a -0.41 distribution). This is a real risk that the crisis-alpha doesn't offset for a large allocation.
 - **DBMF and KMLM are not interchangeable.** DBMF tracks an academic-replication index, KMLM tracks Mount Lucas's proprietary methodology. They have different beta signatures (DBMF +0.12, KMLM -0.12) and the 2022 results differed dramatically (DBMF +32.7% vs KMLM +48.8%). Product selection matters; cherry-picking the winning year is a real overfit risk in a 5-7 year window.

@@ -128,7 +128,7 @@ DOES NOT PROVE:
   10 % target? T-055c.
 - Kurtosis / MDD reductions per Harvey et al. 2018.
 
-**Per CLAUDE.md non-negotiable #6**: this audit reports NO Sharpe
+**Per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`**: this audit reports NO Sharpe
 headline → no bootstrap CI required. The full T-055c grid will
 report all Sharpes with `ci_low` per the rule.
 
@@ -181,7 +181,7 @@ Full 3-rep × 5-yr × 2-arm campaign (30 runs, ~6 hr wall):
 - Use the existing `scripts/run_substrate_arms.py` pattern for
   multi-year harness; extend the arm definition to flip
   `portfolio_vol_target_enabled` instead of HMM.
-- Per CLAUDE.md non-negotiable #6: bootstrap CI on every Sharpe
+- Per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`: bootstrap CI on every Sharpe
   headline (ci_low via `MetricsEngine.bootstrap_distribution`).
 - Per-year breakdown: 2022 bear / 2023 chop / 2024-25 calm bull (do
   the regimes that vol-target should help most actually help?).

@@ -11,7 +11,7 @@ outcome: NO ARM CLEARS ci_low > 0 — T-055b flag-flip NOT YET DEFENSIBLE
 
 ## Headline
 
-**No arm clears CLAUDE.md #6 (ci_low > 0 on Δ Sharpe).** Bootstrap CI
+**No arm clears CLAUDE.md `[NN-SHARPE-CI]` (ci_low > 0 on Δ Sharpe).** Bootstrap CI
 on 5 yearly Δs is too wide at n=5 to separate any sweep arm from
 zero. T-055b flag-flip is **NOT YET DEFENSIBLE** by the strict
 ci_low gate, despite the point-estimate Δ Sharpe of +0.413 for the
@@ -97,7 +97,7 @@ back that rescue without compensating gains elsewhere.
 | arm_asymmetric (0.85/0.70/0.50) | +0.222 | -0.494 | +0.848 | 71.2% | Mediocre |
 | arm_moderate (0.90/0.75/0.55) | +0.100 | -0.648 | +0.812 | 57.2% | Effectively zero lift |
 
-**Per CLAUDE.md #6**: NONE clears the strict `ci_low > 0` gate. The
+**Per CLAUDE.md `[NN-SHARPE-CI]`**: NONE clears the strict `ci_low > 0` gate. The
 n=5-year sample is the binding constraint — observation count not
 effect size. With more years of data (multi-decade extension per
 the project's MBL roadmap), arm_t055e_baseline's +0.413 point
@@ -156,7 +156,7 @@ would require pulling all 75 trades.csv files from S3 (~hundreds of
 MB of trade-log data). Skipped to preserve session budget; trust
 the director's spot check.
 
-## MBL Gate-0 (CLAUDE.md #7)
+## MBL Gate-0 (CLAUDE.md `[NN-MBL]`)
 
 Per the substrate-extension memo (T-082b), the merged Stooq+Alpaca
 substrate clears Bailey-Borwein-Lopez-de-Prado-Zhu MBL on a multi-
@@ -219,8 +219,8 @@ T-055f targets that.
 
 | # | Acceptance criterion | Status |
 |---|----------------------|--------|
-| 1 | Bootstrap CI per arm Δ Sharpe (block-bootstrap 5-year, CLAUDE.md #6) | DONE |
-| 2 | MBL Gate-0 check (CLAUDE.md #7) | DONE (substrate-extension satisfies) |
+| 1 | Bootstrap CI per arm Δ Sharpe (block-bootstrap 5-year, CLAUDE.md `[NN-SHARPE-CI]`) | DONE |
+| 2 | MBL Gate-0 check (CLAUDE.md `[NN-MBL]`) | DONE (substrate-extension satisfies) |
 | 3 | Canon-md5 distinctness vs OFF | TRUSTED from director's spot-check (re-verify deferred) |
 | 4 | Per-arm verdict table with ci_low | DONE |
 | 5 | 2022 sign-flip diagnosis | DONE (substrate-conditional; regime detection / vol estimator shift) |

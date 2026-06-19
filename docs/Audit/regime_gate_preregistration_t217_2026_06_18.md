@@ -1,6 +1,6 @@
 # `g_regime` Gate — PRE-REGISTRATION (T-217, 2026-06-18)
 
-**Written BEFORE measurement** (CLAUDE.md #7). Builds the regime half of the
+**Written BEFORE measurement** (CLAUDE.md `[NN-MBL]`). Builds the regime half of the
 conjunctive selector (`conjunctive_score = s_tech × g_fund × g_regime`,
 T-208/A-T-216). Engine E. **Repoints existing plumbing** (the `regime_gate`
 multiplicative hook + the validated HMM + `regime_tracker`); no new engine,

@@ -138,7 +138,7 @@ def test_allowlist_entries_still_exist():
 
 # --------------------------------------------------------------------------- #
 # T-181 — pure-AST guard: no bare `.std() == 0` (or `.var() == 0`) anywhere in
-# the measurement path. CLAUDE.md non-negotiable #8: pandas std on numerically
+# the measurement path. CLAUDE.md non-negotiable `[NN-FP-GUARDS]`: pandas std on numerically
 # identical floats returns ~2e-19, not exactly 0, so a bare `== 0` guard fails
 # to fire and a downstream division explodes to ~1e15. The required form is the
 # tolerance guard (`std < 1e-12 or not np.isfinite(std)`). This is a STRUCTURE
@@ -173,7 +173,7 @@ def _is_zero(node: ast.AST) -> bool:
 
 def test_no_bare_std_equals_zero_guard():
     """No `X.std() == 0` / `0 == X.std()` (or `.var()`) in the measurement
-    path. Use the tolerance guard instead (CLAUDE.md #8). If this trips, your
+    path. Use the tolerance guard instead (CLAUDE.md `[NN-FP-GUARDS]`). If this trips, your
     new guard is a latent ~1e15 explosion on near-constant input — replace it
     with `not np.isfinite(s) or s < 1e-12`."""
     violations = []
@@ -196,6 +196,6 @@ def test_no_bare_std_equals_zero_guard():
                 violations.append(f"{rel}:{node.lineno}")
     assert not violations, (
         "Bare `.std()/.var() == 0` guard(s) found in the measurement path "
-        "(CLAUDE.md #8 — use `not np.isfinite(s) or s < 1e-12`):\n  "
+        "(CLAUDE.md `[NN-FP-GUARDS]` — use `not np.isfinite(s) or s < 1e-12`):\n  "
         + "\n  ".join(violations)
     )

@@ -64,7 +64,7 @@ is NOT equivalent — that's the case where it injects lookahead.
 
 `scripts/compare_leaky_vs_causal_t089.py` computes both paths in a
 single process on the same model (`hmm_3state_v1.pkl`) + panel, then
-reports AUC + bootstrap CI per CLAUDE.md non-negotiable #6.
+reports AUC + bootstrap CI per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`.
 
 **4-yr window (2021-01-01 → 2025-04-30):**
 
@@ -81,7 +81,7 @@ reports AUC + bootstrap CI per CLAUDE.md non-negotiable #6.
 | p_stressed | 0.5339 [0.4996, 0.5674] | 0.5331 [0.4990, 0.5657] | **+0.0008** |
 
 (Bootstrap CIs from 1000 stratified resamples of positives + negatives,
-per CLAUDE.md #6. n=1066 rows in 4-yr / 1251 rows in extended; ~207 /
+per CLAUDE.md `[NN-SHARPE-CI]`. n=1066 rows in 4-yr / 1251 rows in extended; ~207 /
 229 positives respectively at the 20-day -5% drawdown threshold.)
 
 **Interpretation:**
@@ -121,7 +121,7 @@ per CLAUDE.md #6. n=1066 rows in 4-yr / 1251 rows in extended; ~207 /
   `scripts/_hmm_causal_proba.py` lives in `scripts/` per dispatch
   constraint.
 - [x] Engine B / risk config untouched (A's parallel task).
-- [x] Per CLAUDE.md #6: AUC bootstrap CI on every headline (stratified
+- [x] Per CLAUDE.md `[NN-SHARPE-CI]`: AUC bootstrap CI on every headline (stratified
   positive/negative resample, 1000 iterations).
 - [x] No production decision path consumes `predict_proba_sequence`
   found in the sweep — only the 3 validator scripts. If a production
@@ -183,7 +183,7 @@ implementation instead of N inlined copies).
    path already provides a strong filtering signal.
 
 3. **The bug was real but its numerical impact was bounded.** Per
-   CLAUDE.md non-negotiable #6 (ci_low gates, not point), the
+   CLAUDE.md non-negotiable `[NN-SHARPE-CI]` (ci_low gates, not point), the
    leaky-vs-causal CI overlaps fully → the predictive-validity
    conclusions of the 3 validators were probably still in the right
    ballpark even when computed with the leaky path. The fix is still

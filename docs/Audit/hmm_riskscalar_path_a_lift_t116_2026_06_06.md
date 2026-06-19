@@ -129,7 +129,7 @@ The new key was **not** in the loader's "ignoring unknown config key" list (it i
 1. **Confirm the multiplier shape** (vs the §4d.2.iii "fold into the gross ceiling" alternative). The PoC ships the multiplier to match T-111; if the director prefers the single-min() design up front, that is a ~3-line change.
 2. **A/B campaign design** — same windows as T-106/T-111 (16-yr + 26-yr), arms: off / scalar-on / scalar-on-with-floor `[0.5,1.2]`. **The A/B must log per-cell realized crisis-window gross** to resolve the §4c count×size compounding question.
 3. **Composition with T-111's drawdown lift** — if both flags are eventually enabled, `target_notional *= _drawdown_size_mult * _advisory_risk_scalar_mult` stacks two multipliers. Drawdown% and risk_score are partly correlated in crisis; the A/B should include a both-on arm.
-4. Only after the A/B clears (crisis-gross floor acceptable **and** Sharpe ci_low not degraded, per CLAUDE.md #6 CI-aware gating) should any prod flag flip be proposed.
+4. Only after the A/B clears (crisis-gross floor acceptable **and** Sharpe ci_low not degraded, per CLAUDE.md `[NN-SHARPE-CI]` CI-aware gating) should any prod flag flip be proposed.
 
 ---
 

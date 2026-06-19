@@ -989,7 +989,7 @@ class DiscoveryEngine:
         # harnesses and by callers that need bitwise-equivalent paths.
         use_signal_cache: bool = True,
         # ---- Gate 0: MBL pre-flight (T-2026-05-24-083) ----
-        # Per CLAUDE.md non-negotiable #7. The backtest window must satisfy
+        # Per CLAUDE.md non-negotiable `[NN-MBL]`. The backtest window must satisfy
         # T_years >= 2 * ln(N_effective) / SR_target^2 before any backtest
         # fires. A window too short for the accumulated trial count is
         # statistically incapable of clearing DSR — running the gauntlet
@@ -1052,7 +1052,7 @@ class DiscoveryEngine:
         from engines.engine_d_discovery.robustness import RobustnessTester
 
         # ---- Gate 0: MBL pre-flight (T-2026-05-24-083) ----------------
-        # Per CLAUDE.md non-negotiable #7. Reject backtest windows that
+        # Per CLAUDE.md non-negotiable `[NN-MBL]`. Reject backtest windows that
         # are statistically incapable of clearing DSR at the configured
         # SR_target given the accumulated honest-N. Runs BEFORE any
         # expensive backtest fires; fail-fast saves ~30 min per cell.

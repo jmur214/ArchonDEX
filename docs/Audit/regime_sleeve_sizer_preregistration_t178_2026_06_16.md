@@ -1,7 +1,7 @@
 # T-178 PRE-REGISTRATION — Regime Step 2: dynamic MF-sleeve SIZER A/B
 
 **Status:** LOCKED 2026-06-16, committed BEFORE running. Per CLAUDE.md
-#7 + the T-118b template. Step 2 was greenlit-with-caveats after the
+`[NN-MBL]` + the T-118b template. Step 2 was greenlit-with-caveats after the
 adversarial verification of T-172 (causal filter confirmed lookahead-
 clean, prefix-vs-full score diff exactly 0.0). The caveats below are
 REQUIRED, baked into this design.

@@ -26,7 +26,7 @@ PRE-REGISTERED (fixed before running):
     per-feature-quantile grid, weighted by empirical cell frequency, model =
     GradientBoostingRegressor(200 trees, depth 3, lr 0.05, subsample 0.7,
     seed 0). PD-based route — no new dependency (per brief).
-  - NULL (block-bootstrap, CLAUDE.md #6 — iid shuffles NOT acceptable): the
+  - NULL (block-bootstrap, CLAUDE.md `[NN-SHARPE-CI]` — iid shuffles NOT acceptable): the
     forward-return panel is circularly time-shifted by a random offset
     k ∈ [21, T−21] (same k across tickers → preserves the target's full
     autocorrelation AND cross-sectional dependence; breaks signal↔return

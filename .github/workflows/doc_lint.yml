@@ -20,12 +20,14 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "CLAUDE.md"
       - "scripts/doc_lint.py"
       - ".github/workflows/doc_lint.yml"
   push:
     branches: [main]
     paths:
       - "docs/**"
+      - "CLAUDE.md"
       - "scripts/doc_lint.py"
       - ".github/workflows/doc_lint.yml"
 

@@ -15,7 +15,7 @@ Measures the user's deploy bar (GOAL.md: *beat the Schwab robo, net-of-cost / af
 | `base + 20% DBMF` | the REAL candidate (80% base + 20% DBMF managed-futures, SIMULATED hold) |
 | `robo:<proxy>` | the benchmark |
 
-Each line reports **Sharpe + block-bootstrap ci_low** (CLAUDE.md #6, n=1000, seed 0, recomputed from equity per T-090 — never from rounded perf_summary), **MaxDD**, **CAGR**, vol — all **net-of-cost**.
+Each line reports **Sharpe + block-bootstrap ci_low** (CLAUDE.md `[NN-SHARPE-CI]`, n=1000, seed 0, recomputed from equity per T-090 — never from rounded perf_summary), **MaxDD**, **CAGR**, vol — all **net-of-cost**.
 
 ## 1. Pre-registered robo proxy (declared before any result was selected on)
 The real target — **Schwab Intelligent Portfolios** — is a ~12-asset-class *target-risk* blend (US + international equity, REITs, fixed income, TIPS, gold/commodities) with a **MANDATORY 6–30% cash allocation** that is Schwab's monetization in lieu of an advisory fee. That cash sleeve is a structural **bull-market return drag** and the single most important thing a naive proxy misses.

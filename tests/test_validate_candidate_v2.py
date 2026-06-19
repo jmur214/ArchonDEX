@@ -163,7 +163,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
     candidates that produce real ensemble contribution should not be killed
     by Gate 1.
 
-    T-138 update: Gate-0 MBL (CLAUDE.md #7, T-083) now correctly
+    T-138 update: Gate-0 MBL (CLAUDE.md `[NN-MBL]`, T-083) now correctly
     short-circuits sub-MBL windows BEFORE any backtest fires — this test's
     6-month fixture can never clear MBL, so on the DEFAULT path the
     correct behavior is a Gate-0 refusal (asserted first). The original
@@ -209,7 +209,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
         gate1_contribution_threshold=0.0,
     )
     assert gate0_result.get("gate_0_passed") is False, (
-        "Gate-0 MBL must short-circuit a 6-month window (CLAUDE.md #7); "
+        "Gate-0 MBL must short-circuit a 6-month window (CLAUDE.md `[NN-MBL]`); "
         f"got {gate0_result}"
     )
     assert "gate_0_reason" in gate0_result

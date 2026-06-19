@@ -20,7 +20,7 @@ Per the T-055c dispatch:
 - Substrate-honest universe (use_historical_universe=True)
 - Cockpit-fixed metrics (canon md5 in T-019 reference state)
 - 3-rep bitwise determinism WITHIN each cell expected
-- Bootstrap CI per CLAUDE.md non-negotiable #6
+- Bootstrap CI per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`
 
 Output:
   data/measurements/vol_target_t055c_2026_05_22/

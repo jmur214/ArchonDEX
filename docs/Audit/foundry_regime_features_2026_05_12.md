@@ -218,7 +218,7 @@ producing:
 - [x] No cap=30 Discovery cycle run.
 - [x] No HMM retraining (out of scope per brief).
 - [x] No bootstrap-CI Sharpe claim — T-052 ships no measurement
-  numbers requiring bootstrap CI per CLAUDE.md non-negotiable #6.
+  numbers requiring bootstrap CI per CLAUDE.md non-negotiable `[NN-SHARPE-CI]`.
 
 ## Files
 

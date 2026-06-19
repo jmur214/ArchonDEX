@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-12
 **Agent:** C (branch `feature/allocator-disambig-t162`, off origin/main `6448a55`)
-**Status at this commit:** PRE-REGISTRATION ONLY — expectations committed BEFORE the cell runs (CLAUDE.md #7 discipline). Results section intentionally empty.
+**Status at this commit:** PRE-REGISTRATION ONLY — expectations committed BEFORE the cell runs (CLAUDE.md `[NN-MBL]` discipline). Results section intentionally empty.
 
 ## The collision being disambiguated
 

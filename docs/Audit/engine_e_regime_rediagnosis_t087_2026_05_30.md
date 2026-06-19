@@ -130,7 +130,7 @@ backward smoothed), not strictly causal — see methodology section;
 wide enough to straddle 0.5 if the few stress events fall near the
 boundary. **Most likely explanation**: the 5-yr base-rate of -5%
 forward-dd events is very low (≈5%), and 5-yr is barely 60+ events
-(the small-N effect that CLAUDE.md #7 codifies for Sharpe applies to
+(the small-N effect that CLAUDE.md `[NN-MBL]` codifies for Sharpe applies to
 AUC too).
 
 ### 3. Lead-vs-lag (predictive vs coincident)
@@ -234,7 +234,7 @@ to spike, which doesn't happen if the bear is grinding.
   not VVIX-z. Per the table above, HMM p_crisis fires on all 5 of 5
   historical stress events with 27-60d leads.
 - Calibrate θ in a separate dispatch — this task does not pre-register
-  a θ-sweep and so per CLAUDE.md #7 cannot quote a Sharpe-bearing
+  a θ-sweep and so per CLAUDE.md `[NN-MBL]` cannot quote a Sharpe-bearing
   prediction.
 
 ## Engine E — rebuild vs retire vs use-as-is
@@ -276,7 +276,7 @@ how the signal is USED (vol-target overlay), not in what it predicts.
 3. **Unconditional p_crisis fire rate 22.7%** at θ = 0.5 is too high
    for a kill switch. Threshold calibration is required before any
    production use — and that calibration is itself an N_trial-cost
-   per CLAUDE.md #7. Recommend calibrating θ on the OOS 2014-2020
+   per CLAUDE.md `[NN-MBL]`. Recommend calibrating θ on the OOS 2014-2020
    window only and verifying on 2021-2025 OOS.
 
 4. **No backtest run.** This is a signal-level diagnostic. The next
@@ -334,7 +334,7 @@ window artifact.
 - New entry: "5-yr signal-validation windows can produce false-negative
   refutations the same way they produce false-positive Sharpe lifts —
   AUC ci_low straddles 0.5 at N≈60 stress events; the diagnostic-
-  unblock pattern from CLAUDE.md #9 applies to negative results too."
+  unblock pattern from CLAUDE.md `[NN-SUBSTRATE-REVERIFY]` applies to negative results too."
 - `project_t055e_first_defensible_2026_05_23.md` etc. — failure
   mechanism for T-055e/g/h is NOT regime-signal failure; it's the
   vol-target mechanism itself. Updated explanation.

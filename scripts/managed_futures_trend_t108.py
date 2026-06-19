@@ -11,7 +11,7 @@ Per inbox + scope doc:
     -0.133; this is THE structural-property test).
   - Crisis returns: 2008 GFC (window starts at UUP 2007-02-20 →
     covers 2008-09 onward), COVID 2020, 2022 bear.
-  - Block-bootstrap CI on Sharpe + Sortino + skew per CLAUDE.md #6.
+  - Block-bootstrap CI on Sharpe + Sortino + skew per CLAUDE.md `[NN-SHARPE-CI]`.
   - Base correlation: vs 6-edge equity book proxy (use SPY daily
     returns over same window as a first-order base proxy; the FULL
     arm0_off equity-book returns require a multi-yr backtest run).

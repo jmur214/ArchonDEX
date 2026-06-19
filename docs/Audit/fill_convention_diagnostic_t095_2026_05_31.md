@@ -169,7 +169,7 @@ The ~0.81 baseline is built against this honest convention. **The fill-timing op
 Agent A's T-092 deep-substrate baseline (16-yr + 26-yr arm0_off) is running on the same code path (ModeController → BacktestController). Same fill convention. Same honest next-open behavior. **T-092's number can be read at face value with respect to fill timing**; whatever it says about DSR + MBL clearance is not artificially inflated by a close-to-close convention.
 
 The remaining real concerns for T-092 readability (NOT fixed by this diagnostic) are:
-- Survivorship — substrate has delisted-gap pre-2020 caveat (CLAUDE.md #9, see T-082 audit).
+- Survivorship — substrate has delisted-gap pre-2020 caveat (CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`, see T-082 audit).
 - DSR (multiple-testing) — at honest N=125 registry / ~260+ effective, the deflated benchmark Sharpe is high. A 0.81 point estimate is borderline DSR-clearing on 26-yr.
 - MBL — 17-yr required at SR≈0.81; 26-yr clears nominally, but block-bootstrap CI may not.
 

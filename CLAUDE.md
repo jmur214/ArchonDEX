@@ -43,33 +43,39 @@ Don't read everything by default — context is finite. Use the
 > always-loaded. If the two ever disagree on a constraint, this file 
 > wins; fix the drift.
 
-**Archive, never delete.** Legacy code goes to `Archive/` or 
+> **Citing these rules:** each non-negotiable below carries a stable
+> `[NN-SLUG]` anchor (e.g. `[NN-SHARPE-CI]`). Cite a rule by its anchor,
+> NEVER by number — the list grows, so positional refs (`#6`, `#7`)
+> silently mispoint to the wrong rule. `scripts/doc_lint.py` fails any
+> new numbered reference (`CLAUDE.md #<n>`).
+
+**`[NN-ARCHIVE]` Archive, never delete.** Legacy code goes to `Archive/` or 
 `docs/Archive/`. The deny list at the permission layer blocks `rm`, 
 `git clean`, and `git reset --hard` for a reason — if you think you 
 need them, stop and ask.
 
-**Engine boundaries are inviolable.** No engine does another's job. 
+**`[NN-ENGINE-BOUNDARIES]` Engine boundaries are inviolable.** No engine does another's job. 
 Before modifying engine logic, read the relevant charter in 
 `docs/Core/engine_charters.md`. Risk logic does not belong in 
 Engine A. Signal generation does not belong in Engine B. If you 
 catch yourself crossing a boundary, stop — the architecture is 
 telling you something is wrong.
 
-**Never guess CLI commands.** Consult `docs/Core/execution_manual.md`. 
+**`[NN-NO-GUESS-CLI]` Never guess CLI commands.** Consult `docs/Core/execution_manual.md`. 
 If you use a new command, add it there in the same turn.
 
-**Never edit `cockpit/dashboard/`.** It is deprecated. Use 
+**`[NN-NO-EDIT-DASHBOARD]` Never edit `cockpit/dashboard/`.** It is deprecated. Use 
 `cockpit/dashboard_v2/` only.
 
-**Never manually edit `data/governor/edge_weights.json` or promote 
+**`[NN-NO-MANUAL-EDGES]` Never manually edit `data/governor/edge_weights.json` or promote 
 edges by hand.** Engine F manages lifecycle autonomously. The 
 discovery cycle (`--discover` flag) handles promotion.
 
-**`.env` is readable for this project.** Secrets intentionally live 
+**`[NN-ENV-READABLE]` `.env` is readable for this project.** Secrets intentionally live 
 there. You may read it. Never echo its contents into chat output. 
 Never commit literal values derived from it.
 
-**Historical audits are not current state.** Files in 
+**`[NN-AUDITS-NOT-CURRENT]` Historical audits are not current state.** Files in 
 `docs/Archive/` are point-in-time snapshots that have been 
 superseded by the current docs. Do not treat their findings as 
 present-day truth. Files in `docs/Measurements/<year-month>/` are 
@@ -79,7 +85,7 @@ current behavior. For current code-quality state, read
 `docs/State/forward_plan.md` and `docs/State/ROADMAP.md`. For 
 at-a-glance live state, read `docs/State/CURRENT_STATE.md`.
 
-**Superseded findings are not current truth.** A finding tagged 
+**`[NN-SUPERSEDED]` Superseded findings are not current truth.** A finding tagged 
 SUPERSEDED in `MEMORY.md` or in `docs/State/CURRENT_STATE.md`, or 
 whose matching `docs/State/TASK_LEDGER.md` row's `status` has 
 flipped (e.g. to `refuted`/`superseded`), is automatically no 
@@ -87,7 +93,7 @@ longer current truth — regardless of how confidently the original
 audit or measurement stated it. Do not quote it as present-day 
 evidence; follow the supersession pointer to the current verdict.
 
-**`forward_plan.md` vs `CURRENT_STATE.md` — which to edit when.** 
+**`[NN-PLAN-VS-STATE]` `forward_plan.md` vs `CURRENT_STATE.md` — which to edit when.** 
 `docs/State/forward_plan.md` is the verbose narrative strategy/plan 
 (the "why and where next"). `docs/State/CURRENT_STATE.md` is the 
 at-a-glance live-state dashboard (the "what is true right now," 
@@ -98,7 +104,7 @@ the current measured or operational state changes, reconcile
 `CURRENT_STATE.md` is the live truth and `forward_plan.md` explains 
 how you intend to change it.
 
-**Sharpe headlines must report bootstrap CI; kill thresholds 
+**`[NN-SHARPE-CI]` Sharpe headlines must report bootstrap CI; kill thresholds 
 must be CI-aware, not point-estimate.** Every measurement that 
 quotes a Sharpe (or Sortino, or any other risk-adjusted metric) 
 in an audit doc, session summary, or `health_check.md` entry 
@@ -119,7 +125,7 @@ length per Politis-White) is the project standard. Iid
 resampling underestimates CI width on serially-correlated 
 financial returns and is not acceptable.
 
-**Backtest length must clear MBL given honest N.** Per 
+**`[NN-MBL]` Backtest length must clear MBL given honest N.** Per 
 Bailey-Borwein-López de Prado-Zhu (Notices AMS 2014): a 
 backtest's window must satisfy `T_years ≥ 2 · ln(N_effective) / 
 SR_target²` to have any chance of clearing DSR. Honest N counts 
@@ -136,7 +142,7 @@ measurement (hypothesis + threshold + N_trials_consumed) BEFORE
 running. See `docs/Audit/honest_n_mbl_computation_2026_05_12.md` 
 for the working numbers.
 
-**Floating-point std/var guards use tolerance, not exact equality.** 
+**`[NN-FP-GUARDS]` Floating-point std/var guards use tolerance, not exact equality.** 
 Pandas `Series.std()` on numerically-identical floats returns a 
 tiny-but-nonzero value (~2e-19 for `pd.Series([0.001]*100)`), not 
 exactly 0. A bare `if std == 0: return 0` guard fails for this 
@@ -150,7 +156,7 @@ bug, not just a style issue. See
 `tests/test_metrics_engine.py::test_sharpe_constant_positive_returns_returns_zero_post_T061`
 for the locked-in regression check.
 
-**Substrate-conditional findings must be re-verified on the current 
+**`[NN-SUBSTRATE-REVERIFY]` Substrate-conditional findings must be re-verified on the current 
 canonical substrate before flag-flip recommendation.** A positive lift 
 measured on one substrate cannot be assumed to hold on another, even 
 when the substrate change is "just" extending historical depth. 
@@ -173,10 +179,10 @@ CI before the user-decision gate. When the canonical substrate
 changes (e.g., T-082b-style activation), pre-existing "DEFENSIBLE" 
 verdicts demote to "DEFENSIBLE (under prior substrate); re-verify 
 required" until re-tested. This is orthogonal to MBL Gate-0 (CLAUDE.md 
-#7) — that catches window length; this catches OFF-baseline change. 
+`[NN-MBL]`) — that catches window length; this catches OFF-baseline change. 
 See `memory/feedback_substrate_re_verify_before_recommend_2026_05_24.md`.
 
-**Fail closed in the measurement path; never degrade to a 
+**`[NN-FAIL-CLOSED]` Fail closed in the measurement path; never degrade to a 
 plausible number.** Any code that produces a headline metric 
 (Sharpe, Sortino, MDD, CAGR, trade count, ci_low) must HALT — 
 raise or exit non-zero — when a load-bearing input is missing, 
@@ -199,7 +205,7 @@ runs; the offline-graceful-degradation constraint applies ONLY
 outside the measurement path. See 
 `docs/Audit/measurement_integrity_audit_2026_06_16.md`.
 
-**Every backtest emits and gates on an execution census.** Each 
+**`[NN-CENSUS]` Every backtest emits and gates on an execution census.** Each 
 canonical/measured run writes a `census` block to 
 `performance_summary.json` with at minimum: `edges_blind` (active 
 edges that emitted 0 non-zero signals over the window, minus an 

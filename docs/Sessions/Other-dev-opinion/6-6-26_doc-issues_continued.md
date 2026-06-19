@@ -26,13 +26,13 @@ For the *non-B* engines (A, C, D, E, F), CLAUDE.md already grants autonomous imp
 
 **1. "Archive never delete" has no compaction policy.** Today's archive will be next year's junkyard. Every session that greps for a function name hits the archive. Every agent reading docs/Archive/ files might mistake them for current truth (CLAUDE.md says "Files in `docs/Archive/` are point-in-time snapshots — do not treat their findings as present-day truth," but that warning is only seen if the agent reads CLAUDE.md and remembers it during a grep). Pair the "archive never delete" rule with a **quarterly compaction**: archive entries older than 1 year get tombstoned into a single index file per quarter, raw files moved to a cold-storage subdir excluded from default grep. The doc overhaul flagged this; it should ship as part of doc_lint.
 
-**2. "Pre-registration before any run" is rule #7 (MBL Gate-0) but only the MBL part is mechanized.** The other half — that every run is pre-registered with hypothesis + threshold + N_trials_consumed — is purely on-honor. The deterministic-gates hook spec the other dev drafted addresses this; until that ships, you're trusting discipline at a place where mechanization is available.
+**2. "Pre-registration before any run" is rule `[NN-MBL]` (MBL Gate-0) but only the MBL part is mechanized.** The other half — that every run is pre-registered with hypothesis + threshold + N_trials_consumed — is purely on-honor. The deterministic-gates hook spec the other dev drafted addresses this; until that ships, you're trusting discipline at a place where mechanization is available.
 
 **3. Engine boundaries are "inviolable" but the aggregator architecture I keep flagging genuinely touches the A↔C boundary.** Strictly read, it'd require propose-first ceremony spanning two engines. That could discourage the one structural change the project most needs. Worth a pre-emptive clarification in CLAUDE.md: signal *combination* (linear or non-linear aggregator) is Engine A's authority; portfolio *allocation* (weighting positions across signals' outputs) is Engine C's. The hierarchical aggregator I've been describing stays in Engine A by that reading. Pre-clarifying prevents future paralysis.
 
 ## What's perfectly calibrated and shouldn't move
 
-- CI-aware kill thresholds (non-negotiable #6)
+- CI-aware kill thresholds (non-negotiable `[NN-SHARPE-CI]`)
 - MBL Gate-0 (#7)
 - Substrate re-verify before flag-flip (#9)
 - Float-equality on sample statistics (#8)

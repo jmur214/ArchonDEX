@@ -131,7 +131,7 @@ mission-critical.
   N-day SPY drawdown ≤ -5%.
 - Per-event TPR: 60 trading-day lookback before each event trough.
 
-### Stress-event troughs (per CLAUDE.md #6, pre-registered before posterior fit)
+### Stress-event troughs (per CLAUDE.md `[NN-SHARPE-CI]`, pre-registered before posterior fit)
 
 - 2008 GFC: 2008-11-20
 - 2011 EU debt: 2011-10-03
@@ -205,7 +205,7 @@ March 2nd and stayed firing throughout the COVID drawdown.
   on EVERY held-out crisis (COVID, 2022 bear, 2025 vol-shock) with
   28-58 day lead-times and max posterior 1.000.
 - OOS AUC @ 5d = 0.914 (ci_low 0.880) — strict clearance of every
-  CLAUDE.md #6 gate.
+  CLAUDE.md `[NN-SHARPE-CI]` gate.
 - The signal is robust to the train/OOS split: 5d AUC moves from
   in-train 0.943 to OOS 0.914 — a 0.029 degradation, well within the
   bootstrap CI's natural width.
@@ -284,7 +284,7 @@ March 2nd and stayed firing throughout the COVID drawdown.
   (`p_crisis + p_stressed ≥ 0.5`). The crisis-trained model
   concentrates the 'crisis' state label into the 2008-magnitude tail
   only (210 / 3,459 = 6.1% of train days). OOS AUC @ 5d on combined
-  posterior = 0.914 ci_low 0.880 — clears strict CLAUDE.md #6 gate.
+  posterior = 0.914 ci_low 0.880 — clears strict CLAUDE.md `[NN-SHARPE-CI]` gate.
   REPOINT IS JUSTIFIED on combined posterior; NOT JUSTIFIED on
   p_crisis alone. State-label semantics are training-distribution-
   dependent — the robust signal across training spans is

@@ -361,7 +361,7 @@ PRODUCER_SUMMARY_KEYS: Set[str] = {
     # summary path. Before T-091 PSR was computed via _engine_metrics()
     # but not surfaced in the summary dict written to
     # performance_summary.json; run_registry's _safe_float(perf, 'PSR')
-    # at run_registry.py:117 silently read NULL. Per CLAUDE.md #6 PSR
+    # at run_registry.py:117 silently read NULL. Per CLAUDE.md `[NN-SHARPE-CI]` PSR
     # is a headline statistic — it belongs in the summary.
     "PSR",
     # T-091 (2026-05-31) added Sortino to the summary path (same family

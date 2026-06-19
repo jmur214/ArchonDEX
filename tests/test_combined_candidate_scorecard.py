@@ -245,7 +245,7 @@ def test_require_any_vs_all():
 
 
 def test_gate_uses_ci_low_not_point_estimate():
-    # the comparison stores ci_low for both sides and gates on it (CLAUDE.md #6)
+    # the comparison stores ci_low for both sides and gates on it (CLAUDE.md `[NN-SHARPE-CI]`)
     idx = pd.bdate_range("2019-06-01", periods=252 * 6)
     rng = np.random.default_rng(11)
     base = _equity_from_returns(pd.Series(rng.normal(0.0006, 0.009, len(idx)), index=idx))

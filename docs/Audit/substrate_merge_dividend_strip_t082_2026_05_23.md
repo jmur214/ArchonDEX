@@ -169,7 +169,7 @@ Total merged bars: **4,149,953** across the BOTH cohort.
   inflated by Stooq's total-return convention
 - MBL Gate-0 (`T_years ≥ 2·ln(N) / SR²`) is now passable for any
   backtest that uses these 730 tickers — the dev's binding constraint
-  per CLAUDE.md non-negotiable #7 is no longer the binding constraint
+  per CLAUDE.md non-negotiable `[NN-MBL]` is no longer the binding constraint
 - The infrastructure (`fit_ratio_loglinear` + `apply_dividend_strip`)
   is reusable for any future vendor-mix problem
 

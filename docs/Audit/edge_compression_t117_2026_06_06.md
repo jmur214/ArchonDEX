@@ -228,7 +228,7 @@ On the 2014-2025 deep run (0dcae34c) the **bloated joint α is POSITIVE**:
 this would say the inventory has alpha and compression roughly preserves it.
 
 It doesn't — this is a known substrate trap (cf. `feedback_substrate_re_verify_before_recommend`,
-CLAUDE.md #9, and the 16-yr "crisis-free bull flatters momentum" finding):
+CLAUDE.md `[NN-SUBSTRATE-REVERIFY]`, and the 16-yr "crisis-free bull flatters momentum" finding):
 
 - The deep run is **76% momentum_edge** (9,732 / 12,832 trades; 824 dense days).
 - Momentum_edge's α is **positive pre-2021** (momentum's golden decade) and
