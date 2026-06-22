@@ -8,9 +8,6 @@ import numpy as np
 
 from debug_config import is_debug_enabled, is_info_enabled
 
-def is_portfolio_debug():
-    return is_debug_enabled("PORTFOLIO"), is_info_enabled
-
 from .policy import PortfolioPolicy, PortfolioPolicyConfig
 
 
@@ -23,7 +20,6 @@ class Position:
     # edge metadata (for attribution)
     edge: Optional[str] = None
     edge_group: Optional[str] = None
-    edge_id: Optional[str] = None
     edge_id: Optional[str] = None
     edge_category: Optional[str] = None
     # MTM tracking
@@ -44,8 +40,6 @@ def _as_dict(pos: "Position") -> dict:
         "edge": pos.edge,
         "edge_group": pos.edge_group,
         "edge_id": pos.edge_id,
-        "edge_id": pos.edge_id,
-        "edge_category": pos.edge_category,
         "edge_category": pos.edge_category,
         "last_price": pos.last_price,
         "highest_high": pos.highest_high,
@@ -188,7 +182,8 @@ class PortfolioEngine:
                 pos = Position()
             self.positions[ticker] = pos
             self._log_info(f"Updated position for {ticker}: qty={pos.qty}, avg_price={pos.avg_price}")
-            print(f"[DEBUG_PORTFOLIO_STATE] After fill: cash={self.cash}, positions={{t: p.qty for t, p in self.positions.items()}}, realized_pnl={self.realized_pnl}")
+            if is_debug_enabled("PORTFOLIO"):
+                print(f"[DEBUG_PORTFOLIO_STATE] After fill: cash={self.cash}, positions={{t: p.qty for t, p in self.positions.items()}}, realized_pnl={self.realized_pnl}")
             return
 
         # ---- OPEN / ADD ----
@@ -245,8 +240,6 @@ class PortfolioEngine:
                     pos.edge = meta_edge
                     pos.edge_group = meta_edge_group
                     pos.edge_id = meta_edge_id
-                    pos.edge_group = meta_edge_group
-                    pos.edge_id = meta_edge_id
                     pos.edge_category = meta_edge_category
                     pos.last_price = float(price)
                 else:
@@ -269,7 +262,8 @@ class PortfolioEngine:
                 pos.take_profit = float(fill["take_profit"])
         self.positions[ticker] = pos
         self._log_info(f"Updated position for {ticker}: qty={pos.qty}, avg_price={pos.avg_price}")
-        print(f"[DEBUG_PORTFOLIO_STATE] After fill: cash={self.cash}, positions={{t: p.qty for t, p in self.positions.items()}}, realized_pnl={self.realized_pnl}")
+        if is_debug_enabled("PORTFOLIO"):
+            print(f"[DEBUG_PORTFOLIO_STATE] After fill: cash={self.cash}, positions={{t: p.qty for t, p in self.positions.items()}}, realized_pnl={self.realized_pnl}")
         return
 
     # ------------------------------------------------------------------ #
@@ -450,6 +444,28 @@ class PortfolioEngine:
         self._log_debug(f"Computed target allocations from signals: {signals} -> weights: {weights}")
         return weights
 
+    @staticmethod
+    def _last_close_map(
+        weights: Dict[str, float],
+        price_data: Dict[str, pd.DataFrame],
+    ) -> Dict[str, float]:
+        """{ticker: last_close} for the weighted names — last Close from the
+        bar's price_data, finite and > 0, sorted-key iteration for determinism.
+        Single source of truth shared by the dyn-opt / buffering post-processors
+        (T-224 consolidation of two copy-pasted blocks)."""
+        prices: Dict[str, float] = {}
+        for tkr in sorted(weights.keys()):
+            df = price_data.get(tkr)
+            if df is None or df.empty or "Close" not in df.columns:
+                continue
+            try:
+                last_close = float(df["Close"].iloc[-1])
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(last_close) and last_close > 0.0:
+                prices[tkr] = last_close
+        return prices
+
     def _apply_position_buffering(
         self,
         weights: Dict[str, float],
@@ -468,17 +484,7 @@ class PortfolioEngine:
             apply_position_buffering,
         )
 
-        prices: Dict[str, float] = {}
-        for tkr in sorted(weights.keys()):
-            df = price_data.get(tkr)
-            if df is None or df.empty or "Close" not in df.columns:
-                continue
-            try:
-                last_close = float(df["Close"].iloc[-1])
-            except (TypeError, ValueError):
-                continue
-            if np.isfinite(last_close) and last_close > 0.0:
-                prices[tkr] = last_close
+        prices = self._last_close_map(weights, price_data)
 
         current_positions = {
             t: int(self.positions[t].qty) if t in self.positions else 0
@@ -524,20 +530,13 @@ class PortfolioEngine:
         cfg = self.policy.cfg
         lookback = int(getattr(cfg, "dynopt_cov_lookback", 60))
 
-        prices: Dict[str, float] = {}
+        prices = self._last_close_map(weights, price_data)
         returns_map: Dict[str, pd.Series] = {}
         for tkr in sorted(weights.keys()):
             df = price_data.get(tkr)
             if df is None or df.empty or "Close" not in df.columns:
                 continue
-            close = df["Close"]
-            try:
-                last_close = float(close.iloc[-1])
-            except (TypeError, ValueError):
-                continue
-            if np.isfinite(last_close) and last_close > 0.0:
-                prices[tkr] = last_close
-            rets = close.pct_change().dropna().tail(lookback)
+            rets = df["Close"].pct_change().dropna().tail(lookback)
             if len(rets) >= 2:
                 returns_map[tkr] = rets
 
