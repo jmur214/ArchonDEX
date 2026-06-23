@@ -15,12 +15,17 @@ Two composable, low-turnover, evidence-backed defensive tilts:
    a cross-sectional percentile cutoff. Honest label: this is a defensive
    UNDER-participation tilt (it sits out high-vol rally names).
 
-DESIGN NOTE — OFF by construction:
-    These are pure functions. They are NOT imported by the production
-    backtest path and do NOT touch Engine-B admission/sizing (that
-    application is propose-first). Wiring them in is a separate, gated
-    step; until then prod canon-md5 is unchanged because this module is
-    never on the live path.
+DESIGN NOTE — DORMANT, flag-gated default-OFF (NOT unreachable):
+    These are pure functions. They ARE imported and consumed by the
+    Engine-C phase-1 composition post-processor
+    (``engines/engine_c_portfolio/phase1_composition.py:88-96``), but
+    ONLY when ``phase1_composition_enabled=True``. That flag defaults
+    False, so prod canon-md5 is unchanged. They do NOT touch Engine-B
+    admission/sizing (that application is propose-first and separate).
+    Correcting the prior docstring, which falsely claimed this module is
+    "NOT imported by the production backtest path" — it is imported (and
+    reachable behind one default-OFF flag); see capability_ledger
+    phase1_composition + defensive_tilt rows.
 
 PIT-correctness: quality metrics use the same publish_date-gated panel
 helpers the edges use; IVOL uses only price history up to ``now``.
