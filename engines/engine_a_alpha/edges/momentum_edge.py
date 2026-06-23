@@ -67,6 +67,6 @@ try:
     reg = EdgeRegistry()
     reg.ensure(EdgeSpec(edge_id=MomentumEdge.EDGE_ID, category=MomentumEdge.CATEGORY,
                         module=__name__, version="1.0.0",
-                        params={}, status="active"))
+                        params={}, status="active"))  # non-authoritative default — edges.yml is the live status (EdgeRegistry.ensure write-protects existing specs); do not read this literal as the edge's lifecycle state. [NN-NO-MANUAL-EDGES]
 except Exception:
     pass

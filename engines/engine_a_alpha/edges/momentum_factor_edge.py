@@ -127,7 +127,7 @@ try:
         module=__name__,
         version="1.0.0",
         params=dict(MomentumFactorEdge.DEFAULT_PARAMS),
-        status="active",
+        status="active",  # non-authoritative default — edges.yml is the live status (EdgeRegistry.ensure write-protects existing specs); do not read this literal as the edge's lifecycle state. [NN-NO-MANUAL-EDGES]
     ))
 except Exception:
     # Best-effort registration; do not break import if registry is unwritable.
