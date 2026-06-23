@@ -184,6 +184,52 @@ class StrategyGovernor:
                     regime_w[edge_name] = rw
             if regime_w:
                 self._regime_weights[regime_label] = regime_w
+        self._assert_regime_weight_keys_reachable()
+
+    def _assert_regime_weight_keys_reachable(self) -> None:
+        """T-227 — runtime dead-gate guard for the runtime-built
+        `_regime_weights` dict (the ONE gate the static Layer-4 contract
+        suite can't introspect, flagged in T-223; see
+        `dead_gate_contract_guard_t223_2026_06_19.md`).
+
+        `get_edge_weights()` looks regime weights up ONLY by
+        `macro_regime['label']` — there is no forward_stress fallback in the
+        consumer. So every key in `_regime_weights` MUST be a member of the
+        macro_regime vocabulary, else that key is UNREACHABLE: a silently-dead
+        gate entry, the T-216 (`g_regime`) dead-gate class. The vocabulary is
+        `MACRO_RULES` keys ∪ {"transitional"} — the same set the static
+        Layer-4 guard checks `MACRO_EDGE_AFFINITY` against.
+
+        Fires only when the gate is actually populated (no false-fire when
+        `regime_conditional_enabled=False` / the dict is empty — the prod
+        default). Severity by path (CLAUDE.md `[NN-FAIL-CLOSED]`): a measured
+        run HALTs (a real vocab mismatch in a measured run IS the dead-gate
+        bug and must surface non-zero); the live/paper/local governor path
+        WARNs only (a defensive check must never break the live path).
+
+        Additive defensive check — does NOT touch the weight LOGIC.
+        """
+        if not self._regime_weights:
+            return  # gate inactive/empty → nothing reachable-or-not to check
+        # Lazy imports: keep module load cheap + avoid any import-order risk.
+        from engines.engine_e_regime.advisory import MACRO_RULES
+        from core.measured import is_measured, MeasurementHalt
+
+        vocab = set(MACRO_RULES.keys()) | {"transitional"}
+        foreign = set(self._regime_weights.keys()) - vocab
+        if not foreign:
+            return
+        msg = (
+            f"[Governor] _regime_weights has key(s) no macro_regime label "
+            f"emits: {sorted(foreign)} (consumer vocab={sorted(vocab)}). "
+            f"get_edge_weights() resolves regime weights by macro_regime"
+            f"['label'] ONLY, so these keys are UNREACHABLE dead-gate entries "
+            f"(the T-216 dead-gate class; static Layer-4 can't see this "
+            f"runtime-built dict — T-223)."
+        )
+        if is_measured():
+            raise MeasurementHalt(msg + " [measured-mode HALT: NN-FAIL-CLOSED]")
+        log.warning(msg)
 
     def update_from_trades(
         self,
