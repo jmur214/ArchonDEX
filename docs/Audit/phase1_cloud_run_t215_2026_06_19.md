@@ -137,6 +137,49 @@ summary. **Verdict pending completion.** On completion: per-arm N=3 determinism,
 (value/accruals fire? panel?), then `evaluate_deploy_readiness(roth, after-tax, w_dbmf=0)`
 vs 60/40 + schwab_like + `is_it_beta_or_edge` + the E/T-221 regime-sanity checklist.
 
+## 6c. Full-window census — value/accruals FIRE; the only nit is a 2-name panel shrink (DOCUMENTED BENIGN)
+First cell to complete the full 26yr backtest (arm0-base-r3, exit 2 = census-gated, but the
+backtest itself ran to completion):
+```
+[BACKTEST][CENSUS] trades=8564 panel=689/691 regime_unknown=0.0 edges_blind=1 fund_blind=0
+[CENSUS][FAIL] panel shrank: n_in_panel=689 < n_resolved=691 (allowlist=0)
+```
+- **`edges_blind` 5→1**: the 4 value/accruals edges FIRE on the 26yr window (the 2yr-window
+  blindness was window-length, as predicted); the remaining `1` is the allowlisted
+  `news_sentiment_edge`. `fund_blind=0`, `regime_unknown=0`, 8564 trades. **The book is
+  healthy on the real window.** The ONLY census failure is the panel shrink.
+
+### The 2 panel-shrink names — identified + benign (documented BEFORE any allowlist)
+Mechanism: a name is in `n_resolved` (handed to the controller) but dropped from `n_in_panel`
+if `ensure_data` returns an empty/None frame (`backtest_controller.py:138`,
+`discover_cached_tickers` admits by FILE-EXISTENCE, not data sufficiency). The 2 dropped
+names are the only two `[DATA_MANAGER][FETCH-FAIL]` tickers in the data-load:
+
+| ticker | left S&P (membership `included_until`) | processed CSV | raw stooq |
+|--------|----------------------------------------|---------------|-----------|
+| **SRCL** (Stericycle) | 2018-12-03 | 93 B — **1 stray row @ 2026-03-02** (past window end) | none |
+| **RX**   | 2010-02-26 | 98 B — **1 stray row @ 2018-02-22** (8y after it left) | none |
+
+Both are **delisted PIT names whose real active-period history was never sourced** — only a
+single stray row each (dated OUTSIDE their membership windows), and no raw backfill. So
+`discover_cached_tickers` counts them "cached" (file exists) → they pass `available_filter`
+(`n_resolved=691`) → but `ensure_data` over [1999-01-01, 2025-12-31] can't build a usable
+frame (SRCL's lone row is past 2025; RX's single row is insufficient → offline-fetch fail) →
+empty → dropped (`n_in_panel=689`).
+
+**Benignity:** 2/691 = 0.3%, both peripheral delisted names with **zero tradeable data in any
+window** — they could never have been traded regardless, so excluding them is CORRECT and has
+**zero measurement impact**. No survivorship bias is introduced: the PIT membership mask
+handles survivorship; these two simply lack price data, like any un-sourced delisted name.
+**A `CENSUS_PANEL_ALLOWLIST=2` is justified by this** (the gate's strictness, not a real shrink).
+Because the 2 names contribute no rows, a re-run with the allowlist would be BYTE-IDENTICAL
+(same trades/canon) — only the gate verdict flips — so the existing completed cells ARE the
+canonical measurement modulo this documented allowlist (no 30h re-run needed for the flag).
+
+**Minor upstream data-hygiene finding (flag, not block):** `discover_cached_tickers` admits
+by file-existence; requiring ≥N in-window rows would drop SRCL/RX upstream → census clean with
+no allowlist. Optional improvement for a later pass.
+
 ## 6. (historical) Execution status — BLOCKED on local image build (honest hard blocker)
 D's side is fully prepared; the ONE gating artifact — the canonical image — **cannot be
 built on this Mac**. This is the known local-disk hazard (CLAUDE.md build-script
