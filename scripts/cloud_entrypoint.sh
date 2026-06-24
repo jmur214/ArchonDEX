@@ -119,7 +119,21 @@ elif [ -n "${ARCHONDEX_START_DATE:-}" ] || [ -n "${ARCHONDEX_END_DATE:-}" ]; the
 elif [ -n "${ARCHONDEX_YEAR:-}" ]; then
     WINDOW_ARG="--year ${ARCHONDEX_YEAR}"
 fi
+# T-2026-06-24-215: the harness runs its OWN census gate and exits non-zero on a
+# NON-CANONICAL run. Under `set -euo pipefail` (line 24), that `exit` propagated
+# through the `| tee` pipeline and aborted THIS script HERE — BEFORE the
+# forensics-upload below — so census-FAILED cells uploaded NOTHING (equity lost;
+# the verdict-blocking bug that cost a 30h re-run). The entrypoint's own census
+# gate (further down) is the SINGLE source of the cell's canonical verdict + exit
+# code; the harness exit must NOT short-circuit the upload. Isolate it from
+# pipefail and capture it via PIPESTATUS so the script ALWAYS reaches the upload.
+set +e
 python -m scripts.run_isolated --runs 1 --task q1 $WINDOW_ARG 2>&1 | tee "$HARNESS_LOG"
+HARNESS_RC=${PIPESTATUS[0]}
+set -e
+if [ "${HARNESS_RC:-0}" -ne 0 ]; then
+    echo "[entrypoint] harness exited rc=$HARNESS_RC (often a census-fail) — continuing to upload artifacts for forensics; the entrypoint census gate below sets the canonical verdict + final exit." >&2
+fi
 
 CANON_MD5=$(grep -E "trades_canon_md5:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')
 RUN_ID=$(grep -E "^\s+run_id:" "$HARNESS_LOG" | awk '{print $NF}' | tr -d '[:space:]')

@@ -180,6 +180,38 @@ canonical measurement modulo this documented allowlist (no 30h re-run needed for
 by file-existence; requiring ≥N in-window rows would drop SRCL/RX upstream → census clean with
 no allowlist. Optional improvement for a later pass.
 
+## 6d. The upload bug + the prevention (06-24, director-approved)
+**Bug:** the completed rev4 cells uploaded NOTHING to S3 → equity lost → verdict blocked.
+Root cause: `cloud_entrypoint.sh` runs `run_isolated … | tee` under `set -euo pipefail`;
+the harness census-fails internally (`exit 2`) and pipefail aborted the script BEFORE its
+own forensics-upload step (which was *designed* to upload even when NON-CANONICAL). Verified
+from base-r3's log (only the early `[entrypoint] Applying config patch` markers; never
+`uploading artifacts`). The cells census-failed only because `CENSUS_PANEL_ALLOWLIST=2`
+(SRCL/RX) wasn't set at their launch.
+
+**Decision (director):** kill the 4 doomed running cells; fire the **rev5 re-run**
+(`archondex-backtest-t215:5`, `CENSUS_PANEL_ALLOWLIST=2` baked, same `:sha-3863ef8`/1vCPU/48h)
+— census now passes deterministically → `run_isolated` exit 0 → entrypoint uploads → real
+ci_low verdict; defer the entrypoint fix to the NEXT image (it doesn't bite a census-PASS run).
+**Base-arm preview (NON-CERTIFIABLE BASELINE — base arm only, no composition, no ci_low,
+salvaged from base-r3's CloudWatch log):** Sharpe **0.119**, CAGR **0.44%**, canon
+`c8344526a3547d717f048a29aa3e7fda`; MDD only in the un-uploaded JSON (comes with rev5). The
+rev5 base-arm canon must match `c8344526…` (allowlist is census-only + entrypoint-orthogonal
+→ byte-identical) — a free determinism + correctness cross-check.
+
+**Prevention built (next image; post-verdict merge):**
+1. **`cloud_entrypoint.sh`** — isolate the harness from pipefail (`set +e` + `${PIPESTATUS[0]}`)
+   so the entrypoint ALWAYS reaches its census gate + upload. The entrypoint's own gate stays
+   the single source of the canonical verdict + exit code.
+2. **`discover_cached_tickers(min_rows=2)`** — admit a name only with ≥2 data rows, not by
+   file-existence. Excludes exactly the SRCL/RX single-stray-row stubs (730→728, verified) →
+   future runs have no panel shrink and need no allowlist. Regression test
+   `test_excludes_degenerate_stubs_t215`.
+3. **`scripts/cloud_pipeline_smoke.py`** — a MANDATORY both-paths pre-flight: runs the REAL
+   entrypoint on a ~1-month window once census-PASS + once census-FAIL and asserts BOTH upload
+   to S3. ~5 min / ~$0.10 — would have caught this bug instead of 30h. Documented as required
+   in `docs/Cloud/CLOUD_USAGE.md` before any expensive campaign.
+
 ## 6. (historical) Execution status — BLOCKED on local image build (honest hard blocker)
 D's side is fully prepared; the ONE gating artifact — the canonical image — **cannot be
 built on this Mac**. This is the known local-disk hazard (CLAUDE.md build-script
