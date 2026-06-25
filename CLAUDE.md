@@ -229,6 +229,32 @@ np.isfinite`), never bare `== 0`, everywhere in the measurement
 path. See 
 `docs/Audit/measurement_integrity_audit_2026_06_16.md`.
 
+**`[NN-AI-GATE]` AI is an ADDITION to a working system, never a 
+fallback for a broken one.** The system AS A WHOLE is the edge — 
+improvement means making the integrated machine (signals + risk + 
+cost + tail-shaping + execution + composition) beat the robo, NOT 
+hunting a single alpha signal. No AI/LLM/foundation-model component 
+may be INTEGRATED into the live/deployed system until that system, 
+WITHOUT the AI, demonstrably beats the robo (deployable, net-of-cost, 
+after-tax, on the honest substrate). AI is then judged ONLY by 
+whether it makes the WHOLE system beat the robo by MORE, and is held 
+to the SAME falsification gates (gauntlet, DSR, beat-robo deployable) 
+as any other capability — NO special pleading, no "it's AI so it'll 
+work." AI EXPLORATION (rigorously-gated hypothesis tests on a 
+SEPARATE track, with NO live integration) is permitted once the 
+MEASUREMENT apparatus is trustworthy — because a sound apparatus 
+CATCHES a band-aid/overfit and refutes it (that is the protection). 
+The prior on any "AI finds alpha" hypothesis is LOW until proven on 
+the honest bar: the price-vocabulary is H0-exhausted (foundry, 
+conjunctive), so value — if any — is in NEW DATA modalities 
+(text/news/filings the price vocabulary can't see), NOT a richer 
+model of the exhausted price data (a foundation model on OHLCV is the 
+same exhausted source). Rationale: reaching for AI when the system 
+underperforms is a band-aid that makes a no-edge system "look good" 
+while masking the structural problem. This rule forces AI to earn its 
+place by the same honest bar as everything else — as an amplifier of 
+a working system, not a hoped-for rescue of a broken one.
+
 ## Git discipline
 
 **Commit early and often.** After any logically-complete unit of 

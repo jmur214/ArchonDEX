@@ -253,6 +253,33 @@ months-later audit catch into a run-time refusal — the machine cannot produce 
 corrupted headline number without announcing it. Rollout + the 6 invariants:
 `docs/Audit/measurement_integrity_audit_2026_06_16.md`.
 
+## `[NN-AI-GATE]` AI is an addition to a working system, never a fallback for a broken one
+
+**Rule:** The system AS A WHOLE is the edge — improvement means making the
+integrated machine (signals + risk + cost + tail-shaping + execution + composition)
+beat the robo, NOT hunting a single alpha signal. No AI/LLM/foundation-model
+component may be **integrated into the live/deployed system** until that system,
+*without* the AI, demonstrably beats the robo (deployable, net-of-cost, after-tax,
+honest substrate). AI is then judged ONLY by whether it makes the WHOLE system beat
+the robo by MORE, held to the SAME falsification gates (gauntlet, DSR, beat-robo
+deployable) as any other capability — no special pleading. AI **exploration**
+(rigorously-gated hypothesis tests on a SEPARATE track, no live integration) is
+permitted once the measurement apparatus is trustworthy (a sound apparatus catches a
+band-aid/overfit and refutes it — that is the protection). The prior on any "AI finds
+alpha" hypothesis is LOW until proven on the honest bar: the price vocabulary is
+H0-exhausted (foundry, conjunctive), so value — if any — is in NEW DATA modalities
+(text/news/filings), NOT a richer model of the exhausted price data.
+
+**Why hard:** Reaching for AI when the system underperforms is the band-aid that makes
+a no-edge system "look good" while masking the structural problem — the exact
+self-deception the measurement discipline exists to prevent. The author has corrected
+this bias repeatedly (2026-06 sessions). Two tiers, kept distinct: **EXPLORATION**
+(safe once the apparatus is sound — it catches fakes) vs **INTEGRATION** (gated on a
+working system). The gate converts a bias-prone in-the-moment judgment into an
+objective precondition, the same way the deploy gate gates real money. See
+`memory/feedback_plateau_before_ai_2026_05_01.md` (the seed) +
+`feedback_fork_resolved_robo_benchmark_2026_06_15.md`.
+
 ## Never commit secrets
 
 **Rule:** `.env`, anything in `config/alpaca_keys.json`, API tokens, broker
