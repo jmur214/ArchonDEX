@@ -1051,14 +1051,19 @@ class RiskEngine:
                       f"size multiplier ×{_regime_overlay_mult:.3f} "
                       f"(armed={self.regime_overlay.armed})")
 
+        # T-2026-06-26-245 — optimizer_weight (Engine C HRP composition weight)
+        # read ONCE here. Path A (target_weight) and Path B (else) below are
+        # mutually exclusive, so it is applied exactly once per order — into
+        # `target_notional` (Path A) or `risk_scaler` (Path B). Previously read
+        # identically in BOTH branches (a DRY duplication — NOT a double-apply;
+        # see the T-245 investigation). When method="hrp_composed", the HRP
+        # weight (per-ticker HRP × N, clamped) multiplies into sizing so HRP
+        # composes with PortfolioPolicy / edge-conviction rather than
+        # overriding it. Default 1.0 = strict no-op (method="weighted_sum" or
+        # the signal lacks the key).
+        sig_meta_in = signal.get("meta") or {}
+        optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
         if target_weight is not None and np.isfinite(target_weight):
-            # Path A — Engine C optimizer_weight composition (also applied
-            # in Path B below). When SignalProcessor uses method="hrp_composed",
-            # the HRP weight is multiplied into the target notional so HRP
-            # composes with PortfolioPolicy rather than overriding it.
-            # Default 1.0 = strict no-op when method="weighted_sum".
-            sig_meta_in = signal.get("meta") or {}
-            optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
             # T-055: portfolio_vol_scalar = 1.0 unless cfg.portfolio_vol_target_enabled.
             # T-111: _drawdown_size_mult = 1.0 unless both
             # drawdown_kill_switch_enabled AND
@@ -1174,15 +1179,9 @@ class RiskEngine:
             # 4. Advisory risk scalar (Engine E regime brake on sizing)
             risk_scaler *= advisory_risk_scalar
 
-            # 5. Path A — Engine C optimizer_weight composition.
-            # When SignalProcessor uses method="hrp_composed", AlphaEngine
-            # passes per-ticker HRP weight × N (clamped to [0,1]) through
-            # signal.meta. This multiplies into ATR-risk sizing so HRP
-            # composes with edge-conviction (signal_strength) and
-            # governor_weight rather than overwriting them. Default 1.0 =
-            # strict no-op when method="weighted_sum" or signal lacks the key.
-            sig_meta_in = signal.get("meta") or {}
-            optimizer_weight = float(sig_meta_in.get("optimizer_weight", 1.0))
+            # 5. optimizer_weight (read once above; Path A/B are exclusive) —
+            # HRP composes with the ATR-risk sizing (signal_strength +
+            # governor_weight) rather than overwriting it. Default 1.0 = no-op.
             risk_scaler *= optimizer_weight
 
             # 5b. T-2026-05-12-055 portfolio-level vol-target overlay.
