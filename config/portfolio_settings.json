@@ -8,6 +8,8 @@
     "deployable_cash_account": false,
     "deployable_max_weight": 0.25,
     "deployable_max_gross": 1.0,
+    "concentration_enabled": false,
+    "concentration_top_k": 10,
     "vol_lookback": 20,
     "rebalance_threshold": 0.05,
     "risk_free_rate": 0.04,
