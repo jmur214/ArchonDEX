@@ -1,4 +1,53 @@
-# Forward Plan — live (last substantive update 2026-06-15, crisis-defense resolved into a two-layer floor+amplifier architecture; regime detector elevated to an active lane per user directive)
+# Forward Plan — live (last substantive update 2026-06-26 — THE STRATEGIC INFLECTION: in-house equity alpha is comprehensively H0; the realized win is the trend SLEEVE, deploying to paper; the measure is Sortino/tail)
+
+> ## 🏁 2026-06-26 — STRATEGIC INFLECTION: the alpha hunt is CLOSED (comprehensively H0); the realized win is the trend SLEEVE, not the equity book
+>
+> **The in-house equity alpha machine is H0 on EVERY axis we can cheaply test** — decisive, not a single null:
+> - **Single-gene** Foundry vocabulary: H0 (T-196, 0/35 cleared even at lenient n=1).
+> - **Ensemble** (the full 21-edge book, honest PIT × realistic-cost, 26yr, after-tax Roth): H0 —
+>   base Sharpe 0.119 levered / ~0.1-0.3 deployable, ci_low negative, doesn't beat the robo (T-215).
+> - **Tail / skew** (re-graded on Sortino, the convex-friendly measure): still H0 — composition
+>   Sortino 0.020 < base 0.383 < both robos; no buried upside half (T-239).
+> - **Concentration** (top-K conviction-weighting — the last cheap probe, the ensemble-alpha-paradox's
+>   other side): H0 — concentration amplifies noise, not alpha (T-241/C1, decisive).
+>
+> **There is no extractable in-house alpha in the current vocabulary on any axis.** The arc that ran
+> VRP / cross-sectional / vol-target / confidence-gate / crisis-timing / Foundry / concentration is
+> EXHAUSTED. Do NOT re-litigate it or reflexively reach for the next equity-edge variant.
+>
+> **THE REALIZED WIN = the trend SLEEVE (T-236).** The long/flat 5mo absolute-momentum overlay on
+> SPY/AGG/GLD is the FIRST validated robo-beater on the TAIL yardstick: full-cycle incl dotcom,
+> Sortino 1.085 / ci_low 0.536 > both robos, MaxDD −12% (vs robo −27 to −39%), clears MBL at
+> honest-N. **The win is the SLEEVE, not the equity book.** It is deploying to PAPER (E/T-238 wired
+> the sleeve into the paper machine + forward-tracker; armed run in flight, schedule DISABLED pending
+> user-enable). This is also the realized crisis-defense — it SUPERSEDES the 2026-06-15 "MF-sleeve
+> floor + regime-amplifier" framing below: the trend overlay IS the self-timing crisis defense
+> (de-grosses to cash in every crisis), measured on the honest substrate.
+>
+> **THE MEASURE = Sortino / tail** (user directive 2026-06-25, `[[feedback_measure_sortino_tail_not_sharpe_2026_06_25]]`).
+> Sharpe penalizes the convex/asymmetric shapes this system produces; Sortino + crisis-drawdown +
+> up/down-capture is the right yardstick. (It surfaced the trend sleeve, which Sharpe had buried.)
+>
+> **THE HONEST CEILING = "trend sleeve + the robo's own return."** A genuinely BETTER DEFENSIVE
+> portfolio than the robo (MaxDD −12% vs −27%, shallower in every crisis), at the cost of ~1%/yr less
+> terminal wealth (the give-up). There is NO in-house UPSIDE half to close it — T-239 confirmed the
+> trend family is structurally downside-only, and T-241 confirmed concentration doesn't manufacture
+> one. "Money stays mostly in the robo, with the trend sleeve as the better-defensive alternative for
+> the drawdown-averse" is the honest, deployable outcome.
+>
+> **THE RETURN FRONTIER = NEW DATA only — deliberate low-prior bets, gated on the user, NOT a reflexive reach (`[NN-AI-GATE]`):**
+> - **C4 — catalyst / LLM-on-text** (news/filings/sentiment for EARLY trend capture): highest ceiling,
+>   lowest prior; the value-text version (A/T-237 EDGAR "Lazy Prices") is **leaning H0**.
+> - **C2 — small-cap / high-momentum universe**: the ONE untested in-house option (fatter right
+>   tails) — medium-low prior, HIGH-cost (survivorship-free small-cap data build + the realistic
+>   small-cap-cost gauntlet, which could eat the tail).
+> Both are explicit low-prior, user-gated decisions per `[NN-AI-GATE]` / plateau-before-AI — not an
+> automatic next step. The disciplined default: **ship the trend sleeve to paper, accept the honest
+> ceiling, and only spend on C2/C4 if the user chooses the return-frontier bet.**
+>
+> _(Everything below this banner predates the inflection — the 2026-06-15 crisis-defense two-layer
+> architecture and earlier — kept for provenance but SUPERSEDED on the headline: the in-house alpha
+> hunt closed H0 and the trend sleeve is the realized lever.)_
 
 > ## 2026-06-15 — Crisis-defense RESOLVED into a TWO-LAYER architecture; the regime detector is an ACTIVE lane (USER DIRECTIVE)
 >
