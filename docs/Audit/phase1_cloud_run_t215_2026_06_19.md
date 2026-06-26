@@ -137,6 +137,69 @@ summary. **Verdict pending completion.** On completion: per-arm N=3 determinism,
 (value/accruals fire? panel?), then `evaluate_deploy_readiness(roth, after-tax, w_dbmf=0)`
 vs 60/40 + schwab_like + `is_it_beta_or_edge` + the E/T-221 regime-sanity checklist.
 
+## 7. THE VERDICT (2026-06-25, all 6 cells census-canonical, N=3) — H0 = FAILURE TO HIT THE GOAL
+**⚠️ LEVERED / UN-DEPLOYABLE SUBSTRATE — these numbers are NOT a certified deployable base.**
+The book runs levered (Engine-B per-name sizing, no cross-name cash budget — `risk_engine.py:1077-1083`,
+fix = B/T-232) which a $5-15K cash Roth cannot execute. Reported for the H0 decision, not as a base.
+
+### Matched panel (median rep; PIT × realistic-cost; after-tax Roth)
+| metric | BASE | COMPOSITION | Δ (comp−base) |
+|---|---|---|---|
+| Sharpe | 0.119 | 0.020 | −0.099 |
+| Sharpe ci_low (block-boot 1000) | −0.225 | −0.310 | −0.086 |
+| Sortino | 0.151 | 0.024 | −0.127 |
+| CAGR | +0.44% | −0.40% | −0.84pp |
+| Total Return (26yr) | +12.2% | −10.0% | −22.2pp |
+| MaxDD | −63.5% | −47.0% | +16.5pp (shallower) |
+| Volatility | 19.3% | 11.2% | −8.1pp |
+| Win Rate | 49.6% | 48.7% | −0.9pp |
+| Trades | 8,564 | 13,242 | +4,678 |
+| Calmar | 0.007 | −0.009 | — |
+| Money-EV $5K→ (26yr) | $5.6K | $4.5K | — |
+| Money-EV $15K→ | $16.8K | $13.5K | — |
+
+A 60/40 robo over 2000-2025 (~5-6%/yr) turns $5K → ~$18-22K — the opportunity cost is enormous.
+
+### Determinism + census
+- Metrics **bit-identical across N=3** for both arms. Canon md5: base unanimous (`302d7a94`);
+  composition rep3 (`a1ee2b93`) differs from rep1/2 (`8730df20`) — the **benign T-168 logged-field
+  FP residue**, NOT trade nondeterminism (metrics identical), does not gate.
+- All cells census-canonical: `edges_blind`=news_sentiment only (allowlisted), value/accruals FIRE
+  on 26yr (`edges_blind` 5→1 vs the 2yr pre-flight), `fundamentals_blind=0`, panel 689/691 (SRCL/RX
+  allowlisted), regime 0.
+
+### The −47% anomaly — RESOLVED (overlay works; it's leverage)
+The fresh base MDD is **−63.5%**, so the composition's −47% is **16.5pp SHALLOWER**, not deeper (the
+"deeper" framing compared to the stale −39.7% local figure). The E/T-221 overlay checklist **PASSES**:
+gross/equity de-grosses to cash in every crisis (dotcom 0.05× / GFC 0.00× / COVID 0.00× / 2022 0.31×).
+Both arms' deep MaxDDs are **levered calm-period bleeds** (base −63.5% @ 2004-07 gross 2.29×; comp
+−47% @ 2012-11 gross 1.23×) — leverage profile: base max **3.48×** / 23% of bars; comp max **2.32×** /
+8% (the overlay REDUCES the leverage). Leverage is the **shared Engine-B allocator**, worse in the base.
+
+### Base reconciliation vs the 0.751 re-anchor (the 6× gap) — leverage is NOT the dominant cause
+| | re-anchor 0.751 | T-215 base 0.119 |
+|---|---|---|
+| universe | **static-109** | **PIT-691** |
+| Sharpe / MDD / CAGR / TotRet | 0.751 / −32.6% / 7.47% / +550% | 0.119 / −63.5% / 0.44% / +12% |
+| max gross / avg / levered bars | 2.03× / 0.52× / 6% | 3.48× / 0.84× / 23% |
+| risk/alpha/regime config md5 | 416b9366 / 9c3b4390 / 36772f42 | **identical (same book)** |
+
+The configs are byte-identical → same book; the gap is the SUBSTRATE: **(1) survivorship — static-109
+→ PIT-691 (DOMINANT)**, (2) realistic costs OFF→ON (re-anchor pre-dates T-210), (3) leverage 2.03×→3.48×
+(a MDD effect — can't explain the *return* gap; T-215 levers more yet earns less). **Base-canon
+cross-check:** `c8344526` = the T-215 levered-PIT base (rev4), NOT the 0.751 re-anchor (`a124b239`,
+static-109); rev5 base (`302d7a94`) reproduces rev4 economically (Sharpe 0.119) — canon-hash drift is
+the benign T-168 residue. So T-215 reproduced *itself* on a different substrate than the 0.751.
+
+### Verdict
+**H0 — FAILURE to hit the goal.** The composition does NOT beat the base (more defensive, lower
+vol/MDD, overlay fires correctly — but sacrifices too much return); and **neither arm beats or
+approaches the robo** (both ci_low negative, CAGR ~0, levered/un-deployable). `evaluate_deploy_readiness`
+fails on both axes (ci_low ≪ robo's positive ci_low; MDD deeper than a 60/40's ~−35%); `is_it_beta_or_edge`
+→ closet beta (consistent with T-117). **Money stays in the Schwab robo — the correct decision GIVEN A
+FAILURE, not a success.** N_trials += 1. No re-run (the un-levered MDD is uncomputed because the
+conclusion doesn't depend on it; un-levering lowers risk AND return, can't close a ~5-6%/yr robo gap).
+
 ## 6c. Full-window census — value/accruals FIRE; the only nit is a 2-name panel shrink (DOCUMENTED BENIGN)
 First cell to complete the full 26yr backtest (arm0-base-r3, exit 2 = census-gated, but the
 backtest itself ran to completion):
