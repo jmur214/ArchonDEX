@@ -541,6 +541,47 @@ class BacktestController:
                     except Exception:
                         pass
 
+        # ------------------------------------------------------------------ #
+        # T-2026-06-26-243 — HELD-POSITION ACCUMULATION (the executed-book
+        # leverage mechanism; do NOT re-attempt a per-name cap to "fix" it).
+        # ------------------------------------------------------------------ #
+        # The block above ONLY synthesizes an EXIT signal for held tickers that
+        # are MISSING data today (the bag-holder / data-gap guard). A held
+        # position that DOES have data but does NOT re-fire a fresh alpha signal
+        # this bar gets NO signal here and is therefore NEVER re-sized: it is not
+        # in `signals`, so `_prepare_orders` never visits it, so its notional
+        # carries forward untouched. Across bars the book's GROSS notional
+        # therefore ACCUMULATES from these held, non-re-firing positions.
+        #
+        # CONSEQUENCE (T-232 smoke, 2022 6-edge): the executed book ran 1.70x
+        # gross / cash -73k even though every per-bar allocator weight set sums
+        # <= 1 — this is the 2.3-3.5x gross / cash -1.19x that T-215 found and
+        # that contaminated the levered verdict. The leverage is NOT introduced
+        # by any single bar's sizing; it is CROSS-BAR accumulation of held names.
+        #
+        # WHY A PER-NAME / PER-BAR CASH CAP CANNOT BIND IT: a cap in the per-name
+        # sizing path (risk_engine.prepare_order, the `target_notional`
+        # composition) only sees the bar's FIRING names. Sigma(target_weight *
+        # optimizer_weight) over the few firing names is almost always < 1, so
+        # such a cap never binds AND, even when it does, it cannot trim the held
+        # non-firing book it never visits. T-232 built + smoke-tested exactly
+        # this per-name cap (branch feature/no-borrow-cash-budget-t232) and
+        # PROVED it insufficient (deployable-ON run still 1.56x gross). Do not
+        # re-attempt the per-name cap.
+        #
+        # THE CORRECT FIX (Option A -- HELD, build only when actually needed):
+        # a BOOK-LEVEL de-gross POST-PASS. After `_prepare_orders` builds the
+        # firing orders, compute the resulting book gross
+        # Sigma_i |(current_qty_i + delta_i) * price_i| over ALL positions
+        # (held + new); if it exceeds equity, emit pro-rata TRIM sells across ALL
+        # held positions to bring gross <= equity (cash >= 0). Keep it in Engine
+        # B (a `risk_engine` method this controller calls), DEFAULT-OFF, gated by
+        # C's `deployable_cash_account` flag, [NN-FAIL-CLOSED] on missing
+        # equity/price, canon byte-identical when OFF. HELD pending need: the
+        # deployable equity-book re-run was dropped (T-215 = H0) and the live
+        # path (the long/flat trend sleeve, capped at 1x by construction) does
+        # not borrow. Greenlight returns only if a future build (e.g. a
+        # concentrated equity-book moonshot) actually deploys the borrowing book.
         return signals
 
     def _prepare_orders(self, signals, ts, slice_map, equity_cache, close_prices_df, tickers, BACKTEST_DEBUG, regime_meta=None):
