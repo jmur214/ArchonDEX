@@ -1,0 +1,26 @@
+{
+  "jobDefinitionName": "archondex-backtest-t215",
+  "type": "container",
+  "platformCapabilities": ["FARGATE"],
+  "timeout": {"attemptDurationSeconds": 39600},
+  "containerProperties": {
+    "image": "407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:sha-9bec2f7",
+    "command": ["bash", "scripts/cloud_entrypoint.sh"],
+    "jobRoleArn": "arn:aws:iam::407539788432:role/archondex-batch-task-role",
+    "executionRoleArn": "arn:aws:iam::407539788432:role/archondex-batch-task-execution-role",
+    "resourceRequirements": [
+      {"value": "1", "type": "VCPU"},
+      {"value": "4096", "type": "MEMORY"}
+    ],
+    "runtimePlatform": {"operatingSystemFamily": "LINUX", "cpuArchitecture": "ARM64"},
+    "networkConfiguration": {"assignPublicIp": "ENABLED"},
+    "fargatePlatformConfiguration": {"platformVersion": "LATEST"},
+    "logConfiguration": {"logDriver": "awslogs"},
+    "environment": [
+      {"name": "LC_ALL", "value": "C.UTF-8"},
+      {"name": "TZ", "value": "UTC"},
+      {"name": "LANG", "value": "C.UTF-8"},
+      {"name": "PYTHONHASHSEED", "value": "0"}
+    ]
+  }
+}

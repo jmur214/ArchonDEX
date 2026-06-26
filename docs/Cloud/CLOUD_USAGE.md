@@ -73,6 +73,20 @@ Run it. Pull the manifests. **The two cells' `canon_md5` MUST differ.** If they 
 
 For determinism validation specifically (cross-container reproducibility), also run a 2-cell OFF-vs-OFF empty-patch check; canon must MATCH between the two reps. Catches the T-057c-determinism class of bug (dict-iteration-order FP-summation drift) which local `--runs N` cannot see.
 
+### ⚠️ Both-paths pipeline smoke (MANDATORY before any expensive campaign; T-215 lesson)
+
+The verify-spec above checks the *config patch*. It does NOT check that the **pipeline itself persists results on BOTH census outcomes**. T-215 (2026-06-24) burned a **~30h full-cycle run** discovering that `cloud_entrypoint.sh` — under `set -euo pipefail` with the harness piped through `tee` — aborted **before its forensics-upload** whenever the harness census-FAILED, so **census-failed cells uploaded NOTHING** and the equity was lost. A unit test can't see this seam; only running the real entrypoint does.
+
+Run the both-paths smoke on the EXACT job-def/image the campaign will use:
+
+```bash
+python -m scripts.cloud_pipeline_smoke --job-def <campaign-job-def>
+# PASS iff BOTH a census-PASS cell AND a deliberately census-FAIL cell upload a
+# performance_summary.json to S3 (~5 min, ~$0.10 on a 1-month window).
+```
+
+If the FAIL cell uploads nothing → the pipeline loses results on any non-canonical cell → **DO NOT launch the campaign**; fix the entrypoint first. This gate is required because the seam/orchestration bug class (results-persistence, fail-open caps, pipefail-swallowed exits) only surfaces on the full expensive run.
+
 ### ⚠️ Trigger/overlay campaigns: the "mildest-config-fires" pre-flight (mandatory; T-118 lesson)
 
 For any campaign whose arms are gated behind a TRIGGER (a de-gross overlay, a regime

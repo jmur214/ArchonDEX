@@ -257,13 +257,31 @@ def resolve_universe(
     return combined, info
 
 
-def discover_cached_tickers(cache_dir: Path, timeframe: str = "1d") -> list[str]:
-    """Return the set of tickers with a cached price CSV under ``cache_dir/processed/``.
+def discover_cached_tickers(
+    cache_dir: Path, timeframe: str = "1d", min_rows: int = 2
+) -> list[str]:
+    """Return the set of tickers with a USABLE cached price CSV under
+    ``cache_dir/processed/``.
 
     Used by the resolver to short-circuit ``ensure_data`` calls on
     tickers that aren't already on disk (avoids triggering Alpaca/yf
     fetches for hundreds of survivorship-aware names during a
     cache-only backtest).
+
+    T-2026-06-24-215: a name is admitted only if its CSV holds at least
+    ``min_rows`` DATA rows — not merely if the file exists. The prior
+    file-existence-only admit let degenerate single-stray-row stubs
+    through (e.g. SRCL: one 2026-03-02 row; RX: one 2018-02-22 row —
+    both delisted PIT names whose real history was never sourced). They
+    passed ``available_filter`` (→ counted in ``n_resolved``) but
+    ``ensure_data`` then returned an empty frame → the controller
+    silently dropped them (``n_in_panel < n_resolved``), tripping the
+    census panel-shrink gate (the T-167 universe-shrink class). Counting
+    rows here excludes such stubs at the source, so the resolved universe
+    is exactly the tradeable one and the census needs no panel allowlist.
+    Cheap: a line count per file, no date parse. ``min_rows=2`` (≥2 data
+    rows) is the minimal threshold that removes header-only / single-row
+    stubs without pruning any name that has real history.
     """
     processed = Path(cache_dir) / "processed"
     if not processed.exists():
@@ -271,6 +289,17 @@ def discover_cached_tickers(cache_dir: Path, timeframe: str = "1d") -> list[str]
     suffix = f"_{timeframe}.csv"
     out = []
     for f in processed.iterdir():
-        if f.is_file() and f.name.endswith(suffix):
-            out.append(f.name[: -len(suffix)])
+        if not (f.is_file() and f.name.endswith(suffix)):
+            continue
+        # Count data rows cheaply (total lines minus the header). A file
+        # with fewer than ``min_rows`` data rows cannot build a usable
+        # frame and must not inflate the resolved universe.
+        try:
+            with open(f, "rb") as fh:
+                n_lines = sum(1 for _ in fh)
+        except OSError:
+            continue
+        if n_lines - 1 < min_rows:  # subtract header
+            continue
+        out.append(f.name[: -len(suffix)])
     return sorted(out)

@@ -1,0 +1,21 @@
+{
+  "campaign_id": "t215-preflight",
+  "windows": [
+    {"start": "2008-01-01", "end": "2009-12-31", "label": "2008-2009-gfc"}
+  ],
+  "reps": 3,
+  "arms": {
+    "arm_base_pit_rc": {
+      "config_patch": {
+        "config/backtest_settings.json": {
+          "use_historical_universe": true,
+          "slippage_extra.realistic_retail_costs": true
+        },
+        "config/portfolio_settings.json": {
+          "phase1_composition_enabled": false,
+          "mode": "mean_variance"
+        }
+      }
+    }
+  }
+}

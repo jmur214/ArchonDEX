@@ -80,6 +80,14 @@ done
 # manifest's SUBSTRATE_FILES and the Dockerfile's file-level COPY.
 mkdir -p "$STAGE/data/universe"
 rsync -aL "data/universe/sp500_membership.parquet" "$STAGE/data/universe/"
+# T-2026-06-18-215/219: the realistic-retail cap-tier join (market_cap_tiers.json).
+# Added to SUBSTRATE_FILES + the Dockerfile COPY set in T-215/T-219, but the build
+# staging never mirrored it -> manifest verify failed (MISSING) at build time. The
+# staging set MUST match SUBSTRATE_FILES + the Dockerfile COPYs (same discipline as
+# the sp500_membership.parquet line above). Without it the cloud cap-cache is empty
+# -> realistic_retail_costs silently inert (the T-215 fail-open, reintroduced at the
+# build layer).
+rsync -aL "data/universe/market_cap_tiers.json" "$STAGE/data/universe/"
 # T-2026-06-10-133: LIVE mutable governor files are NOT baked. T-131
 # proved they are canon-irrelevant (isolated() restores every scoped
 # file from _isolated_anchor/ ON ENTRY; edge_metrics/decision_diary are

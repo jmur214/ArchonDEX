@@ -243,9 +243,10 @@ class TestDiscoverCachedTickers:
     def test_finds_csv_files_with_correct_suffix(self, tmp_path: Path):
         proc = tmp_path / "processed"
         proc.mkdir()
-        (proc / "AAPL_1d.csv").write_text("Date,Close\n")
-        (proc / "MSFT_1d.csv").write_text("Date,Close\n")
-        (proc / "AAPL_1m.csv").write_text("Date,Close\n")  # different timeframe
+        # CSVs with real data rows (>= min_rows) are admitted.
+        (proc / "AAPL_1d.csv").write_text("Date,Close\n2020-01-02,1\n2020-01-03,2\n")
+        (proc / "MSFT_1d.csv").write_text("Date,Close\n2020-01-02,1\n2020-01-03,2\n")
+        (proc / "AAPL_1m.csv").write_text("Date,Close\n2020-01-02,1\n2020-01-03,2\n")  # diff timeframe
         (proc / "junk.txt").write_text("nope")
 
         out = discover_cached_tickers(tmp_path, timeframe="1d")
@@ -254,6 +255,23 @@ class TestDiscoverCachedTickers:
     def test_missing_processed_returns_empty(self, tmp_path: Path):
         out = discover_cached_tickers(tmp_path, timeframe="1d")
         assert out == []
+
+    def test_excludes_degenerate_stubs_t215(self, tmp_path: Path):
+        """T-2026-06-24-215: file-existence-only admit let single-stray-row stubs
+        (the SRCL/RX class — delisted PIT names whose real history was never
+        sourced) into the resolved universe, where ensure_data then returned an
+        empty frame → silent panel shrink → census fail. min_rows now excludes
+        them at the source."""
+        proc = tmp_path / "processed"
+        proc.mkdir()
+        (proc / "GOOD_1d.csv").write_text("Date,Close\n2020-01-02,1\n2020-01-03,2\n")
+        (proc / "SRCL_1d.csv").write_text("Date,Close\n2026-03-02,1\n")   # one stray row
+        (proc / "RX_1d.csv").write_text("Date,Close\n2018-02-22,1\n")      # one stray row
+        (proc / "EMPTY_1d.csv").write_text("Date,Close\n")                  # header only
+
+        out = discover_cached_tickers(tmp_path, timeframe="1d", min_rows=2)
+        assert out == ["GOOD"]
+        assert "SRCL" not in out and "RX" not in out and "EMPTY" not in out
 
 
 # ---------------------------------------------------------------------------
