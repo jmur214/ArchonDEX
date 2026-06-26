@@ -157,6 +157,19 @@ class PortfolioEngine:
 
         # ---- CLOSE / REDUCE ----
         if side in ("exit", "cover"):
+            return self._apply_fill_close(fill, pos, ticker, side, qty_raw, price, commission)
+
+        # ---- OPEN / ADD ----
+        return self._apply_fill_open(
+            fill, pos, ticker, side, qty_raw, price, commission,
+            meta_edge, meta_edge_group, meta_edge_id, meta_edge_category)
+
+    # ------------------------------------------------------------------ #
+    def _apply_fill_close(self, fill: dict, pos, ticker: str, side: str,
+                          qty_raw: int, price: float, commission: float) -> None:
+        """Close/reduce an existing position (exit/cover). Extracted verbatim
+        from ``apply_fill`` (T-246 god-function split; byte-identical)."""
+        if side in ("exit", "cover"):
             if pos.qty == 0:
                 return
             exit_qty = min(abs(pos.qty), qty_raw)
@@ -186,7 +199,14 @@ class PortfolioEngine:
                 print(f"[DEBUG_PORTFOLIO_STATE] After fill: cash={self.cash}, positions={{t: p.qty for t, p in self.positions.items()}}, realized_pnl={self.realized_pnl}")
             return
 
-        # ---- OPEN / ADD ----
+    # ------------------------------------------------------------------ #
+    def _apply_fill_open(self, fill: dict, pos, ticker: str, side: str,
+                         qty_raw: int, price: float, commission: float,
+                         meta_edge, meta_edge_group, meta_edge_id,
+                         meta_edge_category) -> None:
+        """Open/add (long/short), including the opposite-direction close/flip
+        and stop/take-profit application. Extracted verbatim from ``apply_fill``
+        (T-246 god-function split; byte-identical)."""
         if side not in ("long", "short"):
             return
 

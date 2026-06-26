@@ -220,6 +220,26 @@ class PortfolioPolicy:
 
         # 2. Mean-Variance Optimization Mode (Professional)
         if self.cfg.mode == "mean_variance":
+            mvo_weights = self._allocate_mean_variance(signals, price_data, current_weights)
+            if mvo_weights is not None:
+                return mvo_weights
+            # None ⇒ <5 bars of history → fall through to adaptive
+
+        # 3. Adaptive Mode (Default) (Inverse Vol Model)
+        return self._allocate_adaptive(signals, price_data, regime_meta)
+
+    # ------------------------------------------------------------------ #
+    def _allocate_mean_variance(self,
+                                signals: Dict[str, float],
+                                price_data: Dict[str, pd.DataFrame],
+                                current_weights: Dict[str, float] = None
+                                ) -> Optional[Dict[str, float]]:
+        """Mean-variance (MVO) allocation. Extracted verbatim from ``allocate``
+        (T-246 god-function split; byte-identical). Returns the MVO target
+        weights, ``{}`` when no returns are available, or ``None`` when there is
+        too little history (<5 bars) — the None signals ``allocate`` to fall
+        through to the adaptive mode (preserving the original ``pass``)."""
+        if self.cfg.mode == "mean_variance":
             # Lazy import to avoid circular dep if not used
             from .optimizer import PortfolioOptimizer
             optimizer = PortfolioOptimizer(risk_aversion=1.0) # Could be configurable in cfg
@@ -315,8 +335,16 @@ class PortfolioPolicy:
                 # T-241 concentrate (no-op OFF) → T-230 deployable cone (no-op OFF)
                 return self._apply_deployable_constraints(
                     self._apply_concentration(weights_out, signals))
-
-        # 3. Adaptive Mode (Default) (Inverse Vol Model)
+        return None
+    # ------------------------------------------------------------------ #
+    def _allocate_adaptive(self,
+                           signals: Dict[str, float],
+                           price_data: Dict[str, pd.DataFrame],
+                           regime_meta: Optional[Dict] = None) -> Dict[str, float]:
+        """Adaptive (inverse-vol) allocation — the default mode and the
+        fall-through target when mean_variance has too little history (<5 bars)
+        or parrondo_fixed has no fixed_allocations. Extracted verbatim from
+        ``allocate`` (T-246 god-function split; byte-identical)."""
         if not signals:
             return {}
 
@@ -339,8 +367,8 @@ class PortfolioPolicy:
             if vol <= 0 or not np.isfinite(vol):
                 continue
             # Bensdorp Logic: Weight = Signal / Volatility
-            inv_vols[tkr] = abs(s_strength) / vol 
-        
+            inv_vols[tkr] = abs(s_strength) / vol
+
         if not inv_vols:
             return {}
 
