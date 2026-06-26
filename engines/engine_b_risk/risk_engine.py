@@ -1074,6 +1074,18 @@ class RiskEngine:
             # armed (k-day Delta in combined HMM posterior crossed tau_on,
             # not yet stood down by the asymmetric hysteresis). De-grosses
             # the rebalance target on a regime transition into stress.
+            # T-2026-06-26-243 — NOTE on the executed-book leverage (T-215/T-232):
+            # this per-name composition has no CROSS-NAME / CROSS-BAR cash budget,
+            # but adding one HERE does NOT fix the borrow. The executed-book
+            # leverage (1.70x gross / cash -73k in the T-232 smoke) is CROSS-BAR
+            # accumulation of HELD positions that don't re-fire (they are never
+            # re-sized — see backtest_controller `_generate_signals`, the
+            # held-position block). A per-name cap on `target_notional` only sees
+            # the bar's firing names (Sigma tw*ow usually < 1 -> never binds) and
+            # cannot trim the held book; T-232 smoke-PROVED that per-name cap
+            # insufficient. The correct fix is a BOOK-LEVEL de-gross post-pass
+            # (Option A), default-OFF, gated by `deployable_cash_account` -- HELD
+            # pending need (deployable equity-book re-run dropped, T-215 = H0).
             target_notional = (
                 float(equity) * float(target_weight) * optimizer_weight
                 * portfolio_vol_scalar * _drawdown_size_mult
