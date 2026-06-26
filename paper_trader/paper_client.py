@@ -186,6 +186,8 @@ class AlpacaPaperClient:
         from alpaca.trading.client import TradingClient
         # paper=True is the whole point — this client cannot reach live.
         self._client = TradingClient(api_key=key, secret_key=secret, paper=True)
+        self._key, self._secret = key, secret   # for the read-only data client (bars)
+        self._data_client = None                 # lazy StockHistoricalDataClient
         self._OrderSide = None  # lazy-imported enums (set on first use)
 
     # ------------------------------------------------------------------ #
@@ -267,6 +269,35 @@ class AlpacaPaperClient:
             if dt is None:
                 continue
             out.add(dt if isinstance(dt, _date) else _date.fromisoformat(str(dt)[:10]))
+        return out
+
+    def fetch_daily_closes(self, tickers, lookback_days: int = 400):
+        """Daily adjusted closes for the sleeve signal (T-238). Read-only
+        market data via alpaca's StockHistoricalDataClient (same paper creds).
+        Returns {ticker: pd.Series(close, index=date)} — the caller checks
+        staleness and HALTS on a missing/stale bar ([NN-FAIL-CLOSED])."""
+        import pandas as pd
+        from datetime import datetime, timedelta, timezone
+        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame
+        from alpaca.data.enums import Adjustment
+        if self._data_client is None:
+            self._data_client = StockHistoricalDataClient(self._key, self._secret)
+        start = datetime.now(timezone.utc) - timedelta(days=int(lookback_days * 1.7) + 30)
+        req = StockBarsRequest(
+            symbol_or_symbols=list(tickers), timeframe=TimeFrame.Day,
+            start=start, adjustment=Adjustment.ALL)   # split+dividend adjusted
+        bars = self._data_client.get_stock_bars(req)
+        df = bars.df  # MultiIndex (symbol, timestamp)
+        out: Dict[str, "pd.Series"] = {}
+        for t in tickers:
+            if t not in df.index.get_level_values(0):
+                continue
+            sub = df.xs(t, level=0)
+            s = sub["close"].astype(float)
+            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+            out[t] = s.sort_index()
         return out
 
 

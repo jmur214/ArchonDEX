@@ -71,6 +71,11 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                          "independent config/paper_designated_allocator.json")
     ap.add_argument("--dry-run", action="store_true",
                     help="run the cycle WITHOUT arming submission (observe only)")
+    ap.add_argument("--strategy", choices=["reconcile_only", "trend_sleeve"],
+                    default="reconcile_only",
+                    help="reconcile_only = the daily pulse (no orders, the proven "
+                         "default); trend_sleeve = construct + submit the T-204 "
+                         "3-asset trend sleeve (T-238 paper validation)")
     args = ap.parse_args(argv)
 
     if client is None and not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
@@ -164,10 +169,44 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             window_closed=False,
         )
 
-    # The daily PULSE: reconcile + heartbeat, no NEW staged orders. The loop
-    # correctly TRACKS held positions (adopted above) but does NOT generate
-    # orders — the engine-driven order set is the separate content layer.
-    summary = sched.run_trading_day(str(today), [], inputs_fn,
+    # --- content layer: reconcile-only pulse OR the trend sleeve (T-238) -- #
+    staged: list = []
+    sleeve_closes: dict = {}
+    if args.strategy == "trend_sleeve":
+        from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
+        try:
+            closes = client.fetch_daily_closes(list(SLEEVE_UNIVERSE), lookback_days=400)
+        except Exception as exc:
+            print(f"FATAL: [NN-FAIL-CLOSED] sleeve bars fetch failed: "
+                  f"{type(exc).__name__}", file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return 67
+        # Causal guarantee: use ONLY completed prior-day closes — drop any
+        # forming TODAY bar so the signal can never read an intraday price
+        # (the 09:00 ET schedule is pre-open, but this holds at any run time).
+        import pandas as _pd
+        closes = {t: s[s.index < _pd.Timestamp(today)] for t, s in closes.items()}
+        # [NN-FAIL-CLOSED]: never trade a STALE signal — every asset's last
+        # completed bar must be recent (the prior session), else HALT.
+        stale = [t for t in SLEEVE_UNIVERSE
+                 if t not in closes or closes[t].empty
+                 or (_pd.Timestamp(today) - closes[t].index[-1]).days > 5]
+        if stale:
+            print(f"FATAL: [NN-FAIL-CLOSED] sleeve price data missing/stale for "
+                  f"{stale} — refusing to trade a stale signal.", file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return 68
+        equity = float(client.get_account().get("equity", broker_cash))
+        plan = SleeveOrderConstructor().construct(equity, broker_positions, closes)
+        sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
+        print(f"   SLEEVE     signals={plan.signals} targets={plan.targets} "
+              f"→ {len(plan.orders)} order(s): "
+              f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}")
+        for spec in plan.orders:
+            staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
+                                   spec.stage_args()["tif"], cfg.config_hash()))
+
+    summary = sched.run_trading_day(str(today), staged, inputs_fn,
                                     account_explained=account_explained)
 
     # --- 3. heartbeat verdict → metrics + exit code ------------------- #
@@ -176,6 +215,20 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
+
+    # --- T-238 Part 2: forward-track the sleeve vs both robos ------------- #
+    if args.strategy == "trend_sleeve" and sleeve_closes:
+        try:
+            from paper_trader.sleeve_tracker import SleeveTracker
+            equity = float(client.get_account().get("equity", broker_cash))
+            tsum = SleeveTracker(root=str(root)).record(str(today), equity, sleeve_closes)
+            print(f"6. TRACK     sleeve forward vs robos: {tsum.get('status')} "
+                  f"({tsum.get('n_days', tsum.get('sleeve', {}).get('n_days'))} pts)"
+                  + (f" | sleeve MaxDD shallower than both robos="
+                     f"{tsum.get('sleeve_mdd_shallower_than_both')}"
+                     if tsum.get('status') == 'tracking' else ""))
+        except Exception as exc:
+            print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
     cloud.emit_metrics(happened=True, canonical=canonical)
     cloud.push()
