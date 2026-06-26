@@ -33,6 +33,16 @@ class PortfolioPolicyConfig:
     deployable_cash_account: bool = False
     deployable_max_weight: float = 0.25  # per-name cap when deployable (long-only)
     deployable_max_gross: float = 1.0    # Σw cap when deployable (no leverage)
+
+    # T-2026-06-26-241 — moonshot probe C1: top-K CONCENTRATION / conviction-
+    # weighting (default OFF; OFF ⇒ canon byte-identical). The diversified book
+    # may CANCEL alpha (the ensemble-alpha paradox); C1 asks whether concentrating
+    # into the top-K highest-conviction names (|combined signal score|),
+    # conviction-weighted, surfaces an upside half. Amplifies the right tail via
+    # ASSET SELECTION, NOT gross (cash Roth = no leverage — gross is preserved,
+    # just reallocated into fewer names). The director reviews before any flip.
+    concentration_enabled: bool = False
+    concentration_top_k: int = 10        # number of highest-conviction names to hold
     vol_lookback: int = 20               # bars to use for rolling volatility
     rebalance_threshold: float = 0.02    # rebalance if deviation exceeds 2%
     risk_free_rate: float = 0.0
@@ -302,8 +312,9 @@ class PortfolioPolicy:
                 if self.cfg.debug:
                     print(f"[POLICY] min_weight={self.cfg.min_weight} max_weight={self.cfg.max_weight}")
                     print("[POLICY] MVO Targets (Optimized & Diversified):", weights_out)
-                # T-230: project onto the executable cash-Roth cone (no-op OFF)
-                return self._apply_deployable_constraints(weights_out)
+                # T-241 concentrate (no-op OFF) → T-230 deployable cone (no-op OFF)
+                return self._apply_deployable_constraints(
+                    self._apply_concentration(weights_out, signals))
 
         # 3. Adaptive Mode (Default) (Inverse Vol Model)
         if not signals:
@@ -355,8 +366,9 @@ class PortfolioPolicy:
         if self.cfg.debug:
             print("[POLICY] Final weights (post-overlay):", weights)
 
-        # T-230: project onto the executable cash-Roth cone (no-op OFF)
-        return self._apply_deployable_constraints(weights)
+        # T-241 concentrate (no-op OFF) → T-230 deployable cone (no-op OFF)
+        return self._apply_deployable_constraints(
+            self._apply_concentration(weights, signals))
 
     # ------------------------------------------------------------------ #
     def requires_rebalance(self,
@@ -473,6 +485,39 @@ class PortfolioPolicy:
                 )
 
         return weights
+
+    # ------------------------------------------------------------------ #
+    def _apply_concentration(self, weights: Dict[str, float],
+                             signals: Dict[str, float]) -> Dict[str, float]:
+        """T-241 moonshot probe C1 — concentrate the book into the top-K
+        highest-CONVICTION names (|combined signal score|), conviction-weighted,
+        preserving the book's GROSS (reallocate, don't lever — cash Roth has no
+        margin). Dropped names → 0. Gated by `concentration_enabled` (default
+        OFF) ⇒ OFF returns the weights unchanged and the canon is byte-identical.
+        Deterministic (conviction desc, ticker asc tie-break — no FP-order
+        lottery, per the engine_c determinism rule)."""
+        if not getattr(self.cfg, "concentration_enabled", False) or not weights:
+            return weights
+        k = int(getattr(self.cfg, "concentration_top_k", 10))
+        # conviction = |combined signal score| over the WHOLE book (NOT the
+        # post-allocator weights — the mean_variance optimizer already
+        # concentrates to ~5 names, so subsetting its output would be a no-op
+        # for any K≥5). C1 OVERRIDES the allocator's selection with the top-K
+        # conviction names, conviction-weighted, on the allocator's gross.
+        conv = {t: abs(float(s)) for t, s in signals.items() if abs(float(s)) > 1e-12}
+        if k <= 0 or len(conv) <= k:
+            return weights                                   # ≤ K conviction names → nothing to do
+        gross = sum(abs(w) for w in weights.values()) or 1.0  # preserve the allocator's gross
+        # rank by conviction DESC, then ticker ASC — fully deterministic.
+        topk = sorted(conv.keys(), key=lambda t: (-conv[t], t))[:k]
+        tot = sum(conv[t] for t in topk) or 1.0
+        out = {t: 0.0 for t in set(weights) | set(topk)}     # drop non-top-K; add top-K conviction
+        for t in topk:
+            out[t] = (conv[t] / tot) * gross * (1.0 if float(signals.get(t, 0.0)) >= 0 else -1.0)
+        if self.cfg.debug:
+            print(f"[POLICY][C1] concentrated {len(conv)}→{len(topk)} conviction "
+                  f"names (gross {gross:.3f} preserved, conviction-weighted)")
+        return out
 
     # ------------------------------------------------------------------ #
     def _apply_deployable_constraints(self, weights: Dict[str, float]) -> Dict[str, float]:
