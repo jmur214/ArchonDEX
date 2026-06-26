@@ -20,6 +20,19 @@ class PortfolioPolicyConfig:
     exposure_cap_enabled: bool = True    # toggle the advisory exposure cap overlay for A/B
     min_weight: float = -0.1             # minimum per-asset weight (for shorts)
     max_weight: float = 0.25             # maximum per-asset weight
+
+    # T-2026-06-25-230 — DEPLOYABLE cash-account mode (default OFF; OFF ⇒
+    # canon byte-identical). D's T-215 found the mean_variance book runs to
+    # ~2.32× gross (borrowing) + holds shorts (min_weight −0.1) — neither is
+    # executable in a $5–15K CASH Roth (no margin, no borrow, no short). When
+    # ON, `_apply_deployable_constraints` projects the allocator's output onto
+    # the executable cone: LONG-ONLY (zero shorts), per-name [0,
+    # deployable_max_weight], and gross Σw ≤ deployable_max_gross (no leverage;
+    # the cash residual 1−Σw is simply uninvested). A default-OFF projection of
+    # the final weights — the director reviews before any default-flip.
+    deployable_cash_account: bool = False
+    deployable_max_weight: float = 0.25  # per-name cap when deployable (long-only)
+    deployable_max_gross: float = 1.0    # Σw cap when deployable (no leverage)
     vol_lookback: int = 20               # bars to use for rolling volatility
     rebalance_threshold: float = 0.02    # rebalance if deviation exceeds 2%
     risk_free_rate: float = 0.0
@@ -289,7 +302,8 @@ class PortfolioPolicy:
                 if self.cfg.debug:
                     print(f"[POLICY] min_weight={self.cfg.min_weight} max_weight={self.cfg.max_weight}")
                     print("[POLICY] MVO Targets (Optimized & Diversified):", weights_out)
-                return weights_out
+                # T-230: project onto the executable cash-Roth cone (no-op OFF)
+                return self._apply_deployable_constraints(weights_out)
 
         # 3. Adaptive Mode (Default) (Inverse Vol Model)
         if not signals:
@@ -341,7 +355,8 @@ class PortfolioPolicy:
         if self.cfg.debug:
             print("[POLICY] Final weights (post-overlay):", weights)
 
-        return weights
+        # T-230: project onto the executable cash-Roth cone (no-op OFF)
+        return self._apply_deployable_constraints(weights)
 
     # ------------------------------------------------------------------ #
     def requires_rebalance(self,
@@ -458,6 +473,30 @@ class PortfolioPolicy:
                 )
 
         return weights
+
+    # ------------------------------------------------------------------ #
+    def _apply_deployable_constraints(self, weights: Dict[str, float]) -> Dict[str, float]:
+        """T-230 — project the allocator's weights onto what a $5–15K CASH Roth
+        can actually execute: LONG-ONLY (zero shorts — no borrow), each name in
+        [0, deployable_max_weight], and gross Σw ≤ deployable_max_gross (no
+        leverage; the residual 1−Σw is uninvested cash). Gated by
+        `deployable_cash_account` (default OFF) → OFF ⇒ this returns the weights
+        unchanged and the canon is byte-identical. [NN-FAIL-CLOSED] N/A (pure
+        deterministic projection; no load-bearing input to be missing)."""
+        if not getattr(self.cfg, "deployable_cash_account", False) or not weights:
+            return weights
+        mw = float(getattr(self.cfg, "deployable_max_weight", 0.25))
+        mg = float(getattr(self.cfg, "deployable_max_gross", 1.0))
+        # long-only + per-name clamp to [0, mw]; shorts (w<0) → 0
+        out = {t: float(np.clip(w, 0.0, mw)) for t, w in weights.items()}
+        gross = sum(out.values())   # all >= 0 → gross == Σw
+        if mg > 0 and gross > mg:
+            scale = mg / gross
+            out = {t: w * scale for t, w in out.items()}   # de-lever to gross ≤ mg
+        if self.cfg.debug:
+            print(f"[POLICY][DEPLOYABLE] long-only + gross Σw {gross:.3f}→"
+                  f"{min(gross, mg):.3f} (cap {mg}, per-name ≤ {mw})")
+        return out
 
     # ------------------------------------------------------------------ #
     def _apply_exposure_cap(self, weights: Dict[str, float],
