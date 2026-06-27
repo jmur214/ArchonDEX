@@ -20,8 +20,11 @@
 *This section is automatically built by `scripts/sync_docs.py`. Do not edit manually.*
 
 ### `factor_analysis.py`
+- **Class `FactorDecompResult`**: Book/strategy-level factor decomposition (the 'beta or edge?' answer).
+  - `def is_it_beta_or_edge()`: One-line verdict. Significant positive HAC alpha ⇒ edge candidate;
 - **Class `FactorRiskModel`**: Computes factor exposures for a universe of assets.
   - `def __init__()`
+  - `def decompose()`: Regress a daily return series on FF5+Mom (cached Ken-French) and
   - `def compute_exposures()`: Returns a DataFrame of factor loadings (Tickers x Factors).
 
 ### `lt_hold_preference.py`
@@ -54,6 +57,14 @@
   - `def prepare_order()`
   - `def manage_positions()`: Check all open positions and generate 'update' orders (e.g. moving stops).
   - `def prepare_order()`: Build an order dict or return None if constraints block it.
+
+### `sleeve_vol_target.py`
+**Module Docstring:** Engine B — sleeve-level CONDITIONAL vol-targeting (T-2026-06-26-252).
+- **Class `SleeveVolTargetConfig`**: Defense-first config. `enabled=False` ⇒ `apply_sleeve_vol_target` is the
+- **Function `realized_vol()`**: Trailing annualized realized vol (causal: uses returns up to t).
+- **Function `extreme_state()`**: Causal extreme-vol mask: True where rv_t exceeds the EXPANDING
+- **Function `vol_scale_series()`**: Per-bar vol-target scale, vectorized, mirroring `compute_vol_scale`'s
+- **Function `apply_sleeve_vol_target()`**: Apply the (conditional or continuous) vol-target overlay to ONE asset's
 
 ### `vol_target.py`
 **Module Docstring:** Engine B portfolio-level vol-targeting (T-2026-05-12-055).
