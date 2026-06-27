@@ -76,6 +76,9 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                     help="reconcile_only = the daily pulse (no orders, the proven "
                          "default); trend_sleeve = construct + submit the T-204 "
                          "3-asset trend sleeve (T-238 paper validation)")
+    ap.add_argument("--sleeve-notional-cap", type=float, default=None,
+                    help="cap the $ the sleeve sizes to (cautious FIRST armed run); "
+                         "unset = full account equity (the real validation)")
     args = ap.parse_args(argv)
 
     if client is None and not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
@@ -197,7 +200,11 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             cloud.emit_metrics(happened=True, canonical=False); cloud.push()
             return 68
         equity = float(client.get_account().get("equity", broker_cash))
-        plan = SleeveOrderConstructor().construct(equity, broker_positions, closes)
+        sizing_equity = min(equity, args.sleeve_notional_cap) if args.sleeve_notional_cap else equity
+        if args.sleeve_notional_cap:
+            print(f"   SLEEVE     notional cap ${args.sleeve_notional_cap:,.0f} "
+                  f"(account equity ${equity:,.0f}) — cautious first run")
+        plan = SleeveOrderConstructor().construct(sizing_equity, broker_positions, closes)
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
         print(f"   SLEEVE     signals={plan.signals} targets={plan.targets} "
               f"→ {len(plan.orders)} order(s): "

@@ -24,6 +24,12 @@ set -uo pipefail
 
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 ALLOC="${ARCHONDEX_PAPER_ALLOCATOR:-mean_variance}"
+# T-238: strategy = reconcile_only (default, the proven pulse) | trend_sleeve.
+STRATEGY="${ARCHONDEX_PAPER_STRATEGY:-reconcile_only}"
+# Optional small-notional cap for the FIRST armed sleeve run (cautious test);
+# unset → the sleeve sizes to the full paper account.
+CAP_ARG=""
+[ -n "${ARCHONDEX_SLEEVE_NOTIONAL_CAP:-}" ] && CAP_ARG="--sleeve-notional-cap ${ARCHONDEX_SLEEVE_NOTIONAL_CAP}"
 
 if [ -z "${ALPACA_API_KEY:-}" ] || [ -z "${ALPACA_SECRET_KEY:-}" ]; then
     echo "FATAL: Alpaca paper creds not present in env (expected from the job "\
@@ -31,12 +37,13 @@ if [ -z "${ALPACA_API_KEY:-}" ] || [ -z "${ALPACA_SECRET_KEY:-}" ]; then
     exit 64
 fi
 
-echo "[paper-cloud] $(date -u +%Y-%m-%dT%H:%M:%SZ) starting daily paper cycle (alloc=$ALLOC)"
+echo "[paper-cloud] $(date -u +%Y-%m-%dT%H:%M:%SZ) starting daily paper cycle "\
+     "(alloc=$ALLOC strategy=$STRATEGY${ARCHONDEX_SLEEVE_NOTIONAL_CAP:+ cap=\$$ARCHONDEX_SLEEVE_NOTIONAL_CAP})"
 
 # Forward the driver's exit code verbatim: 0 = canonical; non-zero =
 # non-canonical/failed → Batch marks the job FAILED → the failure alarm
 # fires (defence-in-depth with the metric + the heartbeat status file).
-python -m scripts.run_paper_cloud_day --allocator "$ALLOC"
+python -m scripts.run_paper_cloud_day --allocator "$ALLOC" --strategy "$STRATEGY" $CAP_ARG
 RC=$?
 
 echo "[paper-cloud] $(date -u +%Y-%m-%dT%H:%M:%SZ) cycle exit rc=$RC"
