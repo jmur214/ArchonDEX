@@ -134,12 +134,15 @@ def carry_sleeve_returns(
     *,
     threshold: float = 0.0,
     weights: Optional[Dict[str, float]] = None,
+    cash_returns: Optional[pd.Series] = None,
 ) -> pd.Series:
     """Daily returns of an equal-weight cross-asset carry SLEEVE: each asset held
-    long/flat (→ cash when carry ≤ threshold), rebalanced by its carry each day,
-    no lookahead. FAIL-CLOSED: only assets present in BOTH ``closes`` and
-    ``carries`` (with a non-empty carry series) are traded; an asset with no
-    defined carry is excluded, not faked."""
+    long/flat, rebalanced by its carry each day, no lookahead. When an asset is
+    flat (carry ≤ threshold) its weight earns ``cash_returns`` (the risk-free /
+    short rate — carry's flat leg is cash, NOT a 0% drag); None → 0.0.
+    FAIL-CLOSED: only assets present in BOTH ``closes`` and ``carries`` (with a
+    non-empty carry series) are traded; an asset with no defined carry is
+    excluded, not faked."""
     keys = [
         k
         for k in closes
@@ -152,7 +155,9 @@ def carry_sleeve_returns(
     w = weights or {k: 1.0 / len(keys) for k in keys}
     parts = []
     for k in keys:
-        r = carry_overlay_returns(closes[k], carries[k], threshold=threshold)
+        r = carry_overlay_returns(
+            closes[k], carries[k], threshold=threshold, defensive_returns=cash_returns
+        )
         parts.append(r.rename(k) * w[k])
     mat = pd.concat(parts, axis=1)
     return mat.dropna(how="all").sum(axis=1, min_count=1).dropna()

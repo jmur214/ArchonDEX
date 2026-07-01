@@ -211,6 +211,12 @@ def main() -> int:
     macro = {"DGS10": dgs10, "DGS3MO": dgs3mo, "T10YIE": t10yie}
     agg, gld, spy = etf_close("AGG"), etf_close("GLD"), etf_close("SPY")
     agg_bh = buy_hold_returns(agg)
+    # Flat-leg cash return = actual overnight rate (DFF), daily-ffilled. Carry's
+    # flat leg is CASH earning the short rate, NOT a 0% drag.
+    dff = macro_series("DFF")
+    cash_daily = ((dff / 100.0 / TD)
+                  .reindex(pd.date_range(dff.index[0], dff.index[-1], freq="D"))
+                  .ffill())
     # 60_40 daily-rebalanced proxy for up/down capture
     r6040 = (0.6 * buy_hold_returns(spy) + 0.4 * agg_bh).dropna()
 
@@ -221,14 +227,19 @@ def main() -> int:
 
     # PRIMARY — bond carry (AGG), long window, MBL-valid
     car_bond = build_carries(["AGG"], macro)
-    sleeve_bond = carry_sleeve_returns({"AGG": agg}, car_bond, threshold=0.0)
+    sleeve_bond = carry_sleeve_returns({"AGG": agg}, car_bond, threshold=0.0,
+                                       cash_returns=cash_daily)
     out["results"]["primary_bond_carry_AGG"] = report(
         "PRIMARY — BOND CARRY (AGG, curve-slope), MBL-valid",
         sleeve_bond, r6040, agg_bh, crises, mbl_valid=True)
 
     # SECONDARY — AGG+GLD carry, short window, EXPLORATORY (non-deployment)
     car_multi = build_carries(["AGG", "GLD"], macro)
-    sleeve_multi = carry_sleeve_returns({"AGG": agg, "GLD": gld}, car_multi, threshold=0.0)
+    sleeve_multi = carry_sleeve_returns({"AGG": agg, "GLD": gld}, car_multi, threshold=0.0,
+                                        cash_returns=cash_daily)
+    # Genuine 2020+ window (GLD inception) so BOTH legs are present throughout —
+    # else the blend is AGG-only pre-2020 with GLD half-missing (misleading).
+    sleeve_multi = sleeve_multi[sleeve_multi.index >= gld.index[0]]
     out["results"]["secondary_multi_carry_AGG_GLD"] = report(
         "SECONDARY — AGG+GLD CARRY (EXPLORATORY, 2020+, NON-deployment)",
         sleeve_multi, r6040, agg_bh, crises, mbl_valid=False)
