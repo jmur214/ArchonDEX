@@ -149,6 +149,22 @@ class TestExecutionGates:
         bad = self._rec(t, "2026-06-29", held_weights=hw, slippage_bps=40.0)
         assert bad["execution_gates"]["gates"]["b_slippage_bps"]["status"] == "fail"
 
+    def test_te_is_none_on_rebalance_day_no_held(self, tmp_path):
+        """A rebalance morning (held_weights=None, book pre-fill) records te=None
+        → gate (a) accruing, NOT a spurious full-weight drift 'fail'. Regression
+        for the T-238 first-armed-run report-only bug."""
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        s = t.record("2026-07-02", 100000.0,
+                     {"SPY": 745.0, "AGG": 98.0, "GLD": 370.0},
+                     target_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 0.0},
+                     held_weights=None)          # rebalance day: no settled book
+        g = s["execution_gates"]
+        import json
+        pt = json.loads((tmp_path / "trk.json").read_text())["points"][0]
+        assert pt["exec"]["te"] is None
+        assert g["gates"]["a_tracking_error"]["status"] == "accruing"
+        assert g["overall"] != "fail"            # was erroneously 'fail' pre-fix
+
     def test_slippage_gate_accruing_when_no_fills(self, tmp_path):
         t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
         g = self._rec(t, "2026-06-26",

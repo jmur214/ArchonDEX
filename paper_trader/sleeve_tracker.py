@@ -119,14 +119,20 @@ class SleeveTracker:
             "closes": {k: round(float(v), 4) for k, v in closes.items()}}
         if target_weights is not None:
             tw = {k: float(v) for k, v in target_weights.items()}
-            hw = {k: float(v) for k, v in (held_weights or {}).items()}
-            # position tracking error = Σ|held_w − target_w| over the union of tickers
-            te = sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
-                     for k in set(tw) | set(hw))
+            # position tracking error = Σ|held_w − target_w|, but ONLY when a
+            # SETTLED held book is supplied. held_weights=None (e.g. a rebalance
+            # morning, book still pre-fill) → te=None so gate (a) treats the day
+            # as no-data (accruing), NOT a spurious full-weight drift.
+            if held_weights is not None:
+                hw = {k: float(v) for k, v in held_weights.items()}
+                te = round(sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
+                               for k in set(tw) | set(hw)), 4)
+            else:
+                hw, te = {}, None
             pt["exec"] = {
                 "target_w": {k: round(v, 4) for k, v in tw.items()},
                 "held_w": {k: round(v, 4) for k, v in hw.items()},
-                "te": round(float(te), 4),
+                "te": te,
                 "slippage_bps": (round(float(slippage_bps), 2)
                                  if slippage_bps is not None else None),
                 "order_errors": int(order_errors),
