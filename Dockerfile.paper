@@ -28,10 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # trend_sleeve path imports alpaca.data (market-data client); the reconcile-
 # only path never did, which is why T-238's first armed run fail-closed on a
 # ModuleNotFoundError until this was added.
+# scipy: the trend_sleeve tracker (sleeve_tracker.py) reuses the CANONICAL
+# MetricsEngine (Sortino/MaxDD, not a fork), and core/metrics_engine.py imports
+# `scipy.stats`. Same reason as pytz — the sleeve path pulls a dep the reconcile
+# pulse never did.
 RUN pip install --no-cache-dir \
         pandas==3.0.1 \
         alpaca-py==0.43.2 \
-        pytz==2026.1.post1
+        pytz==2026.1.post1 \
+        scipy==1.17.1
 
 # Code + config from the git-archive staging dir (NO data/ — the wrapper
 # stages only the archived commit; the paper loop reads none of it).
