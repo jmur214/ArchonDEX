@@ -94,3 +94,92 @@ class TestTracker:
         import json
         pts = json.loads((tmp_path / "trk.json").read_text())["points"]
         assert len(pts) == 1                         # same date overwrites
+
+    def test_bare_3arg_record_has_no_exec_block(self, tmp_path):
+        """Default-OFF behavior is byte-unchanged: no execution_gates when the
+        driver passes no execution data (existing non-sleeve callers)."""
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        s = t.record("2026-06-26", 30000.0, {"SPY": 200.0, "AGG": 100.0, "GLD": 150.0})
+        assert "execution_gates" not in s
+        import json
+        pt = json.loads((tmp_path / "trk.json").read_text())["points"][0]
+        assert "exec" not in pt
+
+
+class TestExecutionGates:
+    """T-238 pre-registered EXECUTION-fidelity gates (report-only)."""
+    CLOSES = {"SPY": 200.0, "AGG": 100.0, "GLD": 150.0}
+
+    def _rec(self, t, date, **kw):
+        return t.record(date, 30000.0, self.CLOSES,
+                        target_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 1/3}, **kw)
+
+    def test_exec_block_and_gates_appear_when_execution_data_supplied(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        s = self._rec(t, "2026-06-26",
+                      held_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 1/3})
+        assert "execution_gates" in s
+        g = s["execution_gates"]
+        assert set(g["gates"]) == {"a_tracking_error", "b_slippage_bps",
+                                   "c_order_errors", "d_clean_days"}
+        # explicit "performance not confirmable in-window" framing rides along
+        assert "not validated edge" in g["note"].lower() or \
+               "not confirmable" in g["note"].lower()
+
+    def test_tracking_error_passes_when_held_matches_target(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        g = self._rec(t, "2026-06-26",
+                      held_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 1/3})["execution_gates"]
+        assert g["gates"]["a_tracking_error"]["status"] == "pass"
+        assert g["gates"]["a_tracking_error"]["median"] == 0.0
+
+    def test_tracking_error_fails_on_large_drift(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        # held is all SPY → Σ|held−target| = |1−1/3| + 1/3 + 1/3 = 1.33 ≫ 5% p95
+        g = self._rec(t, "2026-06-26",
+                      held_weights={"SPY": 1.0, "AGG": 0.0, "GLD": 0.0})["execution_gates"]
+        assert g["gates"]["a_tracking_error"]["status"] == "fail"
+        assert g["overall"] == "fail"
+
+    def test_slippage_gate_pass_and_fail(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        hw = {"SPY": 1/3, "AGG": 1/3, "GLD": 1/3}
+        good = self._rec(t, "2026-06-26", held_weights=hw, slippage_bps=2.0)
+        assert good["execution_gates"]["gates"]["b_slippage_bps"]["status"] == "pass"
+        bad = self._rec(t, "2026-06-29", held_weights=hw, slippage_bps=40.0)
+        assert bad["execution_gates"]["gates"]["b_slippage_bps"]["status"] == "fail"
+
+    def test_slippage_gate_accruing_when_no_fills(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        g = self._rec(t, "2026-06-26",
+                      held_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 1/3})["execution_gates"]
+        assert g["gates"]["b_slippage_bps"]["status"] == "accruing"
+
+    def test_order_error_gate_fails_on_any_error(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        hw = {"SPY": 1/3, "AGG": 1/3, "GLD": 1/3}
+        g = self._rec(t, "2026-06-26", held_weights=hw, order_errors=1)["execution_gates"]
+        assert g["gates"]["c_order_errors"]["status"] == "fail"
+        assert g["gates"]["c_order_errors"]["count"] == 1
+        assert g["overall"] == "fail"
+
+    def test_clean_days_accrues_toward_60_then_passes(self, tmp_path):
+        from paper_trader.sleeve_tracker import GATE_MIN_CLEAN_DAYS
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        hw = {"SPY": 1/3, "AGG": 1/3, "GLD": 1/3}
+        s = self._rec(t, "2026-06-26", held_weights=hw)
+        assert s["execution_gates"]["gates"]["d_clean_days"]["status"] == "accruing"
+        # fill exactly GATE_MIN_CLEAN_DAYS canonical days → passes
+        for i in range(1, GATE_MIN_CLEAN_DAYS):
+            s = self._rec(t, f"2026-07-{i:02d}" if i < 31 else f"2026-08-{i-30:02d}",
+                          held_weights=hw)
+        assert s["execution_gates"]["gates"]["d_clean_days"]["count"] == GATE_MIN_CLEAN_DAYS
+        assert s["execution_gates"]["gates"]["d_clean_days"]["status"] == "pass"
+
+    def test_execution_gates_method_reads_persisted_state(self, tmp_path):
+        t = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path))
+        self._rec(t, "2026-06-26", held_weights={"SPY": 1/3, "AGG": 1/3, "GLD": 1/3},
+                  slippage_bps=3.0)
+        g = SleeveTracker(path=str(tmp_path / "trk.json"), root=str(tmp_path)).execution_gates()
+        assert g["gates"]["b_slippage_bps"]["n"] == 1
+        assert g["overall"] in {"pass", "accruing", "fail"}
