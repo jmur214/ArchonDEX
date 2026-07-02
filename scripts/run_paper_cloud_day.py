@@ -163,10 +163,19 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
           if broker_positions else "   RECONCILE  account flat")
 
     def inputs_fn(step):
+        bpos = {p["symbol"]: int(p["qty"]) for p in client.list_positions()}
+        bcash = client.get_account()["cash"]
+        # T-238 Option A: a market DAY order fills IN THIS SAME cycle (after the
+        # pre-submit adopt above), unlike an OPG that fills on a later run. So
+        # re-converge the ledger to EXPLAINED broker truth before each reconcile
+        # — else the just-filled, ledger-unadopted position reads as a spurious
+        # position_drift → non-canonical. Explained-ONLY: a genuine UNEXPLAINED
+        # position stays unadopted and is still flagged as drift (safety intact).
+        adopt_explained_broker_truth(led, bpos, bcash, list(om.orders.values()),
+                                     reason=f"cloud cycle {today} reconcile")
         return ReconcileInputs(
             ledger_positions=led.positions(), ledger_cash=led.cash(),
-            broker_positions={p["symbol"]: int(p["qty"]) for p in client.list_positions()},
-            broker_cash=client.get_account()["cash"],
+            broker_positions=bpos, broker_cash=bcash,
             orders=list(om.orders.values()),
             known_tickers=ktickers,
             window_closed=False,

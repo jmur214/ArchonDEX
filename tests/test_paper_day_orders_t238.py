@@ -13,9 +13,14 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from paper_trader import (FakePaperClient, OrderManager, OrderState,
+from paper_trader import (FakePaperClient, LedgerStore, OrderManager, OrderState,
                           PaperConfig, PaperScheduler, ReconcileInputs)
+from paper_trader.held_reconcile import (adopt_explained_broker_truth,
+                                         known_tickers_for)
 from paper_trader.market_calendar import MarketCalendar
+from paper_trader.order_manager import OrderRecord
+from paper_trader.reconciliation import (ReconciliationEngine, ReconcileInputs as RInp,
+                                         CLASS_POSITION_DRIFT)
 from paper_trader.sleeve_constructor import SleeveOrderConstructor
 
 ET = ZoneInfo("America/New_York")
@@ -100,3 +105,67 @@ class TestEnvTif:
         c = SleeveOrderConstructor(speeds=(5, 10, 20), tif="day")
         plan = c.construct(30000.0, {}, {"SPY": up, "AGG": up, "GLD": up})
         assert plan.orders and all(o.tif == "day" for o in plan.orders)
+
+
+def _fill_day(client, om, ticker, qty, price):
+    """Drive a DAY order to FILLED this cycle (submit → instant fill)."""
+    o = om.stage("2026-07-06", ticker, "buy", qty, "day", CFG)
+    client.script_submit(o.client_order_id, status="accepted")
+    om.submit(o)
+    client.script_polls(o.client_order_id, [{"status": "filled", "filled_qty": qty,
+                                             "filled_avg_price": price}])
+    om.poll(o)
+    return o
+
+
+class TestSameRunDayFillReconcile:
+    """T-238 Option A: a DAY order fills IN the SAME cycle (after the pre-submit
+    adopt), so the ledger must RE-adopt the explained fill before the reconcile
+    — else the just-filled position reads as a spurious position_drift. The
+    driver's inputs_fn does exactly this per cycle."""
+
+    def test_unadopted_same_run_fill_would_drift(self):
+        # the bug shape: ledger still flat, broker filled, order FILLED (terminal
+        # → not 'open') → the gap is unexplained → position_drift + halt.
+        o = OrderRecord(client_order_id="c1", trade_date="2026-07-06", ticker="SPY",
+                        side="buy", qty=4, tif="day", state=OrderState.FILLED.value,
+                        filled_qty=4, filled_avg_price=743.0)
+        inp = RInp(ledger_positions={}, ledger_cash=1000.0, broker_positions={"SPY": 4},
+                   broker_cash=1000.0, orders=[o], known_tickers={"SPY"}, window_closed=False)
+        res = ReconciliationEngine().reconcile(inp)
+        assert not res.clean and any(f.klass == CLASS_POSITION_DRIFT for f in res.findings)
+
+    def test_readopt_makes_same_run_fill_clean(self, tmp_path):
+        # the FIX: re-adopt explained broker truth → ledger == broker → CLEAN.
+        c = FakePaperClient()
+        om = OrderManager(c, journal_path=str(tmp_path / "o.jsonl"))
+        led = LedgerStore(str(tmp_path / "l.jsonl"), starting_cash=100000.0, account="roth")
+        _fill_day(c, om, "SPY", 4, 743.0)
+        broker, bcash = {"SPY": 4}, 97028.0
+        ok = adopt_explained_broker_truth(led, broker, bcash, list(om.orders.values()),
+                                          reason="reconcile")
+        assert ok is True and led.positions() == {"SPY": 4}
+        inp = RInp(ledger_positions=led.positions(), ledger_cash=led.cash(),
+                   broker_positions=broker, broker_cash=bcash,
+                   orders=list(om.orders.values()),
+                   known_tickers=known_tickers_for(list(om.orders.values()), led.positions()),
+                   window_closed=False)
+        res = ReconciliationEngine().reconcile(inp)
+        assert res.clean and not res.halt
+
+    def test_unexplained_position_still_drifts_after_readopt(self, tmp_path):
+        # SAFETY: a broker position with NO backing fill is NOT adopted → still
+        # flagged (the re-adopt is explained-only, it doesn't paper over drift).
+        c = FakePaperClient()
+        om = OrderManager(c, journal_path=str(tmp_path / "o.jsonl"))
+        led = LedgerStore(str(tmp_path / "l.jsonl"), starting_cash=100000.0, account="roth")
+        broker = {"TSLA": 9}                      # never traded → unexplained
+        ok = adopt_explained_broker_truth(led, broker, 100000.0, list(om.orders.values()),
+                                          reason="reconcile")
+        assert ok is False and led.positions() == {}
+        inp = RInp(ledger_positions=led.positions(), ledger_cash=led.cash(),
+                   broker_positions=broker, broker_cash=100000.0,
+                   orders=list(om.orders.values()),
+                   known_tickers={"SPY", "AGG", "GLD"}, window_closed=False)
+        res = ReconciliationEngine().reconcile(inp)
+        assert not res.clean            # unexplained TSLA still caught
