@@ -1,7 +1,10 @@
 # Conditional Shelf
 
-**Status:** seeded 2026-06-13 (T-166). Mutates in place — add an entry at
-every conditional burial; re-test entries when a gating switch is validated.
+**Status:** seeded 2026-06-13 (T-166); backfilled 2026-07-02 (T-258) with the
+T-233→T-254 kill-wave (entries 6–10: T-250, T-253, T-214, T-247, T-233 — the
+wave had added zero entries despite shelf-shaped verdicts, per the 2026-07-02 gap
+audit). Mutates in place — add an entry at every conditional burial; re-test
+entries when a gating switch is validated.
 
 ## What this is
 
@@ -237,6 +240,142 @@ REFUTED) but a **DIFFERENT action — size the BOUGHT sleeve, not de-gross the
 equity book** — so the de-gross failure does not pre-doom it, but the
 dotcom-blindness must be fixed first. Re-test: does a `hmm_p_crisis`-sized
 sleeve beat always-on 20%, OOS, net-of-cost, on a held-out crisis?
+
+---
+
+### 6. FOMC even-week SPY tilt (T-250) — combined-with-diversified-base
+
+**Measured profile.** The FOMC-cycle even-week equity premium (Cieslak-Morse-
+Vissing-Jorgensen, JF 2019): in-window **7.31 bps/day** vs **1.87** out-of-window
+= **+5.44 bps/day** (N=4,318), ~4× — validates the anomaly on our data. But the
+deployable long-SPY-in-window / cash@rf-out tilt (1.5 bps/side) does NOT survive
+standalone:
+
+| tilt (net cost) | Sortino | ci_low | Sharpe | CAGR | MaxDD | time-in-mkt | Source |
+|---|---|---|---|---|---|---|---|
+| FOMC even-week | 0.750 | 0.408 | 0.795 | 10.5% | −29.6% | 53% | `calendar_flow_probe_t250_2026_06_26.md` |
+| robo bars (T-236) | 60_40 **0.807** / schwab_like **1.008** | | | | | | |
+
+The even-week Sortino ci_low 0.408 sits below both robo point-Sortinos; the
+higher Sortino vs Sharpe is a lower-exposure (53% time-in-market) artifact, not
+a better edge. **Coverage gap was REAL; neither calendar tilt is a standalone
+robo-beater.**
+
+**Activation condition.** Combined-with-the-diversified-base (the queued step-2):
+the tilt is orthogonal flow-timing, marginal on SPY-only, but may add when
+overlaid on the diversified base rather than SPY alone. Not yet measured.
+
+**Capacity ceiling.** SPY-liquid; no capacity constraint.
+
+**Gating switch.** Deterministic FOMC calendar (known ex-ante — not a regime
+classifier). The pending test is a COMBINATION (base + tilt), not a switch.
+
+---
+
+### 7. Bought MF-ETF convex satellite (DBMF/KMLM) (T-253) — sustained-bear-confirmation
+
+**Measured profile.** Standalone 2019-05+ (KMLM 2020-12+): our free trend sleeve
+dominates the bought MF-ETFs on risk-adjusted terms, but the MF convexity is
+real and regime-specific:
+
+| satellite | Sortino (ci_low) | MaxDD | CAGR | COVID-2020 | 2022 | Source |
+|---|---|---|---|---|---|---|
+| our trend sleeve | **1.49 (0.65)** | **−7.5%** | +9.0% | −6% | −6% | `mf_etf_satellite_t253_2026_06_27.md` |
+| DBMF | 0.64 (−0.21) | −23.7% | +5.9% | −6% | **+33%** | |
+| KMLM | 0.51 (−0.41) | −28.1% | +5.1% | n/a | **+49%** | |
+
+DBMF/KMLM printed **+33% / +49% in the sustained 2022 bear** — the right-tail our
+long/flat overlay lacks (our sleeve −6% in 2022) — but DBMF was **−6% in the fast
+2020 V-crash** (caught long) and bleeds carry/whipsaw otherwise.
+
+**Activation condition.** A sustained, slow-trending 2022-type bear (confirmed) —
+the regime where MF trend-convexity pays and our long/flat overlay is weakest.
+NOT the fast V-crash (where it's caught long).
+
+**Capacity ceiling.** Bought ETFs, liquid; standing ~0.85–0.95% expense drag is
+the carry cost that makes it lose ex-2022.
+
+**Gating switch.** None validated — needs a sustained-trending-bear detector
+distinct from `hmm_p_crisis` (which is tuned to fast crises). Armed as a narrow
+tail-hedge overlay when such a switch validates.
+
+---
+
+### 8. Wider-breadth trend sleeve (Wide-9) (T-214) — composition-wants-max-convexity
+
+**Measured profile.** Wide-9 buys real convexity but pays a real Sharpe cost;
+"breadth" is NOT "more diversification" (cross-asset corr widens in crises):
+
+| sleeve (EW, 5mo) | Sharpe (ci_low) | MaxDD | skew | Source |
+|---|---|---|---|---|
+| 3-asset SPY/AGG/GLD | **0.85 (0.45)** | −10.6% | +0.14 | `trend_wider_breadth_validation_t214_2026_06_18.md` |
+| Wide-9 | 0.61 (0.23) | **−8.9%** | **+0.34** | |
+
+Wide-9 improves skew (+0.34 vs +0.14) and MaxDD (−8.9% vs −10.6%) at a ~0.24
+absolute-Sharpe cost. A trade-off, not a free win.
+
+**Activation condition.** When composition EXPLICITLY prioritizes maximal
+convexity/skew over Sharpe (a tail-first mandate) — e.g. as the convex leg of a
+barbell. Default = keep the 3-asset core.
+
+**Capacity ceiling.** 9 liquid ETFs; no capacity constraint.
+
+**Gating switch.** None — this is a composition-OBJECTIVE choice (max-skew vs
+max-Sharpe), not a regime switch. E selects it when the objective weights tail
+over Sharpe.
+
+---
+
+### 9. Cross-asset carry sleeve (T-247) — deep-substrate data unlock
+
+**Measured profile.** On current on-disk data, carry is duration/factor BETA, not
+alpha (prime-suspect confirmed):
+
+| config | beta-or-edge (net FF5+Mom+DURATION) | Sharpe (ci_low) | MBL | Source |
+|---|---|---|---|---|
+| bond carry (AGG curve-slope, 2003–2026, 22.6y) | **BETA** — α +0.34%/yr, t_hac **0.815**, DUR β 0.80, R² 0.80 | 0.144 (−0.181) | FAILS (bar 0.70) | `carry_gauntlet_t247.json` (branch `feature/carry-signal-t247`, pre-reg `d6fdb45`, run `9a5f3b3`) |
+| AGG+GLD (2020–2026, exploratory) | **BETA** — α +0.54%/yr, t_hac **0.28** | 0.332 (−0.369) | FAILS (bar 1.35) | |
+
+Curve-slope timing adds no significant alpha over static duration; beat-robo
+`passed=False`. The full cross-asset carry (GLD/TLT/IEF/DBC/UUP over a long
+window, + equity-yield) was **DATA-BLOCKED**: on-disk diversifier ETFs start
+2020-04-09 and no equity-yield series exists.
+
+**Activation condition.** The 21-yr deep-ETF substrate (C/T-256, ingesting from
+`data/raw/stooq/` NOW) unlocks the long-window multi-asset test that was blocked.
+Re-test the FULL cross-asset carry on the deep substrate under fresh
+pre-registration.
+
+**Capacity ceiling.** Liquid asset-class ETFs; no capacity constraint.
+
+**Gating switch.** None — this is a DATA-availability conditional, not a regime
+switch. Bar to overturn: alpha_t_hac > 2 net of a bond-duration factor on the
+deep substrate. `core/carry_signal.py` is general + fail-closed, ready to re-run.
+
+---
+
+### 10. FRED credit / VIX-term overlay signal (T-233) — confirmation/off-leg role only
+
+**Measured profile.** Killed as a crisis-onset FRONT-RUNNER. Credit (BAA−AAA)
+LAGS the always-on price-trend overlay in all four crises, worst on the slow
+bears it was meant to help — **dotcom −14% / 156 td late, 2022 −8% / 17 td late,
+COVID −19% / 8 td late**. VIX/VIX3M only marginally leads fast V-crises (COVID
+2–5 td) and is trigger-happy (the dotcom VIX "lead" is a false de-gross at +9%
+SPY during a rally). Mechanism: credit reacts to REALIZED stress, so the
+price-trend leads it by construction. Source: T-233 feasibility (branch
+`feature/fred-regime-feature-feasibility-t233`, pre-reg `3babb56`; **0 N_trials,
+nothing built**; `[[project_t233_fred_regime_feature_2026_06_25]]`). Data caveat:
+HY OAS deep history unobtainable → BAA−AAA proxy; conclusion robust to the proxy.
+
+**Activation condition.** NOT as a front-runner (the price-trend already leads
+it). Possible CONFIRMATION filter on an existing de-gross (whipsaw reduction) or
+an off-leg allocation input — roles where lagging-but-corroborating is
+acceptable.
+
+**Capacity ceiling.** Signal-only; no capacity constraint.
+
+**Gating switch.** None validated; any role is subordinate/confirmatory to the
+price-trend overlay, never leading.
 
 ---
 
