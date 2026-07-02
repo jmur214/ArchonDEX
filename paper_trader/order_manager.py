@@ -70,9 +70,13 @@ class OrderState(str, Enum):
 
 
 class TimeInForce(str, Enum):
-    # Auction-only by design (T-146): OPG = opening auction, CLS = close.
+    # Auction TIFs (T-146): OPG = opening auction, CLS = close.
     OPG = "opg"
     CLS = "cls"
+    # T-238 Option A: DAY = regular-session market order. Alpaca PAPER fills
+    # DAY orders but EXPIRES OPG auction orders unfilled, so the paper sleeve
+    # trades DAY post-open; a live path keeps OPG for the real opening auction.
+    DAY = "day"
 
 
 # Broker (Alpaca) status → our normalized state. Transient broker

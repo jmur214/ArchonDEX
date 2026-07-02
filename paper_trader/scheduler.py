@@ -25,12 +25,17 @@ from paper_trader.reconciliation import (
 )
 
 # (time_et, step_name, kind). kinds: data | compute | preflight | submit_opg
-# | ack | reconcile | submit_cls | eod
+# | submit_day | ack | reconcile | submit_cls | eod
+# submit_day (T-238 Option A): market DAY orders for the PAPER sleeve — Alpaca
+# paper expires OPG auction orders unfilled but fills DAY orders in the regular
+# session, so paper trades DAY post-open (~9:45 ET). Ordered right after
+# submit_opg so the ack/reconcile steps below poll its (near-instant) fill.
 DAILY_CLOCK = [
     ("16:05", "pull_close_bars", "data"),
     ("17:00", "compute_signals_targets", "compute"),
     ("08:30", "preflight", "preflight"),
     ("09:00", "submit_opg", "submit_opg"),
+    ("09:31", "submit_day", "submit_day"),
     ("09:35", "ack_sweep", "ack"),
     ("10:00", "reconcile_1", "reconcile"),
     ("15:40", "submit_cls", "submit_cls"),
@@ -117,6 +122,11 @@ class PaperScheduler:
             return not self.calendar.is_opg_window(now)
         if tif == "cls":
             return not self.calendar.is_cls_window(now)
+        if tif == "day":
+            # a DAY order rests only during the regular session; once it closes
+            # the order can no longer fill → safe to expire (usually moot: DAY
+            # market orders fill instantly on submit in the open session).
+            return not self.calendar.is_market_open(now)
         return True
 
     def _resolve_armed(self, armed: bool) -> bool:
@@ -162,6 +172,7 @@ class PaperScheduler:
         summary = DaySummary(trade_date=trade_date, dry_run=self.dry_run)
         opg = [o for o in staged_orders if o.tif == "opg"]
         cls = [o for o in staged_orders if o.tif == "cls"]
+        day = [o for o in staged_orders if o.tif == "day"]   # T-238 Option A (paper)
         eod_done = {"v": False}
 
         def run_eod(log: StepLog) -> None:
@@ -202,11 +213,13 @@ class PaperScheduler:
                         log.note = "would pull close bars → data cache append"
                     elif kind == "compute":
                         log.note = (f"staged {len(staged_orders)} orders "
-                                    f"({len(opg)} OPG / {len(cls)} CLS)")
-                    elif kind in ("submit_opg", "submit_cls"):
-                        batch = opg if kind == "submit_opg" else cls
+                                    f"({len(opg)} OPG / {len(cls)} CLS / {len(day)} DAY)")
+                    elif kind in ("submit_opg", "submit_cls", "submit_day"):
+                        tif = {"submit_opg": "opg", "submit_cls": "cls",
+                               "submit_day": "day"}[kind]
+                        batch = {"opg": opg, "cls": cls, "day": day}[tif]
                         log.would_submit = len(batch)
-                        tag = "OPG" if kind == "submit_opg" else "CLS"
+                        tag = tif.upper()
                         if summary.halted:
                             # crit-4: a computed halt BLOCKS submission.
                             log.note = (f"HALTED — {tag} batch BLOCKED "
@@ -215,13 +228,13 @@ class PaperScheduler:
                             log.note = (f"DRY-RUN: would submit {len(batch)} "
                                         f"{tag} orders — submitting NOTHING")
                         elif (self.calendar is not None and batch
-                              and not self.calendar.auction_window_open(
-                                  "opg" if kind == "submit_opg" else "cls", self._now())):
-                            # T-185: GATE the submit on the auction window.
-                            # Outside the window → DEFER (refuse + log), do
-                            # NOT submit (which would 40310000-reject). The
-                            # orders stay STAGED for the in-window cadence.
-                            tif = "opg" if kind == "submit_opg" else "cls"
+                              and not self.calendar.auction_window_open(tif, self._now())):
+                            # T-185/T-238: GATE submit on the venue window — the
+                            # OPG/CLS auction window, or (Option A) the DAY
+                            # regular session. Outside → DEFER (refuse + log), do
+                            # NOT submit (OPG would 40310000-reject; a DAY order
+                            # would rest/queue). Orders stay STAGED for the
+                            # in-window cadence.
                             log.note = (f"DEFERRED — {tag} batch outside the "
                                         f"submission window ({len(batch)} held). "
                                         + self.calendar.window_reason(tif, self._now()))

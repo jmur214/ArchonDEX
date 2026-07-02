@@ -194,7 +194,7 @@ class TestDryRunDay:
         # Clock fully walked.
         assert [s.step for s in summary.steps] == [
             "pull_close_bars", "compute_signals_targets", "preflight",
-            "submit_opg", "ack_sweep", "reconcile_1", "submit_cls",
+            "submit_opg", "submit_day", "ack_sweep", "reconcile_1", "submit_cls",
             "eod_reconcile_snapshot",
         ]
         # OPG/CLS batches counted but not sent.
