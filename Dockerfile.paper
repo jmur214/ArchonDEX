@@ -23,9 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # The only 3rd-party Python deps the paper loop's import tree needs.
+# pytz: alpaca.data.requests does `import pytz`, but pandas 3.x dropped its
+# pytz dependency (uses zoneinfo now), so it must be pinned explicitly — the
+# trend_sleeve path imports alpaca.data (market-data client); the reconcile-
+# only path never did, which is why T-238's first armed run fail-closed on a
+# ModuleNotFoundError until this was added.
 RUN pip install --no-cache-dir \
         pandas==3.0.1 \
-        alpaca-py==0.43.2
+        alpaca-py==0.43.2 \
+        pytz==2026.1.post1
 
 # Code + config from the git-archive staging dir (NO data/ — the wrapper
 # stages only the archived commit; the paper loop reads none of it).
