@@ -1,10 +1,11 @@
 # Conditional Shelf
 
 **Status:** seeded 2026-06-13 (T-166); backfilled 2026-07-02 (T-258) with the
-T-233→T-254 kill-wave (entries 6–10: T-250, T-253, T-214, T-247, T-233 — the
-wave had added zero entries despite shelf-shaped verdicts, per the 2026-07-02 gap
-audit). Mutates in place — add an entry at every conditional burial; re-test
-entries when a gating switch is validated.
+T-233→T-254 kill-wave (entries 6–10); currency pass 2026-07-02 (T-275) — **CLOSED
+#6 (even-week, T-268 step-2 H0) + #11 (off-leg, T-266 family N=2)**, added **#12
+(BTC forward-validation, T-272) + #13 (CEF alpha PARKED, T-267)**. Mutates in
+place — add an entry at every conditional burial; re-test entries when a gating
+switch is validated.
 
 ## What this is
 
@@ -243,7 +244,7 @@ sleeve beat always-on 20%, OOS, net-of-cost, on a held-out crisis?
 
 ---
 
-### 6. FOMC even-week SPY tilt (T-250) — combined-with-diversified-base
+### 6. FOMC even-week SPY tilt (T-250) — ✅ CLOSED (T-268: step-2 ran → H0)
 
 **Measured profile.** The FOMC-cycle even-week equity premium (Cieslak-Morse-
 Vissing-Jorgensen, JF 2019): in-window **7.31 bps/day** vs **1.87** out-of-window
@@ -261,14 +262,15 @@ higher Sortino vs Sharpe is a lower-exposure (53% time-in-market) artifact, not
 a better edge. **Coverage gap was REAL; neither calendar tilt is a standalone
 robo-beater.**
 
-**Activation condition.** Combined-with-the-diversified-base (the queued step-2):
-the tilt is orthogonal flow-timing, marginal on SPY-only, but may add when
-overlaid on the diversified base rather than SPY alone. Not yet measured.
+**Activation condition (RESOLVED → CLOSED).** The named step-2 — combine the
+even-week tilt with the diversified base — was run under fresh pre-registration
+as **T-268 (2026-07-02): H0/NULL.** The tilt does not add to the sleeve. Entry
+retires here with the negative result recorded (`evenweek_sleeve_t268_2026_07_02.md`);
+do not re-propose without a NEW mechanism (the combination hypothesis is spent).
 
 **Capacity ceiling.** SPY-liquid; no capacity constraint.
 
-**Gating switch.** Deterministic FOMC calendar (known ex-ante — not a regime
-classifier). The pending test is a COMBINATION (base + tilt), not a switch.
+**Gating switch.** Deterministic FOMC calendar — n/a now (closed).
 
 ---
 
@@ -379,7 +381,7 @@ price-trend overlay, never leading.
 
 ---
 
-### 11. Momentum off-leg for the trend sleeve (T-259) — 2022-aware duration-trend gate
+### 11. Momentum off-leg for the trend sleeve (T-259) — ✅ CLOSED (T-266: family N=2)
 
 **Measured profile.** Replacing the trend sleeve's 0%/cash flat leg with a
 momentum-selected {BIL, IEF} off-leg (argmax-12mo-momentum if positive, else
@@ -396,16 +398,67 @@ Point economics FAVORABLE (duration beta reclaimed: +$4.3k/$10k, Sortino +0.084,
 AND the **2022 must-not-degrade HARD gate FAILED** (candidate −4.62% vs control
 −4.08%, −0.53pp) — momentum held IEF into part of the bond crash.
 
-**Activation condition.** A validated **duration-trend / curve gate** on the IEF
-selection that keeps the off-leg in T-bills (not IEF) when duration is falling
-into a bond crash — i.e. the 2022 failure mode removed. The point economics say
-the beta is there IF the 2022 tail is gated out.
+**Activation condition (RESOLVED → CLOSED).** The rescue — a fast 63d IEF
+duration-trend gate — was run under fresh pre-registration as **T-266 (family
+N=2, FINAL): REFUTED.** The diagnosis CLOSED the family with evidence: the off-leg
+held IEF **0% of 2022** (12mo momentum already held BIL all year), so **the gate
+targeted a non-problem** — the −0.53pp 2022 "degrade" is a **BIL-ETF-vs-DGS3MO
+cash BASIS artifact** (BIL lagged the spot rate during the 2022 hikes), NOT the
+IEF-crash risk the shelf premise assumed. Off-leg family CLOSED at N=2; the
+momentum off-leg is a small, non-significant duration-beta reclaim with no
+gate-able tail. (`offleg_rescue_preregistration_t266_2026_07_02.md`.)
 
 **Capacity ceiling.** Liquid BIL/IEF; no capacity constraint.
 
-**Gating switch.** None validated (needs the duration-trend gate above). Re-test
-is a NEW spec (off-leg family N=2) requiring a fresh pre-registration, **user-gated**
-— NOT a free pass off this shelf.
+**Gating switch.** None — family closed (N=2 exhausted). A future off-leg would
+need a genuinely NEW mechanism, not another trend gate.
+
+---
+
+### 12. BTC 5% composition leg (T-272) — forward-validation slot (EXPLORATORY, not a burial)
+
+**Measured profile.** The BTC 5% leg is the **FIRST composition addition in project
+history to clear BOTH paired CIs** vs the sleeve (a genuine directional + CI signal,
+not a null) — but it is held at **EXPLORATORY, NOT DEPLOYED**, per `[NN-MBL]`: the
+Roth-clean instrument (IBIT) is only **~2.5 yr old** (launched Jan-2024), so the
+backtest leans on BTC-USD, and BTC-USD/IBIT daily corr is **0.82** (24/7-vs-market-
+hours timing, not tracking) — real fills differ from the monthly-signal backtest.
+The window is too short to clear MBL at honest-N. Source: `btc_arm_verdict_t272_2026_07_02.md`.
+
+**Activation condition.** This is a **forward-validation** entry, not a
+regime-conditional burial: promote only when a live/paper forward window on the
+actual Roth-clean instrument (IBIT) accumulates enough history to clear MBL AND
+reproduces the paired-CI edge out-of-sample. Until then it rides the exploratory
+slot alongside the sleeve, tracked forward.
+
+**Capacity ceiling.** 5% sleeve leg; IBIT liquid; no capacity constraint. The
+binding limit is DATA HISTORY, not capacity.
+
+**Gating switch.** None (not regime-conditional) — the "switch" is the passage of
+forward time under `[NN-MBL]`. Do NOT deploy on the current ~2.5yr history.
+
+---
+
+### 13. CEF discount-capture alpha (T-267) — PARKED (real alpha, no retail data path)
+
+**Measured profile.** **The FIRST statistically-significant alpha in project
+history: t_HAC 2.31**, measured on the T-264 CEF-discount substrate whose
+survivorship bias runs **CONSERVATIVE** (understates the effect → this is a lower
+bound, bias-DEFEATING). Real edge — but **NOT deployable**: there is no retail
+point-in-time NAV/discount data path, and the capacity + operational reality
+(illiquid CEFs, discount-mean-reversion horizon) don't fit a $5–15K Roth. Source:
+`cef_lowerbound_probe_verdict_t267_2026_07_02.md` (+ data audit `cef_data_audit_t264_2026_07_02.md`).
+
+**Activation condition.** A **retail-accessible PIT NAV/discount data feed** AND a
+capacity/operational check that a small Roth can actually harvest it. This is a
+DATA + operational unlock, not a regime switch — the alpha is real and parked
+pending a way to trade it honestly.
+
+**Capacity ceiling.** UNKNOWN but likely tight (CEF discounts live in small,
+illiquid names) — a load-bearing open question for any future activation.
+
+**Gating switch.** None — parked on data/operational feasibility, not regime.
+The one real alpha we found; keep it visible so a future data path re-opens it.
 
 ---
 
