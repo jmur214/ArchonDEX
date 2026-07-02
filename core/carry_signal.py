@@ -54,6 +54,22 @@ def gold_carry(dgs3mo: pd.Series, t10yie: pd.Series) -> pd.Series:
     return (-(dgs3mo.astype(float) - t10yie.astype(float))).dropna()
 
 
+def equity_carry(cape: pd.Series, dgs3mo: pd.Series) -> pd.Series:
+    """Equity carry ≈ CAPE earnings yield − short rate = (100/CAPE) − DGS3MO, in
+    percent. A cyclically-adjusted equity-risk-premium proxy (Shiller CAPE; causal
+    — trailing 10y real earnings, known as-of; monthly → ffill to daily downstream)."""
+    ey = 100.0 / cape.astype(float)
+    return (ey - dgs3mo.astype(float)).dropna()
+
+
+def zscore_expanding(carry: pd.Series, min_periods: int = 252) -> pd.Series:
+    """Causal expanding-window z-score (uses only data ≤ t → no lookahead). Makes
+    cross-asset carries unit-comparable. NaN until ``min_periods`` observations."""
+    m = carry.expanding(min_periods=min_periods).mean()
+    s = carry.expanding(min_periods=min_periods).std()
+    return ((carry - m) / s).where(s > 1e-12)
+
+
 def build_carries(
     assets: Iterable[str], macro: Mapping[str, pd.Series]
 ) -> Dict[str, pd.Series]:
