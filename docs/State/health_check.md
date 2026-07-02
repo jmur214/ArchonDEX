@@ -78,6 +78,27 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: engine_charters.md §F Modules table, row `regime_analytics.py`.
 - Recommended next step: Run `scripts/sync_docs.py`; confirm consolidation into RegimePerformanceTracker; update charter + index or restore from Archive.
 
+### [MEDIUM 2026-06-22 by engine-auditor] Engine F — behavior-altering governance capabilities are UNTRACKED in `capability_ledger.md` (the buried-capability blind spot, F edition)
+- Engine: F
+- First flagged: 2026-06-22 (capability-registry audit after the T-204/211/216/217/220-227 + T-212/T-218 merge wave)
+- Status: not started
+- Description: The `capability_ledger.md` Engine F section (4 rows) tracks only the three OFF/inert/missing items (learned_edge_affinity, factor-α gate, regime-conditional weighting) + RegimePerfAnalytics. It has NO row for the F capabilities that are actually behavior-altering and reachable — the exact blind spot the ledger exists to close. Verified against code 2026-06-22:
+  1. **Autonomous lifecycle transitions — ACTIVE in prod, UNTRACKED.** `lifecycle_enabled=true` AND `lifecycle_readonly=false` in `config/governor_settings.json:19,23`; `governor.evaluate_lifecycle` (governor.py:602) → `LifecycleManager.evaluate` (lifecycle_manager.py:352) is reached on the prod backtest post-run path (`orchestration/mode_controller.py:1045`) and the paper/live `update_from_trade_log` path (governor.py:600). It DIRECT-MUTATES `edges.yml` status (active→paused→retired→revive) and `lifecycle_history.csv` — the single most consequential F behavior, and it is ON. Tracked at the system-level in DESIGN_FIDELITY (row "Autonomous discovery + lifecycle + self-learning loop = ACTIVE") but with no capability_ledger row, no flag-state, no wired-to-live-path verification.
+  2. **MDD-25% kill-switch / pause gate — UNTRACKED.** Charter §F Design Notes ("Kill-switch: Edges exceeding MDD threshold (-25%) immediately paused") + lifecycle pause gates (lifecycle_manager.py:35 "MDD spike", config `disable_mdd_threshold=-0.25` governor.py:36 and lifecycle pause thresholds). Same `lifecycle_enabled` gate (True) → reachable. No ledger row.
+  3. **Allocation evaluation orchestration — ACTIVE, UNTRACKED.** `allocation_evaluation_enabled=true` (config:17); `update_from_trade_log` (governor.py:558-576) constructs `AllocationEvaluator`, evaluates 384 param combos, and writes `data/research/allocation_recommendations.json` every cycle. `auto_apply_allocation=false` (config:18) so it does NOT write portfolio_policy.json, but the recommendations file IS the de-facto producer that Engine C `policy.py:62` falls back to (cross-referenced in the ledger's Engine C `allocation_recommendation` row). The producer side is untracked in F.
+  4. **Tier reclassification hook — DORMANT, UNTRACKED.** `tier_reclassification_enabled=false` (config absent → default False, governor.py:78); `governor.evaluate_tiers` (governor.py:665) re-runs FF5+Mom decomp and mutates `tier`/`combination_role` in edges.yml when ON. Reached from mode_controller.py:1056. Default-OFF (correctly noted), but a behavior-altering capability with zero registry presence.
+  5. **T-227 runtime dead-gate assert — UNTRACKED (borderline).** `governor._assert_regime_weight_keys_reachable` (governor.py:189) HALTs in measured mode if `_regime_weights` carries a key no `macro_regime` label emits. Defensive/observability, but it CAN abort a measured run → arguably behavior-altering on the measurement path. No-op in prod (gate empty when `regime_conditional_enabled=false`). Not in capability_ledger or DESIGN_FIDELITY.
+- Charter reference: engine_charters.md §F Design Notes ("Autonomous reweighing", "Kill-switch", "Allocation evaluation"); Invariants 1 (versioned audit trail) and 7 (fully autonomous). The capability_ledger "How to add a row" rule (line 95) requires a row for every behavior-altering capability — lifecycle/MDD-kill/allocation-eval qualify and are missing.
+- Recommended next step: Add capability_ledger.md Engine F rows for (1) autonomous lifecycle transitions [wired: yes, flag: lifecycle_enabled=true, HIGH], (2) MDD-25% kill-switch [wired: yes via lifecycle, HIGH], (3) allocation-evaluation producer [wired: yes, flag: allocation_evaluation_enabled=true; auto-apply OFF, MEDIUM], (4) tier reclassification [wired: yes-when-flagged, flag: tier_reclassification_enabled=false default, LOW]. Decide whether the T-227 measured-mode HALT warrants a row. This is autonomous doc-authority (updating a state doc to reflect what the code does) — no user gate needed for the ledger additions themselves.
+
+### [LOW 2026-06-22 by engine-auditor] Engine F — `capability_ledger.md` learned_edge_affinity row states the WRONG gate (injector is gated by `learned_affinity_enabled`, not `regime_conditional_enabled`)
+- Engine: F
+- First flagged: 2026-06-22 (capability-registry audit)
+- Status: not started
+- Description: `capability_ledger.md` Engine F row 1 says the `learned_edge_affinity` injector is "gated by `regime_conditional_enabled=false`" and wired-to-live-path "no". The NET verdict (inert in prod) is correct, but the stated GATE is imprecise: the injector at `backtester/backtest_controller.py:368` is gated by `learned_affinity_enabled` (default True, `config/governor_settings.json:16` = true) — NOT `regime_conditional_enabled`. The reason it is still inert is one level deeper: `RegimePerformanceTracker.get_learned_affinity` (regime_tracker.py:180) returns `{}` because the tracker is never FED — `record_trade` only fires inside `update_from_trades` when `regime_conditional_enabled=true` (governor.py:421-422, config:13 = false), so `if learned:` (backtest_controller.py:379) is False and nothing is injected. This is the "empty-plumbing trap" from DESIGN_FIDELITY (line 36): the consumer path is ON but fed empty data. The existing health_check HIGH entry describes the empty-`{}` mechanism correctly; only the ledger's one-line gate attribution is wrong.
+- Charter reference: engine_charters.md §F Design Notes "Learned edge affinity".
+- Recommended next step: Correct the capability_ledger F row 1 Prod-flag-state to "`learned_affinity_enabled=true` (injector ON) but `regime_conditional_enabled=false` starves the producer → tracker empty → `get_learned_affinity` returns `{}` → no injection." Add a "Fed-real-data? = no" note (the DESIGN_FIDELITY-proposed canary column). Autonomous doc-authority.
+
 ### [MEDIUM 2026-06-04 by engine-auditor] Engine C — shipped crisis/defensive capabilities are NOT discoverable from living docs (Path-B-relevant doc gap)
 - Engine: C
 - First flagged: 2026-06-04
@@ -105,6 +126,21 @@ then LOW. Within each severity, list newest at the top.
 - Description: `DiscoveryEngine._create_random_gene` (discovery.py:496-538) emits a **macro (10%)** bucket — `vix_level` (thresholds 15/20/25/30, "panic" at >30), `yield_curve` (T10Y2Y inversion-as-stress), `unemployment_delta` — plus a **behavioral (5%)** bucket (`panic_score`, `herding_breadth`) and a **regime (5%)** bucket (`is bear`). The GA also emits `direction: short` (10%) and `market_neutral` (10%) genomes (discovery.py:353-357, genetic_algorithm.py:157-163, 288-289). These resolve to real signal behavior in `engines/engine_a_alpha/edges/composite_edge.py` (macro handler line 181/496-531; regime handler line 160; short/market_neutral sign at line 150). This means Engine D is *already capable* of discovering crisis-aware, VIX-gated, and short/hedge edges — directly relevant to the T-092 Path B crisis-robustness pivot — yet MEMORY records Engine D only as "GA emits only rsi_bounce_v1 mutations" (the pre-T-022 state, now superseded by the foundry/macro vocabulary). No living doc tells a Path-B planner that the edge-discovery vocabulary already spans crisis/defensive primitives.
 - Charter reference: engine_charters.md Engine D Design Notes: "GA gene vocabulary spans 7 types (technical, fundamental, regime, calendar, microstructure, intermarket, behavioral)" — omits the macro (FRED VIX/yield-curve/unemployment) and foundry_feature buckets, and does not mention short/market_neutral direction emission.
 - Recommended next step: Document the full gene vocabulary (incl. macro + foundry_feature buckets and short/market_neutral directions) in the Engine D charter Design Notes, and flag for the Path-B work that crisis/VIX/short edge discovery is an existing capability lever (not new infrastructure).
+
+### [HIGH 2026-06-22 by engine-auditor] capability_ledger.md + DESIGN_FIDELITY.md are STALE for Engine B after the T-204/211/212/216/218 merge wave — 5 real wired capabilities are UNTRACKED, 1 row is STALE-as-dead, line numbers drifted across the whole B section
+- Engine: B
+- First flagged: 2026-06-22
+- Status: not started
+- Description: A registry-vs-code audit of Engine B (`engines/engine_b_risk/`) against `docs/State/capability_ledger.md` (Engine B section) + `docs/State/DESIGN_FIDELITY.md` found the registry has not been reconciled since the recent merge wave. The exact "buried-capability" blind spot the registry exists to prevent. Findings:
+  1. **UNTRACKED — `regime_transition_overlay` (T-118), a real wired Path-A crisis de-gross.** `RiskConfig.regime_transition_overlay_enabled` (`risk_engine.py:188`, default False) gates `RegimeTransitionOverlay` (`engines/engine_b_risk/regime_transition_overlay.py`), constructed in `__init__` (`risk_engine.py:286`), advanced per-bar in `manage_positions` (`risk_engine.py:392`) and in `prepare_order` (`risk_engine.py:1041-1048`), and applied to Path A `target_notional` (`risk_engine.py:1080` via `_regime_overlay_mult`). Default-OFF but fully wired and reachable on the LIVE Path A. Has tests (`tests/test_regime_transition_overlay_t118.py`). It is the TRANSITION-trigger form of the de-gross lever (consumes the validated combined HMM posterior). NOT in capability_ledger or DESIGN_FIDELITY at all.
+  2. **UNTRACKED — Path-A advisory `risk_scalar` de-gross lift (T-116 PoC).** `advisory_risk_scalar_apply_on_path_a` (`risk_engine.py:119`, default False) lifts the dead-Path-B HMM-modulated `advisory.risk_scalar` onto Path A `target_notional` (`risk_engine.py:1023-1031, 1080` via `_advisory_risk_scalar_mult`). Sibling of the tracked T-111 drawdown Path-A lift, but the T-116 lift has no ledger row.
+  3. **UNTRACKED — tax-aware order gates `WashSaleAvoidance` + `LTHoldPreference`.** Both wired in `prepare_order`: wash-sale block (`risk_engine.py:836-842`, `should_block_buy`), LT-hold exit-defer (`risk_engine.py:724-748`, `should_defer_exit`), configured via `config/portfolio_settings.json:38,43` (both `enabled:false`). Behavior-altering Engine B capabilities (they BLOCK/DEFER orders) with zero registry rows.
+  4. **UNTRACKED (branch-only, but TASK_LEDGER-tracked) — T-218 factor-neutrality SIZING + T-212 vol-target re-enablement.** `factor_neutrality.py` + `factor_neutrality_enabled` (+ 6 per-factor caps) is BUILT on `feature/factor-neutrality-sizing-t218` (NOT on main; `engines/engine_b_risk/factor_neutrality.py` does not exist on main; zero factor-neutrality wiring in main's `risk_engine.py`). T-212 vol-target build is on `feature/voltarget-build-t212` (part-1 sigma-floor fail-loud hardening branch-only; T-153's non-fail-loud floor IS on main). Both are in `TASK_LEDGER.md` as `dispatched`/branch-held, but neither capability_ledger nor DESIGN_FIDELITY has a row — so a planner reading those two registries would not know factor-neutrality sizing was ever built. (Per the registry's own "Fed-real-data?/branch-status" proposal, these should be DORMANT/branch-held rows, not absent.)
+  5. **STALE — `correlation_regime` sector-cap branch listed as "DEAD CONSUMER (no producer)".** The ledger (line 33) says the consumer (`risk_engine.py:876`) is dead because "writer puts correlation_regime as nested dict on output, NOT into advisory." That is now outdated: T-107 added a GATED producer (`engines/engine_e_regime/advisory.py:259-260`, flag `correlation_regime_in_advisory_enabled`, default False, `regime_config.py:125`). The consumer is reachable the moment that flag flips; the row should read "gated-off producer (T-107)", not "no producer / dead".
+  6. **STALE — `FactorRiskModel` row says "zero importers in the repo / orphaned".** T-209 added a `decompose()` measurement diagnostic to `factor_analysis.py` (`:98-149`) imported by `tests/test_factor_risk_model.py`. The SIZING relevance is still correctly "no — not wired into risk path" (the sizing-integration hook at `factor_analysis.py:151-163` is explicitly propose-first/not-implemented), but "zero importers" is now wrong and the diagnostic capability is untracked.
+  7. **STALE (mechanical) — line numbers across the entire Engine B section have drifted** after the merge wave. Spot-checks: crisis-floor consumer ledger`:729`→actual `risk_engine.py:861`; `suggested_exposure_cap` `:736`→`:866`; `risk_scalar` Path-B `:739`→`:1163`; correlation `:744`→`:876`; vol-target consumer `:251`→`_compute_portfolio_vol_scalar` at `:525` + applied at `:940/1079`; drawdown Path-B `:940`→`:1188`; ATR stop-widening `:875`→`:1129`. The capabilities themselves are intact and correctly classified (Path-A-live vs dead-Path-B); only the `Source (file:line)` anchors are stale (Layer 3a WARN-class, not a phantom).
+- Charter reference: capability_ledger.md header — "flat index of every BEHAVIOR-ALTERING capability the code currently ships, on which path, behind which flag, with honest reachability"; DESIGN_FIDELITY.md — "code-grounded so a NEVER-BUILT row can't be silently asserted-as-built" and proposes a "Fed-real-data?" + branch-status column. The wash-sale/LT-hold/overlay/risk-scalar-lift/factor-neutrality capabilities are exactly the behavior-altering shipped surface both registries claim to index.
+- Recommended next step: (a) Add ledger rows for the 5 untracked B capabilities (regime_transition_overlay T-118, advisory risk_scalar Path-A lift T-116, WashSaleAvoidance, LTHoldPreference, and branch-held T-218 factor-neutrality / T-212 vol-target as DORMANT/branch-held). (b) Re-tag the `correlation_regime` row to "gated-off producer (T-107)". (c) Re-tag the `FactorRiskModel` row: diagnostic `decompose()` is test-imported (T-209), sizing hook still unwired/propose-first. (d) Re-run the Layer 3a source-anchor reconciliation to refresh the drifted line numbers. (e) Add a DESIGN_FIDELITY row for factor-neutrality sizing (intended risk-control, BUILT-on-branch, not merged) so it cannot fall through the net like the conjunctive selector did.
 
 ### [MEDIUM → ELEVATED 2026-05-12] Worth a broader codebase audit for other dead-letter / unreachable-code patterns (post-T-054 discovery)
 - Category: code hygiene / structural plumbing
@@ -1265,3 +1301,225 @@ Severity counts: HIGH 3 | MEDIUM 6 | LOW 4. Top-3 highest-impact below.
   high_level_engine_function.md. For T-092 Path B, treat
   `macro_yield_curve_v1` as a pre-existing crisis-defensive overlay
   when scoping the kill-switch.
+
+### [MEDIUM] Engine E's `regime_gate.py` (T-217) — `hmm_regime_label` is BUILT + WIRED into A's conjunctive selector but is UNTRACKED in capability_ledger.md
+- Engine: E
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `engines/engine_e_regime/regime_gate.py` (landed
+  2026-06-18, T-217) ships a real, behavior-altering capability that
+  has NO row in `docs/State/capability_ledger.md`. `hmm_regime_label()`
+  (regime_gate.py:63) maps the validated causal HMM `p_crisis`
+  (carried in `regime_meta["hmm_regime"]["probabilities"]["crisis"]`)
+  to a 3-state label {calm/cautious/crisis}, and it IS imported and
+  called on the live code path by Engine A's conjunctive selector at
+  `engines/engine_a_alpha/signal_processor.py:546-548`
+  (`g_regime = self._CONJ_REGIME_GATE.get(regime, 1.0)`,
+  `{calm:1.0, cautious:0.5, crisis:0.0}`). This is exactly the
+  buried-capability blind spot the ledger exists to prevent: a shipped,
+  wired E→A defensive gate with no capability-state row. It is
+  reachable only under `EnsembleSettings.mode="conjunctive"`
+  (signal_processor.py:688), which is default-OFF
+  (`mode="weighted_mean"`, signal_processor.py:76; no prod config sets
+  `conjunctive`), so it is correctly DORMANT today — but dormancy is a
+  Prod-flag-state, not a reason to omit the row. Note the prod HMM
+  (`hmm_3state_v1.pkl`, `hmm_enabled=true`) DOES emit a `crisis` state
+  key, so the label is functional, not a phantom — if the conjunctive
+  mode were flipped on, g_regime would produce real {1.0/0.5/0.0}
+  multipliers, not a permanent no-op.
+- Charter reference: `engine_charters.md` Engine E "Validated regime
+  findings" #5 ("Correct uses of the HMM regime: descriptive
+  context/feature for A (`g_regime` per-edge SELECTION gate, T-217 —
+  pending composition measure)"). The charter documents this as a
+  deliverable; the capability_ledger (the file whose stated purpose is
+  "flat index of every BEHAVIOR-ALTERING capability the code currently
+  ships") omits it. `DESIGN_FIDELITY.md:19` tracks the conjunctive
+  selector as "NEVER-BUILT → BUILDING NOW (A/T-216)" — STALE: it is now
+  BUILT (signal_processor.py:510 `_conjunctive_aggregate`) and DORMANT
+  (default-OFF), not never-built.
+- Recommended next step: Add an Engine E row to capability_ledger.md:
+  Capability = "`hmm_regime_label` g_regime label (causal-HMM 3-state)
+  consumed by A's conjunctive selector"; Source =
+  `engines/engine_e_regime/regime_gate.py:63`; Wired-to-live-path? =
+  `mode-gated` (reachable only under `ensemble.mode=conjunctive`);
+  Prod-flag-state = default-OFF (`mode=weighted_mean`). Separately
+  update DESIGN_FIDELITY.md row 1 from NEVER-BUILT to DORMANT
+  (built + wired, default-OFF, composition measure pending).
+
+### [LOW] Engine E's `RegimeGate` class + `build_gates_from_stats`/`gate_from_sharpe`/`from_file` (T-217 per-edge overlay gate) are BUILT but have ZERO production consumers and are UNTRACKED
+- Engine: E
+- First flagged: 2026-06-22
+- Status: not started
+- Description: Beyond `hmm_regime_label` (tracked-gap above),
+  `regime_gate.py` also ships a per-(edge, regime) overlay-gate
+  subsystem: `RegimeGate` dataclass (line 108) with
+  `gate(edge, regime_meta)` (line 117), the Sharpe→gate mapper
+  `gate_from_sharpe` (line 77), the stats-to-gate builder
+  `build_gates_from_stats` (line 87), and JSON persistence
+  `to_file`/`from_file` (lines 132/137). Grep across
+  engines/backtester/orchestration/core/live_trader finds ZERO
+  importers of any of these symbols — only `hmm_regime_label` is
+  consumed (by signal_processor.py). No `regime_gate*.json` artifact
+  exists on disk, so even `from_file` would always fail-safe to OFF.
+  This is a built-but-DORMANT scaffold (the per-edge SELECTION-gate half
+  of the conjunctive vision, distinct from the portfolio-level
+  g_regime label A actually uses) with no capability-ledger row. Not
+  HIGH because it is genuinely inert (no caller, no artifact) and
+  default-OFF by construction — but it is real code that alters
+  behavior the moment a caller composes a populated gate, which is the
+  ledger's inclusion criterion.
+- Charter reference: same as above — `engine_charters.md` Engine E
+  finding #5 references the g_regime gate as a deliverable; the
+  capability_ledger does not carry it.
+- Recommended next step: Add a single LOW/DORMANT Engine E ledger row
+  for the `RegimeGate` per-edge overlay subsystem (Source
+  `engines/engine_e_regime/regime_gate.py:108`; Wired-to-live-path? =
+  `no — never wired` / zero importers; Prod-flag-state = N/A inert). If
+  it stays unwired past the T-217 composition measure, flag for
+  Archive per the orphaned-code policy (sibling of the
+  `MultiSleeveAggregator`/`FactorRiskModel` orphan rows).
+
+### [HIGH] Engine D's Gate 6 (FF5+Mom factor-alpha) is DEMOTED to report-only in prod config but `capability_ledger.md` still lists it as an enforcing promotion gate (STALE / REFUTED_LISTED_ACTIVE)
+- Engine: D
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `config/discovery_settings.json` sets `factor_gate_mode: "report"` (T-203 re-aim to "beat-the-robo, not academic factor-orthogonality"). At `discovery.py:1552`, `factor_alpha_passed_for_gate = factor_alpha_passed if _fgm=="kill" else True` — so in prod Gate 6 computes the HAC-corrected FF5+Mom t-stat and records it as a diagnostic, but it can NO LONGER KILL a candidate (always passes). The capability_ledger Engine-D row says Gate 6 "already enforces factor-adjusted alpha at promotion (reality includes factor-α)" with Wired=`yes`/Default=ON — which now misrepresents production behavior. A gate the registry presents as load-bearing has been semantically neutered by a config flag the registry doesn't surface.
+- Charter reference: `engine_charters.md` Engine D Invariant #4 ("Every candidate must pass 4-gate validation ... before promotion"); capability_ledger Engine-D Gate-6 row.
+- Recommended next step: Update the Gate-6 ledger row to Prod-flag-state = `report-only (factor_gate_mode='report')`, note the config knob + `discovery.py:1552` gate-passthrough, tag REFUTED_LISTED_ACTIVE→re-described. Restoring KILL is director-gated.
+
+### [HIGH] `robo_deploy_gate_enabled=true` declares `evaluate_deploy_readiness` the "PRIMARY deploy-readiness gate" but it is NEVER wired into the discovery cycle (config-claims-but-not-wired; PHANTOM-as-described)
+- Engine: D
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `config/discovery_settings.json` sets `robo_deploy_gate_enabled: true` and its comment names `core.combined_candidate_scorecard.evaluate_deploy_readiness` as the PRIMARY deploy-readiness gate. Repo-wide grep finds `evaluate_deploy_readiness` called ONLY from `scripts/run_combined_scorecard.py` and its own test; the config key `robo_deploy_gate_enabled` has ZERO python consumers anywhere. It is NOT invoked by `validate_candidate` (discovery.py) or the `--discover` cycle in `mode_controller.py`. The config asserts a primary promotion gate the autonomous discovery path does not run. Not capability_ledger-tracked.
+- Charter reference: capability_ledger.md "Wired-to-live-path?" rule (config-flag × wiring-guard × path-reachability); fails leg 2 (wiring) despite leg 1 (flag=true) reading active.
+- Recommended next step: Either (a) wire `evaluate_deploy_readiness` into `validate_candidate` behind the flag, or (b) correct the config comment to say it is an offline/manual scorecard — propose first (touches promotion path). Add a ledger row for whichever reality is chosen.
+
+### [MEDIUM] Engine D's Foundry-feature gene bucket (20% emit, T-022) + `foundry_seed_fraction=0.5` + `use_bayesian_opt` are real behavior-altering Discovery capabilities UNTRACKED in capability_ledger.md
+- Engine: D
+- First flagged: 2026-06-22
+- Status: not started
+- Description: The capability_ledger Engine-D section tracks the macro/behavioral/regime/short-direction gene buckets but omits the LARGEST one: the 20% Foundry-feature bucket (`discovery.py:657-675`, `_make_random_foundry_gene`), which draws a feature_id uniformly from the live tier-A/B Foundry registry. MEMORY historically called this bucket inert (the T-177 `set_params` bug); it is now resolved by `composite_edge.py:56-71` (set_params re-hydrates `self.genes`/`self.direction`) so it is live. Two untracked config knobs: `foundry_seed_fraction: 0.5` (prod; default 0.0 at `discovery.py:89`) makes half the fresh Gen-0 GA seed single-gene foundry genomes (T-183) — a real change to which candidates get tested first; and `use_bayesian_opt: false` (reachable at `discovery.py:285-293`) — a default-OFF GP+EI candidate search that replaces the GA when flipped.
+- Charter reference: `index.md` / `high_level_engine_function.md` describe the Foundry bucket and GA seeding; capability_ledger.md — the anti-build-bias index — carries no rows for them.
+- Recommended next step: Add ledger rows for (1) Foundry 20% gene bucket (Wired=yes on `--discover`; resolved by composite_edge), (2) `foundry_seed_fraction` (Wired=yes, prod 0.5), (3) `use_bayesian_opt` (mode-gated, default OFF).
+
+### [LOW] Every Engine-D capability_ledger `file:line` is stale post-merge-wave; the Layer 3a contract only checks file-exists, not symbol-at-line, so the drift passes CI silently
+- Engine: D
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `discovery.py` grew to 1784 lines; the ledger's D rows point at pre-growth lines — `validate_candidate` cited :869, actually :943; macro/behavioral/regime genes cited `_create_random_gene:496`, actually :592 (within a def at :499); short/market_neutral direction cited :353-357, actually :401-406. The Layer 3a contract (`tests/test_contracts.py:750`, `test_layer3a_capability_ledger_source_files_exist`) only asserts the FILE exists — it does NOT verify the cited line resolves to the claimed symbol, despite the ledger header claiming "Line-number drift WARNs; missing file/symbol FAILs." The header oversells the contract.
+- Charter reference: capability_ledger.md header "CI-gated: tests/test_contracts.py::Layer 3a verifies that every Source (file:line) here still resolves (file exists, symbol matches)."
+- Recommended next step: Refresh the D row line numbers, and either strengthen Layer 3a to assert the symbol appears at/near the cited line, or correct the ledger header to state the contract only checks file existence.
+
+### [MEDIUM 2026-06-22 by engine-auditor] capability_ledger STALE-as-dead: `macro_yield_curve_v1` is RETIRED in the live registry, not ACTIVE — the "active -0.3 crisis tilt in A" claim is refuted by edges.yml
+- Engine: A
+- First flagged: 2026-06-22
+- Status: not started
+- Description: Direct correction of the open MEDIUM above (the
+  "yield-curve ACTIVE" entry) and the capability_ledger row that cites
+  `macro_yield_curve_edge.py:199 status="active"` as evidence of an
+  active de-gross overlay. Tracing the LIVE registry (the
+  recommended-next-step the prior entry deferred): `data/governor/
+  edges.yml:1755` sets `macro_yield_curve_v1` `status: retired`. The
+  in-code auto-register `status="active"` (macro_yield_curve_edge.py:199)
+  is WRITE-PROTECTED by `EdgeRegistry.ensure()` (per the comment at
+  macro_yield_curve_edge.py:184-187, ensure() does not revert persisted
+  lifecycle status), so the code default never wins over the persisted
+  `retired`. Net: the edge does NOT fire in prod — it is
+  DORMANT/retired, not an active crisis-de-gross path. The
+  capability_ledger's "ACTIVE — uniform -0.3 tilt" / "unknown — needs
+  trace" framing is STALE-as-dead. (Same dynamic on `low_vol_factor_v1`:
+  code auto-registers `status="active"`, low_vol_factor_edge.py:140;
+  live `edges.yml:1778` = `paused` / `retire-eligible` — and it is not
+  in the ledger at all.)
+- Charter reference: capability_ledger.md header — "honest
+  reachability"; the Path-B-relevance column tags macro_yield_curve as
+  a "pre-existing crisis-defensive overlay … T-092 Path-B kill-switch
+  must account for this." A T-092 scoper trusting that row would
+  double-count a retired/inert edge as a live de-gross path.
+- Recommended next step: Re-tag the macro_yield_curve_v1 ledger row to
+  `Wired-to-live-path? = no (retired in data/governor/edges.yml:1755)`,
+  Prod-flag-state = `retired`. Same correction for low_vol_factor
+  (`paused`/`retire-eligible`). When the registry's proposed
+  "Fed-real-data?" column lands, both are clear "no" cases a code scan
+  of the auto-register line would mis-read as active.
+
+### [MEDIUM 2026-06-22 by engine-auditor] UNTRACKED Engine A-alpha capabilities after the merge wave — defensive_tilt screens (T-205) + Phase-1 composition (T-211) + trend overlay, none in capability_ledger or DESIGN_FIDELITY; stale "not on prod path" docstrings
+- Engine: A
+- First flagged: 2026-06-22
+- Status: not started
+- Description: The T-204/205/211 merge wave added real, behavior-altering
+  Engine A capabilities that neither registry tracks — the same
+  buried-capability blind spot that hid the conjunctive selector.
+  (1) `engines/engine_a_alpha/screens/defensive_tilt.py` — a cross-
+  sectional QUALITY tilt (`quality_tilt_longs`, line 112) + a
+  high-IVOL/lottery EXCLUSION screen (`high_ivol_exclusion`, line 163),
+  both PIT-correct producers. The module's `__init__.py` docstring AND
+  `defensive_tilt.py:18-23` assert "NOT imported by the production
+  backtest path … prod canon unchanged" — that is now FALSE:
+  `engines/engine_c_portfolio/phase1_composition.py:88-96` imports and
+  calls both screens. (Correct boundary placement — A produces the
+  screen scores, C applies them as a CONSTRUCTION tilt, not a B
+  admission gate — but the capability is real and cross-engine-wired.)
+  (2) Phase-1 composition (`apply_phase1_composition`,
+  phase1_composition.py:114) applies the defensive tilt + a
+  trend-overlay gross scalar (`core.trend_overlay.TrendOverlay`) to the
+  book's target weights, reached from
+  `engines/engine_c_portfolio/portfolio_engine.py:440` gated by
+  `phase1_composition_enabled` (`config/portfolio_settings.json:21`,
+  default False) — DORMANT but fully wired and reachable via one flag.
+  Grep for trend_overlay / defensive_tilt / phase1 / quality_tilt /
+  screens returns NOTHING in either capability_ledger.md or
+  DESIGN_FIDELITY.md. (`screens/industry_momentum.py` is genuinely
+  inert — called only by `scripts/industry_momentum_t213.py`, no
+  engine/controller import — a true orphan, lower priority.)
+- Charter reference: capability_ledger.md header — "flat index of EVERY
+  behavior-altering capability the code currently ships"; DESIGN_FIDELITY
+  exists so a built-but-undocumented capability "can't fall through the
+  net like the conjunctive selector did." The defensive screens are the
+  alpha-layer half of the Phase-1 crisis-defense lever (the bought-MF-
+  sleeve alternative) and belong in both registries.
+- Recommended next step: Add capability_ledger rows: (a) Engine A
+  "defensive_tilt screens (quality tilt + high-IVOL exclusion)" Source
+  `engines/engine_a_alpha/screens/defensive_tilt.py:112,163`,
+  Wired-to-live-path? = `mode-gated` (consumed by C's phase1 only when
+  `phase1_composition_enabled`), Prod-flag-state = default-OFF; (b)
+  Engine C "phase1_composition post-processor (defensive tilt + trend
+  overlay scalar)" Source `engines/engine_c_portfolio/phase1_composition.py:114`
+  / `portfolio_engine.py:440`, default-OFF. Correct the two "NOT
+  imported by production path" docstrings (`screens/__init__.py`,
+  `defensive_tilt.py:18-23`) to "consumed by C's phase1 composition,
+  default-OFF" — they now under-state the wiring (a sibling of the
+  ledger-header-overstates / docstring-understates drift class).
+
+### [MEDIUM] Engine C ships FOUR wired-but-untracked post-processor capabilities (phase1_composition, dynamic_optimizer, position_buffering, SpotETFTrendSleeve) — none in capability_ledger.md or DESIGN_FIDELITY.md
+- Engine: C
+- First flagged: 2026-06-22
+- Status: not started
+- Description: The capability_ledger Engine C section (rows 44-51) was written 2026-06-04 and never updated through the T-139/T-148/T-120/T-211 merge wave. Four real, behavior-altering, default-OFF-but-WIRED capabilities now exist with ZERO ledger/DESIGN_FIDELITY coverage: (1) Phase-1 composition (T-211) — `engines/engine_c_portfolio/phase1_composition.py:114` (`apply_phase1_composition`), wired at `portfolio_engine.py:440-441` behind `phase1_composition_enabled` (policy.py:91, default False); applies the A/T-205 defensive quality/IVOL tilt + the E/T-204 trend-overlay exposure scalar to the final book. (2) Carver dynamic optimization (T-139) — `dynamic_optimizer.py:optimize_integer_positions`, wired at `portfolio_engine.py:424-425` behind `dynamic_optimization_enabled` (default False). (3) Carver position buffering (T-148) — `position_buffering.py:apply_position_buffering`, wired at `portfolio_engine.py:433-434` behind `position_buffering_enabled` (default False). (4) SpotETFTrendSleeve (T-120) — `sleeves/spot_etf_trend_sleeve.py`, wired into PortfolioEngine init (`portfolio_engine.py:79-85`) AND snapshot equity (`portfolio_engine.py:322-331`) behind `spot_sleeve_enabled` (policy.py:44, default False). All four are default-OFF (canon bitwise-identical when off), so none is a production risk today — but the ledger's stated purpose is to be the flat index of EVERY shipped behavior-altering capability "behind which flag, with honest reachability," precisely so a default-OFF knob does not become nobody's documentation responsibility. These are exactly the buried-capability class the ledger exists to catch.
+- Charter reference: `capability_ledger.md:3` ("flat index of every BEHAVIOR-ALTERING capability the code currently ships, on which path, behind which flag, with honest reachability"). The four above ship, are on the live path (gated), behind named flags — and are absent.
+- Recommended next step: Add four Engine C rows (Wired-to-live-path? = mode-gated, reachable when each `*_enabled` flag flips; Prod-flag-state = default OFF). Cross-link verdict docs: T-211->T-215 (composition verdict pending the cloud cell), T-148 (buffering A/B pre-registered), T-128r (SpotETF sleeve crisis-MDD thesis REFUTED — see finding below), T-139 (dyn-opt A/B gated).
+
+### [MEDIUM] Engine C `PortfolioComposer` (HRP + turnover gate) is reachable in prod but UNTRACKED in capability_ledger.md; it is C-owned code dispatched from inside Engine A (design-of-record, not drift)
+- Engine: C
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `engines/engine_c_portfolio/composer.py` (`PortfolioComposer.compose`, line 102) is the F4-charter-inversion home for HRP + turnover gating. It is constructed at `engines/engine_a_alpha/alpha_engine.py:571` and called at `alpha_engine.py:799-800` (`if proc and self.composer.is_active: proc = self.composer.compose(...)`). Fully reachable on the live backtest path but a strict no-op under the prod config (`config/portfolio_settings.json` `portfolio_optimizer.method = "weighted_sum"` -> `is_active` False, composer.py:99-100). Gaps: (a) it is NOT in the capability_ledger Engine C section despite being behavior-altering behind the `method` flag (`hrp`/`hrp_composed` activate it); (b) it is C-owned but A-dispatched. (b) is the documented intentional F4-inversion fix (composer.py:8-12 records HRP/turnover moved OUT of Engine A's signal_processor INTO Engine C's composer.py) — the heavy logic lives in the right engine; only the dispatch is cross-engine. Flagging for ledger coverage, NOT as a boundary violation.
+- Charter reference: `engine_charters.md:280-293` (Engine C.2 owns "Diversification and correlation-aware weighting"); `capability_ledger.md:3`.
+- Recommended next step: Add an Engine C ledger row (Source `composer.py:102`; Wired-to-live-path? = mode-gated, active only when `method` in {hrp, hrp_composed}, prod weighted_sum no-op; Notes: HRP-replacement slice-1 FALSIFIED -0.63, hrp_composed retained).
+
+### [MEDIUM] capability_ledger.md Engine C section is STALE post-merge: all 5 file:line refs drifted, the allocator.py "missing-file" claim no longer matches docs, and vol-target/exposure-cap reachability is overstated
+- Engine: C
+- First flagged: 2026-06-22
+- Status: not started
+- Description: Three accuracy defects in the existing Engine C ledger rows (44-51). (1) Line drift (Layer 3a WARN class): every Engine C `policy.py` reference is wrong — vol-target ceiling ledger says :334, actual :440; vol-target floor :340->:445; `_apply_exposure_cap` :380->:463; `_apply_regime_overrides` :86->:115; `allocation_recommendation` consumer :62->:129. Symbols still exist (not phantom) but no ref resolves. (2) The `EngineCAllocator`/`allocator.py` row (50) claims "Charter + index.md refer to `allocator.py` but no such file" — STALE: a grep of both `docs/Core/engine_charters.md` and `engines/engine_c_portfolio/index.md` finds NO `allocator.py`/`EngineCAllocator` reference anymore (only a role-table "Allocator" label and a "portfolio policy allocator" description). The dangling reference the row describes was removed; retire the row. (3) Vol-target/exposure-cap reachability OVERSTATED: rows 44-46 say these are reachable because `_apply_regime_overrides` flips mode to "adaptive" via `data/research/allocation_recommendations.json` "(which recommends adaptive for every regime)". That file is ABSENT on disk -> `_apply_regime_overrides` early-returns (policy.py:146-147) -> mode stays mean_variance -> the regime-aware vol-target ceiling/floor and exposure-cap (at the END of the adaptive branch, after the mean_variance branch already returns at policy.py:292) are NOT reached in prod. CURRENT_STATE confirms "mean_variance is production; the adaptive artifact was archived (T-167)." The file is gitignored/regenerable so it COULD exist live, but the ledger states it as present-fact.
+- Charter reference: `capability_ledger.md:11` ("False precision is the bug this ledger exists to prevent"); `:13` (Layer 3a: line drift WARNs, missing symbol FAILs).
+- Recommended next step: Refresh all five Engine C line numbers, retire the `allocator.py`-missing-file row, and change the vol-target/exposure-cap reachability to "no (mean_variance prod; adaptive-only, recommendations file absent)" rather than mode-gated.
+
+### [LOW] SpotETFTrendSleeve is captured in DESIGN_FIDELITY only as part of the blanket "sleeve ... REFUTED" row but ships WIRED — the registry conflates "refuted thesis" with "removed capability"
+- Engine: C
+- First flagged: 2026-06-22
+- Status: not started
+- Description: `DESIGN_FIDELITY.md:27` marks "Regime vol-target / de-gross overlay / capital-partition sleeve" REFUTED (T-055h/T-118r/T-128r), and :65 says "Do NOT resurrect: ... sleeve (REFUTED)." T-128r (TASK_LEDGER row 116) did refute the spot-sleeve crisis-MDD thesis on the integrated path ("NOT RECOMMEND ... NOT a drawdown hedge"). HOWEVER `SpotETFTrendSleeve` remains BUILT + WIRED into PortfolioEngine (init + snapshot, behind `spot_sleeve_enabled` default OFF) — it was not removed/archived after refutation. That is correct (archive-never-delete; the knob stays default-OFF on the path), but it means a refuted default-OFF capability is again nobody's documentation responsibility: DESIGN_FIDELITY says "REFUTED, do not resurrect" while capability_ledger has no row saying "still wired, default-OFF, on the path." The nuance T-128r itself logged (spot @25% lifts base Sharpe 0.751->0.897 via calm-period return diversification, statistically soft, NOT a crisis hedge) makes it a refuted-as-hedge / marginal-as-diversifier capability still shipping — the refuted-verdict-buries-shipped-capability pattern.
+- Charter reference: `DESIGN_FIDELITY.md:51-52` ("On REFUTATION, flip the row to REFUTED so the registry distinguishes wrongly-never-tried from correctly-abandoned"); `capability_ledger.md:5`.
+- Recommended next step: Add a capability_ledger Engine C row for `SpotETFTrendSleeve` with Defensive/Path-B relevance = REFUTED-as-hedge (T-128r) and Wired-to-live-path? = mode-gated / still on the path default-OFF, cross-linking T-128r.

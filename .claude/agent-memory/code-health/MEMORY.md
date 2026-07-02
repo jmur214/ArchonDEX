@@ -4,3 +4,5 @@
 - [Charter-inversion imports](pattern_charter_inversion_imports.md) — A imports F, D imports B/A — symptom of features added in the closest module rather than the right one
 - [Silent-zero correctness in fundamentals edges](pattern_silent_zero_correctness.md) — denominator components (equity, invested capital) silently substituted with 0 instead of dropping the ticker; inconsistent across sibling files in the same cohort
 - [Unused-def scan false-positive classes](pattern_unused_def_false_positives.md) — pytest fixtures and same-file script helpers dominate; ~78% of raw unused-def candidates are these two classes
+- [Orphan-script accumulation in scripts/](pattern_orphan_script_accumulation.md) — scripts/ is the #1 debt sink; T-xxx one-offs never archived (~132/170 orphaned); they form self-contained import webs that archive as a unit
+- [Archive-verification: string-ref vs real import](pattern_archive_verification_string_vs_import.md) — a live module naming a script is often a docstring/error-string/comment not an import; doesn't block archiving but flag the stale pointer
