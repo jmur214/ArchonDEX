@@ -379,6 +379,36 @@ price-trend overlay, never leading.
 
 ---
 
+### 11. Momentum off-leg for the trend sleeve (T-259) — 2022-aware duration-trend gate
+
+**Measured profile.** Replacing the trend sleeve's 0%/cash flat leg with a
+momentum-selected {BIL, IEF} off-leg (argmax-12mo-momentum if positive, else
+T-bills) — run on the T-255 fair harness, 2008-05..2026-04 (17.9y):
+
+| | Sortino (ci_low) | Sharpe | CAGR | MaxDD | $10k→ | Source |
+|---|---|---|---|---|---|---|
+| cash off-leg (control) | 1.260 (0.621) | 0.993 | 6.2% | −9.3% | 29,231 | `scripts/offleg_ab_t259.py` |
+| momentum off-leg | 1.344 (0.750) | 1.026 | 7.0% | −10.4% | **33,542** | (frozen pre-reg `offleg_ab_preregistration_t258_2026_07_02.md`) |
+
+Point economics FAVORABLE (duration beta reclaimed: +$4.3k/$10k, Sortino +0.084,
+77% bootstrap win-rate) BUT REFUTED on the frozen gates: paired ΔSortino 95%CI
+[−0.085,+0.206] and Δwealth [−0.101,+1.445] both straddle 0 (not significant),
+AND the **2022 must-not-degrade HARD gate FAILED** (candidate −4.62% vs control
+−4.08%, −0.53pp) — momentum held IEF into part of the bond crash.
+
+**Activation condition.** A validated **duration-trend / curve gate** on the IEF
+selection that keeps the off-leg in T-bills (not IEF) when duration is falling
+into a bond crash — i.e. the 2022 failure mode removed. The point economics say
+the beta is there IF the 2022 tail is gated out.
+
+**Capacity ceiling.** Liquid BIL/IEF; no capacity constraint.
+
+**Gating switch.** None validated (needs the duration-trend gate above). Re-test
+is a NEW spec (off-leg family N=2) requiring a fresh pre-registration, **user-gated**
+— NOT a free pass off this shelf.
+
+---
+
 ## Not-yet-shelved candidates (flagged, not seeded — need an audit re-read)
 
 - **`value_book_to_market_v1`** — flagged possibly-regime-conditional
