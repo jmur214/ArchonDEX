@@ -184,23 +184,66 @@ def combine_fixed_weight(
     return combined.rename("combined")
 
 
+_BOND_ETFS = {"AGG", "BND", "IEF", "TLT"}  # price-only in data/processed → need TR income added
+
+
+def _daily_short_rate() -> Optional[pd.Series]:
+    """Historical short-rate path (FRED DGS3MO), daily-ffilled → daily decimal rate.
+    Returns None if the macro panel is absent (caller falls back to a flat rate,
+    flagged). T-255: the robo `_cash` sleeve must earn the ACTUAL short rate
+    (2000-2026 avg ~1.96%), NOT a flat 4% — the flat 4% overstated cash-heavy
+    robos ~0.4%/yr and generated false DEPLOY passes."""
+    p = ROOT / "data" / "macro" / "DGS3MO.parquet"
+    if not p.exists():
+        return None
+    s = pd.read_parquet(p)["value"].astype(float)
+    s.index = pd.to_datetime(s.index)
+    s = (s / 100.0 / TRADING_DAYS).sort_index()
+    return s.reindex(pd.date_range(s.index.min(), s.index.max(), freq="D")).ffill()
+
+
+def _bond_tr_income() -> Optional[pd.Series]:
+    """DGS-based coupon-income proxy (daily) to convert price-only bond-ETF returns
+    to TOTAL return. data/processed AGG is PRICE-ONLY (measured −0.17%/yr vs TR ~+3.3%);
+    omitting the coupon understated the robo bond leg ~3.5%/yr → false DEPLOY passes.
+    Proxy = running DGS10 yield / 252 (a documented intermediate-coupon approximation)."""
+    p = ROOT / "data" / "macro" / "DGS10.parquet"
+    if not p.exists():
+        return None
+    s = pd.read_parquet(p)["value"].astype(float)
+    s.index = pd.to_datetime(s.index)
+    s = (s / 100.0 / TRADING_DAYS).sort_index()
+    return s.reindex(pd.date_range(s.index.min(), s.index.max(), freq="D")).ffill()
+
+
 def robo_proxy_returns(name: str = "60_40", rf_annual: float = 0.04) -> pd.Series:
     """Daily-rebalanced robo proxy return from the pre-registered weights.
 
-    Equity/bond/gold sleeves load from data/processed (net of their ER);
-    the ``_cash`` sleeve earns the daily risk-free rate (the cash drag).
-    """
+    Equity/bond/gold sleeves load from data/processed (net of their ER). **T-255 fix
+    (the false-DEPLOY generator):** (1) bond ETFs (AGG…) get a DGS-based COUPON income
+    added — data/processed bond series are PRICE-ONLY, so the robo bond leg was ~3.5%/yr
+    understated; (2) the ``_cash`` sleeve earns the HISTORICAL short-rate path (DGS3MO,
+    ~1.96% avg), NOT a flat ``rf_annual`` (4%). Both biases made the robo artificially
+    weak → candidates could falsely clear the deploy gate. ``rf_annual`` is now only the
+    fallback when the macro panel is unavailable (flagged)."""
     weights = ROBO_PROXIES[name]
+    short_rate = _daily_short_rate()
+    bond_income = _bond_tr_income()
     parts = {}
     for tkr, w in weights.items():
         if tkr == "_cash":
             continue
         r = load_processed_returns(tkr) - ETF_ER_ANNUAL.get(tkr, 0.0) / TRADING_DAYS
+        if tkr in _BOND_ETFS and bond_income is not None:
+            r = r + bond_income.reindex(r.index).ffill().fillna(0.0)  # price-only → TR
         parts[tkr] = w * r
     blend = pd.concat(parts, axis=1, sort=True).dropna().sum(axis=1)
     cash_w = weights.get("_cash", 0.0)
     if cash_w > 0:
-        blend = blend + cash_w * (rf_annual / TRADING_DAYS)
+        if short_rate is not None:
+            blend = blend + cash_w * short_rate.reindex(blend.index).ffill().fillna(rf_annual / TRADING_DAYS)
+        else:  # fallback (flagged): macro panel absent
+            blend = blend + cash_w * (rf_annual / TRADING_DAYS)
     return blend.rename(f"robo_{name}")
 
 
