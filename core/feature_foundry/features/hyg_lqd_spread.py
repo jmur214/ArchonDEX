@@ -1,9 +1,12 @@
 """hyg_lqd_spread — credit-stress regime signal as 60d z-score.
 
 Spec called for HYG / LQD ETF closing-price ratio (high-yield ETF over
-investment-grade ETF). DATA GAP: HYG_1d.csv and LQD_1d.csv are NOT in
-`data/processed/` — only SPY and TLT are. Direct ETF substitute is not
-available.
+investment-grade ETF). (Historical DATA-GAP note — RESOLVED by T-2026-07-02-256:
+HYG and LQD are now available TR-reconciled in
+`data/processed/tr_reconciled/{HYG,LQD}_1d.csv`, deep to 2007/2005. This feature
+nonetheless keeps the FRED index-level substitute below — it is ticker-independent
+and carries deeper history than the ETFs; a direct-ETF variant is now a possible
+follow-up, not a blocker.)
 
 Substitute: FRED's BAML option-adjusted-spread series, which expose the
 same credit-risk channel at index level rather than ETF level:

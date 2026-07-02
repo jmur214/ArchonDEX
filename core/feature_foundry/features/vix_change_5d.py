@@ -1,8 +1,10 @@
 """vix_change_5d — 5-business-day percent change in VIX.
 
 `vix_t / vix_{t-5} - 1`. Stress-velocity primitive: rapid rise = fear
-regime onset. Substitute for the spec'd `vix_term_structure_slope`
-(VIX9D and VIX3M aren't in the project's macro cache; only VIXCLS is).
+regime onset. Substitute for the spec'd `vix_term_structure_slope`.
+(Historical note — RESOLVED by T-2026-07-02-256: VIX9D/VIX3M/VIX6M/VVIX are now
+cached in `data/macro/`, so a true term-structure-slope feature is buildable; this
+5d-change primitive is retained as the simpler, deeper-history stress-velocity signal.)
 Ticker-independent — same scalar broadcast to every name; meta-learner
 expected to interact with per-ticker beta. Returns None when VIX is
 missing or fewer than 6 points are available before `dt`.

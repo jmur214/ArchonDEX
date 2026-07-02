@@ -204,6 +204,9 @@ def main() -> int:
                    help="Only ingest first N tickers (smoke-test path)")
     p.add_argument("--all-stooq", action="store_true",
                    help="Ignore SPX scope; ingest every ticker Stooq has (~12k)")
+    p.add_argument("--tickers", default=None,
+                   help="Comma-separated explicit ticker list (e.g. ETFs: GLD,TLT,IEF). "
+                        "Overrides SPX membership scope — used by the T-256 ETF unlock.")
     p.add_argument("--out", default=str(OUT_ROOT),
                    help=f"Output dir (default {OUT_ROOT.relative_to(REPO)})")
     args = p.parse_args()
@@ -215,7 +218,10 @@ def main() -> int:
     stooq_idx = build_stooq_index(STOOQ_ROOT)
     print(f"[ingest]   {len(stooq_idx):,} Stooq US tickers indexed")
 
-    if args.all_stooq:
+    if args.tickers:
+        targets = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+        print(f"[ingest]   {len(targets)} explicit tickers requested (--tickers)")
+    elif args.all_stooq:
         targets = sorted(stooq_idx.keys())
     else:
         ws = pd.Timestamp(args.window_start)

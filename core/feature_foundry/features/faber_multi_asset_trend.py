@@ -24,10 +24,12 @@ Data sources (per Faber's original):
 - VNQ (US REITs)
 
 **Partial-coverage caveat**: if any of EFA, AGG, VNQ aren't in
-`data/processed/*_1d.csv` cache (current T-052 state lacks them),
-the feature returns the score over whatever ETFs ARE available, with
-range = number-of-available-ETFs. Run `scripts/backfill_t052_macro_data.py`
-to populate the missing tickers from yfinance.
+`data/processed/*_1d.csv` cache, the feature returns the score over whatever
+ETFs ARE available, with range = number-of-available-ETFs. (Coverage note —
+T-2026-07-02-256: all five ETFs {SPY, EFA, AGG, GLD, VNQ} now exist deep +
+TR-reconciled in `data/processed/tr_reconciled/` (2004-2005+); repointing the
+loader there to use full coverage is a follow-up. Legacy backfill:
+`scripts/backfill_t052_macro_data.py`.)
 
 Returns None when fewer than 2 of the 5 ETFs are available or when
 fewer than 210 days of price history exist before `dt`.

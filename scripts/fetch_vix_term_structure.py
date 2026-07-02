@@ -48,6 +48,9 @@ TICKERS: Dict[str, str] = {
     "^VIX": "VIX",
     "^VIX3M": "VIX3M",
     "^VIX6M": "VIX6M",
+    # VVIX = vol-of-VIX (CBOE, published 2006+). Never previously ingested;
+    # the foundry currently uses a lagging realized-vol proxy for this axis.
+    "^VVIX": "VVIX",
 }
 
 
