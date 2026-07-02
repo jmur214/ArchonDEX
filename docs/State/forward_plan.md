@@ -28,9 +28,13 @@
 > Sharpe penalizes the convex/asymmetric shapes this system produces; Sortino + crisis-drawdown +
 > up/down-capture is the right yardstick. (It surfaced the trend sleeve, which Sharpe had buried.)
 >
-> **THE HONEST CEILING = "trend sleeve + the robo's own return."** A genuinely BETTER DEFENSIVE
-> portfolio than the robo (MaxDD −12% vs −27%, shallower in every crisis), at the cost of ~1%/yr less
-> terminal wealth (the give-up). There is NO in-house UPSIDE half to close it — T-239 confirmed the
+> **THE HONEST STANDING (T-255 fair re-run — SUPERSEDES the earlier "~1%/yr give-up" as substantially
+> measurement artifact; our own gauntlet was biased AGAINST the sleeve).** Fair (biases corrected):
+> the sleeve **BEATS the user's actual robo (schwab_like) on wealth + Sortino + drawdown** and
+> **statistically TIES 60_40 on wealth** (paired Δterminal 95% CI straddles zero; the point gap
+> narrowed from ~1%/yr to ~0.6%/yr) with a **3× shallower drawdown** (−11.8% vs −36.7%). The
+> CI-ROBUST win is the DRAWDOWN; the Sortino/wealth edge is DIRECTIONAL (P 68-84%), not CI-significant.
+> There is NO in-house UPSIDE half to add more return — T-239 confirmed the
 > trend family is structurally downside-only, and T-241 confirmed concentration doesn't manufacture
 > one. "Money stays mostly in the robo, with the trend sleeve as the better-defensive alternative for
 > the drawdown-averse" is the honest, deployable outcome.
