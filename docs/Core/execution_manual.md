@@ -735,3 +735,42 @@ Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
 does this for new worktrees; the 4 existing ones were converted
 2026-06-10). Cloud `--job-timeout`: 26-yr cells = 21600 (6h), never
 14400 — see CLOUD_USAGE.md timeout table.
+
+### PAPER CLOUD LOOP — build / deploy / fire the sleeve (T-186 / T-238)
+
+The daily paper loop is a SEPARATE lean image (`Dockerfile.paper`, ~600MB,
+no data substrate) built by its OWN sanctioned wrapper (git-archive
+provenance, same discipline as the backtest image). ECR repo is shared
+(`archondex-backtest`); paper images are tagged `paper-sha-<short>`.
+
+```bash
+# 1. ECR login (once per shell; needs the docker daemon up)
+aws ecr get-login-password --profile archondex --region us-east-1 \
+  | docker login --username AWS --password-stdin \
+      407539788432.dkr.ecr.us-east-1.amazonaws.com
+
+# 2. Build+push the lean paper image from a COMMIT (never the worktree)
+REF=407539788432.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:paper-sha-$(git rev-parse --short HEAD)
+scripts/build_paper_image.sh HEAD "$REF"
+
+# 3. Register the jobdef rev + (re-)point the schedule DISABLED. --no-secret
+#    reuses the existing Secrets Manager creds; NEVER pass --alert-email here
+#    (the director owns the SNS subscription). The jobdef env carries
+#    ARCHONDEX_PAPER_STRATEGY=trend_sleeve + ARCHONDEX_SLEEVE_NOTIONAL_CAP.
+scripts/deploy_paper_cloud_trigger.sh --image "$REF" --no-secret --schedule-disabled
+
+# 4. Fire ONE armed run manually (in-window: OPG submit window is 7pm-9:28am
+#    ET; fills at the next 9:30 open). The jobdef env already selects the
+#    sleeve + $10k cap, so no container-overrides are needed.
+aws batch submit-job --profile archondex --region us-east-1 \
+  --job-name paper-armed-sleeve-t238 --job-queue archondex-backtest-queue \
+  --job-definition archondex-paper-cloud-day
+
+# 5. ENABLING the schedule is USER-ONLY and gated (armed-run-clean AND T-255):
+#    aws scheduler update-schedule --name archondex-paper-daily --state ENABLED ...
+#    Do NOT run this from an agent — it is the go-live trigger.
+```
+
+Verify a run: `aws batch describe-jobs --jobs <id>` (SUCCEEDED = canonical
+exit 0), CloudWatch log group `/aws/batch/job` stream prefix `paper-cloud`,
+and the durable state under `s3://archondex-results-407539788432/paper_state/`.

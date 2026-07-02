@@ -42,6 +42,10 @@ DURABLE_PATHS: List[str] = [
     "data/paper_state/orders.jsonl",
     "data/paper_state/ledger.jsonl",
     "data/paper_state/recon.jsonl",
+    # T-238: the sleeve forward-tracker + execution-fidelity gates. Fargate
+    # disk is ephemeral, so without this the tracker would reset to 1 point
+    # every run and never accumulate the ≥60-day forward comparison / gates.
+    "data/state/sleeve_tracking.json",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"

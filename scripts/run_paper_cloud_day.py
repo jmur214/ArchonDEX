@@ -76,6 +76,9 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                     help="reconcile_only = the daily pulse (no orders, the proven "
                          "default); trend_sleeve = construct + submit the T-204 "
                          "3-asset trend sleeve (T-238 paper validation)")
+    ap.add_argument("--sleeve-notional-cap", type=float, default=None,
+                    help="cap the $ the sleeve sizes to (cautious FIRST armed run); "
+                         "unset = full account equity (the real validation)")
     args = ap.parse_args(argv)
 
     if client is None and not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
@@ -197,7 +200,11 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             cloud.emit_metrics(happened=True, canonical=False); cloud.push()
             return 68
         equity = float(client.get_account().get("equity", broker_cash))
-        plan = SleeveOrderConstructor().construct(equity, broker_positions, closes)
+        sizing_equity = min(equity, args.sleeve_notional_cap) if args.sleeve_notional_cap else equity
+        if args.sleeve_notional_cap:
+            print(f"   SLEEVE     notional cap ${args.sleeve_notional_cap:,.0f} "
+                  f"(account equity ${equity:,.0f}) — cautious first run")
+        plan = SleeveOrderConstructor().construct(sizing_equity, broker_positions, closes)
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
         print(f"   SLEEVE     signals={plan.signals} targets={plan.targets} "
               f"→ {len(plan.orders)} order(s): "
@@ -216,17 +223,42 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
 
-    # --- T-238 Part 2: forward-track the sleeve vs both robos ------------- #
+    # --- T-238 Part 2: forward-track the sleeve vs both robos + feed the
+    # pre-registered EXECUTION-fidelity gates (report-only, never changes
+    # trading). Tracking-error is recorded ONLY on SETTLED (non-rebalance)
+    # days — a rebalance morning's book is pre-fill, so its held≠target is
+    # intent, not a fidelity failure; rebalance-day fill quality is the
+    # slippage gate's job (fed once the auction print is observed). --------- #
     if args.strategy == "trend_sleeve" and sleeve_closes:
         try:
             from paper_trader.sleeve_tracker import SleeveTracker
             equity = float(client.get_account().get("equity", broker_cash))
-            tsum = SleeveTracker(root=str(root)).record(str(today), equity, sleeve_closes)
+            did_rebalance = bool(plan.orders)
+            # order-state errors this cycle: any un-clean reconcile + a halt.
+            order_errs = ((summary.reconcile_total_cycles
+                           - summary.reconcile_clean_cycles)
+                          + (1 if summary.halted else 0))
+            held_w = None
+            if not did_rebalance and equity > 0:
+                # settled book: held vs current target = whole-share residual
+                held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / equity
+                          for t in sleeve_closes}
+            tsum = SleeveTracker(root=str(root)).record(
+                str(today), equity, sleeve_closes,
+                target_weights=plan.targets,
+                held_weights=held_w,
+                slippage_bps=None,   # follow-up: realized fill vs official open print
+                order_errors=order_errs,
+                canonical=canonical)
+            eg = tsum.get("execution_gates", {})
             print(f"6. TRACK     sleeve forward vs robos: {tsum.get('status')} "
                   f"({tsum.get('n_days', tsum.get('sleeve', {}).get('n_days'))} pts)"
                   + (f" | sleeve MaxDD shallower than both robos="
                      f"{tsum.get('sleeve_mdd_shallower_than_both')}"
                      if tsum.get('status') == 'tracking' else ""))
+            if eg:
+                print(f"   EXEC-GATE  overall={eg.get('overall')} "
+                      f"(execution fidelity only — NOT a performance verdict)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
