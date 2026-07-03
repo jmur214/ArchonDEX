@@ -1213,3 +1213,27 @@ The 6 V/Q/A edges (`value_earnings_yield_v1`, `value_book_to_market_v1`, `qualit
 - Grid-search on `sustained_score` parameter (0.0 / 0.2 / 0.3 / 0.5) — current 0.3 is a starting heuristic, not validated
 
 **Honest note:** 16 names per top quintile is above the 8-name disaster threshold (see `project_factor_edge_first_alpha_2026_04_24`) but below the ≥200 academic convention. Per-edge OOS walk-forward required before promotion past `feature` tier.
+
+---
+
+## Capital milestones — doors that open as the account grows (recorded 2026-07-02)
+
+The 2026-07 gap-audit program established which strategy families were blocked by ACCOUNT SIZE / WRAPPER
+rather than refuted. The comprehensive H0 map is size-independent (those died gross or on beta-attribution
+— dead at any size). But these thresholds are live decision points as capital compounds:
+
+| threshold | door that opens | evidence ref |
+|---|---|---|
+| **~$10K** | Integer-share drag becomes negligible with SPY/AGG/GLD (at $5K it costs 1.1-2.4pp/yr; or fix at $5K via SPLG/GLDM) | T-257 |
+| **~$15-25K** | Micro futures *possibly* feasible (custodian approval-gated, margin-intensive — scope before assuming) | gap-audit Part 4 |
+| **$25K** | Schwab IRA limited margin → cash-settlement/GFV friction gone (~50% deployment cap lifts on any daily-turnover strategy) | T-270 frictions |
+| **~$65-70K** | ONE cash-secured XSP put / 100-share SPY covered call → **direct premium harvesting becomes testable in its true form** (it was size-gated, never refuted; post-2013 compression + crash profile caveats stand) | T-261/putwrite audit |
+| **~$100K+** | Multi-contract diversified premium program; meaningful special-situations breadth (10+ concurrent events) | T-267/T-277 corners |
+
+WRAPPER-blocked at ANY size (Roth: no margin/short/leverage): full CTA replication (long-short levered
+futures), risk parity, levered vol-targeting, the short leg of every long-short premium. Payment received
+for these constraints: zero tax drag (~130bps/yr on turnover strategies, T-148). Revisit only as an
+account-TYPE decision, never assumed.
+
+Standing rule: when the account crosses a threshold, the corresponding door gets a fresh pre-registered
+scope — not an automatic build ([NN-MBL] N-accounting applies as always).
