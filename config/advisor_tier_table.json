@@ -1,0 +1,56 @@
+{
+  "_doc": [
+    "SEED tier table for the capital-aware advisor (T-2026-07-02-280) — SPEC ARTIFACT, NOT yet wired.",
+    "Only the VALIDATED single-105d trend sleeve populates today (T-236 -> T-255 fair). Everything richer is a",
+    "pending stub the advisor treats as ABSENT until its gauntlet clears. Conforms to advisor_tier_table.schema.json.",
+    "The BUILD (wiring advisor(wrapper,equity) in front of SleeveOrderConstructor) is assigned after B/T-278 + C/T-279."
+  ],
+  "version": "0.1-seed-t280",
+  "rows": [
+    {
+      "id": "roth_sub10k_sleeve_lowprice",
+      "wrapper": "roth", "equity_min": 0, "equity_max": 10000,
+      "instrument_set": ["SPLG", "AGG", "GLDM"],
+      "active_legs": ["trend_sleeve_105d"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.25, "max_leg_weight": 0.34, "integer_shares": true},
+      "validation_ref": "T-236/T-255 (docs/Audit/fair_t236_rerun_t255_2026_07_02.md); low-price proxies per T-257 integer-share-drag",
+      "status": "validated", "turnover_class": "monthly", "paper_evidence": "covered"
+    },
+    {
+      "id": "roth_10k_plus_sleeve",
+      "wrapper": "roth", "equity_min": 10000, "equity_max": null,
+      "instrument_set": ["SPY", "AGG", "GLD"],
+      "active_legs": ["trend_sleeve_105d"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.25, "max_leg_weight": 0.34, "integer_shares": true},
+      "validation_ref": "T-236/T-255 (docs/Audit/fair_t236_rerun_t255_2026_07_02.md)",
+      "status": "validated", "turnover_class": "monthly", "paper_evidence": "covered"
+    },
+    {
+      "id": "roth_10k_plus_sleeve_ensemble_VARIANT",
+      "wrapper": "roth", "equity_min": 10000, "equity_max": null,
+      "instrument_set": ["SPY", "AGG", "GLD"],
+      "active_legs": ["trend_sleeve_ensemble_2_5_10mo"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.25, "max_leg_weight": 0.34, "integer_shares": true},
+      "validation_ref": "T-260 (docs/Audit/multispeed_robustness_t260_2026_07_02.md) — DIRECTIONAL not CI-significant; OPTIONAL hardening pending director promotion, NOT the active default",
+      "status": "validated-variant", "turnover_class": "monthly", "paper_evidence": "not-covered"
+    },
+    {
+      "id": "taxable_any_sleeve_buffered_PENDING",
+      "wrapper": "taxable", "equity_min": 0, "equity_max": null,
+      "instrument_set": ["SPY", "AGG", "GLD"],
+      "active_legs": ["trend_sleeve_105d_buffered"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.25, "max_leg_weight": 0.34, "integer_shares": true},
+      "validation_ref": "pending: taxable-cost-model re-gauntlet (T-148 buffering ON; tax drag ~130bps/yr charged) — until cleared, advisor falls back to the roth long-only sleeve row de-rated",
+      "status": "pending", "turnover_class": "low", "paper_evidence": "not-covered"
+    },
+    {
+      "id": "any_65k_premium_PENDING",
+      "wrapper": "taxable", "equity_min": 65000, "equity_max": null,
+      "instrument_set": ["SPY", "AGG", "GLD", "XSP"],
+      "active_legs": ["trend_sleeve_105d", "cash_secured_put_or_covered_call"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.20, "max_leg_weight": 0.34, "integer_shares": true},
+      "validation_ref": "pending: C/T-279 (premium-harvest gauntlet at >=$65K)",
+      "status": "pending", "turnover_class": "monthly", "paper_evidence": "not-covered"
+    }
+  ]
+}

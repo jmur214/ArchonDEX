@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Capital-aware advisor tier table (T-280 spec)",
+  "_doc": [
+    "SPEC ARTIFACT for T-2026-07-02-280 — NOT yet wired to runtime (the build is assigned after B/T-278 + C/T-279).",
+    "advisor(wrapper, equity) -> the single row whose (wrapper, [equity_min,equity_max)) contains the input.",
+    "A row is SELECTABLE for a live deploy ONLY if status=='validated' AND validation_ref points at a merged, non-refuted audit.",
+    "Absent/pending/refuted -> fail-conservative fallback: nearest validated LOWER band (same wrapper) -> Roth-equiv de-rated -> HALT.",
+    "See docs/Core/capital_aware_advisor_spec_t280.md."
+  ],
+  "type": "object",
+  "required": ["version", "rows"],
+  "properties": {
+    "version": {"type": "string"},
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "wrapper", "equity_min", "equity_max", "instrument_set",
+                     "active_legs", "sizing", "validation_ref", "status", "turnover_class"],
+        "properties": {
+          "id": {"type": "string", "description": "stable slug, e.g. roth_10k_sleeve"},
+          "wrapper": {"enum": ["roth", "taxable", "rollover"]},
+          "equity_min": {"type": "number", "minimum": 0, "description": "inclusive band floor (USD)"},
+          "equity_max": {"type": ["number", "null"], "description": "exclusive band ceiling; null = open-ended top"},
+          "instrument_set": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "active_legs": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "sizing": {
+            "type": "object",
+            "required": ["lookback", "deadband", "car25_tolerance", "integer_shares"],
+            "properties": {
+              "lookback": {"type": "integer", "description": "trend overlay lookback in trading days (105 = 5mo today)"},
+              "deadband": {"type": "number", "description": "Carver buffering deadband (0.10 today)"},
+              "car25_tolerance": {"type": "number", "description": "T-151 safe-f / CAR25 drawdown-tolerance knob (glide-path input)"},
+              "max_leg_weight": {"type": "number"},
+              "integer_shares": {"type": "boolean"}
+            }
+          },
+          "validation_ref": {"type": "string", "description": "MANDATORY. task id + audit doc that earned this row. pending:<taskid> if not yet validated."},
+          "status": {"enum": ["validated", "validated-variant", "pending", "fallback"]},
+          "turnover_class": {"enum": ["low", "monthly", "high"]},
+          "paper_evidence": {"enum": ["covered", "not-covered", "unknown"], "description": "does the paper machine's pinned-equity evidence cover this row's capability?"}
+        }
+      }
+    }
+  }
+}
