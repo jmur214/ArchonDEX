@@ -36,9 +36,11 @@
               "integer_shares": {"type": "boolean"}
             }
           },
-          "validation_ref": {"type": "string", "description": "MANDATORY. task id + audit doc that earned this row. pending:<taskid> if not yet validated."},
+          "validation_ref": {"type": "string", "description": "MANDATORY. task id + audit doc that earned this row. pending:<taskid> if not yet validated. TAXABLE rows must reference an AFTER-TAX gauntlet (T-191) measured vs the TLH-enhanced robo benchmark."},
           "status": {"enum": ["validated", "validated-variant", "pending", "fallback"]},
           "turnover_class": {"enum": ["low", "monthly", "high"]},
+          "tax_home_preference": {"enum": ["roth-preferred", "taxable-required", "either"], "description": "T-280b asset-location: which account this strategy prefers. roth-preferred = high-turnover/tax-inefficient (sleeve, premium legs); taxable-required = needs margin/short/futures permissions; either = long-only low-turnover."},
+          "s1256": {"type": "boolean", "description": "true = broad-based index futures/options getting IRC 1256 blended 60/40 treatment; overrides the taxable prefer-low-turnover rule and the after-tax gauntlet must apply 1256, not ordinary-income."},
           "paper_evidence": {"enum": ["covered", "not-covered", "unknown"], "description": "does the paper machine's pinned-equity evidence cover this row's capability?"}
         }
       }
