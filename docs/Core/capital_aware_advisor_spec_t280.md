@@ -88,6 +88,49 @@ The wrapper is not cosmetic — it changes both the *legal instrument set* and t
    feeds the safe-f fraction, which is already account-aware. The advisor sets the knob per (wrapper,
    band); it does not re-derive safe-f.
 
+## 3b. Asset location — the TWO-ACCOUNT model (T-280b amendment)
+
+The user is explicitly willing to open a taxable brokerage alongside the Roth, so the wrapper is no longer
+either/or: it is **asset location** — the advisor holds BOTH balances `(roth_equity, taxable_equity)` and
+places EACH validated strategy in its **tax-optimal home**. The advisor's output becomes a *placement* — a
+list of `(account, row)` assignments — not a single row.
+
+**(a) Tax-optimal home placement.** Each validated capability carries a `tax_home_preference`:
+- **`roth-preferred`** — high-turnover / tax-inefficient strategies go where there is NO tax: the **trend
+  sleeve** (monthly rebalancing throws short-term gains) and **any premium/options-income leg** (option
+  premium is ordinary-income-taxed). These belong in the Roth whenever Roth headroom exists.
+- **`taxable-required`** — strategies that NEED taxable-only permissions and CANNOT run in a Roth at all:
+  the **margin / short / futures** families (the wrapper-blocked list from §3). These have no choice of home
+  → taxable, and only once their own gauntlet clears (§3 rule 2).
+- **`either`** — long-only, low-turnover capabilities indifferent to home; placed to balance the accounts.
+
+Placement rule: fill each strategy's preferred account first (Roth-preferred into the Roth up to its
+equity, taxable-required into taxable), then use `either` strategies to balance. If Roth headroom is
+exhausted, a `roth-preferred` strategy overflows to taxable **only as its taxable-cost-model-validated
+row** (§3 rule 1: the buffered low-turnover variant), never the naive high-turnover version.
+
+**(b) §1256 softens the taxable futures/index-option case.** Broad-based index futures and index options
+(ES, XSP, SPX-style) receive **§1256 blended 60/40 treatment** — 60% long-term / 40% short-term regardless
+of holding period — a materially lower effective rate than ordinary short-term. So a §1256 strategy in
+taxable is LESS tax-penalized than an equity strategy of the same turnover. The `turnover_class → prefer
+low-turnover` rule (§3 rule 1) is therefore **overridden for `s1256:true` rows**: an index-futures/option
+strategy can live in taxable without the full ~130 bps drag. The schema carries an `s1256` flag; the
+after-tax gauntlet (below) must apply §1256 treatment, not ordinary-income, to those rows.
+
+**(c) Taxable rows require AFTER-TAX gauntlets (T-191) AND a stronger robo benchmark.** A taxable row's
+`validation_ref` MUST point at an after-tax gauntlet (T-191), and that gauntlet MUST use the **correct,
+STRONGER taxable benchmark**: the Schwab robo runs **tax-loss harvesting** in a taxable account, a real
+~50-100 bps/yr tax-alpha it CANNOT earn in a Roth. So the beat-robo bar is HIGHER in taxable on BOTH sides
+— our strategy pays tax drag, AND the robo it must beat gets a TLH boost. A taxable row that was only
+validated against the Roth (no-TLH) robo is NOT validated for taxable → treated as pending (§4). This is the
+honest correction: opening a taxable account does not just cost us tax drag, it also strengthens the
+benchmark we must clear.
+
+**(d) Cross-account coordination is advisory-only.** The advisor PROPOSES the split ("run the sleeve in the
+Roth; the §1256 futures overlay, once validated, in taxable"); the **user moves money** between accounts.
+The system never initiates transfers, never touches the taxable↔Roth boundary — same propose-never-execute
+discipline as the paper-schedule enable and the upward band transitions (§7).
+
 ## 4. Fail-conservative fallback (the core safety rule)
 
 `advisor(wrapper, equity)` resolves in this order:
@@ -141,11 +184,15 @@ SleeveOrderConstructor`, whose `__init__(universe, lookback, deadband, tif)` hol
 LIVE from the broker each run (`scripts/run_paper_cloud_day.py` → `acct["cash"]`). The advisor inserts
 BEFORE construction:
 ```
+# single-account (Roth-only) case:
 row = advisor(wrapper, equity)                       # pure lookup over config/advisor_tier_table.json
-ctor = SleeveOrderConstructor(universe=row.instrument_set,
-                              lookback=row.sizing.lookback,       # 105 today
-                              deadband=row.sizing.deadband)       # 0.10 today
-plan = ctor.construct(equity, current_positions, closes)
+# two-account (Roth + taxable, per T-280b §3b): returns a placement, one row per account
+placement = advisor_place(roth_equity, taxable_equity)   # -> [(account, row), ...] by tax-optimal home
+for account, row in placement:                       # today: [("roth", sleeve_row)] only
+    ctor = SleeveOrderConstructor(universe=row.instrument_set,
+                                  lookback=row.sizing.lookback,   # 105 today
+                                  deadband=row.sizing.deadband)   # 0.10 today
+    plan = ctor.construct(row_equity, current_positions[account], closes)  # equity of THAT account
 ```
 i.e. the advisor **replaces the hardcoded `SLEEVE_UNIVERSE / SLEEVE_LOOKBACK / SLEEVE_DEADBAND` module
 constants with the row's values** — a config-selection layer in front of the existing constructor, not a
