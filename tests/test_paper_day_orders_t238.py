@@ -39,7 +39,8 @@ def _armed(tmp_path, now):
         dry_run=False, armed=True,
         paper_config=PaperConfig(allocator="mean_variance"),
         designated_allocator="mean_variance",
-        calendar=MarketCalendar(), now_fn=lambda: now)
+        calendar=MarketCalendar(), now_fn=lambda: now,
+        day_fill_poll_s=0.0, sleep_fn=lambda _s: None)   # instant DAY-fill wait
     return sched, om, client
 
 
@@ -96,6 +97,29 @@ class TestSubmitDay:
         client.script_submit(o.client_order_id, status="accepted")
         sched.run_day("2026-06-18", [o], _inputs)
         assert o.state != OrderState.EXPIRED.value
+
+    def test_day_wait_captures_fill_in_run(self, tmp_path):
+        # T-238 follow-up: the fill lands on the 2nd poll → the in-run wait
+        # captures it (filled_avg_price set) → single-run adopt + gate-b sample.
+        sched, om, client = _armed(tmp_path, _et(9, 45))
+        o = om.stage("2026-06-18", "SPY", "buy", 1, "day", CFG)
+        client.script_submit(o.client_order_id, status="accepted")
+        client.script_polls(o.client_order_id, [
+            {"status": "accepted"},
+            {"status": "filled", "filled_qty": 1, "filled_avg_price": 600.0}])
+        sched.run_day("2026-06-18", [o], _inputs)
+        assert o.state == OrderState.FILLED.value
+        assert o.filled_qty == 1 and float(o.filled_avg_price) == 600.0
+
+    def test_day_wait_is_bounded_when_never_fills(self, tmp_path):
+        # never fills → the wait exhausts its bounded budget + falls through
+        # (no hang); the order is still submitted, left open for the reconcile.
+        sched, om, client = _armed(tmp_path, _et(9, 45))
+        o = om.stage("2026-06-18", "SPY", "buy", 1, "day", CFG)
+        client.script_submit(o.client_order_id, status="accepted")
+        summary = sched.run_day("2026-06-18", [o], _inputs)
+        assert o.state != OrderState.FILLED.value
+        assert summary.submitted_count == 1
 
 
 class TestEnvTif:
