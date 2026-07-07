@@ -136,6 +136,7 @@ All tunable parameters in `config/regime_settings.json`.
 - **Class `CorrelationConfig`**: No docstring
 - **Class `BreadthConfig`**: No docstring
 - **Class `ForwardStressConfig`**: No docstring
+- **Class `EventStateConfig`**: T-2026-07-07-291 — event-state axis (FOMC / prediction-market macro).
 - **Class `AdvisoryConfig`**: No docstring
 - **Class `HMMConfig`**: Confidence-aware HMM regime classifier (additive to 5-axis detector).
 - **Class `MultiResHMMConfig`**: Multi-resolution HMM (Workstream C slice 2 — 2026-05).
@@ -147,6 +148,7 @@ All tunable parameters in `config/regime_settings.json`.
 **Module Docstring:** RegimeDetector — Engine E coordinator.
 - **Class `RegimeDetector`**: 5-axis market regime detector with hysteresis, advisory hints,
   - `def __init__()`
+  - `def event_state()`: Event-state axis (T-291) — SEPARATE from the 5-axis composition.
   - `def detect_regime()`: Run full 5-axis regime detection for the current bar.
   - `def history()`: Access the regime history store.
   - `def reset()`: Clear all internal state. Must be called between backtest runs.
