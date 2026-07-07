@@ -80,6 +80,18 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: engine_charters.md §E (regime detection is E's job; the model artifact choice is config, not code).
 - Recommended next step: T-118 drives its overlay with the crisis model; if the overlay wins its pre-registered gate, the production repoint rides along as a separate propose-first gate. Until then this row exists so the mismatch is discoverable from a living doc. capability_ledger.md Engine E section updated 2026-06-11 with the same facts.
 
+### [MEDIUM] Stooq is now bot-walled — future refreshes of every Stooq-sourced dataset will fail
+- Engine: data lanes (cross-cutting)
+- First flagged: 2026-07-08 (Agent B, during T-295 recon)
+- Status: open — no immediate breakage, but the refresh path is dead.
+- Description: the Stooq CSV endpoint now returns a JavaScript proof-of-work challenge instead of data.
+  Everything Stooq-sourced ON DISK is unaffected (the T-256 tr_reconciled bundle, the deep-ETF history),
+  but any future refresh via `scripts/ingest_stooq_us_daily.py` — or any new lane assuming Stooq as a free
+  source — will fail. B's T-295 already substituted Yahoo `ZQ=F` for its ZQ needs (director-approved,
+  method validated live: 100−96.3675 = 3.63% = actual EFFR). Next lane that needs a Stooq-class refresh
+  should plan a substitute source up front; if the wall persists, mark the Stooq ingest script deprecated
+  in the execution manual.
+
 ### [MEDIUM] Engine F: `regime_analytics.RegimePerfAnalytics` referenced by charter + index.md but file does not exist
 - Engine: F
 - First flagged: 2026-06-04

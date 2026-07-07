@@ -45,3 +45,26 @@ Buffered / defined-outcome ETFs (Innovator BUFR/BALT, FT Cboe Vest, etc.) are **
 Net: buffered ETFs sacrifice the equity risk premium a long-horizon holder should harvest, for insurance they've pre-declared they don't want. Door closed.
 
 **T-296 done (scope + draft).** Director freezes the pre-reg → then I run (N_trials += 1). Nothing run here.
+
+## DIRECTOR FREEZE — 2026-07-08 (the two flagged decisions resolved; BINDING)
+
+**Decision 1 — MF-trend proxy: pre-registered fallback ORDER (still ONE proxy per run, no sweep).**
+Primary = **AQR TSMOM** (1985+, free) contingent on the construction audit passing. If it fails the audit:
+second = the **ReSolve SG-Trend replication series** (2000-2023, the research run's named source — audit its
+construction the same way). Last resort ONLY = our own long/flat overlay, with the explicit caveat that it is
+NOT diversified MF and therefore under-tests the mechanism (more-assets-under-trend) the arm exists to probe.
+The chosen proxy validates against DBMF on 2019+ and real RSST on 2023+ exactly as drafted, and the fallback
+order is frozen NOW so no post-hoc proxy choice can occur.
+
+**Decision 2 — the ±4-5%/yr basis is ACCEPTED as a bounded caveat, with the consequence rule pre-stated:**
+- The arm is **EXPLORATORY-only** (as drafted); no verdict from it can be quoted as deployment evidence.
+- **PASS action (pre-registered):** a pass does NOT deploy anything. It buys ONE thing — a **real-RSST
+  forward shadow-track** on the btc_shadow pattern (report-only, zero cost, frozen promotion gates set at
+  shadow start). The forward shadow runs on the REAL fund, which kills the basis problem exactly the way the
+  IBIT shadow does for BTC — the synthetic's job is only to decide whether the shadow slot is worth opening.
+- **FAIL action:** the return-stack door closes; the parked micro-futures CTA question stays parked ON ITS
+  OWN MERITS (a proxy-basis fail here does not kill the CTA family — different evidence).
+
+**Authorization:** run the arm exactly as drafted in Part 2 with Decision 1's proxy order and Decision 2's
+consequence rule. Gates, named windows, and the MEDIUM-LOW prior are frozen as written. N_trials += 1 at run.
+Any deviation = a new pre-registration.
