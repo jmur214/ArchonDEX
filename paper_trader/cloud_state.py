@@ -46,6 +46,8 @@ DURABLE_PATHS: List[str] = [
     # disk is ephemeral, so without this the tracker would reset to 1 point
     # every run and never accumulate the ≥60-day forward comparison / gates.
     "data/state/sleeve_tracking.json",
+    # T-276: the report-only BTC-shadow forward tracker (same persistence need).
+    "data/state/btc_shadow_tracking.json",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
