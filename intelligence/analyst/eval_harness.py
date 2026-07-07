@@ -24,7 +24,7 @@ verification suite resolves synthetic predictions against fixtures.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -54,9 +54,71 @@ def _disk_price(symbol: str) -> Optional[pd.Series]:
     return s[~s.index.duplicated(keep="last")].sort_index()
 
 
+KALSHI_SNAP = ROOT / "data" / "macro_data" / "alt" / "kalshi_kxfed_snapshots.parquet"
+FRED_PATH = ROOT / "data" / "macro_data" / "alt" / "fred_rate_path.parquet"
+_KALSHI: Optional[pd.DataFrame] = None
+_FRED: Optional[pd.DataFrame] = None
+
+
+def _kalshi() -> Optional[pd.DataFrame]:
+    """KXFED snapshots (B/T-290). Cached; None if absent → fail-closed."""
+    global _KALSHI
+    if _KALSHI is None and KALSHI_SNAP.is_file():
+        _KALSHI = pd.read_parquet(KALSHI_SNAP)
+    return _KALSHI
+
+
+def _fred() -> Optional[pd.DataFrame]:
+    global _FRED
+    if _FRED is None and FRED_PATH.is_file():
+        _FRED = pd.read_parquet(FRED_PATH)
+    return _FRED
+
+
+def _naive(x) -> pd.Timestamp:
+    """Timestamp with tz dropped (Kalshi expiration_time is tz-aware '...Z')."""
+    t = pd.Timestamp(x)
+    return t.tz_convert(None) if t.tz is not None else t
+
+
+def _fred_asof(series: str, d: pd.Timestamp) -> Optional[float]:
+    f = _fred()
+    if f is None:
+        return None
+    s = f[(f["series"] == series) & (pd.to_datetime(f["observation_date"]) <= d)]
+    return float(s.sort_values("observation_date").iloc[-1]["value"]) if len(s) else None
+
+
 def _disk_event(source: str, event_id: str) -> Optional[str]:
-    """Kalshi settlement / FOMC decision lookup. Sources land with B/T-290; until
-    then returns None (→ fail-closed resolvable=False past by_date). NEVER guesses."""
+    """Real settlement (B/T-290). kalshi_settlement: the KXFED strike ticker settles
+    via realized FRED DFEDTARU vs the ticker's strike after its expiration.
+    fomc_calendar: the meeting's action = sign of the DFEDTARU change across it.
+    None (→ fail-closed resolvable=False past by_date) if data absent/unsettled. Never guesses."""
+    if source == "kalshi_settlement":
+        k = _kalshi()
+        if k is None:
+            return None
+        row = k[k["ticker"] == event_id]
+        if not len(row):
+            return None
+        r = row.iloc[-1]
+        exp = r.get("expiration_time")
+        strike = r.get("floor_strike")
+        if pd.isna(exp) or strike is None or pd.isna(strike):
+            return None
+        realized = _fred_asof("DFEDTARU", _naive(exp))
+        if realized is None:                       # FRED not past expiration → unsettled
+            return None
+        if r.get("strike_type") == "greater":
+            return "yes" if realized > float(strike) else "no"
+        return None
+    if source == "fomc_calendar":
+        d = pd.Timestamp(event_id)
+        before = _fred_asof("DFEDTARU", d - pd.Timedelta(days=1))
+        after = _fred_asof("DFEDTARU", d + pd.Timedelta(days=7))
+        if before is None or after is None:
+            return None
+        return "cut" if after < before else ("hike" if after > before else "hold")
     return None
 
 
@@ -185,6 +247,52 @@ def resolve(resolver: dict, note_date: str, as_of: str,
     return Resolution(False, None, exp, "validator", "unhandled_type")
 
 
+# ── G1 baselines (amended gate: beat market-implied + persistence per category) ──
+def market_implied_prob(resolver: dict, note_date: str) -> Optional[float]:
+    """Kalshi-implied YES probability for a KXFED `event_occurs` prediction, as of the
+    NOTE's input-bundle date (PIT — the store accrues 2026-07-07 forward, so the
+    baseline is 'implied prob at note time', no backfill). The market-implied baseline
+    the amended G1 requires rate-path claims to beat."""
+    if resolver.get("type") != "event_occurs" or resolver.get("source") != "kalshi_settlement":
+        return None
+    k = _kalshi()
+    if k is None:
+        return None
+    row = k[(k["ticker"] == resolver["event_id"]) & (k["snap_date"].astype(str) == str(note_date))]
+    if not len(row):
+        return None                                # no PIT snapshot at note date → no baseline
+    r = row.iloc[-1]
+    yb, ya = r.get("yes_bid"), r.get("yes_ask")
+    if pd.notna(yb) and pd.notna(ya):
+        return float((float(yb) + float(ya)) / 2)  # yes mid
+    lp = r.get("last_price")
+    return float(lp) if pd.notna(lp) else None
+
+
+def persistence_prob(resolver: dict, note_date: str, price_fn: PriceFn = _disk_price) -> Optional[float]:
+    """Driftless random-walk P(outcome) for a `price_above` prediction, from the price
+    at note_date + trailing-63d vol — a no-skill persistence baseline the model must beat."""
+    if resolver.get("type") != "price_above":
+        return None
+    import math
+    from statistics import NormalDist
+    s = price_fn(resolver["symbol"])
+    if s is None:
+        return None
+    nd = pd.Timestamp(note_date)
+    p0 = _asof(s, nd)
+    hist = s[s.index <= nd].pct_change().dropna().tail(63)
+    if p0 is None or p0 <= 0 or len(hist) < 20:
+        return None
+    days = max(1, (pd.Timestamp(resolver["by_date"]) - nd).days)
+    sigma = float(hist.std()) * math.sqrt(days)
+    if sigma <= 0:
+        return None
+    z = math.log(resolver["level"] / p0) / sigma
+    p_above = 1.0 - NormalDist().cdf(z)
+    return p_above if resolver["direction"] == "above" else (1.0 - p_above)
+
+
 # ── driver: notes -> resolutions -> append-only log -> summary ─────────────────
 def _pred_id(note_id: str, i: int, p: dict) -> str:
     return p.get("prediction_id") or f"{note_id}#{i}"
@@ -234,6 +342,8 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
                 "resolver": p["resolver"], "resolve_date": res.resolve_date, "resolved_at": as_of,
                 "outcome": res.outcome, "resolvable": res.resolvable,
                 "resolve_source": res.source, "resolve_detail": res.detail,
+                "baseline_implied": market_implied_prob(p["resolver"], note.get("note_date", "")),
+                "baseline_persistence": persistence_prob(p["resolver"], note.get("note_date", ""), price_fn),
             }
             new_records.append(rec)
             logged.add(pid)
@@ -271,6 +381,51 @@ def _calibration_deciles(recs: list[dict]) -> list[dict]:
     return out
 
 
+import random as _random
+
+
+def _brier_skill(recs: list[dict], baseline: str) -> Optional[dict]:
+    """Brier Skill Score of the model vs a baseline, with bootstrap ci_low + GIMME
+    EXCLUSION (drop near-certain predictions where the baseline is >0.9 or <0.1).
+    baseline ∈ {'base_rate','implied','persistence'}. Amended-G1 clears iff ci_low>0
+    (calibration is necessary-not-sufficient; THIS is the skill test — a base-rate
+    hedger cannot pass because vs its own base rate skill≈0 and vs market-implied it loses)."""
+    good = [r for r in recs if r.get("resolvable") and r.get("probability") is not None
+            and r.get("outcome") is not None]
+    if baseline == "base_rate":
+        base = sum(r["outcome"] for r in good) / len(good) if good else None
+        pool = [(r["probability"], base, r["outcome"]) for r in good] if base is not None else []
+    else:
+        key = f"baseline_{baseline}"
+        pool = [(r["probability"], float(r[key]), r["outcome"]) for r in good if r.get(key) is not None]
+    pool = [(p, b, o) for (p, b, o) in pool if 0.1 <= b <= 0.9]   # gimme exclusion
+    if len(pool) < 5:
+        return None
+    bm = sum((p - o) ** 2 for p, _, o in pool) / len(pool)
+    bb = sum((b - o) ** 2 for _, b, o in pool) / len(pool)
+    if bb <= 0:
+        return None
+    rng = _random.Random(0); n = len(pool); sk = []
+    for _ in range(1000):
+        smp = [pool[rng.randrange(n)] for _ in range(n)]
+        m = sum((p - o) ** 2 for p, _, o in smp) / n
+        b = sum((bb2 - o) ** 2 for _, bb2, o in smp) / n
+        if b > 0:
+            sk.append(1 - m / b)
+    sk.sort()
+    ci_low = sk[int(0.025 * len(sk))] if sk else None
+    return {"n": len(pool), "brier_model": round(bm, 5), "brier_baseline": round(bb, 5),
+            "skill": round(1 - bm / bb, 4),
+            "skill_ci_low": round(ci_low, 4) if ci_low is not None else None,
+            "clears": bool(ci_low is not None and ci_low > 0)}
+
+
+def _g1_block(recs: list[dict]) -> dict:
+    return {"vs_base_rate": _brier_skill(recs, "base_rate"),
+            "vs_market_implied": _brier_skill(recs, "implied"),
+            "vs_persistence": _brier_skill(recs, "persistence")}
+
+
 def summarize(recs: list[dict]) -> dict:
     resolvable = [r for r in recs if r.get("resolvable")]
     cats = sorted({r.get("category") for r in resolvable})
@@ -283,6 +438,10 @@ def summarize(recs: list[dict]) -> dict:
         "base_rate": round(sum(r["outcome"] for r in resolvable) / len(resolvable), 4) if resolvable else None,
         "calibration_deciles": _calibration_deciles(resolvable),
         "by_category": by_cat,
+        # amended-G1: calibration necessary-not-sufficient; skill = beat market-implied
+        # + persistence + base-rate per category at ci_low>0, gimmes excluded.
+        "g1_skill": _g1_block(resolvable),
+        "g1_skill_by_category": {c: _g1_block([r for r in resolvable if r.get("category") == c]) for c in cats},
         "unresolvable_reasons": _reason_counts(recs),
     }
 
