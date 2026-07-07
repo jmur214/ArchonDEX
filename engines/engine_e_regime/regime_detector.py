@@ -31,6 +31,7 @@ from engines.engine_e_regime.detectors.volatility_detector import VolatilityDete
 from engines.engine_e_regime.detectors.correlation_detector import CorrelationDetector
 from engines.engine_e_regime.detectors.breadth_detector import BreadthDetector
 from engines.engine_e_regime.detectors.forward_stress_detector import ForwardStressDetector
+from engines.engine_e_regime.detectors.event_state_detector import EventStateDetector
 
 _log = logging.getLogger("RegimeDetector")
 
@@ -79,6 +80,10 @@ class RegimeDetector:
             exclude_tickers=set(self.cfg.exclude_from_breadth),
         )
         self._fwd_stress = ForwardStressDetector(self.cfg.forward_stress)
+        # Event-state axis (T-291) — DEFAULT-OFF, NOT part of the 5-axis advisory
+        # composition, so detect_regime()'s canonical output is unchanged. Read
+        # directly by the sleeve-sizing consumer via .event_state().
+        self._event_state = EventStateDetector(self.cfg.event_state)
 
         # Hysteresis filters (one per axis)
         self._filters = {
@@ -142,6 +147,20 @@ class RegimeDetector:
             and self.cfg.transition_warning.transition_warning_enabled
         ):
             self._init_transition_warning()
+
+    def event_state(
+        self,
+        benchmark_df: pd.DataFrame,
+        data_map: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> tuple:
+        """Event-state axis (T-291) — SEPARATE from the 5-axis composition.
+
+        Returns (state, confidence, details) with state in
+        {"calm","event_window","elevated"}. DEFAULT-OFF (returns calm/0 unless
+        cfg.event_state.enabled). Read by the sleeve-sizing consumer; a
+        SIZING/CONTEXT/INTERACTION input ONLY, never a timing gate (T-233).
+        detect_regime()'s canonical 5-axis output is unaffected by this."""
+        return self._event_state.detect(benchmark_df, data_map)
 
     def detect_regime(
         self,
