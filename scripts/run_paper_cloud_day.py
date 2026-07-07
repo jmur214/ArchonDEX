@@ -263,10 +263,18 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             order_errs = ((summary.reconcile_total_cycles
                            - summary.reconcile_clean_cycles)
                           + (1 if summary.halted else 0))
+            # Gate (a) EXECUTION fidelity = held vs the ACHIEVABLE WHOLE-SHARE
+            # target, both on the SIZING basis (min(equity, cap)). The fractional
+            # →whole-share rounding AND the notional cap are INTENDED, not
+            # fidelity failures — plan.target_qty already embeds both. (Comparing
+            # held-on-full-equity vs the fractional exposure spuriously fails on a
+            # capped sleeve: 4 SPY of a $10k slice reads 0.03 of $100k vs a 0.33
+            # target → te 0.60.) On a settled day held_qty==target_qty → te≈0.
+            tgt_w = ({t: (plan.target_qty.get(t, 0) * sleeve_closes[t]) / sizing_equity
+                      for t in sleeve_closes} if sizing_equity > 0 else dict(plan.targets))
             held_w = None
-            if not did_rebalance and equity > 0:
-                # settled book: held vs current target = whole-share residual
-                held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / equity
+            if not did_rebalance and sizing_equity > 0:
+                held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / sizing_equity
                           for t in sleeve_closes}
             # gate (b): realized DAY-fill slippage vs the ARRIVAL price (the
             # quality paper actually controls) — mean |fill − arrival| bps over
@@ -283,7 +291,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                     slippage_bps = round(sum(slips) / len(slips), 2)
             tsum = SleeveTracker(root=str(root)).record(
                 str(today), equity, sleeve_closes,
-                target_weights=plan.targets,
+                target_weights=tgt_w,
                 held_weights=held_w,
                 slippage_bps=slippage_bps,   # DAY fill vs arrival price (gate b)
                 order_errors=order_errs,
