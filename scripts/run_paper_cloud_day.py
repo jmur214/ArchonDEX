@@ -362,6 +362,36 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         except Exception:
             pass
 
+    # --- T-290b: POST-reconcile news-panel forward append (D's T-289). Same
+    # fail-open contract as the alt-data block — runs LAST, wrapped so nothing
+    # here can touch the trading exit code. Touches ONLY the current month's
+    # partition (pull it so the within-month idempotent upsert accumulates,
+    # append today, push it) — NOT the ~264 MB history. ``append_today`` is
+    # itself fail-open (returns degraded=True, never raises); the degraded flag
+    # is recorded for measurement gates (which treat it as a FAIL) but never
+    # flips the trading verdict. This is the forward-accrual clock — every
+    # un-wired day is a day of news lost from the S3 record. --------------- #
+    try:
+        from intelligence import news_panel
+        from scripts.build_news_panel_t289 import full_universe
+        cloud.pull_news_month(today)            # current month only (small)
+        run_id = f"pulse_{today.isoformat()}"
+        nres = news_panel.append_today(today, full_universe(), run_id)
+        cloud.push_news_month(today)            # push current month only
+        hb.record_news(nres)
+        print(f"8. NEWS      append_today n_new={nres.get('n_new')} "
+              f"n_total={nres.get('n_total')} degraded={nres.get('degraded')} "
+              f"| {nres.get('reason')}")
+    except Exception as exc:
+        # Fail-open: even importing D's module failing must not touch trading.
+        print(f"8. NEWS      WARN append failed ({type(exc).__name__}: {exc}) "
+              f"— fail-open, trading unaffected", file=sys.stderr)
+        try:
+            hb.record_news({"n_new": 0, "n_total": 0, "degraded": True,
+                            "reason": f"news append raised: {type(exc).__name__}"})
+        except Exception:
+            pass
+
     if not canonical:
         print("RESULT: NON-CANONICAL — exiting non-zero so the job is marked "
               "FAILED and the alarm fires.", file=sys.stderr)

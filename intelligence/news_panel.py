@@ -13,7 +13,11 @@ from __future__ import annotations
 import os, pathlib, datetime as dt, re
 import pandas as pd
 
-ROOT = pathlib.Path('/Users/jacksonmurphy/Dev/trading_machine-agent-d')
+# T-290b: repo-relative (was a hardcoded agent-d worktree path). parents[1] is
+# behaviour-identical in D's worktree (__file__ → agent-d) but resolves to the
+# container/repo root in the cloud pulse, so append_today never writes to a dead
+# absolute path. See the T-290b outbox note flagging the wider hardcoded pattern.
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 PANEL_DIR = ROOT / 'data' / 'intel' / 'news_panel'; PANEL_DIR.mkdir(parents=True, exist_ok=True)
 SCHEMA = ['article_id', 'created_at', 'updated_at', 'symbols', 'headline', 'summary',
           'content', 'source', 'url', 'author', 'ingest_ts', 'ingest_run_id']

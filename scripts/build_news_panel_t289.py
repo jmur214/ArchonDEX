@@ -7,7 +7,11 @@ skipping months already built. Universe = PIT membership ∪ delisted ∪ specia
 """
 import argparse, datetime as dt, pathlib
 import pandas as pd
-ROOT = pathlib.Path('/Users/jacksonmurphy/Dev/trading_machine-agent-d')
+# T-290b: repo-relative (was a hardcoded agent-d worktree path that also
+# HIJACKED sys.path — prepending agent-d made `paper_trader` imports resolve to
+# the wrong worktree in the pulse). parents[1] is behaviour-identical in D's
+# worktree and correct in the container.
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 import sys; sys.path.insert(0, str(ROOT))
 from intelligence import news_panel as NP
 
