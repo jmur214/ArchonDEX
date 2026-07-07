@@ -97,6 +97,23 @@ class ForwardStressConfig:
 
 
 @dataclass
+class EventStateConfig:
+    """T-2026-07-07-291 — event-state axis (FOMC / prediction-market macro).
+
+    DEFAULT-OFF. Read directly by consumers (sleeve sizing) via
+    RegimeDetector.event_state(); NOT wired into the 5-axis advisory
+    composition, so the canonical regime label is unchanged whether on or off.
+    """
+    enabled: bool = False               # DEFAULT-OFF (canon-safe)
+    event_window_trading_days: int = 1  # FOMC decision day ± this many trading days
+    alt_snapshot_dir: str = "data/macro_data/alt"
+    min_snapshot_days: int = 60         # `elevated` stays INERT until this many snapshot days exist
+    elevated_z_threshold: float = 1.5   # recession/geo-prob z-score for `elevated`
+    staleness_days: int = 3             # alt snapshot older than this → stale → fail-closed calm
+    hysteresis_bars: int = 1            # event windows are short; minimal confirmation
+
+
+@dataclass
 class AdvisoryConfig:
     duration_ramp_bars: int = 20
     flip_frequency_lookback: int = 30
@@ -223,6 +240,7 @@ class RegimeConfig:
     correlation: CorrelationConfig = field(default_factory=CorrelationConfig)
     breadth: BreadthConfig = field(default_factory=BreadthConfig)
     forward_stress: ForwardStressConfig = field(default_factory=ForwardStressConfig)
+    event_state: EventStateConfig = field(default_factory=EventStateConfig)
     advisory: AdvisoryConfig = field(default_factory=AdvisoryConfig)
     hmm: HMMConfig = field(default_factory=HMMConfig)
     multires: MultiResHMMConfig = field(default_factory=MultiResHMMConfig)
@@ -252,6 +270,7 @@ class RegimeConfig:
             correlation=CorrelationConfig(**raw.get("correlation", {})),
             breadth=BreadthConfig(**raw.get("breadth", {})),
             forward_stress=ForwardStressConfig(**raw.get("forward_stress", {})),
+            event_state=EventStateConfig(**raw.get("event_state", {})),
             advisory=AdvisoryConfig(**raw.get("advisory", {})),
             hmm=HMMConfig(**raw.get("hmm", {})),
             multires=MultiResHMMConfig(**raw.get("multires", {})),
