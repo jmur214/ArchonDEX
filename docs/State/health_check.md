@@ -22,6 +22,16 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] Info-Layer fresh-eyes audit findings (external read-only review, 2026-07-08)
+- Engine: cross-cutting (ingest layer / paper_trader / info-layer program)
+- First flagged: 2026-07-08 (fresh-eyes agent, zero-prior-context repo review). Full report: `data/coordination/fresh_eyes_report_2026_07.md` (gitignored relay copy — findings itemized here so they persist in git).
+- Status: **#1 and #3 RESOLVED same-day**; #2 folded into T-288/program-doc amendments; #4 partially resolved by the T-289/290/291/293 merge wave; #5 is by-design (Lane 3 not yet built).
+  - **[HIGH → RESOLVED 2026-07-08] Archivers cannot fail loudly on the launchd path.** `archive_altdata_t136.py` and `archive_positioning_t136.py` return 0 unconditionally (failures are strings) → the wrapper's failure token was structurally unreachable; silent capture loss possible. FIX: `scripts/verify_altdata_snapshot.py` (reuses the pulse orchestrator's `_SNAPSHOT_FRESHNESS`/`_fresh_rows` so the two paths can't drift) now runs after every launchd capture; any failure alarms via SNS + local macOS notification fallback. RESIDUAL: `sns:Publish` IAM grant for `claude-code-cli` on `archondex-paper-alerts` pending user action — until then the alarm is local-notification-only.
+  - **[HIGH — OPEN, owned by E/T-288] No per-account pulse pattern exists.** `run_paper_cloud_day.py` is hardwired single-account; the fleet (accounts 2/3) and the Stage-2 LLM account require a NET-NEW multi-account generalization, not a clone. Program doc amended. Also `CloudState` is a small-file sync, not an archive layer — growing stores (news panel, analyst notes) need a sizing check before routing through it (D asked for panel GB estimate).
+  - **[MEDIUM → RESOLVED 2026-07-08 by amendment] Phase A (18:30 ET) vs Phase B (09:45 ET) capture-time discontinuity.** Resolution: launchd is PERMANENT (canonical local EOD series); the pulse capture is a separate pre-open series on S3. Neither retires into the other.
+  - **[MEDIUM — LARGELY RESOLVED by the merge wave] Zero tests on the new senses at review time.** Now: `test_altdata_archive_t290.py` (9), `test_macro_calendar_t290.py` (5), `test_event_state_detector_t291.py` (7), `test_analyst_eval_t293.py` + panel tests. RESIDUAL: the T-136 archiver scripts themselves remain untested (string-status legacy design) — acceptable while the verifier gates their output; revisit if they grow.
+  - **[NOTE — by design] Lane 3 safety is unbuilt** (`intelligence/analyst/` firewall/governor/injection suite are greenfield until E/T-292). The authority ladder is doc-policy until then; `btc_shadow.py`'s signal-t/fill-t+1 template is the confirmed-good containment pattern to generalize.
+
 ### [HIGH] Documentation-system integrity findings (external fresh-eyes audit 2026-06-19)
 - Engine: docs/knowledge-system (cross-cutting)
 - First flagged: 2026-06-19 (external reviewer, read-only audit; commissioned via commit `3717210`)

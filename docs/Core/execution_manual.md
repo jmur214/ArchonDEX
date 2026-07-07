@@ -820,3 +820,19 @@ launchctl list | grep archondex                                  # confirm loade
 # Retire (when Lane 2.1 Phase B cloud-pulse integration supersedes, ~2wk overlap):
 launchctl bootout gui/$(id -u)/com.archondex.altdata-archive
 ```
+
+### Launchd path hardening (2026-07-08, fresh-eyes finding #1)
+
+```bash
+# Freshness verifier — did TODAY's snapshot rows actually land? (The T-136
+# archivers exit 0 unconditionally; this is the real failure gate.)
+# rc 0 = all 24/7 sources fresh; 1 = zero-row source(s); 2 = verifier broke.
+.venv/bin/python scripts/verify_altdata_snapshot.py
+
+# The wrapper runs it automatically after both archivers and alarms on ANY
+# failure: SNS topic archondex-paper-alerts (needs sns:Publish for the
+# claude-code-cli IAM user — pending grant) + local macOS notification.
+# NOTE: the launchd job is PERMANENT (canonical ~EOD 18:30 ET local series);
+# the cloud pulse's 09:45 ET capture is a separate pre-open series on S3.
+# Do NOT retire one into the other (program-doc amendment 2026-07-08).
+```
