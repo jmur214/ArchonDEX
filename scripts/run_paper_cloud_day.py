@@ -313,6 +313,36 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"5. STATE     pushed-to-s3={cloud.cfg.enabled} | "
           f"metrics: PaperRunHappened=1 PaperRunCanonical={int(canonical)}")
 
+    # --- T-290 d1: POST-reconcile alt-data + positioning archiving. Runs
+    # LAST, AFTER every reconcile/tracking/state-push, and is FAIL-OPEN: the
+    # whole block is try/excepted so a network hiccup, a changed endpoint, or a
+    # broken archiver can NEVER raise into the trading path or change the run's
+    # canonical verdict (alt-data is not load-bearing for orders). A zero-
+    # snapshot day — which the parquet dedup would otherwise hide on disk —
+    # flags LOUDLY via the heartbeat's separate alt-data channel. The hoard is
+    # persisted under the distinct S3 ``altdata/`` prefix. ------------------- #
+    try:
+        from paper_trader.altdata_archive import run_altdata_archive
+        cloud.pull_altdata()                    # history down → dedup accrues
+        ar = run_altdata_archive(str(root))
+        for line in ar.reports:
+            print(f"7. ALTDATA   {line}")
+        hb.record_altdata(degraded=ar.degraded, reason=ar.reason,
+                          fresh_rows=ar.fresh_rows)
+        cloud.push_altdata()                    # durable under altdata/ prefix
+        print(f"7. ALTDATA   degraded={ar.degraded} | {ar.reason}")
+    except Exception as exc:
+        # Fail-open: even the orchestrator dying must not touch the trading
+        # exit code. Record the miss loudly so it isn't silent.
+        print(f"7. ALTDATA   WARN orchestrator failed ({type(exc).__name__}: "
+              f"{exc}) — fail-open, trading unaffected", file=sys.stderr)
+        try:
+            hb.record_altdata(degraded=True,
+                              reason=f"archiver orchestrator raised: {type(exc).__name__}",
+                              fresh_rows={})
+        except Exception:
+            pass
+
     if not canonical:
         print("RESULT: NON-CANONICAL — exiting non-zero so the job is marked "
               "FAILED and the alarm fires.", file=sys.stderr)

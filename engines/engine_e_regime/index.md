@@ -151,6 +151,18 @@ All tunable parameters in `config/regime_settings.json`.
   - `def history()`: Access the regime history store.
   - `def reset()`: Clear all internal state. Must be called between backtest runs.
 
+### `regime_gate.py`
+**Module Docstring:** g_regime — the regime half of the conjunctive selector (T-217).
+- **Class `RegimeGate`**: Composable default-OFF g_regime gate. `gates={}` == OFF == all 1.0.
+  - `def enabled()`
+  - `def gate()`: g_regime ∈ [0,1] for this edge in the current (HMM) regime.
+  - `def to_dict()`
+  - `def to_file()`
+  - `def from_file()`
+- **Function `hmm_regime_label()`**: 3-state regime label from the CAUSAL HMM p_crisis. Fail-safe: if the
+- **Function `gate_from_sharpe()`**: The pre-registered per-(edge,regime) Sharpe→gate map (no sweep).
+- **Function `build_gates_from_stats()`**: Build the gate dicts from measured per-(edge, regime) stats.
+
 ### `regime_history.py`
 **Module Docstring:** RegimeHistoryStore — tracks regime state over time for duration,
 - **Class `RegimeHistoryStore`**: In-memory store that grows one row per bar.

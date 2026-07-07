@@ -72,6 +72,10 @@
   - `def edge_id()`
   - `def hits()`
   - `def misses()`
+  - `def eval_errors()`
+  - `def eval_calls()`
+  - `def last_error()`
+  - `def eval_error_rate()`: Fraction of delegated calls that raised + were swallowed. A SYSTEMATIC
   - `def compute_signals()`: Delegated + memoized version of the wrapped edge's
   - `def cache_stats()`
 - **Class `Gate1SignalCache`**: Per-cycle registry of `CachedEdgeWrapper`s keyed by edge_id.
@@ -79,6 +83,9 @@
   - `def wrap_edges()`: Return wrapped versions of the supplied edges.
   - `def clear()`
   - `def stats()`
+  - `def eval_error_report()`: {edge_id: {errors, calls, rate, last_error}} for every wrapped edge
+  - `def assert_baseline_healthy()`: FAIL LOUD if any wrapped baseline edge crashed on a SYSTEMATIC fraction
+- **Class `DiscoveryBaselineError`**: Raised when the discovery validation baseline is structurally degenerate
 
 ### `genetic_algorithm.py`
 **Module Docstring:** Genetic Algorithm engine for CompositeEdge genome evolution.

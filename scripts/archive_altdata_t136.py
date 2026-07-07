@@ -234,10 +234,112 @@ def snapshot_kalshi() -> str:
         return f"kalshi: FAILED ({type(e).__name__}: {e}) — if 401/403, public access changed; report"
 
 
+# --- T-290 d2: the rate-path store (our free FedWatch equivalent) --------- #
+#
+# The generic snapshot_kalshi() above KEYWORD-filters and reads the legacy
+# yes_bid/last_price fields (now null on the current API) — so it is blind to
+# the Fed rate-decision market. This dedicated fetch is UNFILTERED, keyed on
+# the KXFED series prefix, and archives the FULL target-range bucket
+# distribution every day. For each FOMC meeting Kalshi lists threshold markets
+# ("upper bound above X% following the <meeting>") whose yes prices ARE the
+# market-implied probabilities the CME FedWatch tool sells — free, and ours
+# forward from today. History accrues from the first run; thin far-future
+# buckets may have null prices now (archived anyway so the series is complete
+# once liquidity appears). Paired with the FRED resolution series (the realized
+# target range + effective rate the markets settle against).
+KXFED_SERIES = "KXFED"
+# FRED keyless CSV (fredgraph.csv?id=): the resolution series. DFEDTARL/U = the
+# realized target-range lower/upper bound; EFFR = the effective fed funds rate.
+FRED_RATE_SERIES = ["DFEDTARL", "DFEDTARU", "EFFR"]
+
+
+def snapshot_kxfed() -> str:
+    """Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
+    the free FedWatch-equivalent. Unfiltered, keyed on the series prefix; reads
+    the current *_dollars/*_fp fields (the legacy yes_bid/last_price are null)."""
+    try:
+        rows, cursor = [], None
+        for _ in range(20):
+            url = (f"https://api.elections.kalshi.com/trade-api/v2/markets?"
+                   f"series_ticker={KXFED_SERIES}&limit=200")
+            if cursor:
+                url += f"&cursor={cursor}"
+            data = json.loads(_get(url, timeout=60))
+            rows += data.get("markets", [])
+            cursor = data.get("cursor")
+            if not cursor:
+                break
+            time.sleep(0.2)
+        recs = []
+        for m in rows:
+            recs.append({
+                "snap_date": SNAP_DATE,
+                "series": KXFED_SERIES,
+                "event_ticker": m.get("event_ticker"),   # the FOMC meeting
+                "ticker": m.get("ticker"),                # the threshold bucket
+                "title": m.get("title"),
+                "yes_sub_title": m.get("yes_sub_title"),
+                "floor_strike": m.get("floor_strike"),    # the % threshold
+                "cap_strike": m.get("cap_strike"),
+                "strike_type": m.get("strike_type"),
+                # implied probabilities (dollars = 0..1 yes price on this API)
+                "yes_bid": m.get("yes_bid_dollars"),
+                "yes_ask": m.get("yes_ask_dollars"),
+                "no_bid": m.get("no_bid_dollars"),
+                "no_ask": m.get("no_ask_dollars"),
+                "last_price": m.get("last_price_dollars"),
+                "previous_price": m.get("previous_price_dollars"),
+                "volume": m.get("volume_fp"),
+                "volume_24h": m.get("volume_24h_fp"),
+                "open_interest": m.get("open_interest_fp"),
+                "liquidity": m.get("liquidity_dollars"),
+                "status": m.get("status"),
+                "result": m.get("result"),
+                "close_time": m.get("close_time"),
+                "expiration_time": m.get("expiration_time"),
+            })
+        df = pd.DataFrame(recs)
+        if df.empty:
+            return "kxfed: 0 markets (API empty/changed — report if persistent)"
+        _append(df, OUT_DIR / "kalshi_kxfed_snapshots.parquet",
+                ["snap_date", "ticker"])
+        n_meet = df["event_ticker"].nunique()
+        return f"kxfed: snapped {len(df)} buckets across {n_meet} FOMC meetings"
+    except Exception as e:
+        return f"kxfed: FAILED ({type(e).__name__}: {e})"
+
+
+def pull_fred_rate_path() -> str:
+    """The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
+    settle against. Keyless fredgraph.csv; long-form (series, observation_date,
+    value), deduped so it re-fetches the full history idempotently each run."""
+    try:
+        frames = []
+        for sid in FRED_RATE_SERIES:
+            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}"
+            df = pd.read_csv(io.BytesIO(_get(url, timeout=60)))
+            df.columns = ["observation_date", "value"]
+            df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            df = df.dropna(subset=["value"])
+            df.insert(0, "series", sid)
+            frames.append(df)
+        if not frames:
+            return "fred_rate_path: no series fetched"
+        allf = pd.concat(frames, ignore_index=True)
+        _append(allf, OUT_DIR / "fred_rate_path.parquet",
+                ["series", "observation_date"])
+        last = {s: g["observation_date"].iloc[-1]
+                for s, g in allf.groupby("series")}
+        return f"fred_rate_path: archived {len(allf)} rows for {FRED_RATE_SERIES}; last {last}"
+    except Exception as e:
+        return f"fred_rate_path: FAILED ({type(e).__name__}: {e})"
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for r in [pull_gpr(), pull_epu(), pull_gdelt_timelines(),
-              snapshot_polymarket(), snapshot_kalshi()]:
+              snapshot_polymarket(), snapshot_kalshi(),
+              snapshot_kxfed(), pull_fred_rate_path()]:
         print(f"[T136-D] {r}", flush=True)
     return 0
 

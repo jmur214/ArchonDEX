@@ -122,6 +122,30 @@ class PaperHeartbeat:
             self._notify(f"NON-CANONICAL paper run {run_date}: {hb.reason}")
         return hb
 
+    def record_altdata(self, *, degraded: bool, reason: str,
+                       fresh_rows: Optional[Dict[str, int]] = None) -> None:
+        """T-290 d1: stamp the daily alt-data archiving health onto the status
+        file as a SEPARATE ``altdata`` block. Deliberately orthogonal to the
+        trading verdict — alt-data is not load-bearing for orders, so a
+        degraded snapshot day must NEVER flip the run's ``canonical``/``alert``
+        (that would fail the Batch job and fire the trading alarm). Degradation
+        instead fires the independent notify channel + a loud log line so a
+        zero-snapshot day (which dedup would otherwise hide) can't pass
+        silently."""
+        status = self._read_status() or {}
+        status["altdata"] = {
+            "degraded": bool(degraded),
+            "reason": reason,
+            "fresh_rows": dict(fresh_rows or {}),
+            "ts": _utcnow_iso(),
+            "_schema": "paper_altdata/v1",
+        }
+        self._atomic_write(self.status_path, status)
+        if degraded:
+            msg = f"[ALTDATA][ALERT] degraded snapshot day: {reason}"
+            print(msg)
+            self._notify(msg)
+
     def check(self, today: _date, is_trading_day: bool) -> HeartbeatVerdict:
         """The dead-man's-switch. On a trading day, today's run must have
         happened AND been canonical — else ALERT. On a non-trading day,
