@@ -7,6 +7,12 @@ branch: feature/accumulation-model-t283b
 status: DONE — 0 new N_trials (re-analysis of the T-282-validated leverage arms under the $7K/yr contribution schedule).
 ---
 
+> ⚠️ **SUPERSEDED (T-287, 2026-07-07):** the dollar figures below DOUBLE-COUNTED dividends
+> (added +1.8%/yr, 2× in the levered arm, on already-total-return inputs). Gated 2× 100% SPY
+> ~$1.94M → **corrected $1.12M**; buy-hold ~$1.46M → **$929K**. The **relative verdict is
+> unchanged**: gated 2× 100% SPY BEATS buy-hold — **×1.20 (corrected TR)**, every start; the
+> diluted arm still loses. Canonical: `docs/Audit/dividend_reconcile_verdict_t287_2026_07_07.md`.
+
 # T-283b — accumulation race + trend-gated leverage
 
 Extends the T-283 accumulation model with D/T-282's VALIDATED trend-gated-leverage
