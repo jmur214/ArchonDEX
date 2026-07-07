@@ -1,4 +1,33 @@
-# Forward Plan — live (last substantive update 2026-06-26 — THE STRATEGIC INFLECTION: in-house equity alpha is comprehensively H0; the realized win is the trend SLEEVE, deploying to paper; the measure is Sortino/tail)
+# Forward Plan — live (last substantive update 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM: the system grows senses beyond prices and a gated LLM judgment layer; paper fleet validates the ADVISOR)
+
+> ## 🚀 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM (user-approved; canonical spec: `docs/Sources/info_layer_program_2026_07_07.md`)
+>
+> The backtestable price-vocabulary research is complete (the strategic-inflection banner below
+> stands), but the user's deep-dive directive found the real gap: **the system has no senses
+> beyond prices and no judgment layer.** Two prior closures were verified STALE — the PIT news
+> corpus EXISTS (Alpaca/Benzinga, `created_at`-timestamped), and the prediction-market info
+> layer was only a *scheduling* gap (working fetchers, run once). Per the user's
+> reopened-doors-yield-alpha pattern (three for three), the program:
+>
+> - **Lane 1 — NEWS (D/T-289):** depth/survivorship probe gates the lane → the PIT news panel
+>   (content + symbols kept, monthly parquet, daily forward append) → 3-4 pre-registered
+>   interaction tests (dictionary features only; T-233-bound sizing/context roles).
+> - **Lane 2 — EVENT-STATE (B/T-290, C/T-291):** archivers into the daily cloud pulse; the
+>   Kalshi KXFED rate-path fetch (the machine learns the rate-cut odds — our free FedWatch);
+>   FOMC calendar modularized; EventStateDetector (default-OFF) + ONE pre-registered
+>   even-week × FOMC interaction test.
+> - **Lane 3 — the LLM ANALYST (E/T-292, A/T-293):** `[NN-AI-GATE]`'s precondition is MET
+>   (T-255) → a forward-only, report-only daily analyst note (single structured call, injection
+>   defense, ≤$30/mo governor) climbing a frozen authority ladder: **G0** (≥4wk operational) →
+>   **stage-1 virtual shadow book** (full authority inside a semantic firewall, ≥6mo) → **G1**
+>   (Brier ≥150 resolved + calibration + directional) → **stage-2: the 4th paper account**.
+>   Every prediction is machine-resolvable and scored (A's harness) — the accuracy record IS
+>   the promotion evidence. LLM-on-historical-returns stays FORBIDDEN (memorization look-ahead).
+>
+> Day-1 shipped (`ed127cb`): the FINRA/Kalshi/Polymarket data loss is stopped (launchd daily
+> archivers + widened keywords; snapshots accruing). N-accounting: infra = 0 trials; Lane 1 =
+> 3-4, Lane 2 = 1, Lane 3 = 0 backtests. In parallel: paper account-1 ENABLE given + the T-288
+> 3-account fleet (sleeve / offense-SSO / BTC) validates the whole advisor, not one strategy.
 
 > ## 🏁 2026-06-26 — STRATEGIC INFLECTION: the alpha hunt is CLOSED (comprehensively H0); the realized win is the trend SLEEVE, not the equity book
 >
