@@ -1,13 +1,13 @@
 ---
 task_id: T-2026-07-07-289c
-title: The ONE frozen news-interaction test set (DRAFT — director freezes before any run)
+title: The ONE frozen news-interaction test set (FROZEN 2026-07-07)
 date: 2026-07-07
-author: Agent D
-type: pre-registration DRAFT (N_trials = 4; NOT yet run — awaiting director freeze)
-status: DRAFT — do NOT run until the director freezes. Branch feature/news-lane-t289
+author: Agent D (frozen by the director with T-293 amendments)
+type: pre-registration (N_trials = 4; FROZEN — runs authorized, not yet run)
+status: FROZEN — director freeze 2026-07-07, T-293 amendments binding. Branch feature/news-lane-t289
 ---
 
-# T-289c — the frozen news-interaction tests (DRAFT)
+# T-289c — the frozen news-interaction tests (FROZEN 2026-07-07)
 
 Per `[NN-AI-GATE]`: news is a NEW data modality (text the price vocabulary can't see), tested on a SEPARATE
 exploration track with NO live integration. All tests are **interaction/conditional** (fresh-eyes #5) — never
@@ -53,7 +53,34 @@ depth-immune, largest published effect) but still modest. **The panel's durable 
 it is (i) forward accrual from the daily append and (ii) the feed to the judgment/analyst layer.** A clean null
 here is the expected, honest outcome and still leaves the panel valuable.
 
-## Process
-DRAFT only — the director FREEZES this doc (thresholds + specs) before ANY run. On freeze: run a1→a2→a3→b1,
-each pre-registered, honest-N (news family = these 4 trials), report as an interaction table with the verdicts.
-No test runs until the freeze.
+## DIRECTOR FREEZE — 2026-07-07, with the T-293 adversarial-review amendments (BINDING)
+
+The four tests above are frozen as specified, with these amendments folded in before any run:
+
+**F1 — article-revision look-ahead (the T-293 review's Lane-1 hole).** The historical backfill returns each
+article's CURRENT (post-revision) body keyed to its original `created_at` — so revised articles leak future
+text into the past. Rule: every historical feature is computed ONLY on articles with `updated_at ==
+created_at` (unrevised). Revised articles are EXCLUDED from historical feature construction, and the
+revised-share is reported per year in the results (if any year's exclusion exceeds ~30% of articles, halt and
+flag before proceeding — the corpus composition question then outranks the tests). Forward-accrued articles
+(captured same-day by `append_today`) are immune by construction and need no exclusion.
+
+**F2 — coverage-drift control.** Benzinga coverage grew over time, so pooled-over-time bucketing turns
+secular coverage growth into a pseudo-signal. Rule: (a1)'s high/low `abn_news_volume` buckets are formed
+CROSS-SECTIONALLY WITHIN each rebalance date, never pooled across time; (b1)'s aggregate percentile is a
+causal rolling percentile (the T-273 harness form). Any feature trending secularly with the corpus must be
+demeaned within-date or defined relative to a trailing window (all four frozen features already are — state
+the check in the results).
+
+**F3 — delisting-coverage coupling.** `S-clean` was probed at four names; it is not a universal guarantee.
+Rule: the cross-sectional tests (a1, a3) report coverage (articles/name-month) for names that later delist vs
+survivors within the window; if coverage differentially decays pre-delisting, flag it and state the direction
+of the induced bias in the verdict.
+
+**F4 — family-N honesty.** The news family = these 4 trials. Additionally (b1) is ALSO a member of the
+sleeve-sizing-tilt family (T-268 even-week, T-273 breadth precede it → tilt-family N = 3); its verdict must
+state both family counts, per the T-293 review's Lane-2 finding on family accounting.
+
+**Authorization:** run a1 → a2 → a3 → b1 exactly as frozen (gates: `t_HAC ≥ 2.0` for a1/a2/a3; paired
+ΔSortino + Δwealth ci + beat-the-overlay's-own-de-risking for b1), honest-N, one interaction table with
+verdicts. No spec changes after this line; any deviation = a new pre-registration.
