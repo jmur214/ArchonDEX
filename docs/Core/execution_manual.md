@@ -774,3 +774,49 @@ aws batch submit-job --profile archondex --region us-east-1 \
 Verify a run: `aws batch describe-jobs --jobs <id>` (SUCCEEDED = canonical
 exit 0), CloudWatch log group `/aws/batch/job` stream prefix `paper-cloud`,
 and the durable state under `s3://archondex-results-407539788432/paper_state/`.
+
+## Alt-data daily archivers (Info-Layer program, Lane 2.1 Phase A — 2026-07-07)
+
+```bash
+# Run both snapshot archivers once (idempotent; dedup on (snap_date,id) /
+# (date, archive_vintage)). Kalshi+Polymarket+GPR/EPU/GDELT, then FINRA
+# regsho/FTD/short-interest/NAAIM/margin. Output: data/macro_data/alt/*.parquet
+.venv/bin/python scripts/archive_altdata_t136.py
+.venv/bin/python scripts/archive_positioning_t136.py
+
+# The scheduled path: launchd runs the wrapper daily at 17:30 CT (= 18:30 ET).
+# Wrapper logs to data/macro_data/alt/logs/archive_YYYY-MM-DD.log and prints
+# ALTDATA_ARCHIVER_FAILED on any non-zero exit (grep target).
+bash scripts/run_altdata_archivers.sh          # manual invocation of the wrapper
+
+# launchd job management (plist source-of-truth: scripts/launchd/)
+cp scripts/launchd/com.archondex.altdata-archive.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.archondex.altdata-archive.plist
+launchctl kickstart gui/$(id -u)/com.archondex.altdata-archive   # fire now (test)
+launchctl list | grep archondex                                  # confirm loaded
+# Retire (when Lane 2.1 Phase B cloud-pulse integration supersedes, ~2wk overlap):
+launchctl bootout gui/$(id -u)/com.archondex.altdata-archive
+```
+
+## Alt-data daily archivers (Info-Layer program, Lane 2.1 Phase A — 2026-07-07)
+
+```bash
+# Run both snapshot archivers once (idempotent; dedup on (snap_date,id) /
+# (date, archive_vintage)). Kalshi+Polymarket+GPR/EPU/GDELT, then FINRA
+# regsho/FTD/short-interest/NAAIM/margin. Output: data/macro_data/alt/*.parquet
+.venv/bin/python scripts/archive_altdata_t136.py
+.venv/bin/python scripts/archive_positioning_t136.py
+
+# The scheduled path: launchd runs the wrapper daily at 17:30 CT (= 18:30 ET).
+# Wrapper logs to data/macro_data/alt/logs/archive_YYYY-MM-DD.log and prints
+# ALTDATA_ARCHIVER_FAILED on any non-zero exit (grep target).
+bash scripts/run_altdata_archivers.sh          # manual invocation of the wrapper
+
+# launchd job management (plist source-of-truth: scripts/launchd/)
+cp scripts/launchd/com.archondex.altdata-archive.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.archondex.altdata-archive.plist
+launchctl kickstart gui/$(id -u)/com.archondex.altdata-archive   # fire now (test)
+launchctl list | grep archondex                                  # confirm loaded
+# Retire (when Lane 2.1 Phase B cloud-pulse integration supersedes, ~2wk overlap):
+launchctl bootout gui/$(id -u)/com.archondex.altdata-archive
+```

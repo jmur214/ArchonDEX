@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.archondex.altdata-archive</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonmurphy/Dev/trading_machine-2/scripts/run_altdata_archivers.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <!-- 17:30 Central = 18:30 Eastern (DST-aligned year-round) -->
+        <key>Hour</key>
+        <integer>17</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2</string>
+    <key>StandardOutPath</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2/data/macro_data/alt/logs/launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2/data/macro_data/alt/logs/launchd_stderr.log</string>
+</dict>
+</plist>

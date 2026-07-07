@@ -45,7 +45,14 @@ SNAP_DATE = pd.Timestamp.now().strftime("%Y-%m-%d")
 
 KEYWORDS = ["fed", "rate", "recession", "inflation", "cpi", "gdp", "election",
             "president", "war", "china", "tariff", "geopolit", "nuclear",
-            "oil", "opec", "treasury", "shutdown", "debt ceiling"]
+            "oil", "opec", "treasury", "shutdown", "debt ceiling",
+            # widened 2026-07-07 (info-layer program day-1): filtering later is
+            # possible, un-missing markets is not. Dedup keys make this safe.
+            "fomc", "powell", "rate cut", "rate hike", "payroll", "jobs report",
+            "unemployment", "pce", "ppi", "vix", "volatility", "s&p", "sp500",
+            "nasdaq", "stock market", "bitcoin", "crypto", "taiwan", "sanction",
+            "bank", "default", "yield", "bond", "dollar", "gold", "housing",
+            "mortgage", "energy", "gas price", "strike", "congress", "senate"]
 
 
 def _get(url: str, timeout: int = 90) -> bytes:
