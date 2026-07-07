@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from core.trend_overlay import TrendOverlay
 from paper_trader.sleeve_constructor import SleeveOrderConstructor
 from paper_trader.sleeve_tracker import SleeveTracker
 
@@ -28,8 +29,9 @@ def _down(n=40):  # falling → close < SMA → signal 0 (flat)
 
 class TestConstructor:
     def _c(self):
+        # small 3-speed ensemble (T-260 shape) for fast tests: mean of {5,10,20}
         return SleeveOrderConstructor(universe=("SPY", "AGG", "GLD"),
-                                      lookback=10, deadband=0.10)
+                                      speeds=(5, 10, 20), deadband=0.10)
 
     def test_all_long_from_flat_buys_equal_weight(self):
         closes = {"SPY": _up(), "AGG": _up(), "GLD": _up()}
@@ -60,7 +62,7 @@ class TestConstructor:
         assert plan.orders == []                     # within deadband, no churn
 
     def test_fail_closed_on_short_history(self):
-        closes = {"SPY": _up(5), "AGG": _up(), "GLD": _up()}   # SPY too short for lookback 10
+        closes = {"SPY": _up(5), "AGG": _up(), "GLD": _up()}   # SPY < the longest speed (20)
         with pytest.raises(ValueError):
             self._c().construct(30000.0, {}, closes)
 
@@ -70,6 +72,50 @@ class TestConstructor:
         assert all(v == 0.0 for v in plan.signals.values())
         assert all(plan.target_qty[t] == 0 for t in ("SPY", "AGG", "GLD"))
         assert plan.orders == []                     # flat from flat → nothing (cash)
+
+
+class TestEnsembleSpec:
+    """T-260 multi-speed ensemble: exposure = mean of the {2,5,10}-mo binary
+    signals → fractional {0, ⅓, ⅔, 1}. Faithful to D's multi([42,105,210])."""
+
+    def test_default_speeds_are_D_spec(self):
+        from paper_trader.sleeve_constructor import SLEEVE_SPEEDS
+        assert SLEEVE_SPEEDS == (42, 105, 210)          # 2, 5, 10 months, no re-tuning
+        assert SleeveOrderConstructor().speeds == (42, 105, 210)
+
+    def test_exposure_is_mean_of_the_three_speed_signals(self):
+        # long decline then a short rebound → the speeds DISAGREE at the last bar
+        s = _series(np.concatenate([np.linspace(200, 100, 100), np.linspace(100, 120, 22)]))
+        c = SleeveOrderConstructor(universe=("SPY", "AGG", "GLD"),
+                                   speeds=(5, 30, 90), deadband=0.10)
+        plan = c.construct(30000.0, {}, {"SPY": s, "AGG": _up(130), "GLD": _up(130)})
+        # exactly the mean of the three TrendOverlay exposures (no fork, just avg)
+        expected = float(np.mean([TrendOverlay(sp, enabled=True).exposure(s).iloc[-1]
+                                  for sp in (5, 30, 90)]))
+        assert plan.signals["SPY"] == pytest.approx(expected)
+        # it is a genuine FRACTIONAL exposure (a multiple of 1/3, strictly between 0 and 1)
+        assert 0.0 < plan.signals["SPY"] < 1.0
+        assert plan.signals["SPY"] * 3 == pytest.approx(round(plan.signals["SPY"] * 3))
+
+    def test_fractional_target_flows_through_wholeshare_delta_at_10k_cap(self):
+        from paper_trader.sleeve_constructor import SleeveOrderConstructor as C
+        # AGG at ⅔ exposure: target_w = (1/3)*(2/3) = 2/9; at $10k, $100 px → floor(22.2)=22
+        s = _series(np.concatenate([np.linspace(200, 100, 100), np.linspace(100, 120, 22)]))
+        c = C(universe=("SPY", "AGG", "GLD"), speeds=(5, 30, 90), deadband=0.0)
+        px = 100.0
+        agg = _series(np.concatenate([np.linspace(80, 100, 100), np.linspace(100, px, 22)]))
+        plan = c.construct(10000.0, {}, {"SPY": s, "AGG": agg, "GLD": _up(130)})
+        for t in ("SPY", "AGG", "GLD"):
+            exp = plan.signals[t]
+            last_px = float({"SPY": s, "AGG": agg, "GLD": _up(130)}[t].iloc[-1])
+            assert plan.target_qty[t] == int(np.floor(10000.0 * (1/3 * exp) / last_px))
+
+    def test_ensemble_fail_closed_when_longest_speed_undefined(self):
+        # 50 bars: the 90-speed is undefined at the last bar → HALT (no silent degrade)
+        s = _up(50)
+        c = SleeveOrderConstructor(universe=("SPY",), speeds=(5, 30, 90), deadband=0.10)
+        with pytest.raises(ValueError):
+            c.construct(10000.0, {}, {"SPY": s})
 
 
 class TestTracker:

@@ -26,6 +26,8 @@ ET = ZoneInfo("America/New_York")
 OPG_OPEN = time(19, 0)        # 7:00pm prev day
 OPG_CLOSE = time(9, 28)       # 9:28am
 CLS_CUTOFF = time(15, 50)     # 3:50pm
+REGULAR_OPEN = time(9, 30)    # 9:30am ET regular-session open
+REGULAR_CLOSE = time(16, 0)   # 4:00pm ET close
 
 # US equity market holidays (fixed + observed) used by the OFFLINE
 # fallback only — the live path uses the broker calendar (authoritative,
@@ -90,13 +92,35 @@ class MarketCalendar:
         t = (now or now_et()).astimezone(ET).time()
         return t < CLS_CUTOFF
 
+    def is_market_open(self, now: Optional[datetime] = None) -> bool:
+        """True iff the REGULAR session is open now — the submit gate for a
+        market DAY order (T-238 Option A: Alpaca PAPER fills DAY orders but
+        expires OPG auction orders, so the paper sleeve trades DAY post-open).
+        Prefers the broker clock when the client exposes one (authoritative for
+        early closes); else a deterministic offline fallback (trading day +
+        9:30–16:00 ET). Never raises."""
+        now = now or now_et()
+        clk = getattr(self.client, "get_clock", None)
+        if clk is not None:
+            try:
+                v = getattr(clk(), "is_open", None)
+                if v is not None:
+                    return bool(v)
+            except Exception:
+                pass
+        et = now.astimezone(ET)
+        return (self.is_trading_day(et.date())
+                and REGULAR_OPEN <= et.time() < REGULAR_CLOSE)
+
     def auction_window_open(self, tif: str, now: Optional[datetime] = None) -> bool:
         tif = str(tif).lower()
         if tif == "opg":
             return self.is_opg_window(now)
         if tif == "cls":
             return self.is_cls_window(now)
-        return True   # non-auction TIFs unrestricted
+        if tif == "day":
+            return self.is_market_open(now)   # DAY fills in the regular session
+        return True   # other TIFs unrestricted
 
     def window_reason(self, tif: str, now: Optional[datetime] = None) -> str:
         t = (now or now_et()).astimezone(ET)
@@ -106,4 +130,7 @@ class MarketCalendar:
         if str(tif).lower() == "cls":
             return (f"CLS cutoff 15:50 ET; now {t:%H:%M} ET → "
                     f"{'OPEN' if self.is_cls_window(now) else 'CLOSED'}")
+        if str(tif).lower() == "day":
+            return (f"DAY fills in the regular session 9:30–16:00 ET; now "
+                    f"{t:%H:%M} ET → {'OPEN' if self.is_market_open(now) else 'CLOSED (defer)'}")
         return "no window restriction"

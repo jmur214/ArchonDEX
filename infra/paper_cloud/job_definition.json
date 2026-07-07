@@ -1,5 +1,5 @@
 {
-  "_comment": "T-186 daily paper-loop Batch job definition (Fargate, ARM64). Rendered by scripts/deploy_paper_cloud_trigger.sh — __IMAGE__, __EXEC_ROLE_ARN__, __JOB_ROLE_ARN__, __SECRET_ARN__, __RESULTS_BUCKET__ are substituted at deploy. PAPER creds arrive via the `secrets` block (Secrets Manager), never baked into the image or printed. T-238: ARCHONDEX_PAPER_STRATEGY=trend_sleeve arms the 3-asset sleeve; ARCHONDEX_SLEEVE_NOTIONAL_CAP=10000 caps the FIRST cautious runs. Schedule stays DISABLED pending BOTH go-live gates (armed-run-clean AND D/T-255).",
+  "_comment": "T-186 daily paper-loop Batch job definition (Fargate, ARM64). Rendered by scripts/deploy_paper_cloud_trigger.sh — __IMAGE__, __EXEC_ROLE_ARN__, __JOB_ROLE_ARN__, __SECRET_ARN__, __RESULTS_BUCKET__ are substituted at deploy. PAPER creds arrive via the `secrets` block (Secrets Manager), never baked into the image or printed. T-238: ARCHONDEX_PAPER_STRATEGY=trend_sleeve arms the 3-asset sleeve (T-260 {2,5,10}mo ensemble); ARCHONDEX_SLEEVE_NOTIONAL_CAP=10000 caps the FIRST cautious runs; ARCHONDEX_SLEEVE_TIF=day = Option A (Alpaca PAPER fills DAY orders, expires OPG; live sets opg). Schedule (post-open ~9:45 ET) stays DISABLED; T-255 + SNS gates CLEARED, only the user's enable word + the Monday armed run remain.",
   "jobDefinitionName": "archondex-paper-cloud-day",
   "type": "container",
   "platformCapabilities": ["FARGATE"],
@@ -23,7 +23,8 @@
       {"name": "ARCHONDEX_PAPER_STATE_PREFIX", "value": "paper_state"},
       {"name": "ARCHONDEX_PAPER_ALLOCATOR", "value": "mean_variance"},
       {"name": "ARCHONDEX_PAPER_STRATEGY", "value": "trend_sleeve"},
-      {"name": "ARCHONDEX_SLEEVE_NOTIONAL_CAP", "value": "10000"}
+      {"name": "ARCHONDEX_SLEEVE_NOTIONAL_CAP", "value": "10000"},
+      {"name": "ARCHONDEX_SLEEVE_TIF", "value": "day"}
     ],
     "secrets": [
       {"name": "ALPACA_API_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_API_KEY::"},

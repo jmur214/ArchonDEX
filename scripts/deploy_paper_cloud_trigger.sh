@@ -164,16 +164,19 @@ if [ "$DO_SCHEDULE" = "1" ]; then
      --status ACTIVE --query 'reverse(sort_by(jobDefinitions,&revision))[0].jobDefinitionArn' --output text)"
   QUEUE_ARN="$(_aws batch describe-job-queues --job-queues "$QUEUE" --query 'jobQueues[0].jobQueueArn' --output text)"
   TARGET="$(python3 -c 'import json,sys; print(json.dumps({"Arn":"arn:aws:scheduler:::aws-sdk:batch:submitJob","RoleArn":sys.argv[1],"Input":json.dumps({"JobName":"paper-cloud-day","JobQueue":sys.argv[2],"JobDefinition":sys.argv[3]})}))' "$SCHED_ROLE_ARN" "$QUEUE_ARN" "$JOBDEF_ARN")"
-  # daily 13:00 UTC; OPG window 7pm-9:28am ET => 08:00 EST / 09:00 EDT, in-window year-round.
+  # T-238 Option A: daily 9:45 ET (America/New_York, DST-aware) — POST-open, so
+  # the paper sleeve's market DAY orders fill in the regular session (Alpaca
+  # paper expires OPG auction orders; live would use OPG + a pre-open time). The
+  # loop self-skips holidays (is_trading_day), so MON-FRI at the cron is enough.
   if _aws scheduler get-schedule --name archondex-paper-daily >/dev/null 2>&1; then
     log "updating schedule archondex-paper-daily (state=$SCHED_STATE)"
     _aws scheduler update-schedule --name archondex-paper-daily --state "$SCHED_STATE" \
-      --schedule-expression "cron(0 13 * * ? *)" --schedule-expression-timezone "UTC" \
+      --schedule-expression "cron(45 9 ? * MON-FRI *)" --schedule-expression-timezone "America/New_York" \
       --flexible-time-window '{"Mode":"OFF"}' --target "$TARGET" >/dev/null
   else
     log "creating schedule archondex-paper-daily (state=$SCHED_STATE)"
     _aws scheduler create-schedule --name archondex-paper-daily --state "$SCHED_STATE" \
-      --schedule-expression "cron(0 13 * * ? *)" --schedule-expression-timezone "UTC" \
+      --schedule-expression "cron(45 9 ? * MON-FRI *)" --schedule-expression-timezone "America/New_York" \
       --flexible-time-window '{"Mode":"OFF"}' --target "$TARGET" >/dev/null
   fi
 else

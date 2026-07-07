@@ -26,7 +26,7 @@ unchanged). Thresholds fixed here:
 | # | gate | metric | threshold (pass) | rationale |
 |---|---|---|---|---|
 | a | **position tracking error** | median (and p95) of `|held_wt − target_wt|` summed across the 3 ETFs, marked daily | median ≤ **2.0%**, p95 ≤ **5.0%** | the paper book should track the sleeve's target weights; drift = whole-share rounding + deadband + missed fills |
-| b | **fill slippage vs assumed** | median / p95 of `|fill − expected auction print|` (bps) over rebalance fills | median ≤ **5 bps**, p95 ≤ **20 bps** | the T-146 §5.2 bar; the sim assumes ~1.5bps auction — realized must not blow past it |
+| b | **fill slippage vs ARRIVAL** | median / p95 of `|fill − arrival price|` (bps) over rebalance fills — arrival = the latest trade at submission | median ≤ **5 bps**, p95 ≤ **20 bps** | the T-146 §5.2 bar. **Paper-DAY correction (Option A):** with a ~9:45 ET DAY fill, `|fill − open print|` would fold in ~15 min of market drift the machine can't control — so paper measures vs the **arrival price** (the quality it CAN control). Live-OPG can annotate vs-open separately. |
 | c | **order-state errors** | count of rejects / ORDER_UNKNOWN / halts / non-canonical cycles | **0** over the window | the machine must never silently break (dead-man's-switch + reconcile) |
 | d | **clean duration** | count of canonical trading days | ≥ **60** | the §5.1 duration bar; below it the sample is too thin even for execution |
 
@@ -36,18 +36,22 @@ execution verdict to NOT-READY (report loudly, do not auto-act). These gate
 the machine is faithfully running the sleeve.
 
 ## Go-Live checklist (schedule stays DISABLED until ALL gates clear)
+Deploying spec = the **T-260 {2,5,10}mo ensemble**; paper execution = **market
+DAY post-open (~9:45 ET)** per Option A (paper fills DAY, expires OPG); live
+keeps OPG (env-gated `ARCHONDEX_SLEEVE_TIF`).
 | # | gate | owner | status (2026-07-02) |
 |---|---|---|---|
-| 1 | **Armed run clean** — one in-window cloud run: sleeve OPG submits → next-open fill → held-reconcile adopts → canonical + tracker first entry | E | IN PROGRESS (this task) |
-| 2 | **T-255 — the fair, reproducible T-236 re-run** lands (the gap audit found the T-236 headline irreproducible + biased ~0.65-1.1%/yr AGAINST the sleeve; the fair number likely IMPROVES it, but the enable waits for it) | D | **PENDING — hard gate** |
-| 3 | **SNS alert email CONFIRMED** (T-186 link expired after 3 days; director re-sending; user must click). Until confirmed, alarms fire to SNS but reach no inbox | USER | PENDING |
-| 4 | **Execution gates (a-d above) all PASS** over ≥ 60 clean days of forward paper tracking | E-tracker | ACCRUING (starts at the armed run) |
-| 5 | **ENABLE the schedule** (`archondex-paper-daily`, DISABLED, jobdef rev N) — the user's explicit word, ONLY after 1-4 | USER | GATED |
+| 1 | **Armed run clean** — one DAY in-window run on the ensemble spec: submit → **real fill** → held-reconcile adopts → canonical + tracker first entry | E | **PREP DONE — fires Mon Jul 6 post-open on the user's nudge** |
+| 2 | **T-255 — the fair, reproducible T-236 re-run** | D | ✅ **CLEARED** — sleeve BEATS schwab_like (wealth+Sortino+DD) + ties 60_40 with 3× shallower DD |
+| 3 | **SNS alert email CONFIRMED** | USER | ✅ **CONFIRMED** 2026-06-26 |
+| 4 | **Execution gates (a-d above) all PASS** over ≥ 60 clean days of forward paper tracking | E-tracker | ACCRUING (starts at the armed fill; accrues post-enable) |
+| 5 | **ENABLE the schedule** (`archondex-paper-daily`, DISABLED) — the user's explicit word, ONLY after 1 | USER | GATED |
 
-**Two hard gates now block the enable: (1) armed-run-clean AND (2) T-255.**
-Neither the armed run nor T-255 alone is sufficient. The execution gates (4)
-then accrue forward; performance is explicitly out of scope for the enable
-decision (it was settled — or not — in the gauntlet).
+Gates 2 + 3 are **cleared**. After the Monday armed run (gate 1) comes back
+clean, **the only remaining gate is #5 — the user's explicit enable word.**
+Gate 4 (60 clean days) then accrues forward post-enable. Performance is
+explicitly out of scope for the enable decision (settled — or not — in the
+gauntlet, now the CLEARED T-255).
 
 ## Honest framing to carry to the user (verbatim-worthy)
 > The paper run proves the MACHINE trades the sleeve correctly and cheaply —

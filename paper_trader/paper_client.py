@@ -300,6 +300,24 @@ class AlpacaPaperClient:
             out[t] = s.sort_index()
         return out
 
+    def fetch_latest_prices(self, tickers) -> "Dict[str, float]":
+        """Latest trade price per ticker — the ARRIVAL price for the T-238
+        gate-(b) slippage measurement (paper slippage = |fill − arrival|, the
+        quality paper can actually control on a market DAY order). Read-only;
+        missing tickers are omitted. Never raises to the caller — a data blip
+        must not block a trade decision (the caller treats {} as 'no arrival')."""
+        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca.data.requests import StockLatestTradeRequest
+        if self._data_client is None:
+            self._data_client = StockHistoricalDataClient(self._key, self._secret)
+        try:
+            trades = self._data_client.get_stock_latest_trade(
+                StockLatestTradeRequest(symbol_or_symbols=list(tickers)))
+            return {t: float(trades[t].price) for t in tickers
+                    if t in trades and trades[t] is not None}
+        except Exception:
+            return {}
+
 
 class FakePaperClient:
     """Deterministic cassette double — no network.

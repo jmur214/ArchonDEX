@@ -163,10 +163,19 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
           if broker_positions else "   RECONCILE  account flat")
 
     def inputs_fn(step):
+        bpos = {p["symbol"]: int(p["qty"]) for p in client.list_positions()}
+        bcash = client.get_account()["cash"]
+        # T-238 Option A: a market DAY order fills IN THIS SAME cycle (after the
+        # pre-submit adopt above), unlike an OPG that fills on a later run. So
+        # re-converge the ledger to EXPLAINED broker truth before each reconcile
+        # — else the just-filled, ledger-unadopted position reads as a spurious
+        # position_drift → non-canonical. Explained-ONLY: a genuine UNEXPLAINED
+        # position stays unadopted and is still flagged as drift (safety intact).
+        adopt_explained_broker_truth(led, bpos, bcash, list(om.orders.values()),
+                                     reason=f"cloud cycle {today} reconcile")
         return ReconcileInputs(
             ledger_positions=led.positions(), ledger_cash=led.cash(),
-            broker_positions={p["symbol"]: int(p["qty"]) for p in client.list_positions()},
-            broker_cash=client.get_account()["cash"],
+            broker_positions=bpos, broker_cash=bcash,
             orders=list(om.orders.values()),
             known_tickers=ktickers,
             window_closed=False,
@@ -175,6 +184,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     # --- content layer: reconcile-only pulse OR the trend sleeve (T-238) -- #
     staged: list = []
     sleeve_closes: dict = {}
+    arrival_px: dict = {}                       # gate-(b) slippage reference
     if args.strategy == "trend_sleeve":
         from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
         try:
@@ -204,10 +214,25 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         if args.sleeve_notional_cap:
             print(f"   SLEEVE     notional cap ${args.sleeve_notional_cap:,.0f} "
                   f"(account equity ${equity:,.0f}) — cautious first run")
-        plan = SleeveOrderConstructor().construct(sizing_equity, broker_positions, closes)
+        # T-238 Option A: env-gate the TIF. PAPER trades market DAY (Alpaca
+        # paper fills DAY orders but EXPIRES OPG auction orders unfilled); a
+        # future LIVE path sets ARCHONDEX_SLEEVE_TIF=opg to hit the real opening
+        # auction the T-236/T-255 backtest assumes.
+        sleeve_tif = os.getenv("ARCHONDEX_SLEEVE_TIF", "day").lower()
+        if sleeve_tif not in ("day", "opg"):
+            print(f"FATAL: [NN-FAIL-CLOSED] invalid ARCHONDEX_SLEEVE_TIF="
+                  f"{sleeve_tif!r} (want day|opg).", file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return 69
+        plan = SleeveOrderConstructor(tif=sleeve_tif).construct(
+            sizing_equity, broker_positions, closes)
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
-        print(f"   SLEEVE     signals={plan.signals} targets={plan.targets} "
-              f"→ {len(plan.orders)} order(s): "
+        # Arrival price (latest trade) captured BEFORE submission = the gate-(b)
+        # slippage reference (paper controls |fill − arrival| on a DAY order).
+        if plan.orders:
+            arrival_px = client.fetch_latest_prices([o.ticker for o in plan.orders])
+        print(f"   SLEEVE     tif={sleeve_tif} signals={plan.signals} "
+              f"targets={plan.targets} → {len(plan.orders)} order(s): "
               f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}")
         for spec in plan.orders:
             staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
@@ -238,16 +263,37 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             order_errs = ((summary.reconcile_total_cycles
                            - summary.reconcile_clean_cycles)
                           + (1 if summary.halted else 0))
+            # Gate (a) EXECUTION fidelity = held vs the ACHIEVABLE WHOLE-SHARE
+            # target, both on the SIZING basis (min(equity, cap)). The fractional
+            # →whole-share rounding AND the notional cap are INTENDED, not
+            # fidelity failures — plan.target_qty already embeds both. (Comparing
+            # held-on-full-equity vs the fractional exposure spuriously fails on a
+            # capped sleeve: 4 SPY of a $10k slice reads 0.03 of $100k vs a 0.33
+            # target → te 0.60.) On a settled day held_qty==target_qty → te≈0.
+            tgt_w = ({t: (plan.target_qty.get(t, 0) * sleeve_closes[t]) / sizing_equity
+                      for t in sleeve_closes} if sizing_equity > 0 else dict(plan.targets))
             held_w = None
-            if not did_rebalance and equity > 0:
-                # settled book: held vs current target = whole-share residual
-                held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / equity
+            if not did_rebalance and sizing_equity > 0:
+                held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / sizing_equity
                           for t in sleeve_closes}
+            # gate (b): realized DAY-fill slippage vs the ARRIVAL price (the
+            # quality paper actually controls) — mean |fill − arrival| bps over
+            # the orders that filled this cycle. None if nothing filled.
+            slippage_bps = None
+            if arrival_px:
+                slips = [abs(float(o.filled_avg_price) - arrival_px[o.ticker])
+                         / arrival_px[o.ticker] * 1e4
+                         for o in staged
+                         if o.ticker in arrival_px and arrival_px[o.ticker] > 0
+                         and getattr(o, "filled_avg_price", None)
+                         and getattr(o, "filled_qty", 0) > 0]
+                if slips:
+                    slippage_bps = round(sum(slips) / len(slips), 2)
             tsum = SleeveTracker(root=str(root)).record(
                 str(today), equity, sleeve_closes,
-                target_weights=plan.targets,
+                target_weights=tgt_w,
                 held_weights=held_w,
-                slippage_bps=None,   # follow-up: realized fill vs official open print
+                slippage_bps=slippage_bps,   # DAY fill vs arrival price (gate b)
                 order_errors=order_errs,
                 canonical=canonical)
             eg = tsum.get("execution_gates", {})
