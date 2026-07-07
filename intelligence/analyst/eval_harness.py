@@ -383,47 +383,98 @@ def _calibration_deciles(recs: list[dict]) -> list[dict]:
 
 import random as _random
 
+MIN_RECAL_HISTORY = 30   # walk-forward: no recalibration until this much resolved history
 
-def _brier_skill(recs: list[dict], baseline: str) -> Optional[dict]:
-    """Brier Skill Score of the model vs a baseline, with bootstrap ci_low + GIMME
-    EXCLUSION (drop near-certain predictions where the baseline is >0.9 or <0.1).
-    baseline ∈ {'base_rate','implied','persistence'}. Amended-G1 clears iff ci_low>0
-    (calibration is necessary-not-sufficient; THIS is the skill test — a base-rate
-    hedger cannot pass because vs its own base rate skill≈0 and vs market-implied it loses)."""
+
+def _order(recs: list[dict]) -> list[dict]:
+    """Resolvable records in serial (resolve_date) order — the structure the BLOCK
+    bootstrap respects (nearby predictions cover overlapping horizons → correlated)."""
     good = [r for r in recs if r.get("resolvable") and r.get("probability") is not None
             and r.get("outcome") is not None]
+    return sorted(good, key=lambda r: (r.get("resolve_date") or "", str(r.get("prediction_id") or "")))
+
+
+def _block_boot_ci_low(d: list[float], seed: int = 0, n_iter: int = 1000) -> float:
+    """Circular moving-block bootstrap (Politis-Romano) ci_low of the MEAN of a serial
+    series `d`. Block length ~ n**(1/3) (project-standard block bootstrap, NOT iid)."""
+    n = len(d)
+    L = max(1, round(n ** (1.0 / 3.0)))
+    rng = _random.Random(seed)
+    nb = -(-n // L)                              # ceil(n/L) blocks
+    means = []
+    for _ in range(n_iter):
+        idx: list[int] = []
+        for _ in range(nb):
+            st = rng.randrange(0, n)
+            idx.extend((st + k) % n for k in range(L))
+        idx = idx[:n]
+        means.append(sum(d[j] for j in idx) / n)
+    means.sort()
+    return means[int(0.025 * len(means))]
+
+
+def _recalibrate_inplace(ordered: list[dict]) -> None:
+    """WALK-FORWARD isotonic recalibration: each prediction's recalibrated prob is the
+    isotonic map fit on ALL EARLIER resolved predictions applied to it (never in-sample).
+    RLHF models hedge to 0.5; recalibrated Brier is the honest discrimination read. Stores
+    `_recal_prob` per record (= raw prob until ≥ MIN_RECAL_HISTORY history exists)."""
+    from sklearn.isotonic import IsotonicRegression
+    for i, r in enumerate(ordered):
+        hist = ordered[:i]
+        if len(hist) >= MIN_RECAL_HISTORY:
+            iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+            iso.fit([h["probability"] for h in hist], [h["outcome"] for h in hist])
+            r["_recal_prob"] = float(iso.predict([r["probability"]])[0])
+        else:
+            r["_recal_prob"] = r["probability"]
+
+
+def _brier_skill(recs: list[dict], baseline: str, use_recal: bool = False) -> Optional[dict]:
+    """Model-vs-baseline Brier with a BLOCK-BOOTSTRAP CI on the DIFFERENTIAL (2nd G1
+    amendment) + GIMME EXCLUSION (drop near-certain predictions, baseline >0.9/<0.1).
+    baseline ∈ {'base_rate','implied','persistence'}. Amended-G1 clears iff the mean
+    Brier improvement's `diff_ci_low > 0` — calibration is necessary-not-sufficient, and
+    a base-rate hedger cannot pass (vs its own base rate the differential ≈ 0). With
+    `use_recal` the model's recalibrated probs are scored (the honest discrimination read)."""
+    good = _order(recs)
+    def mp(r): return r.get("_recal_prob", r["probability"]) if use_recal else r["probability"]
     if baseline == "base_rate":
         base = sum(r["outcome"] for r in good) / len(good) if good else None
-        pool = [(r["probability"], base, r["outcome"]) for r in good] if base is not None else []
+        pool = [(mp(r), base, r["outcome"]) for r in good] if base is not None else []
     else:
         key = f"baseline_{baseline}"
-        pool = [(r["probability"], float(r[key]), r["outcome"]) for r in good if r.get(key) is not None]
+        pool = [(mp(r), float(r[key]), r["outcome"]) for r in good if r.get(key) is not None]
     pool = [(p, b, o) for (p, b, o) in pool if 0.1 <= b <= 0.9]   # gimme exclusion
     if len(pool) < 5:
         return None
     bm = sum((p - o) ** 2 for p, _, o in pool) / len(pool)
     bb = sum((b - o) ** 2 for _, b, o in pool) / len(pool)
-    if bb <= 0:
-        return None
-    rng = _random.Random(0); n = len(pool); sk = []
-    for _ in range(1000):
-        smp = [pool[rng.randrange(n)] for _ in range(n)]
-        m = sum((p - o) ** 2 for p, _, o in smp) / n
-        b = sum((bb2 - o) ** 2 for _, bb2, o in smp) / n
-        if b > 0:
-            sk.append(1 - m / b)
-    sk.sort()
-    ci_low = sk[int(0.025 * len(sk))] if sk else None
+    diff = [(b - o) ** 2 - (p - o) ** 2 for (p, b, o) in pool]    # per-pred Brier improvement (>0 = model better)
+    mean_diff = sum(diff) / len(diff)
+    ci_low = _block_boot_ci_low(diff)
     return {"n": len(pool), "brier_model": round(bm, 5), "brier_baseline": round(bb, 5),
-            "skill": round(1 - bm / bb, 4),
-            "skill_ci_low": round(ci_low, 4) if ci_low is not None else None,
-            "clears": bool(ci_low is not None and ci_low > 0)}
+            "skill": round(1 - bm / bb, 4) if bb > 0 else None,
+            "mean_brier_diff": round(mean_diff, 5), "diff_ci_low": round(ci_low, 5),
+            "clears": bool(ci_low > 0)}
 
 
 def _g1_block(recs: list[dict]) -> dict:
-    return {"vs_base_rate": _brier_skill(recs, "base_rate"),
-            "vs_market_implied": _brier_skill(recs, "implied"),
-            "vs_persistence": _brier_skill(recs, "persistence")}
+    ordered = _order(recs)
+    _recalibrate_inplace(ordered)
+    raw_brier = _brier(ordered)
+    recal_brier = (round(sum((r["_recal_prob"] - r["outcome"]) ** 2 for r in ordered) / len(ordered), 5)
+                   if ordered else None)
+    return {
+        "vs_base_rate": _brier_skill(ordered, "base_rate"),
+        "vs_market_implied": _brier_skill(ordered, "implied"),
+        "vs_persistence": _brier_skill(ordered, "persistence"),
+        "brier_raw": raw_brier, "brier_recalibrated": recal_brier,
+        "recalibrated": {                                        # honest discrimination read
+            "vs_base_rate": _brier_skill(ordered, "base_rate", use_recal=True),
+            "vs_market_implied": _brier_skill(ordered, "implied", use_recal=True),
+            "vs_persistence": _brier_skill(ordered, "persistence", use_recal=True),
+        },
+    }
 
 
 def summarize(recs: list[dict]) -> dict:
