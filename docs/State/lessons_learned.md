@@ -934,3 +934,25 @@ re-measurement (slow, alpha-scale). Face validity: the calibrated
 monitors fired exactly on 2024-08-05 (yen-carry unwind) and the US
 election week, unprompted. Tuning kill metrics BEFORE capital exists is
 what made all three findings cheap.
+
+## 2026-07-08 — Trend layers don't stack, they interfere (T-296)
+
+Putting a fund that carries its OWN internal trend overlay (RSST's
+managed-futures stack) underneath our long/flat trend gate produced a
+clean, general failure mechanism: the gate reads the COMBINED price of
+the stacked instrument, so when the internal overlay is up-trending
+while the underlying equity declines, the combination masks the decline
+— the gate stays "on" and protects LESS than it does for the plain
+equity leg (2022: arm −7.5% vs plain −5.2% drawdown, exactly the year
+MF should have shined). Rule: a trend gate must read the price of the
+thing whose risk it manages, not a composite that embeds another
+manager's position. Corollary for any future composition: instruments
+with internal dynamic overlays (managed-futures stacks, vol-targeting
+funds, covered-call funds) are candidates for the ALWAYS-LONG core
+beside the gate, never for the gated leg itself. Second reusable tool
+from the same task: return-stack synthetics must be COLLATERAL-AWARE —
+the stacked fund's base asset is the collateral, so the overlay leg
+enters as excess-over-cash (`SPY_TR + (MF − Tbill)`), not as two funds
+added (the naive form over-stated real RSST by a measured +9.1%/yr).
+Applies to the T-294 NTSX/RSSB vehicle synthetics and any future
+capital-efficient-fund replication.
