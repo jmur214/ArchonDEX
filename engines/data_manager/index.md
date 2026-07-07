@@ -192,6 +192,12 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
   - `def cache_status()`: Return a DataFrame describing the on-disk cache state.
 - **Function `parse_insider_table()`**: Parse an OpenInsider screener HTML response.
 
+### `macro_calendar.py`
+**Module Docstring:** Macro event calendar — FOMC decision dates (T-2026-07-07-290, deliverable 3).
+- **Function `load_fomc_dates()`**: Sorted FOMC decision dates (normalized to midnight). Cached per path.
+- **Function `is_fomc_week()`**: True if `date` falls in the same Mon-Sun week as an FOMC decision date
+- **Function `days_to_next_decision()`**: Calendar days from `date` to the NEXT FOMC decision on/after it (0 if
+
 ### `macro_data.py`
 **Module Docstring:** FRED macro data pipeline.
 - **Class `MacroDataError`**: Raised for non-recoverable failures in the macro pipeline.
@@ -233,4 +239,4 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 ### `universe_resolver.py`
 **Module Docstring:** engines/data_manager/universe_resolver.py
 - **Function `resolve_universe()`**: Return the (tickers, debug_info) tuple for a backtest run.
-- **Function `discover_cached_tickers()`**: Return the set of tickers with a cached price CSV under ``cache_dir/processed/``.
+- **Function `discover_cached_tickers()`**: Return the set of tickers with a USABLE cached price CSV under
