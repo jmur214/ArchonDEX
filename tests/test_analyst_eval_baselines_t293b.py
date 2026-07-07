@@ -64,9 +64,24 @@ def test_amended_g1_skilled_clears_hedger_fails():
     outcomes = [1, 0] * 15                                   # base rate 0.5, N=30
     skilled = eh._brier_skill(_recs([0.85 if o else 0.15 for o in outcomes], outcomes), "base_rate")
     hedger = eh._brier_skill(_recs([0.5] * 30, outcomes), "base_rate")
-    assert skilled["clears"] is True and skilled["skill_ci_low"] > 0      # discrimination -> clears
-    assert hedger["clears"] is False                                     # zero skill vs its own base rate -> FAILS
-    assert abs(hedger["skill"]) < 0.02
+    # 2nd amendment: clears iff the block-bootstrap CI on the Brier DIFFERENTIAL excludes 0
+    assert skilled["clears"] is True and skilled["diff_ci_low"] > 0       # discrimination -> clears
+    assert hedger["clears"] is False and abs(hedger["mean_brier_diff"]) < 0.02   # hedger: differential ~0 -> FAILS
+
+
+def test_recalibration_reveals_hedged_discrimination():
+    # a DISCRIMINATING but HEDGED model: prob 0.55 when outcome 1, 0.45 when 0 (compressed to 0.5).
+    # raw Brier is poor; walk-forward isotonic (fit on earlier history) recovers the discrimination.
+    recs = []
+    for i in range(60):
+        o = i % 2
+        recs.append({"resolvable": True, "outcome": o, "probability": 0.55 if o else 0.45,
+                     "category": "c", "resolve_date": f"2026-08-{(i % 27) + 1:02d}",
+                     "prediction_id": f"p{i:03d}"})
+    g1 = eh._g1_block(recs)
+    assert g1["brier_recalibrated"] < g1["brier_raw"]        # recalibration is the honest read
+    # recalibrated skill vs base rate clears where raw (hedged) does not distinguish as well
+    assert g1["recalibrated"]["vs_base_rate"]["clears"] is True
 
 
 def test_gimme_exclusion_drops_near_certain_baseline():
