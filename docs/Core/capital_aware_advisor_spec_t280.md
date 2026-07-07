@@ -244,3 +244,23 @@ defines: the row schema (§1), the band boundaries (§2), the wrapper rules (§3
 current population (§5), the runtime contract (§6), and the transition policy (§7). The config artifact
 (`config/advisor_tier_table.schema.json` + a seed `config/advisor_tier_table.json` holding only the
 validated sleeve rows) accompanies this doc.
+
+## 9. Taxable-wrapper amendments (2026-07-08, external research run — BINDING before the taxable account opens)
+
+Per the archived research run (`docs/Sources/External_Prompt_Runs/2026-07-08_research-agent-v2.md`, Q8 +
+blind-spot #5), two requirements are BLOCKING for any taxable-column row going live:
+
+**9a. Cross-account wash-sale guard.** Rev. Rul. 2008-5: a purchase of substantially-identical securities
+in an IRA (including the Roth) PERMANENTLY disallows a loss taken in the taxable account — no basis
+addition, the loss is simply gone. A systematic monthly rebalancer running the same tickers in both
+accounts will trip this. Required guard (either or both): (i) deliberately non-substantially-identical
+tickers across accounts (e.g., SPY in one, VOO/IVV in the other; AGG vs BND; GLD vs IAU/GLDM), or
+(ii) a coordinated rebalance calendar such that a taxable loss-sale is never mirrored by a Roth buy of a
+substantially-identical fund within the 61-day window. The guard is an ENGINEERING deliverable (order-path
+check, not a policy memo) and must exist before the first taxable trade.
+
+**9b. After-tax, account-specific benchmark.** The taxable column's success bar is AFTER-TAX terminal
+wealth vs buy-and-hold SPY (which incurs almost no tax until sale) — not pre-tax wealth. A monthly-turnover
+trend sleeve starts with a structural short-term-gains handicap in taxable; the T-191 after-tax machinery
+computes the honest comparison. Asset-location default (already per T-280b, reinforced): monthly-turnover
+sleeves live in the Roth; the taxable account holds the lowest-turnover, most tax-efficient exposure.

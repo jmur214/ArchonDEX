@@ -231,6 +231,33 @@ you to act on it, as in the 2026-04-29 case):
    X is now load-bearing") in the plan — those become the next 
    session's first work items.
 
+## External prompt runs — archive EVERY run (user directive 2026-07-08)
+
+Whenever the director writes a prompt for an external agent (a 
+web-research agent, a fresh-eyes repo auditor, any prompt the user 
+runs outside this session) and the results come back:
+
+1. **Archive prompt + findings together as ONE self-contained doc** in
+   `docs/Sources/External_Prompt_Runs/<YYYY-MM-DD>_<short-tag>.md` —
+   the exact prompt as run, the findings VERBATIM (never summarized —
+   the verbatim record is the point), and a run-metadata header:
+   date run, model/version (see rule 3), who executed it, and where
+   the working prompt copy lived. The `data/coordination/` copies are
+   gitignored relay space and do NOT count as the record.
+2. **Append a director-triage section** to the same doc: per finding —
+   adopted (with the commit/task), dispatched (task ID), parked
+   (reason), or rejected (reason). A finding with no disposition is
+   an unprocessed finding.
+3. **Every future external prompt MUST instruct the agent to
+   self-report, at the top of its reply:** the model name + version
+   it is running on, the date, and whether it had web access / repo
+   access. This lets us weigh old findings when a more capable model
+   re-runs the same question later. (Runs archived before this rule
+   record "model: not recorded".)
+4. Findings that assert repo facts follow the usual rule: verify
+   against code before acting; external reports are point-in-time
+   snapshots, not current truth (`[NN-AUDITS-NOT-CURRENT]` applies).
+
 ---
 
 ## Coordinating parallel agents (director mode)
