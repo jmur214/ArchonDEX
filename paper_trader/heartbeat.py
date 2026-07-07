@@ -146,6 +146,30 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_news(self, result: Dict[str, Any]) -> None:
+        """T-290b: stamp the daily news-panel forward-append health onto the
+        status file as a SEPARATE ``news`` block. Like ``record_altdata`` it is
+        orthogonal to the trading verdict (fail-open for trading). But D's
+        contract says measurement gates MUST treat ``degraded=True`` as a FAIL,
+        so the degraded flag is carried through verbatim + fires the loud
+        notify channel. ``result`` is D's ``append_today`` return dict
+        ({n_new, n_total, degraded, reason})."""
+        degraded = bool(result.get("degraded"))
+        status = self._read_status() or {}
+        status["news"] = {
+            "degraded": degraded,
+            "n_new": int(result.get("n_new", 0)),
+            "n_total": int(result.get("n_total", 0)),
+            "reason": result.get("reason"),
+            "ts": _utcnow_iso(),
+            "_schema": "paper_news/v1",
+        }
+        self._atomic_write(self.status_path, status)
+        if degraded:
+            msg = f"[NEWS][ALERT] degraded news-panel append: {result.get('reason')}"
+            print(msg)
+            self._notify(msg)
+
     def check(self, today: _date, is_trading_day: bool) -> HeartbeatVerdict:
         """The dead-man's-switch. On a trading day, today's run must have
         happened AND been canonical — else ALERT. On a non-trading day,

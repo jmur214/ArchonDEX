@@ -63,6 +63,17 @@ ALTDATA_DIRS: List[str] = [
     "data/positioning",      # FINRA/SEC/NAAIM
 ]
 
+# T-290b: D's news panel (T-289) is a LARGE, append-only, MONTH-partitioned
+# store (~264 MB backfilled, ~2 MB/mo forward). The altdata whole-dir sync
+# above would pull the entire history down every container start — pointless
+# I/O the moment the panel routes through a prefix. So the panel gets its OWN
+# date-partitioned prefix (``news_panel/YYYY/MM/news_YYYYMM.parquet``) and the
+# daily pulse touches ONLY the current month's partition: pull it (so the
+# within-month idempotent upsert accumulates), append today, push it. The
+# history stays on S3 untouched; a one-time bulk upload seeds the backfill.
+NEWS_PANEL_PREFIX = "news_panel"
+NEWS_PANEL_DIR = "data/intel/news_panel"
+
 
 @dataclass
 class CloudStateConfig:
@@ -165,6 +176,67 @@ class CloudState:
             if local.exists():
                 self._aws("s3", "sync", str(local), self._altdata_s3(rel),
                           "--no-progress")
+
+    # --- T-290b: the news panel's date-partitioned prefix (current-month
+    # only; NO full-history pull-down — that was the read-path cost the
+    # reviewer flagged) ------------------------------------------------- #
+    @staticmethod
+    def _news_rel(year: int, month: int) -> str:
+        """Local relative path for a month's parquet (D's flat layout)."""
+        return f"{NEWS_PANEL_DIR}/news_{year}{month:02d}.parquet"
+
+    def _news_s3(self, year: int, month: int) -> str:
+        """S3 key for a month's parquet — date-partitioned YYYY/MM/."""
+        return (f"s3://{self.cfg.bucket}/{NEWS_PANEL_PREFIX}/"
+                f"{year}/{month:02d}/news_{year}{month:02d}.parquet")
+
+    @staticmethod
+    def _ym(as_of) -> tuple:
+        d = as_of.date() if hasattr(as_of, "date") else as_of
+        return int(d.year), int(d.month)
+
+    def pull_news_month(self, as_of) -> bool:
+        """Sync ONLY the current month's panel partition S3 → local, so
+        ``append_today``'s within-month idempotent upsert accumulates across
+        ephemeral containers WITHOUT downloading the whole 264 MB history.
+        Missing key (first run of a new month) is a clean start, not error."""
+        if not self.cfg.enabled:
+            return False
+        year, month = self._ym(as_of)
+        local = self.root / self._news_rel(year, month)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        r = self._aws("s3", "cp", self._news_s3(year, month), str(local),
+                      "--no-progress")
+        return r.returncode == 0
+
+    def push_news_month(self, as_of) -> None:
+        """Push ONLY the current month's partition local → S3. Best-effort;
+        the history partitions are never re-touched by the pulse."""
+        if not self.cfg.enabled:
+            return
+        year, month = self._ym(as_of)
+        local = self.root / self._news_rel(year, month)
+        if local.exists():
+            self._aws("s3", "cp", str(local), self._news_s3(year, month),
+                      "--no-progress")
+
+    def push_news_backfill(self) -> int:
+        """One-time seed: upload EVERY local ``news_YYYYMM.parquet`` to its
+        YYYY/MM/ partition (run once when D's ~55-min backfill completes).
+        Returns the number of month-partitions uploaded."""
+        if not self.cfg.enabled:
+            return 0
+        panel_dir = self.root / NEWS_PANEL_DIR
+        n = 0
+        for p in sorted(panel_dir.glob("news_*.parquet")):
+            stem = p.stem.replace("news_", "")          # YYYYMM
+            if len(stem) != 6 or not stem.isdigit():
+                continue
+            year, month = int(stem[:4]), int(stem[4:])
+            self._aws("s3", "cp", str(p), self._news_s3(year, month),
+                      "--no-progress")
+            n += 1
+        return n
 
     def emit_metrics(self, *, happened: bool, canonical: bool) -> None:
         """Publish the dead-man's-switch datapoints. ``PaperRunHappened``

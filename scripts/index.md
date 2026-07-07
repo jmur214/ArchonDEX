@@ -262,6 +262,12 @@
 - **Function `wikipedia_cross_check()`**: Second source: Wikipedia current constituents vs the panel TODAY.
 - **Function `main()`**: No docstring
 
+### `build_news_panel_t289.py`
+**Module Docstring:** T-289b — resumable PIT news-panel backfill. Writes data/intel/news_panel/news_YYYYMM.parquet per month,
+- **Function `full_universe()`**: No docstring
+- **Function `months()`**: No docstring
+- **Function `run_month()`**: No docstring
+
 ### `build_ohlc_features_t150.py`
 **Module Docstring:** scripts/build_ohlc_features_t150.py
 - **Function `load_ohlc_features()`**: Loader for the Part-A feature panel (long format).
@@ -460,6 +466,15 @@
 - **Function `combined_stream()`**: Equal- or custom-weighted sum of per-edge daily return streams.
 - **Function `joint_alpha()`**: HAC FF5+Mom alpha t-stat with residual moving-block bootstrap CI
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
+- **Function `main()`**: No docstring
+
+### `event_interaction_t291.py`
+**Module Docstring:** T-291 Deliverable 2 — even_week x is_fomc_week interaction (frozen pre-reg, N_trials+=1).
+- **Function `spy_returns()`**: No docstring
+- **Function `even_week()`**: No docstring
+- **Function `is_fomc_week()`**: dt is in the same ISO calendar week as an FOMC decision (cycle week 0).
+- **Function `block_ci()`**: 95% CI of (mean(a) - mean(b)) via independent block bootstrap of each group.
+- **Function `run()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `evenweek_sleeve_t268.py`
@@ -845,6 +860,17 @@
 - **Function `ddwin()`**: No docstring
 - **Function `paired()`**: No docstring
 
+### `news_interaction_tests_t289.py`
+**Module Docstring:** T-289 tests — the 4 FROZEN news-interaction tests (a1 a2 a3 b1) + amendments F1-F4.
+- **Function `px()`**: No docstring
+- **Function `car()`**: No docstring
+- **Function `load_hist()`**: No docstring
+- **Function `run_a1()`**: No docstring
+- **Function `run_a2()`**: No docstring
+- **Function `run_a3()`**: No docstring
+- **Function `run_b1()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `offleg_ab_t259.py`
 **Module Docstring:** scripts/offleg_ab_t259.py — RUN the FROZEN T-258 off-leg pre-registration.
 - **Function `spy_close()`**: No docstring
@@ -962,6 +988,10 @@
 - **Function `install_probes()`**: No docstring
 - **Function `cancellation_replay()`**: Offline S-vs-0.5S replays on captured real inputs, both modes.
 - **Function `main()`**: No docstring
+
+### `probe_news_depth_t289.py`
+**Module Docstring:** T-289a — Alpaca News (Benzinga) depth/survivorship/breadth PROBE. Gates the whole news lane.
+- **Function `fetch()`**: No docstring
 
 ### `reconcile_stooq_tr_t256.py`
 **Module Docstring:** T-2026-07-02-256 Part 2 — TR reconciliation of the Stooq-ingested ETFs.
@@ -1529,6 +1559,10 @@
 - **Function `hit_rate_and_fpr()`**: No docstring
 - **Function `cond_mean_dd()`**: No docstring
 - **Function `lead_time_stats()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `verify_altdata_snapshot.py`
+**Module Docstring:** scripts/verify_altdata_snapshot.py
 - **Function `main()`**: No docstring
 
 ### `verify_gate1_cache_determinism.py`
