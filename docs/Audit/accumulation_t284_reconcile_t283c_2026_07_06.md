@@ -7,6 +7,13 @@ branch: feature/accumulation-model-t283c
 status: DONE — 0 new N_trials. Verdict preserved; the T-283b→T-284 drift is ENTIRELY dividends.
 ---
 
+> ⚠️ **SUPERSEDED (T-287, 2026-07-07):** this doc's reconciliation was DIRECTIONALLY BACKWARDS.
+> It blamed D's curves for being "price-only"; the truth is the OPPOSITE — D's curves are
+> total-return, and MY T-283/283b runs DOUBLE-COUNTED dividends. D's canonical numbers here
+> (buy-hold $929K, gated primary $1.12M, ×1.20) are CORRECT and are the surviving table; the
+> "add dividends back ~1.5-1.7×" recommendation is WRONG (retracted). See
+> `docs/Audit/dividend_reconcile_verdict_t287_2026_07_07.md`.
+
 # T-283c — accumulation on D's canonical T-284 curves (one construction) + reconcile
 
 Swapped my T-283b self-built gated-leverage construction for D's canonical,

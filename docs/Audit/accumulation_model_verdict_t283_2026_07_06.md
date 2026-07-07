@@ -7,6 +7,12 @@ branch: feature/accumulation-model-t283
 status: DONE — 0 new N_trials (re-analysis of validated configs under a contribution schedule). VERDICT: buy-and-hold wins the accumulation race; DCA WIDENS its edge.
 ---
 
+> ⚠️ **SUPERSEDED (T-287, 2026-07-07):** the dollar figures below DOUBLE-COUNTED dividends
+> (added +1.8%/yr on already-total-return processed SPY). Buy-hold ~$1.45M → **corrected $929K**;
+> all absolute wealth inflated ~1.57×. The **relative verdict is unchanged** (buy-hold wins the
+> accumulation race; DCA widens the equity edge). Canonical TR table:
+> `docs/Audit/dividend_reconcile_verdict_t287_2026_07_07.md`.
+
 # T-283 — accumulation model: the advisor's accumulation column
 
 USER PROFILE (recorded): a CONTRIBUTING accumulator — ~$7K/yr Roth for decades,
