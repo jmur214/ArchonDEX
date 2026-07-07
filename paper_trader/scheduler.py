@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from paper_trader._jsonl import JsonlStore
-from paper_trader.order_manager import OrderManager, OrderRecord
+from paper_trader.order_manager import OrderManager, OrderRecord, OrderState
 from paper_trader.reconciliation import (
     ReconciliationEngine,
     ReconcileInputs,
@@ -86,7 +86,9 @@ class PaperScheduler:
     def __init__(self, order_manager: OrderManager, reconcile_log_path: str,
                  dry_run: bool = True, armed: bool = False,
                  paper_config=None, designated_allocator: str = None,
-                 calendar=None, heartbeat=None, now_fn=None):
+                 calendar=None, heartbeat=None, now_fn=None,
+                 day_fill_max_polls: int = 8, day_fill_poll_s: float = 2.0,
+                 sleep_fn=None):
         self.om = order_manager
         self.recon = ReconciliationEngine()
         self.reconcile_log = JsonlStore(reconcile_log_path)
@@ -98,6 +100,10 @@ class PaperScheduler:
         self.calendar = calendar
         self.heartbeat = heartbeat
         self._now_fn = now_fn
+        # T-238 follow-up: bound + inject the in-run wait for a market DAY fill.
+        self._day_fill_max_polls = int(day_fill_max_polls)
+        self._day_fill_poll_s = float(day_fill_poll_s)
+        self._sleep_fn = sleep_fn
         # T-163-fix M4: arming FAILS LOUD on any misconfiguration rather
         # than silently downgrading to no-submit.
         self.armed = self._resolve_armed(bool(armed))
@@ -107,6 +113,35 @@ class PaperScheduler:
             return self._now_fn()
         from paper_trader.market_calendar import now_et
         return now_et()
+
+    def _await_day_fills(self, batch) -> int:
+        """T-238 follow-up: a market DAY order fills within SECONDS of submit,
+        but the daily pulse walks its sim-clock in ~seconds of wall time, so a
+        single post-submit poll can miss the fill (recorded 'acked') — deferring
+        the ledger adopt to the next run AND losing the gate-(b) slippage sample.
+        Poll the just-submitted DAY orders until each is terminal (filled) or the
+        bounded budget is spent, so the fill is captured IN this run. OPG/CLS
+        don't fill until their auction, so ONLY DAY waits. Returns the poll
+        rounds performed. FAIL-SAFE: an indeterminate poll is ignored; the wait
+        is bounded, so a genuinely-unfilled order just falls through to reconcile.
+        Injectable sleep (``sleep_fn``) keeps tests instant."""
+        import time as _time
+        sleep = self._sleep_fn if self._sleep_fn is not None else _time.sleep
+        rounds = 0
+        for _ in range(self._day_fill_max_polls):
+            pending = [o for o in batch
+                       if not OrderState(o.state).is_terminal
+                       and o.state != OrderState.STAGED.value]
+            if not pending:
+                break
+            sleep(self._day_fill_poll_s)
+            rounds += 1
+            for o in pending:
+                try:
+                    self.om.poll(o)
+                except Exception:
+                    pass   # FAIL-SAFE: indeterminate poll ⇒ leave for reconcile
+        return rounds
 
     def _auction_window_closed(self, order, now) -> bool:
         """T-201: has the order's auction window CLOSED (so it can no longer
@@ -262,8 +297,13 @@ class PaperScheduler:
                                     self.om.note_event(
                                         o, f"submit_error:{type(exc).__name__}")
                             summary.submitted_count += n
+                            # T-238 follow-up: WAIT for the market DAY fill in
+                            # THIS run (single-run adopt + gate-b slippage). OPG/
+                            # CLS fill only at their auction, so they don't wait.
+                            wr = self._await_day_fills(batch) if tif == "day" else 0
                             log.note = (f"ARMED(paper): submitted {n}/{len(batch)} "
-                                        f"{tag}" + (f" ({errs} errored)" if errs else ""))
+                                        f"{tag}" + (f" ({errs} errored)" if errs else "")
+                                        + (f"; waited {wr} poll(s) for DAY fill" if wr else ""))
                     elif kind == "ack":
                         if not self.dry_run and self.armed:
                             for o in self.om.open_orders():

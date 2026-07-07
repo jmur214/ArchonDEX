@@ -289,7 +289,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                          and getattr(o, "filled_qty", 0) > 0]
                 if slips:
                     slippage_bps = round(sum(slips) / len(slips), 2)
-            tsum = SleeveTracker(root=str(root)).record(
+            tracker = SleeveTracker(root=str(root))
+            tsum = tracker.record(
                 str(today), equity, sleeve_closes,
                 target_weights=tgt_w,
                 held_weights=held_w,
@@ -305,6 +306,24 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             if eg:
                 print(f"   EXEC-GATE  overall={eg.get('overall')} "
                       f"(execution fidelity only — NOT a performance verdict)")
+            # --- T-276 BTC shadow: REPORT-ONLY forward validation of the +5%
+            # BTC arm (never touches orders/weights/canonical). Reuses the REAL
+            # sleeve daily return from the last two tracked equities + adds a
+            # trend-ruled BTC leg. Fetches BTC/IBIT fail-closed — DEGRADED (leg
+            # parked in cash) when the lean image lacks yfinance/network, until
+            # BTC data is threaded (safe per the T-276 spec). ------------------ #
+            try:
+                from paper_trader.btc_shadow import BtcShadowTracker
+                from paper_trader.sleeve_tracker import RF_ANNUAL
+                _prev = [p for p in tracker._load() if p["date"] < str(today)]
+                _sleeve_ret = (equity / _prev[-1]["sleeve_equity"] - 1.0) if _prev else 0.0
+                bsum = BtcShadowTracker(root=str(root)).record(
+                    str(today), _sleeve_ret, cash_daily_rate=RF_ANNUAL / 252.0)
+                print(f"   BTC-SHADOW n_days={bsum.get('n_days')} "
+                      f"clean={bsum.get('n_clean')} degraded={bsum.get('n_degraded')} "
+                      f"(report-only T-272 forward validation)")
+            except Exception as exc:
+                print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
