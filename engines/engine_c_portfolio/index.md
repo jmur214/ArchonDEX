@@ -57,6 +57,11 @@
   - `def calculate_metrics()`
 - **Function `deterministic_cov()`**: Sample covariance (ddof=1) with a FIXED reduction order — no BLAS gemm.
 
+### `phase1_composition.py`
+**Module Docstring:** engines/engine_c_portfolio/phase1_composition.py
+- **Function `now_from_price_data()`**: The bar's as-of timestamp = the latest last-index across the sliced frames.
+- **Function `apply_phase1_composition()`**: Shape the target weights with the defensive tilt + trend-overlay scalar.
+
 ### `policy.py`
 - **Class `PortfolioPolicyConfig`**: Configuration for the portfolio policy allocator.
 - **Class `PortfolioPolicy`**: Determines target position weights.
@@ -80,9 +85,22 @@
   - `def get_position_info()`
   - `def get_avg_price()`
   - `def get_qty()`
-- **Function `is_portfolio_debug()`**: No docstring
 
 ### `position_buffering.py`
 **Module Docstring:** Carver position buffering — 10% position inertia (T-148).
 - **Class `BufferingResult`**: No docstring
 - **Function `apply_position_buffering()`**: Apply Carver trade-to-edge buffering to a target-weight map.
+
+### `strategy_composer.py`
+**Module Docstring:** Strategy-level risk-parity composition (T-2026-06-26-248).
+- **Class `StrategyCompositionConfig`**: Strategy-level (sleeve) composition settings.
+- **Class `StrategyRiskParityComposer`**: Risk-budget allocation across sleeve return series.
+  - `def __init__()`
+  - `def risk_budget_weights()`: Compute sleeve weights from a DataFrame of sleeve return series
+  - `def compose_returns()`: Combine sleeve return series into a single composed return series
+- **Class `BarbellConfig`**: Barbell composition settings (T-2026-06-26-251).
+- **Class `BarbellComposer`**: Barbell composition: a near-zero-cost SAFE CORE (inverse-vol over the core
+  - `def __init__()`
+  - `def core_weights()`: Per-bar inverse-vol weights over the safe-core assets (causal: uses the
+  - `def core_returns()`: Daily returns of the inverse-vol SAFE CORE (no lookahead: yesterday's
+  - `def compose_returns()`: Barbell daily returns: (1 - w_sat) * inverse-vol core + w_sat * convex

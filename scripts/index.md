@@ -25,6 +25,24 @@
 - **Function `read_xlsx_first_sheet()`**: No docstring
 - **Function `excel_serial_to_datetime()`**: No docstring
 
+### `accumulation_model_t283.py`
+**Module Docstring:** scripts/accumulation_model_t283.py
+- **Function `spy_buyhold()`**: No docstring
+- **Function `sleeve()`**: No docstring
+- **Function `robo()`**: No docstring
+- **Function `accumulate()`**: DCA: contribute `contrib` each Jan (first trading day of the year); compound
+- **Function `main()`**: No docstring
+
+### `accumulation_model_t283b.py`
+**Module Docstring:** scripts/accumulation_model_t283b.py
+- **Function `gated_2x_spy()`**: (e) 100% SPY, 2× when the ensemble trend is on, cash (short rate) when off.
+- **Function `gated_2x_sleeve()`**: (f) T-282 3-asset arm: SPY leg 2×-when-on (SPY+SSO blend), BOND/GOLD 1×.
+- **Function `main()`**: No docstring
+
+### `accumulation_model_t283c.py`
+**Module Docstring:** scripts/accumulation_model_t283c.py
+- **Function `main()`**: No docstring
+
 ### `analyze_13f_crowding_t145.py`
 **Module Docstring:** scripts/analyze_13f_crowding_t145.py
 - **Function `load_prices()`**: No docstring
@@ -127,6 +145,8 @@
 - **Function `pull_gdelt_timelines()`**: No docstring
 - **Function `snapshot_polymarket()`**: No docstring
 - **Function `snapshot_kalshi()`**: No docstring
+- **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
+- **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
 - **Function `main()`**: No docstring
 
 ### `archive_positioning_t136.py`
@@ -142,6 +162,10 @@
 **Module Docstring:** scripts/assess_vol_collapse_t153.py
 - **Function `portfolio_sweep()`**: No docstring
 - **Function `per_name_sweep()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `asymmetric_exits_gauntlet_t269.py`
+**Module Docstring:** scripts/asymmetric_exits_gauntlet_t269.py
 - **Function `main()`**: No docstring
 
 ### `audit_data_gaps.py`
@@ -177,11 +201,58 @@
 - **Function `evaluate_anchor_events()`**: For each anchor event, find lead time of the first warning fire.
 - **Function `main()`**: No docstring
 
+### `barbell_gauntlet_t251.py`
+**Module Docstring:** T-251 barbell gauntlet — inverse-vol SAFE CORE + convex trend SATELLITE vs both robos.
+- **Function `load_close()`**: No docstring
+- **Function `net_asset_rets()`**: Per-asset daily returns net of expense ratio.
+- **Function `robo()`**: No docstring
+- **Function `satellite_with_cost()`**: Trend overlay sleeve net of turnover trading cost (the active leg).
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `metric_ci()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `breadth_tilt_t273.py`
+**Module Docstring:** T-273 — market-breadth sizing tilt on the SPY leg of the multi-speed ensemble sleeve (fair T-255 harness).
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `build_breadth()`**: No docstring
+- **Function `sleeve_tilted()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `ddwin()`**: No docstring
+- **Function `cagrwin()`**: No docstring
+- **Function `paired()`**: No docstring
+
+### `btc_arm_t272.py`
+**Module Docstring:** T-272 — the BTC 4th-asset ARM (completeness-critic hole #8; the last uncovered asset).
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `btc_close()`**: No docstring
+- **Function `dgs3_cash()`**: No docstring
+- **Function `multi_expo()`**: No docstring
+- **Function `sleeve()`**: weighted multi-speed long/flat sleeve; flat earns cash; ER when exposed; txn on Δexpo.
+- **Function `stats()`**: No docstring
+- **Function `ddwin()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `build_13f_panel_t145.py`
 **Module Docstring:** scripts/build_13f_panel_t145.py
 - **Function `zip_urls()`**: No docstring
 - **Function `cusip_lookup()`**: No docstring
 - **Function `process_quarter()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `build_fair_inputs_t255.py`
+**Module Docstring:** T-2026-07-02-255: build the T-236 gauntlet inputs as COMMITTED, reproducible artifacts
+- **Function `build_bond_synth()`**: No docstring
+- **Function `build_gold()`**: No docstring
+
+### `build_market_cap_tiers_t210.py`
+**Module Docstring:** T-2026-06-18-210 — build the market-cap snapshot join for the realistic-retail
 - **Function `main()`**: No docstring
 
 ### `build_membership_panel_t136.py`
@@ -196,8 +267,82 @@
 - **Function `load_ohlc_features()`**: Loader for the Part-A feature panel (long format).
 - **Function `main()`**: No docstring
 
+### `build_pit_cap_history_t219.py`
+**Module Docstring:** T-2026-06-18-219 — close the T-210/T-215 cap-join under-count: give the DELISTED
+- **Function `main()`**: No docstring
+
+### `c1_concentration_gauntlet_t241.py`
+**Module Docstring:** T-241 C1 concentration gauntlet — base vs C1 vs robos on a cached-equity window.
+- **Function `load_close()`**: No docstring
+- **Function `etf_rets()`**: No docstring
+- **Function `robo_returns()`**: No docstring
+- **Function `equity_returns()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `mskew()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `calendar_flow_probe_t250.py`
+**Module Docstring:** T-250 calendar/flow probe: FOMC even-week + turn-of-month on SPY. Pre-registered, no sweep.
+- **Function `even_week()`**: No docstring
+- **Function `measure()`**: No docstring
+- **Function `tilt()`**: No docstring
+
 ### `calibrate_divergence_monitors_t152.py`
 **Module Docstring:** T-152 calibration — false-alarm grid + injected-divergence power.
+- **Function `main()`**: No docstring
+
+### `capital_tier_gauntlet_t278.py`
+**Module Docstring:** scripts/capital_tier_gauntlet_t278.py
+- **Function `main()`**: No docstring
+
+### `carry_sleeve_gauntlet_t247.py`
+**Module Docstring:** scripts/carry_sleeve_gauntlet_t247.py
+- **Function `macro_series()`**: No docstring
+- **Function `etf_close()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `sharpe_ci()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `crisis_dd()`**: No docstring
+- **Function `beta_or_edge()`**: PRIME KILL-TEST: regress the sleeve on FF5+Mom + a bond-DURATION factor.
+- **Function `report()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `cef_data_probe_t264.py`
+**Module Docstring:** T-264 CEF-discount data-feasibility probe (reproduces the audit's load-bearing checks).
+- **Function `main()`**: No docstring
+
+### `cef_lowerbound_probe_t267.py`
+**Module Docstring:** T-267 — CEF discount-capture SURVIVOR-ONLY LOWER-BOUND probe (pre-registered, N_trials+=1).
+- **Function `tr_close()`**: No docstring
+- **Function `dgs3_cash()`**: No docstring
+- **Function `build_panel()`**: price(raw), tr(adj close), nav per CEF → cached. discount = raw price / nav - 1.
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `paired_dci()`**: No docstring
+- **Function `newey_west_t()`**: No docstring
+- **Function `monthly()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `ci_coverage_audit_t257.py`
+**Module Docstring:** scripts/ci_coverage_audit_t257.py
+- **Function `simulate_garch_t()`**: GARCH(1,1) with standardized Student-t innovations.
+- **Function `main()`**: No docstring
+
+### `cloud_pipeline_smoke.py`
+**Module Docstring:** scripts/cloud_pipeline_smoke.py — MANDATORY both-paths pre-flight before any
+- **Class `SmokeCell`**: No docstring
+  - `def cell_id()`
+  - `def submit()`
+- **Function `aws()`**: No docstring
+- **Function `build_cells()`**: No docstring
+- **Function `poll()`**: No docstring
+- **Function `check_uploads()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `cointegration_pair_screen.py`
@@ -212,6 +357,15 @@
 
 ### `cointegration_pair_screen_t031.py`
 **Module Docstring:** scripts/cointegration_pair_screen_t031.py
+- **Function `main()`**: No docstring
+
+### `compose_voltarget_t262.py`
+**Module Docstring:** scripts/compose_voltarget_t262.py
+- **Function `sleeve_fair()`**: D's fair sleeve; when voltarget=True, the SPY leg's long exposure is
+- **Function `main()`**: No docstring
+
+### `conditional_voltarget_gauntlet_t252.py`
+**Module Docstring:** scripts/conditional_voltarget_gauntlet_t252.py
 - **Function `main()`**: No docstring
 
 ### `crisis_replay_t118b.py`
@@ -239,6 +393,10 @@
 - **Function `block_bootstrap_ci()`**: No docstring
 - **Function `analyze()`**: No docstring
 - **Function `verdict_for()`**: Map ETF result to PROCEED-INTEGRATE / MIXED / DEAD.
+- **Function `main()`**: No docstring
+
+### `defensive_tilt_screens_t205.py`
+**Module Docstring:** T-205 standalone validation harness for the defensive-tilt signals.
 - **Function `main()`**: No docstring
 
 ### `demo_after_tax_t141.py`
@@ -275,6 +433,11 @@
 - **Function `summarize()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `dividend_reconcile_t287.py`
+**Module Docstring:** scripts/dividend_reconcile_t287.py
+- **Function `robo_clean()`**: 60/40-style robo, NO dividend double-count — processed SPY is already TR.
+- **Function `main()`**: No docstring
+
 ### `doc_lint.py`
 **Module Docstring:** doc_lint — anti-rot guard for the documentation system.
 - **Class `CheckResult`**: No docstring
@@ -285,6 +448,7 @@
 - **Function `check_memory_entries_have_dates()`**: No docstring
 - **Function `check_task_ledger_columns()`**: No docstring
 - **Function `check_scripts_in_execution_manual()`**: No docstring
+- **Function `check_no_numbered_nonneg_refs()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `edge_compression_t117.py`
@@ -298,15 +462,21 @@
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
 - **Function `main()`**: No docstring
 
-### `factor_decomp_per_regime.py`
-**Module Docstring:** scripts/factor_decomp_per_regime.py
-- **Function `load_closed_trades_for_edge()`**: Concatenate closed-trade rows for this edge across the provided
-- **Function `build_daily_returns_per_regime()`**: Group closed-trade PnL by (date, regime_label) and build a
-- **Function `regress_hac_with_bootstrap()`**: OLS + Newey-West HAC + residual bootstrap CI on α (annualized).
-- **Function `classify_edge()`**: Apply the spec's 5-bucket verdict per edge across its regimes.
-- **Function `analyze_edge()`**: Full per-regime decomp for one edge.
-- **Function `render_markdown()`**: Produce the audit-doc markdown.
-- **Function `build()`**: No docstring
+### `evenweek_sleeve_t268.py`
+**Module Docstring:** T-268 — FOMC even-week tilt on the SPY leg of the multi-speed ensemble sleeve (fair T-255 harness).
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `even_week()`**: No docstring
+- **Function `sleeve_tilted()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `ddwin()`**: No docstring
+- **Function `cagrwin()`**: No docstring
+- **Function `paired()`**: No docstring
+
+### `factor_decomp_book_t206.py`
+**Module Docstring:** T-206 Task 1 diagnostic — book-level factor decomposition (HAC).
 - **Function `main()`**: No docstring
 
 ### `factor_decomp_substrate_honest.py`
@@ -327,6 +497,27 @@
 - **Function `regress_edge_on_factors()`**: OLS: edge_excess_return ~ alpha + sum(beta_i * factor_i).
 - **Function `write_report()`**: No docstring
 - **Function `main()`**: No docstring
+
+### `factor_momentum_t254.py`
+**Module Docstring:** T-254 factor momentum (Ehsani-Linnainmaa): do factors' own returns predict their next? Pre-registered.
+- **Function `parse_ff()`**: Ken French daily CSV: skip metadata, read the YYYYMMDD data block.
+- **Function `stats()`**: No docstring
+- **Function `hac_alpha()`**: No docstring
+
+### `fair_t236_rerun_t255.py`
+**Module Docstring:** T-255 FAIR T-236 re-run — corrects the biases the 2026-07-02 gap audit verified (all AGAINST the sleeve):
+- **Function `spy_close()`**: No docstring
+- **Function `csv_ser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `sleeve_returns_fair()`**: EW SPY/BOND/GOLD long-flat; FLAT leg earns the short rate; ER when long; txn cost on flips.
+- **Function `robo_fair()`**: monthly-rebal; ETF legs net of ER; _cash earns cash_rate (a daily Series); 1.5bps rebal cost.
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `so()`**: No docstring
+- **Function `so_ci()`**: No docstring
+- **Function `paired()`**: No docstring
 
 ### `feature_foundry_gate.py`
 **Module Docstring:** Feature Foundry CI gate.
@@ -378,6 +569,11 @@
 - **Function `run()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `fetch_shiller_ie_data.py`
+**Module Docstring:** fetch_shiller_ie_data — download Robert Shiller's `ie_data` workbook and cache
+- **Function `parse_data_sheet()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `fetch_universe.py`
 **Module Docstring:** scripts/fetch_universe.py
 - **Class `FetchSummary`**: No docstring
@@ -399,6 +595,23 @@
 **Module Docstring:** scripts/firing_curve_sweep_t118fc.py
 - **Function `main()`**: No docstring
 
+### `first_real_fill_t186.py`
+**Module Docstring:** T-186 — put the FIRST REAL paper fill on the board.
+- **Function `main()`**: No docstring
+
+### `fullequity_gated_leverage_t284.py`
+**Module Docstring:** T-284 — trend-gated leverage on a FULL-EQUITY base. PRIMARY = 100% SPY 2x-when-trend-on;
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `ens_frac()`**: No docstring
+- **Function `leg_ret()`**: return series of a strategy that is `weight` in the k-leg, gated at up to `lev`x when trend on, cash off.
+- **Function `combine()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `win()`**: No docstring
+
 ### `gen_substrate_manifest.py`
 **Module Docstring:** Generate (or verify) the pinned data-substrate manifest.
 - **Function `iter_substrate_files()`**: No docstring
@@ -414,6 +627,31 @@
 ### `harvest_data.py`
 - **Function `harvest()`**: Run a simulation to collect (Features, Label) pairs for ML training.
 
+### `income_leg_screener_t261.py`
+**Module Docstring:** T-261 income-leg SCREENER ($0, screening only — NO gauntlet, NO N_trials consumed).
+- **Function `tr_close()`**: No docstring
+- **Function `cboe_cdn()`**: No docstring
+- **Function `cboe_xls()`**: No docstring
+- **Function `splice_returns()`**: Chain two index levels by RETURNS, level-matched at the seam (NOT raw levels).
+- **Function `put_returns()`**: No docstring
+- **Function `bxmd_returns()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `index_deletion_t271.py`
+**Module Docstring:** T-271 — S&P 500 deletion-reversal event study. Reuses the T-265 SIP path + event machinery.
+- **Function `fetch_prices()`**: No docstring
+- **Function `load()`**: No docstring
+- **Function `build()`**: No docstring
+- **Function `table()`**: No docstring
+
+### `industry_momentum_t213.py`
+**Module Docstring:** T-213 standalone validation for sector-neutral industry momentum.
+- **Function `main()`**: No docstring
+
 ### `ingest_stooq_us_daily.py`
 **Module Docstring:** scripts/ingest_stooq_us_daily.py
 - **Function `normalize_ticker_for_stooq()`**: Convert project-shape ticker to Stooq-shape filename stem.
@@ -423,22 +661,15 @@
 - **Function `get_target_tickers()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `integer_share_sleeve_t257.py`
+**Module Docstring:** scripts/integer_share_sleeve_t257.py
+- **Function `main()`**: No docstring
+
 ### `inter_edge_correlation.py`
 **Module Docstring:** Inter-edge correlation matrix on the 6 active edges + recent paused (0.25x) edges.
 - **Function `load_trades()`**: No docstring
 - **Function `daily_pnl_by_edge()`**: Aggregate realized PnL per edge per day. Open trades have empty pnl; we keep
 - **Function `compute_correlations()`**: Daily-PnL Pearson correlation among the requested edges.
-- **Function `render_report()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `inter_edge_correlation_regime.py`
-**Module Docstring:** Regime-conditional inter-edge correlation matrix.
-- **Function `load_trades()`**: No docstring
-- **Function `daily_pnl_by_edge()`**: No docstring
-- **Function `daily_regime_per_date()`**: Return the dominant (mode) regime label per trading day. When a
-- **Function `bucket_regimes()`**: Map per-day regime labels into {benign, adverse, other}.
-- **Function `correlation_for_bucket()`**: No docstring
-- **Function `render_md_table()`**: No docstring
 - **Function `render_report()`**: No docstring
 - **Function `main()`**: No docstring
 
@@ -451,6 +682,17 @@
 - **Function `fit_gbm()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `intraday_probe_t270.py`
+**Module Docstring:** scripts/intraday_probe_t270.py — the ONE intraday probe (FROZEN pre-reg T-270).
+- **Function `fetch_daily()`**: No docstring
+- **Function `cross_check()`**: Sanity-bound the SIP first-30min extremes vs Stooq daily H/L on a sample.
+- **Function `cash_on()`**: No docstring
+- **Function `trend_sleeve()`**: No docstring
+- **Function `robo()`**: No docstring
+- **Function `realized()`**: Frozen frictions: active day → 0.5·(gross−cost) + 0.5·cash; flat day → cash.
+- **Function `stats()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `journal_apply.py`
 **Module Docstring:** journal_apply — apply LifecycleJournal entries to data/governor/edges.yml.
 - **Class `ApplyResult`**: No docstring
@@ -458,6 +700,10 @@
 - **Function `read_mark()`**: No docstring
 - **Function `write_mark()`**: No docstring
 - **Function `apply()`**: Apply pending journal entries to edges.yml.
+- **Function `main()`**: No docstring
+
+### `land_held_position_t201.py`
+**Module Docstring:** T-201 — land a REAL held position the cloud loop can explain.
 - **Function `main()`**: No docstring
 
 ### `lifecycle_factor_alpha_reeval_t043.py`
@@ -537,6 +783,11 @@
 - **Function `render_markdown()`**: Generate the audit-doc Markdown.
 - **Function `main()`**: No docstring
 
+### `mf_etf_satellite_t253.py`
+**Module Docstring:** T-253 — bought MF-ETF (DBMF/KMLM) vs our trend overlay as the barbell's
+- **Function `crisis_returns()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `mf_sleeve_deep_crisis_t171.py`
 **Module Docstring:** T-171/T-173: deep-crisis backtest of a bought managed-futures sleeve.
 - **Function `load_aqr_monthly()`**: No docstring
@@ -549,6 +800,84 @@
 **Module Docstring:** One-time migration: tag failed edges with structured graveyard metadata.
 - **Function `migrate()`**: Apply graveyard tags. Returns map of edge_id -> action taken.
 - **Function `main()`**: No docstring
+
+### `moonshot_rescore_t239.py`
+**Module Docstring:** T-239 moonshot/return-side re-score: Wide-9 + 3-asset + robos on Sortino/up-capture/skew.
+- **Function `find()`**: No docstring
+- **Function `load()`**: No docstring
+- **Function `dr()`**: No docstring
+- **Function `robo()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `mskew()`**: No docstring
+
+### `multiasset_carry_gauntlet_t263.py`
+**Module Docstring:** scripts/multiasset_carry_gauntlet_t263.py
+- **Function `spy_close()`**: No docstring
+- **Function `csv_ser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `tr_close()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `carry_sleeve()`**: Diversified bond/equity/gold carry, z-score long/flat, flat=cash@short-rate.
+- **Function `trend_sleeve()`**: T-255 fair trend sleeve (SPY/BOND/GOLD long-flat, flat=cash) — for the corr test.
+- **Function `robo_fair()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `so()`**: No docstring
+- **Function `so_ci()`**: No docstring
+- **Function `sortino_np()`**: No docstring
+
+### `multispeed_robustness_t260.py`
+**Module Docstring:** T-260 multi-speed ensemble + robustness scans on the FAIR T-255 harness (same corrections).
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `sleeve()`**: exposure_fn(close)->daily target exposure in [0,1]; flat portion earns cash; ER when exposed; txn on Δexposure.
+- **Function `single()`**: No docstring
+- **Function `multi()`**: No docstring
+- **Function `monthly_offset()`**: monthly-rebal: hold the signal evaluated on the k-th trading day of each month for that month.
+- **Function `stats()`**: No docstring
+- **Function `ddwin()`**: No docstring
+- **Function `paired()`**: No docstring
+
+### `offleg_ab_t259.py`
+**Module Docstring:** scripts/offleg_ab_t259.py — RUN the FROZEN T-258 off-leg pre-registration.
+- **Function `spy_close()`**: No docstring
+- **Function `csv_ser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `tr_close()`**: No docstring
+- **Function `build_offleg()`**: Frozen off-leg: hold IEF iff (mom_IEF > mom_BIL AND mom_IEF > 0), else BIL.
+- **Function `sleeve()`**: EW SPY/BOND/GOLD long-flat; flat leg earns offleg_ret; ER when long; txn on
+- **Function `robo_fair()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `so()`**: No docstring
+- **Function `so_ci()`**: No docstring
+- **Function `paired()`**: block-bootstrap paired diff (a − b): ΔSortino CI, Δterminal-wealth CI, P(Δ>0).
+- **Function `yr()`**: No docstring
+
+### `offleg_rescue_t266.py`
+**Module Docstring:** scripts/offleg_rescue_t266.py — RUN the FROZEN T-266 off-leg RESCUE (family N=2, FINAL).
+- **Function `spy_close()`**: No docstring
+- **Function `csv_ser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `tr_close()`**: No docstring
+- **Function `build_offleg_rescue()`**: T-259 base selection + the RESCUE 63d IEF fast-trend eligibility gate.
+- **Function `sleeve()`**: T-255 fair sleeve; flat leg earns offleg_ret; ER when long; txn on flips +
+- **Function `robo_fair()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `so()`**: No docstring
+- **Function `so_ci()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `yr()`**: No docstring
 
 ### `operational_pattern_audit.py`
 **Module Docstring:** scripts/operational_pattern_audit.py
@@ -602,10 +931,30 @@
 
 ### `per_edge_per_year_attribution.py`
 **Module Docstring:** Phase 2.10c diagnostic: per-edge per-year PnL attribution across the
+- **Function `attribute_by_edge_regime()`**: Per-edge × per-regime PnL attribution with per-cell N + bootstrap CI.
+- **Function `load_trades()`**: Concatenate trades.csv from one or more run dirs/UUIDs (under
 - **Function `main()`**: No docstring
 
 ### `pin_earnings_dates.py`
 **Module Docstring:** T-2026-06-11-155 — one-time pin of earnings dates into the substrate.
+- **Function `main()`**: No docstring
+
+### `pit_universe_dryrun_t207.py`
+**Module Docstring:** T-2026-06-18-207 — DRY-RUN the PIT (survivorship-corrected) universe expansion.
+- **Function `restore_clean_governor()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `premium_tier_t279.py`
+**Module Docstring:** T-279 — the $65-70K+ TIER test: DIRECT premium harvesting (N_trials += 1, tier-labeled).
+- **Function `sleeve()`**: No docstring
+- **Function `put_leg()`**: No docstring
+- **Function `robo()`**: No docstring
+- **Function `combine()`**: monthly-rebalanced (1-w) sleeve + w premium.
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `ddwin()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `probe_engine_c_reachability_t158.py`
@@ -614,14 +963,13 @@
 - **Function `cancellation_replay()`**: Offline S-vs-0.5S replays on captured real inputs, both modes.
 - **Function `main()`**: No docstring
 
-### `prove_backtest_trades_regime_t167.py`
-**Module Docstring:** T-2026-06-13-167 — the DUAL+ bar: a real controller-path backtest that
-- **Function `main()`**: No docstring
-
-### `prove_regime_live_full_window_t167.py`
-**Module Docstring:** T-2026-06-13-167 GAP 4 — prove the PRICE-axis regime is LIVE across the FULL
-- **Function `build_data_map()`**: No docstring
-- **Function `run_arm()`**: No docstring
+### `reconcile_stooq_tr_t256.py`
+**Module Docstring:** T-2026-07-02-256 Part 2 — TR reconciliation of the Stooq-ingested ETFs.
+- **Function `load_stooq_close()`**: No docstring
+- **Function `fetch_yf_tr()`**: yfinance total-return OHLC (T-167 basis) + split-adj Close for the basis check.
+- **Function `compute_atr_prevclose()`**: No docstring
+- **Function `ann_ret()`**: No docstring
+- **Function `reconcile()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `regen_spy_full_history_t167.py`
@@ -630,8 +978,14 @@
 - **Function `compute_atr_prevclose()`**: Project convention: ATR = 14d rolling MEAN of True Range (min 14).
 - **Function `main()`**: No docstring
 
-### `regime_footprint_t165.py`
-**Module Docstring:** scripts/regime_footprint_t165.py
+### `regime_conditional_overlay_t220.py`
+**Module Docstring:** T-220 — always-on vs regime-gated trend overlay (the SHAPE verdict for C).
+- **Function `causal_p_crisis()`**: Frozen-HMM causal p_crisis: train on [start, train_end] (crisis-state =
+- **Function `regime_label()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `regime_ground_truth_deepwindow_t221.py`
+**Module Docstring:** T-221 — regime ground-truth + defensive-behavior pre-spec for the deep-window
 - **Function `main()`**: No docstring
 
 ### `regime_oos_loco_t172.py`
@@ -731,13 +1085,6 @@
 - **Function `asset_class_contribution()`**: Sum of per-bar weighted returns, grouped by asset class.
 - **Function `main()`**: No docstring
 
-### `run_engine_e_hmm_ab.py`
-**Module Docstring:** scripts/run_engine_e_hmm_ab.py
-- **Function `hmm_patch()`**: Patch config/regime_settings.json's `hmm` block to enable Variant
-- **Function `run_smoke()`**: Smoke gate: 2024 Cell A single rep. Kill on zero-trade md5.
-- **Function `run_full()`**: Run both cells end-to-end. Smoke gate first by default.
-- **Function `main()`**: No docstring
-
 ### `run_evaluator.py`
 - **Function `main()`**: No docstring
 
@@ -750,6 +1097,11 @@
 **Module Docstring:** Capture falsifiable-spec results for the gauntlet architectural fix.
 - **Function `build_candidate_spec()`**: No docstring
 - **Function `load_data_map()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `run_foundry_eval_t195.py`
+**Module Docstring:** T-2026-06-17-195 — CORRECTED discovery eval harness for a valid foundry test.
+- **Function `restore_clean_governor()`**: FIX 2a: restore the canonical 6-edge production book from the anchor.
 - **Function `main()`**: No docstring
 
 ### `run_healthcheck.py`
@@ -785,8 +1137,16 @@
 - **Function `attach_benchmarks()`**: Add SPY / QQQ / 60-40 metrics over the same window.
 - **Function `main()`**: No docstring
 
+### `run_paper_cloud_day.py`
+**Module Docstring:** T-186 — one paper day in the cloud (EventBridge → Fargate → here).
+- **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
+
 ### `run_paper_day_t163.py`
 **Module Docstring:** T-163 Part C — run ONE armed paper day end-to-end on the PAPER account.
+- **Function `main()`**: No docstring
+
+### `run_paper_day_t185.py`
+**Module Docstring:** T-185 — a window-aware, calendar-aware, heartbeat-recording paper day.
 - **Function `main()`**: No docstring
 
 ### `run_paper_loop.py`
@@ -821,6 +1181,10 @@
 
 ### `run_per_ticker_oos.py`
 **Module Docstring:** scripts/run_per_ticker_oos.py
+- **Function `main()`**: No docstring
+
+### `run_phase0b_foundry_discover_t193.py`
+**Module Docstring:** T-2026-06-17-193 Phase-0b — the first HONEST test of the Foundry vocabulary.
 - **Function `main()`**: No docstring
 
 ### `run_shadow_paper.py`
@@ -866,11 +1230,45 @@
 - **Function `mi_with_nulls()`**: Pooled MI per feature vs forward return, with circular-shift nulls.
 - **Function `main()`**: No docstring
 
+### `secondary_basis_check_t285.py`
+**Module Docstring:** T-285 — basis-check the SECONDARY's bond/gold 2x legs vs REAL 2x ETFs (UGL 2x gold, UBT 2x 20yr tsy),
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `yf_close()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `synth2x()`**: No docstring
+- **Function `basis()`**: No docstring
+- **Function `ens_frac()`**: No docstring
+- **Function `leg_ret()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `combine()`**: No docstring
+
 ### `sleeve_phase0_verdict.py`
 **Module Docstring:** Sleeve Phase-0 verdict harness — drives a Sleeve through a measurement-
 - **Function `run_sleeve()`**: Run the sleeve through a sequence of rebalance dates. Returns
 - **Function `run_trend_verdict()`**: No docstring
 - **Function `run_moonshot_verdict()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `smallcap_momentum_gauntlet_t249.py`
+**Module Docstring:** T-249 small-cap 12-1 momentum gauntlet — gross vs HONEST small-cap cost. Survivor-biased universe (upper bound).
+- **Function `load_monthly()`**: Return (month-end close Series, month-end trailing dollar-ADV Series) or None.
+- **Function `run()`**: No docstring
+- **Function `stats()`**: No docstring
+
+### `smallcap_pead_pilot_t265.py`
+**Module Docstring:** T-265 — survivorship-complete small-cap panel + PEAD low-coverage event-study pilot.
+- **Function `stage_edgar()`**: No docstring
+- **Function `stage_map()`**: No docstring
+- **Function `stage_prices()`**: No docstring
+- **Function `stage_study()`**: No docstring
+- **Function `stage_announce()`**: No docstring
+
+### `special_situations_monitor_t277.py`
+**Module Docstring:** scripts/special_situations_monitor_t277.py
+- **Function `scan()`**: No docstring
+- **Function `persist()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `spot_basket_extended_sweep_t115.py`
@@ -900,6 +1298,18 @@
 - **Function `run_background()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `strategy_riskparity_frontier_t248.py`
+**Module Docstring:** T-248 strategy-level risk-parity frontier — naive vs HRP over {base, trend} vs robos.
+- **Function `load_close()`**: No docstring
+- **Function `etf_rets()`**: No docstring
+- **Function `robo_returns()`**: No docstring
+- **Function `base_returns()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `submit_arms_campaign.py`
 **Module Docstring:** scripts/submit_arms_campaign.py
 - **Class `Cell`**: No docstring
@@ -917,6 +1327,10 @@
 - **Function `fetch_manifests()`**: Pull per-cell manifest.json from S3 for cells that SUCCEEDED.
 - **Function `write_summary()`**: No docstring
 - **Function `main()`**: No docstring
+
+### `submit_foundry_eval_t196.py`
+**Module Docstring:** T-196 foundry-eval cloud submit. Runs D's BAKED run_foundry_eval_t195.py
+- **Function `submit()`**: No docstring
 
 ### `submit_substrate_run.py`
 **Module Docstring:** scripts/submit_substrate_run.py
@@ -960,22 +1374,21 @@
 ### `t139_fixture_data.py`
 **Module Docstring:** Frozen T-139 fixture — REAL closes from data/processed/<T>_1d.csv,
 
+### `tail_rescore_t234.py`
+**Module Docstring:** T-234 tail re-score — robos (monthly-rebal) vs T-215 base/composition. No new backtest.
+- **Function `load_close()`**: No docstring
+- **Function `etf_daily_returns()`**: No docstring
+- **Function `robo_returns()`**: monthly-rebal robo daily returns. weights: {SPY:..,AGG:..,GLD:..,_cash:..}
+- **Function `equity_returns()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `updown_capture()`**: monthly up/down capture vs robo.
+- **Function `win()`**: No docstring
+- **Function `dd_in_window()`**: No docstring
+
 ### `train_gate.py`
 - **Function `train_gate_model()`**: Train the SignalGate model using harvested data.
-
-### `train_hmm_crisis_t103.py`
-**Module Docstring:** T-103 — Retrain Engine E's HMM on a crisis-inclusive span.
-- **Function `load_fred()`**: No docstring
-- **Function `build_crisis_panel()`**: Build the 7-feature HMM panel from Stooq SPY/TLT + FRED.
-- **Function `main()`**: No docstring
-
-### `train_hmm_regime.py`
-**Module Docstring:** scripts/train_hmm_regime.py
-- **Function `main()`**: No docstring
-
-### `train_hmm_vix_term.py`
-**Module Docstring:** train_hmm_vix_term — train a 3-state HMM on the rebuilt feature panel
-- **Function `main()`**: No docstring
 
 ### `train_metalearner.py`
 **Module Docstring:** scripts/train_metalearner.py
@@ -1012,27 +1425,52 @@
 ### `train_signal_gate.py`
 - **Function `train_gate()`**: No docstring
 
+### `trend_gated_leverage_t282.py`
+**Module Docstring:** T-282 — trend-gated leverage: the validated ensemble sleeve with its SPY leg at up to 2x WHEN trend on.
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cash_on()`**: No docstring
+- **Function `real_sso()`**: No docstring
+- **Function `build_sleeve()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `win()`**: No docstring
+
+### `trend_overlay_validation_t204.py`
+**Module Docstring:** T-204 — standalone validation of the trend overlay (the PRE-REGISTERED
+- **Function `load_close()`**: No docstring
+- **Function `metrics()`**: No docstring
+- **Function `crisis_mdds()`**: No docstring
+- **Function `position_stats()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `trend_sleeve_gauntlet_t236.py`
+**Module Docstring:** T-236 trend-sleeve gauntlet — full-cycle (incl dotcom) on index substrate.
+- **Function `spy_close()`**: No docstring
+- **Function `csv_series()`**: No docstring
+- **Function `daily_ret()`**: No docstring
+- **Function `robo()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `sharpe()`**: No docstring
+- **Function `updown()`**: No docstring
+- **Function `ddw()`**: No docstring
+
+### `trend_wider_breadth_validation_t214.py`
+**Module Docstring:** T-214 — does WIDER cross-asset breadth strengthen the trend sleeve's
+- **Function `load_all()`**: No docstring
+- **Function `common_window()`**: No docstring
+- **Function `inverse_vol_sleeve()`**: Wide sleeve, each asset long/flat (cash off-leg), combined with
+- **Function `equal_weight_sleeve()`**: No docstring
+- **Function `buyhold_sleeve()`**: No docstring
+- **Function `mean_pairwise_corr()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `update_data.py`
 - **Function `update_all_data()`**: Programmatic entry point for data updating.
-- **Function `main()`**: No docstring
-
-### `validate_hmm_crisis_t103.py`
-**Module Docstring:** T-103 — Validate the crisis-trained HMM on HELD-OUT crisis events.
-- **Function `compute_causal_posteriors()`**: For each t, run predict_proba on Z[max(0,t-window+1):t+1] and
-- **Function `forward_drawdown()`**: No docstring
-- **Function `auc_score()`**: No docstring
-- **Function `auc_block_bootstrap_ci()`**: No docstring
-- **Function `per_event_fire()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `validate_hmm_window_t105.py`
-**Module Docstring:** T-105 — Re-validate T-103's crisis-HMM at the LIVE 60-bar inference window
-- **Function `compute_causal_posteriors()`**: For each t, run predict_proba on the trailing `window` bars
-- **Function `forward_drawdown()`**: No docstring
-- **Function `auc_score()`**: No docstring
-- **Function `auc_block_bootstrap_ci()`**: No docstring
-- **Function `per_event_fire()`**: No docstring
-- **Function `run_length_stats()`**: Median + p90 run-length above `threshold`, plus days-above-trigger
 - **Function `main()`**: No docstring
 
 ### `validate_lifecycle_triggers.py`
@@ -1064,19 +1502,6 @@
 - **Function `hit_rate_and_fpr()`**: Hit rate (TPR) and false-positive rate.
 - **Function `cond_mean_dd()`**: Mean forward drawdown conditional on a boolean mask.
 - **Function `lead_time_stats()`**: For each forward window with drawdown ≤ threshold, find the lead
-- **Function `main()`**: No docstring
-
-### `validate_regime_signals_cheap.py`
-**Module Docstring:** validate_regime_signals_cheap — feature-level cheap-input validation.
-- **Function `load_spy()`**: No docstring
-- **Function `load_macro_series()`**: No docstring
-- **Function `forward_drawdown()`**: No docstring
-- **Function `forward_return()`**: No docstring
-- **Function `auc_score()`**: No docstring
-- **Function `build_vix_term_features()`**: Compute VIX term-structure slopes on the daily index.
-- **Function `build_pc_ratio_features()`**: Attempt to load CBOE total P/C ratio from data/macro/cboe_pc_ratio.parquet.
-- **Function `conditional_top_decile()`**: No docstring
-- **Function `coincident_leading_test()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `validate_regime_signals_t087.py`
@@ -1112,6 +1537,11 @@
 - **Function `build_candidate_spec()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `vixterm_tilt_t274.py`
+**Module Docstring:** scripts/vixterm_tilt_t274.py
+- **Function `sleeve()`**: Fair sleeve; SPY leg optionally tilted by mode ∈ {none, t252, vixterm}.
+- **Function `main()`**: No docstring
+
 ### `vrp_edge_t174.py`
 **Module Docstring:** T-174: VRP (variance risk premium) equity-implementable edge backtest.
 - **Function `sharpe()`**: No docstring
@@ -1140,16 +1570,6 @@
 
 ### `walk_forward_phase210.py`
 **Module Docstring:** scripts/walk_forward_phase210.py
-- **Function `main()`**: No docstring
-
-### `walk_forward_regime.py`
-**Module Docstring:** scripts/walk_forward_regime.py
-- **Function `backup()`**: No docstring
-- **Function `restore()`**: No docstring
-- **Function `write_gov_config()`**: Write governor_settings.json with overrides.
-- **Function `latest_run_summary()`**: Read performance_summary.json from the most-recently-modified run dir.
-- **Function `phase_train()`**: Phase 1: clean slate, run 2021-2022 with governor on → save OOS-anchor.
-- **Function `phase_eval()`**: Phase 2/3: restore OOS anchor, run 2023-2024 --no-governor with given policy.
 - **Function `main()`**: No docstring
 
 ### `walk_forward_risk_advisory.py`

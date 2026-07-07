@@ -50,6 +50,17 @@ DURABLE_PATHS: List[str] = [
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
 
+# T-290 d1: the alt-data hoard lives under a SEPARATE S3 prefix from the paper
+# state (regenerable market data, not loop memory). Whole directories are
+# synced (source filenames vary), so the dedup accumulation survives the
+# ephemeral Fargate disk. A distinct prefix ⇒ a big parquet sync can never
+# stall the small, critical heartbeat/journal push.
+ALTDATA_PREFIX = "altdata"
+ALTDATA_DIRS: List[str] = [
+    "data/macro_data/alt",   # GPR/EPU/GDELT/Polymarket/Kalshi/KXFED/FRED
+    "data/positioning",      # FINRA/SEC/NAAIM
+]
+
 
 @dataclass
 class CloudStateConfig:
@@ -120,6 +131,38 @@ class CloudState:
                 continue
             self._aws("s3", "cp", str(local), f"{self.cfg.s3_root}/{rel}",
                       "--no-progress")
+
+    def _altdata_s3(self, rel: str) -> str:
+        return f"s3://{self.cfg.bucket}/{ALTDATA_PREFIX}/{rel}"
+
+    def pull_altdata(self) -> bool:
+        """Sync the alt-data hoard S3 → local (whole dirs) so the archivers'
+        dedup accumulates across days on a fresh container. Off-cloud no-op;
+        a missing prefix (first run) is not an error. Best-effort — a failure
+        here must never block the trading pulse (the caller wraps this)."""
+        if not self.cfg.enabled:
+            return False
+        synced = False
+        for rel in ALTDATA_DIRS:
+            local = self.root / rel
+            local.mkdir(parents=True, exist_ok=True)
+            r = self._aws("s3", "sync", self._altdata_s3(rel), str(local),
+                          "--no-progress")
+            if r.returncode == 0:
+                synced = True
+        return synced
+
+    def push_altdata(self) -> None:
+        """Sync the alt-data hoard local → S3 under the ``altdata/`` prefix.
+        Best-effort per dir; kept OUT of the durable-state push so a large
+        parquet transfer can't stall the heartbeat/journal upload."""
+        if not self.cfg.enabled:
+            return
+        for rel in ALTDATA_DIRS:
+            local = self.root / rel
+            if local.exists():
+                self._aws("s3", "sync", str(local), self._altdata_s3(rel),
+                          "--no-progress")
 
     def emit_metrics(self, *, happened: bool, canonical: bool) -> None:
         """Publish the dead-man's-switch datapoints. ``PaperRunHappened``
