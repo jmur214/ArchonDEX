@@ -90,6 +90,11 @@ slippage** plus a **sensitivity band at 5 and 10 bps per gate flip**; when E's m
 substituted into V1's cost model without re-freezing anything else.
 
 ---
+## RESULTS — ⚠️ MAGNITUDES SUPERSEDED by the **CORRECTION PASS** at the end of this doc (`[NN-SUPERSEDED]`)
+_The figures in this section were computed on a calendar holed by the bond synth (48 missing SPY trading days).
+The **verdict is unchanged**, but do not quote these numbers — in particular the bar is **$74,104**, not $64,421.
+Corrected tables: see "CORRECTION PASS" below._
+
 ## RESULTS (fair harness, 2000-08 → 2026-04; buy-hold SPY TR on the same window = **$64,421 / 7.54% / −59.2%**)
 
 ### Basis checks — collateral-aware synthetics validated; C/T-296's rule independently confirmed
