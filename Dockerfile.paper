@@ -45,8 +45,13 @@ RUN pip install --no-cache-dir \
         scipy==1.17.1 \
         pyarrow==23.0.1
 
-# Code + config from the git-archive staging dir (NO data/ — the wrapper
-# stages only the archived commit; the paper loop reads none of it).
+# Code + config from the git-archive staging dir. The wrapper stages the archived
+# commit PLUS exactly one data file — data/universe/sp500_membership_pit.parquet
+# (22 KB), the PIT S&P-500 membership panel that the T-290b news step's
+# full_universe() reads. It cannot come from git-archive (data/ is gitignored +
+# symlinked), and without it the news universe silently collapses to the ~10
+# delisted special-sits → n_new=0 forever (T-290c). build_paper_image.sh
+# fail-closes if it is absent. No other data substrate is baked.
 COPY . /app
 RUN chmod +x scripts/paper_cloud_entrypoint.sh scripts/run_paper_cloud_day.py 2>/dev/null || true
 
