@@ -25,9 +25,26 @@ case "$TAG" in */*) : ;; *) echo "[paper-build] ERROR: TAG must be a full regist
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/archondex_paper_build.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
-echo "[paper-build] staging code+config from git archive @ $SHORT ($SHA) — NO data substrate"
+echo "[paper-build] staging code+config from git archive @ $SHORT ($SHA) — no data substrate"
 git archive "$SHA" | tar -x -C "$STAGE"
 [ -f "$STAGE/Dockerfile.paper" ] || { echo "[paper-build] ERROR: commit $SHORT has no Dockerfile.paper" >&2; exit 65; }
+
+# T-290c: the ONE data file the paper image needs — the PIT S&P-500 membership
+# panel that build_news_panel_t289.full_universe() reads. git-archive cannot
+# carry it (data/ is gitignored + symlinked), so stage it explicitly.
+# FAIL-CLOSED: without it full_universe() silently collapses to the ~10
+# (mostly delisted) special-sits and the news step reports n_new=0 FOREVER while
+# `degraded` reads False. Never build an image that would lie that way.
+PIT_REL="data/universe/sp500_membership_pit.parquet"
+PIT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/$PIT_REL"
+[ -f "$PIT_SRC" ] || {
+    echo "[paper-build] ERROR: missing $PIT_REL — the news universe would collapse" \
+         "to the special-sits fallback (n_new=0 forever). Refusing to build." >&2
+    exit 66
+}
+mkdir -p "$STAGE/$(dirname "$PIT_REL")"
+cp "$PIT_SRC" "$STAGE/$PIT_REL"
+echo "[paper-build] staged $PIT_REL ($(wc -c < "$PIT_SRC" | tr -d ' ') bytes, sha256 $(shasum -a 256 "$PIT_SRC" | cut -c1-16)…)"
 
 echo "[paper-build] docker build (registry-direct, linux/arm64)"
 # --platform arm64: the Fargate fleet is ARM64 (same as the backtest infra).
