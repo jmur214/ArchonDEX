@@ -29,9 +29,15 @@ def px(t):
 def car(t, d0, a, b, bench='SPY'):
     s = px(t); m = px(bench)
     if s is None or m is None: return None
-    i = s.index.searchsorted(pd.Timestamp(d0))
+    # tz-robust: the news panel is tz-aware UTC, price indices are tz-naive. a3 passes tz-aware days.
+    d0 = pd.Timestamp(d0)
+    if d0.tzinfo is not None: d0 = d0.tz_convert('UTC').tz_localize(None)
+    i = s.index.searchsorted(d0)
     if i + b >= len(s) or i + a < 0: return None
-    seg = s.iloc[i+a:i+b+1].pct_change().dropna()
+    # Returns FIRST, then slice, so [a,b] means exactly trading-day offsets a..b relative to d0.
+    # (Slicing prices then pct_change() dropped day a's return entirely and made the a==b case — a3's
+    # same-day move, car(t,d,0,0) — always None, which would have nulled a3 spuriously.)
+    seg = s.pct_change().iloc[i+a:i+b+1].dropna()
     return float((seg - m.pct_change().reindex(seg.index)).sum()) if len(seg) else None
 
 def load_hist():
@@ -91,7 +97,10 @@ def run_a2(panel, ex):
         if px(t) is None: continue
         g = by_sym.get(t)
         if g is None: continue
-        win = g[(g['d'] >= fd - pd.Timedelta(days=1)) & (g['d'] <= fd + pd.Timedelta(days=1))]
+        # `fd` (EDGAR filing_date) is tz-naive; `g['d']` is tz-aware UTC -> localize before comparing.
+        fdu = pd.Timestamp(fd)
+        fdu = fdu.tz_localize('UTC') if fdu.tzinfo is None else fdu.tz_convert('UTC')
+        win = g[(g['d'] >= fdu - pd.Timedelta(days=1)) & (g['d'] <= fdu + pd.Timedelta(days=1))]
         if not len(win): continue
         wt = txt.reindex(win['article_id'])
         sent = np.mean([NF.lm_sentiment((h or '') + ' ' + (c or '')) for h, c in zip(wt['headline'], wt['content'])])
