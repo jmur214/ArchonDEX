@@ -22,7 +22,10 @@ def test_config_exists_and_loads():
 def test_regression_le2025_byte_identical_to_hardcoded():
     """The loader must reproduce the OLD hardcoded 1994-2025 list byte-for-byte
     (the retrofit regression: it faithfully carries the prior source of truth)."""
-    src = subprocess.run(["git", "show", "origin/main:scripts/calendar_flow_probe_t250.py"],
+    # Pinned to the LAST commit carrying the hardcoded list — origin/main no
+    # longer has it after the retrofit merged, so a moving ref self-invalidates.
+    PRE_RETROFIT = "5ce87820d25f661b0d0286026252ac6517811a9b"
+    src = subprocess.run(["git", "show", f"{PRE_RETROFIT}:scripts/calendar_flow_probe_t250.py"],
                          capture_output=True, text=True).stdout
     hard = re.findall(r'"(\d{4}-\d{2}-\d{2})"', re.search(r"FOMC=\[(.*?)\]", src, re.S).group(1))
     loaded_le2025 = [d.strftime("%Y-%m-%d") for d in load_fomc_dates() if d <= pd.Timestamp("2025-12-31")]
