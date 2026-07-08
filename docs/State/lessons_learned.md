@@ -956,3 +956,28 @@ enters as excess-over-cash (`SPY_TR + (MF − Tbill)`), not as two funds
 added (the naive form over-stated real RSST by a measured +9.1%/yr).
 Applies to the T-294 NTSX/RSSB vehicle synthetics and any future
 capital-efficient-fund replication.
+
+## 2026-07-08 — Six defects sat between the harness and its first number; two would have lied confidently (T-289)
+
+The news-interaction test path contained six defects before it produced
+a single valid statistic: an OOM, two features that raised on every
+call (dead code), an alphabetical sampling bias, a `car()` off-by-one
+whose a==b case always returned None, a tz crash, and a look-ahead
+(mixed calendar/trading days ran the "12-1 momentum" window 85 days
+past formation — sorting on momentum was partly sorting on the answer,
+t_HAC −5.27 "pass" → corrected +1.34 null). The split matters: four
+failed VISIBLY (crash/empty), but two would have produced
+confidently-reported wrong verdicts — a spurious null and a fake
+significant pass. Rules reinforced: (1) a lone significant result in a
+fresh harness is a BUG HYPOTHESIS first (second dissolved look-ahead
+of the arc, after T-273's breadth tilt); (2) test-harness code is
+measurement-path code — it deserves the same fail-closed discipline as
+production (`[NN-FAIL-CLOSED]`), because its failure mode is a wrong
+number that looks right. Same session, same class, paper side: E's
+gate-b re-measured a stale already-sold fill against a fresh arrival
+price (idempotent-coid redo) → 146bps artifact retracted before it
+traveled; fixed with filled_at >= arrival_ts or excluded-loudly. The
+sanity tell in both cases was INTERNAL INCONSISTENCY (a3's t of 0.45
+next to a1's −5.27; 41bps on the same SPY/AGG that measured 0.51bps
+twenty minutes earlier) — cross-checking a surprising number against a
+sibling measurement is the cheapest bug detector we have.
