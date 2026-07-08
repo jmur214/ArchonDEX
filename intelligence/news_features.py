@@ -9,7 +9,9 @@ import pathlib, math, re
 from functools import lru_cache
 import pandas as pd
 
-ROOT = pathlib.Path('/Users/jacksonmurphy/Dev/trading_machine-agent-d')
+# repo-relative (same fix B applied to news_panel.py in T-290b — a hardcoded agent-d path breaks in the
+# cloud pulse/container). parents[1] is behaviour-identical in D's worktree.
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 LM_DIR = ROOT / 'data' / 'intel' / 'lm_dictionary'
 _WORD = re.compile(r"[A-Za-z']+")
 
@@ -59,15 +61,22 @@ def vader_sentiment(text: str) -> float:
     return float(a.polarity_scores(text or '')['compound']) if a else 0.0
 
 # ---- panel-relative features (PIT: created_at < as_of) ----
+def _utc(ts):
+    """tz-robust: callers pass BOTH naive and tz-aware as_of. `pd.Timestamp(x, tz='UTC')` RAISES on a
+    tz-aware x — abn_news_volume/novelty both localize then re-pass into _sym_slice, so every call raised
+    ValueError before this fix (the try/except in novelty only wraps the TF-IDF step, not the slicing)."""
+    t = pd.Timestamp(ts)
+    return t.tz_localize('UTC') if t.tzinfo is None else t.tz_convert('UTC')
+
 def _sym_slice(panel: pd.DataFrame, symbol: str, as_of, lookback_days: int):
-    hi = pd.Timestamp(as_of, tz='UTC'); lo = hi - pd.Timedelta(days=lookback_days)
+    hi = _utc(as_of); lo = hi - pd.Timedelta(days=lookback_days)
     m = panel['symbols'].apply(lambda ss: symbol in ss) if len(panel) else pd.Series([], dtype=bool)
     sub = panel[m] if len(panel) else panel
     return sub[(sub['created_at'] >= lo) & (sub['created_at'] < hi)]   # strict < as_of
 
 def abn_news_volume(panel, symbol, as_of, window=63):
     """Today's article count for `symbol` vs its trailing-`window`-day daily mean (ratio; 1.0 = normal)."""
-    hi = pd.Timestamp(as_of, tz='UTC')
+    hi = _utc(as_of)
     today = _sym_slice(panel, symbol, hi + pd.Timedelta(days=1), 1)          # articles on the as_of day
     trail = _sym_slice(panel, symbol, as_of, window)
     daily_mean = len(trail) / window if window else 0.0
@@ -76,7 +85,7 @@ def abn_news_volume(panel, symbol, as_of, window=63):
 def novelty(panel, symbol, as_of, window=21):
     """1 − max TF-IDF cosine of the as_of-day articles vs the trailing-`window`-day articles (reuse
     similarity_t237). 1.0 = wholly novel, 0.0 = a repeat. Returns None if no same-day article."""
-    hi = pd.Timestamp(as_of, tz='UTC')
+    hi = _utc(as_of)
     today = _sym_slice(panel, symbol, hi + pd.Timedelta(days=1), 1)
     prior = _sym_slice(panel, symbol, as_of, window)
     if not len(today):

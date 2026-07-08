@@ -81,13 +81,20 @@ def run_a2(panel, ex):
     k8 = k8[k8['filing_date'] >= '2015-01-01']
     # index panel by symbol/day for sentiment lookup
     ex2 = ex.copy(); ex2['d'] = ex2['created_at'].dt.tz_convert('UTC').dt.normalize()
+    # SPEED: O(1) symbol lookup (was a full 2.2M-row boolean scan per 8-K x 6000 events).
+    by_sym = {s: g for s, g in ex2.groupby('sym')}
+    # MEMORY: text held ONCE, keyed by article_id (never exploded).
+    txt = panel.set_index('article_id')[['headline', 'content']]
     recs = []
     for _, r in k8.sample(min(6000, len(k8)), random_state=0).iterrows():
         t = r['ticker']; fd = r['filing_date']
         if px(t) is None: continue
-        win = ex2[(ex2['sym'] == t) & (ex2['d'] >= fd - pd.Timedelta(days=1)) & (ex2['d'] <= fd + pd.Timedelta(days=1))]
+        g = by_sym.get(t)
+        if g is None: continue
+        win = g[(g['d'] >= fd - pd.Timedelta(days=1)) & (g['d'] <= fd + pd.Timedelta(days=1))]
         if not len(win): continue
-        sent = np.mean([NF.lm_sentiment((h or '') + ' ' + (c or '')) for h, c in zip(win['headline'], win['content'])])
+        wt = txt.reindex(win['article_id'])
+        sent = np.mean([NF.lm_sentiment((h or '') + ' ' + (c or '')) for h, c in zip(wt['headline'], wt['content'])])
         dr = car(t, fd, 2, 21)
         if dr is None: continue
         recs.append((fd.to_period('M'), sent, dr))
@@ -98,15 +105,46 @@ def run_a2(panel, ex):
     return {'n_events': len(df), 'top_minus_bot_CAR': round(float(df[df['q']==4]['car'].mean() - df[df['q']==0]['car'].mean()), 4),
             't_HAC': round(_nw_t(tb.dropna().values), 2), 'pass': bool(abs(_nw_t(tb.dropna().values)) >= 2.0)}
 
+def _fast_novelty(sym_idx, content_by_id, symbol, as_of, window=21):
+    """Faithful re-implementation of NF.novelty's DOCUMENT SELECTION (identical strict [lo,hi) windows on
+    created_at: today=[as_of, as_of+1d), prior=[as_of-window, as_of)), but using a pre-built per-symbol
+    index instead of NF._sym_slice's full-panel .apply per call (769k-row scan x thousands of calls)."""
+    g = sym_idx.get(symbol)
+    if g is None or not len(g): return None
+    # tz-robust (NF._sym_slice does pd.Timestamp(as_of, tz='UTC') which RAISES on a tz-aware as_of —
+    # a3 passes tz-aware days, so NF.novelty would have thrown here; latent bug flagged upstream).
+    hi = pd.Timestamp(as_of)
+    hi = hi.tz_localize('UTC') if hi.tzinfo is None else hi.tz_convert('UTC')
+    ca = g['created_at']
+    today = g.loc[(ca >= hi) & (ca < hi + pd.Timedelta(days=1)), 'article_id']
+    prior = g.loc[(ca >= hi - pd.Timedelta(days=window)) & (ca < hi), 'article_id']
+    if not len(today): return None
+    if not len(prior): return 1.0
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        docs = (list(content_by_id.reindex(prior).fillna('')) + list(content_by_id.reindex(today).fillna('')))
+        X = TfidfVectorizer(stop_words='english', max_features=5000).fit_transform(docs)
+        sims = cosine_similarity(X[len(prior):], X[:len(prior)])
+        return float(1.0 - sims.max()) if sims.size else 1.0
+    except Exception:
+        return None
+
 # ------- a3: novelty x reversal -------
 def run_a3(panel, ex):
     ex2 = ex.copy(); ex2['d'] = ex2['created_at'].dt.tz_convert('UTC').dt.normalize()
+    sym_idx = {s: g[['article_id', 'created_at']].sort_values('created_at') for s, g in ex2.groupby('sym')}
+    content_by_id = panel.set_index('article_id')['content']
+    # BIAS FIX: groupby yields (sym,d) in ALPHABETICAL order; the 4000-rec cap then sampled only A-named
+    # tickers. Shuffle the candidate keys deterministically (seed 0) for a representative sample.
+    keys = list(ex2.groupby(['sym', 'd']).groups.keys())
+    np.random.default_rng(0).shuffle(keys)
     recs = []
-    for (t, d), g in ex2.groupby(['sym', 'd']):
+    for (t, d) in keys:
         if px(t) is None: continue
         r0 = car(t, d, 0, 0)
         if r0 is None or abs(r0) < 0.03: continue          # condition on a same-day move
-        nov = NF.novelty(panel, t, d + pd.Timedelta(days=1))
+        nov = _fast_novelty(sym_idx, content_by_id, t, d + pd.Timedelta(days=1))
         rev = car(t, d, 2, 10)
         if nov is None or rev is None: continue
         recs.append((pd.Timestamp(d).to_period('M'), nov, np.sign(r0), rev))
@@ -146,8 +184,13 @@ def main():
     print("F1 revised-share/yr: " + ", ".join(f"{y}:{revshare.get(y,0)*100:.0f}%" for y in range(yr0, yr1 + 1)))
     if revshare and max(revshare.values()) > 0.30:
         print(f"F1 HALT: revised-share exceeds 30% ({max(revshare.values())*100:.0f}%) — composition question outranks tests."); return
-    ex = panel.explode('symbols').rename(columns={'symbols': 'sym'})
+    # MEMORY: explode a LIGHT projection. Exploding the full panel duplicates the 899 MB `content`
+    # column 2.88x (avg symbols/article) -> ~3.7 GB -> OOM (SIGKILL). a2 fetches text by article_id instead.
+    ex = panel[['article_id', 'created_at', 'symbols']].explode('symbols').rename(columns={'symbols': 'sym'})
     ex = ex[ex['sym'].astype(str).str.fullmatch(r'[A-Z]{1,5}')].copy()
+    # SPEED: drop symbols with no price series up front (the loops skip them anyway) — behaviour-identical.
+    ex = ex[ex['sym'].map(lambda s: px(s) is not None)].copy()
+    print(f"[panel] exploded sym-rows={len(ex):,} across {ex['sym'].nunique():,} priced symbols")
     print("[F4] news family N=4 (a1,a2,a3,b1); b1 ALSO tilt-family N=3 (T-268 even-week, T-273 breadth).")
     print("\n--- a1 news-vol x momentum ---"); print(' ', run_a1(ex))
     print("--- a2 LM-sentiment x post-8-K drift ---"); print(' ', run_a2(panel, ex))
