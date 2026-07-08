@@ -29,9 +29,15 @@ def px(t):
 def car(t, d0, a, b, bench='SPY'):
     s = px(t); m = px(bench)
     if s is None or m is None: return None
-    i = s.index.searchsorted(pd.Timestamp(d0))
+    # tz-robust: the news panel is tz-aware UTC, price indices are tz-naive. a3 passes tz-aware days.
+    d0 = pd.Timestamp(d0)
+    if d0.tzinfo is not None: d0 = d0.tz_convert('UTC').tz_localize(None)
+    i = s.index.searchsorted(d0)
     if i + b >= len(s) or i + a < 0: return None
-    seg = s.iloc[i+a:i+b+1].pct_change().dropna()
+    # Returns FIRST, then slice, so [a,b] means exactly trading-day offsets a..b relative to d0.
+    # (Slicing prices then pct_change() dropped day a's return entirely and made the a==b case — a3's
+    # same-day move, car(t,d,0,0) — always None, which would have nulled a3 spuriously.)
+    seg = s.pct_change().iloc[i+a:i+b+1].dropna()
     return float((seg - m.pct_change().reindex(seg.index)).sum()) if len(seg) else None
 
 def load_hist():
@@ -57,7 +63,11 @@ def run_a1(ex):
         d0 = ym.to_timestamp('M')
         recs = []
         for _, r in g.iterrows():
-            t = r['sym']; mom = car(t, d0 - pd.Timedelta(days=252), 0, 231, bench='SPY')  # ~12-1 excess
+            # LOOK-AHEAD FIX: was car(t, d0 - 252 CALENDAR days, 0, 231 TRADING days) — mixing calendar and
+            # trading days pushed the window ~85 days PAST d0, so `mom` contained future returns overlapping
+            # `nxt`. Sorting on mom partly sorted on nxt -> mechanically inflated spread (t_HAC -5.27).
+            # Correct 12-1: trading-day offsets [-252, -22], both strictly before d0 (skip the last month).
+            t = r['sym']; mom = car(t, d0, -252, -22, bench='SPY')                        # 12-1 excess (causal)
             nxt = car(t, d0, 1, 21)                                                       # next month fwd excess
             if mom is None or nxt is None: continue
             recs.append((t, r['n'], mom, nxt))
@@ -81,13 +91,23 @@ def run_a2(panel, ex):
     k8 = k8[k8['filing_date'] >= '2015-01-01']
     # index panel by symbol/day for sentiment lookup
     ex2 = ex.copy(); ex2['d'] = ex2['created_at'].dt.tz_convert('UTC').dt.normalize()
+    # SPEED: O(1) symbol lookup (was a full 2.2M-row boolean scan per 8-K x 6000 events).
+    by_sym = {s: g for s, g in ex2.groupby('sym')}
+    # MEMORY: text held ONCE, keyed by article_id (never exploded).
+    txt = panel.set_index('article_id')[['headline', 'content']]
     recs = []
     for _, r in k8.sample(min(6000, len(k8)), random_state=0).iterrows():
         t = r['ticker']; fd = r['filing_date']
         if px(t) is None: continue
-        win = ex2[(ex2['sym'] == t) & (ex2['d'] >= fd - pd.Timedelta(days=1)) & (ex2['d'] <= fd + pd.Timedelta(days=1))]
+        g = by_sym.get(t)
+        if g is None: continue
+        # `fd` (EDGAR filing_date) is tz-naive; `g['d']` is tz-aware UTC -> localize before comparing.
+        fdu = pd.Timestamp(fd)
+        fdu = fdu.tz_localize('UTC') if fdu.tzinfo is None else fdu.tz_convert('UTC')
+        win = g[(g['d'] >= fdu - pd.Timedelta(days=1)) & (g['d'] <= fdu + pd.Timedelta(days=1))]
         if not len(win): continue
-        sent = np.mean([NF.lm_sentiment((h or '') + ' ' + (c or '')) for h, c in zip(win['headline'], win['content'])])
+        wt = txt.reindex(win['article_id'])
+        sent = np.mean([NF.lm_sentiment((h or '') + ' ' + (c or '')) for h, c in zip(wt['headline'], wt['content'])])
         dr = car(t, fd, 2, 21)
         if dr is None: continue
         recs.append((fd.to_period('M'), sent, dr))
@@ -98,15 +118,72 @@ def run_a2(panel, ex):
     return {'n_events': len(df), 'top_minus_bot_CAR': round(float(df[df['q']==4]['car'].mean() - df[df['q']==0]['car'].mean()), 4),
             't_HAC': round(_nw_t(tb.dropna().values), 2), 'pass': bool(abs(_nw_t(tb.dropna().values)) >= 2.0)}
 
+def report_f3(ex):
+    """F3: delisted-vs-survivor news coverage + differential decay near delisting (a1/a3 samples).
+    A symbol is DELISTED if its price series ends >60d before the newest price date in the cache."""
+    last_px = {t: s.index[-1] for t, s in _PX.items() if s is not None and len(s)}
+    if not last_px: return {'note': 'no priced symbols'}
+    panel_end = max(last_px.values())
+    ex = ex.copy(); ex['dn'] = ex['created_at'].dt.tz_convert('UTC').dt.tz_localize(None)
+    per = ex.groupby('sym').size()
+    dead = {t for t, d in last_px.items() if (panel_end - d).days > 60}
+    surv = set(last_px) - dead
+    d_syms = [t for t in per.index if t in dead]; s_syms = [t for t in per.index if t in surv]
+    # differential decay: articles/day in the final 90d of a dead name's life vs its own prior baseline
+    ratios = []
+    for t in d_syms:
+        end = last_px[t]; g = ex.loc[ex['sym'] == t, 'dn']
+        late = ((g >= end - pd.Timedelta(days=90)) & (g <= end)).sum() / 90.0
+        base = (g < end - pd.Timedelta(days=90)).sum()
+        span = max((end - pd.Timedelta(days=90) - g.min()).days, 1) if len(g) else 1
+        if base and span > 90: ratios.append(late / (base / span))
+    return {'n_delisted': len(d_syms), 'n_survivor': len(s_syms),
+            'articles_per_delisted': round(float(per[d_syms].mean()), 1) if d_syms else None,
+            'articles_per_survivor': round(float(per[s_syms].mean()), 1) if s_syms else None,
+            'pre_delist_coverage_ratio': round(float(np.median(ratios)), 2) if ratios else None,
+            'flag': ('coverage DECAYS before delisting' if ratios and np.median(ratios) < 0.7
+                     else 'no differential decay' if ratios else 'insufficient')}
+
+def _fast_novelty(sym_idx, content_by_id, symbol, as_of, window=21):
+    """Faithful re-implementation of NF.novelty's DOCUMENT SELECTION (identical strict [lo,hi) windows on
+    created_at: today=[as_of, as_of+1d), prior=[as_of-window, as_of)), but using a pre-built per-symbol
+    index instead of NF._sym_slice's full-panel .apply per call (769k-row scan x thousands of calls)."""
+    g = sym_idx.get(symbol)
+    if g is None or not len(g): return None
+    # tz-robust (NF._sym_slice does pd.Timestamp(as_of, tz='UTC') which RAISES on a tz-aware as_of —
+    # a3 passes tz-aware days, so NF.novelty would have thrown here; latent bug flagged upstream).
+    hi = pd.Timestamp(as_of)
+    hi = hi.tz_localize('UTC') if hi.tzinfo is None else hi.tz_convert('UTC')
+    ca = g['created_at']
+    today = g.loc[(ca >= hi) & (ca < hi + pd.Timedelta(days=1)), 'article_id']
+    prior = g.loc[(ca >= hi - pd.Timedelta(days=window)) & (ca < hi), 'article_id']
+    if not len(today): return None
+    if not len(prior): return 1.0
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        docs = (list(content_by_id.reindex(prior).fillna('')) + list(content_by_id.reindex(today).fillna('')))
+        X = TfidfVectorizer(stop_words='english', max_features=5000).fit_transform(docs)
+        sims = cosine_similarity(X[len(prior):], X[:len(prior)])
+        return float(1.0 - sims.max()) if sims.size else 1.0
+    except Exception:
+        return None
+
 # ------- a3: novelty x reversal -------
 def run_a3(panel, ex):
     ex2 = ex.copy(); ex2['d'] = ex2['created_at'].dt.tz_convert('UTC').dt.normalize()
+    sym_idx = {s: g[['article_id', 'created_at']].sort_values('created_at') for s, g in ex2.groupby('sym')}
+    content_by_id = panel.set_index('article_id')['content']
+    # BIAS FIX: groupby yields (sym,d) in ALPHABETICAL order; the 4000-rec cap then sampled only A-named
+    # tickers. Shuffle the candidate keys deterministically (seed 0) for a representative sample.
+    keys = list(ex2.groupby(['sym', 'd']).groups.keys())
+    np.random.default_rng(0).shuffle(keys)
     recs = []
-    for (t, d), g in ex2.groupby(['sym', 'd']):
+    for (t, d) in keys:
         if px(t) is None: continue
         r0 = car(t, d, 0, 0)
         if r0 is None or abs(r0) < 0.03: continue          # condition on a same-day move
-        nov = NF.novelty(panel, t, d + pd.Timedelta(days=1))
+        nov = _fast_novelty(sym_idx, content_by_id, t, d + pd.Timedelta(days=1))
         rev = car(t, d, 2, 10)
         if nov is None or rev is None: continue
         recs.append((pd.Timestamp(d).to_period('M'), nov, np.sign(r0), rev))
@@ -146,9 +223,15 @@ def main():
     print("F1 revised-share/yr: " + ", ".join(f"{y}:{revshare.get(y,0)*100:.0f}%" for y in range(yr0, yr1 + 1)))
     if revshare and max(revshare.values()) > 0.30:
         print(f"F1 HALT: revised-share exceeds 30% ({max(revshare.values())*100:.0f}%) — composition question outranks tests."); return
-    ex = panel.explode('symbols').rename(columns={'symbols': 'sym'})
+    # MEMORY: explode a LIGHT projection. Exploding the full panel duplicates the 899 MB `content`
+    # column 2.88x (avg symbols/article) -> ~3.7 GB -> OOM (SIGKILL). a2 fetches text by article_id instead.
+    ex = panel[['article_id', 'created_at', 'symbols']].explode('symbols').rename(columns={'symbols': 'sym'})
     ex = ex[ex['sym'].astype(str).str.fullmatch(r'[A-Z]{1,5}')].copy()
+    # SPEED: drop symbols with no price series up front (the loops skip them anyway) — behaviour-identical.
+    ex = ex[ex['sym'].map(lambda s: px(s) is not None)].copy()
+    print(f"[panel] exploded sym-rows={len(ex):,} across {ex['sym'].nunique():,} priced symbols")
     print("[F4] news family N=4 (a1,a2,a3,b1); b1 ALSO tilt-family N=3 (T-268 even-week, T-273 breadth).")
+    print("[F3] " + str(report_f3(ex)))
     print("\n--- a1 news-vol x momentum ---"); print(' ', run_a1(ex))
     print("--- a2 LM-sentiment x post-8-K drift ---"); print(' ', run_a2(panel, ex))
     print("--- a3 novelty x reversal ---"); print(' ', run_a3(panel, ex))

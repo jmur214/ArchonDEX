@@ -95,3 +95,52 @@ on the cross-day measure; per-year cross-day revised-share is still reported. D'
 **Authorization:** run a1 → a2 → a3 → b1 exactly as frozen (gates: `t_HAC ≥ 2.0` for a1/a2/a3; paired
 ΔSortino + Δwealth ci + beat-the-overlay's-own-de-risking for b1), honest-N, one interaction table with
 verdicts. No spec changes after this line; any deviation = a new pre-registration.
+
+---
+## RESULTS (run 2026-07-08, corrected causal windows — supersedes any earlier partial output)
+
+**Corpus:** 771,427 articles / 139 monthly parquets / 546 MB / 2015-01→2026-04. F1 (cross-day materiality,
+re-frozen): **769,267 unrevised kept = 99.7%**; revised-share **0-1%/yr** (2015:1%, 2016-22:0%, 2023:1%,
+2024-26:0%) — clears the 30% HALT. Exploded to 1,632,298 sym-rows across 4,679 priced symbols.
+
+### The interaction table — ALL FOUR NULL
+| test | statistic | t_HAC | gate (t≥2.0) |
+|---|---|---|---|
+| **a1** news-volume × momentum | interaction **+0.0057** (113 months) | **1.34** | FAIL |
+| **a2** LM-sentiment × post-8-K drift | top−bot CAR **+0.0007** (3,981 events) | **0.94** | FAIL |
+| **a3** novelty × reversal | hi−lo **+0.0049** (4,000 events) | **0.45** | FAIL |
+| **b1** aggregate-news sizing tilt | base 4.26× → tilt **2.69×**, **Δwealth −1.566** | — | FAIL (destroys wealth) |
+
+### ⚠️ a1's apparent PASS was a LOOK-AHEAD artifact (caught pre-report)
+The first clean run gave a1 = −0.0187, **t_HAC −5.27, "pass"**. It was an artifact: `mom` was computed as
+`car(t, d0 − 252 CALENDAR days, 0, 231 TRADING days)`, mixing units so the "12-1 momentum" window ran
+`d0−172td .. d0+59td` — **ending ~85 calendar days AFTER the formation date**, overlapping the forward window
+`nxt = car(d0, 1, 21)`. Sorting on `mom` therefore partly sorted on `nxt`, mechanically inflating the spread.
+Verified on AAPL/2023-01-31: window 2022-05-24 → **2023-04-26**. Corrected to a causal 12-1
+(`car(t, d0, -252, -22)`, both legs strictly before `d0`): the interaction **flips sign to +0.0057 and t
+collapses to 1.34**. The look-ahead was the entire effect. (Same class as the T-273 breadth-tilt bug.)
+
+### F3 — delisted-vs-survivor coverage: inclusion is clean, coverage INTENSITY is not
+| | delisted | survivor |
+|---|---|---|
+| symbols | 619 | 4,060 |
+| articles/ticker | 269.9 | 360.9 |
+| pre-delist coverage ratio (last 90d vs own baseline) | **0.65** | — |
+
+**Flag: news coverage DECAYS ~35% in the 90 days before delisting.** The probe verdict `S-clean` (dead tickers
+ARE covered) stands for *inclusion*, but coverage *intensity* falls as a name dies. Any future cross-sectional
+news test on delisted names must carry this caveat. It does not rescue a1/a3 (both null regardless).
+
+### Verdict — the news lane's backtestable value is H0; its durable value is FORWARD ACCRUAL
+Four pre-registered interaction tests, **zero passes**. b1 makes the **third consecutive sizing-tilt failure**
+on the sleeve (T-268 even-week, T-273 breadth, T-289 b1) — the sizing-tilt family (N=3) is closed: the trend
+overlay's own de-risking is not improved by conditioning on calendar, breadth, or news. This matches the
+frozen doc's stated honest prior ("published news effects are small and decayed; expected null-to-marginal;
+the panel's durable value = forward accrual + the judgment layer's feed").
+
+**Health warning on the apparatus:** five defects sat in the test path before it produced a number — an OOM
+(explode of the 899 MB content column), `novelty`/`abn_news_volume` raising on every call (dead code), an a3
+alphabetical-sampling bias, `car()` off-by-one (its `a==b` case always returned `None`, which would have
+nulled a3 spuriously), and a tz crash in a2. Two of those (a3's `None`, a1's look-ahead) would have produced
+**confidently-reported wrong verdicts**, not visible crashes. The nulls above are the numbers *after* all five
+fixes. N_trials: news family = 4 (a1,a2,a3,b1); b1 also counts in the sizing-tilt family (N=3).
