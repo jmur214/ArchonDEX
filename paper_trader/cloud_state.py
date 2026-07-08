@@ -252,8 +252,16 @@ class CloudState:
         self._put_metric("PaperRunCanonical", 1.0 if canonical else 0.0)
 
     def _put_metric(self, name: str, value: float) -> None:
-        self._aws("cloudwatch", "put-metric-data",
-                  "--namespace", CW_NAMESPACE,
-                  "--metric-name", name,
-                  "--value", str(value),
-                  "--unit", "Count")
+        # T-288 fleet: when ARCHONDEX_PAPER_ACCOUNT is set (each fleet jobdef sets
+        # it EXPLICITLY — never a default), dimension the datapoint by Account so
+        # the 3 per-account dead-man's-switch alarms watch distinct streams and
+        # can't collide. Account 1 (unset) stays UN-dimensioned → its existing
+        # alarm is untouched. A dimensioned stream is distinct from the
+        # un-dimensioned one, so the two never cross-trigger.
+        args = ["cloudwatch", "put-metric-data",
+                "--namespace", CW_NAMESPACE, "--metric-name", name,
+                "--value", str(value), "--unit", "Count"]
+        acct = os.getenv("ARCHONDEX_PAPER_ACCOUNT")
+        if acct:
+            args += ["--dimensions", f"Account={acct}"]
+        self._aws(*args)
