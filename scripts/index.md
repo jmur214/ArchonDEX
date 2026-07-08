@@ -1054,6 +1054,21 @@
 - **Function `demote()`**: Mutate in place: active → candidate. Returns count.
 - **Function `main()`**: No docstring
 
+### `return_stack_arm_t296.py`
+**Module Docstring:** T-296 RUN — return-stack (synthetic-RSST) composition arm (frozen pre-reg, N_trials+=1).
+- **Function `m_ret()`**: No docstring
+- **Function `aqr_tsmom_scaled()`**: AQR diversified TSMOM factor (monthly, excess-over-cash), scaled to DBMF vol.
+- **Function `multi_expo_m()`**: monthly multi-speed long/flat: mean of (close > SMA(n months)) over {2,5,10}.
+- **Function `sleeve()`**: EW multi-speed long/flat over the given leg monthly-return series; flat→cash; ER; txn.
+- **Function `stats()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `ddwin()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `return_stack_basis_probe_t296.py`
+**Module Docstring:** T-296 return-stack data-reality probe (reproduces the RSST synthetic basis finding).
+- **Function `main()`**: No docstring
+
 ### `run.py`
 *No public classes or functions found.*
 
@@ -1177,6 +1192,8 @@
 
 ### `run_paper_cloud_day.py`
 **Module Docstring:** T-186 — one paper day in the cloud (EventBridge → Fargate → here).
+- **Class `_FailClosed`**: A [NN-FAIL-CLOSED] halt inside a strategy pipeline — carries the driver
+  - `def __init__()`
 - **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
 
 ### `run_paper_day_t163.py`

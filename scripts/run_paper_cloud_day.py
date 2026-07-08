@@ -61,6 +61,18 @@ from paper_trader.held_reconcile import (
 STATE_DIR = "data/paper_state"
 
 
+def _news_universe_collapse_reason(universe, special_sits) -> "str | None":
+    """T-290c: return a LOUD degraded reason if the news universe collapsed to
+    just the (mostly-delisted) special-sits fallback — i.e. the PIT membership
+    file is missing from the image, which yields n_new=0 every day while
+    ``degraded`` would otherwise read False. None when the universe is healthy."""
+    if len(universe) > len(special_sits):
+        return None
+    return (f"news universe COLLAPSED to {len(universe)} tickers "
+            f"(sp500_membership_pit.parquet missing from image?) "
+            f"— near-zero news is an artifact, not a quiet day")
+
+
 class _FailClosed(Exception):
     """A [NN-FAIL-CLOSED] halt inside a strategy pipeline — carries the driver
     exit code + a message; main() emits a non-canonical metric + returns it."""
@@ -526,10 +538,21 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     # un-wired day is a day of news lost from the S3 record. --------------- #
     try:
         from intelligence import news_panel
-        from scripts.build_news_panel_t289 import full_universe
+        from scripts.build_news_panel_t289 import full_universe, SPECIAL_SITS
         cloud.pull_news_month(today)            # current month only (small)
         run_id = f"pulse_{today.isoformat()}"
-        nres = news_panel.append_today(today, full_universe(), run_id)
+        # T-290c: guard the SILENT universe collapse. full_universe() falls back
+        # to just the ~10 hardcoded SPECIAL_SITS (nearly all delisted: SIVB/FRC/
+        # TWTR/BBBY/ATVI…) when data/universe/sp500_membership_pit.parquet is
+        # absent from the image — yielding n_new=0 EVERY day while degraded reads
+        # False (looks like a benign quiet day; is actually a dead forward clock).
+        # Proven: the special-sits-only universe returns 0 articles on a busy
+        # market day. Flag it LOUD via append_today's degraded_reason so a missing
+        # panel universe can't masquerade as "no news today."
+        universe = full_universe()
+        degraded_reason = _news_universe_collapse_reason(universe, SPECIAL_SITS)
+        nres = news_panel.append_today(today, universe, run_id,
+                                       degraded_reason=degraded_reason)
         cloud.push_news_month(today)            # push current month only
         hb.record_news(nres)
         print(f"8. NEWS      append_today n_new={nres.get('n_new')} "
