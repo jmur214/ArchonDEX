@@ -80,6 +80,17 @@ then LOW. Within each severity, list newest at the top.
 - Charter reference: engine_charters.md §E (regime detection is E's job; the model artifact choice is config, not code).
 - Recommended next step: T-118 drives its overlay with the crisis model; if the overlay wins its pre-registered gate, the production repoint rides along as a separate propose-first gate. Until then this row exists so the mismatch is discoverable from a living doc. capability_ledger.md Engine E section updated 2026-06-11 with the same facts.
 
+### [MEDIUM] Yahoo Finance is unusable from ANY cloud/AWS context (policy 429 on first request)
+- Engine: data lanes (cross-cutting)
+- First flagged: 2026-07-08 (Agent B, T-295 cloud population attempt — measured, not assumed: a Fargate task's FIRST-EVER request got 429'd while Alpaca/Minneapolis egress was healthy)
+- Status: open — a standing constraint, not a bug to fix.
+- Description: Yahoo throttles AWS IP ranges by policy. Affects anything yfinance-based if ever run in
+  Batch/Fargate: `earnings_data`'s `yf.Ticker`, the CEF NAV path (`X<TKR>X`), and T-295-style ZQ pulls.
+  Rule: yfinance work runs from residential contexts (the dev Mac) only; cloud jobs must not assume it.
+  Dev-box note: aggressive retries reset the per-IP ban — after a ban, wait a genuine quiet window before
+  ONE polite run. (T-295's script is proven correct — 10yr ZQ=F pulled pre-ban, corr 0.9989 vs FRED — and
+  fail-closed exactly as designed when the fetch came back empty.)
+
 ### [MEDIUM] Stooq is now bot-walled — future refreshes of every Stooq-sourced dataset will fail
 - Engine: data lanes (cross-cutting)
 - First flagged: 2026-07-08 (Agent B, during T-295 recon)
