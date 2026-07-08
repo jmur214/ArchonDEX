@@ -89,3 +89,54 @@ pre-derived falsifiable target (SSO-leg turnover ≤ ~4.56 units/yr) and the mea
 part of the frozen output spec. The pre-registered breakeven — **undamped V1 = the SPY bar at 1.55 bps of
 SSO-leg slippage** — is the standing number E's measured redo reads against, whatever this arm's verdict.
 Honest prior recorded at ~40-50%. RUN AUTHORIZED. Any deviation = a new pre-registration.
+
+---
+## RESULTS (run 2026-07-08, corrected full SPY calendar; BAR = Roth buy-hold SPY **$74,104 / 8.13%**)
+
+### Verdict: **BOTH GATES PASS — the arm earns the offense row.** With three caveats stated below.
+| arm | units/yr | SSO-leg | mean exp | @0bps | @1.55bps | @5bps | @10bps | MaxDD |
+|---|---|---|---|---|---|---|---|---|
+| V1 undamped | 23.98 | 14.67 | 1.400 | 78,534 | 74,093 | 65,088 | 53,940 | −43.5% |
+| **T-298 asym damp B=⅔** | **10.66** | 5.59 | **1.101** | **96,320** | 94,208 | **89,672** | **83,482** | **−30.6%** |
+
+- **Gate (a): PASS** — $89,672 vs the $74,104 bar at 5 bps. **And it clears the bar at every grid point (0 / 1.55 /
+  5 / 10 bps).** It is therefore **robust to E's measured slippage, whatever the redo returns** — unlike the
+  undamped config, whose entire fate hinges on the 1.55 bps breakeven (confirmed here: V1 @1.55bps = $74,093 ≈ the
+  $74,104 bar, a $11 check on the pre-registered breakeven).
+- **Gate (b): PASS.** Invariant `e_held ≤ e_target` **violated on 0 days**. Empirical crash exit-lag **0d in every
+  crisis at both thresholds** (2008, 2020, 2022; de-lever and full-exit). Exit-lag ≡ 0 confirmed, as proven.
+- Turnover **23.98 → 10.66 units/yr**, squarely inside the pre-registered 9-14 expectation.
+
+### Caveat 1 — my pre-derived turnover target was MISSED, yet the gate passed. My derivation had a hidden assumption.
+I pre-derived that the arm must reach **SSO-leg ≤ 4.56 units/yr** to clear the bar at 5 bps. It reached **5.59 —
+a MISS** — and passed anyway. **The derivation assumed path-invariance** (that damping changes only slippage cost,
+not the exposure path). The damper violates that assumption: it changes the path materially. The target was a
+necessary condition *only under an assumption the arm breaks*. Recorded as a flaw in my own pre-registration
+reasoning, in the arm's favour.
+
+### Caveat 2 — the gain is substantially a PATH SHIFT, not cost savings (the pre-registered confound, confirmed)
+Mean exposure falls **1.400 → 1.101 (−21%)** and MaxDD improves **−43.5% → −30.6%**, while wealth *rises*. At **0
+bps** — where there is no slippage to save — the arm still gains **+23%** ($96,320 vs $78,534). So the bulk of the
+advantage is **avoided whipsaw compounding** (each suppressed round trip is a sell-low/buy-high avoided), not
+execution-cost reduction. This is a *less-levered, lower-drawdown, different strategy* that happens to compound
+better — arguably a superior one, but it must not be sold as "the same config, cheaper."
+
+### Caveat 3 — the wealth advantage is DIRECTIONAL, not CI-significant
+Paired Δwealth (block bootstrap, @5 bps): **vs the SPY bar `[−15.98, +22.29]`**, **vs undamped V1 `[−7.51, +9.11]`**
+— both **straddle zero**. Point estimates are large; levered paths carry wide bootstrap variance (the same caveat
+that qualified T-284 and T-297). The gate is a wealth gate and it passes; the *statistical* claim is directional.
+
+## VERDICT
+**T-298 earns the offense row under the frozen gate**: it beats Roth buy-hold SPY at 5 bps (indeed at 0/1.55/5/10
+bps), and its crash exit-lag is exactly zero, proven by invariant and confirmed empirically in all three crises. It
+is the first offense configuration in the program to clear both gates, and — decisively — **its verdict does not
+depend on E's pending slippage number.**
+
+The honest characterisation: **asymmetric damping does not make the levered config cheaper; it makes it a
+different, less-levered, less-whipsawed config that compounds better and draws down ~13pp less.** Its wealth edge
+over buy-and-hold is not statistically significant on a single 25.6-year path, and its mean exposure of 1.101
+means it is closer to a ~1.1× gated strategy than to the 2× the offense program set out to deploy. Recommend the
+row be marked **earned-but-directional**, with the real-money decision still gated on (i) E's measured slippage
+(read against 1.55 bps for the *undamped* comparison) and (ii) a forward paper record, given the CI.
+
+N_trials += 1. Reproducible: `scripts/asymmetric_damping_t298.py`.
