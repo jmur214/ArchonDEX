@@ -492,9 +492,20 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
+    # PUSH BEFORE emitting metrics: a durable-state push that silently failed
+    # means the NEXT run starts from stale state and a held position reads as
+    # unexplained. That is an integrity failure, so it must flip canonical (→
+    # non-zero exit → Batch FAILED → alarm), never a cheerful "pushed=True".
+    # (T-288: the fleet's first armed runs lost their ledger/journal/tracker to
+    # an IAM prefix denial while this line printed cfg.enabled, not the result.)
+    pushed = cloud.push()
+    if cloud.cfg.enabled and not pushed:
+        print("FATAL: durable-state push FAILED — the next run would resume from "
+              "STALE state (held positions would read as unexplained). Marking "
+              "NON-CANONICAL so the dead-man's-switch fires.", file=sys.stderr)
+        canonical = False
     cloud.emit_metrics(happened=True, canonical=canonical)
-    cloud.push()
-    print(f"5. STATE     pushed-to-s3={cloud.cfg.enabled} | "
+    print(f"5. STATE     pushed-to-s3={pushed} | "
           f"metrics: PaperRunHappened=1 PaperRunCanonical={int(canonical)}")
 
     # --- T-290 d1: POST-reconcile alt-data + positioning archiving. Runs

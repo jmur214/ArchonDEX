@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -136,18 +137,34 @@ class CloudState:
             # a missing key (first run) returns non-zero — that is FINE.
         return synced
 
-    def push(self) -> None:
-        """Sync local durable state → S3. Best-effort per file; a single
-        upload failure must not lose the others (so the heartbeat lands
-        even if a big journal stalls)."""
+    def push(self) -> bool:
+        """Sync local durable state → S3. Best-effort PER FILE (one stalled
+        upload must not lose the others, so the heartbeat still lands), but the
+        OVERALL result is RETURNED and must never be swallowed.
+
+        T-288 lesson: the fleet's first armed runs lost their ledger + orders
+        journal + tracker to an IAM prefix-scoping denial, while the driver
+        happily printed ``pushed-to-s3=True`` (it was printing ``cfg.enabled``,
+        not the push result) and ``_aws`` ignored the non-zero returncode. A
+        durable-state push that fails means the NEXT run starts from stale state
+        and a held position reads as unexplained — that is an integrity failure,
+        not a warning. Returns True iff every existing durable file uploaded
+        (vacuously True when S3 is disabled: there is nothing to lose)."""
         if not self.cfg.enabled:
-            return
+            return True
+        ok = True
         for rel in DURABLE_PATHS:
             local = self.root / rel
             if not local.exists():
                 continue
-            self._aws("s3", "cp", str(local), f"{self.cfg.s3_root}/{rel}",
-                      "--no-progress")
+            r = self._aws("s3", "cp", str(local), f"{self.cfg.s3_root}/{rel}",
+                          "--no-progress")
+            if getattr(r, "returncode", 0) != 0:
+                ok = False
+                err = (getattr(r, "stderr", "") or "").strip().splitlines()
+                print(f"   PUSH-FAIL {rel}: {err[-1][:160] if err else 'unknown error'}",
+                      file=sys.stderr)
+        return ok
 
     def _altdata_s3(self, rel: str) -> str:
         return f"s3://{self.cfg.bucket}/{ALTDATA_PREFIX}/{rel}"
