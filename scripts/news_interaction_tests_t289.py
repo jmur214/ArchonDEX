@@ -63,7 +63,11 @@ def run_a1(ex):
         d0 = ym.to_timestamp('M')
         recs = []
         for _, r in g.iterrows():
-            t = r['sym']; mom = car(t, d0 - pd.Timedelta(days=252), 0, 231, bench='SPY')  # ~12-1 excess
+            # LOOK-AHEAD FIX: was car(t, d0 - 252 CALENDAR days, 0, 231 TRADING days) — mixing calendar and
+            # trading days pushed the window ~85 days PAST d0, so `mom` contained future returns overlapping
+            # `nxt`. Sorting on mom partly sorted on nxt -> mechanically inflated spread (t_HAC -5.27).
+            # Correct 12-1: trading-day offsets [-252, -22], both strictly before d0 (skip the last month).
+            t = r['sym']; mom = car(t, d0, -252, -22, bench='SPY')                        # 12-1 excess (causal)
             nxt = car(t, d0, 1, 21)                                                       # next month fwd excess
             if mom is None or nxt is None: continue
             recs.append((t, r['n'], mom, nxt))
@@ -113,6 +117,32 @@ def run_a2(panel, ex):
     tb = df[df['q'] == 4].groupby('m')['car'].mean() - df[df['q'] == 0].groupby('m')['car'].mean()
     return {'n_events': len(df), 'top_minus_bot_CAR': round(float(df[df['q']==4]['car'].mean() - df[df['q']==0]['car'].mean()), 4),
             't_HAC': round(_nw_t(tb.dropna().values), 2), 'pass': bool(abs(_nw_t(tb.dropna().values)) >= 2.0)}
+
+def report_f3(ex):
+    """F3: delisted-vs-survivor news coverage + differential decay near delisting (a1/a3 samples).
+    A symbol is DELISTED if its price series ends >60d before the newest price date in the cache."""
+    last_px = {t: s.index[-1] for t, s in _PX.items() if s is not None and len(s)}
+    if not last_px: return {'note': 'no priced symbols'}
+    panel_end = max(last_px.values())
+    ex = ex.copy(); ex['dn'] = ex['created_at'].dt.tz_convert('UTC').dt.tz_localize(None)
+    per = ex.groupby('sym').size()
+    dead = {t for t, d in last_px.items() if (panel_end - d).days > 60}
+    surv = set(last_px) - dead
+    d_syms = [t for t in per.index if t in dead]; s_syms = [t for t in per.index if t in surv]
+    # differential decay: articles/day in the final 90d of a dead name's life vs its own prior baseline
+    ratios = []
+    for t in d_syms:
+        end = last_px[t]; g = ex.loc[ex['sym'] == t, 'dn']
+        late = ((g >= end - pd.Timedelta(days=90)) & (g <= end)).sum() / 90.0
+        base = (g < end - pd.Timedelta(days=90)).sum()
+        span = max((end - pd.Timedelta(days=90) - g.min()).days, 1) if len(g) else 1
+        if base and span > 90: ratios.append(late / (base / span))
+    return {'n_delisted': len(d_syms), 'n_survivor': len(s_syms),
+            'articles_per_delisted': round(float(per[d_syms].mean()), 1) if d_syms else None,
+            'articles_per_survivor': round(float(per[s_syms].mean()), 1) if s_syms else None,
+            'pre_delist_coverage_ratio': round(float(np.median(ratios)), 2) if ratios else None,
+            'flag': ('coverage DECAYS before delisting' if ratios and np.median(ratios) < 0.7
+                     else 'no differential decay' if ratios else 'insufficient')}
 
 def _fast_novelty(sym_idx, content_by_id, symbol, as_of, window=21):
     """Faithful re-implementation of NF.novelty's DOCUMENT SELECTION (identical strict [lo,hi) windows on
@@ -201,6 +231,7 @@ def main():
     ex = ex[ex['sym'].map(lambda s: px(s) is not None)].copy()
     print(f"[panel] exploded sym-rows={len(ex):,} across {ex['sym'].nunique():,} priced symbols")
     print("[F4] news family N=4 (a1,a2,a3,b1); b1 ALSO tilt-family N=3 (T-268 even-week, T-273 breadth).")
+    print("[F3] " + str(report_f3(ex)))
     print("\n--- a1 news-vol x momentum ---"); print(' ', run_a1(ex))
     print("--- a2 LM-sentiment x post-8-K drift ---"); print(' ', run_a2(panel, ex))
     print("--- a3 novelty x reversal ---"); print(' ', run_a3(panel, ex))
