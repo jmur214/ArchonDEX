@@ -81,6 +81,17 @@ of the induced bias in the verdict.
 sleeve-sizing-tilt family (T-268 even-week, T-273 breadth precede it → tilt-family N = 3); its verdict must
 state both family counts, per the T-293 review's Lane-2 finding on family accounting.
 
+**F1 AMENDMENT — 2026-07-08 (director re-freeze after D's HALT-and-report; BINDING).** The literal
+`updated_at == created_at` rule tripped the >30% HALT on ~1-second processing-timestamp updates (median
+revised-lag 2.4 min; 95% same-calendar-day) — a false alarm against F1's intent. The materiality boundary is
+re-frozen as **cross-CALENDAR-DAY revision**: an article is excluded from historical features iff
+`updated_at` falls on a later calendar day than `created_at`. Rationale: the b1/T-273 causal-lag discipline
+means day-t features are consumed no earlier than day t+1, so a same-day revision's stored body is never
+consumed before the revision existed — no look-ahead channel; only cross-day revisions (measured 0.28% of
+articles, max 0.7% in any year) leak future text into a consumed feature day. The >30%/yr HALT is RETAINED
+on the cross-day measure; per-year cross-day revised-share is still reported. D's corrected loader
+(bc3b770) implements exactly this. Re-run authorized under the amendment; all other freeze terms unchanged.
+
 **Authorization:** run a1 → a2 → a3 → b1 exactly as frozen (gates: `t_HAC ≥ 2.0` for a1/a2/a3; paired
 ΔSortino + Δwealth ci + beat-the-overlay's-own-de-risking for b1), honest-N, one interaction table with
 verdicts. No spec changes after this line; any deviation = a new pre-registration.
