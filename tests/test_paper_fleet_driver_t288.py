@@ -52,7 +52,7 @@ class TestFamilyConstruction:
     def test_offense_constructs_and_stages_sso(self, tmp_path):
         closes, today = _closes(rising=True)
         om, cfg = _om_cfg(tmp_path)
-        plan, latest, staged, arrival, sizing, eq = _run_family_strategy(
+        plan, latest, staged, arrival, arrival_ts, sizing, eq = _run_family_strategy(
             constructor=OffenseSSOConstructor(tif="day"),
             fetch_universe=("SPY", "SSO", "AGG", "GLD"),
             tracking_universe=("SPY", "SSO", "AGG", "GLD"),
@@ -66,7 +66,7 @@ class TestFamilyConstruction:
     def test_sleeve_btc_constructs_all_four_legs(self, tmp_path):
         closes, today = _closes(rising=True)
         om, cfg = _om_cfg(tmp_path)
-        plan, latest, staged, arrival, sizing, eq = _run_family_strategy(
+        plan, latest, staged, arrival, arrival_ts, sizing, eq = _run_family_strategy(
             constructor=SleeveBtcConstructor(tif="day"),
             fetch_universe=("SPY", "AGG", "GLD", "IBIT"),
             tracking_universe=("SPY", "AGG", "GLD", "IBIT"),
@@ -107,7 +107,7 @@ class TestFamilyTracker:
     def test_offense_tracker_records_exec_gates(self, tmp_path):
         closes, today = _closes(rising=True)
         om, cfg = _om_cfg(tmp_path)
-        plan, latest, staged, arrival, sizing, eq = _run_family_strategy(
+        plan, latest, staged, arrival, arrival_ts, sizing, eq = _run_family_strategy(
             constructor=OffenseSSOConstructor(tif="day"),
             fetch_universe=("SPY", "SSO", "AGG", "GLD"),
             tracking_universe=("SPY", "SSO", "AGG", "GLD"),
@@ -118,7 +118,8 @@ class TestFamilyTracker:
         tsum = _record_family_tracker(
             tracker_path=str(tmp_path / "offense_tracking.json"),
             plan=plan, closes_latest=latest, equity=eq, sizing_equity=sizing,
-            broker_positions={}, staged=staged, arrival_px={}, summary=summary,
+            broker_positions={}, staged=staged, arrival_px={}, arrival_ts=arrival_ts,
+            summary=summary,
             canonical=True, root=tmp_path,
             robo_closes={t: latest[t] for t in ("SPY", "AGG", "GLD")})
         eg = tsum.get("execution_gates", {})

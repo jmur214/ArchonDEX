@@ -130,6 +130,10 @@ class OrderRecord:
     broker_order_id: Optional[str] = None
     filled_qty: int = 0
     filled_avg_price: Optional[float] = None
+    # T-288: broker fill timestamp (ISO-8601). Optional + defaulted so old journal
+    # lines replay unchanged. Gate-(b) slippage requires it: a fill older than the
+    # arrival-price capture is NOT this run's execution and must not be measured.
+    filled_at: Optional[str] = None
     last_broker_status: Optional[str] = None
     history: List[str] = field(default_factory=list)
 
@@ -417,6 +421,9 @@ class OrderManager:
         fap = resp.get("filled_avg_price")
         if fap is not None:
             order.filled_avg_price = float(fap)
+        fat = resp.get("filled_at")
+        if fat:
+            order.filled_at = str(fat)
         new_state = _BROKER_STATE_MAP.get(status, None)
         if new_state is not None and new_state.value != order.state:
             self._record(order, event="broker_update", new_state=new_state)

@@ -149,6 +149,14 @@ def _normalize_order(o: Any) -> Dict[str, Any]:
         "filled_qty": int(float(g("filled_qty", 0) or 0)),
         "filled_avg_price": (float(g("filled_avg_price"))
                              if g("filled_avg_price") not in (None, "") else None),
+        # T-288: the broker's fill TIMESTAMP. Load-bearing for gate-(b): a fill
+        # that happened BEFORE we captured the arrival price cannot be measured
+        # against it (a same-day re-submit of the deterministic client_order_id
+        # re-discovers an already-filled order and would otherwise fabricate a
+        # huge "slippage"). ISO-8601 string; None when the broker omits it.
+        "filled_at": (g("filled_at").isoformat()
+                      if hasattr(g("filled_at"), "isoformat")
+                      else (str(g("filled_at")) if g("filled_at") else None)),
         "side": str(g("side", "")).lower(),
         "tif": str(g("time_in_force", "")).lower(),
     }

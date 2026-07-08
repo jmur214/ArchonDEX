@@ -81,6 +81,52 @@ class _FailClosed(Exception):
         self.code, self.msg = code, msg
 
 
+def _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts):
+    """Gate-(b) slippage from ONLY the fills that happened AFTER we captured the
+    arrival price.
+
+    T-288: ``client_order_id`` is a deterministic hash of (trade_date, ticker,
+    side, qty, config) and ``target_qty`` is computed off the prior CLOSE — so a
+    same-day re-submit produces the SAME coid, the broker returns the ALREADY-
+    FILLED order, and its hours-old fill price gets measured against a fresh
+    arrival. That fabricated a 146 bps "SSO slippage" that was pure artifact.
+    A fill older than the arrival capture is not this run's execution.
+
+    FAIL-CLOSED ON MEASUREMENT: an unknown/unparseable ``filled_at`` is EXCLUDED,
+    never assumed fresh — a missing sample is honest, a fabricated one is not.
+    Returns the mean bps over qualifying fills, or None when none qualify."""
+    import datetime as _dt
+
+    def _fresh(o) -> bool:
+        fa = getattr(o, "filled_at", None)
+        if not fa or arrival_ts is None:
+            return False
+        try:
+            t = _dt.datetime.fromisoformat(str(fa).replace("Z", "+00:00"))
+        except Exception:
+            return False
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=_dt.timezone.utc)
+        return t >= arrival_ts
+
+    slips, stale = [], []
+    for o in staged:
+        px = arrival_px.get(o.ticker)
+        if not px or px <= 0:
+            continue
+        if not getattr(o, "filled_avg_price", None) or getattr(o, "filled_qty", 0) <= 0:
+            continue
+        if not _fresh(o):
+            stale.append(o.ticker)
+            continue
+        slips.append(abs(float(o.filled_avg_price) - px) / px * 1e4)
+    if stale:
+        print(f"   SLIPPAGE   EXCLUDED {stale} — fill predates this run's arrival "
+              f"capture (stale/re-discovered order); not measurable, not fabricated.",
+              file=sys.stderr)
+    return round(sum(slips) / len(slips), 2) if slips else None
+
+
 def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
                          client, om, cfg, today, broker_positions, cap):
     """Shared sleeve-FAMILY pipeline (T-288 fleet — offense_sso, sleeve_btc, and
@@ -91,8 +137,8 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     price → stage. The live account-1 (trend_sleeve) block stays INLINE +
     untouched (regression-safe); it can migrate here later under its own lock.
 
-    Returns (plan, closes_latest, staged, arrival_px, sizing_equity, equity).
-    Raises _FailClosed(code, msg) on a fetch failure / stale bar."""
+    Returns (plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity,
+    equity). Raises _FailClosed(code, msg) on a fetch failure / stale bar."""
     import pandas as _pd
     try:
         closes = client.fetch_daily_closes(list(fetch_universe), lookback_days=400)
@@ -109,17 +155,21 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     plan = constructor.construct(sizing_equity, broker_positions, closes)
     closes_latest = {t: float(closes[t].iloc[-1]) for t in tracking_universe
                      if t in closes and not closes[t].empty}
+    # Stamp WHEN we captured arrival: gate-(b) may only measure fills that
+    # happened after this instant (see _fresh_fill_slippage_bps).
+    import datetime as _dt
+    arrival_ts = _dt.datetime.now(_dt.timezone.utc)
     arrival_px = (client.fetch_latest_prices([o.ticker for o in plan.orders])
                   if plan.orders else {})
     staged = [om.stage(str(today), s.ticker, s.side, s.qty,
                        s.stage_args()["tif"], cfg.config_hash())
               for s in plan.orders]
-    return plan, closes_latest, staged, arrival_px, sizing_equity, equity
+    return plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity, equity
 
 
 def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
                            sizing_equity, broker_positions, staged, arrival_px,
-                           summary, canonical, root, robo_closes):
+                           arrival_ts, summary, canonical, root, robo_closes):
     """Record a family strategy's forward tracker + report-only execution gates,
     reusing the exact T-238 gate logic (held_qty vs the achievable whole-share
     target on the sizing basis; slippage vs arrival; order-state errors; clean
@@ -137,14 +187,7 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
     if not did_rebalance and sizing_equity > 0:
         held_w = {t: (broker_positions.get(t, 0) * closes_latest[t]) / sizing_equity
                   for t in trade if t in closes_latest}
-    slippage_bps = None
-    if arrival_px:
-        slips = [abs(float(o.filled_avg_price) - arrival_px[o.ticker]) / arrival_px[o.ticker] * 1e4
-                 for o in staged
-                 if o.ticker in arrival_px and arrival_px[o.ticker] > 0
-                 and getattr(o, "filled_avg_price", None) and getattr(o, "filled_qty", 0) > 0]
-        if slips:
-            slippage_bps = round(sum(slips) / len(slips), 2)
+    slippage_bps = _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts)
     return SleeveTracker(path=tracker_path, root=str(root)).record(
         str(summary.trade_date), equity, robo_closes,
         target_weights=tgt_w, held_weights=held_w, slippage_bps=slippage_bps,
@@ -280,6 +323,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     staged: list = []
     sleeve_closes: dict = {}
     arrival_px: dict = {}                       # gate-(b) slippage reference
+    arrival_ts = None                           # when arrival was captured
     family_state = None                         # T-288 fleet Accounts 2/3 context
     if args.strategy == "trend_sleeve":
         from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
@@ -325,7 +369,10 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
         # Arrival price (latest trade) captured BEFORE submission = the gate-(b)
         # slippage reference (paper controls |fill − arrival| on a DAY order).
+        # arrival_ts stamps WHEN: only fills after it are this run's execution.
         if plan.orders:
+            import datetime as _dt
+            arrival_ts = _dt.datetime.now(_dt.timezone.utc)
             arrival_px = client.fetch_latest_prices([o.ticker for o in plan.orders])
         print(f"   SLEEVE     tif={sleeve_tif} signals={plan.signals} "
               f"targets={plan.targets} → {len(plan.orders)} order(s): "
@@ -354,7 +401,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             fetch_u = ("SPY", "AGG", "GLD", "IBIT")
             family_state = {"tracker_file": "sleeve_btc_tracking.json", "label": "SLEEVE-BTC"}
         try:
-            plan, sleeve_closes, staged2, arrival_px, sizing_equity, equity = \
+            plan, sleeve_closes, staged2, arrival_px, arrival_ts, sizing_equity, equity = \
                 _run_family_strategy(
                     constructor=constructor, fetch_universe=fetch_u,
                     tracking_universe=fetch_u, client=client, om=om, cfg=cfg,
@@ -411,19 +458,10 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             if not did_rebalance and sizing_equity > 0:
                 held_w = {t: (broker_positions.get(t, 0) * sleeve_closes[t]) / sizing_equity
                           for t in sleeve_closes}
-            # gate (b): realized DAY-fill slippage vs the ARRIVAL price (the
-            # quality paper actually controls) — mean |fill − arrival| bps over
-            # the orders that filled this cycle. None if nothing filled.
-            slippage_bps = None
-            if arrival_px:
-                slips = [abs(float(o.filled_avg_price) - arrival_px[o.ticker])
-                         / arrival_px[o.ticker] * 1e4
-                         for o in staged
-                         if o.ticker in arrival_px and arrival_px[o.ticker] > 0
-                         and getattr(o, "filled_avg_price", None)
-                         and getattr(o, "filled_qty", 0) > 0]
-                if slips:
-                    slippage_bps = round(sum(slips) / len(slips), 2)
+            # gate (b): realized DAY-fill slippage vs the ARRIVAL price, counting
+            # ONLY fills that happened after the arrival capture (a stale/
+            # re-discovered fill is not this run's execution — T-288).
+            slippage_bps = _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts)
             tracker = SleeveTracker(root=str(root))
             tsum = tracker.record(
                 str(today), equity, sleeve_closes,
@@ -473,7 +511,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                 tracker_path=f"data/state/{family_state['tracker_file']}",
                 plan=plan, closes_latest=sleeve_closes, equity=equity,
                 sizing_equity=sizing_equity, broker_positions=broker_positions,
-                staged=staged, arrival_px=arrival_px, summary=summary,
+                staged=staged, arrival_px=arrival_px, arrival_ts=arrival_ts,
+                summary=summary,
                 canonical=canonical, root=root, robo_closes=robo_closes)
             eg = tsum.get("execution_gates", {})
             print(f"6. TRACK     {family_state['label']} forward: {tsum.get('status')} "
