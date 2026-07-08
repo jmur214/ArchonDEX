@@ -187,3 +187,51 @@ all turnover — the upper bound — gives $52,742 / 6.70%.) This dwarfs the 0.8
 
 N_trials += 1 (one family, jointly reported; no arm added after seeing results). Reproducible:
 `scripts/vehicle_bakeoff_t294.py`.
+
+---
+## CORRECTION PASS (2026-07-08, ride-along) — regenerated on the corrected calendar
+**Defect (found in T-297):** this audit's `common` index intersected the DGS10 bond synth (needed by the
+NTSX/RSSB arms), which is **missing 48 SPY trading days**. Every series — arms *and* the buy-hold-SPY bar —
+was silently reindexed onto that holey calendar. **Fix:** project the bond synth ONTO the SPY calendar
+(`core.calendar_guard.reindex_onto`) instead of intersecting it in; the run now asserts
+`assert_no_calendar_holes(...)` and would **HALT** rather than silently reindex (`[NN-FAIL-CLOSED]`; named
+regression: `tests/test_calendar_guard.py::test_t294_bond_synth_holes_would_halt`).
+
+### The three headline numbers — CONFIRMED on the corrected calendar
+| | corrected |
+|---|---|
+| buy-hold SPY TR (the bar) | **$74,104 / 8.13%** |
+| V1's zero-slippage edge over the bar | **+0.25%/yr** |
+| V1 @5bps vs the bar | **$65,088 vs $74,104 = −12.2%** |
+
+### Corrected tables (original holey-calendar values in parentheses)
+**Basis checks — the correction IMPROVES them; C/T-296's collateral-aware rule is validated more sharply:**
+| synthetic | corrected gap | (holey) | naive-form gap | (holey) |
+|---|---|---|---|---|
+| SSO (2× daily) | +0.23%/yr | (+0.23%) | — | — |
+| **NTSX (90/60)** | **+0.02%/yr** (term **1.001**) | (+0.63%) | **+1.58%/yr** | (+2.19%) |
+| RSSB (100/100) | −0.27%/yr (588d, weak) | (−0.02%) | **+5.41%/yr** | (+5.61%) |
+
+The collateral-aware NTSX synthetic is now **near-exact** (term 1.001) — the earlier +0.63%/yr residual was
+itself a calendar artifact. The naive "two funds added" form still errs **+1.58%/yr (NTSX)** and **+5.41%/yr
+(RSSB)**: C's rule stands, with cleaner magnitudes.
+
+**Arms:**
+| arm | corrected $10k→ | (holey) | CAGR | MaxDD |
+|---|---|---|---|---|
+| V1 gated SSO 2× | 79,496 | (71,658) | 8.4% | −43.4% |
+| V4 gated ideal-2× futures | 97,183 | (87,740) | 9.3% | −42.8% |
+| V2 gated NTSX (0.9× eq) | 41,771 | (39,868) | 5.7% | −19.4% |
+| V3 gated RSSB (1.0× eq) | 46,038 | (43,808) | 6.1% | −21.5% |
+| V2m SSO+cash @0.9× eq | 36,827 | (35,071) | 5.2% | −20.6% |
+
+**Q-A vehicle gap: V4 − V1 = +$17,687, ΔCAGR +0.85%/yr** (reported: +0.86%/yr) — **materially unchanged.**
+Decomposition on the levered leg: chop/path **decay avoided +2.37%/yr** (was +1.97%), fund ER +0.89%,
+financing spread +0.30% ⇒ sum of parts +3.56%/yr vs measured total +2.75%/yr. Chop-window decay unchanged
+(2011 +4.01%, 2015-16 +1.73%, 2018 +1.21%). Integrity: monthly-reset min NAV 0.16 (no wipeout).
+
+### Verdict on the correction
+**Every T-294 conclusion stands; only magnitudes moved, and the vehicle gap barely at all.** The absolute
+wealth figures were understated ~10%; the *relative* claim the ledger carries (V1 loses to the bar at E's ≥5bps
+slippage; NTSX/RSSB cannot reach 2× equity and lose to plain SPY; the leak is decay-dominated and
+execution-bound) is unchanged and, on the corrected bar, slightly stronger. No new trial (correction pass).
