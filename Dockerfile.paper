@@ -32,11 +32,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # MetricsEngine (Sortino/MaxDD, not a fork), and core/metrics_engine.py imports
 # `scipy.stats`. Same reason as pytz — the sleeve path pulls a dep the reconcile
 # pulse never did.
+# pyarrow: T-290b step-8 (B's post-reconcile news append) writes/reads the
+# monthly parquet (intelligence/news_panel.py to_parquet/read_parquet). WITHOUT
+# it the news step fails-OPEN to a silent no-op — the forward news-accrual clock
+# would never actually tick. (news_panel._html_to_text cleans HTML→text via a
+# built-in regex FALLBACK when the bs4/sklearn html_to_text helper is absent, so
+# no bs4/lxml/sklearn is pulled into the lean image just for content cleaning.)
 RUN pip install --no-cache-dir \
         pandas==3.0.1 \
         alpaca-py==0.43.2 \
         pytz==2026.1.post1 \
-        scipy==1.17.1
+        scipy==1.17.1 \
+        pyarrow==23.0.1
 
 # Code + config from the git-archive staging dir (NO data/ — the wrapper
 # stages only the archived commit; the paper loop reads none of it).
