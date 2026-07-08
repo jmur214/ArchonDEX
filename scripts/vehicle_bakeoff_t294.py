@@ -6,6 +6,7 @@ import pandas as pd, numpy as np
 ROOT = '/Users/jacksonmurphy/Dev/trading_machine-agent-d'; sys.path.insert(0, ROOT)
 from core.metrics_engine import MetricsEngine as ME
 from core.trend_overlay import TrendOverlay
+from core.calendar_guard import assert_no_calendar_holes, reindex_onto
 TD = 252; TXN = 0.00015
 SPY_ER = 0.000945; SSO_ER = 0.0089; NTSX_ER = 0.0020; RSSB_ER = 0.0036
 SSO_SPREAD = 0.0060; FUT_SPREAD = 0.0030
@@ -32,11 +33,15 @@ spy = spy_close(); bond = cser(f'{ROOT}/data/research/bond_synth_dgs10_t255.csv'
 dgs3 = macro('DGS3MO'); cash_d = (dgs3/100.0/TD).reindex(pd.date_range(dgs3.index[0], dgs3.index[-1], freq='D')).ffill()
 def rf_on(idx): return cash_d.reindex(idx).ffill().fillna(0.0)
 
-spy_tr = spy.pct_change(); bond_tr = bond.pct_change()
+spy_tr = spy.pct_change()
 IDX = spy_tr.index
+# CALENDAR FIX (T-297 correction): the DGS10 bond synth is missing 48 SPY trading days. Intersecting it
+# holed the SPY bar's calendar ($64,421 vs the true $74,104). Project bond ONTO the SPY calendar instead.
+bond = reindex_onto(IDX, bond)
+bond_tr = bond.pct_change()
 rf = rf_on(IDX)
 spy_gross = spy_tr + SPY_ER/TD                       # SSO/futures don't pay SPY's ER
-bond_a = bond_tr.reindex(IDX)
+bond_a = bond_tr
 
 # ---- collateral-aware synthetics (C/T-296: overlay leg = excess-over-cash) ----
 ntsx_syn = 0.90*spy_tr + 0.10*rf + 0.60*(bond_a - rf) - NTSX_ER/TD
@@ -110,6 +115,8 @@ arms = {'V1 gated SSO 2x (incumbent)': V1, 'V4 gated ideal-2x futures (no daily 
 arms = {k: v[v.index >= START].dropna() for k, v in arms.items()}
 common = None
 for v in arms.values(): common = v.index if common is None else common.intersection(v.index)
+_bench = spy_tr[spy_tr.index >= START].dropna().index
+assert_no_calendar_holes(_bench, common, benchmark_name='spy_tr(bar)', common_name='t294_common')
 arms = {k: v.reindex(common).dropna() for k, v in arms.items()}
 
 def stats(r):
