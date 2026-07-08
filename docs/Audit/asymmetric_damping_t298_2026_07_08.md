@@ -3,11 +3,11 @@ task_id: T-2026-07-08-298
 title: Asymmetric damping — damp re-entry, never damp de-risking
 date: 2026-07-08
 author: Agent D (fair-harness lane)
-type: PRE-REGISTRATION DRAFT (awaiting director freeze; N_trials += 1 on run)
-status: DRAFT — NOT RUN. Awaiting freeze.
+type: PRE-REGISTRATION (FROZEN by the director 2026-07-08; N_trials += 1 on run)
+status: FROZEN 2026-07-08 — RUN AUTHORIZED as drafted, no amendments.
 ---
 
-# T-298 (DRAFT) — asymmetric damping
+# T-298 (FROZEN 2026-07-08) — asymmetric damping
 
 T-297 proved turnover reduction is the right lever (both damped arms beat buy-hold SPY at 5 bps where the
 undamped config loses) but **both bought it by delaying the crash exit** — Arm1 by 225 days, because a symmetric
@@ -78,4 +78,14 @@ savings). If this arm passes, it passes honestly; if it fails, the offense row s
 standing (no implementable gated-2× beats Roth buy-hold SPY at measured slippage + honest taxes) becomes settled
 pending only E's number.
 
-N_trials += 1 on run. **Not run. Awaiting director freeze.**
+N_trials += 1 on run.
+
+## DIRECTOR FREEZE — 2026-07-08 (no amendments; BINDING)
+Frozen exactly as drafted: de-risking NEVER damped (immediate execution); re-entry only when
+e_target − e_held > ⅔ (quantization-forced band — pre-verified as the only binding width, not tuned);
+exit-lag ≡ 0 by the e_held ≤ e_target invariant, verified empirically anyway (a positive lag falsifies the
+IMPLEMENTATION); gate = beat Roth buy-hold SPY ($74,104, corrected calendar) at the 5bps grid point; the
+pre-derived falsifiable target (SSO-leg turnover ≤ ~4.56 units/yr) and the mean-exposure confound report are
+part of the frozen output spec. The pre-registered breakeven — **undamped V1 = the SPY bar at 1.55 bps of
+SSO-leg slippage** — is the standing number E's measured redo reads against, whatever this arm's verdict.
+Honest prior recorded at ~40-50%. RUN AUTHORIZED. Any deviation = a new pre-registration.
