@@ -61,6 +61,84 @@ from paper_trader.held_reconcile import (
 STATE_DIR = "data/paper_state"
 
 
+class _FailClosed(Exception):
+    """A [NN-FAIL-CLOSED] halt inside a strategy pipeline — carries the driver
+    exit code + a message; main() emits a non-canonical metric + returns it."""
+    def __init__(self, code: int, msg: str):
+        super().__init__(msg)
+        self.code, self.msg = code, msg
+
+
+def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
+                         client, om, cfg, today, broker_positions, cap):
+    """Shared sleeve-FAMILY pipeline (T-288 fleet — offense_sso, sleeve_btc, and
+    the future Stage-2 LLM account). Byte-for-byte the same steps the live
+    trend_sleeve block runs, parameterised only by the constructor + universe:
+    fetch daily closes → DROP the forming today-bar (causal) → [NN-FAIL-CLOSED]
+    stale-bar HALT → size off min(equity, cap) → construct → capture ARRIVAL
+    price → stage. The live account-1 (trend_sleeve) block stays INLINE +
+    untouched (regression-safe); it can migrate here later under its own lock.
+
+    Returns (plan, closes_latest, staged, arrival_px, sizing_equity, equity).
+    Raises _FailClosed(code, msg) on a fetch failure / stale bar."""
+    import pandas as _pd
+    try:
+        closes = client.fetch_daily_closes(list(fetch_universe), lookback_days=400)
+    except Exception as exc:
+        raise _FailClosed(67, f"bars fetch failed: {type(exc).__name__}")
+    closes = {t: s[s.index < _pd.Timestamp(today)] for t, s in closes.items()}
+    stale = [t for t in fetch_universe
+             if t not in closes or closes[t].empty
+             or (_pd.Timestamp(today) - closes[t].index[-1]).days > 5]
+    if stale:
+        raise _FailClosed(68, f"price data missing/stale for {stale}")
+    equity = float(client.get_account().get("equity", 0.0))
+    sizing_equity = min(equity, cap) if cap else equity
+    plan = constructor.construct(sizing_equity, broker_positions, closes)
+    closes_latest = {t: float(closes[t].iloc[-1]) for t in tracking_universe
+                     if t in closes and not closes[t].empty}
+    arrival_px = (client.fetch_latest_prices([o.ticker for o in plan.orders])
+                  if plan.orders else {})
+    staged = [om.stage(str(today), s.ticker, s.side, s.qty,
+                       s.stage_args()["tif"], cfg.config_hash())
+              for s in plan.orders]
+    return plan, closes_latest, staged, arrival_px, sizing_equity, equity
+
+
+def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
+                           sizing_equity, broker_positions, staged, arrival_px,
+                           summary, canonical, root, robo_closes):
+    """Record a family strategy's forward tracker + report-only execution gates,
+    reusing the exact T-238 gate logic (held_qty vs the achievable whole-share
+    target on the sizing basis; slippage vs arrival; order-state errors; clean
+    days). Per-strategy tracker file (accounts never collide). ``robo_closes``
+    is the SPY/AGG/GLD benchmark; the account's equity is tracked vs it. Never
+    raises to the caller (report-only) — a tracker failure must not fail the run."""
+    from paper_trader.sleeve_tracker import SleeveTracker
+    did_rebalance = bool(plan.orders)
+    order_errs = ((summary.reconcile_total_cycles - summary.reconcile_clean_cycles)
+                  + (1 if summary.halted else 0))
+    trade = list(plan.target_qty)                 # tickers this strategy trades
+    tgt_w = ({t: (plan.target_qty.get(t, 0) * closes_latest[t]) / sizing_equity
+              for t in trade if t in closes_latest} if sizing_equity > 0 else {})
+    held_w = None
+    if not did_rebalance and sizing_equity > 0:
+        held_w = {t: (broker_positions.get(t, 0) * closes_latest[t]) / sizing_equity
+                  for t in trade if t in closes_latest}
+    slippage_bps = None
+    if arrival_px:
+        slips = [abs(float(o.filled_avg_price) - arrival_px[o.ticker]) / arrival_px[o.ticker] * 1e4
+                 for o in staged
+                 if o.ticker in arrival_px and arrival_px[o.ticker] > 0
+                 and getattr(o, "filled_avg_price", None) and getattr(o, "filled_qty", 0) > 0]
+        if slips:
+            slippage_bps = round(sum(slips) / len(slips), 2)
+    return SleeveTracker(path=tracker_path, root=str(root)).record(
+        str(summary.trade_date), equity, robo_closes,
+        target_weights=tgt_w, held_weights=held_w, slippage_bps=slippage_bps,
+        order_errors=order_errs, canonical=canonical)
+
+
 def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     """Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
     for tests (drive a non-trading day, a held position, etc. without a
@@ -71,10 +149,15 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                          "independent config/paper_designated_allocator.json")
     ap.add_argument("--dry-run", action="store_true",
                     help="run the cycle WITHOUT arming submission (observe only)")
-    ap.add_argument("--strategy", choices=["reconcile_only", "trend_sleeve"],
+    ap.add_argument("--strategy",
+                    choices=["reconcile_only", "trend_sleeve", "offense_sso", "sleeve_btc"],
                     default="reconcile_only",
                     help="reconcile_only = the daily pulse (no orders, the proven "
-                         "default); trend_sleeve = construct + submit the T-204 "
+                         "default); trend_sleeve = the T-238 defensive sleeve "
+                         "(Account 1, LIVE); offense_sso = the T-284 gated-2× SSO "
+                         "offense (Account 2); sleeve_btc = the T-272 sleeve+IBIT "
+                         "(Account 3) — the T-288 fleet, one account per jobdef. "
+                         "trend_sleeve = construct + submit the T-204 "
                          "3-asset trend sleeve (T-238 paper validation)")
     ap.add_argument("--sleeve-notional-cap", type=float, default=None,
                     help="cap the $ the sleeve sizes to (cautious FIRST armed run); "
@@ -185,6 +268,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     staged: list = []
     sleeve_closes: dict = {}
     arrival_px: dict = {}                       # gate-(b) slippage reference
+    family_state = None                         # T-288 fleet Accounts 2/3 context
     if args.strategy == "trend_sleeve":
         from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
         try:
@@ -237,6 +321,45 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         for spec in plan.orders:
             staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
                                    spec.stage_args()["tif"], cfg.config_hash()))
+
+    elif args.strategy in ("offense_sso", "sleeve_btc"):
+        # T-288 fleet Accounts 2/3 — the sleeve-FAMILY shared pipeline. The live
+        # account-1 (trend_sleeve) block above stays inline + untouched.
+        sleeve_tif = os.getenv("ARCHONDEX_SLEEVE_TIF", "day").lower()
+        if sleeve_tif not in ("day", "opg"):
+            print(f"FATAL: [NN-FAIL-CLOSED] invalid ARCHONDEX_SLEEVE_TIF="
+                  f"{sleeve_tif!r} (want day|opg).", file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return 69
+        if args.strategy == "offense_sso":
+            from paper_trader.offense_sso_constructor import OffenseSSOConstructor
+            constructor = OffenseSSOConstructor(tif=sleeve_tif)
+            fetch_u = ("SPY", "SSO", "AGG", "GLD")   # SPY signal, SSO trade, AGG/GLD robo bench
+            family_state = {"tracker_file": "offense_tracking.json", "label": "OFFENSE-SSO"}
+        else:
+            from paper_trader.sleeve_btc_constructor import SleeveBtcConstructor
+            constructor = SleeveBtcConstructor(tif=sleeve_tif)
+            fetch_u = ("SPY", "AGG", "GLD", "IBIT")
+            family_state = {"tracker_file": "sleeve_btc_tracking.json", "label": "SLEEVE-BTC"}
+        try:
+            plan, sleeve_closes, staged2, arrival_px, sizing_equity, equity = \
+                _run_family_strategy(
+                    constructor=constructor, fetch_universe=fetch_u,
+                    tracking_universe=fetch_u, client=client, om=om, cfg=cfg,
+                    today=today, broker_positions=broker_positions,
+                    cap=args.sleeve_notional_cap)
+            staged.extend(staged2)
+        except _FailClosed as fc:
+            print(f"FATAL: [NN-FAIL-CLOSED] {args.strategy} {fc.msg} — refusing "
+                  f"to trade.", file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return fc.code
+        if args.sleeve_notional_cap:
+            print(f"   {family_state['label']}  notional cap "
+                  f"${args.sleeve_notional_cap:,.0f} (equity ${equity:,.0f})")
+        print(f"   {family_state['label']}  tif={sleeve_tif} signals={plan.signals} "
+              f"targets={plan.targets} → {len(plan.orders)} order(s): "
+              f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}")
 
     summary = sched.run_trading_day(str(today), staged, inputs_fn,
                                     account_explained=account_explained)
@@ -324,6 +447,36 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       f"(report-only T-272 forward validation)")
             except Exception as exc:
                 print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
+        except Exception as exc:
+            print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
+
+    elif args.strategy in ("offense_sso", "sleeve_btc") and sleeve_closes and family_state:
+        # T-288 fleet Accounts 2/3 forward tracker + report-only execution gates
+        # (shared helper; per-strategy tracker file; robo benchmark = SPY/AGG/GLD).
+        try:
+            equity = float(client.get_account().get("equity", broker_cash))
+            robo_closes = {t: sleeve_closes[t] for t in ("SPY", "AGG", "GLD")
+                           if t in sleeve_closes}
+            tsum = _record_family_tracker(
+                tracker_path=f"data/state/{family_state['tracker_file']}",
+                plan=plan, closes_latest=sleeve_closes, equity=equity,
+                sizing_equity=sizing_equity, broker_positions=broker_positions,
+                staged=staged, arrival_px=arrival_px, summary=summary,
+                canonical=canonical, root=root, robo_closes=robo_closes)
+            eg = tsum.get("execution_gates", {})
+            print(f"6. TRACK     {family_state['label']} forward: {tsum.get('status')} "
+                  f"({tsum.get('n_days', tsum.get('sleeve', {}).get('n_days'))} pts)"
+                  + (f" | exec-gate overall={eg.get('overall')}" if eg else ""))
+            # Account 3 (sleeve_btc): the live IBIT-vs-BTC-USD basis is the T-272
+            # construction check. The BTC-USD leg lives in Account 1's degraded
+            # BtcShadowTracker until BTC data threads (D's panel); until then we
+            # report the account's own IBIT leg + flag the divergence as PENDING
+            # that data — never a fabricated basis number.
+            if args.strategy == "sleeve_btc":
+                ibit_w = plan.targets.get("IBIT")
+                print(f"   IBIT-BASIS  account-3 IBIT target_w={ibit_w} | "
+                      f"divergence-vs-BTC-USD shadow = PENDING BTC-data thread "
+                      f"(D panel) — report-only")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
