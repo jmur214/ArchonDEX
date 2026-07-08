@@ -38,9 +38,15 @@ def load_hist():
     p = NP.load_panel()
     if not len(p): return p, {}
     p = p.dropna(subset=['created_at']).copy(); p['year'] = p['created_at'].dt.year
-    rev = p['updated_at'].notna() & (p['updated_at'].dt.floor('s') != p['created_at'].dt.floor('s'))
+    # F1 (corrected to its INTENT): a MATERIAL revision = updated on a LATER calendar day than created.
+    # Same-day revisions are forward-append-immune per the frozen doc. The earlier floor-second rule
+    # over-counted routine ~1s processing-timestamp updates (51% "revised" vs 0.28% material) and tripped a
+    # FALSE >30% HALT (T-289 backfill report). Material cross-day revisions are 0.0-0.7%/yr. Awaiting the
+    # director's re-freeze of the F1 threshold to this materiality definition before the tests run.
+    rev = p['updated_at'].notna() & (p['updated_at'].dt.tz_convert('UTC').dt.date
+                                     > p['created_at'].dt.tz_convert('UTC').dt.date)
     share = {int(y): float(rev[p['year'] == y].mean()) for y in sorted(p['year'].unique())}
-    return p[~rev].copy(), share            # F1: unrevised only
+    return p[~rev].copy(), share            # F1: unrevised (same-day or unrevised) only
 
 # ------- a1: news-vol x momentum, within-date buckets (F2) -------
 def run_a1(ex):
