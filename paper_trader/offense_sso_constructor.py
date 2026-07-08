@@ -37,6 +37,10 @@ OFFENSE_TRADE_TICKER = "SSO"        # 2× daily SPY (the traded instrument)
 OFFENSE_SIGNAL_TICKER = "SPY"       # the underlying the ensemble trend reads
 OFFENSE_SPEEDS = SLEEVE_SPEEDS      # {42,105,210}d — EXACTLY the sleeve's ensemble
 OFFENSE_DEADBAND = 0.10             # Carver weight-band (same as the sleeve)
+# T-298 asymmetric-damping band, in SSO-weight (= ensemble-fraction) space. The T-298 backtest damps
+# re-entry when the 2×-exposure move e_target−e_held > ⅔; since SSO weight = ensemble fraction = e2/2,
+# that band is ⅓ here. Used ONLY when damping="asymmetric" (default is the byte-preserved symmetric mode).
+OFFENSE_REENTRY_BAND = 1.0 / 3.0
 
 
 @dataclass
@@ -51,12 +55,19 @@ class OffensePlan:
 class OffenseSSOConstructor:
     def __init__(self, trade_ticker=OFFENSE_TRADE_TICKER,
                  signal_ticker=OFFENSE_SIGNAL_TICKER, speeds=OFFENSE_SPEEDS,
-                 deadband: float = OFFENSE_DEADBAND, tif: str = "day"):
+                 deadband: float = OFFENSE_DEADBAND, tif: str = "day",
+                 damping: str = "symmetric"):
         self.trade_ticker = trade_ticker
         self.signal_ticker = signal_ticker
         self.speeds = tuple(int(s) for s in speeds)
         self.deadband = float(deadband)
         self.tif = tif
+        # "symmetric" = the T-284/T-288 default (byte-preserved). "asymmetric" = the T-298 spec that
+        # actually cleared the buy-hold-SPY bar: NEVER damp de-risking (exit-lag ≡ 0), damp re-entry
+        # below OFFENSE_REENTRY_BAND. Standing-ready, default OFF; enable by passing damping="asymmetric".
+        if damping not in ("symmetric", "asymmetric"):
+            raise ValueError(f"damping must be 'symmetric' or 'asymmetric', got {damping!r}")
+        self.damping = damping
         # compose the EXACT sleeve ensemble signal (no re-implementation, and the
         # defensive sleeve constructor is left byte-unchanged).
         self._signal = SleeveOrderConstructor(speeds=self.speeds)
@@ -94,8 +105,19 @@ class OffenseSSOConstructor:
         plan.held_qty[self.trade_ticker] = held
 
         flip = (target_qty == 0 and held > 0) or (target_qty > 0 and held == 0)
-        if not flip and abs(target_w - held_w) < self.deadband:
-            return plan                                  # Carver buffer: no-op
+        if not flip:
+            if self.damping == "asymmetric":
+                # T-298. De-risking (target_w < RAW held_w) is NEVER damped → always trades → exit-lag ≡ 0
+                # (exactly, on the raw weight; strictly safer than the symmetric default, which could delay
+                # a partial de-risk by up to `deadband`). Re-entry is damped against held SNAPPED to the
+                # {0,⅓,⅔,1} ensemble grid — recovering the clean exposure-path state the T-298 backtest
+                # used, so price drift can't leak a single-increment (⅓) re-entry through the band.
+                if target_w >= held_w - 1e-9:            # not a de-risk → apply the re-entry band
+                    held_frac = min(1.0, max(0.0, round(held_w * 3.0) / 3.0))
+                    if (target_w - held_frac) <= OFFENSE_REENTRY_BAND + 1e-9:
+                        return plan                      # re-entry within the ⅓ band → hold
+            elif abs(target_w - held_w) < self.deadband:
+                return plan                              # symmetric Carver buffer: no-op (default)
         delta = target_qty - held
         if delta == 0:
             return plan
