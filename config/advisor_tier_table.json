@@ -1,12 +1,15 @@
 {
   "_doc": [
-    "SEED tier table for the capital-aware advisor (T-2026-07-02-280 + T-280b asset-location amendment) — SPEC ARTIFACT, NOT yet wired.",
+    "SEED tier table for the capital-aware advisor (T-280 + T-280b + T-300 offense-arc consolidation) — SPEC ARTIFACT, NOT yet wired.",
     "Only the VALIDATED single-105d trend sleeve populates today (T-236 -> T-255 fair). Everything richer is a",
-    "pending stub the advisor treats as ABSENT until its gauntlet clears. Conforms to advisor_tier_table.schema.json.",
+    "pending/reference/refuted stub the advisor treats as ABSENT until its gauntlet clears. Conforms to advisor_tier_table.schema.json.",
     "T-280b: rows carry tax_home_preference (asset location across a Roth + a taxable account) and s1256; taxable rows",
-    "require an AFTER-TAX gauntlet (T-191) measured vs the TLH-enhanced robo. The BUILD is assigned after B/T-278 + C/T-279."
+    "require an AFTER-TAX gauntlet (T-191) measured vs the TLH-enhanced robo.",
+    "T-300 (offense arc T-294/294b/297/298): the offense rows are recorded. Standing: ONLY status=='validated' auto-deploys;",
+    "the offense CANDIDATE (T-298 asym-damped ~1.1x) is 'earned-directional' -> awaits E's measured SSO slippage + a forward",
+    "paper record (account 2) + the user's charter decision (undamped 2x vs whipsaw-free ~1.1x). NO taxable config earns a row today."
   ],
-  "version": "0.2-seed-t280b",
+  "version": "0.3-t300-offense-arc",
   "rows": [
     {
       "id": "roth_sub10k_sleeve_lowprice",
@@ -52,6 +55,36 @@
       "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.20, "max_leg_weight": 0.34, "integer_shares": true},
       "validation_ref": "pending: C/T-279 premium-harvest gauntlet at >=$65K, run as a T-191 AFTER-TAX test vs the TLH-enhanced robo, with IRC-1256 (60/40) treatment on the XSP index-option leg",
       "status": "pending", "turnover_class": "monthly", "tax_home_preference": "taxable-required", "s1256": true, "paper_evidence": "not-covered"
+    },
+    {
+      "id": "roth_offense_asym_damped_CANDIDATE",
+      "wrapper": "roth", "equity_min": 10000, "equity_max": null,
+      "instrument_set": ["SPY", "SSO"],
+      "active_legs": ["offense_sso_gated_2x_asym_damped_t298"],
+      "sizing": {"lookback": 105, "deadband": 0.3333, "car25_tolerance": 0.30, "max_leg_weight": 1.0, "integer_shares": true},
+      "validation_ref": "T-298 (docs/Audit/asymmetric_damping_t298_2026_07_08.md): the ONLY offense config to clear both gates — beats Roth buy-hold SPY ($74,104) at every slippage grid point AND crash exit-lag ≡ 0 (proven+verified). But NOT a cheaper 2x: mean exposure ~1.1x, MaxDD -30.6%, wealth edge DIRECTIONAL not CI-significant. Standing-ready constructor patch: feature/account2-damped-spec-STANDBY (offense_sso_constructor damping='asymmetric', default OFF).",
+      "status": "earned-directional", "turnover_class": "monthly", "tax_home_preference": "roth-preferred", "s1256": false, "paper_evidence": "not-covered",
+      "tier_notes": "Pending 3 gates before it can become 'validated': (a) E's measured SSO slippage; (b) a forward paper record on account 2; (c) the user's charter decision (undamped 2x vs whipsaw-free ~1.1x). Real via SSO+SPY at >=$10k (whole shares); no margin (Roth-legal)."
+    },
+    {
+      "id": "roth_offense_2x_undamped_REFERENCE",
+      "wrapper": "roth", "equity_min": 10000, "equity_max": null,
+      "instrument_set": ["SPY", "SSO"],
+      "active_legs": ["offense_sso_gated_2x_undamped_t284"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.30, "max_leg_weight": 1.0, "integer_shares": true},
+      "validation_ref": "T-284 (validated on SIGNAL) -> T-294/294b: LOSES to Roth buy-hold SPY at measured execution cost. Zero-slippage edge only +0.25%/yr; breakeven slippage 1.55bps on the SSO leg; E measured >5bps -> loses by 12% at 5bps. This is the ORIGINAL 2x charter row, kept as REFERENCE only.",
+      "status": "reference", "turnover_class": "monthly", "tax_home_preference": "roth-preferred", "s1256": false, "paper_evidence": "not-covered",
+      "tier_notes": "Currently wired in paper account 2 (validates EXECUTION of the gated-2x routing, not the wealth claim). Superseded on wealth by the T-298 asym-damped candidate; retained so the 2x charter and its 1.55bps breakeven are on the record."
+    },
+    {
+      "id": "taxable_offense_futures_2x_REFUTED",
+      "wrapper": "taxable", "equity_min": 18023, "equity_max": null,
+      "instrument_set": ["MES"],
+      "active_legs": ["offense_futures_gated_2x_s1256"],
+      "sizing": {"lookback": 105, "deadband": 0.10, "car25_tolerance": 0.30, "max_leg_weight": 1.0, "integer_shares": true},
+      "validation_ref": "T-294b (docs/Audit/taxable_futures_vehicle_t294b_2026_07_08.md): REFUTED. Pretax the best vehicle in the program ($99,845), but §1256 annual mark-to-market drag (-1.81%/yr base, -2.66%/yr high bracket) exactly consumes it -> FAILS vs after-tax taxable buy-hold SPY AND vs Roth-SSO at both brackets. §1256's 60/40 rate beats ordinary income but cannot beat DEFERRAL under a never-sell benchmark. §1256 is wash-sale exempt (a real but non-rescuing advantage).",
+      "status": "refuted", "turnover_class": "monthly", "tax_home_preference": "taxable-required", "s1256": true, "paper_evidence": "not-covered",
+      "tier_notes": "MES = $5 x S&P index = ~$36,045 notional/contract (index 7,209). Exactly 2x needs equity ~$18,023 (one contract); below that 2x is not expressible at all (one contract on $10k = 3.6x). Half-contract granularity vs the 2x target: $10k 90% (not implementable), $15k 60%, $25k 36%, $50k 18%, $100k 9% -> a clean 2x is real only from ~$100k. Recorded so it need not be recomputed."
     }
   ]
 }

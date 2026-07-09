@@ -37,7 +37,9 @@
             }
           },
           "validation_ref": {"type": "string", "description": "MANDATORY. task id + audit doc that earned this row. pending:<taskid> if not yet validated. TAXABLE rows must reference an AFTER-TAX gauntlet (T-191) measured vs the TLH-enhanced robo benchmark."},
-          "status": {"enum": ["validated", "validated-variant", "pending", "fallback"]},
+          "status": {"enum": ["validated", "validated-variant", "earned-directional", "reference", "refuted", "pending", "fallback"],
+                     "description": "ONLY 'validated' is auto-selectable for a live deploy (advisor fail-closed, §4). 'earned-directional' = cleared its gate but the edge is directional-not-CI-significant AND awaits a user/forward decision (NOT auto-deployed). 'reference'/'refuted' = kept for the record, never selected. 'pending'/'fallback' as before."},
+          "tier_notes": {"type": "string", "description": "optional: tier-granularity / implementability facts recorded so they need not be recomputed (e.g., MES contract notional and the minimum equity for exact 2x)."},
           "turnover_class": {"enum": ["low", "monthly", "high"]},
           "tax_home_preference": {"enum": ["roth-preferred", "taxable-required", "either"], "description": "T-280b asset-location: which account this strategy prefers. roth-preferred = high-turnover/tax-inefficient (sleeve, premium legs); taxable-required = needs margin/short/futures permissions; either = long-only low-turnover."},
           "s1256": {"type": "boolean", "description": "true = broad-based index futures/options getting IRC 1256 blended 60/40 treatment; overrides the taxable prefer-low-turnover rule and the after-tax gauntlet must apply 1256, not ordinary-income."},

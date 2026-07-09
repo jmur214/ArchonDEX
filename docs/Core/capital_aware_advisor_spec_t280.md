@@ -176,6 +176,41 @@ advisor would only select it if/when the director promotes it (a config flip, no
 Each stub's cell holds its `validation_ref: pending:<taskid>` so the table is self-documenting about what
 would fill it; the advisor treats every stub as ABSENT (§4).
 
+## 5b. The OFFENSE arc (T-294→298, consolidated 2026-07-09 by T-300)
+
+A week of offense results now sits in the tier table as three rows, **none auto-deployable** (only
+`status=="validated"` deploys, §4). They exist so the offense standing is on the advisor surface, not only in
+ledger rows.
+
+- **`roth_offense_asym_damped_CANDIDATE` — status `earned-directional`.** The T-298 asymmetric-damped spec (damp
+  re-entry, NEVER damp de-risking) is the **only offense config to clear both gates**: it beats Roth buy-hold SPY
+  ($74,104) at **every** slippage grid point (so its verdict is independent of E's pending number) AND its crash
+  exit-lag is **≡ 0** (proven by the `e_held ≤ e_target` invariant, verified empirically 2008/2020/2022). **It is
+  NOT a cheaper 2×** — it is a different, less-levered strategy: **mean exposure ~1.1×**, MaxDD −30.6% (vs the
+  undamped −43%), and its wealth edge is **directional, not CI-significant**. Becomes `validated` only after three
+  gates clear: (a) E's measured SSO slippage, (b) a forward paper record (account 2), (c) the **user's charter
+  decision** — *was 2× ever the target, or was whipsaw-free ~1.1× the actual prize?* Standing-ready constructor
+  patch: branch `feature/account2-damped-spec-STANDBY` (`offense_sso_constructor` `damping="asymmetric"`,
+  default OFF — a one-line flip). Audit: `docs/Audit/asymmetric_damping_t298_2026_07_08.md`.
+- **`roth_offense_2x_undamped_REFERENCE` — status `reference`.** The original T-284 2× charter (100% SSO
+  when-trend-on). Validated on the SIGNAL, but T-294/294b showed it **LOSES to Roth buy-hold SPY at measured
+  execution cost**: zero-slippage edge only **+0.25%/yr**, **breakeven slippage 1.55 bps** on the SSO leg, and E
+  measured >5 bps → it loses by ~12% at the 5 bps grid point. Currently the spec wired in **paper account 2**,
+  where it validates EXECUTION of the gated-2× routing (fills/spreads), not the wealth claim. Kept as reference.
+- **`taxable_offense_futures_2x_REFUTED` — status `refuted`.** Gated 2× via MES micro-futures in taxable. Pretax
+  the best vehicle in the whole program ($99,845), but §1256's **annual mark-to-market** drag (−1.81%/yr base,
+  −2.66%/yr high bracket) **exactly consumes** the vehicle+slippage advantage → fails vs both after-tax buy-hold
+  SPY and Roth-SSO at both brackets. The permanent lesson: **§1256's 60/40 rate beats ordinary income but cannot
+  beat DEFERRAL under a never-sell benchmark** — this closes the annually-marked-vehicle question for ANY such
+  instrument, not just MES. Tier fact recorded on the row (`tier_notes`): MES ≈ $36,045 notional/contract, exact
+  2× needs ≈$18,023, a clean 2× is real only from ~$100k. Audit: `docs/Audit/taxable_futures_vehicle_t294b_2026_07_08.md`.
+
+**Program standing (recorded, honest):** with Roth buy-hold SPY at $74,104, **no implementable gated-2× offense
+configuration beats simply buying and holding SPY in the Roth** once measured slippage and honest taxes are
+charged. The T-298 ~1.1× candidate is the sole config that clears the bar, and it does so as a *different, less
+levered* strategy whose edge is directional. The offense program's remaining evidence is **forward-looking**
+(paper), not backtestable.
+
 ## 6. Runtime behavior (the hook, fail-closed, and the paper-vs-live-row flag)
 
 **Selection hook (concrete):** the sleeve is built by `paper_trader/sleeve_constructor.py ::
@@ -264,3 +299,20 @@ wealth vs buy-and-hold SPY (which incurs almost no tax until sale) — not pre-t
 trend sleeve starts with a structural short-term-gains handicap in taxable; the T-191 after-tax machinery
 computes the honest comparison. Asset-location default (already per T-280b, reinforced): monthly-turnover
 sleeves live in the Roth; the taxable account holds the lowest-turnover, most tax-efficient exposure.
+
+**9c. Taxable-column closures (T-300 consolidation — what has been REFUTED, so it is not re-proposed).**
+As of 2026-07-09 **no taxable configuration earns a row over its Roth alternative.** The column remains in the
+schema for future tiers/strategies, but these are closed on evidence:
+- **Gated-2× via futures / any §1256 vehicle — REFUTED (T-294b).** §1256's 60/40 blended rate beats ordinary
+  income but **cannot beat deferral** under a never-sell benchmark (annual mark-to-market pays tax every year
+  while Roth pays zero and taxable buy-hold SPY defers). Applies to ANY annually-marked instrument, not just MES.
+- **NTSX / RSSB as a "cheaper 2× vehicle" — REFUTED (T-294).** They cap at 0.9×/1.0× equity (cannot reach 2× in a
+  Roth), make ~40% less terminal wealth than the gated-SSO row, and lose to plain buy-hold SPY; their better
+  risk-adjusted profile is an *allocation* result, and their embedded bond leg *amplified* the 2022 rate shock
+  (fell with equity), not diversified it. (Collateral-aware construction validated — C/T-296 rule, NTSX synthetic
+  +0.02%/yr vs its real fund; the naive two-funds-added form errs +1.6–5.4%/yr.)
+- **Buffered / defined-outcome ETFs — REJECTED (T-296)** as an offense/return-stack vehicle (distinct from the
+  T-148 Carver *position*-buffering used by the `taxable_overflow` sleeve row, which is a turnover reducer, not a
+  buffered-outcome product — do not conflate them).
+- The wash-sale guard (§9a) is the **blocking engineering requirement** and the after-tax bar (§9b) the
+  **measurement requirement** for any FUTURE taxable row; both stand.
