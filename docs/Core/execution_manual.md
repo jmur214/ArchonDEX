@@ -821,6 +821,30 @@ launchctl list | grep archondex                                  # confirm loade
 launchctl bootout gui/$(id -u)/com.archondex.altdata-archive
 ```
 
+### T-295 rate-path population — the gated Yahoo retry (transient, self-unloads)
+
+```bash
+# WHY a scheduler: Yahoo (the only free ZQ source) globally 429-throttles its
+# unauthenticated chart API — confirmed from 3 IPs (dev/AWS/hotspot) 2026-07-08.
+# The ban resets on contact, so patience is the fix and each attempt must spend
+# AT MOST ONE Yahoo contact. The wrapper's gated protocol enforces that:
+#   FRED health-gate (non-Yahoo) -> ONE no-retry Yahoo probe -> populate ONLY on 200.
+# On success it writes the 2 parquets, uploads them to s3://…/altdata/…, prints
+# the meeting-prob confirmation, and touches data/macro_data/alt/logs/
+# t295_population.DONE (idempotent: a later firing sees DONE and no-ops).
+bash scripts/run_t295_gated_population.sh        # manual invocation of the wrapper
+
+# launchd job management (plist source-of-truth: scripts/launchd/). Fires TWICE
+# daily — 22:30 + 06:30 CT — until it succeeds once.
+cp scripts/launchd/com.archondex.t295-population.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.archondex.t295-population.plist
+launchctl list | grep t295-population            # confirm loaded
+tail -30 data/macro_data/alt/logs/t295_launchd_stdout.log   # read the last firing
+# UNLOAD once T-295 closes (parquets exist + "T-295 done" ledger call made):
+launchctl bootout gui/$(id -u)/com.archondex.t295-population
+rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
+```
+
 ### Launchd path hardening (2026-07-08, fresh-eyes finding #1)
 
 ```bash
