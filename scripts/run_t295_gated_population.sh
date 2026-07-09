@@ -42,16 +42,24 @@ fi
 BUCKET="archondex-results-407539788432"
 DEST="s3://$BUCKET/altdata/data/macro_data/alt"
 
-# 1) FRED health-gate (no Yahoo contact).
+# 1) FRED health-gate (no Yahoo contact). Retry a few times: FRED is
+# occasionally flaky/rate-limited and a SINGLE transient timeout must not burn a
+# whole firing (observed: the 22:30 2026-07-08 firing aborted on a FRED blip).
 FRED=$(python - <<'PY'
-import urllib.request
+import urllib.request, time
 ua={'User-Agent':'Mozilla/5.0'}
-try:
-    r=urllib.request.urlopen(urllib.request.Request(
-        'https://fred.stlouisfed.org/graph/fredgraph.csv?id=EFFR', headers=ua), timeout=30)
-    print('UP' if r.getcode()==200 else 'DOWN')
-except Exception:
-    print('DOWN')
+def up():
+    try:
+        r=urllib.request.urlopen(urllib.request.Request(
+            'https://fred.stlouisfed.org/graph/fredgraph.csv?id=EFFR', headers=ua), timeout=30)
+        return r.getcode()==200
+    except Exception:
+        return False
+ok=False
+for i in range(3):
+    if up(): ok=True; break
+    if i < 2: time.sleep(10)
+print('UP' if ok else 'DOWN')
 PY
 )
 echo "FRED health: $FRED"
