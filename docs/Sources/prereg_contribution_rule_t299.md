@@ -98,3 +98,12 @@ family, reported jointly (per the task). No sweep, no per-cell trial inflation.
 DRAFT (this doc) → **director FREEZE** → run on the frozen spec → results table
 + the frozen verdict appended here → advisor-row update → "T-299 done".
 NOTHING runs until freeze.
+
+## DIRECTOR FREEZE — 2026-07-09 (no amendments; BINDING)
+Frozen exactly as drafted. The two flagged knobs are ruled as proposed: (1) the **110% worst-dollar-DD
+tolerance** stands — it operationalizes "max wealth, but a materially deeper paper hole is a behavioural
+risk" without letting a marginal wealth edge buy unlimited drawdown; (2) the **≥3/5-start robustness bar
+with H0→Rule B on a split** stands — Rule B is the correct default (time-in-market prior, no cash-timing
+operational surface, simpler to explain to the accumulator). RUN AUTHORIZED on the frozen spec
+(C1 primary; calendar_guard in the harness; N_trials += 1, one family). Any deviation = a new
+pre-registration.
