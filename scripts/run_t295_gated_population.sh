@@ -45,7 +45,7 @@ DEST="s3://$BUCKET/altdata/data/macro_data/alt"
 # 1) FRED health-gate (no Yahoo contact). Retry a few times: FRED is
 # occasionally flaky/rate-limited and a SINGLE transient timeout must not burn a
 # whole firing (observed: the 22:30 2026-07-08 firing aborted on a FRED blip).
-FRED=$(python - <<'PY'
+FRED=$("$ROOT/.venv/bin/python" - <<'PY'
 import urllib.request, time
 ua={'User-Agent':'Mozilla/5.0'}
 def up():
@@ -64,12 +64,12 @@ PY
 )
 echo "FRED health: $FRED"
 if [ "$FRED" != "UP" ]; then
-    echo "ABORT: FRED down — not spending the Yahoo contact. Next firing will retry."
+    echo "ABORT: FRED health-check did not return UP (output above distinguishes interpreter failure from FRED failure). Next firing will retry."
     exit 0
 fi
 
 # 2) ONE no-retry Yahoo probe.
-YH=$(python - <<'PY'
+YH=$("$ROOT/.venv/bin/python" - <<'PY'
 import urllib.request, urllib.error
 ua={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36'}
 try:
@@ -91,7 +91,7 @@ fi
 
 # 3) Ban lifted → populate ONCE, then upload the 2 produced parquets.
 echo "=== Yahoo reachable; running T-295 population ==="
-if python -m scripts.build_rate_path_history_t295; then
+if "$ROOT/.venv/bin/python" -m scripts.build_rate_path_history_t295; then
     echo "=== population OK; uploading parquets to $DEST ==="
     aws s3 cp "$ROOT/data/macro_data/alt/rate_path_reconstructed.parquet" \
         "$DEST/rate_path_reconstructed.parquet" --profile archondex --no-progress
@@ -99,7 +99,7 @@ if python -m scripts.build_rate_path_history_t295; then
         "$DEST/fed_tracker_minneapolis.parquet" --profile archondex --no-progress
     # meeting-prob confirmation for the next session to read
     echo "=== meeting-prob end-to-end confirmation ==="
-    python - <<'PY'
+    "$ROOT/.venv/bin/python" - <<'PY'
 import pandas as pd
 df = pd.read_parquet('data/macro_data/alt/rate_path_reconstructed.parquet')
 print('series_type counts:', df['series_type'].value_counts().to_dict())
