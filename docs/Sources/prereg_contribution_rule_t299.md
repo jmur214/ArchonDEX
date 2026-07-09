@@ -107,3 +107,49 @@ with H0→Rule B on a split** stands — Rule B is the correct default (time-in-
 operational surface, simpler to explain to the accumulator). RUN AUTHORIZED on the frozen spec
 (C1 primary; calendar_guard in the harness; N_trials += 1, one family). Any deviation = a new
 pre-registration.
+
+---
+
+# RESULT (run on the frozen spec, 2026-07-09) — N_trials += 1
+
+**Self-check (faithful T-298 reproduction):** mean `e_asym` = **1.101** (the ~1.1×
+damped deploy candidate), mean `e_target` = 1.400; de-risk invariant
+`e_asym ≤ e_target` violations = **0**. Re-derivation matches the frozen T-298
+construction. Script: `scripts/contribution_rule_t299.py`; data:
+`data/research/t299_contribution_rule.json`.
+
+## C1 — T-298 damped (~1.1×), the DECISION config — $7K/yr
+| start | rule | terminal $ | ×contrib | worst $DD | %uw | cash-drag $·yr |
+|---|---|---|---|---|---|---|
+| 2000 | **A** | **1,110,975** | 5.88 | −183,575 | 11% | 19,176 |
+| 2000 | B | 1,106,400 | 5.85 | −183,007 | 12% | — |
+| 2003 | A | 892,555 | 5.31 | −144,714 | 6% | 15,419 |
+| 2003 | **B** | **894,021** | 5.32 | −145,221 | 6% | — |
+| 2006 | A | 687,844 | 4.68 | −108,292 | 9% | 14,306 |
+| 2006 | **B** | **691,354** | 4.70 | −109,163 | 9% | — |
+| 2009 | A | 511,049 | 4.06 | −76,836 | 1% | 10,271 |
+| 2009 | **B** | **515,026** | 4.09 | −77,791 | 1% | — |
+| 2012 | A | 354,518 | 3.38 | −48,987 | 0% | 6,687 |
+| 2012 | **B** | **355,602** | 3.39 | −49,426 | 0% | — |
+
+## FROZEN VERDICT → **ADOPT RULE B** (always-invest-immediately)
+- Median terminal (C1): **B $691,354 vs A $687,844** — B wins (+$3,510, +0.5%).
+- Start wins: **B 4 / A 1** (≥3/5 robustness cleared). The lone A-win is the
+  **2000 start** — exactly the deep-crash flip the prior flagged: A's discipline
+  (hold fresh money in cash, buy the re-engagement) pays only when a contribution
+  would otherwise deploy into a sustained multi-year decline.
+- Worst-$-DD: **within tolerance** — A and B are near-identical at every start
+  (≤ ~$600 apart, well inside the 110% bar); no defense override triggers.
+- ⇒ **The pre-registered advisor contribution rule is Rule B.**
+
+## Honest reading (the effect is SMALL — say so)
+For this mildly-levered (~1.1×) gated arm the contribution rule **barely
+matters**: sub-1% terminal-wealth gaps and DD within noise. B's edge is the
+time-in-market prior showing through thinly; A's cash-drag ($6.7K–$19K
+dollar-years, largest at the longest/deepest 2000 window) buys essentially
+nothing here. **Secondary (context, not the decision):** the UNDAMPED C2 (1.4×)
+marginally FLIPS to A on wealth at 4/5 starts — the more leverage, the more A's
+"don't deploy fresh money into a distrusted market" discipline earns — but the
+magnitudes stay tiny and C2 is not the deploy candidate. The prior (Rule B
+favored ~60-70%) is confirmed for the damped config; the leverage-dependence of
+the flip is the one genuinely new thing learned.
