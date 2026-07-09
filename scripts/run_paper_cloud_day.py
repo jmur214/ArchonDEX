@@ -405,6 +405,10 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             constructor = OffenseSSOConstructor(tif=sleeve_tif, damping=damping)
             fetch_u = ("SPY", "SSO", "AGG", "GLD")   # SPY signal, SSO trade, AGG/GLD robo bench
             family_state = {"tracker_file": "offense_tracking.json", "label": "OFFENSE-SSO"}
+            # Config visible in the dead-man banner (silent-wrongness doctrine:
+            # a flip must announce itself, not just be true in the jobdef).
+            print(f"   OFFENSE-SSO  damping={damping}"
+                  f"{' (T-298: damp re-entry, never de-risk)' if damping=='asymmetric' else ''}")
         else:
             from paper_trader.sleeve_btc_constructor import SleeveBtcConstructor
             constructor = SleeveBtcConstructor(tif=sleeve_tif)
