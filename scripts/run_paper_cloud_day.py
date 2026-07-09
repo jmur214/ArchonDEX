@@ -392,7 +392,17 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             return 69
         if args.strategy == "offense_sso":
             from paper_trader.offense_sso_constructor import OffenseSSOConstructor
-            constructor = OffenseSSOConstructor(tif=sleeve_tif)
+            # T-298 flip: damping is a CONFIG flip (a jobdef env var), not a code
+            # fork — default "symmetric" is byte-preserved for the undamped arm.
+            # "asymmetric" damps future RE-ENTRY only (never de-risking); the held
+            # position is unaffected the day of the flip.
+            damping = os.getenv("ARCHONDEX_OFFENSE_DAMPING", "symmetric").lower()
+            if damping not in ("symmetric", "asymmetric"):
+                print(f"FATAL: [NN-FAIL-CLOSED] invalid ARCHONDEX_OFFENSE_DAMPING="
+                      f"{damping!r} (want symmetric|asymmetric).", file=sys.stderr)
+                cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+                return 69
+            constructor = OffenseSSOConstructor(tif=sleeve_tif, damping=damping)
             fetch_u = ("SPY", "SSO", "AGG", "GLD")   # SPY signal, SSO trade, AGG/GLD robo bench
             family_state = {"tracker_file": "offense_tracking.json", "label": "OFFENSE-SSO"}
         else:
