@@ -39,7 +39,10 @@ SECRET_BASE = "archondex/alpaca-paper"
 
 # (account key, strategy, secret suffix, schedule minute, metric-dimension value)
 FLEET = [
-    dict(key="offense-sso", strategy="offense_sso", minute=50),
+    # T-298 flip: offense-sso runs the DAMPED spec (damp re-entry, never de-risk)
+    # now that its undamped armed run is clean + the real SSO slippage (2.2 bps)
+    # is measured. btc-sleeve carries no damping (default symmetric).
+    dict(key="offense-sso", strategy="offense_sso", minute=50, damping="asymmetric"),
     dict(key="btc-sleeve",  strategy="sleeve_btc",  minute=55),
 ]
 
@@ -97,7 +100,8 @@ def register_jobdef(acct, image, exec_arn, job_arn, sec_arn) -> str:
                 {"name": "ARCHONDEX_SLEEVE_NOTIONAL_CAP", "value": "10000"},
                 {"name": "ARCHONDEX_SLEEVE_TIF", "value": "day"},
                 {"name": "ARCHONDEX_PAPER_ACCOUNT", "value": acct["key"]},
-            ],
+            ] + ([{"name": "ARCHONDEX_OFFENSE_DAMPING", "value": acct["damping"]}]
+                 if acct.get("damping") else []),
             "secrets": [
                 {"name": "ALPACA_API_KEY", "valueFrom": f"{sec_arn}:ALPACA_API_KEY::"},
                 {"name": "ALPACA_SECRET_KEY", "valueFrom": f"{sec_arn}:ALPACA_SECRET_KEY::"}],
