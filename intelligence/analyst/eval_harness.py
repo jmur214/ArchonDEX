@@ -316,13 +316,39 @@ def _load_log(path: Path) -> list[dict]:
     return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
 
 
+EVENT_LEDGER = ROOT / "data" / "intel" / "event_calls.jsonl"
+
+
+def _load_event_ledger(path: Path) -> list[dict]:
+    """D's event-call ledger (T-304, event_call/v1). VERIFIED against the merged
+    `event_service._to_ledger_record`: records are ALREADY note-shaped
+    (note_id / note_date / model_id / prompt_version / predictions[resolver/v1]) →
+    CONSUMED UNCHANGED, zero harness or ledger change (claim holds, no drift). We only
+    tag each prediction's `category` with `event:<event_type>` (from the `event_call`
+    block that rides alongside) so the summary segments per event type, as D intended."""
+    out = []
+    for rec in _load_log(path):
+        et = (rec.get("event_call") or {}).get("event_type")
+        if et:
+            for p in rec.get("predictions", []):
+                if isinstance(p, dict):
+                    p.setdefault("category", f"event:{et}")
+        out.append(rec)
+    return out
+
+
 def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _disk_price,
         event_fn: EventFn = _disk_event, pred_log: Path = PRED_LOG, summary: Path = SUMMARY,
-        notes_dir: Path = NOTES_DIR) -> dict:
+        notes_dir: Path = NOTES_DIR, event_ledger: Path = EVENT_LEDGER,
+        directional: Optional[dict] = None) -> dict:
     """Resolve every EXPIRED, not-yet-logged prediction as-of `as_of`; append records
     (idempotent — a prediction_id already in the log is never re-resolved); rewrite
-    the summary. Returns the summary dict."""
-    notes = notes if notes is not None else _load_notes(notes_dir)
+    the summary. Returns the summary dict. Consumes BOTH the analyst notes and D's
+    event-call ledger (event_call/v1, note-shaped → unchanged). `directional` (the
+    LLM-shadow-book twin comparison — Δwealth vs the 60/40 twin) rides into the summary
+    so the dashboard has the FULL G1 picture (prediction skill + directional) in one JSON."""
+    if notes is None:
+        notes = _load_notes(notes_dir) + _load_event_ledger(event_ledger)
     logged = {r["prediction_id"] for r in _load_log(pred_log)}
     new_records = []
     for note in notes:
@@ -353,6 +379,9 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
             for r in new_records:
                 fh.write(json.dumps(r) + "\n")
     summ = summarize(_load_log(pred_log))
+    summ["as_of"] = as_of
+    if directional is not None:
+        summ["directional_twin"] = directional     # shadow-book Δwealth vs 60/40 twin (G1 directional leg)
     summary.parent.mkdir(parents=True, exist_ok=True)
     summary.write_text(json.dumps(summ, indent=2))
     return summ

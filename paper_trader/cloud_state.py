@@ -61,6 +61,13 @@ DURABLE_PATHS: List[str] = [
     # would reset every run and never accumulate the forward cost record that
     # D's T-301b consumes into the harness cost models.
     "data/state/exec_cost_ledger.jsonl",
+    # T-308 / P2: A's prediction-resolution ledger + dashboard summary. The ledger is
+    # APPEND-ONLY loop memory — without durability it resets every ephemeral Fargate run
+    # and never reaches the ≥150-resolved G1 bar (same need as the trackers above). The
+    # summary carries the g1_skill block + the shadow-book directional twin for the
+    # dashboard. (Analyst notes + D's event_calls.jsonl persist via their own owners.)
+    "data/intel/analyst_predictions.jsonl",
+    "data/intel/analyst_eval_summary.json",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
