@@ -522,6 +522,34 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       f"(report-only T-272 forward validation)")
             except Exception as exc:
                 print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-302 LLM shadow book: REPORT-ONLY virtual book of the analyst's
+            # hypothetical actions vs a 60/40 twin (never touches orders/weights).
+            # Gated on a note EXISTING → ships dormant-but-armed; wakes the day E's
+            # first validated note lands. Fill = yesterday's note @ today's close
+            # (signal-t/fill-t+1, no look-ahead); firewall re-enforced fail-closed. -- #
+            try:
+                from paper_trader.llm_shadow_book import LlmShadowBook
+                _lsb = LlmShadowBook(root=str(root))
+                _note, _reason = _lsb._load_yesterday_note(str(today))
+                _held = list(_lsb._state()["book"]["positions"].keys())
+                if _note is None and not _held:
+                    print("   LLM-SHADOW dormant (no analyst note yet — armed, waiting on first note)")
+                else:
+                    _syms = set(_held) | {"SPY", "AGG"} | {
+                        a["symbol"] for a in (_note or {}).get("hypothetical_actions", [])
+                        if a.get("account") == "shadow"}
+                    _closes = None
+                    try:
+                        _raw = client.fetch_daily_closes(sorted(_syms))
+                        _closes = {s: float(v.iloc[-1]) for s, v in _raw.items() if len(v)}
+                    except Exception:
+                        _closes = None      # fail-closed → degraded (positions hold)
+                    lsum = _lsb.record(str(today), closes=_closes, note=_note, note_reason=_reason)
+                    print(f"   LLM-SHADOW n_days={lsum['n_days']} clean={lsum['n_clean']} "
+                          f"book_nav={lsum['book_nav']} vs twin={lsum['twin_nav']} "
+                          f"rejected={lsum['n_rejected']} (report-only analyst record)")
+            except Exception as exc:
+                print(f"   LLM-SHADOW warn: {type(exc).__name__} (non-fatal)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
