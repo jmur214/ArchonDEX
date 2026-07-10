@@ -56,6 +56,11 @@ DURABLE_PATHS: List[str] = [
     # T-302: the report-only LLM analyst virtual shadow book (Phase 2; same need —
     # the forward directional record must survive the ephemeral Fargate disk).
     "data/state/llm_shadow_book.json",
+    # T-301 / P2.1: the append-only per-fill execution-cost ledger. Same
+    # ephemeral-disk persistence need as the trackers — without this the ledger
+    # would reset every run and never accumulate the forward cost record that
+    # D's T-301b consumes into the harness cost models.
+    "data/state/exec_cost_ledger.jsonl",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
