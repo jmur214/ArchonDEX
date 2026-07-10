@@ -170,6 +170,27 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_econ_health(self, report) -> None:
+        """T-288: stamp the economic/behavioral tripwire verdict onto the status
+        file as a SEPARATE ``econ_health`` block. Like ``record_altdata``/
+        ``record_news`` it is orthogonal to the trading verdict — an
+        economically-stale day (no-trade-in-N-days, stale bars, an orphan
+        holding) is a signal to INVESTIGATE, not an operational failure, so it
+        must NEVER flip the run's ``canonical``/``alert`` (that would fail the
+        Batch job + fire the trading alarm for a non-trading condition). A trip
+        instead fires the independent notify channel + a loud log line so silent
+        economic drift can't hide behind a green operational light. ``report`` is
+        an ``econ_health.EconHealthReport``."""
+        status = self._read_status() or {}
+        block = report.to_status_dict()
+        block["ts"] = _utcnow_iso()
+        status["econ_health"] = block
+        self._atomic_write(self.status_path, status)
+        if report.degraded:
+            msg = f"[ECON-HEALTH][ALERT] {report.summary_line()}"
+            print(msg)
+            self._notify(msg)
+
     def check(self, today: _date, is_trading_day: bool) -> HeartbeatVerdict:
         """The dead-man's-switch. On a trading day, today's run must have
         happened AND been canonical — else ALERT. On a non-trading day,

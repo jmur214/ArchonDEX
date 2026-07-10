@@ -138,7 +138,8 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     untouched (regression-safe); it can migrate here later under its own lock.
 
     Returns (plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity,
-    equity). Raises _FailClosed(code, msg) on a fetch failure / stale bar."""
+    equity, latest_bar_date). Raises _FailClosed(code, msg) on a fetch failure /
+    stale bar."""
     import pandas as _pd
     try:
         closes = client.fetch_daily_closes(list(fetch_universe), lookback_days=400)
@@ -164,7 +165,12 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     staged = [om.stage(str(today), s.ticker, s.side, s.qty,
                        s.stage_args()["tif"], cfg.config_hash())
               for s in plan.orders]
-    return plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity, equity
+    # Freshest completed bar in the panel — the econ-health stale-data tripwire.
+    latest_bar_date = max(
+        (closes[t].index[-1].date() for t in fetch_universe
+         if t in closes and not closes[t].empty), default=None)
+    return (plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity,
+            equity, latest_bar_date)
 
 
 def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
@@ -324,6 +330,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     sleeve_closes: dict = {}
     arrival_px: dict = {}                       # gate-(b) slippage reference
     arrival_ts = None                           # when arrival was captured
+    latest_bar_date = None                      # econ-health stale-data tripwire
+    plan = None                                 # set by the content-layer block
     family_state = None                         # T-288 fleet Accounts 2/3 context
     if args.strategy == "trend_sleeve":
         from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
@@ -367,6 +375,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         plan = SleeveOrderConstructor(tif=sleeve_tif).construct(
             sizing_equity, broker_positions, closes)
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
+        latest_bar_date = max((closes[t].index[-1].date() for t in SLEEVE_UNIVERSE
+                               if t in closes and not closes[t].empty), default=None)
         # Arrival price (latest trade) captured BEFORE submission = the gate-(b)
         # slippage reference (paper controls |fill − arrival| on a DAY order).
         # arrival_ts stamps WHEN: only fills after it are this run's execution.
@@ -392,16 +402,31 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             return 69
         if args.strategy == "offense_sso":
             from paper_trader.offense_sso_constructor import OffenseSSOConstructor
-            constructor = OffenseSSOConstructor(tif=sleeve_tif)
+            # T-298 flip: damping is a CONFIG flip (a jobdef env var), not a code
+            # fork — default "symmetric" is byte-preserved for the undamped arm.
+            # "asymmetric" damps future RE-ENTRY only (never de-risking); the held
+            # position is unaffected the day of the flip.
+            damping = os.getenv("ARCHONDEX_OFFENSE_DAMPING", "symmetric").lower()
+            if damping not in ("symmetric", "asymmetric"):
+                print(f"FATAL: [NN-FAIL-CLOSED] invalid ARCHONDEX_OFFENSE_DAMPING="
+                      f"{damping!r} (want symmetric|asymmetric).", file=sys.stderr)
+                cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+                return 69
+            constructor = OffenseSSOConstructor(tif=sleeve_tif, damping=damping)
             fetch_u = ("SPY", "SSO", "AGG", "GLD")   # SPY signal, SSO trade, AGG/GLD robo bench
             family_state = {"tracker_file": "offense_tracking.json", "label": "OFFENSE-SSO"}
+            # Config visible in the dead-man banner (silent-wrongness doctrine:
+            # a flip must announce itself, not just be true in the jobdef).
+            print(f"   OFFENSE-SSO  damping={damping}"
+                  f"{' (T-298: damp re-entry, never de-risk)' if damping=='asymmetric' else ''}")
         else:
             from paper_trader.sleeve_btc_constructor import SleeveBtcConstructor
             constructor = SleeveBtcConstructor(tif=sleeve_tif)
             fetch_u = ("SPY", "AGG", "GLD", "IBIT")
             family_state = {"tracker_file": "sleeve_btc_tracking.json", "label": "SLEEVE-BTC"}
         try:
-            plan, sleeve_closes, staged2, arrival_px, arrival_ts, sizing_equity, equity = \
+            (plan, sleeve_closes, staged2, arrival_px, arrival_ts, sizing_equity,
+             equity, latest_bar_date) = \
                 _run_family_strategy(
                     constructor=constructor, fetch_universe=fetch_u,
                     tracking_universe=fetch_u, client=client, om=om, cfg=cfg,
@@ -531,6 +556,35 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
+    # --- T-288 econ-health: the economic/behavioral tripwires the dead-man's-
+    # switch can't see (no-trade-in-N-days, stale bars, orphan holdings). RUNS
+    # BEFORE the push so the econ_health status block persists this run (the
+    # heartbeat json is in DURABLE_PATHS). REPORT-ONLY + fully fail-open: it must
+    # NEVER touch `canonical` (an economically-stale day is investigate-signal,
+    # not an operational failure) — the whole block is try/excepted so it can't
+    # raise into the trading path. A trip fires the heartbeat's separate loud
+    # notify channel so silent economic drift can't hide behind a green light. -- #
+    try:
+        import datetime as _dt
+        from paper_trader.econ_health import evaluate_econ_health
+        managed_universe = list(plan.targets.keys()) if plan is not None else None
+        last_trade_date = max(
+            (_dt.date.fromisoformat(o.trade_date) for o in om.orders.values()),
+            default=None)
+        # exact (start, end] trading-day count, calendar-backed (holiday-aware).
+        def _td_count(a, b):
+            return sum(1 for n in range(1, (b - a).days + 1)
+                       if cal.is_trading_day(a + _dt.timedelta(n)))
+        report = evaluate_econ_health(
+            today=today, managed_universe=managed_universe,
+            broker_positions=broker_positions, last_trade_date=last_trade_date,
+            latest_bar_date=latest_bar_date, trading_day_counter=_td_count)
+        hb.record_econ_health(report)
+        print(f"9. ECON-HEALTH {report.summary_line()}")
+    except Exception as exc:
+        # Fail-open: an econ-health miss must never touch the trading exit code.
+        print(f"9. ECON-HEALTH WARN {type(exc).__name__} (non-fatal, report-only)",
+              file=sys.stderr)
     # PUSH BEFORE emitting metrics: a durable-state push that silently failed
     # means the NEXT run starts from stale state and a held position reads as
     # unexplained. That is an integrity failure, so it must flip canonical (→
