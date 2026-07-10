@@ -48,17 +48,43 @@ def _prompt_text(prompt_path: str) -> "tuple[str, str]":
     return text, hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _apply_semantic_firewall(note: dict, allowlist: set) -> List[dict]:
-    """Drop any hypothetical_action whose symbol is not allowlisted; return the
-    rejected attempts (logged signal). Mutates note in place."""
-    rejected, kept = [], []
-    for a in note.get("hypothetical_actions", []):
-        if str(a.get("symbol", "")).upper() in allowlist:
-            kept.append(a)
-        else:
+def _strip_json_fence(text: str) -> str:
+    """Tolerate a ```json … ``` markdown fence around the response. Models fence
+    JSON routinely despite an explicit instruction not to; a fence is a FORMATTING
+    artifact, not a content problem, so stripping it does NOT weaken the re-
+    validation gate — the FULL note is still validated against note_schema after
+    the parse. Only an outer fence is removed; anything else is left for json to
+    reject (a genuinely malformed body still → invalid:not_json → NO note)."""
+    s = text.strip()
+    if s.startswith("```"):
+        s = s[3:]
+        if s[:4].lower() == "json":
+            s = s[4:]
+        if s.endswith("```"):
+            s = s[:-3]
+    return s.strip()
+
+
+def _filter_actions(raw_actions: List[dict], allowlist: set) -> "tuple[List[dict], List[dict]]":
+    """The semantic firewall over shadow actions. Each action is validated
+    INDEPENDENTLY so a single malformed/out-of-bounds/non-allowlisted action is
+    DROPPED + logged (signal), never a reason to void an otherwise-good note —
+    the same "attacks are signal, not crashes" philosophy the symbol allowlist
+    always used, extended to all shape/bound violations. (A non-``shadow``
+    account is the ONE security-critical case and is caught EARLIER, voiding the
+    note.) Returns (kept, rejected)."""
+    from intelligence.analyst.note_schema import validate_action
+    kept, rejected = [], []
+    for a in raw_actions:
+        action, why = validate_action(a)
+        if action is None:
+            rejected.append({"reason": f"schema:{why}", "action": a})
+            continue
+        if action.symbol.upper() not in allowlist:
             rejected.append({"reason": "symbol_not_allowlisted", "action": a})
-    note["hypothetical_actions"] = kept
-    return rejected
+            continue
+        kept.append(action.model_dump())
+    return kept, rejected
 
 
 def run_daily_note(as_of, *, portfolios, allowlist, prompt_path,
@@ -99,9 +125,25 @@ def run_daily_note(as_of, *, portfolios, allowlist, prompt_path,
 
     # 4. parse + independent local re-validation → bad ⇒ NO note
     try:
-        payload = json.loads(resp.get("text", ""))
+        payload = json.loads(_strip_json_fence(resp.get("text", "")))
     except Exception:
         return AnalystResult(None, "invalid:not_json", raw_path=raw_path)
+
+    # Security gate BEFORE body validation: a hypothetical_action targeting a
+    # REAL account (account != "shadow") is the one action-level violation that
+    # is a hard fail — a real-account request is exactly the injection class the
+    # gate exists to catch, so it VOIDS the note (loud fail-closed). Benign
+    # shape/bound issues on SHADOW actions are handled later by _filter_actions
+    # (drop + log, keep note). Strip actions from the body either way so a
+    # malformed shadow action can't void the note during body validation.
+    raw_actions = payload.pop("hypothetical_actions", []) or []
+    if not isinstance(raw_actions, list):
+        return AnalystResult(None, "invalid:hypothetical_actions_not_a_list",
+                             raw_path=raw_path)
+    for a in raw_actions:
+        if isinstance(a, dict) and str(a.get("account", "shadow")) != "shadow":
+            return AnalystResult(None, "invalid:non_shadow_account", raw_path=raw_path)
+    payload["hypothetical_actions"] = []
 
     payload.setdefault("as_of", bundle["as_of"])
     payload["provenance"] = {
@@ -120,8 +162,11 @@ def run_daily_note(as_of, *, portfolios, allowlist, prompt_path,
     if note is None:
         return AnalystResult(None, f"invalid:{err}", raw_path=raw_path)
 
-    # 5. semantic firewall — reject non-allowlisted action symbols (keep the note)
+    # 5. semantic firewall — validate the stripped shadow actions per-item,
+    # dropping (and logging) any malformed/out-of-bounds/non-allowlisted one;
+    # the note survives regardless (attacks are signal, not crashes).
     note_dict = note.model_dump()
-    rejected = _apply_semantic_firewall(note_dict, {s.upper() for s in allowlist})
+    kept, rejected = _filter_actions(raw_actions, {s.upper() for s in allowlist})
+    note_dict["hypothetical_actions"] = kept
     return AnalystResult(note_dict, "ok", raw_path=raw_path,
                          firewall_rejections=rejected or None)

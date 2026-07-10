@@ -71,12 +71,28 @@ class Prediction(BaseModel):
 
 
 class HypotheticalAction(BaseModel):
-    """Stage-0: SHADOW ONLY. Never a real order. Bounds are the contract."""
+    """Stage-0: SHADOW ONLY. Never a real order. Bounds are the contract.
+    ``rationale`` is an optional inert note (why the analyst would tilt) — free
+    text on a never-executed shadow action carries no risk and is useful signal,
+    so it is a KNOWN optional field (extra='forbid' still rejects truly-unknown
+    keys)."""
     model_config = ConfigDict(extra="forbid")
     account: Literal["shadow"]
     symbol: str = Field(pattern=r"^[A-Z][A-Z0-9.\-]{0,9}$")   # basic shape; allowlist enforced in service
     set_weight: float = Field(ge=-_MAX_WEIGHT, le=_MAX_WEIGHT)
     target_weight: float = Field(ge=-_MAX_WEIGHT, le=_MAX_WEIGHT)
+    rationale: Optional[str] = Field(default=None, max_length=500)
+
+
+def validate_action(payload: dict) -> "tuple[Optional[HypotheticalAction], Optional[str]]":
+    """Per-item shadow-action validation (the firewall filters actions one at a
+    time so a single malformed/out-of-bounds action is DROPPED + logged, not a
+    reason to void an otherwise-good note). Returns (action, None) or
+    (None, reason). Never raises."""
+    try:
+        return HypotheticalAction.model_validate(payload), None
+    except Exception as e:   # noqa: BLE001
+        return None, str(e).splitlines()[0][:200]
 
 
 class SpecialSituationScore(BaseModel):
