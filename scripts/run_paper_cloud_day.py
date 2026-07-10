@@ -509,6 +509,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             # Gated on a note EXISTING → ships dormant-but-armed; wakes the day E's
             # first validated note lands. Fill = yesterday's note @ today's close
             # (signal-t/fill-t+1, no look-ahead); firewall re-enforced fail-closed. -- #
+            _shadow_twin = None
             try:
                 from paper_trader.llm_shadow_book import LlmShadowBook
                 _lsb = LlmShadowBook(root=str(root))
@@ -527,11 +528,27 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                     except Exception:
                         _closes = None      # fail-closed → degraded (positions hold)
                     lsum = _lsb.record(str(today), closes=_closes, note=_note, note_reason=_reason)
+                    _shadow_twin = {"book_nav": lsum.get("book_nav"), "twin_nav": lsum.get("twin_nav"),
+                                    "n_days": lsum.get("n_days")}
                     print(f"   LLM-SHADOW n_days={lsum['n_days']} clean={lsum['n_clean']} "
                           f"book_nav={lsum['book_nav']} vs twin={lsum['twin_nav']} "
                           f"rejected={lsum['n_rejected']} (report-only analyst record)")
             except Exception as exc:
                 print(f"   LLM-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-308 EVAL HARNESS: resolve expired analyst + event-call predictions
+            # against prices/Kalshi/FRED/calendar; append-only log + summary (skill,
+            # calibration, g1_skill). REPORT-ONLY, fully fail-open (never blocks trading).
+            # Consumes analyst notes + D's event_calls.jsonl (note-shaped, unchanged) +
+            # the shadow-book twin for the directional G1 leg. -------------------------- #
+            try:
+                from intelligence.analyst import eval_harness as _eh
+                _es = _eh.run(str(today), directional=_shadow_twin)
+                _g1 = _es.get("g1_skill", {}).get("vs_market_implied") or {}
+                print(f"   EVAL resolved={_es.get('n_resolvable', 0)}/{_es.get('n_records', 0)} "
+                      f"brier={_es.get('brier')} g1_vs_implied_ci_low={_g1.get('diff_ci_low')} "
+                      f"clears={_g1.get('clears')} (report-only prediction ledger)")
+            except Exception as exc:
+                print(f"   EVAL warn: {type(exc).__name__} (non-fatal)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
