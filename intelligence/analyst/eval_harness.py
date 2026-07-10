@@ -446,11 +446,17 @@ def _recalibrate_inplace(ordered: list[dict]) -> None:
     """WALK-FORWARD isotonic recalibration: each prediction's recalibrated prob is the
     isotonic map fit on ALL EARLIER resolved predictions applied to it (never in-sample).
     RLHF models hedge to 0.5; recalibrated Brier is the honest discrimination read. Stores
-    `_recal_prob` per record (= raw prob until ≥ MIN_RECAL_HISTORY history exists)."""
-    from sklearn.isotonic import IsotonicRegression
+    `_recal_prob` per record (= raw prob until ≥ MIN_RECAL_HISTORY history exists).
+
+    T-310: the sklearn import is LAZY — inside the ≥MIN_RECAL_HISTORY branch — so the
+    eval harness runs on the lean paper image (no scikit-learn) until enough resolved
+    predictions accumulate to actually recalibrate. Before then there is nothing to fit,
+    so an eager import only added a heavy ML dep to crash the whole EVAL step with
+    ModuleNotFoundError while zero predictions existed (caught in the T-310 verify)."""
     for i, r in enumerate(ordered):
         hist = ordered[:i]
         if len(hist) >= MIN_RECAL_HISTORY:
+            from sklearn.isotonic import IsotonicRegression
             iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
             iso.fit([h["probability"] for h in hist], [h["outcome"] for h in hist])
             r["_recal_prob"] = float(iso.predict([r["probability"]])[0])
