@@ -1,0 +1,27 @@
+{
+  "_doc": "T-292 analyst model settings. Pinned from the live Anthropic /v1/models listing on 2026-07-09 (efficient tier daily / stronger tier weekly, per the director). Model IDs are EXACT strings sent to the API; a drift is caught because provenance records model_id_requested vs model_id_served and validate_note re-checks. Prices are USD per MILLION tokens — best-known published values; the fail-closed $30/mo governor is the real budget guard (actual volume is <$2/mo at these tiers, so a price drift is immaterial to the cap). Reconcile against the billing console if precise accounting is ever needed.",
+  "api": {
+    "base_url": "https://api.anthropic.com",
+    "messages_path": "/v1/messages",
+    "anthropic_version": "2023-06-01",
+    "timeout_seconds": 60
+  },
+  "tiers": {
+    "daily": {
+      "model_id": "claude-haiku-4-5-20251001",
+      "max_output_tokens": 1500,
+      "price_per_mtok_input_usd": 1.0,
+      "price_per_mtok_output_usd": 5.0,
+      "price_per_mtok_cache_write_usd": 1.25,
+      "price_per_mtok_cache_read_usd": 0.1
+    },
+    "weekly": {
+      "model_id": "claude-opus-4-8",
+      "max_output_tokens": 3000,
+      "price_per_mtok_input_usd": 15.0,
+      "price_per_mtok_output_usd": 75.0,
+      "price_per_mtok_cache_write_usd": 18.75,
+      "price_per_mtok_cache_read_usd": 1.5
+    }
+  }
+}
