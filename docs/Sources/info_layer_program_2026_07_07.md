@@ -64,3 +64,45 @@ The backtestable price-vocabulary research is complete, but the system has **no 
 **Honest risks (stated up front):** news depth is the load-bearing unknown (probe in week 1, not month 3); coverage/size bias ≠ survivorship bias (scope claims to the covered universe); weekend gaps in pulse-scheduled snapshots (accepted); Kalshi/Polymarket API drift must fail LOUDLY (zero-row days flagged); ~6mo Brier is a thin sample (count resolved predictions, not days; resist story-promotion); residual injection risk is nonzero (flag-and-log, no immunity claims); the T-233 gravitational pull of event/news features toward timing signals (role restated in every frozen doc); FOMC 2026 dates from the Fed site only; cost creep controlled by the governor; the stage-2 account adds operational surface (it rides the T-288 fleet generalization).
 
 **Key reused assets:** `intelligence/news_collector.py` (fetch mechanics), `scripts/lazy_prices/similarity_t237.py` (LM stopwords/TF-IDF/cosine/html_to_text), `data/edgar/` 2.7GB PIT corpus, `scripts/archive_altdata_t136.py` + `archive_positioning_t136.py` (working fetchers), `scripts/calendar_flow_probe_t250.py:17-50` (FOMC list), `engines/engine_e_regime/detectors/` registry pattern, `paper_trader/btc_shadow.py` (the shadow-book template), `paper_trader/cloud_state.py` (S3 sync), the per-account pulse pattern in `scripts/run_paper_cloud_day.py`.
+
+---
+
+# PHASE 2 — THE AI CAPABILITY PROGRAM (user-approved 2026-07-09)
+
+The stage-0 analyst is the safety chassis; Phase 2 is the capability exploration the program was chartered
+for ("any authority on paper — see what it's capable of, find the dangers"). Seven pieces, build order:
+
+**P2.1 — The execution-learning loop (T-301 E / T-301b D).** The valid core of "the machine learns from
+paper": execution data is DENSE (daily samples). E: a per-instrument execution-cost ledger accruing
+automatically from the exec-gate samples (slippage, fill latency, spread context) per account, S3-persisted.
+D: a PRE-REGISTERED quarterly refresh rule that feeds the measured ledger into the harness cost models +
+advisor rows (governed update, never silent drift). The 2.2bps SSO measurement is the prototype of the loop.
+
+**P2.2 — The shadow book from DAY 1 (T-302 C).** AMENDMENT to the Lane-3 ladder: the virtual shadow book
+(zero real orders, consumes only validated notes) runs in PARALLEL with stage-0 instead of after G0 —
+G0/G1 still gate PROMOTION; they no longer gate OBSERVATION. C generalizes its own btc_shadow pattern into
+`paper_trader/llm_shadow_book.py` + the benchmark twin.
+
+**P2.3 — The ops watchdog (T-303 A).** A daily LLM pass over the pulse logs/heartbeats/census answering ONE
+question: "is anything inconsistent with yesterday?" — the sibling-number tell, automated; attacks the
+silent-wrongness class directly. Report-only; reuses the analyst's ModelCall seam + cost governor.
+
+**P2.4 — The event-interpreter (T-304 D).** The highest-alpha-prior AI lane: forward-only structured
+interpretation of discrete documents (8-K flow + the special-situations feed) into TYPED, machine-scoreable
+event calls (resolver/v1). Where LLMs plausibly beat dictionaries. Design+schema now; live calls when the
+adapter lands.
+
+**P2.5/P2.6 — Capability A/Bs (LATER — need a stage-0 baseline first):** the agentic variant (read-only
+tools over our own stores, same firewall, same Brier harness — does agency add skill or only attack
+surface?) and the two-model ensemble (disagreement as calibration signal).
+
+**P2.7 — The advisor interface (whenever):** a read-only conversational layer over the tier table +
+CURRENT_STATE.
+
+**FLAGGED TO REVISIT (user does not fully agree, 2026-07-09):** the director's position that
+strategy-parameter learning from paper P&L is untestable at our signal frequency (the T-152 arithmetic;
+the MetaLearner/HRP/concentration graves). The user's instinct — the machine should progressively improve
+from what does/doesn't work — deserves a steelman rather than a dismissal: **T-305 (B)** scopes what WOULD
+make strategy-level adaptation honestly testable (longer horizons, cross-sectional pooling, regime-pooled
+evidence, multi-decade meta-validation), with explicit revisit-trigger conditions. Nothing adaptive ships
+without clearing the same gates as everything else; the question stays OPEN, not closed.
