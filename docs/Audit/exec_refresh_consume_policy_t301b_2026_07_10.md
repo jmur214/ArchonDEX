@@ -115,3 +115,18 @@ assumption; the hard ≤25%-per-quarter movement cap; and the never-auto-update 
 thresholds, strategy parameters, the measurement apparatus itself, and ANY refresh whose application would
 flip a standing deploy decision HALTS to a human (the 1.55 bps offense breakeven named as the standing
 example). Learning tunes the model; it never silently changes the verdict. Build authorized.
+
+---
+## BUILD COMPLETE — 2026-07-10 (implements the freeze verbatim; N_trials = 0)
+`core/harness_assumptions.py` + seed `config/harness_assumptions.json` + `tests/test_harness_assumptions_t301b.py`
+(10 pass). `refresh_harness_assumptions(quarter, slippage_agg, rate_counts, current)` implements §1-6:
+min-n-or-keep (30 fills / 60 events), Bayesian shrinkage toward the current assumption (k=50 continuous /
+k=100 rates), the ≤25%-relative / ≤0.10-absolute per-refresh cap, and the DECISION-FLIP tripwire — a proposed
+value that would cross a registered breakeven (the T-294/298 **1.55 bps** SSO offense breakeven is seeded)
+HALTS, is recorded in `res.halts`, and is NOT applied (the verdict-relevant value stays at `old`). `write_refresh`
+writes a versioned, append-only, revertible history (`data/state/harness_assumptions_history.jsonl` + the current
+`config/harness_assumptions.json`); `load_assumptions` fails closed to the hardcoded defaults. Strategy params /
+decision thresholds / the measurement apparatus are structurally untouchable — the rule only ever writes the four
+operational metrics under `instruments[account:instrument][metric]`. The refresh job wires to a QUARTERLY pulse
+(B/E's lane) consuming `ExecCostLedger.aggregate()` + the pulse order/gate/reconcile logs; it is report-only until
+then.

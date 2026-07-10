@@ -1,0 +1,11 @@
+{
+  "global": {
+    "defer_rate": 0.0,
+    "fill_rate": 1.0,
+    "gate_pass_rate": 1.0,
+    "liquid_etf_slippage_bps": 1.5,
+    "reconcile_clean_rate": 1.0
+  },
+  "instruments": {},
+  "version": "seed-t301b"
+}
