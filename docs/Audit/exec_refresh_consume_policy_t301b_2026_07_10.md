@@ -108,3 +108,10 @@ not a hypothesis).
 ---
 **DRAFT — NOT ACTIVE.** Awaiting director freeze. On freeze this becomes the standing consume-policy and the
 build proceeds. Any change after the freeze line = a new pre-registration.
+
+## DIRECTOR FREEZE — 2026-07-10 (as proposed; BINDING)
+Frozen exactly as drafted: quarterly cadence; min-n-or-keep; Bayesian shrinkage toward the current
+assumption; the hard ≤25%-per-quarter movement cap; and the never-auto-update list VERBATIM — decision
+thresholds, strategy parameters, the measurement apparatus itself, and ANY refresh whose application would
+flip a standing deploy decision HALTS to a human (the 1.55 bps offense breakeven named as the standing
+example). Learning tunes the model; it never silently changes the verdict. Build authorized.

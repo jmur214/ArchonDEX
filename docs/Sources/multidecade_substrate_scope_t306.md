@@ -168,3 +168,16 @@ single gate to D-B** (the full 3-asset deep substrate to ~1968). Re-verification
 **T-306 scope ready** → awaiting director go on: (1) build D-A now / D-B on gold; (2) the
 basis-check PASS bound; (3) the frequency ruling (daily-from-1968, defer Shiller-monthly);
 (4) the re-verification order (propose T-255 → T-260 → T-298).
+
+## DIRECTOR GO — 2026-07-10 (all four decisions ruled; BINDING)
+1. **Build D-A NOW** (2-asset equity+bond, 1962-2026); pursue the LBMA gold source in parallel as the
+   single gate to D-B (~1968 3-asset). D-A does not wait on gold.
+2. **Basis-check PASS bound:** ≤0.15% median |Δ| on TR-adjusted overlaps; gold (spot-vs-futures class)
+   ≤0.50% median |Δ|, disclosed per segment. A splice failing its bound ships as DISCLOSED-FAIL or not at
+   all — never silently.
+3. **Frequency:** daily throughout (the [42,105,210]-day speeds run natively from 1962/1968). The
+   Shiller-monthly 1871 equity artifact is DEFERRED — out of scope until someone pre-registers a use.
+4. **Re-verification order:** T-255 → T-260 → T-298, each individually pre-registered (+1 N_trial each),
+   NEVER batched; every 2000-2026 verdict demotes to "DEFENSIBLE (prior substrate); re-verify required" the
+   day D-A ships, per [NN-SUBSTRATE-REVERIFY]. T-272 stays exploratory regardless (BTC has no deep history).
+Build authorized. calendar_guard mandatory before emit; provenance.json per splice as scoped.
