@@ -65,9 +65,28 @@ DURABLE_PATHS: List[str] = [
     # APPEND-ONLY loop memory — without durability it resets every ephemeral Fargate run
     # and never reaches the ≥150-resolved G1 bar (same need as the trackers above). The
     # summary carries the g1_skill block + the shadow-book directional twin for the
-    # dashboard. (Analyst notes + D's event_calls.jsonl persist via their own owners.)
+    # dashboard.
     "data/intel/analyst_predictions.jsonl",
     "data/intel/analyst_eval_summary.json",
+    # T-310: the intel pulse's own append-only loop memory. The earlier claim that
+    # "analyst notes + event_calls persist via their own owners" was WRONG (A flagged
+    # it; nothing wrote them to S3) — they are durable HERE now. event_calls.jsonl is
+    # D's forward event-interpreter ledger (the eval harness resolves its predictions);
+    # llm_spend.jsonl is the SHARED ≤$30/mo governor ledger across analyst+watchdog+event
+    # (without durability the monthly budget would reset every run → uncapped spend).
+    # The analyst NOTE *directory* is a whole-dir sync (DURABLE_DIRS), not a single file.
+    "data/intel/event_calls.jsonl",
+    "data/intel/llm_spend.jsonl",
+]
+
+# T-310: whole-directory durable state (per-day files with dynamic names, so they
+# can't be enumerated in DURABLE_PATHS). The analyst NOTES dir is loop-critical —
+# C's shadow book reads yesterday's note and A's eval harness resolves predictions
+# from notes days/weeks old — so it must survive the ephemeral Fargate disk. Small
+# (KB-scale per-day JSON), so it rides the critical push (unlike the 264 MB news
+# panel, which has its own date-partitioned prefix).
+DURABLE_DIRS: List[str] = [
+    "data/intel/analyst_notes",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
@@ -150,6 +169,13 @@ class CloudState:
             if r.returncode == 0:
                 synced = True
             # a missing key (first run) returns non-zero — that is FINE.
+        for rel in DURABLE_DIRS:                       # T-310: whole-dir sync
+            local = self.root / rel
+            local.mkdir(parents=True, exist_ok=True)
+            r = self._aws("s3", "sync", f"{self.cfg.s3_root}/{rel}", str(local),
+                          "--no-progress")
+            if r.returncode == 0:
+                synced = True
         return synced
 
     def push(self) -> bool:
@@ -178,6 +204,17 @@ class CloudState:
                 ok = False
                 err = (getattr(r, "stderr", "") or "").strip().splitlines()
                 print(f"   PUSH-FAIL {rel}: {err[-1][:160] if err else 'unknown error'}",
+                      file=sys.stderr)
+        for rel in DURABLE_DIRS:                       # T-310: whole-dir sync
+            local = self.root / rel
+            if not local.exists():
+                continue
+            r = self._aws("s3", "sync", str(local), f"{self.cfg.s3_root}/{rel}",
+                          "--no-progress")
+            if getattr(r, "returncode", 0) != 0:
+                ok = False
+                err = (getattr(r, "stderr", "") or "").strip().splitlines()
+                print(f"   PUSH-FAIL {rel}/: {err[-1][:160] if err else 'unknown error'}",
                       file=sys.stderr)
         return ok
 
