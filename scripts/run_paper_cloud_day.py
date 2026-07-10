@@ -94,37 +94,19 @@ def _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts):
 
     FAIL-CLOSED ON MEASUREMENT: an unknown/unparseable ``filled_at`` is EXCLUDED,
     never assumed fresh — a missing sample is honest, a fabricated one is not.
-    Returns the mean bps over qualifying fills, or None when none qualify."""
-    import datetime as _dt
+    Returns the mean bps over qualifying fills, or None when none qualify.
 
-    def _fresh(o) -> bool:
-        fa = getattr(o, "filled_at", None)
-        if not fa or arrival_ts is None:
-            return False
-        try:
-            t = _dt.datetime.fromisoformat(str(fa).replace("Z", "+00:00"))
-        except Exception:
-            return False
-        if t.tzinfo is None:
-            t = t.replace(tzinfo=_dt.timezone.utc)
-        return t >= arrival_ts
-
-    slips, stale = [], []
-    for o in staged:
-        px = arrival_px.get(o.ticker)
-        if not px or px <= 0:
-            continue
-        if not getattr(o, "filled_avg_price", None) or getattr(o, "filled_qty", 0) <= 0:
-            continue
-        if not _fresh(o):
-            stale.append(o.ticker)
-            continue
-        slips.append(abs(float(o.filled_avg_price) - px) / px * 1e4)
+    T-301: the freshness gate now lives in ONE place — ``extract_fresh_fills`` —
+    which the exec-cost ledger also consumes, so the gate-b headline and the
+    ledger can never disagree on which fills counted."""
+    from paper_trader.exec_cost_ledger import extract_fresh_fills
+    rows, stale = extract_fresh_fills(staged, arrival_px, arrival_ts,
+                                      account="_gateb", trade_date="_gateb")
     if stale:
         print(f"   SLIPPAGE   EXCLUDED {stale} — fill predates this run's arrival "
               f"capture (stale/re-discovered order); not measurable, not fabricated.",
               file=sys.stderr)
-    return round(sum(slips) / len(slips), 2) if slips else None
+    return round(sum(r.slippage_bps for r in rows) / len(rows), 2) if rows else None
 
 
 def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
@@ -585,6 +567,32 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         # Fail-open: an econ-health miss must never touch the trading exit code.
         print(f"9. ECON-HEALTH WARN {type(exc).__name__} (non-fatal, report-only)",
               file=sys.stderr)
+
+    # --- T-301 / P2.1 exec-cost ledger: append THIS run's proven-fresh fills
+    # (per account, per instrument) to the append-only ledger + surface the
+    # per-instrument aggregate in the heartbeat. Runs BEFORE the push so the
+    # ledger + its status block persist this run (both are in DURABLE_PATHS).
+    # Uses the SAME extract_fresh_fills gate as gate-b (no divergence), inherits
+    # the no-fabricated-samples doctrine, and is REPORT-ONLY (never flips
+    # canonical). Fully fail-open — the whole block is try/excepted. ---------- #
+    try:
+        from paper_trader.exec_cost_ledger import ExecCostLedger, extract_fresh_fills
+        acct_label = os.getenv("ARCHONDEX_PAPER_ACCOUNT", "account-1")
+        rows, _stale = extract_fresh_fills(staged, arrival_px, arrival_ts,
+                                           account=acct_label, trade_date=str(today))
+        ecl = ExecCostLedger("data/state/exec_cost_ledger.jsonl", root=str(root))
+        n_appended = ecl.append(rows)
+        agg = ecl.aggregate()
+        hb.record_exec_cost_ledger(agg)
+        print(f"10. EXEC-COST +{n_appended} fill(s) → ledger "
+              f"({agg['n_rows']} rows, {agg['n_instruments']} instruments)"
+              + "".join(
+                  f" | {v['instrument']}@{v['account']} med={v['median_slippage_bps']}bps n={v['n']}"
+                  for v in agg["per_instrument"].values()))
+    except Exception as exc:
+        print(f"10. EXEC-COST WARN {type(exc).__name__} (non-fatal, report-only)",
+              file=sys.stderr)
+
     # PUSH BEFORE emitting metrics: a durable-state push that silently failed
     # means the NEXT run starts from stale state and a held position reads as
     # unexplained. That is an integrity failure, so it must flip canonical (→

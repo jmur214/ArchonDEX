@@ -191,6 +191,20 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_exec_cost_ledger(self, aggregation: Dict[str, Any]) -> None:
+        """T-301: stamp the execution-cost ledger's per-instrument aggregate
+        (median slippage bps + n per account/instrument) onto the status file as
+        a SEPARATE ``exec_cost`` block. Report-only — an execution-cost datapoint
+        is evidence to LEARN from (D's T-301b consumes it into the harness cost
+        models), never an operational failure, so it NEVER flips ``canonical``/
+        ``alert`` and fires NO notify (unlike econ-health, which is a tripwire).
+        ``aggregation`` is ``ExecCostLedger.aggregate()``'s return."""
+        status = self._read_status() or {}
+        block = dict(aggregation)
+        block["ts"] = _utcnow_iso()
+        status["exec_cost"] = block
+        self._atomic_write(self.status_path, status)
+
     def check(self, today: _date, is_trading_day: bool) -> HeartbeatVerdict:
         """The dead-man's-switch. On a trading day, today's run must have
         happened AND been canonical — else ALERT. On a non-trading day,

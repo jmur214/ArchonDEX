@@ -53,6 +53,11 @@ DURABLE_PATHS: List[str] = [
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
     "data/state/sleeve_btc_tracking.json",
+    # T-301 / P2.1: the append-only per-fill execution-cost ledger. Same
+    # ephemeral-disk persistence need as the trackers — without this the ledger
+    # would reset every run and never accumulate the forward cost record that
+    # D's T-301b consumes into the harness cost models.
+    "data/state/exec_cost_ledger.jsonl",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
