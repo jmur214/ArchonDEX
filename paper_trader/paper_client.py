@@ -308,6 +308,35 @@ class AlpacaPaperClient:
             out[t] = s.sort_index()
         return out
 
+    def fetch_btc_usd_history(self, lookback_days: int = 420) -> "Optional[pd.Series]":
+        """Daily BTC/USD closes for the T-276 report-only BTC-shadow signal (T-307).
+
+        Threads the shadow's BTC leg in the LEAN cloud image, where the T-276 yfinance
+        path had no network and the shadow ran degraded every day. Alpaca CRYPTO data
+        is PUBLIC (no API keys) and ships with alpaca-py — already in the image — so
+        this reuses the existing dep, adds nothing heavy. FAIL-OPEN per the shadow's
+        design: returns None on any error (the shadow then degrades — never fabricates).
+        """
+        try:
+            import pandas as pd
+            from datetime import datetime, timedelta, timezone
+            from alpaca.data.historical import CryptoHistoricalDataClient
+            from alpaca.data.requests import CryptoBarsRequest
+            from alpaca.data.timeframe import TimeFrame
+            start = datetime.now(timezone.utc) - timedelta(days=int(lookback_days * 1.5) + 30)
+            df = CryptoHistoricalDataClient().get_crypto_bars(   # public — no creds
+                CryptoBarsRequest(symbol_or_symbols=["BTC/USD"],
+                                  timeframe=TimeFrame.Day, start=start)).df
+            if df is None or not len(df):
+                return None
+            lvl0 = df.index.get_level_values(0)
+            sub = df.xs("BTC/USD", level=0) if "BTC/USD" in lvl0 else df
+            s = sub["close"].astype(float)
+            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+            return s[~s.index.duplicated()].sort_index()
+        except Exception:
+            return None
+
     def fetch_latest_prices(self, tickers) -> "Dict[str, float]":
         """Latest trade price per ticker — the ARRIVAL price for the T-238
         gate-(b) slippage measurement (paper slippage = |fill − arrival|, the

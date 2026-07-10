@@ -488,20 +488,30 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       f"(execution fidelity only — NOT a performance verdict)")
             # --- T-276 BTC shadow: REPORT-ONLY forward validation of the +5%
             # BTC arm (never touches orders/weights/canonical). Reuses the REAL
-            # sleeve daily return from the last two tracked equities + adds a
-            # trend-ruled BTC leg. Fetches BTC/IBIT fail-closed — DEGRADED (leg
-            # parked in cash) when the lean image lacks yfinance/network, until
-            # BTC data is threaded (safe per the T-276 spec). ------------------ #
+            # sleeve daily return + a trend-ruled BTC leg. T-307: the BTC-USD signal
+            # + IBIT basis price are now THREADED via Alpaca (crypto data is public,
+            # IBIT via the stock client — both on alpaca-py already in the image), so
+            # the shadow un-degrades and the T-272 clocks genuinely run. Fail-OPEN:
+            # a None fetch → the shadow degrades that day (never fabricates). -------- #
             try:
                 from paper_trader.btc_shadow import BtcShadowTracker
                 from paper_trader.sleeve_tracker import RF_ANNUAL
                 _prev = [p for p in tracker._load() if p["date"] < str(today)]
                 _sleeve_ret = (equity / _prev[-1]["sleeve_equity"] - 1.0) if _prev else 0.0
+                _btc_hist = client.fetch_btc_usd_history()          # Alpaca crypto (public)
+                _ibit = None
+                try:
+                    _ir = client.fetch_daily_closes(["IBIT"])       # Alpaca stock (keyed)
+                    if _ir.get("IBIT") is not None and len(_ir["IBIT"]):
+                        _ibit = float(_ir["IBIT"].iloc[-1])
+                except Exception:
+                    _ibit = None
                 bsum = BtcShadowTracker(root=str(root)).record(
-                    str(today), _sleeve_ret, cash_daily_rate=RF_ANNUAL / 252.0)
+                    str(today), _sleeve_ret, cash_daily_rate=RF_ANNUAL / 252.0,
+                    btc_hist=_btc_hist, ibit_close=_ibit)
                 print(f"   BTC-SHADOW n_days={bsum.get('n_days')} "
                       f"clean={bsum.get('n_clean')} degraded={bsum.get('n_degraded')} "
-                      f"(report-only T-272 forward validation)")
+                      f"(report-only T-272 forward validation; BTC threaded via Alpaca)")
             except Exception as exc:
                 print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
             # --- T-302 LLM shadow book: REPORT-ONLY virtual book of the analyst's
@@ -554,10 +564,11 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                   f"({tsum.get('n_days', tsum.get('sleeve', {}).get('n_days'))} pts)"
                   + (f" | exec-gate overall={eg.get('overall')}" if eg else ""))
             # Account 3 (sleeve_btc): the live IBIT-vs-BTC-USD basis is the T-272
-            # construction check. The BTC-USD leg lives in Account 1's degraded
-            # BtcShadowTracker until BTC data threads (D's panel); until then we
-            # report the account's own IBIT leg + flag the divergence as PENDING
-            # that data — never a fabricated basis number.
+            # construction check. T-307 threaded the BTC-USD leg (Alpaca crypto) into
+            # Account 1's BtcShadowTracker, which now records IBIT + BTC-USD daily —
+            # its forward_gates() basis line accrues a real number (≥30 clean days).
+            # We still print Account-3's own IBIT leg here; the cross-account basis
+            # reads off Account 1's shadow, never a fabricated number.
             if args.strategy == "sleeve_btc":
                 ibit_w = plan.targets.get("IBIT")
                 print(f"   IBIT-BASIS  account-3 IBIT target_w={ibit_w} | "
