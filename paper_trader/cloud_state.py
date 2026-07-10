@@ -53,6 +53,9 @@ DURABLE_PATHS: List[str] = [
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
     "data/state/sleeve_btc_tracking.json",
+    # T-302: the report-only LLM analyst virtual shadow book (Phase 2; same need —
+    # the forward directional record must survive the ephemeral Fargate disk).
+    "data/state/llm_shadow_book.json",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
