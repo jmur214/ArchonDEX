@@ -163,7 +163,24 @@ if [ "$DO_SCHEDULE" = "1" ]; then
   JOBDEF_ARN="$(_aws batch describe-job-definitions --job-definition-name archondex-paper-cloud-day \
      --status ACTIVE --query 'reverse(sort_by(jobDefinitions,&revision))[0].jobDefinitionArn' --output text)"
   QUEUE_ARN="$(_aws batch describe-job-queues --job-queues "$QUEUE" --query 'jobQueues[0].jobQueueArn' --output text)"
-  TARGET="$(python3 -c 'import json,sys; print(json.dumps({"Arn":"arn:aws:scheduler:::aws-sdk:batch:submitJob","RoleArn":sys.argv[1],"Input":json.dumps({"JobName":"paper-cloud-day","JobQueue":sys.argv[2],"JobDefinition":sys.argv[3]})}))' "$SCHED_ROLE_ARN" "$QUEUE_ARN" "$JOBDEF_ARN")"
+  # Jul-13-24 outage lesson: a failed SubmitJob must land in the DLQ FAST and
+  # visibly — never the default 185-retries-over-24h that masks the failure
+  # past the trading window. The DLQ (archondex-scheduler-dlq) is created by
+  # the fleet provisioner; if absent we WARN loudly rather than silently
+  # deploying an alarm-free schedule.
+  DLQ_ARN="$(_aws sqs get-queue-attributes \
+     --queue-url "$(_aws sqs get-queue-url --queue-name archondex-scheduler-dlq --query QueueUrl --output text 2>/dev/null)" \
+     --attribute-names QueueArn --query Attributes.QueueArn --output text 2>/dev/null || true)"
+  if [ -z "$DLQ_ARN" ] || [ "$DLQ_ARN" = "None" ]; then
+    log "WARNING: archondex-scheduler-dlq not found — schedule will deploy WITHOUT a DLQ (the Jul-13 silent-drop failure mode). Create the DLQ and re-run."
+    DLQ_ARN=""
+  fi
+  TARGET="$(python3 -c 'import json,sys
+t={"Arn":"arn:aws:scheduler:::aws-sdk:batch:submitJob","RoleArn":sys.argv[1],
+   "Input":json.dumps({"JobName":"paper-cloud-day","JobQueue":sys.argv[2],"JobDefinition":sys.argv[3]}),
+   "RetryPolicy":{"MaximumRetryAttempts":3,"MaximumEventAgeInSeconds":3600}}
+if len(sys.argv)>4 and sys.argv[4]: t["DeadLetterConfig"]={"Arn":sys.argv[4]}
+print(json.dumps(t))' "$SCHED_ROLE_ARN" "$QUEUE_ARN" "$JOBDEF_ARN" "$DLQ_ARN")"
   # T-238 Option A: daily 9:45 ET (America/New_York, DST-aware) — POST-open, so
   # the paper sleeve's market DAY orders fill in the regular session (Alpaca
   # paper expires OPG auction orders; live would use OPG + a pre-open time). The

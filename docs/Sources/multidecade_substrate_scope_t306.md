@@ -42,7 +42,18 @@ Three findings change the shape of this build:
 - **D-B (gated on gold sourcing): the full 3-asset substrate to ~1968.** Blocked ONLY
   on the LBMA gold fetch; everything else (bond 1962, equity 1926) is ready.
 
-## Why this is the decisive lever — the MBL/DSR number
+## ⚠️ DIRECTOR CORRECTION (2026-07-27, from the adversarial holistic audit) — the MBL/DSR headline below is WRONG in the way that matters
+
+The computation below holds **SR = 0.598** fixed — the SUPERSEDED, survivorship-inflated static-109 equity-book
+baseline that `[NN-AUDITS-NOT-CURRENT]`/CURRENT_STATE explicitly say not to quote, describing a book nobody
+deploys. "Clears DSR with 2.4-2.6× margin" is therefore a statement about a dead strategy's absolute Sharpe —
+NOT about either deploy candidate. The deploy decisions ride on **difference metrics** (sleeve-minus-benchmark,
+offense-minus-buy-hold), whose CIs straddle zero at 26yr; the deep window's honest value is that it can test
+THOSE differences across 8-10 crises for the first time (T-311/T-312 do exactly this) — not that it "clears"
+anything by holding a stale Sharpe. At the honest PIT-measured base (~0.119) the deep window does not clear at
+all. The substrate remains the program's most valuable measurement asset; this headline framing is retracted.
+
+## Why this is the decisive lever — the MBL/DSR number [SUPERSEDED — see the correction above]
 `[NN-MBL]`: `T_years ≥ 2·ln(N_eff)/SR²`. At N≈75, SR=0.598 (the corrected baseline):
 **T_required = 2·ln(75)/0.598² ≈ 24.1 years.** The current 2000–2026 substrate (26yr)
 barely reaches it; the 5yr exploratory window needs SR≥1.55 (unreachable). A **64yr**
