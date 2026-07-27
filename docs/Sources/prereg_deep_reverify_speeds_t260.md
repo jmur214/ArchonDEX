@@ -95,3 +95,12 @@ cleared by the sleeve's ~1.5. State the honest-N and margin.
 Draft → **director FREEZE** → run → results + verdict appended here → outbox →
 **then T-314 (#1)**, whose frozen baseline is this same unchanged spec.
 **N_trials += 1** (one family: arms A-D jointly reported; no selection performed).
+
+## DIRECTOR FREEZE — 2026-07-27 (as drafted, no amendments; BINDING)
+Frozen exactly as written. The three load-bearing terms are quoted here so they cannot drift:
+(1) **NO re-selection** — {42,105,210} does not change regardless of what the grid shows; a higher-scoring
+triple is REPORTED as spec-selection risk, never adopted (protects both the deployed spec and T-314's
+baseline, which is this same frozen spec); (2) **all three outcomes pre-named**, including the bad one — an
+ensemble-drag result is escalated loudly with the deployed spec in question, never averaged away;
+(3) **rate-regime slicing excluded by name** (post-hoc; belongs to family #2, forward-only). Honest prior
+~35% as stated. Run → then T-314 (#1). N_trials += 1 at run.
