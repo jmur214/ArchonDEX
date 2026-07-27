@@ -168,3 +168,67 @@ Registered here now so its provenance is at least honest going forward:
 
 **Freeze-ready on this ruling:** signal = vol-stress (`s[t]` as drafted), 1 DoF (β),
 ridge-to-frozen-spec, strict decades-1-3 / 4-5 wall, win condition unchanged.
+
+---
+
+# THE CONDITIONAL-EXPOSURE FAMILY — pre-stated in full, 2026-07-27
+
+Per USER DIRECTIVE (relayed by the director): leverage belongs *"at CERTAIN points,
+when it would be helpful — no manager holds it forever."* That is the
+conditional-exposure family this experiment leads. **All three members are listed
+here BEFORE any of them runs**, so each has provenance and none can be conjured
+into existence by a result that tempts it.
+
+| # | rule | status | provenance |
+|---|---|---|---|
+| **1** | **vol-stress-conditional DE-RISKING** (this doc) | **FROZEN — runs after T-260** | CLEAN: committed `a27eef5` 14:26:27, **64 min before** the T-311 run |
+| **2** | **rate-conditional exposure** — lever when financing is cheap (the T-311 regime-split mechanism) | pre-stated; **forward/out-of-time only** | CONTAMINATED (post-hoc); declared in the Signal Ruling above |
+| **3** | **drawdown/valuation-conditional leverage** — RAISE exposure (1.0 → 1.25-1.5×) only when the market sits ≥X% below its prior high (and/or valuation below a threshold), gliding back on recovery | **pre-stated TODAY, mechanism-first; NOT authorized to run** | pre-stated *before* any result could motivate it |
+
+## #3 — the mechanism, stated a priori (this is the point of writing it now)
+Post-drawdown expected returns are elevated: the risk premium is fattest exactly
+when prices are lowest. And a **genuinely won't-sell holder is the one investor class
+structurally ABLE to lever into a crash** — margin-financed and career-risk-bearing
+investors are forced out precisely when the premium is best. That asymmetry is
+statable without looking at any data, which is what makes #3 a legitimate ex-ante
+hypothesis rather than a fit.
+
+It is also the direct heir to T-311's finding: T-311 showed buy-hold beats the sleeve
+on wealth (2.9×) at the cost of a −55% drawdown. #3 asks whether a won't-sell holder
+can do better than *either* — capturing buy-hold's compounding while using the
+drawdown itself as the signal to add exposure.
+
+## The adversaries #3 must carry into its draft (named now, not discovered later)
+1. **Valuation-timing's poor published record.** CAPE-timing famously disappoints;
+   "cheap" markets stay cheap for years. Any #3 draft must confront this directly,
+   not hand-wave it.
+2. **The 1930s double-dip — the killer case.** Levering at −30% and riding to −85%
+   is ruinous and is precisely what a drawdown-triggered rule does wrong. The deep
+   substrate's equity leg reaches 1926, so **this case is IN-SAMPLE and must be
+   reported explicitly**, not averaged away.
+3. **Leverage cost + path.** Financing is not free, and the T-294/T-298 lesson stands:
+   a levered path is a *different* strategy, not a scaled one (daily-reset decay,
+   exit-lag, execution). #3 inherits those measured costs.
+4. **Family-N accounting.** #1/#2/#3 test the same family on the same substrate.
+   Each is +1 N_trial and the DSR bar rises for all of them; the family must be
+   reported jointly, never cherry-picked.
+
+## Contamination status of #3 — the honest assessment (per my own T-314 standard)
+**#3's in-substrate test can be SUGGESTIVE ONLY, not confirmatory.** Reasoning,
+applying the same standard I used to disqualify cash-rate:
+- The mechanism is genuinely a priori (unlike #2) — so #3 is *not* HARKed.
+- **But the holdout is no longer clean.** After T-311 (and T-260/T-315), I have seen
+  the deep substrate's crisis behaviour in detail — including buy-hold's −55.2%
+  drawdown path and the per-crisis sleeve/buy-hold table spanning 1970→2022, which
+  covers the OOS decades. A drawdown-triggered rule is a *direct function of exactly
+  those observed drawdowns*. Pre-stating the hypothesis protects against HARKing; it
+  does **not** restore an unseen holdout.
+- **Therefore:** #3 runs as a *characterization* on this substrate (honest, reported
+  with the 1930s case shown), and its **confirmatory test is FORWARD/out-of-time** —
+  the same disposition as #2, for a different reason (#2 lacks a priori provenance;
+  #3 lacks an unseen holdout).
+- Any "#3 wins in-sample" result must be reported as **suggestive-then-forward**, and
+  must NOT be used to justify real-money leverage on its own.
+
+**No run authorized for #2 or #3.** #1 remains the only frozen, runnable member.
+Sequence unchanged: **T-260 → T-314 (#1)**.
