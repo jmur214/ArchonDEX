@@ -105,3 +105,66 @@ earned this shot, and either verdict is decisive.
 Draft (this doc) → **director FREEZE** (rule form, `s` definition, `τ`, the 1-vs-2-DoF
 choice, the IS/OOS split fraction) → **run AFTER T-311 + T-260** → OOS result + verdict
 appended here → outbox. Nothing runs until freeze. → "T-314 draft ready".
+
+---
+
+# SIGNAL RULING (required before freeze) — 2026-07-27
+
+The director required a written ruling on a contamination question: T-311 revealed a
+**cash-rate regime split** (1962-89 cash 6.4% → sleeve beats buy-hold; 1990-2026 cash
+2.7% → sleeve loses by 4.6pp/yr). Should the prevailing short rate replace my
+pre-registered vol-stress signal, given it is (i) mechanism-derivable a priori but
+(ii) only *noticed* after seeing the full sample?
+
+## RULING: **(b) — KEEP vol-stress as T-314's signal. Cash-rate becomes the pre-stated SECOND experiment.**
+
+### Why — the contamination is real, specific, and disqualifying for THIS test
+1. **The observation straddled the wall, and the contaminated side IS the holdout.** The
+   T-311 split was computed on the FULL 64 years. My IS/OOS wall puts decades 1-3
+   (≈1962-2000) in-sample and decades 4-5 (≈2000-2026) out-of-sample. The "low-rate era"
+   I observed (1990-2026) **contains essentially the entire OOS window.** So I now hold
+   direct knowledge of how a rate-conditional rule behaves in the very data reserved to
+   judge it. That is not a residual risk; it is the specific thing the wall exists to stop.
+2. **"I could have derived it a priori" is unfalsifiable — and it is the textbook
+   rationalization.** The mechanism IS genuine (a long/flat sleeve earns the short rate
+   when flat, so its opportunity cost is rate-dependent — writable in 1961). But I did
+   not write it in 1961, or in the draft. Post-hoc mechanism stories can be told for
+   almost any observed pattern; that is precisely why HARKing (Hypothesizing After
+   Results are Known) is a named failure mode rather than a judgment call. I hold myself
+   to the standard I would apply to any other agent's result.
+3. **Provenance asymmetry, and it is verifiable.** The vol-stress signal, the rule form,
+   the shrinkage prior and the OOS wall were committed in `a27eef5` at
+   **2026-07-27T14:26:27-05:00** — **64 minutes BEFORE** the T-311 run (`828516b`,
+   15:31:24). Git timestamps make that ex-ante claim auditable rather than asserted.
+   Cash-rate has no such provenance and cannot acquire it retroactively.
+4. **T-314 is the ONE clean shot at the user's thesis; a contaminated signal destroys the
+   experiment either way.** If a HARKed signal WINS, we can never separate "bounded
+   adaptation works" from "hindsight works" — the result would be unusable for the very
+   decision it exists to inform. If it LOSES, we have burned the clean test on a
+   compromised instrument. The value of T-314 is its credibility, not its win rate.
+5. **Rushing cash-rate into this slot would also give the idea a WORSE test than it
+   deserves.** T-314's frozen rule form can only DE-RISK (`exposure ≤ frozen`). A
+   rate-conditional rule's economically-motivated direction is plausibly the opposite —
+   *raise* exposure toward buy-hold when cash is cheap. Forcing it into a de-risk-only
+   shape would test a strawman of a genuinely interesting hypothesis.
+
+### The honest note on the residual risk to vol-stress
+I have now seen T-311's results in general. What protects this test is that the signal,
+rule form, fit procedure, shrinkage prior and win condition were **all frozen before
+those results existed** (point 3), so there is no remaining degree of freedom for
+hindsight to enter — the only post-freeze act is running it and reporting the number.
+
+### Cash-rate — pre-stated as EXPERIMENT #2 (a later, separate +1 N_trial)
+Registered here now so its provenance is at least honest going forward:
+- **Hypothesis (stated before its run):** the sleeve's wealth shortfall vs buy-hold is
+  conditional on the flat leg's carry; a rule scaling exposure with the prevailing real
+  short rate should recover part of the gap.
+- **Declared contamination:** discovered post-hoc on a sample including the T-314 holdout.
+  **On this substrate there is no untouched hold-out left for it.** Therefore its honest
+  test is **FORWARD / out-of-time** (or a purged-and-embargoed design on new data) — the
+  proper home for a post-hoc-discovered mechanism. Any in-sample-substrate result for it
+  must be reported as **suggestive, never confirmatory**.
+- It runs only after T-314 closes, as its own pre-registration.
+
+**Freeze-ready on this ruling:** signal = vol-stress (`s[t]` as drafted), 1 DoF (β),
+ridge-to-frozen-spec, strict decades-1-3 / 4-5 wall, win condition unchanged.
