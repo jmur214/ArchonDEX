@@ -1002,3 +1002,23 @@ second, harder-to-miss channel when the operator may be away. Fixed by
 pinning the revision back into the payload; resumed same-day with a clean
 catch-up run (the held-reconcile machinery absorbed 10 missed days without
 drama — the recovery design worked).
+
+## 2026-07-27 — "Code-complete" is not "confirmed end-to-end" (T-295)
+
+The rate-path deliverable was "code-complete" for 17 days while its
+meeting-probability path was quietly broken — the Yahoo fetch always
+died first (on a self-inflicted Chrome-User-Agent block misdiagnosed as
+an IP/AWS throttle for two weeks), so nobody ever ran 1b to the end.
+The instant the fetch was fixed and 1b actually executed, it emitted a
++284bp implied one-meeting move — a physically-impossible number that
+exposed two real methodology bugs (a late-month leverage blowup and
+cumulative-vs-incremental anchoring). Rule: a deliverable is not done
+when "the script runs" — it is done when its OUTPUT has been inspected
+end-to-end for physical plausibility. A fail-closed guard on
+non-physical values (added here) is the automated form of that
+inspection. Sibling lesson to silent-wrongness: an unfixed upstream
+failure (the UA block) can mask a downstream bug indefinitely — fixing
+the blocker is what surfaced the real defect. Also: B corrected its own
+prior confident misdiagnosis in the record rather than letting it
+stand — the same retract-before-it-travels discipline, applied to a
+conclusion instead of a number.
