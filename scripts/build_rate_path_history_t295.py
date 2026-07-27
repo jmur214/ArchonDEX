@@ -172,6 +172,49 @@ def _has_fomc(year: int, month: int, dates) -> bool:
     return any(d.year == year and d.month == month for d in dates)
 
 
+def _solve_meeting_move(px_month: Optional[float], px_next: Optional[float],
+                        r_before: float, decision: pd.Timestamp,
+                        next_has_fomc: bool) -> Optional[Dict]:
+    """PURE (no network): solve one meeting's post-decision rate + two-outcome prob.
+
+    Returns None to SKIP (fail-closed) when the solve is unavailable or
+    non-physical. `r_before` is the CHAINED pre-meeting rate (see caller), so the
+    reported change is the increment AT this meeting, not the move from today.
+
+    Two regimes (the T-295 fix):
+      * well-conditioned (n_after > LATE_MONTH_NAFTER): decompose in-month —
+        the ZQ contract settles to the month-average EFFR, so
+        avg·N = r_before·n_before + r_after·n_after  ⇒  solve r_after.
+      * LATE month (tiny n_after): the in-month decomposition's N/n_after
+        leverage amplifies small errors (it produced a spurious +284bp), so read
+        r_after straight off the NEXT month's contract — but only when that month
+        has NO FOMC meeting, else the next-month average is itself contaminated.
+    """
+    if px_month is None:
+        return None
+    N, n_before = decision.days_in_month, int(decision.day)
+    n_after = N - n_before
+    if n_after > LATE_MONTH_NAFTER:
+        r_after = ((100.0 - px_month) * N - r_before * n_before) / n_after
+        method = "fedwatch_two_outcome_inmonth"
+    else:
+        if px_next is None or next_has_fomc:
+            return None
+        r_after = 100.0 - px_next
+        method = "fedwatch_two_outcome_nextmonth"
+    change = r_after - r_before
+    if abs(change) * 100 > MAX_MEETING_BP:        # non-physical single-meeting move
+        return None
+    return {
+        "implied_post_rate": round(r_after, 4),
+        "implied_change_bp": round(change * 100, 2),
+        "prob_25bp_move": round(max(0.0, min(1.0, abs(change) / 0.25)), 4),
+        "direction": "cut" if change < -1e-9 else ("hike" if change > 1e-9 else "hold"),
+        "method": method, "n_before": n_before, "n_after": n_after,
+        "_r_after": r_after,                       # for the caller's chaining
+    }
+
+
 def build_meeting_probs() -> Dict:
     """FedWatch TWO-OUTCOME implied 25bp-move prob per FOMC meeting, computed
     with the two corrections a naive meeting-month decomposition gets wrong:
@@ -200,37 +243,24 @@ def build_meeting_probs() -> Dict:
     recs: List[Dict] = []
     skipped = 0
     for d in [x for x in fomc if x >= today]:
-        N, n_before = d.days_in_month, int(d.day)
-        n_after = N - n_before
+        n_after = d.days_in_month - int(d.day)
         sym = f"ZQ{MONTH_CODE[d.month]}{d.year % 100:02d}.CBT"
         px_m = _zq_price(d.year, d.month)
-        if px_m is None:                  # contract expired/unlisted (Yahoo ~2yr window)
-            skipped += 1
-            continue
-        if n_after > LATE_MONTH_NAFTER:   # well-conditioned: decompose in-month
-            r_after = ((100.0 - px_m) * N - r_before * n_before) / n_after
-            method = "fedwatch_two_outcome_inmonth"
-        else:                             # late month: read r_after off the next month
+        # Only fetch the next-month contract when the late-month path needs it.
+        px_next, next_fomc = None, False
+        if px_m is not None and n_after <= LATE_MONTH_NAFTER:
             nm_y, nm_m = (d.year + (d.month == 12), d.month % 12 + 1)
-            px_next = _zq_price(nm_y, nm_m)
-            if px_next is None or _has_fomc(nm_y, nm_m, fomc):
-                skipped += 1             # can't isolate (no next contract / next month also meets)
-                continue
-            r_after = 100.0 - px_next     # whole next month sits at the post-decision rate
-            method = "fedwatch_two_outcome_nextmonth"
-        change = r_after - r_before
-        if abs(change) * 100 > MAX_MEETING_BP:   # fail-closed on a non-physical solve
+            px_next, next_fomc = _zq_price(nm_y, nm_m), _has_fomc(nm_y, nm_m, fomc)
+        solved = _solve_meeting_move(px_m, px_next, r_before, d, next_fomc)
+        if solved is None:                # unavailable / non-physical → fail-closed SKIP
             skipped += 1
             continue
+        r_after = solved.pop("_r_after")
         recs.append({
             "date": str(d.date()), "series_type": "meeting_prob", "snap_date": SNAP_DATE,
             "contract": sym, "contract_price": round(px_m, 4),
-            "r_before": round(r_before, 4), "implied_post_rate": round(r_after, 4),
-            "implied_change_bp": round(change * 100, 2),
-            "prob_25bp_move": round(max(0.0, min(1.0, abs(change) / 0.25)), 4),
-            "direction": "cut" if change < -1e-9 else ("hike" if change > 1e-9 else "hold"),
+            "r_before": round(r_before, 4), **solved,
             "target_upper": round(tgt_u, 4), "source": "yahoo:ZQ-monthly",
-            "method": method, "n_before": n_before, "n_after": n_after,
         })
         r_before = r_after                # CHAIN: this meeting's post-rate anchors the next
     if not recs:
