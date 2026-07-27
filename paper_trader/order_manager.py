@@ -135,6 +135,11 @@ class OrderRecord:
     # arrival-price capture is NOT this run's execution and must not be measured.
     filled_at: Optional[str] = None
     last_broker_status: Optional[str] = None
+    # T-319: set only when the cross-account wash-sale guard REFUSES a buy
+    # (``wash_sale:<reason>``). Optional + defaulted so old journal lines replay
+    # unchanged and the single-account (guard-off) path is byte-neutral — same
+    # additive pattern as ``filled_at``.
+    reject_reason: Optional[str] = None
     history: List[str] = field(default_factory=list)
 
     def to_journal(self, event: str) -> Dict[str, Any]:
@@ -184,11 +189,18 @@ class OrderManager:
     """
 
     def __init__(self, client, journal_path: str,
-                 reconcile_on_start: bool = True):
+                 reconcile_on_start: bool = True,
+                 wash_guard=None, account: Optional[str] = None):
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
         self.quarantined: List[Dict[str, Any]] = []   # malformed journal lines
+        # T-319: the cross-account wash-sale guard (Engine B). OPTIONAL — when
+        # None (the single-account Roth-only path, e.g. account-1) NOTHING below
+        # consults it: submit() and _apply_broker() run byte-identically. It only
+        # bites when a fleet passes a shared guard + this account's tax label.
+        self.wash_guard = wash_guard
+        self.account = account
         self._replay_from_journal()
         # T-163 crit-2: a restart must reconcile its replayed belief
         # against broker TRUTH before acting. T-163-fix2 SURFACE 1: a
@@ -307,6 +319,22 @@ class OrderManager:
         broker truth, NOT mark it terminal-REJECTED."""
         if order.state != OrderState.STAGED.value:
             return order
+        # T-319: cross-account wash-sale guard — PRE-SUBMISSION, before the broker
+        # POST. A REFUSE marks the order REJECTED (typed reason), journals it, and
+        # RAISES ``WashSaleRefusal`` — the order NEVER reaches the broker and is
+        # NOT quietly dropped or retried into the same window (fail-closed; a
+        # refused rebalance costs bps, a permanently-disallowed loss costs the
+        # thesis). Byte-neutral when ``wash_guard is None``.
+        if self.wash_guard is not None:
+            decision = self.wash_guard.check_order(
+                account=self.account, symbol=order.ticker,
+                side=order.side, ts=order.trade_date)
+            if decision.refused:
+                from engines.engine_b_risk.cross_account_wash_guard import WashSaleRefusal
+                order.reject_reason = f"wash_sale:{decision.reason}"
+                self._record(order, event="wash_sale_refused",
+                             new_state=OrderState.REJECTED)
+                raise WashSaleRefusal(decision.reason, decision.evidence)
         # 1. Journal intent FIRST (durable before the side-effecting POST).
         self._record(order, event="submitting", new_state=OrderState.SUBMITTED)
         # 2. POST.
@@ -427,6 +455,17 @@ class OrderManager:
         new_state = _BROKER_STATE_MAP.get(status, None)
         if new_state is not None and new_state.value != order.state:
             self._record(order, event="broker_update", new_state=new_state)
+            # T-319: populate the cross-account lot ledger from BROKER TRUTH (not
+            # intent) the moment a fill is CONFIRMED — so the wash-sale window sees
+            # what actually happened. Idempotent (the ledger dedups by event_id).
+            # Byte-neutral when wash_guard is None.
+            if (self.wash_guard is not None and new_state is OrderState.FILLED
+                    and order.filled_qty > 0 and order.filled_avg_price is not None):
+                self.wash_guard.ledger.record_fill(
+                    account=self.account, symbol=order.ticker, side=order.side,
+                    qty=order.filled_qty, price=order.filled_avg_price,
+                    ts=order.filled_at or order.trade_date,
+                    client_order_id=order.client_order_id)
         else:
             # No state change, but fills/status may have advanced — record
             # the observation so the journal stays a faithful timeline.

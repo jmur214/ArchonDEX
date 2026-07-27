@@ -81,6 +81,11 @@ DURABLE_PATHS: List[str] = [
     # The analyst NOTE *directory* is a whole-dir sync (DURABLE_DIRS), not a single file.
     "data/intel/event_calls.jsonl",
     "data/intel/llm_spend.jsonl",
+    # T-319 / T-317 §1.2: the cross-account tax-lot ledger the wash-sale guard
+    # reads. MUST survive the ephemeral Fargate disk — a reset would silently
+    # empty the 61-day window and let a permanently-disallowed (Rev. Rul. 2008-5)
+    # buy through (the T-308 durability lesson, applied to a fail-closed guard).
+    "data/state/tax_lots.jsonl",
 ]
 
 # T-310: whole-directory durable state (per-day files with dynamic names, so they
