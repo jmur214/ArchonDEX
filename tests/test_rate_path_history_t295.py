@@ -7,6 +7,15 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+import pytest as _pt
+# T-295e (2026-07-27): these tests cover the OLD (buggy) two-outcome method that
+# B's meeting-prob fix (0760200) deleted — the import breaks full-suite collection.
+# Skipped LOUDLY until B rewrites them against the corrected next-month-contract
+# method. Do NOT delete the file: the corrected math needs tests, not silence.
+try:
+    from scripts.build_rate_path_history_t295 import _two_outcome_prob  # noqa: F401
+except ImportError:
+    _pt.skip("T-295e: tests target the deleted pre-fix method — B rewriting against the corrected math", allow_module_level=True)
 from scripts.build_rate_path_history_t295 import (
     _two_outcome_prob, _append, MONTH_CODE,
 )
