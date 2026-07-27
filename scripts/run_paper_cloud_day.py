@@ -514,6 +514,25 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       f"(report-only T-272 forward validation; BTC threaded via Alpaca)")
             except Exception as exc:
                 print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
+            # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
+            # shadow book below the NEXT day + feeds the eval harness), A's ops
+            # watchdog, and D's forward-only event interpreter. All fail-open +
+            # KEY-OPTIONAL: with no ANTHROPIC_API_KEY every step clean-skips (an
+            # honest "no adapter" record, never a fabricated note). Runs on the
+            # account-1 branch only; report-only, never touches the trading verdict.
+            try:
+                from paper_trader.intel_pulse import run_intel_pulse
+                _eq = float(client.get_account().get("equity", broker_cash)) or 1.0
+                _held_w = {t: round(broker_positions.get(t, 0) * sleeve_closes[t] / _eq, 4)
+                           for t in sleeve_closes} if sleeve_closes else {}
+                _ip = run_intel_pulse(
+                    str(today), portfolios={"sleeve": _held_w},
+                    allowlist=list(SLEEVE_UNIVERSE), root=str(root),
+                    now_iso=now_et().isoformat())
+                print(f"   INTEL      {_ip.summary_line()}")
+            except Exception as exc:
+                print(f"   INTEL warn: {type(exc).__name__} (non-fatal, report-only)")
             # --- T-302 LLM shadow book: REPORT-ONLY virtual book of the analyst's
             # hypothetical actions vs a 60/40 twin (never touches orders/weights).
             # Gated on a note EXISTING → ships dormant-but-armed; wakes the day E's
