@@ -1,0 +1,10 @@
+{
+  "version": "2026-07-27",
+  "classes": {
+    "US_LARGE_BLEND": ["SPY", "VOO", "IVV", "SPLG"],
+    "US_TOTAL":       ["VTI", "ITOT", "SCHB"],
+    "AGG_CORE_BOND":  ["AGG", "BND", "SCHZ"],
+    "GOLD":           ["GLD", "IAU", "GLDM", "SGOL"]
+  },
+  "_doc": "Members of a class are treated as SUBSTANTIALLY IDENTICAL (IRC §1091 / Rev. Rul. 2008-5). Cross-class pairs (e.g. VOO vs VTI, S&P-500 vs total-market) are the court-tested DISTINCTION the harvest loop trades on. Conservative by construction: adding a ticker to a class only ever makes the guard STRICTER. This mapping is a TAX JUDGMENT, reviewable + revisable without a deploy — never hard-code equivalence in code. T-317/T-319."
+}
