@@ -68,10 +68,12 @@ if [ "$FRED" != "UP" ]; then
     exit 0
 fi
 
-# 2) ONE no-retry Yahoo probe.
+# 2) ONE no-retry Yahoo probe. Generic UA: Yahoo 429s the elaborate Chrome UA
+# string (flagged from bursts) while serving 'Mozilla/5.0' — the real cause of
+# the "17-day throttle" (2026-07-27 rediagnosis); the build script UA matches.
 YH=$("$ROOT/.venv/bin/python" - <<'PY'
 import urllib.request, urllib.error
-ua={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36'}
+ua={'User-Agent':'Mozilla/5.0'}
 try:
     r=urllib.request.urlopen(urllib.request.Request(
         'https://query1.finance.yahoo.com/v8/finance/chart/ZQ%3DF?range=5d&interval=1d',

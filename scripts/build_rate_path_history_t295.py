@@ -44,7 +44,7 @@ import urllib.parse
 import urllib.request
 from datetime import date
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -53,8 +53,11 @@ sys.path.insert(0, str(ROOT))
 from engines.data_manager.macro_calendar import load_fomc_dates  # T-290 d3 (my own)
 
 OUT_DIR = ROOT / "data" / "macro_data" / "alt"
-UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"}
+# T-295 rediagnosis (2026-07-27): the "17-day Yahoo throttle" was NEVER IP/policy —
+# Yahoo 429s this SPECIFIC elaborate Chrome UA string (flagged from earlier bursts)
+# while serving a generic UA. A/B verified: 'Mozilla/5.0' → 200 (2516 bars); the old
+# Chrome UA + bare 'python-urllib' → 429. Use a generic UA (polite daily job).
+UA = {"User-Agent": "Mozilla/5.0"}
 SNAP_DATE = pd.Timestamp.now().strftime("%Y-%m-%d")
 
 # CME/CBOT month codes for the individual ZQ contracts.
@@ -154,70 +157,82 @@ def build_frontcont_path() -> Dict:
 # --------------------------------------------------------------------------- #
 # deliverable 1b — meeting-dated two-outcome implied move probabilities
 # --------------------------------------------------------------------------- #
-def _two_outcome_prob(contract_price: float, r_start: float,
-                      decision: pd.Timestamp) -> Dict:
-    """The documented CME FedWatch TWO-OUTCOME method for a single meeting in
-    its contract month. The ZQ contract settles to the month-average EFFR:
-        avg = (n_before*r_start + n_after*r_end)/N
-    where the new rate is effective the day AFTER the decision. Solve r_end,
-    then the two-outcome prob of a 25bp move = |r_end - r_start| / 0.25.
+MAX_MEETING_BP = 150.0                    # a single FOMC move > 150bp is non-physical
+LATE_MONTH_NAFTER = 7                      # ≤ this many post-decision days = "late month"
 
-    LIMITATION (stated verbatim per the task): this is a TWO-OUTCOME
-    approximation (no-change vs a single 25bp move). It cannot represent a 50bp
-    move or the full bucket distribution — that exists ONLY in our forward
-    Kalshi KXFED archive. It is also a near-term single-meeting method (a
-    contract month with two meetings, or a meeting split across contract
-    months, is out of scope)."""
-    N = decision.days_in_month
-    n_before = int(decision.day)          # days 1..decision at the OLD rate
-    n_after = N - n_before
-    if n_after <= 0:
-        return {}
-    implied_avg = 100.0 - contract_price
-    r_end = (implied_avg * N - r_start * n_before) / n_after
-    change = r_end - r_start
-    prob_move = max(0.0, min(1.0, abs(change) / 0.25))
-    return {
-        "implied_month_avg": round(implied_avg, 4),
-        "implied_post_rate": round(r_end, 4),
-        "implied_change_bp": round(change * 100, 2),
-        "prob_25bp_move": round(prob_move, 4),
-        "direction": "cut" if change < -1e-9 else ("hike" if change > 1e-9 else "hold"),
-        "n_before": n_before, "n_after": n_after,
-    }
+
+def _zq_price(year: int, month: int) -> Optional[float]:
+    """Latest daily close of the ZQ contract for a calendar month, or None
+    (expired/not-yet-listed contracts 404 → empty)."""
+    px = _yahoo_daily(f"ZQ{MONTH_CODE[month]}{year % 100:02d}.CBT", rng="1mo")
+    return float(px.iloc[-1]) if not px.empty else None
+
+
+def _has_fomc(year: int, month: int, dates) -> bool:
+    return any(d.year == year and d.month == month for d in dates)
 
 
 def build_meeting_probs() -> Dict:
-    """For every FOMC meeting with an available Yahoo contract (active window
-    only — expired contracts are delisted), compute the two-outcome implied
-    move prob from the meeting-month contract. Accrues forward via snap_date."""
+    """FedWatch TWO-OUTCOME implied 25bp-move prob per FOMC meeting, computed
+    with the two corrections a naive meeting-month decomposition gets wrong:
+
+    (1) INCREMENTAL anchoring — the pre-meeting rate r_before is CHAINED forward
+        (r_before[M] = r_after[M-1], seeded with current EFFR), NOT held at
+        today's EFFR — so each 'change' is the move AT that meeting, not the
+        cumulative move from today.
+    (2) LATE-MONTH handling — for a meeting in the last ≤7 days of its month the
+        meeting-month contract barely reflects the post-decision rate (n_after
+        tiny → an N/n_after leverage that explodes small errors, e.g. a spurious
+        +284bp). Instead read r_after directly from the NEXT month's contract
+        (whole month at the new rate) when that next month has NO FOMC meeting.
+
+    Fail-closed: a solved single-meeting move > 150bp (non-physical) or an
+    unresolvable late-month case is SKIPPED with a reason, never emitted.
+
+    LIMITATION (verbatim, per the task): still a TWO-OUTCOME approximation
+    (no-change vs one 25bp move) — it cannot represent a 50bp move or the full
+    bucket distribution; that lives ONLY in the forward Kalshi KXFED archive."""
     effr = _fred("EFFR")
-    r_start = float(effr.iloc[-1])        # current effective rate = the base
+    r_before = float(effr.iloc[-1])       # chained pre-meeting rate; seed = current EFFR
     tgt_u = float(_fred("DFEDTARU").iloc[-1])
     today = pd.Timestamp(SNAP_DATE)
+    fomc = load_fomc_dates()
     recs: List[Dict] = []
     skipped = 0
-    for d in load_fomc_dates():
-        if d < today:                     # only current/future meetings are live
-            continue
-        yy = d.year % 100
-        sym = f"ZQ{MONTH_CODE[d.month]}{yy:02d}.CBT"
-        px = _yahoo_daily(sym, rng="1mo")
-        if px.empty:
+    for d in [x for x in fomc if x >= today]:
+        N, n_before = d.days_in_month, int(d.day)
+        n_after = N - n_before
+        sym = f"ZQ{MONTH_CODE[d.month]}{d.year % 100:02d}.CBT"
+        px_m = _zq_price(d.year, d.month)
+        if px_m is None:                  # contract expired/unlisted (Yahoo ~2yr window)
             skipped += 1
             continue
-        prob = _two_outcome_prob(float(px.iloc[-1]), r_start, d)
-        if not prob:
+        if n_after > LATE_MONTH_NAFTER:   # well-conditioned: decompose in-month
+            r_after = ((100.0 - px_m) * N - r_before * n_before) / n_after
+            method = "fedwatch_two_outcome_inmonth"
+        else:                             # late month: read r_after off the next month
+            nm_y, nm_m = (d.year + (d.month == 12), d.month % 12 + 1)
+            px_next = _zq_price(nm_y, nm_m)
+            if px_next is None or _has_fomc(nm_y, nm_m, fomc):
+                skipped += 1             # can't isolate (no next contract / next month also meets)
+                continue
+            r_after = 100.0 - px_next     # whole next month sits at the post-decision rate
+            method = "fedwatch_two_outcome_nextmonth"
+        change = r_after - r_before
+        if abs(change) * 100 > MAX_MEETING_BP:   # fail-closed on a non-physical solve
             skipped += 1
             continue
         recs.append({
-            "date": str(d.date()), "series_type": "meeting_prob",
-            "snap_date": SNAP_DATE, "contract": sym,
-            "contract_price": round(float(px.iloc[-1]), 4),
-            "r_start_effr": round(r_start, 4), "target_upper": round(tgt_u, 4),
-            "source": "yahoo:ZQ-monthly", "method": "fedwatch_two_outcome",
-            **prob,
+            "date": str(d.date()), "series_type": "meeting_prob", "snap_date": SNAP_DATE,
+            "contract": sym, "contract_price": round(px_m, 4),
+            "r_before": round(r_before, 4), "implied_post_rate": round(r_after, 4),
+            "implied_change_bp": round(change * 100, 2),
+            "prob_25bp_move": round(max(0.0, min(1.0, abs(change) / 0.25)), 4),
+            "direction": "cut" if change < -1e-9 else ("hike" if change > 1e-9 else "hold"),
+            "target_upper": round(tgt_u, 4), "source": "yahoo:ZQ-monthly",
+            "method": method, "n_before": n_before, "n_after": n_after,
         })
+        r_before = r_after                # CHAIN: this meeting's post-rate anchors the next
     if not recs:
         return {"rows_written": 0, "skipped": skipped, "note": "no active ZQ contracts resolved"}
     df = pd.DataFrame(recs)
