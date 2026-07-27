@@ -514,6 +514,33 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       f"(report-only T-272 forward validation; BTC threaded via Alpaca)")
             except Exception as exc:
                 print(f"   BTC-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-316 DBMF SHADOW: the 5% managed-futures leg, report-only. This is
+            # the ONLY live clock that can answer the "3rd uncorrelated stream" question
+            # (T-248/T-263 tripwire #2) — every BACKTEST proxy hit a data wall, not a
+            # verdict (T-296 basis-walled; T-313 refuted at the data stage). The leg is
+            # deliberately UNGATED (DBMF is itself a trend program; T-296 measured that
+            # stacking our gate on an internally-overlaid fund INTERFERES). Fail-OPEN:
+            # no price → the day degrades, the leg parks at 0, never fabricated. ------ #
+            try:
+                from paper_trader.dbmf_shadow import DBMF_TICKER, DbmfShadowBook
+                _prev_d = [p for p in tracker._load() if p["date"] < str(today)]
+                _sleeve_ret_d = (equity / _prev_d[-1]["sleeve_equity"] - 1.0) if _prev_d else 0.0
+                _dbmf = None
+                try:
+                    _dr = client.fetch_daily_closes([DBMF_TICKER])   # Alpaca stock (keyed)
+                    if _dr.get(DBMF_TICKER) is not None and len(_dr[DBMF_TICKER]):
+                        _dbmf = float(_dr[DBMF_TICKER].iloc[-1])
+                except Exception:
+                    _dbmf = None
+                dsum = DbmfShadowBook(root=str(root)).record(
+                    str(today), _sleeve_ret_d, dbmf_close=_dbmf)
+                print(f"   DBMF-SHADOW n_days={dsum.get('n_days')} "
+                      f"clean={dsum.get('n_clean')} degraded={dsum.get('n_degraded')}"
+                      + (f" corr={dsum.get('corr_dbmf_sleeve_todate')}"
+                         if dsum.get('corr_dbmf_sleeve_todate') is not None else "")
+                      + " (report-only T-316 3rd-stream forward clock)")
+            except Exception as exc:
+                print(f"   DBMF-SHADOW warn: {type(exc).__name__} (non-fatal)")
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops
