@@ -49,6 +49,10 @@ DURABLE_PATHS: List[str] = [
     "data/state/sleeve_tracking.json",
     # T-276: the report-only BTC-shadow forward tracker (same persistence need).
     "data/state/btc_shadow_tracking.json",
+    # T-316: the report-only DBMF (managed-futures) shadow — the live 3rd-stream
+    # clock. Same persistence need: without this the crisis-correlation gate could
+    # never accrue across containers.
+    "data/state/dbmf_shadow_tracking.json",
     # T-288 fleet Accounts 2/3 forward trackers (per-strategy; each account runs
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
