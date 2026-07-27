@@ -477,3 +477,25 @@ The one real alpha we found; keep it visible so a future data path re-opens it.
 - Validated switch: T-087 reversal (`hmm_p_crisis` AUC 0.887); cloud-dead
   status per T-118fc.
 - Re-test template: T-118b pre-registration discipline.
+
+
+## #14 — Minute-bar features on OUR OWN instruments (the one genuinely unsampled timeframe cell)
+**Added 2026-07-27 (the user's timeframe question).** Honest status of the timeframe axis: daily-and-slower
+is well-covered (the deploying ensemble IS multi-speed {42,105,210}d; weekly/monthly are coarser views of the
+same series). Intraday was sampled ONCE (T-270: Gao momentum gone OOS even gross; ORB negative) and
+universe-wide intraday history is paid. The UNSAMPLED cell: minute-bar features on the instruments we actually
+trade (SPY/AGG/GLD/SSO — free via Alpaca; the T-150 fetch/screen machinery exists and sits unconsumed per the
+gap audit). CONDITION to open: a pre-registered ONE-probe design with an honest cost model — we are
+execution-bound at a measured 2.2bps, and any higher-frequency signal pays MORE cost per unit of signal, so
+the prior is LOW and the probe must charge realistic costs up front. Not dispatched; recorded so the cell is
+never claimed as "tested" or forgotten as "open."
+
+## #15 — The combination/interaction space: SAMPLED-NULL, not exhausted (the user's combination question)
+**Added 2026-07-27.** Precision for the record: ~9 pre-registered interaction cells have been tested and ALL
+were null (news-volume×momentum, LM-sentiment×8-K drift, novelty×reversal, aggregate-news tilt, breadth tilt,
+calendar/even-week tilt, even-week×FOMC, regime-gating-the-overlay, return-stack double-trend). The
+combinatorial space is far larger than the sample — but each honest backtest consumes N under the DSR ratchet,
+and 9/9 uniform nulls are evidence about the NEIGHBORHOOD, not just the cells. The honest wide-search
+instrument is the FORWARD lane (the event-interpreter + analyst + accruing panels), which searches
+combinations without mining the past. CONDITION to open a new backtest cell: a mechanism-first hypothesis
+(why THIS combination, why it survives McLean-Pontiff) — never a grid sweep.
