@@ -82,3 +82,36 @@ the 2000-2026 T-298 verdict demotes to "DEFENSIBLE (prior substrate); superseded
 **DRAFT — NOT RUN.** Awaiting director freeze (and confirmation of the equity-only interpretation + the D-B vs
 ~99yr window choice). On freeze this runs on the T-298 harness extended to the deep substrate; any change after
 the freeze line = a new pre-registration.
+
+---
+## RESULTS (run 2026-07-27, equity-only per the freeze; costs = measured 2.2bps SSO / 0.51bps 1x)
+Reproducible: `scripts/offense_campaign_t312_t315.py` (reuses T-311's loaders; calendar_guard asserted).
+**Invariant `e_held ≤ e_target` violated on 0 days in every window** — exit-lag ≡ 0 confirmed again on ~99yr.
+
+| window | bar (buy-hold 1×) | gated T-298 | paired Δwealth 95% CI | verdict |
+|---|---|---|---|---|
+| **D-B ~58yr (1968+, PRIMARY)** | $3,363,893 / 10.50% | $3,294,909 / 10.48%, MaxDD −47.9% (vs −55.2%), mean-exp 1.09 | **[−1486, +1438]** | **STRADDLES ZERO** |
+| D-A ~64yr (1962+) | $5,647,734 / 10.37% | $7,988,176 / 10.95%, MaxDD −47.9% | [−2635, +6285] | straddles zero |
+| ~99yr (1926+, secondary) | $145.8M / 10.08% | $1,960.9M / 12.99%, MaxDD −54.3% (vs −84.1%) | [+86, +5,133,571] | "significant" — **BUT SEE BELOW** |
+
+### ⚠️ The ~99yr "SIGNIFICANT" is a SINGLE-EPISODE ARTIFACT — do not quote it as a pass
+The only window that excludes zero is the one containing **1929-32**. Re-cut:
+| sub-window | gated | bar | CI | verdict |
+|---|---|---|---|---|
+| 1926+ (full) | $1,960.9M | $145.8M | [+86, +5,133,571] | SIGNIFICANT |
+| **1933+ (post-1929)** | $759.5M | $238.2M | **[−55,727, +1,478,914]** | **straddles zero** |
+| 1946+ | $82.8M | $44.3M | [−22,546, +81,663] | straddles zero |
+
+Remove one crisis and the significance evaporates. **The gated config's edge is not robust across eras; it is
+one episode (a −84% market where a de-grossing gate could not lose) doing all the work.** Per the frozen gate the
+PRIMARY window (D-B ~58yr) is the verdict, and it **straddles zero**.
+
+## VERDICT — T-312: the directional edge does NOT become significant. The honest ceiling is named.
+On the primary D-B window the paired Δwealth CI **[−1486, +1438]** straddles zero, essentially symmetrically —
+the 2000-2026 straddle was not a small-sample accident, it reproduces over ~58yr and ~10 crises. The gated config
+**does deliver its structural promise** — MaxDD −47.9% vs the bar's −55.2%, exit-lag ≡ 0, and a genuinely
+extraordinary crash record (1929-32: −21.6% drawdown vs buy-hold's −84.1%, **0.0 years to recover vs 12.5**) — but
+that tail protection does **not** compound into a CI-significant wealth advantage. It is a **path** improvement,
+not a wealth edge, exactly as the T-298 "earned-but-directional" caveat suspected. **Per [NN-SUBSTRATE-REVERIFY]
+this supersedes the 2000-2026 T-298 verdict; the offense program stops reaching on the gated branch.**
+N_trials += 1.
