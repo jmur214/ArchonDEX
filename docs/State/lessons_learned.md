@@ -981,3 +981,24 @@ sanity tell in both cases was INTERNAL INCONSISTENCY (a3's t of 0.45
 next to a1's −5.27; 41bps on the same SPY/AGG that measured 0.51bps
 twenty minutes earlier) — cross-checking a surprising number against a
 sibling measurement is the cheapest bug detector we have.
+
+## 2026-07-27 — A 2-week silent outage from an IAM wildcard: `:*` does not match a bare ARN (silent-wrongness #7)
+
+The paper machine was down Jul 13–24 (10 trading days). Chain: the schedule
+was repointed to a REVISIONLESS jobdef ARN ("auto-latest" convenience); the
+scheduler role's policy allowed `job-definition/archondex-paper-cloud-day:*`;
+IAM's `:*` requires a suffix, so the bare ARN matched nothing → AccessDenied
+on every scheduled SubmitJob → EventBridge retried 185×/24h and dropped, NO
+DLQ → zero trace in Batch. Manual verify runs (different credentials)
+masked it for two days. The silent-stop alarm DID fire on Jul 13 — but its
+only channel was email, unread for two weeks: an alarm whose sink is an
+absent human is half an alarm. Rules: (1) any change to HOW a scheduled
+invocation is expressed must be verified on the NEXT SCHEDULED firing, not
+by a manual submit (different principal = different permissions = a
+different test); (2) IAM resource patterns and their consumers change
+together or not at all; (3) schedulers get DLQs + an invocation-failure
+alarm — the submit path itself must be observable; (4) alarms need a
+second, harder-to-miss channel when the operator may be away. Fixed by
+pinning the revision back into the payload; resumed same-day with a clean
+catch-up run (the held-reconcile machinery absorbed 10 missed days without
+drama — the recovery design worked).
