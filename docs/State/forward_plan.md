@@ -1,3 +1,33 @@
+# Forward Plan — live (last substantive update 2026-07-27 — POST-AUDIT REORIENTATION: the engine question answered honestly; the program pivots from alpha-hunting to allocation-engineering + conditional-leverage science + forward options)
+
+> ## 🧭 2026-07-27 — THE REORIENTATION (adversarial audit → forward-search → the leverage close → the user's aggressive clarification)
+>
+> A 9-agent adversarial audit + a 7-strategist forward-search + the deep-substrate campaigns resolved the
+> program's central question. The honest standing:
+> - **The market is close to efficient TO THIS OPERATOR on price inputs** — ~2yr of pre-registered tests,
+>   uniformly H0, now including the deep window. This is a high-confidence NEGATIVE result and a real asset.
+> - **The wealth-maximizing default is 1× buy-hold SPY in the Roth**, machine-executed — strong precisely
+>   because the user's GENUINE won't-sell temperament (confirmed verbatim) makes it executable at full
+>   strength, tax-free, at near-zero cost.
+> - **Static leverage CLOSED with a number** (T-315: no arm CI-beats at any L; 1.25× significantly loses;
+>   −2% ERP haircut kills all; 1929 takes 2× from $10k → $152 — "temperament survives, capital does not").
+>   Gated leverage straddles at depth (T-312). **CONDITIONAL leverage is the open science**: the T-314
+>   family (#1 vol-stress frozen; #2 rate-conditional fwd-only; #3 drawdown-conditional "lever into the
+>   crash" — pre-stated 2026-07-27, the one rule only a won't-sell holder can execute).
+> - **The defensive sleeve is a REGIME OPTION, not a default** (T-311: wins when cash pays 6%+, loses
+>   4.6pp/yr in cheap-money eras; 9/9 crisis drawdown win; Sortino CI-significant; robo beaten on every axis).
+> - **"Aggressive" (user-clarified) = the manager's risk spectrum + tactical leverage**: the compensated
+>   tilts are being measured with regret-led verdicts (T-318/T-320); concentration/stock-picking is
+>   H0-by-our-own-measurement + uncompensated-by-theory; the advisor tier table is the manager construct.
+> - **The forward options run cheap**: stage-0 LLM analyst live in-cloud (clock started 2026-07-27),
+>   shadow book + watchdog + event-interpreter armed, DBMF third-stream clock, BTC clocks, the news panel
+>   accruing. [NN-AI-GATE] discipline throughout — options on new data + future model generations, scored.
+> - **The tax/structural stack builds ahead of the taxable account**: wash-sale guard BUILT byte-neutral
+>   (T-319); TLH loop + after-tax sim queued.
+> - **The ~September real-money decision is PRE-STAGED**: `real_money_decision_package_2026_09.md` — the
+>   question is "robo → WHAT allocation," the menu is evidence-tagged, the mechanics are ready.
+> Next research, in order: T-260 → T-314 (B); T-318 + T-320 (C); then the package ripens.
+
 # Forward Plan — live (last substantive update 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM: the system grows senses beyond prices and a gated LLM judgment layer; paper fleet validates the ADVISOR)
 
 > ## 🚀 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM (user-approved; canonical spec: `docs/Sources/info_layer_program_2026_07_07.md`)
