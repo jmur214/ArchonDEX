@@ -77,6 +77,49 @@ def test_sizing_respects_both_caps_by_construction(tmp_path):
 
 
 # ---------- falsifier-triggered exit ----------
+def test_applied_scale_is_ON_THE_RECORD_when_per_name_binds(tmp_path):
+    """Director ruling: a down-sized basket must be VISIBLE in the book's history —
+    never reconstructed by archaeology."""
+    b = ThesisBook(root=str(tmp_path))
+    # 60/40 hints at conviction 0.8 → per-name cap binds (0.6 × 0.48 > 0.20)
+    b.record("2026-07-28", closes={"AAA": 10.0, "BBB": 20.0, "SPY": 600.0},
+             theses=[_thesis(conv=0.8)])
+    pos = b._state()["open"][0]
+    assert pos["downsized"] is True
+    assert pos["binding_cap"] == "per_name"
+    assert pos["sizing_scale"] == pytest.approx(MAX_WEIGHT / 0.6, rel=1e-4)
+    assert pos["unconstrained_scale"] == pytest.approx(MAX_THESIS_GROSS * 0.8, rel=1e-4)
+    assert pos["sizing_scale"] < pos["unconstrained_scale"]          # the down-size is legible
+    # and it is announced in the day's reasons, not silent
+    assert any("sized to" in r and "not silent" in r
+               for r in b._state()["days"][-1]["reasons"])
+
+
+def test_applied_scale_records_gross_binding_when_basket_is_diversified(tmp_path):
+    """A well-spread basket is bound by gross × conviction, not the per-name cap —
+    and that is stamped too, so 'which cap bound it' is always answerable."""
+    b = ThesisBook(root=str(tmp_path))
+    legs = [{"symbol": s, "role": "primary", "weight_hint": 0.25, "mapping_reason": "r"}
+            for s in ("AAA", "BBB", "CCC", "DDD")]
+    b.record("2026-07-28", closes={s: 10.0 for s in ("AAA", "BBB", "CCC", "DDD")}
+             | {"SPY": 600.0}, theses=[_thesis(conv=0.6, legs=legs)])
+    pos = b._state()["open"][0]
+    assert pos["downsized"] is False
+    assert pos["binding_cap"] == "gross_x_conviction"
+    assert pos["sizing_scale"] == pytest.approx(MAX_THESIS_GROSS * 0.6, rel=1e-4)
+
+
+def test_scale_provenance_survives_onto_the_closed_record(tmp_path):
+    """The sizing must remain legible AFTER exit — that is where archaeology would bite."""
+    b = ThesisBook(root=str(tmp_path))
+    b.record("2026-07-28", closes={"AAA": 100.0, "BBB": 100.0, "SPY": 600.0},
+             theses=[_thesis(conv=0.8, hz=1)])
+    b.record("2026-07-29", closes={"AAA": 110.0, "BBB": 110.0, "SPY": 612.0})
+    c = b._state()["closed"][0]
+    assert c["downsized"] is True and c["binding_cap"] == "per_name"
+    assert c["sizing_scale"] == pytest.approx(MAX_WEIGHT / 0.6, rel=1e-4)
+
+
 def test_falsifier_firing_closes_at_next_close_and_marks_falsified(tmp_path):
     b = ThesisBook(root=str(tmp_path))
     b.record("2026-07-28", closes={"AAA": 10.0, "BBB": 20.0, "SPY": 600.0},
