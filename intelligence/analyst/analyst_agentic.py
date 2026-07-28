@@ -31,24 +31,8 @@ from intelligence.analyst.context_builder import build_bundle, bundle_sha256, ca
 from intelligence.analyst.cost_governor import CostGovernor
 from intelligence.analyst.note_schema import validate_note
 from intelligence.analyst.analyst_service import (
-    _prompt_text, _strip_json_fence, _filter_actions)
+    _prompt_text, _loads_lenient, _filter_actions)
 
-
-def _loads_lenient(text: str):
-    """Locate and parse the analyst_note JSON object inside an agentic response.
-    A tool-using model narrates: it commonly writes reasoning prose BEFORE the
-    JSON and appends text AFTER it. So: strip an outer fence, skip any leading
-    prose to the first ``{``, then ``raw_decode`` the first complete object and
-    ignore the trailing remainder. The full note is still validated downstream,
-    so this tolerance never weakens the gate (a genuinely non-JSON body has no
-    ``{`` or fails raw_decode → raises → NO note)."""
-    import json as _json
-    s = _strip_json_fence(text)
-    i = s.find("{")
-    if i > 0:
-        s = s[i:]
-    obj, _ = _json.JSONDecoder().raw_decode(s)
-    return obj
 
 # the tool loop's ceiling on investigation depth (also budget-gated). ~3-5× a
 # constrained note in cost; the cap bounds the worst case.

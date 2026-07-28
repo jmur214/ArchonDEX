@@ -65,6 +65,24 @@ def _strip_json_fence(text: str) -> str:
     return s.strip()
 
 
+def _loads_lenient(text: str):
+    """Locate + parse the JSON note object inside a model response. Models —
+    especially tool-using ones — narrate PROSE before the JSON and append text
+    AFTER it. So: strip an outer fence, skip any leading prose to the first
+    ``{``, then ``raw_decode`` the first complete object and ignore the trailing
+    remainder. The full note/report is still validated downstream, so this
+    tolerance never weakens the gate (no ``{`` or a malformed body → raises →
+    NO note/report). Shared by the analyst, the agentic analyst, and the
+    watchdog (whose bare ``json.loads`` broke on a trailing sentence — T-312)."""
+    import json as _json
+    s = _strip_json_fence(text)
+    i = s.find("{")
+    if i > 0:
+        s = s[i:]
+    obj, _ = _json.JSONDecoder().raw_decode(s)
+    return obj
+
+
 def _filter_actions(raw_actions: List[dict], allowlist: set) -> "tuple[List[dict], List[dict]]":
     """The semantic firewall over shadow actions. Each action is validated
     INDEPENDENTLY so a single malformed/out-of-bounds/non-allowlisted action is
@@ -130,7 +148,7 @@ def run_daily_note(as_of, *, portfolios, allowlist, prompt_path,
 
     # 4. parse + independent local re-validation → bad ⇒ NO note
     try:
-        payload = json.loads(_strip_json_fence(resp.get("text", "")))
+        payload = _loads_lenient(resp.get("text", ""))
     except Exception:
         return AnalystResult(None, "invalid:not_json", raw_path=raw_path)
 
