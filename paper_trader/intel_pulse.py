@@ -129,9 +129,11 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
         else:
             r = run_daily_note(
                 as_of, portfolios=portfolios, allowlist=allowlist,
-                prompt_path="config/prompts/analyst/daily_v1.md",
+                # T-325: daily/v2 adds the shared question anchor (fresh common
+                # A/B start; the eval segments by prompt_version, which is intended).
+                prompt_path="config/prompts/analyst/daily_v2.md",
                 model_call=model_call, governor=gov,
-                model_id_requested=model_id, prompt_version="daily/v1",
+                model_id_requested=model_id, prompt_version="daily/v2",
                 projected_cost_usd=_PROJ_ANALYST, raw_dir=raw_dir,
                 load_panel=load_panel, now_iso=now_iso)
             res.analyst = {"status": r.status,

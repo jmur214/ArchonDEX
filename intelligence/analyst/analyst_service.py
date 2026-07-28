@@ -100,9 +100,14 @@ def run_daily_note(as_of, *, portfolios, allowlist, prompt_path,
     if not decision.allowed:
         return AnalystResult(None, f"skipped:{decision.reason}")
 
-    # 2. deterministic, secret-free bundle
+    # 2. deterministic, secret-free bundle + the shared question anchor (T-325).
+    # The agentic analyst injects the SAME anchor — identical questions, so the
+    # A/B pairs like-for-like (the constrained analyst is instructed to answer the
+    # anchor in daily/v2). Same function + same as_of ⇒ byte-identical anchor.
+    from intelligence.analyst.question_anchor import anchor_questions
     bundle = build_bundle(as_of, portfolios=portfolios, watchlist=watchlist,
                           event_state=event_state, load_panel=load_panel)
+    bundle["anchor_questions"] = anchor_questions(bundle["as_of"])
     bundle_json = canonical_json(bundle)
     prompt, prompt_sha = _prompt_text(prompt_path)
 
