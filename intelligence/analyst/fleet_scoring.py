@@ -194,10 +194,53 @@ def disagreement_channel(model_a: list[dict], model_b: list[dict],
             "q3_ensemble": q3}
 
 
+# ── T-323 RIDER: the thesis desk as the FOURTH fleet source (skew-aware) ──────
+def thesis_block(outcomes: list, *, by_origin: bool = True) -> Optional[dict]:
+    """Score D/T-324's thesis desk on ITS OWN honest metric, then place it in the
+    fleet table. Brier alone is the WRONG metric for thematic returns (rare-large
+    wins): a 1-in-5 hit rate with 6× winners is a GOOD record and Brier calls it a
+    failure. REPOINT, don't rebuild — `intelligence/thesis_desk/thesis_scoring.py`
+    already implements exactly the rider's requirement (hit-rate × payoff + the
+    block-bootstrapped log-wealth ratio vs the matched-window twin, ci_low > 0,
+    per-theme). We consume it UNCHANGED and add the ORIGIN SYMMETRY: the user's own
+    seeded theses are scored by the SAME standard as the machine's — that symmetry
+    is the product, so it must be visible, not implicit.
+
+    `outcomes` is a list of thesis_scoring.ThesisOutcome (resolved theses).
+    """
+    try:
+        from intelligence.thesis_desk import thesis_scoring as ts
+    except Exception:                                   # desk absent → fail-closed, no fabricated score
+        return None
+    if not outcomes:
+        return {"n": 0, "note": "no resolved theses yet"}
+
+    def _score(subset) -> dict:
+        return {"payoff_profile": ts.payoff_profile(subset),      # hit-rate, mean win/loss, ratio
+                "log_wealth_vs_twin": ts.bootstrap_log_wealth_ci(subset),  # the skew-aware headline
+                "brier": ts.brier(subset),                        # calibration, reported ALONGSIDE
+                "by_theme": ts.by_theme(subset)}
+
+    out = {"all": _score(outcomes),
+           "metric_note": ("skew-aware: the log-wealth ratio vs twin is the HEADLINE "
+                           "(a 1-in-5 hit rate with large winners reads correctly); Brier is "
+                           "reported beside it as calibration, never as the verdict")}
+    if by_origin:
+        # the symmetry: user-seeded and machine theses on the SAME standard, shown side by side
+        out["by_origin"] = {
+            o: _score([x for x in outcomes if getattr(x, "origin", None) == o])
+            for o in ("machine", "user_seeded")
+            if any(getattr(x, "origin", None) == o for x in outcomes)
+        }
+    return out
+
+
 # ── §3 the fleet table ────────────────────────────────────────────────────────
 def fleet_table(records: list[dict], books: Optional[dict[str, dict]] = None,
-                note_counts: Optional[dict[str, dict]] = None) -> dict:
-    """§3 one table, source × metrics — every source scored by the SAME machinery."""
+                note_counts: Optional[dict[str, dict]] = None,
+                thesis_outcomes: Optional[list] = None) -> dict:
+    """§3 one table, source × metrics — every source scored by the SAME machinery
+    (+ the thesis desk on its own skew-aware metric, per the T-323 rider)."""
     books = books or {}
     note_counts = note_counts or {}
     by_src: dict[str, list[dict]] = {}
@@ -217,5 +260,16 @@ def fleet_table(records: list[dict], books: Optional[dict[str, dict]] = None,
             "vs_implied_ci_low": vs_impl.get("diff_ci_low"),
             "book": book_vs_twin(books.get(src)),
         }
-    return {"sources": table,
-            "posture": "scoring != authorization; the G0/G1 ladder remains the real-money gate"}
+    out = {"sources": table,
+           "posture": "scoring != authorization; the G0/G1 ladder remains the real-money gate"}
+    if thesis_outcomes is not None:
+        # 4th source, scored on the skew-aware metric (Brier alone would mis-score it)
+        out["sources"]["thesis_desk"] = {
+            "notes": note_counts.get("thesis_desk", {}).get("notes"),
+            "valid_pct": note_counts.get("thesis_desk", {}).get("valid_pct"),
+            "resolved": len(thesis_outcomes),
+            "brier_raw": None, "brier_recalibrated": None, "vs_implied_ci_low": None,
+            "skew_aware": thesis_block(thesis_outcomes),
+            "book": book_vs_twin(books.get("thesis_desk")),
+        }
+    return out
