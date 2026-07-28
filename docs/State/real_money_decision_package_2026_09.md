@@ -40,3 +40,15 @@ SPY** — so the September question is NOT "robo → sleeve?" It is: **"the robo
 - Every menu row's backtest evidence is subject to the standing discipline: pre-registered, CI-gated,
   family-N accounted. Nothing enters the row from vibes — including the manager-intuitive options.
 - The 2-week outage cost ~10 clean days; gate-d ripeness moved accordingly. The DLQ/alarm hardening is in.
+
+
+## Account mapping (updated 2026-07-28, user question: "are all three accounts maximizing learning?")
+- **Account 1** — the validated sleeve's execution record + the intelligence-pulse carrier (both analysts,
+  the books, news, events, cost ledger). Fully employed.
+- **Account 2** — REPURPOSED (T-327): the September deployment REHEARSAL — buy-hold SPY core + the momentum
+  satellite + simulated Rule-B contributions. The real-money path gets proven before the decision, so
+  September becomes "flip a switch on a running system." The damped-offense spec is retired from the
+  account (its lesson banked: 2.2bps); the standby patch keeps it revivable if T-314-family forward
+  evidence ever earns it back.
+- **Account 3** — the AI trader (stage-2), readiness-gated (not calendar-gated, per the user: "don't jump
+  into things" ≠ "wait two weeks").
