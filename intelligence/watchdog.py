@@ -149,7 +149,8 @@ def run_watchdog(
 
     # 3. parse + independent re-validation → bad ⇒ NO report (doctrine on the watchdog)
     try:
-        payload = json.loads(resp.get("text", ""))
+        from intelligence.analyst.analyst_service import _loads_lenient
+        payload = _loads_lenient(resp.get("text", ""))
     except Exception:
         return WatchdogResult(None, "invalid:not_json", raw_path=raw_path)
     payload.setdefault("as_of", as_of)
