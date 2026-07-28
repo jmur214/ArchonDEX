@@ -1022,3 +1022,23 @@ the blocker is what surfaced the real defect. Also: B corrected its own
 prior confident misdiagnosis in the record rather than letting it
 stand — the same retract-before-it-travels discipline, applied to a
 conclusion instead of a number.
+
+## 2026-07-28 — A fix that lives only on a branch does not exist (the second stranded-fix regression)
+
+The cloud verify surfaced watchdog=invalid:not_json — E's robust-parse fix
+(_loads_lenient) had lived only on an unmerged branch, so main's watchdog
+silently regressed to bare json.loads and broke on the model's
+trailing-sentence output. Second instance of the class (the first: the
+Anthropic adapter stranded on an unmerged branch while dispatches
+claimed it was live). The rule: DEPLOYS BUILD FROM MERGED MAIN, so a fix
+that hasn't merged is not deployed, no matter how verified it was on its
+branch. Practices: (1) the director merges promptly — a verified fix
+sitting unmerged is a regression waiting for the next image build;
+(2) before cutting any image, sweep the worktrees for commits ahead of
+main (git log main..<branch>) and either merge or consciously exclude
+them in writing; (3) shared helpers (like _loads_lenient) live in ONE
+canonical module the moment two callers exist — a copy on a branch and
+a copy in prod is how the classes diverge. E caught it in the same pass
+as the ignition rather than letting a broken report-only watchdog run
+silently — and correctly declined a 4th live-schedule touch for a
+report-only fix at session depth.
