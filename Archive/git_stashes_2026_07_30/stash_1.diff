@@ -1,0 +1,235 @@
+diff --git a/engines/engine_d_discovery/index.md b/engines/engine_d_discovery/index.md
+index 580fe2d..705c77c 100644
+--- a/engines/engine_d_discovery/index.md
++++ b/engines/engine_d_discovery/index.md
+@@ -72,6 +72,10 @@
+   - `def edge_id()`
+   - `def hits()`
+   - `def misses()`
++  - `def eval_errors()`
++  - `def eval_calls()`
++  - `def last_error()`
++  - `def eval_error_rate()`: Fraction of delegated calls that raised + were swallowed. A SYSTEMATIC
+   - `def compute_signals()`: Delegated + memoized version of the wrapped edge's
+   - `def cache_stats()`
+ - **Class `Gate1SignalCache`**: Per-cycle registry of `CachedEdgeWrapper`s keyed by edge_id.
+@@ -79,6 +83,9 @@
+   - `def wrap_edges()`: Return wrapped versions of the supplied edges.
+   - `def clear()`
+   - `def stats()`
++  - `def eval_error_report()`: {edge_id: {errors, calls, rate, last_error}} for every wrapped edge
++  - `def assert_baseline_healthy()`: FAIL LOUD if any wrapped baseline edge crashed on a SYSTEMATIC fraction
++- **Class `DiscoveryBaselineError`**: Raised when the discovery validation baseline is structurally degenerate
+ 
+ ### `genetic_algorithm.py`
+ **Module Docstring:** Genetic Algorithm engine for CompositeEdge genome evolution.
+diff --git a/engines/engine_e_regime/index.md b/engines/engine_e_regime/index.md
+index 3665e7a..8519531 100644
+--- a/engines/engine_e_regime/index.md
++++ b/engines/engine_e_regime/index.md
+@@ -151,6 +151,18 @@ All tunable parameters in `config/regime_settings.json`.
+   - `def history()`: Access the regime history store.
+   - `def reset()`: Clear all internal state. Must be called between backtest runs.
+ 
++### `regime_gate.py`
++**Module Docstring:** g_regime — the regime half of the conjunctive selector (T-217).
++- **Class `RegimeGate`**: Composable default-OFF g_regime gate. `gates={}` == OFF == all 1.0.
++  - `def enabled()`
++  - `def gate()`: g_regime ∈ [0,1] for this edge in the current (HMM) regime.
++  - `def to_dict()`
++  - `def to_file()`
++  - `def from_file()`
++- **Function `hmm_regime_label()`**: 3-state regime label from the CAUSAL HMM p_crisis. Fail-safe: if the
++- **Function `gate_from_sharpe()`**: The pre-registered per-(edge,regime) Sharpe→gate map (no sweep).
++- **Function `build_gates_from_stats()`**: Build the gate dicts from measured per-(edge, regime) stats.
++
+ ### `regime_history.py`
+ **Module Docstring:** RegimeHistoryStore — tracks regime state over time for duration,
+ - **Class `RegimeHistoryStore`**: In-memory store that grows one row per bar.
+diff --git a/scripts/index.md b/scripts/index.md
+index ba60c36..ffa7af8 100644
+--- a/scripts/index.md
++++ b/scripts/index.md
+@@ -184,6 +184,10 @@
+ - **Function `process_quarter()`**: No docstring
+ - **Function `main()`**: No docstring
+ 
++### `build_market_cap_tiers_t210.py`
++**Module Docstring:** T-2026-06-18-210 — build the market-cap snapshot join for the realistic-retail
++- **Function `main()`**: No docstring
++
+ ### `build_membership_panel_t136.py`
+ **Module Docstring:** scripts/build_membership_panel_t136.py
+ - **Function `build_intervals()`**: No docstring
+@@ -196,6 +200,10 @@
+ - **Function `load_ohlc_features()`**: Loader for the Part-A feature panel (long format).
+ - **Function `main()`**: No docstring
+ 
++### `build_pit_cap_history_t219.py`
++**Module Docstring:** T-2026-06-18-219 — close the T-210/T-215 cap-join under-count: give the DELISTED
++- **Function `main()`**: No docstring
++
+ ### `calibrate_divergence_monitors_t152.py`
+ **Module Docstring:** T-152 calibration — false-alarm grid + injected-divergence power.
+ - **Function `main()`**: No docstring
+@@ -241,6 +249,10 @@
+ - **Function `verdict_for()`**: Map ETF result to PROCEED-INTEGRATE / MIXED / DEAD.
+ - **Function `main()`**: No docstring
+ 
++### `defensive_tilt_screens_t205.py`
++**Module Docstring:** T-205 standalone validation harness for the defensive-tilt signals.
++- **Function `main()`**: No docstring
++
+ ### `demo_after_tax_t141.py`
+ **Module Docstring:** T-141 demonstration — pre-tax vs after-tax (taxable-IL) on a real book.
+ - **Function `main()`**: No docstring
+@@ -285,6 +297,7 @@
+ - **Function `check_memory_entries_have_dates()`**: No docstring
+ - **Function `check_task_ledger_columns()`**: No docstring
+ - **Function `check_scripts_in_execution_manual()`**: No docstring
++- **Function `check_no_numbered_nonneg_refs()`**: No docstring
+ - **Function `main()`**: No docstring
+ 
+ ### `edge_compression_t117.py`
+@@ -298,6 +311,10 @@
+ - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
+ - **Function `main()`**: No docstring
+ 
++### `factor_decomp_book_t206.py`
++**Module Docstring:** T-206 Task 1 diagnostic — book-level factor decomposition (HAC).
++- **Function `main()`**: No docstring
++
+ ### `factor_decomp_per_regime.py`
+ **Module Docstring:** scripts/factor_decomp_per_regime.py
+ - **Function `load_closed_trades_for_edge()`**: Concatenate closed-trade rows for this edge across the provided
+@@ -399,6 +416,10 @@
+ **Module Docstring:** scripts/firing_curve_sweep_t118fc.py
+ - **Function `main()`**: No docstring
+ 
++### `first_real_fill_t186.py`
++**Module Docstring:** T-186 — put the FIRST REAL paper fill on the board.
++- **Function `main()`**: No docstring
++
+ ### `gen_substrate_manifest.py`
+ **Module Docstring:** Generate (or verify) the pinned data-substrate manifest.
+ - **Function `iter_substrate_files()`**: No docstring
+@@ -414,6 +435,10 @@
+ ### `harvest_data.py`
+ - **Function `harvest()`**: Run a simulation to collect (Features, Label) pairs for ML training.
+ 
++### `industry_momentum_t213.py`
++**Module Docstring:** T-213 standalone validation for sector-neutral industry momentum.
++- **Function `main()`**: No docstring
++
+ ### `ingest_stooq_us_daily.py`
+ **Module Docstring:** scripts/ingest_stooq_us_daily.py
+ - **Function `normalize_ticker_for_stooq()`**: Convert project-shape ticker to Stooq-shape filename stem.
+@@ -460,6 +485,10 @@
+ - **Function `apply()`**: Apply pending journal entries to edges.yml.
+ - **Function `main()`**: No docstring
+ 
++### `land_held_position_t201.py`
++**Module Docstring:** T-201 — land a REAL held position the cloud loop can explain.
++- **Function `main()`**: No docstring
++
+ ### `lifecycle_factor_alpha_reeval_t043.py`
+ **Module Docstring:** scripts/lifecycle_factor_alpha_reeval_t043.py
+ - **Function `main()`**: No docstring
+@@ -602,12 +631,19 @@
+ 
+ ### `per_edge_per_year_attribution.py`
+ **Module Docstring:** Phase 2.10c diagnostic: per-edge per-year PnL attribution across the
++- **Function `attribute_by_edge_regime()`**: Per-edge × per-regime PnL attribution with per-cell N + bootstrap CI.
++- **Function `load_trades()`**: Concatenate trades.csv from one or more run dirs/UUIDs (under
+ - **Function `main()`**: No docstring
+ 
+ ### `pin_earnings_dates.py`
+ **Module Docstring:** T-2026-06-11-155 — one-time pin of earnings dates into the substrate.
+ - **Function `main()`**: No docstring
+ 
++### `pit_universe_dryrun_t207.py`
++**Module Docstring:** T-2026-06-18-207 — DRY-RUN the PIT (survivorship-corrected) universe expansion.
++- **Function `restore_clean_governor()`**: No docstring
++- **Function `main()`**: No docstring
++
+ ### `probe_engine_c_reachability_t158.py`
+ **Module Docstring:** scripts/probe_engine_c_reachability_t158.py
+ - **Function `install_probes()`**: No docstring
+@@ -752,6 +788,11 @@
+ - **Function `load_data_map()`**: No docstring
+ - **Function `main()`**: No docstring
+ 
++### `run_foundry_eval_t195.py`
++**Module Docstring:** T-2026-06-17-195 — CORRECTED discovery eval harness for a valid foundry test.
++- **Function `restore_clean_governor()`**: FIX 2a: restore the canonical 6-edge production book from the anchor.
++- **Function `main()`**: No docstring
++
+ ### `run_healthcheck.py`
+ **Module Docstring:** Trading Machine - Unified Healthcheck Script
+ - **Function `run_cmd()`**: Run a shell command, stream output, and return success boolean.
+@@ -785,10 +826,18 @@
+ - **Function `attach_benchmarks()`**: Add SPY / QQQ / 60-40 metrics over the same window.
+ - **Function `main()`**: No docstring
+ 
++### `run_paper_cloud_day.py`
++**Module Docstring:** T-186 — one paper day in the cloud (EventBridge → Fargate → here).
++- **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
++
+ ### `run_paper_day_t163.py`
+ **Module Docstring:** T-163 Part C — run ONE armed paper day end-to-end on the PAPER account.
+ - **Function `main()`**: No docstring
+ 
++### `run_paper_day_t185.py`
++**Module Docstring:** T-185 — a window-aware, calendar-aware, heartbeat-recording paper day.
++- **Function `main()`**: No docstring
++
+ ### `run_paper_loop.py`
+ - **Function `main()`**: No docstring
+ 
+@@ -823,6 +872,10 @@
+ **Module Docstring:** scripts/run_per_ticker_oos.py
+ - **Function `main()`**: No docstring
+ 
++### `run_phase0b_foundry_discover_t193.py`
++**Module Docstring:** T-2026-06-17-193 Phase-0b — the first HONEST test of the Foundry vocabulary.
++- **Function `main()`**: No docstring
++
+ ### `run_shadow_paper.py`
+ - **Function `load_candidates()`**: Load 'Candidate' edges from the registry.
+ - **Function `run_shadow_session()`**: No docstring
+@@ -918,6 +971,10 @@
+ - **Function `write_summary()`**: No docstring
+ - **Function `main()`**: No docstring
+ 
++### `submit_foundry_eval_t196.py`
++**Module Docstring:** T-196 foundry-eval cloud submit. Runs D's BAKED run_foundry_eval_t195.py
++- **Function `submit()`**: No docstring
++
+ ### `submit_substrate_run.py`
+ **Module Docstring:** scripts/submit_substrate_run.py
+ - **Class `Cell`**: No docstring
+@@ -1012,6 +1069,24 @@
+ ### `train_signal_gate.py`
+ - **Function `train_gate()`**: No docstring
+ 
++### `trend_overlay_validation_t204.py`
++**Module Docstring:** T-204 — standalone validation of the trend overlay (the PRE-REGISTERED
++- **Function `load_close()`**: No docstring
++- **Function `metrics()`**: No docstring
++- **Function `crisis_mdds()`**: No docstring
++- **Function `position_stats()`**: No docstring
++- **Function `main()`**: No docstring
++
++### `trend_wider_breadth_validation_t214.py`
++**Module Docstring:** T-214 — does WIDER cross-asset breadth strengthen the trend sleeve's
++- **Function `load_all()`**: No docstring
++- **Function `common_window()`**: No docstring
++- **Function `inverse_vol_sleeve()`**: Wide sleeve, each asset long/flat (cash off-leg), combined with
++- **Function `equal_weight_sleeve()`**: No docstring
++- **Function `buyhold_sleeve()`**: No docstring
++- **Function `mean_pairwise_corr()`**: No docstring
++- **Function `main()`**: No docstring
++
+ ### `update_data.py`
+ - **Function `update_all_data()`**: Programmatic entry point for data updating.
+ - **Function `main()`**: No docstring
