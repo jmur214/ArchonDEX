@@ -31,6 +31,7 @@ NOTES_DIR = "data/intel/analyst_notes"
 # book + the A/B pair the two analysts separately). Same analyst_note/v1 shape.
 AGENTIC_NOTES_DIR = "data/intel/analyst_notes_agentic"
 SPEND_LEDGER = "data/intel/llm_spend.jsonl"
+STAGE2_LEDGER = "data/state/stage2_clock.jsonl"   # T-325 #5: the readiness record
 RAW_DIR = "data/intel/llm_raw"
 MONTHLY_BUDGET_USD = 30.0
 DAILY_MAX_OUTPUT_TOKENS = 1500
@@ -52,6 +53,7 @@ class IntelPulseResult:
     event: Dict[str, Any] = field(default_factory=dict)
     note_written: Optional[str] = None          # constrained note path
     agentic_note_written: Optional[str] = None   # agentic note path
+    stage2: Dict[str, Any] = field(default_factory=dict)   # readiness verdict
     model_available: bool = False
 
     def summary_line(self) -> str:
@@ -64,7 +66,11 @@ class IntelPulseResult:
         agn = self.agentic.get("n_tool_calls")
         agn = f"(tools={agn})" if agn else ""
         key = "" if self.model_available else " (no key → clean skips)"
-        return f"analyst={a} agentic={ag}{agn} watchdog={w} event={e}{nw}{key}"
+        s2 = ""
+        if self.stage2.get("n_required"):
+            s2 = (f" stage2={self.stage2['consecutive_clean']}/{self.stage2['n_required']}"
+                  + ("✓READY" if self.stage2.get("ready") else ""))
+        return f"analyst={a} agentic={ag}{agn} watchdog={w} event={e}{nw}{s2}{key}"
 
 
 def _model_call_or_none(tier: str, settings: Optional[dict]) -> Optional[Callable]:
@@ -223,5 +229,23 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
         res.event = ev if isinstance(ev, dict) else {"status": "unknown"}
     except Exception as exc:   # noqa: BLE001
         res.event = {"status": f"error:{type(exc).__name__}"}
+
+    # --- 4. stage-2 operational-proof clock (T-325 #5) — READINESS, not calendar.
+    # Record today's readiness signals (both analysts valid + cost in envelope)
+    # and evaluate the streak. Report-only: the clock never flips anything; when
+    # it reads ready, E proposes the flip with the evidence. Skipped cleanly when
+    # there's no key (a no-adapter day is neither clean nor a reset — not recorded).
+    try:
+        if model_call is not None:
+            from paper_trader.stage2_clock import record_day, evaluate
+            month = str(now_iso)[:7]
+            cost_mtd = gov.month_to_date_usd(month)
+            record_day(str(base / STAGE2_LEDGER), as_of=str(as_of),
+                       analyst_ok=(res.analyst.get("status") == "ok"),
+                       agentic_ok=(res.agentic.get("status") == "ok"),
+                       cost_mtd=cost_mtd, budget=MONTHLY_BUDGET_USD)
+            res.stage2 = evaluate(str(base / STAGE2_LEDGER)).to_dict()
+    except Exception as exc:   # noqa: BLE001 — report-only, never raise
+        res.stage2 = {"error": type(exc).__name__}
 
     return res
