@@ -541,6 +541,39 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                       + " (report-only T-316 3rd-stream forward clock)")
             except Exception as exc:
                 print(f"   DBMF-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-322 EVENT DESK: D's typed event calls become a TRADING record, not
+            # just Brier predictions ("act like a trader" — a filing drops, you size it).
+            # Two desks on ONE machinery (parameterized, not forked): D's event feed and
+            # E/T-321's agentic-analyst feed (the latter dormant until its feed lands).
+            # The gate is D's OWN T-304 bar #5, so the desk record and the Brier record
+            # share one standard. Report-only; fail-closed parking, never a fake fill. --- #
+            try:
+                from paper_trader.event_shadow_book import (ANALYST_DESK, EVENT_DESK,
+                                                            TWIN_TICKER, EventShadowBook)
+                for _cfg in (EVENT_DESK, ANALYST_DESK):
+                    _bk = EventShadowBook(cfg=_cfg, root=str(root))
+                    _stt = _bk._state()
+                    _calls, _why = _bk._load_calls(str(today))
+                    # prices for: open positions + today's call symbols + the twin
+                    _syms = sorted({p["symbol"] for p in _stt.get("open", [])}
+                                   | {str(c.get("symbol", "")).upper() for c in _calls}
+                                   | {TWIN_TICKER})
+                    _px = {}
+                    if _syms:
+                        try:
+                            _fetched = client.fetch_daily_closes(_syms, lookback_days=10)
+                            _px = {t: float(s.iloc[-1]) for t, s in _fetched.items()
+                                   if s is not None and len(s)}
+                        except Exception:
+                            _px = {}          # → the desk parks the day (never fabricates)
+                    _es = _bk.record(str(today), closes=_px, calls=_calls or None)
+                    print(f"   EVENT-DESK[{_cfg.name}] days={_es.get('n_days')} "
+                          f"open={_es.get('n_open')} closed={_es.get('n_closed')}"
+                          + (f" mean_excess_vs_twin={_es.get('mean_excess_vs_twin')}"
+                             if _es.get('mean_excess_vs_twin') is not None else "")
+                          + " (report-only T-322; gate = D/T-304 bar)")
+            except Exception as exc:
+                print(f"   EVENT-DESK warn: {type(exc).__name__} (non-fatal)")
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops

@@ -53,6 +53,12 @@ DURABLE_PATHS: List[str] = [
     # clock. Same persistence need: without this the crisis-correlation gate could
     # never accrue across containers.
     "data/state/dbmf_shadow_tracking.json",
+    # T-322: the report-only EVENT DESK books (D's event calls + E/T-321's agentic
+    # analyst — two desks, one machinery). Open positions carry ACROSS sessions until
+    # their horizon elapses, so an ephemeral disk would silently drop live positions
+    # and the ≥30-closed-per-type bar could never accrue.
+    "data/state/event_shadow_book.json",
+    "data/state/analyst_desk_book.json",
     # T-288 fleet Accounts 2/3 forward trackers (per-strategy; each account runs
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
