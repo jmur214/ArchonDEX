@@ -28,6 +28,30 @@
 >   question is "robo → WHAT allocation," the menu is evidence-tagged, the mechanics are ready.
 > Next research, in order: T-260 → T-314 (B); T-318 + T-320 (C); then the package ripens.
 
+> ## 🧭 2026-07-28 — THE TRADER-ACCELERATION REFRAME (user directive) + the standing OPEN FRONTIER list
+>
+> **The user's correction, adopted:** "the arc is closed" was wrong language with a bad track record (three
+> reopened doors found real things: the biased gauntlets, the news corpus, the static-leverage arm). What
+> closes are SPECIFIC pre-registered backtests — the PAST is finite. The FORWARD/trader system is barely
+> born and is where the gap lives. **The ladder reframe, now official: G0/G1 gate REAL MONEY. On paper,
+> everything runs and everything is scored** — per the user's original charter ("any authority on paper").
+> Dispatched: T-321 the AGENTIC analyst (read-only tools over our stores — the machine investigates before
+> deciding), T-322 the EVENT-DESK shadow book (typed event calls become a trading record) + a second book
+> for the agentic variant, T-323 the fleet scoreboard + two-model disagreement channel.
+>
+> **THE STANDING OPEN FRONTIER (maintain this list; "closed" claims are only valid relative to it):**
+> 1. The trader fleet's forward records (agentic vs constrained; the event desk; disagreement) — day ~1.
+> 2. Conditional leverage #2 (rate) and #3 (drawdown) — forward-only by contamination ruling.
+> 3. The third uncorrelated stream — DBMF clock armed; resolves only through a real crisis window.
+> 4. BTC promotion gates — accruing.
+> 5. The T-305 revisit tripwires (multi-decade adaptation, breadth, dense-modality density) — live.
+> 6. Every FUTURE model generation — the harness scores each on arrival (the standing option).
+> 7. Shelf #13-15: CEF (data-walled), minute-features (one honest probe available), the combination space
+>    (sampled-null, mechanism-first entries only).
+> 8. Real-money execution reality (paper fills are optimistic — only live fills close this).
+> What is genuinely closed (with receipts): in-house price-vocab alpha, static leverage, gated-2×,
+> growth/tech tilt, long-vol overlays, international-equity-as-3rd-stream, sizing tilts, stock-picking.
+
 # Forward Plan — live (last substantive update 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM: the system grows senses beyond prices and a gated LLM judgment layer; paper fleet validates the ADVISOR)
 
 > ## 🚀 2026-07-07 — THE INFORMATION + JUDGMENT LAYER PROGRAM (user-approved; canonical spec: `docs/Sources/info_layer_program_2026_07_07.md`)
