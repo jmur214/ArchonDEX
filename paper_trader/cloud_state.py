@@ -59,6 +59,12 @@ DURABLE_PATHS: List[str] = [
     # and the ≥30-closed-per-type bar could never accrue.
     "data/state/event_shadow_book.json",
     "data/state/analyst_desk_book.json",
+    # T-326: the thesis books — TWO channel sub-books (machine / user_seeded) kept
+    # separate so the records never blend (the bias firewall applies to scoring
+    # attribution). Theses hold for MONTHS, so durability is load-bearing: an
+    # ephemeral disk would drop live baskets long before their horizon.
+    "data/state/thesis_book_machine.json",
+    "data/state/thesis_book_user_seeded.json",
     # T-288 fleet Accounts 2/3 forward trackers (per-strategy; each account runs
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
