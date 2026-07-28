@@ -115,13 +115,14 @@ def _o(tid, ret, twin, conv=0.5, tc="picks_and_shovels"):
 
 
 def test_one_in_five_with_a_big_winner_scores_POSITIVE():
-    """The RKLB shape: four theses lose ~40% vs a flat twin, one is a multi-bagger. Hit rate 20% —
-    a Brier/hit-rate view calls that a failure; the log-wealth view must be able to call it a success.
+    """The rare-but-large shape: four theses lose ~40% vs a flat twin, one is a multi-bagger. Hit rate
+    20% — a Brier/hit-rate view calls that a failure; the log-wealth view must be able to call it a success.
 
     The honest threshold (worth stating, because it is NOT free): with four −40% losses each costing
-    log(0.60/1.05) ≈ −0.56, the winner must clear ≈ e^(4·0.56) ≈ 9.4× the twin just to break even. The
-    RKLB trade (+557% ≈ 6.6×) does NOT clear that bar against four −40% losers — it does against three.
-    The metric refuses to launder a losing record into a win, which is exactly what it is for."""
+    log(0.60/1.05) ≈ −0.56, the winner must clear ≈ e^(4·0.56) ≈ 9.8× the twin just to break even. A
+    +557% (6.6×) winner does NOT clear that bar against four −40% losers — it does against three.
+    The metric refuses to launder a losing record into a win, which is exactly what it is for.
+    (Synthetic numbers only: the desk scores theses it FILES, never anyone's past trades.)"""
     outs = [_o("a", -0.40, 0.05), _o("b", -0.40, 0.05), _o("c", -0.40, 0.05), _o("d", -0.40, 0.05),
             _o("e", 9.5, 0.05)]                                  # a true 10-bagger clears it
     prof = payoff_profile(outs)
@@ -131,7 +132,7 @@ def test_one_in_five_with_a_big_winner_scores_POSITIVE():
 
 
 def test_the_metric_refuses_to_launder_a_losing_skewed_record():
-    """The counterpart: 4x(−40%) + the actual RKLB (+557%) is NET NEGATIVE in compounding space
+    """The counterpart: 4x(−40%) + a +557% winner is NET NEGATIVE in compounding space
     (mean log-wealth ≈ −0.08). A hit-rate-with-big-winner story is NOT automatically a good record —
     the size of the winner has to actually cover the losses, and the metric says so."""
     outs = [_o("a", -0.40, 0.05), _o("b", -0.40, 0.05), _o("c", -0.40, 0.05), _o("d", -0.40, 0.05),
