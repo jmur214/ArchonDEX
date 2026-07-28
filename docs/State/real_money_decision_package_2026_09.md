@@ -1,9 +1,8 @@
 # The Real-Money Decision Package — pre-staged 2026-07-27 for the ~September gate
 
-> **Status: PRE-STAGED, not ripe.** This doc mutates in place as evidence lands. It exists so the decision
+> **Status: RESEARCH INPUTS COMPLETE (2026-07-27 — the T-311→T-260→T-314 arc closed). Ripens on gate-d ≥60 clean days (~late Sept).** This doc mutates in place as evidence lands. It exists so the decision
 > is prepared, not scrambled. Ripens when: (1) account-1's exec gate-d reaches ≥60 clean days
-> (~late Sept, post-outage restart), (2) ✅ C's tilt verdicts LANDED 2026-07-27 (menu updated), (3) the conditional-
-> leverage family (T-260 → T-314) reports. Owner: director + the user. The DECISION is the user's.
+> (~late Sept, post-outage restart), (2) ✅ C's tilt verdicts LANDED 2026-07-27 (menu updated), (3) ✅ the conditional-leverage family REPORTED (T-314 #1 null; arc complete). Owner: director + the user. The DECISION is the user's.
 
 ## The question, stated honestly
 The fork-resolution rule: real capital moves when the system is paper-valid (execution gates) AND beats the
@@ -19,7 +18,7 @@ SPY** — so the September question is NOT "robo → sleeve?" It is: **"the robo
 | **+ quality satellite** | T-320: gentlest regret (−4.1%), the only NON-decayed premium, smallest edge, CI straddles | Optional-gentle; no CI case; defensible as diversification of premium source |
 | **+ small-value satellite** | T-318: 100% of 40yr windows win yet CI straddles; premium ⅔ decayed; decayed-regret −25.1% never recovers | Weak; only with the regret consciously accepted |
 | **growth/tech tilt (QQQ-style)** | T-320: REFUTED — 7-10% of TR windows, 0% Nasdaq; QQQ relative high never regained since 2000 | **Excluded from the menu** |
-| **+ conditional leverage (vol-stress / rate / drawdown-conditional)** | T-314 family: #1 frozen (runs after T-260), #2-#3 pre-stated | OPEN — the only honest leverage form left (static CLOSED: T-315; gated straddles: T-312) |
+| **+ conditional leverage** | T-314 #1: NULL — a frontier MOVE not an improvement (in-sample +0.143 Sortino collapsed to +0.051 OOS, straddling); #2 (rate) & #3 (drawdown) unrun, FORWARD-ONLY by contamination ruling | **Not on the menu now.** The forward-only members may earn a row in future years; tripwires live |
 | **defensive sleeve** | A REGIME OPTION, not a default (beats buy-hold only in high-cash-rate eras: 11.9% vs 10.0% 1962-89; loses 4.6pp/yr in cheap-money eras). CI-significant Sortino, 9/9 crisis drawdown win | Advisor-shelf: deployable IF the rate regime shifts decisively (a future pre-registered trigger, not a timing signal) |
 | **glide on an OWNED ERP belief** | T-315's fork option (b): lever modestly IF the user states and owns "forward premium ≈ history" | Available; a BELIEF, not evidence — must be labeled as such in the row |
 | **stay in the robo** | Beaten on every axis (T-311) | Dominated; exit on the gate |
