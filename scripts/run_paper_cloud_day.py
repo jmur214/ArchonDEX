@@ -606,6 +606,37 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                           + " (report-only T-326; gate = D/T-324 bar)")
             except Exception as exc:
                 print(f"   THESIS-BOOK warn: {type(exc).__name__} (non-fatal)")
+            # --- T-328 LIVE BOOKS: the performance laboratory. Four report-only NAV-vs-twin
+            # books (SPY null / damped-offense T-298 / quality satellite / sleeve-at-$50K).
+            # Performance testing scales through BOOKS, not accounts. The sleeve + offense
+            # books need a live STANCE, supplied from this run's own plan signals — absent
+            # it they park (never a fabricated exposure). Report-only, zero order effect. -- #
+            try:
+                from paper_trader.live_books import ALL_BOOKS, LiveBook
+                _bsyms = sorted({s for bk in ALL_BOOKS for s in bk.symbols})
+                _bpx = {}
+                try:
+                    _bf = client.fetch_daily_closes(_bsyms, lookback_days=10)
+                    _bpx = {t: float(v.iloc[-1]) for t, v in _bf.items()
+                            if v is not None and len(v)}
+                except Exception:
+                    _bpx = {}
+                # the live stances this run already computed (never re-derived)
+                for _t, _e in (getattr(plan, "signals", {}) or {}).items():
+                    _bpx[f"_sleeve_expo_{_t}"] = float(_e)
+                if args.strategy == "offense_sso":
+                    for _t, _e in (getattr(plan, "signals", {}) or {}).items():
+                        _bpx[f"_offense_expo_{_t}"] = float(_e)
+                for _spec in ALL_BOOKS:
+                    _lb = LiveBook(_spec, root=str(root))
+                    _ls = _lb.record(str(today), _bpx)
+                    print(f"   LIVE-BOOK[{_spec.name}] days_accrued={_ls.get('days_accrued')} "
+                          f"nav={_ls.get('book_nav')} twin={_ls.get('twin_nav')}"
+                          + (f" excess_growth={_ls.get('excess_growth')}"
+                             if _ls.get('excess_growth') is not None else "")
+                          + " (report-only T-328; NOT EVALUABLE on a short record)")
+            except Exception as exc:
+                print(f"   LIVE-BOOK warn: {type(exc).__name__} (non-fatal)")
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops
