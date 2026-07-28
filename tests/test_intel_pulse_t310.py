@@ -114,3 +114,78 @@ def test_durable_paths_carry_the_intel_state():
     assert "data/intel/event_calls.jsonl" in DURABLE_PATHS
     assert "data/intel/llm_spend.jsonl" in DURABLE_PATHS
     assert "data/intel/analyst_notes" in DURABLE_DIRS
+
+
+# --- T-325 #4: the weekly thematic scan step ------------------------------- #
+def test_durable_paths_carry_the_thesis_ledger_and_scan_state():
+    # the source-of-truth ledger + the blind-scan HOLD state MUST be durable, else
+    # every cloud run re-fires "the first blind scan" and the record is lost.
+    from paper_trader.cloud_state import DURABLE_PATHS
+    assert "data/intel/thesis_calls.jsonl" in DURABLE_PATHS
+    assert "data/intel/thesis_scan_state.json" in DURABLE_PATHS
+    assert "data/intel/thesis_scan_provenance.jsonl" in DURABLE_PATHS
+
+
+def test_no_key_scan_clean_skips(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
+                           allowlist=["SPY"], root=str(tmp_path),
+                           now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
+    assert r.thesis["status"] == "skipped:no_model_adapter" and r.thesis["due"] is False
+    assert not (tmp_path / "data/intel/thesis_calls.jsonl").exists()
+
+
+_SCAN_THESIS = json.dumps({"theses": [{
+    "narrative": ("Datacenter compute is a power-and-heat problem; the constraint moved from the "
+                  "chip to the grid and the building, so power and thermal suppliers benefit "
+                  "regardless of which model or cloud wins."),
+    "theme_class": "picks_and_shovels",
+    "instruments": [{"symbol": "VRT", "role": "second_order",
+                     "mapping_reason": "thermal and power delivery demanded regardless of which AI model wins",
+                     "weight_hint": 0.4}],
+    "conviction": 0.6, "horizon_days": 365,
+    "entry_basis": "hyperscaler capex stepped up and interconnect queues are lengthening now",
+    "falsifiers": [{"kind": "resolver", "statement": "the basket trails SPY over the year",
+                    "check_by": "2027-07-10",
+                    "resolver": {"type": "relative_return", "symbol_a": "VRT", "symbol_b": "SPY",
+                                 "op": "lt", "start_date": "2026-07-10", "end_date": "2027-07-10"}}]}]})
+
+
+def _fake_scan_call(*a, **k):
+    return {"text": _SCAN_THESIS, "model_id_served": "claude-opus-4-8",
+            "usage": {"input_tokens": 400, "output_tokens": 250, "cost_usd": 0.05}}
+
+
+def test_scan_fires_when_due_and_files_a_machine_thesis(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-FAKE")
+    monkeypatch.setattr(ip, "_model_call_or_none", lambda tier, settings: _fake_call_note)
+    monkeypatch.setattr(ip, "_scan_model_call_or_none", lambda settings: _fake_scan_call)
+    import intelligence.event_call.run_forward as rf
+    monkeypatch.setattr(rf, "pulse_step", lambda *a, **k: {"status": "ok", "reason": "x", "n_ok": 0})
+    r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
+                           allowlist=["SPY"], root=str(tmp_path),
+                           now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
+    assert r.thesis["status"] == "ok" and r.thesis["due"] is True
+    assert r.thesis["scan"]["n_filed"] == 1 and r.thesis["scan"]["is_first_blind_scan"] is True
+    led = tmp_path / "data/intel/thesis_calls.jsonl"
+    assert led.exists() and '"origin": "machine"' in led.read_text()
+    from intelligence.thesis_desk.thesis_scan import seeds_are_held
+    assert seeds_are_held(path=tmp_path / "data/intel/thesis_scan_state.json") is False
+
+
+def test_firewall_breach_surfaces_loud_and_files_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-FAKE")
+    monkeypatch.setattr(ip, "_model_call_or_none", lambda tier, settings: _fake_call_note)
+    monkeypatch.setattr(ip, "_scan_model_call_or_none", lambda settings: _fake_scan_call)
+    import intelligence.event_call.run_forward as rf
+    monkeypatch.setattr(rf, "pulse_step", lambda *a, **k: {"status": "ok", "reason": "x", "n_ok": 0})
+    import intelligence.thesis_desk.thesis_scan_runner as runner
+    from intelligence.thesis_desk.thesis_scan import FirewallBreach
+    def _breach(*a, **k):
+        raise FirewallBreach("seed leaked into a machine bundle")
+    monkeypatch.setattr(runner, "build_scan_bundle", _breach)
+    r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
+                           allowlist=["SPY"], root=str(tmp_path),
+                           now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
+    assert r.thesis["status"] == "FIREWALL_BREACH"          # loud, not a clean skip
+    assert not (tmp_path / "data/intel/thesis_calls.jsonl").exists()   # filed NOTHING

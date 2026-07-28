@@ -65,6 +65,18 @@ DURABLE_PATHS: List[str] = [
     # ephemeral disk would drop live baskets long before their horizon.
     "data/state/thesis_book_machine.json",
     "data/state/thesis_book_user_seeded.json",
+    # T-325 #4: the thesis desk's SOURCE-OF-TRUTH records (the books above are derived
+    # views; these are the append-only ledger + the blind-scan control state). All three
+    # MUST survive the ephemeral Fargate disk or the desk breaks fail-OPEN in dangerous
+    # ways: (1) thesis_calls.jsonl is the forward ledger every thesis is filed to and A's
+    # digest scores from — a reset loses the record; (2) thesis_scan_state.json is the
+    # blind-scan HOLD + weekly cadence — a reset-to-empty makes EVERY cloud run believe
+    # it is "the first blind scan" (re-running it, re-stamping is_first_blind_scan, and
+    # leaving the user seed held forever); (3) thesis_scan_provenance.jsonl is the
+    # auditable blindness log (what makes "the first scan was provably blind" checkable).
+    "data/intel/thesis_calls.jsonl",
+    "data/intel/thesis_scan_state.json",
+    "data/intel/thesis_scan_provenance.jsonl",
     # T-328: the four live NAV-vs-twin performance books (SPY null, damped offense,
     # quality satellite, sleeve-at-tier). Each compounds a NAV across sessions, so an
     # ephemeral disk would reset every book to its notional daily and no record could
