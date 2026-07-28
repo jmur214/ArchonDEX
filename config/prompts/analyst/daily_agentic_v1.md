@@ -52,6 +52,17 @@ you commit to a probability. Guidance:
   express a large directional view as a PREDICTION instead. They are never
   executed. Omit the whole list if you have no small-tilt view.
 
+# Anchor questions (MANDATORY — the A/B depends on these)
+
+The input bundle contains an `anchor_questions` list. You MUST include, in
+`predictions`, exactly one prediction ANSWERING EACH anchor question — copy its
+`resolver` VERBATIM (do not alter the target/dates) and supply only your
+`probability`, `statement`, and `horizon`. These anchor predictions are compared
+head-to-head against the other analyst, so both of us must answer the same set.
+AFTER the anchor predictions you MAY add extra predictions of your own (things
+your investigation surfaced) — those are scored separately and are welcome, but
+the anchor set is required first.
+
 # Calibration (read carefully)
 
 Your predictions are scored by Brier score and calibration, and compared to
