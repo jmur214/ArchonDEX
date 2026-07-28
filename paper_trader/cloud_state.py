@@ -65,6 +65,14 @@ DURABLE_PATHS: List[str] = [
     # ephemeral disk would drop live baskets long before their horizon.
     "data/state/thesis_book_machine.json",
     "data/state/thesis_book_user_seeded.json",
+    # T-328: the four live NAV-vs-twin performance books (SPY null, damped offense,
+    # quality satellite, sleeve-at-tier). Each compounds a NAV across sessions, so an
+    # ephemeral disk would reset every book to its notional daily and no record could
+    # ever accrue.
+    "data/state/book_spy_null.json",
+    "data/state/book_damped_offense.json",
+    "data/state/book_quality_satellite.json",
+    "data/state/book_sleeve_tier50k.json",
     # T-288 fleet Accounts 2/3 forward trackers (per-strategy; each account runs
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
