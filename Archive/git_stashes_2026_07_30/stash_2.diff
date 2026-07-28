@@ -1,0 +1,17 @@
+diff --git a/engines/data_manager/index.md b/engines/data_manager/index.md
+index 10e53e7..8b069fa 100644
+--- a/engines/data_manager/index.md
++++ b/engines/data_manager/index.md
+@@ -207,6 +207,12 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
+ - **Function `credit_quality_slope()`**: HY OAS minus IG OAS — widens before risk-off events.
+ - **Function `real_fed_funds()`**: DFF minus 10y breakeven inflation. Rough real-policy-rate proxy.
+ 
++### `membership.py`
++**Module Docstring:** engines/data_manager/membership.py
++- **Function `load_membership()`**: Membership intervals. `end` is NaT for current members.
++- **Function `members_on()`**: No docstring
++- **Function `in_index()`**: Boolean (date x ticker) membership mask, vectorized over intervals.
++
+ ### `universe.py`
+ **Module Docstring:** Survivorship-bias-aware S&P 500 historical membership pipeline.
+ - **Class `UniverseError`**: Raised for non-recoverable failures in the universe pipeline.
