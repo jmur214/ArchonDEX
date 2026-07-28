@@ -24,7 +24,7 @@ A down-sized basket is additionally **announced in the day's `reasons`** (`"size
 per-name-bound case, the gross-bound case, and **survival of the provenance onto the closed
 record** — which is exactly where archaeology would otherwise bite.
 
-## Sizing: a rule, not a silent clamp (the one judgement call — flagged)
+### The rule itself
 D's `weight_hint` is a **within-basket proportion** (schema: `[0,1]`, default 0), **not** an absolute portfolio weight. So the absolute size is *this book's* decision, constructed to satisfy both firewall caps up front:
 
     scale = min( MAX_THESIS_GROSS · conviction ,  MAX_WEIGHT / largest_share )
@@ -54,7 +54,7 @@ Two `DeskConfig` instances keyed on `origin`: **`MACHINE_DESK`** (`thesis_book_m
 ## Wiring + durability
 Runs in the Account-1 pulse after the event desk; prices fetched **dynamically** for {open basket legs ∪ today's thesis legs ∪ SPY}. Both books added to `DURABLE_PATHS` — **theses hold for months**, so an ephemeral disk would drop live baskets long before their horizon and the ≥20-per-class bar could never accrue. Heartbeat: `THESIS-BOOK[<desk>] days=… open=… closed=… falsified=…`.
 
-**14 unit tests; 73 green across all five books + D's own T-324 suite** (my consumption of their scoring doesn't perturb it). doc_lint clean.
+**17 unit tests; 84 green across all five books + D's T-324/T-324b suites** (my consumption of their scoring doesn't perturb it). doc_lint clean.
 
 ## Honest posture
 The book existing is not evidence the thesis desk works — **the record it accrues is**, and it earns nothing until D's pre-stated bar clears per theme_class. Awaiting the first blind-scan filings.
