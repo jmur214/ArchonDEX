@@ -35,13 +35,20 @@ _SCORE_LO, _SCORE_HI = -1.0, 1.0
 
 
 class Provenance(BaseModel):
-    """Reproducibility stamp — every field mandatory; extra keys rejected."""
+    """Reproducibility stamp — the five core fields mandatory; extra keys rejected.
+    T-321: three OPTIONAL agentic-audit fields (the constrained analyst leaves them
+    None; the agentic analyst populates them) so BOTH note variants validate under
+    the same schema and feed the same shadow book + eval harness — the A/B needs a
+    common note contract. `extra="forbid"` still rejects genuinely-unknown keys."""
     model_config = ConfigDict(extra="forbid")
     model_id_requested: str = Field(min_length=1)
     model_id_served: str = Field(min_length=1)
     prompt_version: str = Field(min_length=1)
     prompt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     input_bundle_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tool_trace: Optional[List[dict]] = None       # what the agent looked at
+    n_tool_calls: Optional[int] = Field(default=None, ge=0)
+    agentic_stopped: Optional[str] = None          # end_turn | max_calls | ...
 
 
 class Usage(BaseModel):

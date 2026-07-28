@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 import requests
 
@@ -112,5 +112,105 @@ def make_model_call(tier_name: str = "daily", *,
                 "cost_usd": _cost_usd(usage, tier),
             },
         }
+
+    return call
+
+
+def make_agentic_call(tier_name: str = "daily", *,
+                      settings: Dict[str, Any] | None = None,
+                      api_key_env: str = "ANTHROPIC_API_KEY",
+                      session: "requests.Session | None" = None) -> Callable:
+    """T-321 — build an AGENTIC model call: the same raw-REST transport as
+    ``make_model_call`` but running the Messages-API TOOL-USE LOOP by hand (no
+    SDK, per the project's no-new-dependency rule). Signature:
+
+        call(prompt_text, bundle_json, max_output_tokens, tools, execute, max_calls)
+          -> {"text","model_id_served","usage","n_tool_calls","stopped"}
+
+    ``tools`` is the Messages-API tools array; ``execute(name, input)->(text,is_error)``
+    runs one tool (the caller's read-only, scrubbed executor). The loop:
+      1. POST with tools; the model may reply with tool_use blocks;
+      2. on stop_reason == "tool_use", run each tool, append the assistant turn +
+         a user turn of tool_result blocks, and POST again;
+      3. stop at end_turn, at ``max_calls`` (a hard cap on investigation depth),
+         or on a non-200 (raises → NO note downstream).
+    Usage is ACCUMULATED across every hop so the shared governor sees the true
+    cost. The key rides only the header; the bundle + tool results are DATA."""
+    cfg = settings or load_settings()
+    api = cfg["api"]
+    tier = cfg["tiers"][tier_name]
+    url = api["base_url"].rstrip("/") + api["messages_path"]
+    post = (session or requests).post
+
+    def call(prompt_text: str, bundle_json: str, max_output_tokens: int,
+             tools: List[Dict[str, Any]], execute: Callable[[str, dict], "tuple[str, bool]"],
+             max_calls: int) -> Dict[str, Any]:
+        key = os.environ.get(api_key_env, "")
+        if not key:
+            raise RuntimeError(f"{api_key_env} not set")
+        headers = {"x-api-key": key, "anthropic-version": api["anthropic_version"],
+                   "content-type": "application/json"}
+        messages: List[Dict[str, Any]] = [{"role": "user", "content": bundle_json}]
+        agg = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+        model_served = tier["model_id"]
+        n_tool_calls = 0
+        stopped = "end_turn"
+        for _hop in range(max_calls + 1):        # +1: the turn AFTER the last tool batch
+            body = {
+                "model": tier["model_id"],
+                "max_tokens": int(max_output_tokens or tier.get("max_output_tokens", 1024)),
+                "system": [{"type": "text", "text": prompt_text,
+                            "cache_control": {"type": "ephemeral"}}],
+                "tools": tools,
+                "messages": messages,
+            }
+            resp = post(url, headers=headers, json=body,
+                        timeout=api.get("timeout_seconds", 60))
+            if resp.status_code != 200:
+                raise RuntimeError(f"anthropic {resp.status_code}: {resp.text[:200]}")
+            data = resp.json()
+            u = data.get("usage", {}) or {}
+            agg["input_tokens"] += int(u.get("input_tokens", 0) or 0)
+            agg["output_tokens"] += int(u.get("output_tokens", 0) or 0)
+            agg["cost_usd"] = round(agg["cost_usd"] + _cost_usd(u, tier), 6)
+            model_served = data.get("model", model_served)
+            content = data.get("content", []) or []
+            tool_uses = [b for b in content if b.get("type") == "tool_use"]
+            if data.get("stop_reason") != "tool_use" or not tool_uses:
+                text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
+                return {"text": text, "model_id_served": model_served, "usage": agg,
+                        "n_tool_calls": n_tool_calls, "stopped": stopped}
+            # cap reached: stop offering tools — force a final answer next hop.
+            if n_tool_calls >= max_calls:
+                stopped = "max_calls"
+                messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "user", "content":
+                    "Tool-call budget reached. Answer now with your final JSON note "
+                    "using what you have; do not request more tools."})
+                # one more hop WITHOUT tools to get the note
+                body2 = dict(body); body2.pop("tools", None); body2["messages"] = messages
+                r2 = post(url, headers=headers, json=body2, timeout=api.get("timeout_seconds", 60))
+                if r2.status_code != 200:
+                    raise RuntimeError(f"anthropic {r2.status_code}: {r2.text[:200]}")
+                d2 = r2.json(); u2 = d2.get("usage", {}) or {}
+                agg["input_tokens"] += int(u2.get("input_tokens", 0) or 0)
+                agg["output_tokens"] += int(u2.get("output_tokens", 0) or 0)
+                agg["cost_usd"] = round(agg["cost_usd"] + _cost_usd(u2, tier), 6)
+                text = "".join(b.get("text", "") for b in d2.get("content", [])
+                               if b.get("type") == "text")
+                return {"text": text, "model_id_served": d2.get("model", model_served),
+                        "usage": agg, "n_tool_calls": n_tool_calls, "stopped": stopped}
+            # execute every requested tool, return all results in ONE user turn.
+            messages.append({"role": "assistant", "content": content})
+            results = []
+            for tu in tool_uses:
+                n_tool_calls += 1
+                out, is_err = execute(tu.get("name", ""), tu.get("input", {}) or {})
+                results.append({"type": "tool_result", "tool_use_id": tu.get("id"),
+                                "content": out, "is_error": is_err})
+            messages.append({"role": "user", "content": results})
+        # loop exhausted without a final answer (defensive; treated as no note)
+        return {"text": "", "model_id_served": model_served, "usage": agg,
+                "n_tool_calls": n_tool_calls, "stopped": "loop_exhausted"}
 
     return call
