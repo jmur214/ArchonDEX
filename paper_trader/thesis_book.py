@@ -110,8 +110,13 @@ class ThesisBook:
     # ---------- basket construction ----------
     @staticmethod
     def _basket_weights(legs: List[Dict[str, Any]], conviction: float,
-                        ) -> tuple[Optional[Dict[str, float]], Optional[str]]:
+                        ) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Absolute basket weights from the thesis's own `weight_hint` PROPORTIONS.
+
+        Returns ({weights, sizing_scale, binding_cap, unconstrained_scale, downsized},
+        None) or (None, reason). The APPLIED SCALE and WHICH CAP BOUND IT are returned so
+        every position record carries them — a down-sized basket must be visible in the
+        book's history, never reconstructed by archaeology (director ruling, T-326).
 
         `weight_hint` is a within-basket share (D's schema: [0,1], default 0), NOT an
         absolute portfolio weight — so the ABSOLUTE size is this book's decision and is
@@ -134,8 +139,12 @@ class ThesisBook:
             tot = 1.0
         shares = {s: abs(v) / tot for s, v in hints.items()}      # within-basket proportions
         top = max(shares.values())
-        scale = min(MAX_THESIS_GROSS * min(1.0, conviction),
-                    MAX_WEIGHT / top if top > 0 else MAX_THESIS_GROSS)
+        by_gross = MAX_THESIS_GROSS * min(1.0, conviction)
+        by_name = (MAX_WEIGHT / top) if top > 0 else MAX_THESIS_GROSS
+        scale = min(by_gross, by_name)
+        # WHICH cap bound the sizing — stamped on the record so a down-sized basket is
+        # visible in the book's history, never discovered by archaeology (director ruling).
+        binding = "per_name" if by_name < by_gross - 1e-12 else "gross_x_conviction"
         w = {s: round(sh * scale, 5) for s, sh in shares.items()}
         # belt and braces: the constructed basket must satisfy both caps.
         if any(abs(v) > MAX_WEIGHT + 1e-9 for v in w.values()):
@@ -143,7 +152,9 @@ class ThesisBook:
         g = sum(abs(v) for v in w.values())
         if g > min(MAX_THESIS_GROSS, MAX_GROSS) + 1e-9:
             return None, f"basket gross {g:.3f} > {MAX_THESIS_GROSS} → REJECTED"
-        return w, None
+        return {"weights": w, "sizing_scale": round(scale, 5), "binding_cap": binding,
+                "unconstrained_scale": round(by_gross, 5),
+                "downsized": bool(by_name < by_gross - 1e-12)}, None
 
     @staticmethod
     def _falsifier_fired(th: Dict[str, Any], trade_date: str,
@@ -202,7 +213,11 @@ class ThesisBook:
                 "origin": self.origin, "conviction": pos["conviction"],
                 "entry_date": pos["entry_date"], "exit_date": trade_date,
                 "held_days": pos["held"], "horizon_days": pos["horizon_days"],
-                "legs": pos["weights"], "gross_ret": round(ret, 6), "net_ret": round(net, 6),
+                "legs": pos["weights"],
+                "sizing_scale": pos.get("sizing_scale"),
+                "binding_cap": pos.get("binding_cap"),
+                "downsized": pos.get("downsized"),
+                "gross_ret": round(ret, 6), "net_ret": round(net, 6),
                 "twin_ret": round(twin, 6), "excess_vs_twin": round(net - twin, 6),
                 "killed_by_falsifier": bool(kill), "exit_reason": kill or "horizon"})
             closed_today += 1
@@ -227,10 +242,15 @@ class ThesisBook:
             if not (th.get("falsifiers") or []):
                 reasons.append(f"{tid}: NO falsifier → a story, not a position (parked)")
                 continue
-            w, why = self._basket_weights(th.get("instruments") or [], conv)
-            if w is None:
+            sized, why = self._basket_weights(th.get("instruments") or [], conv)
+            if sized is None:
                 reasons.append(f"{tid}: {why}")
                 continue
+            w = sized["weights"]
+            if sized["downsized"]:
+                reasons.append(f"{tid}: sized to {sized['sizing_scale']:.4f} "
+                               f"(cap={sized['binding_cap']}, unconstrained "
+                               f"{sized['unconstrained_scale']:.4f}) — recorded, not silent")
             entry = {s: closes.get(s) for s in w}
             if any(p is None for p in entry.values()) or twin_px is None:
                 reasons.append(f"{tid}: missing leg/twin price → parked (no fabricated fill)")
@@ -238,6 +258,11 @@ class ThesisBook:
             st["open"].append({
                 "thesis_id": tid, "theme_class": th.get("theme_class", "unknown"),
                 "conviction": round(conv, 3), "weights": w,
+                # the applied sizing, ON THE RECORD (director ruling)
+                "sizing_scale": sized["sizing_scale"],
+                "binding_cap": sized["binding_cap"],
+                "unconstrained_scale": sized["unconstrained_scale"],
+                "downsized": sized["downsized"],
                 "entry_px": {s: round(float(p), 4) for s, p in entry.items()},
                 "twin_entry_px": round(float(twin_px), 4),
                 "entry_date": trade_date, "horizon_days": hz, "held": 0,
