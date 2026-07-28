@@ -28,6 +28,22 @@
 >   question is "robo → WHAT allocation," the menu is evidence-tagged, the mechanics are ready.
 > Next research, in order: T-260 → T-314 (B); T-318 + T-320 (C); then the package ripens.
 
+> ## 🧭 2026-07-28 (later) — THE MAX-LIVE-PERFORMANCE PLAN (user-approved) + the no-date posture
+>
+> The user: NO real-money date exists ("not nearly confident yet — I will paper trade for some time to
+> assess performance") and the objective is "as much live performance testing as possible." The governing
+> insight: performance testing scales through BOOKS, not accounts — accounts cover real-fill mechanics; the
+> book machinery scales the laboratory. THE ROSTER: acct 1 = the sleeve record + pulse (untouched, boring);
+> acct 2 = fire-drill week THEN the live deploy-candidate record (arrival-event lump-sum → SPY core +
+> momentum satellite + Rule-B contributions, $10K→$50K tiers, guard-enforced-on-this-account-only);
+> acct 3 = the machine-as-PM (readiness-gated; ladder/netting PRE-STATED now, built later). NEW BOOKS
+> (T-328): the SPY-null, the damped-offense (the straddling config's only path to revival or burial), the
+> quality-satellite, the sleeve-at-$50K — joining the six running (analyst/agentic/event/thesis/DBMF/BTC).
+> THE ASSESSMENT SURFACE (T-329): a weekly plain-language performance digest — dollars vs twin, days
+> accrued, one honest line per stream, no pressure mechanics. T-330: the tabletop transition runbook (the
+> one thing paper can't rehearse). The "September decision" is RENAMED the real-money OPTION,
+> evidence-triggered. Dispatched: E (T-327 amended + drill), C (T-328), A (T-329), D (T-330).
+>
 > ## 🧭 2026-07-28 — THE TRADER-ACCELERATION REFRAME (user directive) + the standing OPEN FRONTIER list
 >
 > **The user's correction, adopted:** "the arc is closed" was wrong language with a bad track record (three

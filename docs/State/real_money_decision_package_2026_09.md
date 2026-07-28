@@ -1,4 +1,12 @@
-# The Real-Money Decision Package — pre-staged 2026-07-27 for the ~September gate
+# The Real-Money OPTION Package (renamed 2026-07-28 — EVIDENCE-triggered, no date exists)
+
+> **TIMELINE POSTURE (user, 2026-07-28, supersedes all prior "September decision" framing):** the user is
+> NOT planning to move real money on any date — "I am not nearly confident in its ability. I will most
+> likely paper trade for some time just to assess the machine's performance." The gate-d maturation (~late
+> Sept) merely OPENS the option; the user takes it only when the LIVE PERFORMANCE RECORD has earned their
+> confidence. Nothing in the system implies a deployment date. The user's activity = performance
+> assessment → the weekly digest (T-329) is the primary touchpoint; the live-performance roster (3 real
+> accounts + ~10 benchmarked books, the Max-LIVE-Performance plan) is the evidence engine.
 
 > **Status: RESEARCH INPUTS COMPLETE (2026-07-27 — the T-311→T-260→T-314 arc closed). Ripens on gate-d ≥60 clean days (~late Sept).** This doc mutates in place as evidence lands. It exists so the decision
 > is prepared, not scrambled. Ripens when: (1) account-1's exec gate-d reaches ≥60 clean days
