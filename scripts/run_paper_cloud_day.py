@@ -574,6 +574,38 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                           + " (report-only T-322; gate = D/T-304 bar)")
             except Exception as exc:
                 print(f"   EVENT-DESK warn: {type(exc).__name__} (non-fatal)")
+            # --- T-326 THESIS BOOKS: D's thesis desk gets a virtual book. Differs from
+            # the fixed-horizon desks: months-long holds, FALSIFIER-triggered exits, and
+            # multi-leg baskets. Two channel sub-books (machine / user_seeded) so the
+            # records never blend. Scoring defers to D's OWN T-324 promotion_check —
+            # one standard, not a second. Report-only, fail-closed. -------------------- #
+            try:
+                from paper_trader.thesis_book import (MACHINE_DESK, USER_DESK, ThesisBook)
+                from paper_trader.event_shadow_book import TWIN_TICKER as _TWIN
+                for _tcfg in (MACHINE_DESK, USER_DESK):
+                    _tb = ThesisBook(cfg=_tcfg, root=str(root))
+                    _tst = _tb._state()
+                    _th, _twhy = _tb._load_theses(str(today))
+                    _tsyms = sorted({s for p in _tst.get("open", []) for s in p["weights"]}
+                                    | {str(l.get("symbol", "")).upper()
+                                       for t in _th for l in (t.get("instruments") or [])}
+                                    | {_TWIN})
+                    _tpx = {}
+                    if _tsyms:
+                        try:
+                            _f = client.fetch_daily_closes(_tsyms, lookback_days=10)
+                            _tpx = {t: float(v.iloc[-1]) for t, v in _f.items()
+                                    if v is not None and len(v)}
+                        except Exception:
+                            _tpx = {}      # → the book parks the day (never fabricates)
+                    _ts = _tb.record(str(today), closes=_tpx, theses=_th or None)
+                    print(f"   THESIS-BOOK[{_tcfg.name}] days={_ts.get('n_days')} "
+                          f"open={_ts.get('n_open')} closed={_ts.get('n_closed')}"
+                          + (f" falsified={_ts.get('n_falsified')}"
+                             if _ts.get('n_falsified') else "")
+                          + " (report-only T-326; gate = D/T-324 bar)")
+            except Exception as exc:
+                print(f"   THESIS-BOOK warn: {type(exc).__name__} (non-fatal)")
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops
