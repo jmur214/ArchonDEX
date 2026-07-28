@@ -108,6 +108,10 @@ DURABLE_PATHS: List[str] = [
 # panel, which has its own date-partitioned prefix).
 DURABLE_DIRS: List[str] = [
     "data/intel/analyst_notes",
+    # T-325: the AGENTIC analyst's own notes — C's 2nd shadow book + the A/B
+    # eval read these across containers, same durability need as the constrained
+    # notes dir above.
+    "data/intel/analyst_notes_agentic",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"

@@ -27,14 +27,19 @@ from typing import Any, Callable, Dict, Optional
 
 # where C's shadow book + A's eval harness both read notes from
 NOTES_DIR = "data/intel/analyst_notes"
+# T-325: the agentic analyst's OWN note dir (distinct source so C's 2nd shadow
+# book + the A/B pair the two analysts separately). Same analyst_note/v1 shape.
+AGENTIC_NOTES_DIR = "data/intel/analyst_notes_agentic"
 SPEND_LEDGER = "data/intel/llm_spend.jsonl"
 RAW_DIR = "data/intel/llm_raw"
 MONTHLY_BUDGET_USD = 30.0
 DAILY_MAX_OUTPUT_TOKENS = 1500
+AGENTIC_MAX_TOOL_CALLS = 8       # hard investigation-depth cap (also budget-gated)
 
 # projected per-step costs (governor gates on the running monthly total; these
 # are conservative upper bounds so the budget is never overshot mid-pulse).
 _PROJ_ANALYST = 0.05
+_PROJ_AGENTIC = 0.20             # ~3-5× a constrained note (the tool loop)
 _PROJ_WATCHDOG = 0.05
 _PROJ_EVENT = 0.10
 
@@ -42,18 +47,24 @@ _PROJ_EVENT = 0.10
 @dataclass
 class IntelPulseResult:
     analyst: Dict[str, Any] = field(default_factory=dict)
+    agentic: Dict[str, Any] = field(default_factory=dict)
     watchdog: Dict[str, Any] = field(default_factory=dict)
     event: Dict[str, Any] = field(default_factory=dict)
-    note_written: Optional[str] = None      # path of the persisted analyst note
+    note_written: Optional[str] = None          # constrained note path
+    agentic_note_written: Optional[str] = None   # agentic note path
     model_available: bool = False
 
     def summary_line(self) -> str:
         a = self.analyst.get("status", "skip")
+        ag = self.agentic.get("status", "skip")
         w = self.watchdog.get("status", "skip")
         e = self.event.get("status", "skip")
-        nw = " note_written" if self.note_written else ""
+        nw = ("A" if self.note_written else "") + ("G" if self.agentic_note_written else "")
+        nw = f" notes={nw}" if nw else ""
+        agn = self.agentic.get("n_tool_calls")
+        agn = f"(tools={agn})" if agn else ""
         key = "" if self.model_available else " (no key → clean skips)"
-        return f"analyst={a} watchdog={w} event={e}{nw}{key}"
+        return f"analyst={a} agentic={ag}{agn} watchdog={w} event={e}{nw}{key}"
 
 
 def _model_call_or_none(tier: str, settings: Optional[dict]) -> Optional[Callable]:
@@ -129,9 +140,11 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
         else:
             r = run_daily_note(
                 as_of, portfolios=portfolios, allowlist=allowlist,
-                prompt_path="config/prompts/analyst/daily_v1.md",
+                # T-325: daily/v2 adds the shared question anchor (fresh common
+                # A/B start; the eval segments by prompt_version, which is intended).
+                prompt_path="config/prompts/analyst/daily_v2.md",
                 model_call=model_call, governor=gov,
-                model_id_requested=model_id, prompt_version="daily/v1",
+                model_id_requested=model_id, prompt_version="daily/v2",
                 projected_cost_usd=_PROJ_ANALYST, raw_dir=raw_dir,
                 load_panel=load_panel, now_iso=now_iso)
             res.analyst = {"status": r.status,
@@ -143,6 +156,39 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                 res.note_written = str(note_path)
     except Exception as exc:   # noqa: BLE001 — report-only, never raise
         res.analyst = {"status": f"error:{type(exc).__name__}"}
+
+    # --- 1b. AGENTIC analyst (T-321/T-325) — the A/B treatment arm. SAME bundle
+    # date + SAME shared governor as the constrained note (the ≤$30/mo budget
+    # spans both); the ONLY difference is read-only tools over our own stores +
+    # a capped tool-use loop. Persists to its OWN dir → C's 2nd shadow book pairs
+    # it against the constrained note. Key-optional + fail-open, like everything
+    # here. -------------------------------------------------------------------- #
+    try:
+        from intelligence.analyst.analyst_agentic import run_agentic_note
+        from intelligence.analyst.agentic_tools import AgenticTools
+        from intelligence.analyst.agentic_readers import build_readers
+        if model_call is None:
+            res.agentic = {"status": "skipped:no_model_adapter"}
+        else:
+            from intelligence.analyst.anthropic_adapter import make_agentic_call
+            tools = AgenticTools(readers=build_readers(base, as_of))
+            ar = run_agentic_note(
+                as_of, portfolios=portfolios, allowlist=allowlist,
+                prompt_path="config/prompts/analyst/daily_agentic_v1.md",
+                agentic_call=make_agentic_call(tier, settings=settings), tools=tools,
+                governor=gov, model_id_requested=model_id,
+                prompt_version="daily_agentic/v1", projected_cost_usd=_PROJ_AGENTIC,
+                raw_dir=raw_dir, load_panel=load_panel,
+                max_tool_calls=AGENTIC_MAX_TOOL_CALLS, now_iso=now_iso)
+            res.agentic = {"status": ar.status, "n_tool_calls": ar.n_tool_calls,
+                           "firewall_rejections": ar.firewall_rejections}
+            if ar.note is not None:
+                as_of_s = str(ar.note.get("as_of", as_of))
+                ap = base / AGENTIC_NOTES_DIR / f"note_{as_of_s}.json"
+                _atomic_write_json(ap, ar.note)
+                res.agentic_note_written = str(ap)
+    except Exception as exc:   # noqa: BLE001 — report-only, never raise
+        res.agentic = {"status": f"error:{type(exc).__name__}"}
 
     # --- 2. ops watchdog (report-only) --------------------------------------- #
     try:
