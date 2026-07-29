@@ -7,6 +7,13 @@ branch: feature/adaptation-rule-experiment-t314
 status: DONE. N_trials += 1 (→78). Ran the frozen spec, no deviation. VERDICT — NULL: adaptation adds nothing at this N. The user's thesis is REFUTED on this substrate, with evidence.
 ---
 
+> ⚠️ **CORRECTION (2026-07-28):** the **MBL/DSR "CLEARS" sentence in this doc is RETRACTED.**
+> It fed `[NN-MBL]` the sleeve's ABSOLUTE Sharpe (~1.5, overwhelmingly market beta) instead of the
+> Sharpe of the CLAIMED EDGE. The active (difference) Sharpe vs buy-hold is **−0.210** — there is no
+> positive edge to clear. **All substantive verdicts in this doc STAND** (they rest on paired
+> block-bootstrap CIs on differences, the correct test). Canonical:
+> `docs/Audit/mbl_framing_correction_t306_arc_2026_07_28.md`.
+
 # T-314 (#1) — the user's contested thesis, answered
 
 Pre-reg: `docs/Sources/prereg_adaptation_rule_t314.md` (frozen; signal ruling + family
