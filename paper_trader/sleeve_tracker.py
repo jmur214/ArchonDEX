@@ -108,7 +108,9 @@ class SleeveTracker:
                held_weights: Optional[Dict[str, float]] = None,
                slippage_bps: Optional[float] = None,
                order_errors: int = 0,
-               canonical: bool = True) -> Dict[str, Any]:
+               canonical: bool = True,
+               cash_balance: Optional[float] = None,
+               cash_rate: Optional[float] = None) -> Dict[str, Any]:
         """Append today's point (idempotent on trade_date) + return the rolling
         summary. When ``target_weights`` is supplied the point ALSO carries an
         ``exec`` block feeding the pre-registered execution-fidelity gates
@@ -117,6 +119,15 @@ class SleeveTracker:
         pt: Dict[str, Any] = {
             "date": trade_date, "sleeve_equity": round(float(sleeve_equity), 2),
             "closes": {k: round(float(v), 4) for k, v in closes.items()}}
+        # T-332a CASH-DRAG ANNOTATION (measurement-side only). Live paper cash earns 0%
+        # while the backtest spec credits the short rate — so record what the idle cash
+        # WOULD have earned, BESIDE the raw equity. `sleeve_equity` above is untouched and
+        # remains the record: we annotate, we never restate. Both inputs required; either
+        # missing → no accrual (fail-closed, never assumed 0%).
+        if cash_balance is not None and cash_rate is not None:
+            pt["cash_adj"] = {"cash_balance": round(float(cash_balance), 2),
+                              "day_accrual": round(float(cash_balance) * float(cash_rate), 4),
+                              "note": "ANNOTATION ONLY — sleeve_equity is the record."}
         if target_weights is not None:
             tw = {k: float(v) for k, v in target_weights.items()}
             # position tracking error = Σ|held_w − target_w|, but ONLY when a
@@ -194,6 +205,19 @@ class SleeveTracker:
                          "is NOT confirmable in a 6-12mo paper window; a string "
                          "of good months is NOT validated edge.")}
 
+    @staticmethod
+    def _cash_adj_summary(pts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Cumulative cash-drag ANNOTATION. Reported next to the raw equity, never in
+        place of it; days without a rate contribute NOTHING and are counted."""
+        rows = [p["cash_adj"]["day_accrual"] for p in pts if "cash_adj" in p]
+        missing = len(pts) - len(rows)
+        return {"accrued": round(sum(rows), 4), "n_days_accrued": len(rows),
+                "n_days_no_rate": missing,
+                "note": ("ANNOTATION ONLY — the raw sleeve_equity/NAV is the record. Live "
+                         "paper cash earns 0%; the backtest spec credits the short rate."
+                         + (f" INCOMPLETE: {missing} day(s) accrued NOTHING (fail-closed)."
+                            if missing else ""))}
+
     def _summarize(self, pts: List[Dict[str, Any]]) -> Dict[str, Any]:
         exec_pts = [p for p in pts if "exec" in p]
         if len(pts) < 2:
@@ -219,4 +243,5 @@ class SleeveTracker:
                 s_mdd > rb.get("max_drawdown", 0) for rb in out["robos"].values())
         if exec_pts:
             out["execution_gates"] = self._eval_gates(exec_pts)
+        out['cash_adj'] = self._cash_adj_summary(pts)
         return out

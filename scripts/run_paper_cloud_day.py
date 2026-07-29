@@ -620,8 +620,13 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             # books need a live STANCE, supplied from this run's own plan signals — absent
             # it they park (never a fabricated exposure). Report-only, zero order effect. -- #
             try:
-                from paper_trader.live_books import ALL_BOOKS, LiveBook
-                _bsyms = sorted({s for bk in ALL_BOOKS for s in bk.symbols})
+                from paper_trader.live_books import (ALL_BOOKS, CASH_RATE_TICKER,
+                                                     LiveBook)
+                # T-332a: BIL rides the SAME fetch — its daily total return prices the
+                # cash-drag ANNOTATION (live paper cash earns 0%; the backtest spec credits
+                # the short rate). Absent it the books accrue NOTHING and say so.
+                _bsyms = sorted({s for bk in ALL_BOOKS for s in bk.symbols}
+                                | {CASH_RATE_TICKER})
                 _bpx = {}
                 try:
                     _bf = client.fetch_daily_closes(_bsyms, lookback_days=10)
