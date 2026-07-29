@@ -310,6 +310,12 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     # --- content layer: reconcile-only pulse OR the trend sleeve (T-238) -- #
     staged: list = []
     sleeve_closes: dict = {}
+    # T-331: the FULL PIT-trimmed close SERIES (ticker -> pd.Series), handed to the
+    # eval harness so predictions resolve against LIVE prices. Without it the harness
+    # falls back to the BAKED data/processed/*.csv substrate (which ends 2026-04-17 and
+    # is never refreshed) → every resolution would fail closed as `source_absent_or_stale`
+    # forever: a SECOND broken clock sitting behind the first.
+    eval_price_series: dict = {}
     arrival_px: dict = {}                       # gate-(b) slippage reference
     arrival_ts = None                           # when arrival was captured
     latest_bar_date = None                      # econ-health stale-data tripwire
@@ -329,6 +335,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         # (the 09:00 ET schedule is pre-open, but this holds at any run time).
         import pandas as _pd
         closes = {t: s[s.index < _pd.Timestamp(today)] for t, s in closes.items()}
+        # T-331: hand these LIVE, causally-trimmed series to the eval harness (below).
+        eval_price_series = closes
         # [NN-FAIL-CLOSED]: never trade a STALE signal — every asset's last
         # completed bar must be recent (the prior session), else HALT.
         stale = [t for t in SLEEVE_UNIVERSE
@@ -694,7 +702,18 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             # the shadow-book twin for the directional G1 leg. -------------------------- #
             try:
                 from intelligence.analyst import eval_harness as _eh
-                _es = _eh.run(str(today), directional=_shadow_twin)
+
+                def _price_fn(sym, _live=eval_price_series):
+                    """T-331: prefer the LIVE PIT-trimmed series fetched this pulse;
+                    fall back to the baked substrate for symbols outside the sleeve
+                    universe. Without this every resolution fails closed forever on
+                    the stale baked CSVs (the second broken clock)."""
+                    s = _live.get(sym)
+                    if s is not None and len(s):
+                        return s
+                    return _eh._disk_price(sym)
+
+                _es = _eh.run(str(today), price_fn=_price_fn, directional=_shadow_twin)
                 _g1 = _es.get("g1_skill", {}).get("vs_market_implied") or {}
                 print(f"   EVAL resolved={_es.get('n_resolvable', 0)}/{_es.get('n_records', 0)} "
                       f"brier={_es.get('brier')} g1_vs_implied_ci_low={_g1.get('diff_ci_low')} "
