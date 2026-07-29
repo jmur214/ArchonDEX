@@ -7,6 +7,13 @@ branch: feature/deep-reverify-sleeve-t311
 status: DONE. N_trials += 1 (one family). Pre-reg frozen 2026-07-27; run on the frozen spec, no deviation. SUPERSEDES the 2000-2026 T-255 as the real-money reference.
 ---
 
+> ⚠️ **CORRECTION (2026-07-28):** the **MBL/DSR "CLEARS" sentence in this doc is RETRACTED.**
+> It fed `[NN-MBL]` the sleeve's ABSOLUTE Sharpe (~1.5, overwhelmingly market beta) instead of the
+> Sharpe of the CLAIMED EDGE. The active (difference) Sharpe vs buy-hold is **−0.210** — there is no
+> positive edge to clear. **All substantive verdicts in this doc STAND** (they rest on paired
+> block-bootstrap CIs on differences, the correct test). Canonical:
+> `docs/Audit/mbl_framing_correction_t306_arc_2026_07_28.md`.
+
 # T-311 — the sleeve on 64 years: the structural win CONFIRMED, the wealth verdict REVERSED
 
 Pre-registration: `docs/Sources/prereg_deep_reverify_sleeve_t311.md` (director-FROZEN).
