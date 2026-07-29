@@ -248,11 +248,21 @@ def resolve(resolver: dict, note_date: str, as_of: str,
 
 
 # ── G1 baselines (amended gate: beat market-implied + persistence per category) ──
-def market_implied_prob(resolver: dict, note_date: str) -> Optional[float]:
-    """Kalshi-implied YES probability for a KXFED `event_occurs` prediction, as of the
-    NOTE's input-bundle date (PIT — the store accrues 2026-07-07 forward, so the
-    baseline is 'implied prob at note time', no backfill). The market-implied baseline
-    the amended G1 requires rate-path claims to beat."""
+def market_implied_prob(resolver: dict, note_date: str,
+                        price_fn: Optional[PriceFn] = None) -> Optional[float]:
+    """Market-implied probability at the NOTE's date (PIT).
+
+    - `event_occurs`/kalshi_settlement → the Kalshi yes-mid (the true market price).
+    - `price_above` → T-331 item 7: a market-implied estimate so "beats market" is
+      ENFORCEABLE OUTSIDE KXFED. We have no option-surface on disk, so the honest
+      instrument is the driftless log-normal probability from the symbol's own
+      TRAILING realized vol as of the note date — the standard no-forecast market
+      prior (a random walk at the market's own current volatility). It is labelled
+      what it is: a realized-vol-implied prior, NOT an option-implied one. Beating it
+      is a real bar (it embeds no view); claiming it is option-implied would be a lie.
+    """
+    if resolver.get("type") == "price_above":
+        return persistence_prob(resolver, note_date, price_fn or _disk_price)
     if resolver.get("type") != "event_occurs" or resolver.get("source") != "kalshi_settlement":
         return None
     k = _kalshi()
@@ -298,15 +308,83 @@ def _pred_id(note_id: str, i: int, p: dict) -> str:
     return p.get("prediction_id") or f"{note_id}#{i}"
 
 
-def _load_notes(notes_dir: Path) -> list[dict]:
-    out = []
+AGENTIC_NOTES_DIR = ROOT / "data" / "intel" / "analyst_notes_agentic"
+
+# T-331 — THE BROKEN CLOCK. This harness globbed `analyst_note_*.json` while
+# `intel_pulse.py` writes `note_<date>.json` → the analyst pool was ALWAYS EMPTY
+# (event calls were fine; they arrive via the ledger). Nothing had ever been scored:
+# G1's ≥150-resolved bar could not accrue and the T-323 A/B could never populate.
+# Fix = glob what the pulse actually writes (BOTH patterns, so any pre-existing or
+# externally-archived file is picked up too) AND project the note's real fields —
+# a note carries `as_of` + a nested `provenance`, NOT note_date/note_id/model_id, so
+# fixing only the glob would still have produced unresolvable rows.
+NOTE_GLOBS = ("note_*.json", "analyst_note_*.json")
+
+
+def _project_note(raw: dict, path: Optional[Path] = None, source: str = "analyst_constrained") -> dict:
+    """Project an analyst_note/v1 into the note shape run() consumes — the same
+    projection `event_service._to_ledger_record` already does correctly for events."""
+    prov = raw.get("provenance") or {}
+    as_of = raw.get("as_of") or raw.get("note_date") or ""
+    note_id = raw.get("note_id") or (f"{source}:{as_of}" if as_of else (path.stem if path else "?"))
+    return {**raw,
+            "note_id": note_id,
+            "note_date": as_of,
+            "model_id": raw.get("model_id") or prov.get("model_id_served")
+                        or prov.get("model_id_requested", ""),
+            "prompt_version": raw.get("prompt_version") or prov.get("prompt_version", ""),
+            "source": raw.get("source") or source}
+
+
+def _load_notes(notes_dir: Path, source: str = "analyst_constrained") -> list[dict]:
+    """Load + project every note the pulse wrote. Deduped by resolved path so a dir
+    matching both globs never double-counts."""
+    out: list[dict] = []
     if not notes_dir.is_dir():
         return out
-    for f in sorted(notes_dir.rglob("analyst_note_*.json")):
+    seen: set[Path] = set()
+    for pat in NOTE_GLOBS:
+        for f in sorted(notes_dir.rglob(pat)):
+            if f in seen:
+                continue
+            seen.add(f)
+            try:
+                out.append(_project_note(json.loads(f.read_text()), f, source))
+            except Exception:
+                continue
+    return out
+
+
+def _load_raw_backfill(raw_dir: Path, seen_dates: Optional[set] = None) -> list[dict]:
+    """T-331 item 4 — BACKFILL from the raw-note archive.
+
+    Raw notes are archived PRE-validation (analyst_service writes them before the
+    schema gate), so the history lost to the broken glob is recoverable. We accept a
+    raw note ONLY if it parses AND carries an `as_of` + a `predictions` array with
+    resolver blocks — a raw note that never validated is NOT resurrected into the
+    scored pool (fail-closed: an unvalidated note is not evidence). Dates already
+    present from the live dirs are skipped, so backfill can never double-count."""
+    out: list[dict] = []
+    if not raw_dir or not Path(raw_dir).is_dir():
+        return out
+    seen = seen_dates or set()
+    for f in sorted(Path(raw_dir).rglob("*.json")):
         try:
-            out.append(json.loads(f.read_text()))
+            raw = json.loads(f.read_text())
         except Exception:
             continue
+        if not isinstance(raw, dict):
+            continue
+        as_of = raw.get("as_of") or raw.get("note_date")
+        preds = raw.get("predictions")
+        if not as_of or as_of in seen or not isinstance(preds, list) or not preds:
+            continue
+        if not all(isinstance(p, dict) and isinstance(p.get("resolver"), dict) for p in preds):
+            continue                       # unvalidated/malformed → not evidence
+        src = "analyst_agentic" if "agentic" in str(f).lower() else "analyst_constrained"
+        rec = _project_note(raw, f, src)
+        rec["backfilled"] = True           # provenance: this row came from the archive
+        out.append(rec)
     return out
 
 
@@ -340,6 +418,8 @@ def _load_event_ledger(path: Path) -> list[dict]:
 def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _disk_price,
         event_fn: EventFn = _disk_event, pred_log: Path = PRED_LOG, summary: Path = SUMMARY,
         notes_dir: Path = NOTES_DIR, event_ledger: Path = EVENT_LEDGER,
+        agentic_notes_dir: Path = AGENTIC_NOTES_DIR,
+        backfill_raw_dir: Optional[Path] = None,
         directional: Optional[dict] = None) -> dict:
     """Resolve every EXPIRED, not-yet-logged prediction as-of `as_of`; append records
     (idempotent — a prediction_id already in the log is never re-resolved); rewrite
@@ -348,7 +428,14 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
     LLM-shadow-book twin comparison — Δwealth vs the 60/40 twin) rides into the summary
     so the dashboard has the FULL G1 picture (prediction skill + directional) in one JSON."""
     if notes is None:
-        notes = _load_notes(notes_dir) + _load_event_ledger(event_ledger)
+        # T-331: BOTH analyst dirs (the A/B needs the agentic arm) + the event ledger.
+        # Each note is source-tagged so fleet_scoring can segment constrained vs agentic.
+        notes = (_load_notes(notes_dir, "analyst_constrained")
+                 + _load_notes(agentic_notes_dir, "analyst_agentic")
+                 + _load_event_ledger(event_ledger))
+        if backfill_raw_dir is not None:
+            notes += _load_raw_backfill(backfill_raw_dir, seen_dates={
+                n.get("note_date") for n in notes})
     logged = {r["prediction_id"] for r in _load_log(pred_log)}
     new_records = []
     for note in notes:
@@ -362,13 +449,19 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
                 continue                          # not yet expired — resolve on a later run
             rec = {
                 "prediction_id": pid, "note_id": nid, "note_date": note.get("note_date", ""),
+                # T-331: fleet source tag (constrained / agentic / event) — the T-323
+                # A/B segments on this; `backfilled` marks archive-recovered rows.
+                "source": note.get("source") or ("event_interpreter"
+                                                 if str(nid).startswith("eventcall:") else
+                                                 "analyst_constrained"),
+                "backfilled": bool(note.get("backfilled")),
                 "model_id": note.get("model_id", ""), "prompt_version": note.get("prompt_version", ""),
                 "category": p.get("category") or p["resolver"].get("type"),
                 "statement": p.get("statement", ""), "probability": p.get("probability"),
                 "resolver": p["resolver"], "resolve_date": res.resolve_date, "resolved_at": as_of,
                 "outcome": res.outcome, "resolvable": res.resolvable,
                 "resolve_source": res.source, "resolve_detail": res.detail,
-                "baseline_implied": market_implied_prob(p["resolver"], note.get("note_date", "")),
+                "baseline_implied": market_implied_prob(p["resolver"], note.get("note_date", ""), price_fn),
                 "baseline_persistence": persistence_prob(p["resolver"], note.get("note_date", ""), price_fn),
             }
             new_records.append(rec)

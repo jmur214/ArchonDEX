@@ -199,11 +199,22 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
 
     # one shared governor over a durable spend ledger → the ≤$30/mo budget spans
     # analyst + watchdog + event together (not per-step).
-    from intelligence.analyst.cost_governor import CostGovernor, GovernorConfig
-    gov = CostGovernor(
-        GovernorConfig(monthly_budget_usd=MONTHLY_BUDGET_USD,
-                       max_output_tokens=DAILY_MAX_OUTPUT_TOKENS),
-        str(base / SPEND_LEDGER))
+    # T-331 item 5: build the governor from config/llm_settings.json's `llm` block via
+    # load_governor, so the documented OPERATOR CONTROLS (kill_switch / budget /
+    # max_output_tokens) have a REAL PATH into the running machine. Previously this
+    # built a hardcoded governor and load_governor had ZERO callers — the kill switch
+    # was unreachable. Falls back to the hardcoded defaults when the file is absent
+    # (and load_governor itself falls back on a parse error: a broken settings file
+    # must never ENABLE spending).
+    from intelligence.analyst.cost_governor import CostGovernor, GovernorConfig, load_governor
+    _settings_path = base / "config" / "llm_settings.json"
+    if _settings_path.is_file():
+        gov = load_governor(str(_settings_path), str(base / SPEND_LEDGER))
+    else:
+        gov = CostGovernor(
+            GovernorConfig(monthly_budget_usd=MONTHLY_BUDGET_USD,
+                           max_output_tokens=DAILY_MAX_OUTPUT_TOKENS),
+            str(base / SPEND_LEDGER))
 
     # --- 1. analyst note → persist to data/intel/analyst_notes/ --------------- #
     try:

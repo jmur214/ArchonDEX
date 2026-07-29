@@ -23,5 +23,11 @@
       "price_per_mtok_cache_write_usd": 18.75,
       "price_per_mtok_cache_read_usd": 1.5
     }
+  },
+  "llm": {
+    "_doc": "T-331 item 5 — the OPERATOR CONTROL SURFACE, now on a real path. cost_governor.load_governor() reads THIS block and intel_pulse builds its shared governor from it, so these values actually bind the running machine (previously load_governor had ZERO callers and this block did not exist — the documented kill switch was unreachable). Set kill_switch true to stop ALL LLM spend (analyst + agentic + watchdog + event) at the next pulse; steps report skipped:kill_switch and the pulse continues (report-only steps never block trading).",
+    "monthly_budget_usd": 30.0,
+    "max_output_tokens": 1500,
+    "kill_switch": false
   }
 }

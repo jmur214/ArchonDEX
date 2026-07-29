@@ -40,19 +40,49 @@ class ForwardRunResult:
     statuses: List[str] = field(default_factory=list)
 
 
+# T-331 item 6 — a body must be NON-TRIVIAL to justify a paid model call. Today
+# `terms` serialized as the literal "{}" (or "null"/"[]"/whitespace) is a TRUTHY
+# string, so an empty-terms doc would fire a call and burn budget on nothing. The
+# durable seen-ledger already prevents replay; this closes the once-each waste.
+_TRIVIAL_BODIES = {"", "{}", "[]", "null", "none", "{ }", "[ ]"}
+MIN_BODY_CHARS = 40
+
+
+def _is_nontrivial(text: Optional[str]) -> bool:
+    t = (text or "").strip()
+    return bool(t) and t.lower() not in _TRIVIAL_BODIES and len(t) >= MIN_BODY_CHARS
+
+
 def _attach_body(doc: EventDocument, fetch=fetch_8k_text) -> bool:
-    """For an 8-K document, fetch + attach the primary-document text. Returns True if a body is present."""
-    if doc.text:
+    """Fetch + attach the primary-document text. True only if a NON-TRIVIAL body is
+    present (T-331 item 6) — an empty/placeholder body must never fire a paid call."""
+    if _is_nontrivial(doc.text):
         return True
     if doc.source != "8k":
         return False
     cik = (doc.meta or {}).get("cik")
     acc = (doc.meta or {}).get("accession")
     text = fetch(cik, acc)
-    if text:
+    if _is_nontrivial(text):
         doc.text = text
         return True
     return False
+
+
+def _within_date_floor(doc: EventDocument, floor: Optional[str]) -> bool:
+    """T-331 item 6 — file_date LOWER BOUND: a document older than the floor is stale
+    context, not news; skip it rather than pay to interpret it. A doc with no parseable
+    file_date is KEPT (fail-open on the filter; the seen-ledger still bounds it)."""
+    if not floor:
+        return True
+    # file_date is a TOP-LEVEL EventDocument field (meta is a fallback only)
+    fd = str(getattr(doc, "file_date", "") or (doc.meta or {}).get("file_date") or "")[:10]
+    if not fd:
+        return True
+    try:
+        return _dt.date.fromisoformat(fd) >= _dt.date.fromisoformat(floor)
+    except Exception:
+        return True
 
 
 def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
@@ -74,11 +104,18 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
     seen: Set[str] = load_seen(ledger_path)
     docs = new_documents(as_of_s, universe=universe, since=since, seen=seen)
     res = ForwardRunResult(as_of_s, n_documents=len(docs))
+    # T-331 item 6: the file_date floor defaults to `as_of − max_lag_days` — the same
+    # forward-only window the run itself is bounded by, so a stale document can't be
+    # paid for even once.
+    date_floor = (aod - _dt.timedelta(days=max_lag_days)).isoformat()
     for doc in docs:
+        if not _within_date_floor(doc, date_floor):
+            res.statuses.append(f"stale_file_date:{doc.document_ref}")
+            continue                             # older than the floor → no paid call
         if not _attach_body(doc, fetch=body_fetch):
             res.n_no_body += 1
             res.statuses.append(f"no_body:{doc.document_ref}")
-            continue                             # no interpretable body → no call (8-K body unavailable)
+            continue                             # no interpretable/NON-TRIVIAL body → no call
         r = run_event_call(doc, as_of=as_of_s, prompt_path=prompt_path, model_call=model_call,
                            governor=governor, model_id_requested=model_id_requested,
                            prompt_version=prompt_version, projected_cost_usd=projected_cost_usd,
