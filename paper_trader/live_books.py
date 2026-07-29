@@ -41,6 +41,18 @@ from typing import Any, Callable, Dict, List, Optional
 import pandas as pd
 
 ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness rate)
+
+# --- T-332a CASH-DRAG ANNOTATION (measurement-side only; NEVER a restatement) --- #
+# The backtest credits idle cash at the daily short rate (T-255), but Alpaca paper pays
+# NOTHING on cash. Every live NAV is therefore biased AGAINST its own backtest spec by
+# ~short-rate x time-in-cash — and the sleeve's regime-option premium depends on actually
+# EARNING that yield. So each book accrues what its cash WOULD have earned and reports it
+# ALONGSIDE the raw NAV. The raw number stays PRIMARY and is never overwritten: we
+# annotate a record, we do not restate it.
+# The rate comes from a T-bill ETF's own daily total return (BIL), fetched through the
+# SAME Alpaca stock path the books already use — zero new deps, and it is the honest
+# counterfactual (what a cash sweep could really have earned, net of the fund's ER).
+CASH_RATE_TICKER = "BIL"
 DEFAULT_NOTIONAL = 100_000.0   # the book's own unit; twins share it unless stated
 
 
@@ -211,11 +223,33 @@ class LiveBook:
             self._write(st)
             return self.summary()
 
+        # --- T-332a: what the PREVIOUS day's idle cash would have earned overnight.
+        # Uses the cash held BEFORE today's rebalance, priced by BIL's realized daily
+        # return. FAIL-CLOSED: no rate today -> no accrual + the day is counted in
+        # `cash_rate_missing_days`; a missing rate is never silently treated as 0%.
+        _rate = None
+        _bil = closes.get(CASH_RATE_TICKER)
+        _bil_prev = st.get("cash_rate_prev_px")
+        if _bil is not None and _bil_prev:
+            _rate = float(_bil) / float(_bil_prev) - 1.0
+        prev_cash_book = (st["side"]["book"] or {}).get("cash", 0.0)
+        prev_cash_twin = (st["side"]["twin"] or {}).get("cash", 0.0)
+
         st["side"]["book"] = self._step(st["side"]["book"], w_book, closes,
                                         self.spec.notional, self.spec.whole_shares)
         st["side"]["twin"] = self._step(st["side"]["twin"], w_twin, closes,
                                         self.spec.twin_notional, self.spec.whole_shares)
         b, t = st["side"]["book"]["nav"], st["side"]["twin"]["nav"]
+
+        if _rate is None:
+            st["cash_rate_missing_days"] = int(st.get("cash_rate_missing_days", 0)) + 1
+        else:
+            st["cash_adj_book"] = round(float(st.get("cash_adj_book", 0.0))
+                                        + prev_cash_book * _rate, 6)
+            st["cash_adj_twin"] = round(float(st.get("cash_adj_twin", 0.0))
+                                        + prev_cash_twin * _rate, 6)
+        if _bil is not None:
+            st["cash_rate_prev_px"] = float(_bil)
         st["days"].append({
             "date": trade_date, "degraded": False,
             "book_nav": b, "twin_nav": t,
@@ -223,7 +257,11 @@ class LiveBook:
             "twin_growth": round(t / self.spec.twin_notional, 6),
             # scale-free: the twin may start at a DIFFERENT notional (the tier book), so
             # the comparison is growth-vs-growth, never raw dollars.
-            "excess_growth": round(b / self.spec.notional - t / self.spec.twin_notional, 6)})
+            "excess_growth": round(b / self.spec.notional - t / self.spec.twin_notional, 6),
+            # T-332a ANNOTATION — travels WITH the raw, never replaces it.
+            "cash_adj_book": st.get("cash_adj_book"),
+            "cash_adj_twin": st.get("cash_adj_twin"),
+            "cash_rate_available": _rate is not None})
         self._write(st)
         return self.summary()
 
@@ -243,6 +281,26 @@ class LiveBook:
                       "excess_growth": last["excess_growth"]})
             navs = pd.Series([d["book_nav"] for d in clean])
             s["max_drawdown"] = round(float((navs / navs.cummax() - 1).min()), 5)
+            # --- T-332a ANNOTATION: what idle cash WOULD have earned. Reported BESIDE the
+            # raw NAV above, never in place of it — the raw keys are already set and are
+            # not touched here. `*_cash_adj` is a SECOND number the reader may use; the
+            # record itself is never restated. -------------------------------------------
+            adj_b = float(st.get("cash_adj_book", 0.0))
+            adj_t = float(st.get("cash_adj_twin", 0.0))
+            miss = int(st.get("cash_rate_missing_days", 0))
+            s["cash_adj"] = {
+                "book_accrued": round(adj_b, 4), "twin_accrued": round(adj_t, 4),
+                "book_nav_cash_adj": round(last["book_nav"] + adj_b, 4),
+                "twin_nav_cash_adj": round(last["twin_nav"] + adj_t, 4),
+                "excess_growth_cash_adj": round(
+                    (last["book_nav"] + adj_b) / self.spec.notional
+                    - (last["twin_nav"] + adj_t) / self.spec.twin_notional, 6),
+                "rate_missing_days": miss,
+                "note": ("ANNOTATION ONLY — the raw NAV above is the record. Live paper "
+                         "cash earns 0%; the backtest spec credits the short rate, so this "
+                         "shows what that gap is worth. Never a restatement."
+                         + (f" INCOMPLETE: {miss} day(s) had no rate and accrued NOTHING "
+                            f"(fail-closed, never assumed 0%)." if miss else ""))}
         return s
 
     def status(self) -> Dict[str, Any]:
