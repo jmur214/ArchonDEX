@@ -1,5 +1,5 @@
 {
-  "_comment": "T-186 daily paper-loop Batch job definition (Fargate, ARM64). Rendered by scripts/deploy_paper_cloud_trigger.sh — __IMAGE__, __EXEC_ROLE_ARN__, __JOB_ROLE_ARN__, __SECRET_ARN__, __RESULTS_BUCKET__ are substituted at deploy. PAPER creds arrive via the `secrets` block (Secrets Manager), never baked into the image or printed. T-238: ARCHONDEX_PAPER_STRATEGY=trend_sleeve arms the 3-asset sleeve (T-260 {2,5,10}mo ensemble); ARCHONDEX_SLEEVE_NOTIONAL_CAP=10000 caps the FIRST cautious runs; ARCHONDEX_SLEEVE_TIF=day = Option A (Alpaca PAPER fills DAY orders, expires OPG; live sets opg). Schedule (post-open ~9:45 ET) stays DISABLED; T-255 + SNS gates CLEARED, only the user's enable word + the Monday armed run remain.",
+  "_comment": "T-186 daily paper-loop Batch job definition (Fargate, ARM64). Rendered by scripts/deploy_paper_cloud_trigger.sh — __IMAGE__, __EXEC_ROLE_ARN__, __JOB_ROLE_ARN__, __SECRET_ARN__ (alpaca), __ANTHROPIC_SECRET_ARN__ (LLM fleet), __RESULTS_BUCKET__ are substituted at deploy. Creds arrive via the `secrets` block (Secrets Manager), never baked into the image or printed. T-238: ARCHONDEX_PAPER_STRATEGY=trend_sleeve arms the 3-asset sleeve (T-260 {2,5,10}mo ensemble); NOTIONAL_CAP=10000; SLEEVE_TIF=day (Option A). T-325 (2026-07-28): the ANTHROPIC_API_KEY secret is REQUIRED here — it was added live at the analyst ignition (rev23) but the template lagged, so a template-based redeploy would silently DROP the whole LLM fleet (analyst/agentic/watchdog/event + the weekly thematic scan clean-skip with no key). The binding now lives in the template, not only in a live rev (the stranded-fix lesson).",
   "jobDefinitionName": "archondex-paper-cloud-day",
   "type": "container",
   "platformCapabilities": ["FARGATE"],
@@ -28,7 +28,8 @@
     ],
     "secrets": [
       {"name": "ALPACA_API_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_API_KEY::"},
-      {"name": "ALPACA_SECRET_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_SECRET_KEY::"}
+      {"name": "ALPACA_SECRET_KEY", "valueFrom": "__SECRET_ARN__:ALPACA_SECRET_KEY::"},
+      {"name": "ANTHROPIC_API_KEY", "valueFrom": "__ANTHROPIC_SECRET_ARN__:ANTHROPIC_API_KEY::"}
     ],
     "logConfiguration": {
       "logDriver": "awslogs",

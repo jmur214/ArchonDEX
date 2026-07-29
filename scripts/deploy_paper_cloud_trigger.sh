@@ -77,6 +77,15 @@ if [ "$DO_SECRET" = "1" ]; then
 fi
 SECRET_ARN="$(_aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --query ARN --output text)"
 log "secret ARN: ${SECRET_ARN%%-??????}<redacted-suffix>"
+# T-325: the LLM fleet (analyst/agentic/watchdog/event + the weekly thematic scan)
+# reads ANTHROPIC_API_KEY from its own secret (a DIFFERENT base ARN than alpaca).
+# It was added live at the rev23 ignition but the template lagged — resolve + bind it
+# here so a redeploy can never silently drop the whole LLM fleet (the stranded-fix rule).
+ANTHROPIC_SECRET_NAME="${ANTHROPIC_SECRET_NAME:-archondex/anthropic-api}"
+ANTHROPIC_SECRET_ARN="$(_aws secretsmanager describe-secret --secret-id "$ANTHROPIC_SECRET_NAME" --query ARN --output text)"
+[ -n "$ANTHROPIC_SECRET_ARN" ] && [ "$ANTHROPIC_SECRET_ARN" != "None" ] || {
+  echo "[deploy] FATAL: anthropic secret $ANTHROPIC_SECRET_NAME not found — refusing to register a jobdef that would silently drop the LLM fleet" >&2; exit 66; }
+log "anthropic secret ARN: ${ANTHROPIC_SECRET_ARN%%-??????}<redacted-suffix>"
 
 # --- 2. IAM: execution role (read secret + ECR/logs), job role (S3+metrics) - #
 ensure_role() {  # name trust-file
@@ -122,6 +131,7 @@ JOB_ROLE_ARN="$(_aws iam get-role --role-name "$JOB_ROLE" --query Role.Arn --out
 log "registering job def archondex-paper-cloud-day (image $IMAGE)"
 sed -e "s|__IMAGE__|$IMAGE|g" -e "s|__EXEC_ROLE_ARN__|$EXEC_ROLE_ARN|g" \
     -e "s|__JOB_ROLE_ARN__|$JOB_ROLE_ARN|g" -e "s|__SECRET_ARN__|$SECRET_ARN|g" \
+    -e "s|__ANTHROPIC_SECRET_ARN__|$ANTHROPIC_SECRET_ARN|g" \
     -e "s|__RESULTS_BUCKET__|$RESULTS_BUCKET|g" "$INFRA/job_definition.json" \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); d.pop("_comment",None); print(json.dumps(d))' \
   > /tmp/paper_job_def.json
