@@ -20,18 +20,30 @@ and asks only: *mechanically, what happens, in what order, and what breaks?*
 
 ---
 
-## ⚠️ HARD PRECONDITION (state it first, because it is currently UNMET)
-**The cross-account wash-sale guard (T-317 / advisor spec §9a) is SPEC ONLY — nothing is built.** The spec
-itself records `status: SPEC ONLY — 0 N_trials, nothing built`, and §9a calls it the **blocking engineering
-requirement** for any taxable-column activity. It touches Engine B / `live_trader/`, so it is **propose-first,
-hard-gated, user-approved** before any build.
+## ⚠️ HARD PRECONDITION — CORRECTED 2026-07-30 (T-330b): the guard is BUILT, not wired
+**Correction to this document's first draft, which said the guard was "spec only — nothing built." That was
+wrong.** The cross-account wash-sale guard was **BUILT and merged (T-319)**: the order-path guard module, the
+FIFO cross-account tax-lot ledger, the equivalence config (`config/substantially_identical.json`), and the
+61-day both-directions check all exist on main, with `tests/test_cross_account_wash_guard_t319.py` **passing
+(11 tests — the dispatch said 13; the file contains 11)**.
 
-**Consequence for this runbook, stated plainly:** the arrival-day sequence below contains a step ("the guard
-checks robo-side loss-sales against machine buys") **that does not currently exist in code.** Two honest paths:
-- **(a) Roth-only transition** — no taxable account involved ⇒ no wash-sale exposure ⇒ the guard is not on the
-  critical path. **This is the simpler and strongly preferred first move.**
-- **(b) Any taxable involvement** — the guard must be built, reviewed, and user-approved **first**. There is no
-  version of this where a taxable transition proceeds on a spec.
+**The accurate status is `BUILT — SEAM-WIRED — NOT ENFORCING`, and the distinction matters here:**
+- `paper_trader/order_manager.py` carries the seam: `OrderManager(..., wash_guard=None)`, with
+  `check_order(...)` called pre-submit and a fill-side hook. **The plumbing is real.**
+- **But the parameter defaults to `None` and NO caller passes it** — verified across `paper_trader/`,
+  `scripts/`, `live_trader/`, **including `scripts/run_paper_cloud_day.py` (the live pulse)**. So today the
+  guard is inert in every running path: it would neither block nor log a collision.
+- What remains is **(i) wiring it enforcing** (account 2 only — E/T-327 Act 2) and **(ii) exercising it**
+  end-to-end (the drill's guard-refusal path). A guard that has never refused anything in a live path is
+  not yet evidence — that is the T-289/T-295 "code-complete ≠ confirmed end-to-end" lesson applied here.
+
+**Consequence for this runbook (branch marks unchanged, precondition text corrected):**
+- **(a) Roth-only transition** — no taxable ⇒ no wash-sale exposure ⇒ the guard is not on the critical path.
+  **Still the recommended first move on its own merits** (simpler, fewer irreversible failure modes), and the
+  director endorses it independently of the guard's status.
+- **(b) Any taxable involvement** — the guard must be **wired enforcing AND exercised** (a real refusal
+  observed) before the first taxable trade. It is no longer "must be built"; it is "must be turned on and
+  proven to fire."
 
 Everything below is written for both, with the branch marked at each step.
 
@@ -87,7 +99,7 @@ queue to the next session. Add T+1 settlement before any transfer can move the c
   *when* you take the market gap.
 - **Taxable → anything:** ACAT's "no realization" is a **genuine and large** advantage (deferral is the whole
   finding of T-294b). But it only helps if you intend to *keep* the positions; if the machine's book differs,
-  you realize on the rebuy anyway. **Blocked regardless until the §9a guard exists.**
+  you realize on the rebuy anyway. **Blocked regardless until the §9a guard is WIRED ENFORCING and exercised** (it is built — see the precondition).
 - **The honest asymmetry:** the out-of-market window is a real, unhedged, one-shot market risk. Historically the
   market is up more days than down, so being out is negative-expectancy *on average* — but it is small relative
   to the decision itself. **Do not optimize this; do not time it.** Pick the simpler path and accept the gap.
@@ -103,7 +115,7 @@ pulse. Each step names its branch and its abort condition.
 |---|---|---|---|---|
 | 1 | **Confirm cash is SETTLED, not merely "posted"** | required | required | unsettled → wait; never trade unsettled cash (good-faith / GFV violations) |
 | 2 | **Reconcile the arrival against the expected amount** (partial transfers are common — Part 4) | required | required | mismatch > tolerance → HALT, investigate before any order |
-| 3 | **Wash-sale guard check: robo-side loss-sales (last 30d) vs the machine's intended buys** | **N/A** | **REQUIRED — and NOT BUILT (see precondition)** | any substantially-identical collision in the 61-day window → the buy is deferred or re-instrumented (SPY↔VOO↔IVV, AGG↔BND, GLD↔IAU per `config/substantially_identical.json`) |
+| 3 | **Wash-sale guard check: robo-side loss-sales (last 30d) vs the machine's intended buys** | **N/A** | **REQUIRED — guard is BUILT but NOT ENFORCING (see precondition)** | any substantially-identical collision in the 61-day window → the buy is deferred or re-instrumented (SPY↔VOO↔IVV, AGG↔BND, GLD↔IAU per `config/substantially_identical.json`) |
 | 4 | **Select the advisor row for (wrapper, equity)** — the advisor is a pure lookup; only `status=="validated"` auto-deploys | required | required | no validated row for the band → fail-conservative to the nearest validated LOWER band; if none → HALT |
 | 5 | **Deploy per Rule B (always-invest-immediately, T-299 adopted)** | required | required | — |
 | 6 | **First pulse runs the normal path** (adopt → rebalance → gates) with the book now real | required | required | any gate fails → the standing fail-closed behaviour, unchanged |
@@ -155,9 +167,11 @@ touching real money or account boundaries).
 ---
 
 ## Cross-references
-- **T-317 / advisor §9a — the cross-account wash-sale guard** (`docs/Core/tlh_washsale_spec_t317.md`): the
-  61-day two-directional window, the substantially-identical set, the pre-submission checks. **SPEC ONLY —
-  the blocking requirement for any taxable path.**
+- **T-317 spec → T-319 BUILD — the cross-account wash-sale guard** (`docs/Core/tlh_washsale_spec_t317.md`,
+  `tests/test_cross_account_wash_guard_t319.py`): the 61-day two-directional window, the
+  substantially-identical set, the pre-submission checks. **BUILT and merged; seam-wired in `OrderManager`;
+  NOT YET ENFORCING (no caller passes `wash_guard=`) and never exercised in a live path.** Wiring +
+  exercising is E/T-327 Act 2 — the blocking item for any taxable path.
 - **Advisor spec** (`docs/Core/capital_aware_advisor_spec_t280.md`): §4 fail-conservative row selection, §5b the
   offense-arc row statuses, §9b the after-tax bar, and the placement model for a two-account world.
 - **T-299** (`prereg_contribution_rule_t299.md`): Rule B adopted; sub-1% effect; leverage-dependent caveat.
