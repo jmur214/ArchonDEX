@@ -77,6 +77,15 @@ DURABLE_PATHS: List[str] = [
     "data/intel/thesis_calls.jsonl",
     "data/intel/thesis_scan_state.json",
     "data/intel/thesis_scan_provenance.jsonl",
+    # T-325 (post-Wed fix): the user's thesis INBOX. It is NOT git-tracked (it lives
+    # beyond a symlink locally) so it is NOT baked into the lean image — the Wed
+    # 2026-07-29 scan saw `seeds_existed_at_scan_time: []` because the container had
+    # no inbox, so the user's seed could never file after the scan. Durable-syncing it
+    # (seeded to S3 from the canonical local copy) makes it PRESENT at scan time.
+    # User-authored, machine-read: the container pulls it at start and pushes back the
+    # same bytes (it never edits it); a NEW seed reaches the cloud by pushing the
+    # updated inbox to S3 (or the next rebuild if it ever becomes git-tracked).
+    "data/coordination/thesis_inbox.md",
     # T-328: the four live NAV-vs-twin performance books (SPY null, damped offense,
     # quality satellite, sleeve-at-tier). Each compounds a NAV across sessions, so an
     # ephemeral disk would reset every book to its notional daily and no record could
@@ -331,6 +340,31 @@ class CloudState:
         r = self._aws("s3", "cp", self._news_s3(year, month), str(local),
                       "--no-progress")
         return r.returncode == 0
+
+    def pull_news_recent(self, as_of, n_months: int = 4) -> int:
+        """T-325 (post-Wed zero-thesis fix): pull the last ``n_months`` news
+        partitions S3 → local — the recent TAPE the intel pulse reads (the daily
+        analyst/agentic per-ticker queries AND the weekly thematic scan). The
+        pulse runs BEFORE the current-month append/push, so without this the panel
+        is EMPTY at read time and the scan sees nothing (the Wed 2026-07-29 defect:
+        n_documents=0 → the strong-tier scan filed 0 on an empty bundle). Bounded
+        by ``n_months`` (NOT the 264 MB history); a missing month is a clean skip.
+        Returns the count of partitions actually pulled."""
+        if not self.cfg.enabled:
+            return 0
+        year, month = self._ym(as_of)
+        n = 0
+        for _ in range(max(1, n_months)):
+            local = self.root / self._news_rel(year, month)
+            local.parent.mkdir(parents=True, exist_ok=True)
+            r = self._aws("s3", "cp", self._news_s3(year, month), str(local),
+                          "--no-progress")
+            if r.returncode == 0:
+                n += 1
+            month -= 1
+            if month < 1:
+                month, year = 12, year - 1
+        return n
 
     def push_news_month(self, as_of) -> None:
         """Push ONLY the current month's partition local → S3. Best-effort;

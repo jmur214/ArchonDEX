@@ -57,6 +57,11 @@ class BlindScanResult:
     skip_reason: Optional[str] = None                        # non-None ⇒ NO call happened / NO scan recorded
     raw_path: Optional[str] = None
     n_theses_seen: int = 0
+    # T-325 (post-Wed): a zero-thesis scan must be SELF-EXPLAINING. '0 filed' with no
+    # stated why is the silent-wrongness class — these make every zero unambiguous.
+    n_documents: int = 0            # news + event docs the generator actually saw
+    bundle_bytes: int = 0           # size of the JSON bundle handed to the model
+    reason: Optional[str] = None    # empty_bundle | model_declined | call_skipped | call_failed | filed
 
     @property
     def scanned(self) -> bool:
@@ -147,11 +152,13 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     """Run the machine's blind thematic scan. FAIL-CLOSED: a governor refusal or a model
     error is a clean skip (no scan recorded, hold NOT released); a ``FirewallBreach`` PROPAGATES."""
     month = str(now_iso)[:7]
+    n_docs = len(news or []) + len(events or [])     # what the generator actually sees
 
     # 1. governor / kill switch — no call on refusal
     decision = governor.check(month, projected_cost_usd)
     if not decision.allowed:
-        return BlindScanResult(skip_reason=f"skipped:{decision.reason}")
+        return BlindScanResult(skip_reason=f"skipped:{decision.reason}",
+                               reason="call_skipped", n_documents=n_docs)
 
     # 2. forward-only guard BEFORE spending anything ([NN-AI-GATE]) — same as_of for all theses
     assert_forward_only(as_of, today=today)
@@ -162,6 +169,7 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
                                universe_hint=universe_hint, ledger=ledger)
     prov = scan_provenance(as_of, path=scan_state, inbox=inbox)   # stamp blindness BEFORE the call
     bundle_json = _canonical_json(bundle)
+    bundle_bytes = len(bundle_json.encode("utf-8"))
     bundle_sha = _sha256(bundle_json)
     prompt_text, prompt_sha = _prompt(prompt_path)
 
@@ -170,7 +178,8 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
         resp = model_call(prompt_text, bundle_json, decision.max_output_tokens)
     except Exception as e:   # noqa: BLE001
         return BlindScanResult(skip_reason=f"skipped:model_call_error:{type(e).__name__}",
-                               provenance=prov)
+                               provenance=prov, reason="call_failed",
+                               n_documents=n_docs, bundle_bytes=bundle_bytes)
     raw_path = _archive_raw(raw_dir, "scan", as_of, resp, bundle_sha)
     usage = resp.get("usage", {}) or {}
     governor.record_spend(now_iso, float(usage.get("cost_usd", 0.0) or 0.0))
@@ -207,15 +216,28 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
         else:
             filed.append(rec)
 
-    # 7. record the scan (releases the blind-scan hold) + append the blindness audit line
+    # 7. classify the OUTCOME so a zero is never ambiguous (the self-explaining rule):
+    #    filed>0 → filed; else empty_bundle if the generator saw nothing, else model_declined
+    #    (it had a real tape and still wrote nothing — an honest decline, not a bug).
+    if filed:
+        reason = "filed"
+    elif n_docs == 0:
+        reason = "empty_bundle"
+    else:
+        reason = "model_declined"
+
+    # 8. record the scan (releases the blind-scan hold) + append the blindness audit line
     record_scan(as_of, n_theses=len(filed), path=scan_state)
     prov_log.parent.mkdir(parents=True, exist_ok=True)
     with prov_log.open("a") as fh:
-        fh.write(json.dumps({**prov, "n_filed": len(filed), "n_rejected": len(rejected)},
+        fh.write(json.dumps({**prov, "n_filed": len(filed), "n_rejected": len(rejected),
+                             "n_theses_seen": len(raw_theses), "n_documents": n_docs,
+                             "bundle_bytes": bundle_bytes, "reason": reason},
                             default=str) + "\n")
 
     return BlindScanResult(filed=filed, rejected=rejected, provenance=prov,
-                           raw_path=raw_path, n_theses_seen=len(raw_theses))
+                           raw_path=raw_path, n_theses_seen=len(raw_theses),
+                           n_documents=n_docs, bundle_bytes=bundle_bytes, reason=reason)
 
 
 # ---------------- the user-seeded channel ----------------
@@ -290,7 +312,10 @@ def run_thesis_pulse(as_of: str, *, scan_model_call: ModelCall, seed_model_call:
                           scan_state=scan_state, prov_log=prov_log, inbox=inbox,
                           now_iso=now_iso, today=today)
     out["scan"] = {"scanned": scan.scanned, "n_filed": len(scan.filed),
-                   "n_rejected": len(scan.rejected), "skip_reason": scan.skip_reason,
+                   "n_rejected": len(scan.rejected), "n_theses_seen": scan.n_theses_seen,
+                   "skip_reason": scan.skip_reason,
+                   "reason": scan.reason, "n_documents": scan.n_documents,
+                   "bundle_bytes": scan.bundle_bytes,
                    "blind_scan_ordinal": (scan.provenance or {}).get("blind_scan_ordinal"),
                    "is_first_blind_scan": (scan.provenance or {}).get("is_first_blind_scan")}
 
