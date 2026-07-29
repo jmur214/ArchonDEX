@@ -139,3 +139,33 @@ class TestFirstFillEnumRefs:
         for name in ("ACKED", "FILLED", "PARTIALLY_FILLED"):
             assert hasattr(OrderState, name), f"OrderState.{name} missing"
         assert not hasattr(OrderState, "PARTIAL")  # the old wrong name
+
+
+# ===================================================================== #
+# T-325 (post-Wed zero-thesis fix): pull the recent news TAPE before the pulse
+# ===================================================================== #
+class TestPullNewsRecent:
+    def test_pulls_n_months_with_year_wraparound(self, tmp_path):
+        import datetime as dt
+        cs, rec = _cloud(tmp_path)
+        n = cs.pull_news_recent(dt.date(2026, 2, 15), n_months=4)
+        assert n == 4
+        srcs = " ".join(" ".join(c) for c in rec.calls if c[:2] == ["s3", "cp"])
+        for part in ("2026/02/news_202602", "2026/01/news_202601",
+                     "2025/12/news_202512", "2025/11/news_202511"):
+            assert part in srcs        # consecutive months, correct Dec/Nov wraparound
+
+    def test_a_missing_month_is_a_clean_skip_not_counted(self, tmp_path):
+        import datetime as dt
+        cs, rec = _cloud(tmp_path, rc_for=lambda a: 1 if "2025/11" in " ".join(a) else 0)
+        assert cs.pull_news_recent(dt.date(2026, 2, 15), n_months=4) == 3
+
+    def test_noop_when_cloud_disabled(self, tmp_path):
+        import datetime as dt
+        cs = CloudState(cfg=CloudStateConfig(bucket=None), root=str(tmp_path))
+        assert cs.pull_news_recent(dt.date(2026, 2, 15)) == 0
+
+    def test_inbox_is_durable(self):
+        from paper_trader.cloud_state import DURABLE_PATHS
+        # the user's seed inbox must round-trip S3 or the container can't file the seed
+        assert "data/coordination/thesis_inbox.md" in DURABLE_PATHS

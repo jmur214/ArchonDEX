@@ -50,7 +50,12 @@ def parse_seeds(text: str) -> List[SeedThesis]:
 
     Everything after the heading is narrative; an optional `tickers:` line names instruments. Explicit
     `$TICKER` mentions anywhere also count. If no tickers are given the desk maps them itself.
+
+    Fenced code blocks are stripped FIRST: the inbox's own ```-fenced FORMAT EXAMPLE contains a
+    ``## Short title`` line, and without this it parses as a real (garbage) seed — caught when the
+    inbox first reached the cloud container (T-325, 2026-07-29). A documented example is not a seed.
     """
+    text = re.sub(r"```.*?```", "", text, flags=re.S)   # drop fenced examples before splitting on `## `
     seeds: List[SeedThesis] = []
     for block in re.split(r"^##\s+", text, flags=re.M)[1:]:
         lines = block.strip().splitlines()

@@ -657,6 +657,22 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             # KEY-OPTIONAL: with no ANTHROPIC_API_KEY every step clean-skips (an
             # honest "no adapter" record, never a fabricated note). Runs on the
             # account-1 branch only; report-only, never touches the trading verdict.
+            # --- T-325 (post-Wed zero-thesis fix): pull the recent news TAPE from
+            # S3 BEFORE the intel pulse. The whole pulse (analyst + agentic + weekly
+            # scan) reads the news panel, but the current-month append/push happens
+            # LATER (step 8) — so without this the panel is EMPTY at read time and
+            # the strong-tier scan files 0 on an empty bundle (the Wed 2026-07-29
+            # defect: n_documents=0). Weekly scan-due → deeper 4-month pull for a rich
+            # thematic tape; else current month only (cheap daily read-path). Report-
+            # only, never fatal. ------------------------------------------------- #
+            try:
+                from intelligence.thesis_desk.thesis_scan import due as _scan_due
+                _sd = _scan_due(str(today), path=root / "data/intel/thesis_scan_state.json")
+                _npm = cloud.pull_news_recent(today, n_months=(4 if _sd else 1))
+                print(f"   NEWS-TAPE  pulled {_npm} recent month(s) before the pulse "
+                      f"(scan_due={_sd})")
+            except Exception as exc:
+                print(f"   NEWS-TAPE warn: {type(exc).__name__} (non-fatal)")
             try:
                 from paper_trader.intel_pulse import run_intel_pulse
                 _eq = float(client.get_account().get("equity", broker_cash)) or 1.0

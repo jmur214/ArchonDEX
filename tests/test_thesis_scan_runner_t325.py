@@ -120,6 +120,40 @@ def test_non_json_response_is_a_completed_empty_scan(tmp_path):
     assert r.scanned and r.filed == []
 
 
+# ---------------- self-explaining: a zero always states WHY ----------------
+def test_reason_empty_bundle_when_the_tape_is_empty(tmp_path):
+    # the Wed 2026-07-29 defect class: no news + no events → the generator saw nothing
+    r = _scan(tmp_path, json.dumps({"theses": []}), news=[])
+    assert r.reason == "empty_bundle" and r.n_documents == 0 and r.filed == []
+    prov = (tmp_path / "scan_prov.jsonl").read_text()
+    assert '"reason": "empty_bundle"' in prov and '"n_documents": 0' in prov
+
+
+def test_reason_model_declined_on_a_real_tape_with_no_theses(tmp_path):
+    r = _scan(tmp_path, json.dumps({"theses": []}), news=NEWS)   # 1 doc, model writes nothing
+    assert r.reason == "model_declined" and r.n_documents == 1 and r.bundle_bytes > 0
+
+
+def test_reason_filed_when_a_thesis_is_filed(tmp_path):
+    r = _scan(tmp_path, json.dumps({"theses": [_thesis()]}), news=NEWS)
+    assert r.reason == "filed" and r.n_documents == 1 and len(r.filed) == 1
+
+
+def test_reason_call_skipped_on_governor_refusal(tmp_path):
+    r = _scan(tmp_path, json.dumps({"theses": [_thesis()]}), gov=_gov(tmp_path, kill_switch=True))
+    assert r.reason == "call_skipped" and not r.scanned
+
+
+def test_parse_seeds_ignores_the_fenced_format_example():
+    # the inbox's own ```-fenced "## Short title" example must NOT parse as a seed
+    from intelligence.thesis_desk.thesis_desk import parse_seeds
+    text = ("# Inbox\n**Format:**\n```\n## Short title\nnarrative...\ntickers: ABC, XYZ\n```\n\n"
+            "## Real Theme\nThe actual idea, second-order.\ntickers: VRT\n")
+    seeds = parse_seeds(text)
+    assert [s.seed_id for s in seeds] == ["real_theme"]
+    assert "ABC" not in seeds[0].tickers and seeds[0].tickers == ["VRT"]
+
+
 # ---------------- fail-closed guards ----------------
 def test_governor_refusal_skips_with_no_scan_recorded(tmp_path):
     p = _paths(tmp_path)

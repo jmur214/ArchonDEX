@@ -77,7 +77,12 @@ class IntelPulseResult:
         th = ""
         sc = self.thesis.get("scan") if isinstance(self.thesis, dict) else None
         if self.thesis.get("due"):
-            th = f" scan=filed{sc.get('n_filed', 0)}/seen{sc.get('n_filed', 0) + sc.get('n_rejected', 0)}" if sc else " scan=due"
+            if sc:
+                # self-explaining: a zero always states WHY (reason + docs it saw)
+                th = (f" scan=filed{sc.get('n_filed', 0)}/seen{sc.get('n_theses_seen', sc.get('n_filed', 0))}"
+                      f"[{sc.get('reason', '?')},docs={sc.get('n_documents', 0)}]")
+            else:
+                th = " scan=due"
             if self.thesis.get("seeds"):
                 th += f" seeds={sum(1 for s in self.thesis['seeds'] if s.get('filed'))}"
         return f"analyst={a} agentic={ag}{agn} watchdog={w} event={e}{nw}{s2}{th}{key}"
