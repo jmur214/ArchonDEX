@@ -429,12 +429,68 @@ def pull_usaspending(days_back: int = 7) -> str:
         return f"usaspending: FAILED ({type(e).__name__}: {e})"
 
 
+
+# --- T-336 / C5: the CREDIT-SPREAD RECOVERY (preservation first) --------------
+# FRED now serves only a ~3yr ROLLING window on the ICE BofA OAS series (verified
+# 2026-07-30: BAMLH0A0HYM2 returns 786 obs from 2023-07-31; `cosd=1996-12-31` does
+# NOT restore it, so the truncation is at source — consistent with an ICE licensing
+# change, which also explains why ALFRED vintage_date 404s). The 1996+ history is
+# recoverable ONLY from archived snapshots. Recovered once, then archived by us
+# forever: the live tail is appended daily onto the preserved deep history.
+OAS_SERIES = ["BAMLH0A0HYM2", "BAMLC0A4CBBB"]      # HY OAS, BBB OAS
+OAS_WAYBACK_SNAPSHOTS = ["20251104204105"]          # pre-truncation captures (CSV endpoint)
+
+
+def pull_credit_spread_oas() -> str:
+    """Deep ICE BofA OAS history: recover from Wayback (once), then append the live
+    rolling tail daily. Idempotent — the deep rows are written once and preserved."""
+    import gzip
+    out = []
+    for sid in OAS_SERIES:
+        try:
+            frames = []
+            # (1) the DEEP history, from pre-truncation archived snapshots
+            for ts in OAS_WAYBACK_SNAPSHOTS:
+                try:
+                    url = (f"https://web.archive.org/web/{ts}id_/"
+                           f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}")
+                    raw = _get(url, timeout=120)
+                    if raw[:2] == b"\x1f\x8b":
+                        raw = gzip.decompress(raw)
+                    frames.append(pd.read_csv(io.BytesIO(raw)))
+                except Exception:
+                    continue
+            # (2) the LIVE rolling tail (keeps the series current going forward)
+            try:
+                frames.append(pd.read_csv(io.BytesIO(_get(
+                    f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}", timeout=60))))
+            except Exception:
+                pass
+            if not frames:
+                out.append(f"{sid}: NO source reachable — LOUD")
+                continue
+            df = pd.concat(frames, ignore_index=True)
+            df.columns = ["observation_date", "value"][:len(df.columns)]
+            df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            df = df.dropna(subset=["value"])
+            df.insert(0, "series", sid)
+            _append(df, OUT_DIR / "credit_spread_oas.parquet", ["series", "observation_date"])
+            cur = pd.read_parquet(OUT_DIR / "credit_spread_oas.parquet")
+            cur = cur[cur["series"] == sid]
+            out.append(f"{sid}: {len(cur)} obs {cur.observation_date.min()}..{cur.observation_date.max()}")
+        except Exception as e:
+            out.append(f"{sid}: FAILED ({type(e).__name__})")
+    return ("credit_oas: " + " | ".join(out)
+            + "  [deep history from archived snapshots; FRED live serves ~3yr only]")
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for r in [pull_gpr(), pull_epu(),
               snapshot_polymarket(), snapshot_kalshi(),
               snapshot_kxfed(), pull_fred_rate_path(),
-              snapshot_cef(), pull_form4_index(), pull_usaspending()]:
+              snapshot_cef(), pull_form4_index(), pull_usaspending(),
+              pull_credit_spread_oas()]:
         print(f"[T136-D] {r}", flush=True)
     return 0
 
