@@ -87,9 +87,11 @@ class TestRunArchive:
         import scripts.archive_altdata_t136 as ad
         import scripts.archive_positioning_t136 as ap
         ok = lambda *a, **k: "ok"
-        for name in ["pull_gpr", "pull_epu", "pull_gdelt_timelines",
+        # T-335: gdelt retired to Archive/ — removed from this patch list.
+        for name in ["pull_gpr", "pull_epu",
                      "snapshot_polymarket", "snapshot_kalshi",
-                     "snapshot_kxfed", "pull_fred_rate_path"]:
+                     "snapshot_kxfed", "pull_fred_rate_path",
+                     "snapshot_cef", "pull_form4_index", "pull_usaspending"]:
             monkeypatch.setattr(ad, name, altdata_fn or ok)
         for name in ["pull_sec_ftd", "pull_naaim", "pull_finra_margin",
                      "pull_finra_short_interest"]:
@@ -100,20 +102,22 @@ class TestRunArchive:
 
     def test_a_raising_source_never_propagates(self, monkeypatch, tmp_path):
         def boom():
-            raise ConnectionError("gdelt 503")
+            raise ConnectionError("upstream 503")
         self._patch_archivers(monkeypatch, altdata_fn=boom, pos_raises=True)
         today = pd.Timestamp.now().strftime("%Y-%m-%d")
         _write_snapshot(tmp_path, "data/macro_data/alt/kalshi_snapshots.parquet", today, 5)
         res = aa.run_altdata_archive(str(tmp_path))          # must NOT raise
         assert res.ran is True
         assert any("FAILED" in r for r in res.reports)       # captured, not raised
-        assert res.degraded is False                         # kalshi still landed → healthy
+        # T-335: assert the SNAPSHOT component (tmp_path has no other feeds, so the
+        # cadence gate correctly reports them unmonitorable — a separate alarm).
+        assert res.snapshot_degraded is False                 # kalshi still landed → healthy
 
     def test_zero_snapshot_day_flags_degraded_loudly(self, monkeypatch, tmp_path):
         self._patch_archivers(monkeypatch)                   # sources "succeed" but write nothing
         # no snapshot parquets on disk at all → zero fresh rows everywhere
         res = aa.run_altdata_archive(str(tmp_path))
-        assert res.degraded is True
+        assert res.snapshot_degraded is True
         assert res.fresh_rows == {"kalshi": 0, "kxfed": 0, "polymarket": 0, "cef": 0}
         assert "ZERO market-snapshot" in res.reason
 
@@ -125,12 +129,12 @@ class TestRunArchive:
                         .replace("kxfed_", "kalshi_kxfed_"), "2000-01-01", 9)
         res = aa.run_altdata_archive(str(tmp_path))
         assert res.fresh_rows["kxfed"] == 0                  # stale rows are not fresh
-        assert res.degraded is True
+        assert res.snapshot_degraded is True
         # now land today's kxfed rows → healthy
         _write_snapshot(tmp_path, "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", today, 100)
         res2 = aa.run_altdata_archive(str(tmp_path))
         assert res2.fresh_rows["kxfed"] == 100
-        assert res2.degraded is False
+        assert res2.snapshot_degraded is False
 
 
 # ===================================================================== #
@@ -164,3 +168,41 @@ class TestHeartbeatAltdata:
         status = json.loads(hb.status_path.read_text())
         assert status["altdata"]["degraded"] is False
         assert not hb.alert_log.exists()          # no alert on a healthy day
+
+
+# ===================================================================== #
+# T-335 — the per-feed staleness-budget gate (the durable close of the
+# silent-stop class: no archiver outside the degraded-loudly gate)
+# ===================================================================== #
+class TestFeedHealthGate:
+    def test_every_live_feed_is_gated(self):
+        """The GDELT failure mode was 'archiver outside the gated set'. Any feed the
+        orchestrator runs must appear in _FEED_HEALTH — this test is the tripwire."""
+        gated = {n for n, *_ in aa._FEED_HEALTH}
+        for feed in ("kalshi", "kxfed", "polymarket", "cef", "form4", "usaspending",
+                     "regsho", "naaim", "sec_ftd", "finra_short_interest", "finra_margin"):
+            assert feed in gated, f"{feed} runs but is NOT gated — the GDELT failure mode"
+
+    def test_unparseable_dates_count_as_failure(self, tmp_path):
+        """You cannot monitor what you cannot age: a feed with no parseable date
+        column must FAIL the gate, not pass silently."""
+        detail, stale = aa.assess_feed_health(tmp_path)      # nothing on disk
+        assert stale, "missing feeds must be reported, not silently OK"
+        assert all(v["ok"] is False for v in detail.values())
+
+    def test_fresh_feed_within_budget_passes(self, tmp_path):
+        p = tmp_path / "data/macro_data/alt/cef_daily.parquet"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        today = pd.Timestamp.now().strftime("%Y-%m-%d")
+        pd.DataFrame({"snap_date": [today], "Ticker": ["X"]}).to_parquet(p, index=False)
+        detail, _ = aa.assess_feed_health(tmp_path)
+        assert detail["cef"]["ok"] is True and detail["cef"]["age_days"] == 0
+
+    def test_excel_serial_dates_are_ageable(self, tmp_path):
+        """NAAIM ships raw Excel serials — previously unageable, so unmonitorable."""
+        p = tmp_path / "data/positioning/naaim_exposure.parquet"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        serial = (pd.Timestamp.now().normalize() - pd.Timestamp("1899-12-30")).days
+        pd.DataFrame({"date": [serial]}).to_parquet(p, index=False)
+        detail, _ = aa.assess_feed_health(tmp_path)
+        assert detail["naaim"]["age_days"] == 0, "Excel serials must parse"
