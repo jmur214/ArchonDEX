@@ -40,6 +40,11 @@ _SNAPSHOT_FRESHNESS: List[Tuple[str, str, str]] = [
     ("kalshi", "data/macro_data/alt/kalshi_snapshots.parquet", "snap_date"),
     ("kxfed", "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", "snap_date"),
     ("polymarket", "data/macro_data/alt/polymarket_snapshots.parquet", "snap_date"),
+    # T-334: the CEF panel is a DAILY snapshot with the same silent-breakage risk
+    # (parquet dedup hides a dead endpoint). Form4/USASpending are NOT gated here:
+    # both legitimately gap (weekends/holidays, award-posting lag), so a zero day
+    # for them is not evidence of breakage — their counts are reported per-run.
+    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date"),
 ]
 
 
@@ -87,6 +92,9 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
             ("kalshi", ad.snapshot_kalshi),
             ("kxfed", ad.snapshot_kxfed),               # T-290 d2 rate-path
             ("fred_rate_path", ad.pull_fred_rate_path),  # T-290 d2 resolution
+            ("cef", ad.snapshot_cef),                     # T-334 CEF discount panel
+            ("form4", ad.pull_form4_index),               # T-334 EDGAR Form 4 index
+            ("usaspending", ad.pull_usaspending),         # T-334 federal awards
         ])
     except Exception as exc:
         reports.append(f"[D] archive_altdata import FAILED ({type(exc).__name__}: {exc})")

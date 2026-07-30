@@ -151,6 +151,16 @@ may be quoted as deployment evidence until the multi-decade extension lands.**
 Pre-register every future measurement (hypothesis + threshold + N_trials_consumed)
 BEFORE running.
 
+> **GUARD (added 2026-07-28, from a real error — Agent B):** feed the formula the
+> Sharpe of the **CLAIMED EDGE**, never a strategy's **ABSOLUTE** Sharpe when that
+> Sharpe is beta-dominated. A long/flat equity sleeve showed absolute Sharpe ~1.5 that
+> is mostly market exposure; its **ACTIVE** (difference-vs-benchmark) Sharpe was
+> **−0.210** on the same 64yr window. Plugging the absolute number in produced a
+> "clears DSR with 2.4-2.6× margin" claim that pointed the OPPOSITE way from the
+> decision-relevant quantity — and sat four lines from the same document's "the sleeve
+> LOSES to buy-hold." Deploy decisions ride on DIFFERENCE metrics; evaluate MBL on
+> those. See `docs/Audit/mbl_framing_correction_t306_arc_2026_07_28.md`.
+
 **Worked numbers / cross-ref:** `docs/Audit/honest_n_mbl_computation_2026_05_12.md`.
 First measurement to PASS MBL Gate-0 was T-053b on the 12-yr window (memory,
 2026-05-26). This is MBL Gate-0: it catches window length. It is orthogonal to

@@ -335,11 +335,131 @@ def pull_fred_rate_path() -> str:
         return f"fred_rate_path: FAILED ({type(e).__name__}: {e})"
 
 
+# --- T-334: the archive queue (hoard-now; each feed's VALUE accrues with history) --- #
+# SEC requires a declared UA with contact info (their fair-access policy).
+SEC_UA = {"User-Agent": "ArchonDEX Research jsm13700@gmail.com"}
+# The CEF fields worth keeping: the discount-capture signal set the parked T-267 alpha
+# needed (its data objection dissolves PROSPECTIVELY — nobody sells this PIT panel).
+CEF_FIELDS = ["Ticker", "Name", "SponsorName", "CategoryName", "NAV", "Price",
+              "Discount", "Discount52WkAvg", "IsDiscountBelow52WkAvg", "Price52WkAvg",
+              "ZScore3M", "ZScore6M", "ZScore1Yr", "ZScoreDate", "DistributionRateNAV",
+              "DistributionRatePrice", "DistributionFrequency", "DistributionDate",
+              "CurrentDistribution", "UNIIPerShare", "IsManagedDistribution",
+              "LeverageRatioPercentage", "IsLeveraged", "ExpenseRatio", "AvgDailyVolume",
+              "MarketCapUSDm", "TotalAssetsUSDm", "NAVPublished", "LastUpdated", "Cusip"]
+
+
+def snapshot_cef() -> str:
+    """Daily CEF panel: NAV, price, DISCOUNT (+52wk avg, z-scores), distribution rate.
+    CEFConnect's public DailyPricing endpoint. This is the point-in-time discount panel
+    T-267's alpha was parked for want of (paid CRSP); archived forward it becomes a
+    5-year-fuse asset nobody can buy retroactively."""
+    try:
+        # BROWSER UA required: CEFConnect stalls on our contact-info UA but serves a
+        # generic one in <1s (verified). Same UA-sensitivity class as the T-295 Yahoo
+        # 429 — a per-endpoint header quirk, not a rate limit.
+        _req = urllib.request.Request("https://www.cefconnect.com/api/v3/DailyPricing",
+                                      headers={"User-Agent": "Mozilla/5.0"})
+        rows = json.loads(urllib.request.urlopen(_req, timeout=120).read())
+        if not rows:
+            return "cef: 0 funds returned (endpoint changed?) — LOUD"
+        df = pd.DataFrame(rows)
+        keep = [c for c in CEF_FIELDS if c in df.columns]
+        df = df[keep].copy()
+        df.insert(0, "snap_date", SNAP_DATE)
+        _append(df, OUT_DIR / "cef_daily.parquet", ["snap_date", "Ticker"])
+        n = len(pd.read_parquet(OUT_DIR / "cef_daily.parquet"))
+        disc = pd.to_numeric(df.get("Discount"), errors="coerce")
+        return (f"cef: snapped {len(df)} funds ({len(keep)} fields); "
+                f"median discount {disc.median():.2f}%, "
+                f"{int((disc < -10).sum())} at >10% discount; parquet {n}")
+    except Exception as e:
+        return f"cef: FAILED ({type(e).__name__}: {e})"
+
+
+def pull_form4_index(days_back: int = 5) -> str:
+    """EDGAR Form 4 (insider transactions) DAILY-INDEX archive.
+
+    Scope note (honest): this archives the INDEX — who filed a Form 4, for which CIK,
+    when, and the accession path — NOT the parsed per-transaction XML. That is the
+    deliberate prerequisite the dispatch asked for: the opportunistic-vs-routine
+    classification needs accumulated HISTORY, and the index is what makes the filings
+    retrievable later. Per-filing XML parsing is a separate, larger task."""
+    try:
+        frames, hit, miss = [], [], []
+        for i in range(days_back):
+            d = pd.Timestamp.now().normalize() - pd.Timedelta(days=i)
+            if d.weekday() >= 5:
+                continue                                  # no dissemination on weekends
+            url = (f"https://www.sec.gov/Archives/edgar/daily-index/{d.year}/"
+                   f"QTR{(d.month - 1) // 3 + 1}/form.{d.strftime('%Y%m%d')}.idx")
+            try:
+                txt = _get(url, timeout=60).decode("latin-1")
+            except Exception:
+                miss.append(str(d.date()))                # holiday / not yet posted
+                continue
+            recs = []
+            for line in txt.splitlines():
+                p = line.split()
+                # fixed-width: [form, ...company..., CIK, date_filed, file_name]
+                if len(p) < 5 or p[0] != "4" or not p[-3].isdigit():
+                    continue
+                recs.append({"form_type": p[0], "company": " ".join(p[1:-3]),
+                             "cik": p[-3], "date_filed": p[-2], "file_name": p[-1],
+                             "archive_vintage": SNAP_DATE})
+            if recs:
+                frames.append(pd.DataFrame(recs))
+                hit.append(f"{d.date()}:{len(recs)}")
+        if not frames:
+            return f"form4: 0 rows across {days_back}d (missing {miss}) — LOUD"
+        allf = pd.concat(frames, ignore_index=True)
+        _append(allf, OUT_DIR / "edgar_form4_index.parquet",
+                ["cik", "date_filed", "file_name"])
+        n = len(pd.read_parquet(OUT_DIR / "edgar_form4_index.parquet"))
+        return (f"form4: archived {len(allf)} filings [{', '.join(hit)}]; "
+                f"{allf['cik'].nunique()} distinct CIKs; parquet {n} (INDEX only, not XML)")
+    except Exception as e:
+        return f"form4: FAILED ({type(e).__name__}: {e})"
+
+
+def pull_usaspending(days_back: int = 7) -> str:
+    """USASpending.gov federal contract awards (free, structured, underexplored).
+    Prime contract awards (types A-D) over the trailing window, largest first."""
+    try:
+        end = pd.Timestamp.now().normalize()
+        start = end - pd.Timedelta(days=days_back)
+        body = json.dumps({
+            "filters": {"time_period": [{"start_date": str(start.date()),
+                                         "end_date": str(end.date())}],
+                        "award_type_codes": ["A", "B", "C", "D"]},
+            "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency",
+                       "Awarding Sub Agency", "Start Date", "End Date",
+                       "Description", "recipient_id"],
+            "page": 1, "limit": 100, "sort": "Award Amount", "order": "desc"}).encode()
+        req = urllib.request.Request(
+            "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+            data=body, headers={**UA, "Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req, timeout=90).read()).get("results", [])
+        if not res:
+            return f"usaspending: 0 awards in {days_back}d window — LOUD"
+        df = pd.DataFrame(res)
+        df.insert(0, "snap_date", SNAP_DATE)
+        key = "Award ID" if "Award ID" in df.columns else "internal_id"
+        _append(df, OUT_DIR / "usaspending_awards.parquet", ["snap_date", key])
+        n = len(pd.read_parquet(OUT_DIR / "usaspending_awards.parquet"))
+        amt = pd.to_numeric(df.get("Award Amount"), errors="coerce")
+        return (f"usaspending: archived {len(df)} awards (top-100 by $) "
+                f"total ${amt.sum()/1e9:.2f}B, max ${amt.max()/1e6:.0f}M; parquet {n}")
+    except Exception as e:
+        return f"usaspending: FAILED ({type(e).__name__}: {e})"
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for r in [pull_gpr(), pull_epu(), pull_gdelt_timelines(),
               snapshot_polymarket(), snapshot_kalshi(),
-              snapshot_kxfed(), pull_fred_rate_path()]:
+              snapshot_kxfed(), pull_fred_rate_path(),
+              snapshot_cef(), pull_form4_index(), pull_usaspending()]:
         print(f"[T136-D] {r}", flush=True)
     return 0
 
