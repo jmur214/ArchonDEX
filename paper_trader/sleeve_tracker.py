@@ -219,9 +219,15 @@ class SleeveTracker:
                             if missing else ""))}
 
     def _summarize(self, pts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        # T-333 FRAMING — attached on EVERY path including the short-record one. A 1-day
+        # record is exactly when "is the sleeve winning?" is easiest to misread, so the
+        # framing must not wait for the record to mature. Imported, never re-typed, so
+        # this surface and A's digest cannot drift.
+        from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING
         exec_pts = [p for p in pts if "exec" in p]
         if len(pts) < 2:
-            base: Dict[str, Any] = {"status": "accruing", "n_days": len(pts)}
+            base: Dict[str, Any] = {"status": "accruing", "n_days": len(pts),
+                                    "sleeve_framing": SLEEVE_INSURANCE_FRAMING}
             if exec_pts:
                 base["execution_gates"] = self._eval_gates(exec_pts)
             return base
@@ -244,4 +250,8 @@ class SleeveTracker:
         if exec_pts:
             out["execution_gates"] = self._eval_gates(exec_pts)
         out['cash_adj'] = self._cash_adj_summary(pts)
+        # T-333 FRAMING — travels WITH the numbers (a doc does not). Imported, never
+        # re-typed, so this surface and A's digest cannot drift apart. The raw record
+        # above is byte-unchanged; this is a framing field like the NOT-EVALUABLE guard.
+        out['sleeve_framing'] = SLEEVE_INSURANCE_FRAMING
         return out

@@ -53,6 +53,36 @@ ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness
 # SAME Alpaca stock path the books already use — zero new deps, and it is the honest
 # counterfactual (what a cash sweep could really have earned, net of the fund's ER).
 CASH_RATE_TICKER = "BIL"
+
+# --- T-333 SLEEVE FRAMING (the canonical wording; ONE source of truth) ------------------
+# T-333 measured the sleeve's excess-of-cash attribution: timing ~80% / cash ~20%, and the
+# TIMING component is significantly VALUE-DESTROYING net of cash in the modern era
+# (−5.16pp/yr, CI excludes 0) — "a drawdown instrument bought with return, priced
+# precisely." That does not invalidate the sleeve: the drawdown protection is real and the
+# price of it is now known. But it DOES change the honest question a live sleeve record
+# answers. A record that reads as "is the sleeve winning?" would be misleading even when
+# every number in it is correct.
+#
+# This is a FRAMING field of the same class as the NOT-EVALUABLE guard: it travels WITH the
+# numbers because a doc does not. Raw records are byte-unchanged.
+#
+# A's digest imports THIS constant rather than re-typing the wording, so the two surfaces
+# cannot drift apart.
+SLEEVE_HONEST_QUESTION = ("what does the drawdown insurance COST, live? — NOT 'is the "
+                          "sleeve winning?'")
+SLEEVE_INSURANCE_FRAMING = {
+    "honest_question": SLEEVE_HONEST_QUESTION,
+    "can_evidence": ("the live, realized PRICE of the sleeve's drawdown protection: its "
+                     "return give-up vs the twin alongside the drawdown it actually "
+                     "avoided, at measured costs."),
+    "cannot_evidence": ("that the sleeve 'beats' its twin on return. T-333 measured the "
+                        "timing component as significantly VALUE-DESTROYING net of cash in "
+                        "the modern era (−5.16pp/yr, CI excludes 0); the sleeve is a "
+                        "drawdown instrument bought WITH return. A live record showing the "
+                        "sleeve behind its twin is the EXPECTED shape, not a failure — and "
+                        "one showing it ahead over a short window is not a refutation of "
+                        "T-333."),
+    "source": "T-333 excess-of-cash attribution (2026-07-28)"}
 DEFAULT_NOTIONAL = 100_000.0   # the book's own unit; twins share it unless stated
 
 
@@ -148,7 +178,8 @@ SLEEVE_TIER50K = BookSpec(
                  "and rebalance granularity vs the same sleeve at $50K — the capital-adaptive "
                  "lesson, measured live instead of assumed.",
     cannot_evidence="which tier is 'better' as a strategy — the STRATEGY is identical by "
-                    "construction; only the granularity differs.")
+                    "construction; only the granularity differs. AND (T-333): neither side "
+                    "evidences that the sleeve 'wins' — " + SLEEVE_INSURANCE_FRAMING["cannot_evidence"])
 
 ALL_BOOKS: tuple = (SPY_NULL, DAMPED_OFFENSE, QUALITY_SAT, SLEEVE_TIER50K)
 
@@ -307,7 +338,9 @@ class LiveBook:
         """The frozen t=0 contract + where the record stands. The CAN/CANNOT lines travel
         WITH the numbers so a short record is never read as a verdict."""
         s = self.summary()
-        return {**s, "gate": self.spec.gate,
+        extra = ({"sleeve_framing": SLEEVE_INSURANCE_FRAMING}
+                 if "sleeve" in self.spec.name else {})
+        return {**s, **extra, "gate": self.spec.gate,
                 "can_evidence": self.spec.can_evidence,
                 "cannot_evidence": self.spec.cannot_evidence,
                 "verdict": f"NOT EVALUABLE — {s['days_accrued']} clean days accrued; "
