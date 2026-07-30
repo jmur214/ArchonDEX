@@ -136,31 +136,6 @@ def pull_epu() -> str:
     return "epu: " + ", ".join(got) + " | revision-prone constructed index; vintage-stamped"
 
 
-def pull_gdelt_timelines() -> str:
-    got = []
-    for bucket, query in [
-        ("geopolitics", '"geopolitical risk"'),
-        ("fed_policy", '"federal reserve"'),
-        ("recession", "recession"),
-    ]:
-        try:
-            url = ("https://api.gdeltproject.org/api/v2/doc/doc?query="
-                   + urllib.request.quote(query)
-                   + "&mode=timelinetone&timespan=12m&format=json")
-            data = json.loads(_get(url, timeout=60))
-            series = data["timeline"][0]["data"]
-            df = pd.DataFrame(series)
-            df["bucket"] = bucket
-            df["archive_vintage"] = SNAP_DATE
-            _append(df, OUT_DIR / "gdelt_tone_timelines.parquet",
-                    ["date", "bucket"])
-            got.append(f"{bucket}({len(df)})")
-        except Exception as e:
-            got.append(f"{bucket} FAILED ({type(e).__name__})")
-        time.sleep(6.0)  # GDELT fair-use: one request per 5 seconds (429 otherwise)
-    return ("gdelt: " + ", ".join(got)
-            + " | NOTE: 1979+ BULK events = BigQuery/bulk job, flagged follow-up")
-
 
 def snapshot_polymarket() -> str:
     try:
@@ -456,7 +431,7 @@ def pull_usaspending(days_back: int = 7) -> str:
 
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for r in [pull_gpr(), pull_epu(), pull_gdelt_timelines(),
+    for r in [pull_gpr(), pull_epu(),
               snapshot_polymarket(), snapshot_kalshi(),
               snapshot_kxfed(), pull_fred_rate_path(),
               snapshot_cef(), pull_form4_index(), pull_usaspending()]:
