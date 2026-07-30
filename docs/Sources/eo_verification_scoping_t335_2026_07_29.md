@@ -224,3 +224,131 @@ propose-first gate is being requested. N_trials = 0.
 - [Tracking Every Data Center Permit Filed in 2026 (Buildermuse)](https://buildermuse.com/commercial/tracking-every-data-center-permit-filed-in/)
 - [Tracking Hyperscale AI Data Center Growth with Satellite Imagery (FAS)](https://fas.org/publication/tracking-hyperscale/)
 - [Data center permits and decisions (Shovels.ai)](https://www.shovels.ai/blog/data-center-permits-decisions/)
+
+---
+---
+# T-335b ADDENDUM (2026-07-29) — the probe broadens: **cheapest honest resolver per sub-claim CLASS**
+
+Per the rider, the question is no longer "can EO verify?" but **"what is the cheapest honest resolver for each
+sub-claim class?"** — with EO earning a place only for claims nothing cheaper resolves. Also banked here: the
+PIT scrutiny checklist as a standing test, the GDELT probe answer, and the park's reversibility.
+
+## PARK STATUS — recorded as **reversible**
+**EO is parked AT THE SUBSTRATE, not refuted AT THE IDEA.** The verification-layer *idea* was adopted (it
+became `records_progress`); only the satellite substrate lost. Two of the three PARK grounds are
+**constraint-dependent and could move**: cadence (a sub-annual AlphaEarth product, or a free tier with
+pre-registerable tasking) and licensing/cost. The third (text arrives earlier) is structural but **domain-
+specific** — it holds for US-listed capex build-out, not necessarily for a future non-disclosing subject.
+**This is the CEF pattern:** a park revived when its constraint moves. The Q3 resolver spec is the design
+already drafted; the 4-condition gate is the trigger.
+
+**Licensing footnote (user's challenge, resolved):** the user fairly pushed back on "our use is commercial" —
+a private individual trading their own account fits no enumerated GEE noncommercial category but is not
+obviously a business either. **Resolution adopted:** the conservative read stands **as policy** (a system that
+may someday touch real money takes the strict reading, and at real-money time it becomes unambiguous), and the
+question is **moot for the surviving substrate** — Copernicus direct is $0 including commercial use.
+
+## THE RESOLVER TAXONOMY — one spec per class, cheapest-first
+All four share the Q3 skeleton (**target hashed at filing**, frozen window + threshold, pinned
+`method_version`, **fail-closed `UNRESOLVED`** when the record is absent, and rejection of any datum
+timestamped after the resolve window). What differs is the substrate and the failure modes.
+
+| class | substrate | cost | freshness | verdict |
+|---|---|---|---|---|
+| **power / grid** | **EIA Open Data API v2** | **$0** (free, API-key registration) | **hourly** electric-power operations (demand, net generation, interchange) | **PRIMARY** |
+| **government contract** | **USASpending** (T-334 archiving) | $0 | award-posting cadence (days) | **PRIMARY** |
+| **filings / disclosure** | **EDGAR** (already ours) | $0 | minutes-hours | **PRIMARY** |
+| **records-progress** (permits, interconnection queue, capex guides) | public trackers + ISO queues + EDGAR | $0 | **daily** | **PRIMARY** (approved for the freeze) |
+| **physical build-out** | Sentinel-2 (direct, never GEE) | $0 imagery | 5-day revisit, YoY-clean only | **LAST RESORT** — only where nothing above serves |
+
+### 1. `eia_series_change` — the power/grid resolver (tested BEFORE imagery, per the rider)
+```
+{ "type": "eia_series_change",
+  "series_id":      "<EIA v2 route + facets>",   # e.g. hourly net generation for a named BA/region
+  "series_sha256":  "<hex>",                     # the route+facet set hashed at filing (no post-hoc reshaping)
+  "agg":            "monthly_mean" | "monthly_sum",
+  "baseline_window":["2026-Q2"], "resolve_window":["2027-Q1"],
+  "threshold":      {"op":"gt","value":0.10},    # +10%
+  "min_obs":        60,                          # else UNRESOLVED, fail-closed
+  "method_version": "eia_v1" }
+```
+**Why it beats imagery for the same underlying claim:** a datacenter build-out thesis's *economic* content is
+**load growth**, and EIA measures load **directly, hourly, free** — where Sentinel-2 measures a *proxy* (roof
+pixels) at 5-day revisit with cloud gaps and seasonality. **Directly-measured hourly beats proxy-measured
+seasonal, at the same price.**
+**Honest limits:** EIA reports at balancing-authority/region granularity, **not per-facility** — so it cannot
+attribute load to a *named company's* site (that attribution is the imagery/permit job). Revisions occur, so
+the resolver must pin the **vintage** it read, or a later revision silently changes a settled outcome.
+
+### 2. `usaspending_award` — the government-contract resolver
+```
+{ "type":"usaspending_award", "recipient_uei":"<UEI>", "naics"|"psc":"<code>",
+  "target_sha256":"<hex>", "window":["2026-10-01","2027-03-31"],
+  "metric":"obligated_usd_sum", "threshold":{"op":"gt","value":50000000},
+  "min_records":1, "method_version":"usasp_v1" }
+```
+**Key**: key on **UEI**, not company name — names change, subsidiaries proliferate, and a name-matched resolver
+silently resolves the wrong entity. Fail-closed if the UEI can't be resolved at filing time.
+
+### 3. `edgar_fact_change` — the filings resolver
+```
+{ "type":"edgar_fact_change", "cik":"<10-digit>", "xbrl_tag":"<us-gaap concept>",
+  "target_sha256":"<hex>", "baseline_period":"CY2026Q2", "resolve_period":"CY2027Q1",
+  "threshold":{"op":"gt","value":0.20}, "use":"first_reported",   # NOT the restated value
+  "method_version":"edgar_v1" }
+```
+**`use: "first_reported"` is load-bearing** — the same PIT rule as T-265's `companyconcept` work: scoring
+against a *restated* figure is hindsight. Reuses machinery we already have.
+
+### 4. `eo_area_change` — physical build-out (the Q3 spec), **LAST RESORT**
+Unchanged from Q3, now explicitly demoted: **use only for a claim that (a) no records/EIA/EDGAR route serves
+and (b) clears the 4-condition gate.** Its weaknesses (reproducible≠accurate; cloud cover as a *correlated*
+selection bias on which claims resolve; seasonality forcing YoY) are the reason it sits last.
+
+**The taxonomy's own rule, stated for the freeze:** *a sub-claim must use the cheapest substrate that can
+resolve it.* A thesis proposing an EO resolver where an EIA/records/EDGAR route exists should be **rejected at
+validation** — not because EO is bad, but because the cheaper route resolves earlier and with fewer failure
+modes. That is a contract rule, not a preference.
+
+## GDELT — the probe answer, and **three findings the rider didn't anticipate**
+1. **GDELT is ALREADY archived.** `paper_trader/altdata_archive.py:90` maps `("gdelt", pull_gdelt_timelines)`
+   via the T-136 archivers. So "no archiver until a named consumer exists" is **already violated** — not
+   prospectively, retroactively.
+2. **What is archived is NOT what the rider proposes.** On disk:
+   `data/macro_data/alt/gdelt_tone_timelines.parquet` — **345 daily rows, aggregate TONE by bucket**. The
+   rider describes the **15-min global EVENT tape**. Aggregate daily tone is a *macro sentiment series*, not
+   tape breadth; it cannot add per-name coverage to the thesis desk no matter how it's consumed.
+3. **⚠️ The archive is STALE — last row `2026-06-11`, ~7 weeks ago** (span 2025-07-02 → 2026-06-11, 345
+   distinct days). The module's own docstring warns GDELT "already 503s intermittently," and a dedup'd parquet
+   leaves the file the *same size* on a zero-snapshot day — **the documented silent-stop failure mode, now
+   apparently realized.** This is the same class as the 2-week paper outage: a collector that stopped without
+   anyone noticing. **Flagging for whoever owns the archivers (B's lane) — I did not touch it.**
+
+**GDELT verdict: NOT a thesis-tape breadth candidate as archived** (wrong object), and the correct next action
+is not "add a consumer" but **fix-or-retire the stale collector**. If tape breadth is genuinely wanted later,
+that is a *new* proposal for the 15-min event API — which must answer the PIT checklist below first.
+
+## BANKED — the PIT scrutiny checklist (standing provider-evaluation test)
+**Any future data-provider proposal — paid or free — answers all five BEFORE it reaches the director:**
+1. **Delisted coverage** — are dead names present, or is the panel survivor-biased? (T-265: 36% CIK↔ticker join
+   loss was exactly this.)
+2. **No silent backfill** — does the provider retroactively insert history into past vintages?
+3. **Correction history preserved** — can you read what was *known then*, not just what is true now? (The
+   T-265 `first_reported` rule and the `edgar_fact_change` `use` field both exist for this.)
+4. **Recycled-ticker symbology** — is identity keyed on a stable id (CIK/UEI/PERMNO) or on a reusable ticker?
+   (T-271: BBBY/CBL returned *phantom* bars past delisting on a recycled symbol.)
+5. **PIT-constituent mapping quality** — is index/sector membership as-of-date, or today's membership projected
+   backwards?
+
+Each of these has already burned this project at least once, which is why it is a checklist and not advice.
+
+## Addendum recommendation
+- **`records_progress` + `eia_series_change` are the freeze additions**; `usaspending_award` and
+  `edgar_fact_change` are drafted and ready behind them (both on substrates we already hold).
+- **EO stays parked, reversibly**, and demoted to last-resort within the taxonomy rather than removed.
+- **GDELT: no consumer; fix-or-retire the stale collector** (B's lane) — flagged, not touched.
+- Nothing built here either. **N_trials = 0.**
+
+## Sources (addendum)
+- [EIA's API Technical Documentation](https://www.eia.gov/opendata/documentation.php)
+- [EIA Open Data (registration / free API key)](https://www.eia.gov/opendata/)
