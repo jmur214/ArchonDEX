@@ -29,6 +29,31 @@ from typing import Any, Optional
 ROOT = Path(__file__).resolve().parents[2]
 DIGEST = ROOT / "docs" / "State" / "performance_digest.md"
 
+
+def sleeve_framing() -> Optional[dict]:
+    """C's SLEEVE_INSURANCE_FRAMING — imported BY IDENTITY, never copied or restated.
+
+    One object, one wording, everywhere (tracker, books, digest). If the framing ever
+    changes, every surface changes with it; a local paraphrase here would silently
+    drift from the record C is publishing. Returns None off-tree (fail-open: the digest
+    still renders, it just omits a framing it cannot authentically source)."""
+    try:
+        from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING
+        return SLEEVE_INSURANCE_FRAMING
+    except Exception:       # noqa: BLE001 — never fail the digest over a framing import
+        return None
+
+
+# Streams whose read is governed by the insurance framing (T-333): a sleeve is a
+# DRAWDOWN instrument bought WITH return, so "behind its twin" is the EXPECTED shape.
+SLEEVE_STREAM_HINTS = ("sleeve", "trend", "damped", "offense", "tier50k", "quality_sat")
+
+
+def is_sleeve_stream(name: str) -> bool:
+    n = (name or "").lower()
+    return any(h in n for h in SLEEVE_STREAM_HINTS)
+
+
 MIN_DAYS_FOR_VERDICT = 60      # below this, "too early to say" is the ONLY verdict
 MATERIAL_DOLLARS = 50.0        # per $10K: smaller gaps read as "roughly matching"
 
@@ -122,9 +147,20 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
 
     out = [f"# Performance digest — {as_of}", "",
            "*Auto-generated weekly. Informational only — this digest reports what the",
-           "machine did; it does not recommend, schedule, or prompt any decision.*", "",
-           l1, l2, l3, "", "---", "",
-           "## Per-stream", "",
+           "machine did; it does not recommend, schedule, or prompt any decision.*", ""]
+
+    # T-333 (digest v1.3): C's insurance framing, rendered VERBATIM from the imported
+    # object whenever a sleeve stream is present — the question the sleeve rows answer.
+    fr = sleeve_framing()
+    sleeve_rows = [r for r in rows if is_sleeve_stream(r["stream"])]
+    if fr and sleeve_rows:
+        out += [f"> **Sleeve rows answer:** {fr['honest_question']}",
+                f"> **Can evidence:** {fr['can_evidence']}",
+                f"> **Cannot evidence:** {fr['cannot_evidence']}",
+                f"> *(source: {fr['source']})*", ""]
+
+    out += [l1, l2, l3, "", "---", "",
+            "## Per-stream", "",
            "| stream | vs benchmark (per $10K) | current drawdown | days | read |",
            "|---|---|---|---|---|"]
     for r in rows:
@@ -134,6 +170,17 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
                 f"{MIN_DAYS_FOR_VERDICT} days of record, no matter how good or bad its "
                 f"numbers look. Gaps under ${MATERIAL_DOLLARS:,.0f} per $10K read as "
                 f"\"roughly matching\" — inside the noise.*"]
+
+    # T-333 (digest v1.3): a sleeve AHEAD of its twin is the seductive error — a short
+    # lead is NOT a refutation of T-333. C's `cannot_evidence` is rendered verbatim
+    # exactly where that misread would otherwise happen.
+    ahead = [r for r in sleeve_rows if (r["delta_per_10k"] or 0) > 0]
+    if fr and ahead:
+        out += ["", "### Sleeve ahead of its twin — read this before concluding anything", ""]
+        for r in ahead:
+            out.append(f"- **{r['stream']}** is ahead by {_fmt_money(r['delta_per_10k'])} "
+                       f"per $10K over {r['n_days'] or 0} days.")
+        out += [f"  - *{fr['cannot_evidence']}*"]
 
     # T-332a (C's rider): the cash-drag ANNOTATION as a SECONDARY line under the raw
     # record — never a replacement column — with each note carried VERBATIM.
