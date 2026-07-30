@@ -114,7 +114,7 @@ class TestRunArchive:
         # no snapshot parquets on disk at all → zero fresh rows everywhere
         res = aa.run_altdata_archive(str(tmp_path))
         assert res.degraded is True
-        assert res.fresh_rows == {"kalshi": 0, "kxfed": 0, "polymarket": 0}
+        assert res.fresh_rows == {"kalshi": 0, "kxfed": 0, "polymarket": 0, "cef": 0}
         assert "ZERO market-snapshot" in res.reason
 
     def test_fresh_rows_defeat_dedup_blindness(self, monkeypatch, tmp_path):
