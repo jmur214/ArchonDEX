@@ -110,3 +110,46 @@ def test_no_annotation_section_when_no_stream_has_one():
     text = pd_.render(pd_.build_rows({"b": {"book_nav": 1.01, "twin_nav": 1.0, "n_days": 90}}),
                       "2026-07-29")
     assert "Cash-drag annotation" not in text
+
+
+# ── digest v1.3 (T-333): C's insurance framing, imported BY IDENTITY ───────────
+def _sleeve(delta_nav: float, n_days: int = 200):
+    return {"account-1 trend sleeve (paper)": {
+        "book_nav": 1.0 + delta_nav, "twin_nav": 1.0, "n_days": n_days,
+        "current_drawdown_pct": -2.0}}
+
+
+def test_digest_uses_C_framing_object_BY_IDENTITY():
+    """Extends C's identity test to the DIGEST surface: one object, one wording."""
+    from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING
+    assert pd_.sleeve_framing() is SLEEVE_INSURANCE_FRAMING     # identity, not equality
+
+
+def test_framing_header_renders_verbatim_on_sleeve_rows():
+    from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING as F
+    text = pd_.render(pd_.build_rows(_sleeve(-0.01)), "2026-07-30")
+    assert F["honest_question"] in text          # verbatim, unedited
+    assert F["can_evidence"] in text
+    assert F["cannot_evidence"] in text
+    assert F["source"] in text
+
+
+def test_no_framing_header_when_no_sleeve_stream():
+    text = pd_.render(pd_.build_rows({"llm shadow book": {"book_nav": 1.01, "twin_nav": 1.0,
+                                                          "n_days": 90}}), "2026-07-30")
+    assert "Sleeve rows answer" not in text
+
+
+def test_sleeve_AHEAD_triggers_the_not_a_refutation_clause():
+    """The seductive error: a short lead is NOT a refutation of T-333."""
+    from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING as F
+    text = pd_.render(pd_.build_rows(_sleeve(+0.02)), "2026-07-30")
+    assert "Sleeve ahead of its twin" in text
+    assert F["cannot_evidence"] in text.split("Sleeve ahead of its twin")[1]
+    # and the verdict still comes off the raw record, unchanged by the framing
+    assert "beating its benchmark" in text
+
+
+def test_sleeve_behind_does_not_trigger_the_ahead_section():
+    text = pd_.render(pd_.build_rows(_sleeve(-0.02)), "2026-07-30")
+    assert "Sleeve ahead of its twin" not in text     # behind is the EXPECTED shape
