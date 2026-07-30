@@ -69,6 +69,8 @@ _FEED_HEALTH: List[Tuple[str, str, str, int, str]] = [
     # T-334 feeds (weekday / posting-lag cadence)
     ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso"),
     ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso"),
+    ("credit_oas", "data/macro_data/alt/credit_spread_oas.parquet",
+     "observation_date", 7, "iso"),          # T-336 C5 (deep history + live tail)
     # positioning: real cadences are weekly → twice-monthly → monthly (+ publication lag)
     ("regsho", "data/positioning/finra_regsho_short_volume.parquet", "date", 7, "iso"),
     ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel"),
