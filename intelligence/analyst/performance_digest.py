@@ -69,18 +69,31 @@ def _fmt_pct(x: Optional[float]) -> str:
 
 
 def build_rows(streams: dict[str, dict]) -> list[dict]:
-    """One row per stream (real accounts + books). Missing data → reported, not dropped."""
+    """One row per stream (real accounts + books). Missing data → reported, not dropped.
+
+    T-332a (C's rider): a stream may carry a `cash_adj` ANNOTATION (what idle cash
+    WOULD have earned — live paper cash earns 0% while the backtest spec credits the
+    short rate). It is captured as a SECONDARY line, never a replacement column, and
+    its `note` string travels VERBATIM — the disclaimer is what stops the annotation
+    from being read as the record.
+    """
     rows = []
     for name in sorted(streams):
         s = streams[name] or {}
         d = _per_10k(s.get("book_nav"), s.get("twin_nav"))
+        ca = s.get("cash_adj") or {}
+        adj_d = _per_10k(ca.get("book_nav_cash_adj"), ca.get("twin_nav_cash_adj")) if ca else None
         rows.append({
             "stream": name,
-            "delta_per_10k": d,
+            "delta_per_10k": d,                     # THE RECORD (raw NAV)
             "current_drawdown_pct": s.get("current_drawdown_pct"),
             "n_days": s.get("n_days"),
-            "verdict": verdict(d, s.get("n_days")),
+            "verdict": verdict(d, s.get("n_days")),  # verdict is ALWAYS off the raw record
             "missing": not s or s.get("book_nav") is None,
+            # annotation only — carried separately so it can never occupy the column
+            "cash_adj_per_10k": adj_d,
+            "cash_adj_note": ca.get("note") or None,
+            "cash_adj_rate_missing_days": ca.get("rate_missing_days"),
         })
     return rows
 
@@ -121,6 +134,21 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
                 f"{MIN_DAYS_FOR_VERDICT} days of record, no matter how good or bad its "
                 f"numbers look. Gaps under ${MATERIAL_DOLLARS:,.0f} per $10K read as "
                 f"\"roughly matching\" — inside the noise.*"]
+
+    # T-332a (C's rider): the cash-drag ANNOTATION as a SECONDARY line under the raw
+    # record — never a replacement column — with each note carried VERBATIM.
+    annotated = [r for r in rows if r.get("cash_adj_per_10k") is not None]
+    if annotated:
+        out += ["", "### Cash-drag annotation (secondary — not the record)", ""]
+        for r in annotated:
+            out.append(f"- **{r['stream']}** — raw: **{_fmt_money(r['delta_per_10k'])}** per $10K "
+                       f"(the record) · cash-adjusted: {_fmt_money(r['cash_adj_per_10k'])} per $10K"
+                       + (f" · {r['cash_adj_rate_missing_days']} day(s) missing a rate"
+                          if r.get("cash_adj_rate_missing_days") else ""))
+            if r.get("cash_adj_note"):
+                out.append(f"  - *{r['cash_adj_note']}*")   # verbatim, unedited
+        out += ["", "*The verdicts above are computed from the RAW record only; the "
+                    "cash-adjusted figures never change a read.*"]
     if missing:
         out += ["", "## Not reporting", "",
                 *[f"- **{r['stream']}** — no data this period (investigate; a stream that "

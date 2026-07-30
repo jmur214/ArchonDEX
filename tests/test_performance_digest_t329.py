@@ -69,3 +69,44 @@ def test_generate_is_fail_open(tmp_path):
     res = pd_.generate({"x": {"book_nav": "not-a-number", "twin_nav": 1.0, "n_days": 10}},
                        "2026-07-28", out_path=tmp_path / "d2.md", archive=False)
     assert isinstance(res, dict) and "ok" in res          # never raises into the pulse
+
+
+# ── T-332a rider (C): the cash-drag annotation is SECONDARY, never the record ──
+_CA_NOTE = ("ANNOTATION ONLY — the raw NAV above is the record. Live paper cash earns "
+            "0%; the backtest spec credits the short rate, so this shows what that gap "
+            "is worth. Never a restatement.")
+
+
+def _stream_with_cash_adj():
+    return {"book": {"book_nav": 1.000, "twin_nav": 1.000, "n_days": 200,
+                     "current_drawdown_pct": -2.0,
+                     "cash_adj": {"book_nav_cash_adj": 1.000, "twin_nav_cash_adj": 1.030,
+                                  "rate_missing_days": 2, "note": _CA_NOTE}}}
+
+
+def test_cash_adj_is_secondary_never_replaces_the_record():
+    rows = pd_.build_rows(_stream_with_cash_adj())
+    r = rows[0]
+    # raw record: flat vs twin -> "roughly matching". The annotation says -$300/10K.
+    assert r["delta_per_10k"] == 0.0
+    assert r["cash_adj_per_10k"] == -300.0
+    # THE LAW: the verdict is computed off the RAW record, never the annotation
+    assert r["verdict"].startswith("roughly matching")
+    text = pd_.render(rows, "2026-07-29")
+    # the table column carries the RAW number; the annotation lives in its own section
+    table = text.split("### Cash-drag annotation")[0]
+    assert "−$300" not in table and "-$300" not in table
+    assert "Cash-drag annotation (secondary — not the record)" in text
+
+
+def test_cash_adj_note_is_carried_verbatim_and_missing_days_surfaced():
+    text = pd_.render(pd_.build_rows(_stream_with_cash_adj()), "2026-07-29")
+    assert _CA_NOTE in text                     # verbatim, unedited — the disclaimer travels
+    assert "2 day(s) missing a rate" in text
+    assert "verdicts above are computed from the RAW record only" in text
+
+
+def test_no_annotation_section_when_no_stream_has_one():
+    text = pd_.render(pd_.build_rows({"b": {"book_nav": 1.01, "twin_nav": 1.0, "n_days": 90}}),
+                      "2026-07-29")
+    assert "Cash-drag annotation" not in text
