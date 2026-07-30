@@ -318,15 +318,41 @@ modes. That is a contract rule, not a preference.
    `data/macro_data/alt/gdelt_tone_timelines.parquet` — **345 daily rows, aggregate TONE by bucket**. The
    rider describes the **15-min global EVENT tape**. Aggregate daily tone is a *macro sentiment series*, not
    tape breadth; it cannot add per-name coverage to the thesis desk no matter how it's consumed.
-3. **⚠️ The archive is STALE — last row `2026-06-11`, ~7 weeks ago** (span 2025-07-02 → 2026-06-11, 345
-   distinct days). The module's own docstring warns GDELT "already 503s intermittently," and a dedup'd parquet
-   leaves the file the *same size* on a zero-snapshot day — **the documented silent-stop failure mode, now
-   apparently realized.** This is the same class as the 2-week paper outage: a collector that stopped without
-   anyone noticing. **Flagging for whoever owns the archivers (B's lane) — I did not touch it.**
+3. **~~The archive is STALE~~ — ⛔ THIS FINDING WAS WRONG. RETRACTED 2026-07-30 (T-335c).**
+   **GDELT was NOT broken and the collector had NOT stopped.** The canonical store reaches **2026-07-29**
+   (1,128 rows) — the 503s had cleared and collection resumed. **My error:** I read
+   `data/macro_data/alt/gdelt_tone_timelines.parquet` **in my own worktree** (345 rows, last 2026-06-11) and
+   reported it as *the collector's* state, without checking it was canonical. It was a **stale worktree-local
+   copy**. Cause and rule recorded below — retained rather than deleted so "GDELT was broken" cannot harden
+   into folklore, which is exactly how a wrong number survives.
+   *(Retirement proceeded anyway on the two grounds that DO survive: zero consumers, and the archived shape —
+   daily aggregate tone — cannot serve per-name tape breadth at any depth. The class-level fix, all 14 feeds
+   now cadence-gated, stands regardless.)*
 
-**GDELT verdict: NOT a thesis-tape breadth candidate as archived** (wrong object), and the correct next action
-is not "add a consumer" but **fix-or-retire the stale collector**. If tape breadth is genuinely wanted later,
-that is a *new* proposal for the 15-min event API — which must answer the PIT checklist below first.
+### 🔁 The reusable rule this error produced (worth more than the finding was)
+**A worktree-LOCAL copy of an ACTIVELY-COLLECTED store silently diverges from canon; a local copy of a
+BATCH-REBUILT panel does not.** Divergence risk is proportional to collection cadence — which makes it
+invisible precisely where it matters most (daily feeds).
+
+In this worktree, `data/` splits **18 symlinked** (always canonical: `processed`, `research`, `intel`, `macro`,
+`news`, `coordination`, …) vs **6 LOCAL** (`edgar`, `governor`, `insider_sec`, `macro_data`, `measurements`,
+`positioning`). I audited the local ones my own code reads:
+| store | mine | canon | diverged? |
+|---|---|---|---|
+| `edgar/8k/panel_8k_items.parquet` (event-interpreter feed) | 3,771,022 B @2026-06-10 | identical | **no** — batch-rebuilt |
+| `edgar/13f/ownership_panel.parquet` (T-265 coverage axis) | 11,631,255 B @2026-06-10 | identical | **no** — batch-rebuilt |
+| `macro_data/alt/gdelt_tone_timelines.parquet` | 7,759 B @2026-06-10 | **14,679 B @2026-07-29** | **YES** — daily collector |
+
+**So my own lane is clean** (both EDGAR panels byte-identical to canon), and the one divergence is exactly the
+actively-collected store. **Standing check, cheap and now stated:** before reporting the freshness or state of
+ANY store from a worktree, confirm the path is symlinked to canon — or read canon directly. Same family as the
+T-289 "a lone significant result in a fresh harness is a bug hypothesis first" and the calendar-hole class:
+**I generalized from one artifact without checking it was the canonical one.**
+
+**GDELT verdict: NOT a thesis-tape breadth candidate as archived** (wrong object — daily aggregate tone cannot
+serve per-name breadth), and it was **retired for having zero consumers**, not for being broken (see the
+retraction above: it was never broken). If tape breadth is genuinely wanted later, that is a *new* proposal for
+the 15-min event API — which must answer the PIT checklist below first.
 
 ## BANKED — the PIT scrutiny checklist (standing provider-evaluation test)
 **Any future data-provider proposal — paid or free — answers all five BEFORE it reaches the director:**
@@ -346,7 +372,8 @@ Each of these has already burned this project at least once, which is why it is 
 - **`records_progress` + `eia_series_change` are the freeze additions**; `usaspending_award` and
   `edgar_fact_change` are drafted and ready behind them (both on substrates we already hold).
 - **EO stays parked, reversibly**, and demoted to last-resort within the taxonomy rather than removed.
-- **GDELT: no consumer; fix-or-retire the stale collector** (B's lane) — flagged, not touched.
+- **GDELT: retired for having no consumer + the wrong archived shape.** (My "stale collector" claim was WRONG
+  and is retracted above — it was never broken; I had read a stale worktree-local copy.)
 - Nothing built here either. **N_trials = 0.**
 
 ## Sources (addendum)
