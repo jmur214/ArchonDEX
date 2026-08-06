@@ -52,4 +52,36 @@ Stooq (and hence the panel) **captures part of the dividend and misses the rest.
 - **CANNOT:** revive the equity book on its own. Even the upper end (+0.08 Sharpe on a value sub-book) leaves the honest base far below the deployable bar; a pass means "the closure was not a dividend artifact," not "the book works."
 - **N_trials += 1** at run. A null teaches: the largest unexamined assumption under the central negative result gets checked.
 
-**Awaiting director freeze. No real-data closure re-run has occurred.**
+## 🧊 DIRECTOR FREEZE — 2026-08-05 (both open questions RULED; BINDING)
+
+**Ruling 1 — TR source CONFIRMED = yfinance `Adj Close`, WITH a mandatory COVERAGE CENSUS.**
+The ~150 highest-yield PIT names include **delisted** tickers, and yfinance covers delisted
+names poorly. The run MUST emit a coverage census (`n_reconciled` / `n_unreconcilable`,
+listed **by name**). Unreconcilable names are **REPORTED, never silently dropped**
+(`[NN-FAIL-CLOSED]`) — **a dropped delisted high-yield name is exactly the survivorship
+shape this audit polices**, so dropping it would make the audit circular. If coverage is
+materially incomplete the verdict's scope statement reads verbatim: *"TR-verified on the
+covered subset; the delisted-name dividend bias remains unmeasured."* An honest partial
+receipt beats a false complete one.
+
+**Ruling 2 — the gate TIGHTENS and becomes VERDICT-ANCHORED, graded not binary.**
+(Legitimate now because we are pre-freeze and it derives from premise-checking, not from
+results: +0.10 calibrated to a ~7% effect is nearly-automatic at the measured ~1.6%.)
+
+- **(a) T-215 honest base — `Δci_low < +0.05` → the base stamps TR-VERIFIED.** The expected
+  ~+0.025 sits inside; a breach means the effect is LARGER than the premise-check
+  suggested, which is exactly what should trigger the cascade.
+- **(b) the value/accruals sub-verdict** (the risk concentration) — **THREE pre-stated
+  outcomes**:
+  | re-measured contribution | outcome |
+  |---|---|
+  | `ci_high ≤ 0` | **NEGATIVE STANDS** — TR-verified |
+  | `ci` straddles 0 | **DEMOTED** to "neutral, TR-sensitive" — the closure softens, **no cascade** |
+  | `ci_low > 0` | **FLIPPED** → full `[NN-SUBSTRATE-REVERIFY]` cascade on dependent verdicts, scoped in the report |
+
+  The pre-stated expected shift (+0.06-0.08 on a value-tilted sub-book) makes **DEMOTED a
+  genuinely live outcome** — which is the honest situation, so the gate is built to express
+  it rather than forcing a binary.
+
+**FROZEN. This document is committed BEFORE the run; the git trail is the freeze-predates-run
+proof. N_trials += 1 at run.**
