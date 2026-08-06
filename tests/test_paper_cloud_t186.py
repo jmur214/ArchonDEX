@@ -169,3 +169,45 @@ class TestPullNewsRecent:
         from paper_trader.cloud_state import DURABLE_PATHS
         # the user's seed inbox must round-trip S3 or the container can't file the seed
         assert "data/coordination/thesis_inbox.md" in DURABLE_PATHS
+
+
+# ===================================================================== #
+# T-325 (2026-08-05): the news/altdata push must FAIL LOUD, never swallow.
+# Root cause of the empty tape: the job role lacked news_panel/* + altdata/*,
+# so the daily push was AccessDenied every run and push_* swallowed it silently.
+# ===================================================================== #
+class TestPushFailsLoud:
+    def _local_news(self, cs, tmp_path, y=2026, m=8):
+        import datetime as dt
+        p = tmp_path / cs._news_rel(y, m)
+        p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(b"parquet")
+        return dt.date(y, m, 5)
+
+    def test_push_news_month_returns_false_on_failed_cp(self, tmp_path):
+        # simulate the news_panel/ AccessDenied the job role hit for weeks
+        cs, rec = _cloud(tmp_path, rc_for=lambda a: 1 if "news_panel" in " ".join(a) else 0)
+        d = self._local_news(cs, tmp_path)
+        assert cs.push_news_month(d) is False       # was silently swallowed (returned None) before
+
+    def test_push_news_month_true_on_success(self, tmp_path):
+        cs, rec = _cloud(tmp_path)                    # all cps succeed (rc 0)
+        d = self._local_news(cs, tmp_path)
+        assert cs.push_news_month(d) is True
+
+    def test_push_news_month_true_when_nothing_local(self, tmp_path):
+        import datetime as dt
+        cs, rec = _cloud(tmp_path)
+        assert cs.push_news_month(dt.date(2026, 8, 5)) is True   # nothing to push ≠ a failure
+
+    def test_push_altdata_returns_false_on_failed_sync(self, tmp_path):
+        from paper_trader.cloud_state import ALTDATA_DIRS
+        cs, rec = _cloud(tmp_path, rc_for=lambda a: 1 if "altdata" in " ".join(a) else 0)
+        (tmp_path / ALTDATA_DIRS[0]).mkdir(parents=True, exist_ok=True)
+        assert cs.push_altdata() is False
+
+    def test_job_role_template_grants_news_and_altdata_prefixes(self):
+        import json
+        d = json.load(open("infra/paper_cloud/iam_job_role_policy.json"))
+        rw = next(s for s in d["Statement"] if s.get("Sid") == "PaperStateRW")
+        joined = " ".join(rw["Resource"])
+        assert "news_panel/*" in joined and "altdata/*" in joined  # the silent-push root cause
