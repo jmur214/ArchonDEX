@@ -197,6 +197,7 @@ def test_gate_7_skipped_when_substrate_b_data_map_is_none(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
+        n_trials_for_dsr=1,   # T-336(b): isolate Gate 7 from the new honest-N Gate 8
         # data_map_substrate_b NOT provided → Gate 7 skipped
     )
     assert result["gate_7_evaluated"] is False
@@ -315,7 +316,9 @@ def test_gate_8_skipped_when_n_trials_is_one(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
-        # n_trials_for_dsr defaults to 1
+        # T-336(b): the default now resolves to the project's honest N, so a
+        # test that means 'Gate 8 skips when n_trials==1' must PIN it.
+        n_trials_for_dsr=1,
     )
     assert result["gate_8_evaluated"] is False
     assert result["gate_8_passed"] is True

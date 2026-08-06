@@ -973,9 +973,16 @@ class DiscoveryEngine:
         # When n_trials_for_dsr > 1, the candidate's attribution Sharpe is
         # checked against the expected-max-of-N-trials null. This protects
         # against curve-fitting in cycles where the GA / Bayesian optimizer
-        # generates dozens of candidates. Default n_trials_for_dsr=1 = no
-        # selection-bias correction, identical to legacy behavior.
-        n_trials_for_dsr: int = 1,
+        # generates dozens of candidates.
+        #
+        # T-336(b): the default is now None -> resolve to the PROJECT'S HONEST N via
+        # core.measurement.mbl_gate.compute_n_effective() (the refreshed run
+        # registry). Previously the default was a hardcoded 1, which SKIPPED Gate 8
+        # entirely -- i.e. the multiple-testing correction the gate exists to apply
+        # was silently off in every default run, against a 200+-trial history.
+        # Pass an explicit int to override (1 restores the legacy no-correction
+        # behaviour for a deliberately isolated test).
+        n_trials_for_dsr: Optional[int] = None,
         gate8_dsr_threshold: float = 0.95,
         # ---- Gate 1 signal-collector cache (T-2026-05-11-023) ----
         # When True (default), the baseline ensemble's per-(edge, bar)
@@ -1656,6 +1663,13 @@ class DiscoveryEngine:
             # (Bailey & Lopez de Prado 2014) corrects: PSR with the
             # benchmark set to E[max SR_i] under the null of N independent
             # trials. Default n_trials_for_dsr=1 disables (legacy behavior).
+            if n_trials_for_dsr is None:
+                # honest project N (refreshed registry incl. ledger reconstruction)
+                try:
+                    from core.measurement.mbl_gate import compute_n_effective
+                    n_trials_for_dsr = compute_n_effective()
+                except Exception:
+                    n_trials_for_dsr = 1        # fail-safe: never block on a bad read
             if n_trials_for_dsr > 1:
                 _g8_t0 = _time.time()
                 dsr_value: float = 0.0

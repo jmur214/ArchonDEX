@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "active": true,
+  "window_start": "2026-Q3",
+  "window_start_iso": "2026-07-01",
+  "code_state_hash": "f752a6e",
+  "frozen_parameters": [
+    "ensemble_speeds",
+    "sleeve_deadband",
+    "sleeve_asset_weights",
+    "damping_band_B",
+    "exposure_cap"
+  ],
+  "lock_reason": "T-336(c): activate the F8 frozen-code OOS discipline. These parameters are load-bearing for the deep re-verification arc (T-311/T-260/T-314) and were pre-committed as unchanged; retuning them inside the OOS window would invalidate those verdicts retroactively.",
+  "locked_at": "2026-08-06T02:40:44.844239+00:00",
+  "locked_by": "agent-b (T-336 Part 1c)"
+}

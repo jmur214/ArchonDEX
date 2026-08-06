@@ -287,6 +287,20 @@ def main() -> int:
                              "want end-of-run lifecycle mutations to persist.")
     args = parser.parse_args()
 
+    # T-336(c): the F8 frozen-code OOS discipline, enforced rather than remembered.
+    # This sweep retunes `fill_share_cap` — a capacity/exposure parameter. If the lock
+    # freezes it and the sweep touches the OOS window, REFUSE (the module no-ops when
+    # the lock is absent or inactive, so this is safe in every other context).
+    from core.oos_lock import assert_not_tuning_in_oos, load_oos_lock, OOSLockViolation
+    try:
+        _lock = load_oos_lock()
+        for _p in ("exposure_cap", "fill_share_cap"):
+            assert_not_tuning_in_oos(parameter=_p, sweep_start="2026-01-01",
+                                     sweep_end="2026-12-31", lock=_lock)
+    except OOSLockViolation as exc:
+        print(f"REFUSED by the OOS lock: {exc}", file=sys.stderr)
+        return 3
+
     if args.snapshot:
         snapshot_lifecycle_state()
         if not args.run:
