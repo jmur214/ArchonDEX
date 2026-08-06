@@ -297,17 +297,31 @@ class CloudState:
                 synced = True
         return synced
 
-    def push_altdata(self) -> None:
+    def push_altdata(self) -> bool:
         """Sync the alt-data hoard local → S3 under the ``altdata/`` prefix.
         Best-effort per dir; kept OUT of the durable-state push so a large
-        parquet transfer can't stall the heartbeat/journal upload."""
+        parquet transfer can't stall the heartbeat/journal upload.
+
+        T-325 (2026-08-05): now RETURNS a bool and CHECKS each sync's return code —
+        previously a failed sync (e.g. a missing altdata/* grant) was silently
+        swallowed, so the hoard never landed in S3 and nothing said so (the same
+        class as the news-panel silent-push failure). True iff every existing dir
+        synced (vacuously True when disabled / nothing local)."""
         if not self.cfg.enabled:
-            return
+            return True
+        ok = True
         for rel in ALTDATA_DIRS:
             local = self.root / rel
-            if local.exists():
-                self._aws("s3", "sync", str(local), self._altdata_s3(rel),
+            if not local.exists():
+                continue
+            r = self._aws("s3", "sync", str(local), self._altdata_s3(rel),
                           "--no-progress")
+            if getattr(r, "returncode", 0) != 0:
+                ok = False
+                err = (getattr(r, "stderr", "") or "").strip().splitlines()
+                print(f"   ALTDATA-PUSH-FAIL {rel}/: {err[-1][:160] if err else 'unknown error'}",
+                      file=sys.stderr)
+        return ok
 
     # --- T-290b: the news panel's date-partitioned prefix (current-month
     # only; NO full-history pull-down — that was the read-path cost the
@@ -366,16 +380,29 @@ class CloudState:
                 month, year = 12, year - 1
         return n
 
-    def push_news_month(self, as_of) -> None:
-        """Push ONLY the current month's partition local → S3. Best-effort;
-        the history partitions are never re-touched by the pulse."""
+    def push_news_month(self, as_of) -> bool:
+        """Push ONLY the current month's partition local → S3.
+
+        T-325 (2026-08-05): now RETURNS a bool and CHECKS the return code. The old
+        version swallowed the cp result, so when the job role lacked a news_panel/*
+        grant the daily push was AccessDenied EVERY run and the panel never accrued
+        in-cloud — while the heartbeat recorded the (successful) local append and
+        said nothing was wrong (the empty-tape root cause). True iff the push
+        succeeded (or disabled / nothing local); False on a failed cp."""
         if not self.cfg.enabled:
-            return
+            return True
         year, month = self._ym(as_of)
         local = self.root / self._news_rel(year, month)
-        if local.exists():
-            self._aws("s3", "cp", str(local), self._news_s3(year, month),
+        if not local.exists():
+            return True                                  # nothing to push
+        r = self._aws("s3", "cp", str(local), self._news_s3(year, month),
                       "--no-progress")
+        if getattr(r, "returncode", 0) != 0:
+            err = (getattr(r, "stderr", "") or "").strip().splitlines()
+            print(f"   NEWS-PUSH-FAIL {self._news_s3(year, month)}: "
+                  f"{err[-1][:160] if err else 'unknown error'}", file=sys.stderr)
+            return False
+        return True
 
     def push_news_backfill(self) -> int:
         """One-time seed: upload EVERY local ``news_YYYYMM.parquet`` to its

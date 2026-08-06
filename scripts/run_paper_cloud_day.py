@@ -668,7 +668,11 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             try:
                 from intelligence.thesis_desk.thesis_scan import due as _scan_due
                 _sd = _scan_due(str(today), path=root / "data/intel/thesis_scan_state.json")
-                _npm = cloud.pull_news_recent(today, n_months=(4 if _sd else 1))
+                # ≥3 months every day so the daily analysts have real recent depth
+                # (early in a month the current partition alone is thin); 4 when the
+                # weekly scan is due for a richer thematic tape. ~25MB, not the 264MB
+                # history — the read-path cost the original 1-month design guarded.
+                _npm = cloud.pull_news_recent(today, n_months=(4 if _sd else 3))
                 print(f"   NEWS-TAPE  pulled {_npm} recent month(s) before the pulse "
                       f"(scan_due={_sd})")
             except Exception as exc:
@@ -861,10 +865,18 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         ar = run_altdata_archive(str(root))
         for line in ar.reports:
             print(f"7. ALTDATA   {line}")
-        hb.record_altdata(degraded=ar.degraded, reason=ar.reason,
+        # T-325 (2026-08-05): push BEFORE recording, and fold a failed push into the
+        # degraded flag (altdata/ had the same missing-grant silent-push failure as
+        # news_panel/). record_altdata was previously called before the push, so a
+        # push failure could never reach the heartbeat.
+        altdata_pushed = cloud.push_altdata()   # durable under altdata/ prefix
+        _ad_degraded = ar.degraded or (not altdata_pushed)
+        _ad_reason = (ar.reason if altdata_pushed else
+                      (f"{ar.reason} | " if ar.reason else "")
+                      + "s3_push_failed: altdata hoard did NOT persist to S3")
+        hb.record_altdata(degraded=_ad_degraded, reason=_ad_reason,
                           fresh_rows=ar.fresh_rows)
-        cloud.push_altdata()                    # durable under altdata/ prefix
-        print(f"7. ALTDATA   degraded={ar.degraded} | {ar.reason}")
+        print(f"7. ALTDATA   degraded={_ad_degraded} pushed={altdata_pushed} | {_ad_reason}")
     except Exception as exc:
         # Fail-open: even the orchestrator dying must not touch the trading
         # exit code. Record the miss loudly so it isn't silent.
@@ -903,11 +915,21 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         degraded_reason = _news_universe_collapse_reason(universe, SPECIAL_SITS)
         nres = news_panel.append_today(today, universe, run_id,
                                        degraded_reason=degraded_reason)
-        cloud.push_news_month(today)            # push current month only
+        # T-325 (2026-08-05): the push now RETURNS a bool. A failed push (e.g. the
+        # missing news_panel/* grant that lost the panel silently for weeks) MUST
+        # degrade the heartbeat's news channel — a lost news day can never again be
+        # a log-only WARN (the append can look perfect while nothing lands in S3).
+        news_pushed = cloud.push_news_month(today)   # push current month only
+        if not news_pushed:
+            nres = dict(nres)
+            nres["degraded"] = True
+            nres["reason"] = ((f"{nres.get('reason')} | " if nres.get("reason") else "")
+                              + "s3_push_failed: news panel did NOT persist to S3 "
+                                "(the forward tape cannot accrue)")
         hb.record_news(nres)
         print(f"8. NEWS      append_today n_new={nres.get('n_new')} "
               f"n_total={nres.get('n_total')} degraded={nres.get('degraded')} "
-              f"| {nres.get('reason')}")
+              f"pushed={news_pushed} | {nres.get('reason')}")
     except Exception as exc:
         # Fail-open: even importing D's module failing must not touch trading.
         print(f"8. NEWS      WARN append failed ({type(exc).__name__}: {exc}) "
