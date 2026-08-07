@@ -57,4 +57,9 @@ Two honest paths, and this is a director/user call:
 
 **A third finding worth its own line:** this audit's real yield may be the **discovery that a central negative result rests on deleted inputs.** That is a process defect worth fixing regardless of T-337 — if closure-grade run artifacts can be garbage-collected, every closure is one cleanup away from unverifiable.
 
+## 🔒 THE REGENERATION LOCK (director ruling, 2026-08-06 — binding)
+The closures are recorded as **"receipt unobtainable — substrate deleted; indicative-only fallback bounds the effect at ~+0.025-0.08 Sharpe, below decision-relevance."** No regeneration now: the equity book is H0, closed, and not a deployment candidate, and five backtest runs to confirm a number that cannot change any decision is measurement for its own sake.
+
+> **THE LOCK: if the equity book is EVER reconsidered for deployment, regenerating the Arm-1 substrate and executing this frozen audit as written becomes a MANDATORY PRECONDITION — not an option.** The closures may not be cited as deployment evidence while their receipt is unobtainable. Reconsideration re-opens this task before any other equity-book work proceeds.
+
 **T-337 done.** N_trials += 1 (the trial was consumed: the frozen measurement was attempted and returned a blocker, which is a result).
