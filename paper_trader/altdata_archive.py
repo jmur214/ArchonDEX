@@ -204,14 +204,23 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
     snapshot_degraded = landed == 0
     stale_degraded = bool(stale_feeds)
     degraded = snapshot_degraded or stale_degraded
-    if degraded:
-        reason = (f"ZERO market-snapshot rows landed for {today} across "
-                  f"{list(fresh_rows)} — silent API breakage (dedup hides it "
-                  f"on disk); {fresh_rows}")
+    # T-340: the reason must describe the alarm that ACTUALLY fired. The first
+    # version branched on `degraded` (the OR of both alarms) but hardcoded the
+    # snapshot wording, so a cadence-only failure printed "ZERO market-snapshot rows
+    # landed ... {'kalshi': 287, 'polymarket': 568}" — a message contradicted by its
+    # own numbers in the same string (the sibling-number tell). Each alarm now speaks
+    # only for itself.
+    parts = []
+    if snapshot_degraded:
+        parts.append(f"ZERO market-snapshot rows landed for {today} across "
+                     f"{list(fresh_rows)} — silent API breakage (dedup hides it "
+                     f"on disk); {fresh_rows}")
     else:
-        reason = f"{landed}/{len(fresh_rows)} snapshot sources fresh for {today}: {fresh_rows}"
-    if stale_feeds:
-        reason += f" | STALE BEYOND BUDGET: {stale_feeds}"
+        parts.append(f"{landed}/{len(fresh_rows)} snapshot sources fresh for "
+                     f"{today}: {fresh_rows}")
+    if stale_degraded:
+        parts.append(f"STALE/UNMONITORABLE BEYOND BUDGET: {stale_feeds}")
+    reason = " | ".join(parts)
     return AltdataArchiveResult(ran=True, degraded=degraded, reason=reason,
                                 reports=reports, fresh_rows=fresh_rows,
                                 feed_health=feed_health, stale_feeds=stale_feeds,

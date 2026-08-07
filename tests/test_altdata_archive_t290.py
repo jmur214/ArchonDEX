@@ -206,3 +206,49 @@ class TestFeedHealthGate:
         pd.DataFrame({"date": [serial]}).to_parquet(p, index=False)
         detail, _ = aa.assess_feed_health(tmp_path)
         assert detail["naaim"]["age_days"] == 0, "Excel serials must parse"
+
+
+def _stub_collectors(monkeypatch):
+    """No-op the real archivers: these tests exercise the ALARM LOGIC, not the network."""
+    import scripts.archive_altdata_t136 as ad
+    import scripts.archive_positioning_t136 as ap
+    ok = lambda *a, **k: "ok"
+    for name in ["pull_gpr", "pull_epu", "snapshot_polymarket", "snapshot_kalshi",
+                 "snapshot_kxfed", "pull_fred_rate_path", "snapshot_cef",
+                 "pull_form4_index", "pull_usaspending", "pull_credit_spread_oas"]:
+        if hasattr(ad, name):
+            monkeypatch.setattr(ad, name, ok)
+    for name in ["pull_sec_ftd", "pull_naaim", "pull_finra_margin",
+                 "pull_finra_short_interest"]:
+        if hasattr(ap, name):
+            monkeypatch.setattr(ap, name, ok)
+    monkeypatch.setattr(ap, "pull_regsho_short_volume", lambda days_back: "ok")
+
+
+class TestAlarmMessagesDoNotContradictTheirNumbers:
+    """T-340 regression: a cadence-only failure printed 'ZERO market-snapshot rows
+    landed ... {kalshi: 287, polymarket: 568}' — the message contradicted by its own
+    numbers in the same string. Each alarm must describe only what it detected."""
+
+    def test_cadence_failure_does_not_claim_zero_snapshots(self, monkeypatch, tmp_path):
+        _stub_collectors(monkeypatch)
+        today = pd.Timestamp.now().strftime("%Y-%m-%d")
+        for src, rel, _ in aa._SNAPSHOT_FRESHNESS:          # all snapshots FRESH
+            _write_snapshot(tmp_path, rel, today, 100)
+        monkeypatch.setattr(aa, "assess_feed_health",
+                            lambda root: ({}, ["gpr_daily(no-date)"]))  # cadence FAILS
+        res = aa.run_altdata_archive(str(tmp_path))
+        assert res.snapshot_degraded is False, "snapshots landed — must not be flagged"
+        assert res.stale_degraded is True
+        assert res.degraded is True
+        assert "ZERO market-snapshot" not in res.reason, \
+            "cadence-only failure must NOT claim zero snapshots"
+        assert "STALE/UNMONITORABLE" in res.reason
+        assert "sources fresh" in res.reason                # states what DID land
+
+    def test_snapshot_failure_still_says_zero(self, monkeypatch, tmp_path):
+        _stub_collectors(monkeypatch)
+        monkeypatch.setattr(aa, "assess_feed_health", lambda root: ({}, []))
+        res = aa.run_altdata_archive(str(tmp_path))         # nothing on disk
+        assert res.snapshot_degraded is True
+        assert "ZERO market-snapshot" in res.reason

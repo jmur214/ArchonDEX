@@ -398,6 +398,67 @@ def check_no_numbered_nonneg_refs() -> CheckResult:
 # Driver
 # ---------------------------------------------------------------------
 
+
+def check_closure_receipts() -> CheckResult:
+    """T-339: a MEASURED closure must have a locatable receipt set.
+
+    THE DEFECT THIS PREVENTS (C/T-337): all five Arm-1 run dirs under the
+    T-215/T-180-v2 closures were deleted — the ledger still says "refuted", but the
+    evidence is unobtainable. The manifest sweep found the problem is wider AND
+    deeper than deletion: 49 performance_summary.json survive under UUID run dirs
+    that NO document cites, so they are already unverifiable while sitting on disk.
+    A receipt nothing points at cannot support a closure.
+
+    ENFORCEMENT POINT (stated deliberately): doc_lint, not the census. The closure
+    CLAIM is made in the ledger — a document — so the check belongs where the claim
+    is; doc_lint already runs pre-commit; and a census check fires at RUN time,
+    before a closure exists to have a receipt.
+
+    FORWARD-ONLY (grandfathered): enforced for rows dated on/after ACTIVATION. The
+    105 historical measured closures are reported by
+    `scripts/closure_manifest_t339.py`, not failed here — retroactive enforcement
+    would block every commit for a debt this check exists to stop ACCRUING.
+    """
+    name = "Measured closures cite a locatable receipt (T-339, forward-only)"
+    ACTIVATION = "2026-08-06"
+    ledger = REPO / "docs" / "State" / "TASK_LEDGER.md"
+    if not ledger.exists():
+        return CheckResult(name, "FAIL", "missing TASK_LEDGER.md")
+    try:
+        # doc_lint may run with a bare sys.path (pre-commit hook) — make the repo
+        # importable so this check ACTUALLY RUNS. A checker that silently no-ops is
+        # worse than no checker: it reports green while enforcing nothing.
+        import sys as _sys
+        if str(REPO) not in _sys.path:
+            _sys.path.insert(0, str(REPO))
+        from scripts.closure_manifest_t339 import resolve_receipts, _MEASURED, _ROW
+    except Exception as exc:  # never block a commit on the checker itself
+        return CheckResult(name, "WARN",
+                           f"receipt check INERT — manifest module unimportable "
+                           f"({type(exc).__name__}); fix before trusting this gate")
+    issues: List[str] = []
+    checked = 0
+    for line in ledger.read_text().splitlines():
+        m = _ROW.match(line)
+        if not m or not _MEASURED.search(line):
+            continue
+        cells = [c.strip() for c in line.split("|")]
+        date = cells[2] if len(cells) > 2 else ""
+        if date < ACTIVATION:          # grandfathered (ISO dates sort lexically)
+            continue
+        checked += 1
+        task = m.group(1)
+        res = resolve_receipts(task, cells[-2] if len(cells) > 2 else "")
+        if res["state"] == "MISSING":
+            issues.append(f"{task}: measured verdict with NO locatable receipt "
+                          f"(archive it under closures/{task}/ and cite the audit doc)")
+    if issues:
+        return CheckResult(name, "FAIL", "; ".join(issues))
+    return CheckResult(name, "PASS",
+                       f"{checked} post-{ACTIVATION} measured closure(s) have receipts "
+                       f"(historical rows grandfathered — see closure_manifest_t339)")
+
+
 CHECKS = [
     check_memory_size,
     check_current_state_freshness,
@@ -407,6 +468,7 @@ CHECKS = [
     check_task_ledger_columns,
     check_scripts_in_execution_manual,
     check_no_numbered_nonneg_refs,
+    check_closure_receipts,
 ]
 
 
