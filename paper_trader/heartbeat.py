@@ -146,6 +146,28 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_clock_census(self, census: Dict[str, Any]) -> None:
+        """T-338: stamp the daily CLOCK census onto the status file as its own
+        ``clock_census`` block, and fire the notify channel SAME-DAY when any
+        forward-accruing record failed to advance.
+
+        Deliberately orthogonal to the trading verdict (like ``altdata``): a stalled
+        research clock must NOT flip the run's ``canonical``/``alert`` and fail the Batch
+        job — that would couple a data-gathering miss to the trading alarm. It fires its
+        OWN channel instead, naming the clock, because a count alone is not actionable.
+
+        The heartbeat KEY is ``clock_census`` and the miss list is ``clock_census.missed``
+        — E's drill week stalls a clock deliberately and asserts these surface."""
+        status = self._read_status() or {}
+        status["clock_census"] = {**census, "ts": _utcnow_iso()}
+        self._atomic_write(self.status_path, status)
+        if census.get("degraded"):
+            names = ", ".join(m["clock"] for m in census.get("missed", []))
+            msg = (f"[CLOCK-CENSUS][ALERT] {census.get('clocks_advanced')} — "
+                   f"CLOCK(S) DID NOT ADVANCE: {names}")
+            print(msg)
+            self._notify(msg)
+
     def record_news(self, result: Dict[str, Any]) -> None:
         """T-290b: stamp the daily news-panel forward-append health onto the
         status file as a SEPARATE ``news`` block. Like ``record_altdata`` it is

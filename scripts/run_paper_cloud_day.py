@@ -650,6 +650,20 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                           + " (report-only T-328; NOT EVALUABLE on a short record)")
             except Exception as exc:
                 print(f"   LIVE-BOOK warn: {type(exc).__name__} (non-fatal)")
+            # --- T-338 CLOCK CENSUS: runs AFTER every step, and asserts that each
+            # forward-accruing record ACTUALLY ADVANCED today — verified from the
+            # ARTIFACT, never from config. Fail-closed: an unreadable clock is a MISS,
+            # never a skip. Read-only: it observes, it never repairs. Any miss fires the
+            # notify channel SAME-DAY naming the clock, so silence becomes trustworthy. -- #
+            try:
+                from paper_trader.clock_census import census_line, run_census
+                _cc = run_census(root=str(root), as_of=str(today))
+                print(f"   {census_line(_cc)}")
+                hb.record_clock_census(_cc)
+            except Exception as exc:
+                # even the census failing must be LOUD — a silent census is the disease
+                print(f"   [CLOCK-CENSUS][ALERT] census itself failed: {type(exc).__name__} "
+                      f"— clocks UNVERIFIED today")
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops
