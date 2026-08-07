@@ -255,6 +255,23 @@ while masking the structural problem. This rule forces AI to earn its
 place by the same honest bar as everything else — as an amplifier of 
 a working system, not a hoped-for rescue of a broken one.
 
+**`[NN-FIRST-ARTIFACT]` No integration claim is DONE until its first 
+output artifact has been observed and checked end-to-end.** A scored 
+row in the file, a delivered alert, a pushed object in S3, a firing 
+on the real scheduled principal — the artifact, not the code. Code 
+inspection and passing tests are necessary, never sufficient: they 
+prove the logic, not the integration. Applies to wiring, deploys, 
+feeds, clocks, and alarms. Adopted 2026-08-06 after this rule caught 
+six real defects in two weeks that review and tests had all passed 
+(an eval loop scoring an empty set, a price source frozen months 
+stale, an empty news tape twice, ungated feeds, and S3 pushes 
+AccessDenied on every run) — each one a clock believed to be 
+accruing that wasn't. A passing local smoke does not prove the 
+production environment has the same inputs; verify the container's 
+actual file availability and step ordering. When a drill can 
+exercise the failure path (stall the feed, deny the push), the drill 
+is the verification.
+
 ## Git discipline
 
 **Commit early and often.** After any logically-complete unit of 

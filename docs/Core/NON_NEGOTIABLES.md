@@ -359,3 +359,35 @@ direction.
 **Why hard:** The single most safety-critical enumerated gate in the system. It
 explicitly fences off Engine B (Risk), `live_trader/`, and "anything that would
 touch real money paths even hypothetically."
+
+## `[NN-FIRST-ARTIFACT]` No integration claim is done until its first output artifact is observed end-to-end
+
+**The rule (verbatim from CLAUDE.md):** No integration claim is DONE until its
+first output artifact has been observed and checked end-to-end. A scored row in
+the file, a delivered alert, a pushed object in S3, a firing on the real
+scheduled principal — the artifact, not the code. Code inspection and passing
+tests are necessary, never sufficient. Applies to wiring, deploys, feeds,
+clocks, and alarms.
+
+**Why hard:** the 2026-07/08 fortnight produced six independent defects that
+review, tests, and "done" stamps all passed, each discoverable ONLY by
+demanding the first real artifact: (1) T-331 — the analyst eval harness globbed
+a filename nothing wrote (scored an empty set for weeks inside a task marked
+"done, no-drift verified"); (2) T-331 — the resolution price source was a CSV
+frozen at 2026-04-17 (every future resolution would have failed forever);
+(3+4) the thesis scan's news tape was empty on both canonical firings — first
+by pulse-vs-append ordering, then because the S3 source was bare and the daily
+push had been AccessDenied on every run with an unchecked return code;
+(5) T-335 — only 4 of 14 archive feeds sat inside a freshness gate (GDELT's
+staleness went unnoticed ~7 weeks — and the triage itself then misread a stale
+worktree copy as canon); (6) the July outage's own class — a scheduler change
+verified by manual submit rather than the scheduled principal. The unifying
+disease: **a clock believed to be accruing that wasn't.** The unifying cure:
+the artifact. Corollaries now standing: a passing LOCAL smoke does not prove
+the production container has the same inputs (verify file availability and
+step ordering in-environment); every feed/clock lives inside a gated census
+(T-335 cadence budgets; T-338 clock census) or is exempted with a written
+reason; where a drill can exercise the failure path, the drill is the
+verification (T-327 Act 1 menu). Related: `[NN-FAIL-CLOSED]` (measurement-path
+halting), the silent-wrongness doctrine (report OUTCOME not CONFIG), and
+`[NN-SUBSTRATE-REVERIFY]` (the same epistemology applied to substrates).

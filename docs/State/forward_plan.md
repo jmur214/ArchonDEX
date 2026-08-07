@@ -16,6 +16,13 @@
 >   crash" — pre-stated 2026-07-27, the one rule only a won't-sell holder can execute).
 > - **The defensive sleeve is a REGIME OPTION, not a default** (T-311: wins when cash pays 6%+, loses
 >   4.6pp/yr in cheap-money eras; 9/9 crisis drawdown win; Sortino CI-significant; robo beaten on every axis).
+>   **THE MACRO BET, STATED (user-approved 2026-08-06):** T-333 attributes the regime swing 80% to timing /
+>   20% to the cash term, with timing significantly value-destroying net of cash in the modern era (−5.16pp/yr).
+>   What remains of the sleeve's terminal-wealth case therefore rests on cash yields staying elevated — an
+>   IMPLICIT MACRO BET against Rogoff-Rossi-Schmelzing (AER 2024, 700yr: real rates trend-stationary around a
+>   DECLINING trend; high-yield eras are the transitory deviation, and low-rate regimes persist for decades).
+>   Holding or deploying the sleeve = taking that bet knowingly. This paragraph exists so no future decision
+>   is made without seeing it.
 > - **"Aggressive" (user-clarified) = the manager's risk spectrum + tactical leverage**: the compensated
 >   tilts are being measured with regret-led verdicts (T-318/T-320); concentration/stock-picking is
 >   H0-by-our-own-measurement + uncompensated-by-theory; the advisor tier table is the manager construct.
@@ -93,6 +100,13 @@
 >   (Brier ≥150 resolved + calibration + directional) → **stage-2: the 4th paper account**.
 >   Every prediction is machine-resolvable and scored (A's harness) — the accuracy record IS
 >   the promotion evidence. LLM-on-historical-returns stays FORBIDDEN (memorization look-ahead).
+>   **AMENDED 2026-08-06 (user-approved): the ban is the DEFAULT, with one narrow exception class** —
+>   a historical evaluation may be pre-registered ONLY IF it uses (i) entity anonymization (Glasserman-Lin
+>   JFDS 2024; Kim-Muhn-Nikolaev tested-and-rejected memorization under it) AND/OR (ii) a chronologically-
+>   trained model (ChronoBERT/ChronoGPT-class, trained only on text available at each point in time), AND
+>   (iii) each such evaluation is individually pre-registered and director+user approved BEFORE any run.
+>   Naive evaluation on a frontier model's pre-cutoff history remains forbidden absolutely (Profit Mirage:
+>   51-62% Sharpe decay past cutoff). No exception has been exercised yet; the first one sets the template.
 >
 > Day-1 shipped (`ed127cb`): the FINRA/Kalshi/Polymarket data loss is stopped (launchd daily
 > archivers + widened keywords; snapshots accruing). N-accounting: infra = 0 trials; Lane 1 =
