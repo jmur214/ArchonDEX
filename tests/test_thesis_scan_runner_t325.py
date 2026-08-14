@@ -116,8 +116,37 @@ def test_invalid_thesis_is_rejected_not_filed(tmp_path):
 
 
 def test_non_json_response_is_a_completed_empty_scan(tmp_path):
-    r = _scan(tmp_path, "the model narrated instead of returning json")
+    r = _scan(tmp_path, "the model narrated instead of returning json", news=NEWS)
     assert r.scanned and r.filed == []
+    # a parse failure is DISTINCT from a clean decline (the Aug 12 truncation defect)
+    assert r.reason == "unparseable_response" and len(r.rejected) == 1
+    assert r.rejected[0]["reason"] == "not_json" and "resp_tail" in r.rejected[0]
+
+
+def test_truncated_json_is_unparseable_not_declined(tmp_path):
+    # a token-truncated multi-thesis reply ends mid-structure → not_json (NOT model_declined)
+    truncated = '{"theses":[{"narrative":"a real theme that got cut off mid-w'
+    r = _scan(tmp_path, truncated, news=NEWS)
+    assert r.reason == "unparseable_response" and r.filed == []
+
+
+def test_scan_uses_its_own_token_budget_not_the_governor_daily_cap(tmp_path):
+    # the ROOT of the Aug 12 defect: the scan must NOT be capped at the governor's daily
+    # max_output_tokens (1500), which truncated the strong-tier reply. It uses 4000.
+    seen = {}
+    def capturing_call(prompt, bundle_json, max_tokens):
+        seen["max_tokens"] = max_tokens
+        return {"text": json.dumps({"theses": [_thesis()]}), "model_id_served": "claude-opus-4-8",
+                "usage": {"input_tokens": 500, "output_tokens": 2300, "cost_usd": 0.26}}
+    p = _paths(tmp_path)
+    from intelligence.analyst.cost_governor import GovernorConfig
+    gov = CostGovernor(GovernorConfig(max_output_tokens=1500), str(tmp_path / "spend.jsonl"))  # daily cap
+    R.run_blind_scan(AS_OF, model_call=capturing_call, governor=gov, model_id_requested="m",
+                     prompt_version="scan/v1", projected_cost_usd=0.1, raw_dir=p["raw_dir"],
+                     prompt_path=SCAN_PROMPT, max_output_tokens=4000, news=NEWS, ledger=p["ledger"],
+                     scan_state=p["scan_state"], prov_log=p["prov_log"], inbox=tmp_path / "e.md",
+                     now_iso="2026-07-28T13:00:00", today=TODAY)
+    assert seen["max_tokens"] == 4000, f"scan used {seen['max_tokens']}, not its own 4000 budget"
 
 
 # ---------------- self-explaining: a zero always states WHY ----------------

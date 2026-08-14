@@ -146,6 +146,11 @@ DURABLE_DIRS: List[str] = [
     # eval read these across containers, same durability need as the constrained
     # notes dir above.
     "data/intel/analyst_notes_agentic",
+    # T-325 (2026-08-13): the LLM raw-response archive. Durable so a parse failure
+    # is DIAGNOSABLE after the fact — the Aug 12 scan filed 0 on `not_json` and the
+    # raw was ephemeral, leaving us blind to why (it was a token-truncated reply).
+    # Small (a few KB per call/day); rides the whole-dir sync.
+    "data/intel/llm_raw",
 ]
 
 CW_NAMESPACE = "ArchonDEX/PaperLoop"
