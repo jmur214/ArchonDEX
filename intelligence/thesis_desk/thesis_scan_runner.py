@@ -61,7 +61,7 @@ class BlindScanResult:
     # stated why is the silent-wrongness class — these make every zero unambiguous.
     n_documents: int = 0            # news + event docs the generator actually saw
     bundle_bytes: int = 0           # size of the JSON bundle handed to the model
-    reason: Optional[str] = None    # empty_bundle | model_declined | call_skipped | call_failed | filed
+    reason: Optional[str] = None    # filed | empty_bundle | model_declined | unparseable_response | call_skipped | call_failed
 
     @property
     def scanned(self) -> bool:
@@ -143,7 +143,7 @@ def _archive_raw(raw_dir: str, tag: str, as_of: str, resp: dict, bundle_sha: str
 # ---------------- the primary engine ----------------
 def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
                    model_id_requested: str, prompt_version: str, projected_cost_usd: float,
-                   raw_dir: str, prompt_path: str,
+                   raw_dir: str, prompt_path: str, max_output_tokens: int = 4000,
                    news: Optional[list] = None, events: Optional[list] = None,
                    rate_path: Optional[dict] = None, universe_hint: Optional[list] = None,
                    ledger: pathlib.Path = THESIS_LEDGER, scan_state: pathlib.Path = SCAN_STATE,
@@ -173,9 +173,13 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     bundle_sha = _sha256(bundle_json)
     prompt_text, prompt_sha = _prompt(prompt_path)
 
-    # 4. ONE strong-tier call; raw always archived; spend recorded regardless of validity
+    # 4. ONE strong-tier call; raw always archived; spend recorded regardless of validity.
+    # Use the SCAN's own token budget, NOT the governor's daily cap: intel_pulse builds the
+    # shared governor with max_output_tokens=1500 (a daily-note bound), which TRUNCATED the
+    # strong-tier scan's multi-thesis response mid-JSON → not_json, 0 filed (the Aug 12 defect;
+    # a 2-thesis reply needs ~2300 tokens). The governor still gates COST (the real budget guard).
     try:
-        resp = model_call(prompt_text, bundle_json, decision.max_output_tokens)
+        resp = model_call(prompt_text, bundle_json, max_output_tokens)
     except Exception as e:   # noqa: BLE001
         return BlindScanResult(skip_reason=f"skipped:model_call_error:{type(e).__name__}",
                                provenance=prov, reason="call_failed",
@@ -188,6 +192,7 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     # (the call happened, spend recorded); we still record_scan so the cadence advances.
     filed: List[dict] = []
     rejected: List[dict] = []
+    parse_failed = False
     try:
         payload = _lenient(resp.get("text", ""))
         raw_theses = payload.get("theses", []) if isinstance(payload, dict) else []
@@ -195,7 +200,11 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
             raw_theses = []
     except Exception:
         raw_theses = []
-        rejected.append({"index": -1, "reason": "not_json"})
+        parse_failed = True
+        # keep a snippet so a parse failure is diagnosable even if the raw is unavailable
+        _txt = str(resp.get("text", ""))
+        rejected.append({"index": -1, "reason": "not_json",
+                         "resp_len": len(_txt), "resp_tail": _txt[-120:]})
 
     # 6. stamp + re-validate + file each thesis (bad thesis ⇒ NOT filed, never crashes the scan)
     for i, raw in enumerate(raw_theses):
@@ -217,10 +226,13 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
             filed.append(rec)
 
     # 7. classify the OUTCOME so a zero is never ambiguous (the self-explaining rule):
-    #    filed>0 → filed; else empty_bundle if the generator saw nothing, else model_declined
-    #    (it had a real tape and still wrote nothing — an honest decline, not a bug).
+    #    filed>0 → filed; parse failure → unparseable_response (NOT a decline — a real tape
+    #    whose reply didn't parse, e.g. token-truncated: the Aug 12 defect); empty_bundle if
+    #    the generator saw nothing; else model_declined (a real tape, an honest empty return).
     if filed:
         reason = "filed"
+    elif parse_failed:
+        reason = "unparseable_response"
     elif n_docs == 0:
         reason = "empty_bundle"
     else:
@@ -243,7 +255,8 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
 # ---------------- the user-seeded channel ----------------
 def run_seed_thesis(seed, as_of: str, *, model_call: ModelCall, governor: CostGovernor,
                     model_id_requested: str, prompt_version: str, projected_cost_usd: float,
-                    raw_dir: str, prompt_path: str, research_context: Optional[dict] = None,
+                    raw_dir: str, prompt_path: str, max_output_tokens: int = 4000,
+                    research_context: Optional[dict] = None,
                     ledger: pathlib.Path = THESIS_LEDGER,
                     now_iso: str = "1970-01-01T00:00:00", today=None) -> SeedThesisResult:
     """Research ONE user seed and file it as a later-dated ``origin="user_seeded"`` thesis.
@@ -260,7 +273,8 @@ def run_seed_thesis(seed, as_of: str, *, model_call: ModelCall, governor: CostGo
     prompt_text, prompt_sha = _prompt(prompt_path)
 
     try:
-        resp = model_call(prompt_text, bundle_json, decision.max_output_tokens)
+        # scan-tier token budget, not the governor's daily cap (see run_blind_scan)
+        resp = model_call(prompt_text, bundle_json, max_output_tokens)
     except Exception as e:   # noqa: BLE001
         return SeedThesisResult(skip_reason=f"skipped:model_call_error:{type(e).__name__}")
     raw_path = _archive_raw(raw_dir, f"seed_{seed.seed_id}", as_of, resp, bundle_sha)
@@ -294,7 +308,7 @@ def run_thesis_pulse(as_of: str, *, scan_model_call: ModelCall, seed_model_call:
                      ledger: pathlib.Path = THESIS_LEDGER, scan_state: pathlib.Path = SCAN_STATE,
                      prov_log: pathlib.Path = SCAN_PROV_LOG, inbox: pathlib.Path = THESIS_INBOX,
                      now_iso: str = "1970-01-01T00:00:00", today=None,
-                     force: bool = False) -> Dict[str, Any]:
+                     max_output_tokens: int = 4000, force: bool = False) -> Dict[str, Any]:
     """The weekly desk step for the daily pulse: run the scan when DUE, then file any
     held/new user seeds AFTER (the seed research reuses the same machine-visible context).
     Returns a summary dict for the heartbeat. ``force`` overrides the cadence gate (for the
@@ -307,7 +321,8 @@ def run_thesis_pulse(as_of: str, *, scan_model_call: ModelCall, seed_model_call:
     scan = run_blind_scan(as_of, model_call=scan_model_call, governor=governor,
                           model_id_requested=model_id_requested, prompt_version="scan/v1",
                           projected_cost_usd=scan_projected_cost_usd, raw_dir=raw_dir,
-                          prompt_path=scan_prompt_path, news=news, events=events,
+                          prompt_path=scan_prompt_path, max_output_tokens=max_output_tokens,
+                          news=news, events=events,
                           rate_path=rate_path, universe_hint=universe_hint, ledger=ledger,
                           scan_state=scan_state, prov_log=prov_log, inbox=inbox,
                           now_iso=now_iso, today=today)
@@ -330,7 +345,8 @@ def run_thesis_pulse(as_of: str, *, scan_model_call: ModelCall, seed_model_call:
             res = run_seed_thesis(seed, as_of, model_call=seed_model_call, governor=governor,
                                   model_id_requested=model_id_requested, prompt_version="seed/v1",
                                   projected_cost_usd=seed_projected_cost_usd, raw_dir=raw_dir,
-                                  prompt_path=seed_prompt_path, research_context=ctx, ledger=ledger,
+                                  prompt_path=seed_prompt_path, max_output_tokens=max_output_tokens,
+                                  research_context=ctx, ledger=ledger,
                                   now_iso=now_iso, today=today)
             out["seeds"].append({"seed_id": seed.seed_id,
                                  "filed": res.filed is not None,

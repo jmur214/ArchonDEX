@@ -46,6 +46,11 @@ _PROJ_EVENT = 0.10
 _PROJ_SCAN = 0.30                # T-325 #4: the WEEKLY strong-tier thematic scan
 _PROJ_SEED = 0.30               # the one-time (then per-new-seed) seed research
 SCAN_NEWS_CAP = 40              # broad recent-headline digest fed to the blind scan
+# The scan's own per-call token budget. NOT the daily governor cap (1500) — that
+# TRUNCATED the strong-tier multi-thesis reply mid-JSON on Aug 12 (a 2-thesis reply
+# needs ~2300 tokens). The governor still gates monthly cost. 4000 leaves headroom
+# for 2-3 theses; a scan reply this size is ~$0.26.
+SCAN_MAX_OUTPUT_TOKENS = 4000
 
 
 @dataclass
@@ -335,6 +340,7 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                 out = run_thesis_pulse(
                     str(as_of), scan_model_call=scan_call, seed_model_call=scan_call,
                     governor=gov, model_id_requested=weekly_id,
+                    max_output_tokens=SCAN_MAX_OUTPUT_TOKENS,
                     scan_prompt_path="config/prompts/thesis/scan_v1.md",
                     seed_prompt_path="config/prompts/thesis/seed_v1.md", raw_dir=raw_dir,
                     scan_projected_cost_usd=_PROJ_SCAN, seed_projected_cost_usd=_PROJ_SEED,
