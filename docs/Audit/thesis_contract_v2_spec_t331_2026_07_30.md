@@ -4,10 +4,16 @@ title: thesis_call/v2 — the contract upgrade (valuation-embedding, ETF-existen
 date: 2026-07-30
 author: Agent D
 type: SPEC DRAFT — awaiting director freeze. **DO NOT APPLY before the first canonical scan lands.**
-status: DRAFT — v1 remains the live contract until the freeze. 0 N_trials.
+status: SUPERSEDED by docs/Audit/thesis_contract_v2_FREEZE_t331b_2026_08_13.md (the finalized, stamp-ready
+        consolidation). Kept as the drafting record; do NOT implement from this file.
 ---
 
-# thesis_call/v2 (DRAFT) — four evidence-backed upgrades
+# thesis_call/v2 (DRAFT — ⚠️ SUPERSEDED) — four evidence-backed upgrades
+
+> **`[NN-SUPERSEDED]`** — the finalized contract is
+> **`docs/Audit/thesis_contract_v2_FREEZE_t331b_2026_08_13.md`**, which consolidates this draft with the
+> T-335/T-335b resolver taxonomy and states the applicability boundary (**v2 applies from SCAN 5 / rev28**).
+> This file is the drafting record only — implement from the FREEZE doc.
 
 Source: the external review (`docs/Sources/External_Prompt_Runs/2026-07-28_research-agent-v3.md`, Q2). All
 four upgrades below are evidence-backed, and one of them (#3) fixes a defect that would otherwise make the
