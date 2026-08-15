@@ -211,10 +211,14 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
         order_errors=order_errs, canonical=canonical)
 
 
-def main(argv=None, *, now=None, client=None, cloud=None) -> int:
-    """Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
+def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
+    """Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
     for tests (drive a non-trading day, a held position, etc. without a
-    real broker); production passes none and they are constructed live."""
+    real broker); production passes none and they are constructed live.
+
+    ``root`` is the state/config base. Without it a test that drives ``main()`` writes
+    its journal, ledger and heartbeat into the REPO's own ``data/`` — which is how a
+    smoke test silently edits the state a developer is looking at."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--allocator", required=True,
                     help="EXPLICIT runtime allocator; designation is the "
@@ -249,7 +253,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         print("FATAL: no designated allocator.", file=sys.stderr)
         return 65
 
-    root = Path(__file__).resolve().parents[1]
+    root = Path(root) if root else Path(__file__).resolve().parents[1]
     cloud = cloud if cloud is not None else CloudState(root=str(root))
     now = now or now_et()
     today = now.date()
@@ -262,7 +266,10 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)")
 
     cal = MarketCalendar(client=client)
-    hb = PaperHeartbeat()
+    # root-relative, like every other state surface this driver owns. (It used to
+    # take the module default — identical in production, where root IS the repo
+    # root, but it meant an injected root could not fully redirect the run's state.)
+    hb = PaperHeartbeat(root=str(root))
 
     # Non-trading day: skip cleanly. Still emit a 'happened' pulse so the
     # silent-stop alarm sees the schedule fired (the calendar — not a dead
@@ -530,28 +537,9 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
               + (f" [HALTED — {len(plan.orders)} order(s) NOT staged]"
                  if halt.halted else ""))
         if args.strategy == "llm_analyst":
-            # T-329: the STREAM's own daily verdict — stated, never inferred. A
-            # zero-order day is ambiguous between four very different things (no
-            # note yet / the note asked for no change / the firewall REJECTED it /
-            # the switch is pulled), and only a named reason tells them apart. The
-            # notes-pull outcome rides along for the same reason: a HOLD is honest
-            # evidence only if the note was actually reachable.
-            _reason = plan.reject_reason
-            hb.record_stream("llm_analyst", {
-                "stream": "analyst-a3", "note_as_of": plan.note_as_of,
-                "n_orders": len(plan.orders), "targets": plan.targets,
-                "degraded": bool(plan.degraded),
-                "reject_reason": _reason,
-                "halted": bool(halt.halted), "halt_reason": halt.reason or None,
-                "notes_pull_ok": bool((note_pull or {}).get("ok")),
-                "notes_on_disk": (note_pull or {}).get(
-                    "rels", {}).get(NOTES_RELS[0], {}).get("n_files"),
-                "sub_budget_usd": (min(equity, args.sleeve_notional_cap)
-                                   if args.sleeve_notional_cap else equity),
-            })
             print(f"   LLM-ANALYST note_as_of={plan.note_as_of} "
-                  f"degraded={plan.degraded} reason={_reason or 'none'} "
-                  f"halted={halt.halted}")
+                  f"degraded={plan.degraded} "
+                  f"reason={plan.reject_reason or 'none'} halted={halt.halted}")
 
     summary = sched.run_trading_day(str(today), staged, inputs_fn,
                                     account_explained=account_explained)
@@ -562,6 +550,30 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
+
+    # --- T-329: the STREAM's own daily verdict. AFTER record_run, like every other
+    # heartbeat block — record_run REPLACES the status file, so anything stamped
+    # before it is silently erased. A zero-order day is ambiguous between four very
+    # different things (no note yet / the note asked for no change / the firewall
+    # REJECTED it / the switch is pulled) and only a named reason tells them apart;
+    # the notes-pull outcome rides along because a fail-closed HOLD is honest
+    # evidence only if the note was actually reachable. Report-only. ---------- #
+    if args.strategy == "llm_analyst" and plan is not None:
+        try:
+            hb.record_stream("llm_analyst", {
+                "stream": STREAM_TOKEN["llm_analyst"], "note_as_of": plan.note_as_of,
+                "n_orders": len(plan.orders), "targets": plan.targets,
+                "degraded": bool(plan.degraded), "reject_reason": plan.reject_reason,
+                "halted": bool(halt.halted), "halt_reason": halt.reason or None,
+                "notes_pull_ok": bool((note_pull or {}).get("ok")),
+                "notes_on_disk": (note_pull or {}).get(
+                    "rels", {}).get(NOTES_RELS[0], {}).get("n_files"),
+                "sub_budget_usd": (min(equity, args.sleeve_notional_cap)
+                                   if args.sleeve_notional_cap else equity),
+            })
+        except Exception as exc:
+            print(f"   LLM-ANALYST stream-record WARN {type(exc).__name__} "
+                  f"(non-fatal, report-only)", file=sys.stderr)
 
     # --- T-238 Part 2: forward-track the sleeve vs both robos + feed the
     # pre-registered EXECUTION-fidelity gates (report-only, never changes

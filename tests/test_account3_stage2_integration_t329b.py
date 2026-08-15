@@ -10,6 +10,7 @@ locks are as load-bearing as the new behaviour.
 from __future__ import annotations
 
 import json
+import pathlib
 import types
 
 import pytest
@@ -278,6 +279,114 @@ def test_notes_dir_is_not_in_this_accounts_push_set():
     accounts' note records diverge and neither is authoritative."""
     from paper_trader.cloud_state import DURABLE_PATHS
     assert "data/intel/analyst_notes" not in DURABLE_PATHS
+
+
+# ------------------------------------- the DRIVER, end to end (`--strategy llm_analyst`)
+class _SmokeCloud:
+    """A CloudState double that records the cross-account pull instead of touching S3."""
+
+    def __init__(self, notes_dir):
+        self.metrics, self.cross_pulls = [], []
+        self._notes_dir = notes_dir
+        self.cfg = types.SimpleNamespace(enabled=False, s3_root="LOCAL", prefix="x")
+
+    def pull(self):
+        return False
+
+    def push(self):
+        return True
+
+    def emit_metrics(self, *, happened, canonical):
+        self.metrics.append((happened, canonical))
+
+    def pull_readonly_from(self, source_prefix, rels):
+        self.cross_pulls.append((source_prefix, tuple(rels)))
+        return {"enabled": True, "source": source_prefix, "ok": True,
+                "rels": {r: {"rc": 0, "n_files": 1} for r in rels}}
+
+    def pull_news_recent(self, *a, **k):
+        return 0
+
+    # The alt-data and news-panel pulse steps are heavy (live network) and are
+    # documented fail-open — nothing in them may touch the trading verdict. Both
+    # begin with one of these calls, so raising here short-circuits them BEFORE any
+    # network I/O. That keeps this smoke hermetic and fast, and it asserts the
+    # fail-open contract at the same time: the run below must still be canonical.
+    def pull_altdata(self):
+        raise NotImplementedError("hermetic smoke: alt-data step deliberately skipped")
+
+    def pull_news_month(self, *a, **k):
+        raise NotImplementedError("hermetic smoke: news-panel step deliberately skipped")
+
+
+def _drive(tmp_path, monkeypatch, *, halted=False):
+    """Drive the real `main()` on a trading day with `--strategy llm_analyst`."""
+    import datetime as dt
+    import pandas as pd
+    from zoneinfo import ZoneInfo
+    import scripts.run_paper_cloud_day as drv
+
+    et = ZoneInfo("America/New_York")
+    now = dt.datetime(2026, 8, 17, 9, 55, tzinfo=et)      # a Monday, in-session
+    today = now.date()
+    monkeypatch.setenv("ARCHONDEX_TRADING_KILL_SWITCH", "1" if halted else "0")
+    # Copy the REAL settings under the injected root so the halt resolves through the
+    # unpatched production path (a stubbed kill switch would prove nothing about it).
+    cfgdir = tmp_path / "config"
+    cfgdir.mkdir(parents=True, exist_ok=True)
+    (cfgdir / "llm_settings.json").write_text(
+        (pathlib.Path(__file__).resolve().parents[1]
+         / "config/llm_settings.json").read_text())
+    # a real, schema-valid note dated yesterday
+    _note_on_disk(tmp_path, (today - dt.timedelta(days=1)).isoformat(), sym="SPY", w=0.10)
+
+    idx = pd.bdate_range(end=pd.Timestamp(today) - pd.Timedelta(days=1), periods=80)
+    series = {t: pd.Series([100.0] * len(idx), index=idx) for t in ("SPY", "AGG", "GLD")}
+
+    class _Client(FakePaperClient):
+        def get_account(self):
+            return {"equity": 100_000.0, "cash": 100_000.0, "status": "ACTIVE"}
+
+        def fetch_daily_closes(self, tickers, lookback_days=400):
+            return {t: series[t] for t in tickers if t in series}
+
+        def fetch_latest_prices(self, tickers):
+            return {t: 100.0 for t in tickers}
+
+        def trading_days(self, start, end):
+            return {today}
+
+    cloud = _SmokeCloud(tmp_path / "data/intel/analyst_notes")
+    rc = drv.main(["--allocator", "mean_variance", "--strategy", "llm_analyst",
+                   "--sleeve-notional-cap", "10000"],
+                  now=now, client=_Client(), cloud=cloud, root=str(tmp_path))
+    hb = json.loads((tmp_path / "data/state/paper_heartbeat.json").read_text())
+    return rc, cloud, hb
+
+
+def test_driver_end_to_end_note_to_stream_tagged_orders(tmp_path, monkeypatch):
+    """[NN-FIRST-ARTIFACT] rehearsed locally: note → targets → real staged orders,
+    with the cross-account pull actually issued and the stream verdict recorded."""
+    rc, cloud, hb = _drive(tmp_path, monkeypatch)
+    assert rc == 0
+    assert cloud.cross_pulls == [("paper_state", ("data/intel/analyst_notes",))]
+    st = hb["streams"]["llm_analyst"]
+    assert st["stream"] == "analyst-a3" and st["halted"] is False
+    assert st["targets"]["SPY"] == 0.10 and st["n_orders"] == 1
+    assert st["notes_pull_ok"] is True and st["sub_budget_usd"] == 10_000.0
+    journal = (tmp_path / "data/paper_state/orders.jsonl").read_text()
+    assert "archondex-analyst-a3-" in journal      # tagged from ORDER #1
+
+
+def test_driver_end_to_end_halted_is_a_clean_reconcile_only_day(tmp_path, monkeypatch):
+    """A halt must be a HEALTHY day — canonical, no orders, and a STATED reason. If a
+    halt read as a failure the operator would learn to ignore the alarm."""
+    rc, cloud, hb = _drive(tmp_path, monkeypatch, halted=True)
+    assert rc == 0 and cloud.metrics[-1] == (True, True)
+    st = hb["streams"]["llm_analyst"]
+    assert st["halted"] is True and "ARCHONDEX_TRADING_KILL_SWITCH" in st["halt_reason"]
+    assert st["n_orders"] == 1                     # what the halt PREVENTED is recorded
+    assert not (tmp_path / "data/paper_state/orders.jsonl").exists()   # nothing staged
 
 
 # ------------------------------------------------- note staleness (a stalled feed)

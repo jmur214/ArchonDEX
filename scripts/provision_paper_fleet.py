@@ -37,14 +37,49 @@ SCHED_ROLE = "archondex-paper-scheduler-role"
 TOPIC = f"arn:aws:sns:{REGION}:{ACCOUNT}:archondex-paper-alerts"
 SECRET_BASE = "archondex/alpaca-paper"
 
-# (account key, strategy, secret suffix, schedule minute, metric-dimension value)
+# (account key, strategy, schedule minute, metric-dimension value = key)
+# `secret` defaults to the key; set it explicitly when an account INHERITS another
+# slot's secret (see ai-trader below).
 FLEET = [
     # T-298 flip: offense-sso runs the DAMPED spec (damp re-entry, never de-risk)
     # now that its undamped armed run is clean + the real SSO slippage (2.2 bps)
-    # is measured. btc-sleeve carries no damping (default symmetric).
+    # is measured.
     dict(key="offense-sso", strategy="offense_sso", minute=50, damping="asymmetric"),
-    dict(key="btc-sleeve",  strategy="sleeve_btc",  minute=55),
+    # --- T-329 ACCOUNT 3 = the stage-2 AI trader (the constrained analyst's
+    # validated note → real paper orders). It INHERITS the dormant btc-sleeve slot:
+    #
+    #   * the SECRET keeps its historical name `archondex/alpaca-paper-btc-sleeve`.
+    #     It is ALIASED here, never renamed — a rename touches IAM ARNs and the
+    #     jobdef binding, which is the deploy-drift class that produced the July
+    #     outage. Cosmetics are not worth a live-resource edit.
+    #   * the physical Alpaca sub-account was verified FLAT from the broker before
+    #     ignition (positions=0, open_orders=0), never from dashboard memory.
+    #   * the STATE PREFIX is NEW (`paper_state_ai_trader`), not inherited. The
+    #     btc-sleeve prefix holds the 2026-07-08 armed-run journal/ledger/tracker;
+    #     reusing it would open the AI trader's book with somebody else's page,
+    #     which is the opposite of what a forward record certifies. The old prefix
+    #     is left intact in S3 as the archive ([NN-ARCHIVE]).
+    #   * 9:55 ET — after account-1's 9:45 pulse, whose push completes the notes
+    #     prefix this account cross-reads. (Correctness does not depend on it: the
+    #     constructor consumes YESTERDAY's note by construction.)
+    dict(key="ai-trader", strategy="llm_analyst", minute=55,
+         secret="btc-sleeve", state_prefix="paper_state_ai_trader"),
+    # RETIRED — btc-sleeve. Its science moved to the VIRTUAL btc_shadow book (which
+    # keeps accruing, unaffected) and the user's 3-account cap reserved this slot for
+    # stage 2. The jobdef + its DISABLED schedule are left inert rather than deleted
+    # ([NN-ARCHIVE]); they are deliberately absent from this list so a re-run of this
+    # provisioner can never resurrect a second strategy pointed at the SAME Alpaca
+    # account the AI trader now trades.
+    #   dict(key="btc-sleeve", strategy="sleeve_btc", minute=55),
 ]
+
+# The live schedule shape, matching account-1's `archondex-paper-daily`. These were
+# added to the LIVE schedules by hand and never written back here — so the checked-in
+# provisioner used to render a schedule with NO DLQ and AWS's 185-retry default, and
+# re-running it would have silently reverted both. Written back now; every deploy
+# still diffs rendered-vs-live first.
+DLQ_ARN = f"arn:aws:sqs:{REGION}:{ACCOUNT}:archondex-scheduler-dlq"
+RETRY_POLICY = {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 3}
 
 
 def aws(*args, capture=True):
@@ -64,18 +99,49 @@ def role_arn(name: str) -> str:
     return aws("iam", "get-role", "--role-name", name, "--query", "Role.Arn", "--output", "text")
 
 
+def _live_secret_arns() -> list:
+    """Every ARN the LIVE exec-role policy already grants. Absent policy → []."""
+    r = subprocess.run(
+        ["aws", "iam", "get-role-policy", "--role-name", EXEC_ROLE,
+         "--policy-name", "read-alpaca-paper-secret", "--query", "PolicyDocument",
+         "--output", "json", "--profile", PROFILE, "--region", REGION],
+        capture_output=True, text=True)
+    if r.returncode != 0:
+        return []
+    out = []
+    for st in json.loads(r.stdout).get("Statement", []):
+        res = st.get("Resource", [])
+        out += [res] if isinstance(res, str) else list(res)
+    return out
+
+
 def extend_exec_secret_policy(new_arns):
-    """Grant the exec role GetSecretValue on the account-1 secret + the new ones."""
+    """Grant the exec role GetSecretValue on the account-1 secret + the new ones —
+    as a UNION with whatever the live policy already grants, never a blind overwrite.
+
+    This is the fix for a real near-miss. The live policy carries grants this script
+    does not know about (notably `archondex/anthropic-api`, added out-of-band when the
+    analyst was wired). Rendering the document from FLEET alone and PUT-ing it would
+    have silently REVOKED them — a fleet-wide LLM blackout while every run still
+    reported canonical. Read-modify-write plus a readback is the only safe shape for
+    an IAM document whose live contents can legitimately exceed the template's."""
     base = aws("secretsmanager", "describe-secret", "--secret-id", SECRET_BASE,
                "--query", "ARN", "--output", "text")
+    live = _live_secret_arns()
+    want = sorted(set(live) | {base} | set(new_arns))
+    dropped = sorted(set(live) - set(want))
+    assert not dropped, f"REFUSING to revoke live grants: {dropped}"
     doc = {"Version": "2012-10-17", "Statement": [{
-        "Sid": "ReadAlpacaPaperSecrets", "Effect": "Allow",
+        "Sid": "ReadPaperSecrets", "Effect": "Allow",
         "Action": "secretsmanager:GetSecretValue",
-        "Resource": [base] + list(new_arns)}]}
+        "Resource": want}]}
     aws("iam", "put-role-policy", "--role-name", EXEC_ROLE,
         "--policy-name", "read-alpaca-paper-secret",
         "--policy-document", json.dumps(doc))
-    print(f"  exec-role policy → {1 + len(new_arns)} secret ARNs")
+    readback = sorted(_live_secret_arns())          # verify the WRITE, not the intent
+    assert readback == want, f"readback mismatch: {readback} != {want}"
+    print(f"  exec-role policy → {len(want)} secret ARNs "
+          f"({len(want) - len(live)} added, 0 revoked, readback verified)")
 
 
 def register_jobdef(acct, image, exec_arn, job_arn, sec_arn) -> str:
@@ -94,14 +160,23 @@ def register_jobdef(acct, image, exec_arn, job_arn, sec_arn) -> str:
                 {"name": "AWS_DEFAULT_REGION", "value": REGION},
                 {"name": "ARCHONDEX_PAPER_STATE_BUCKET", "value": BUCKET},
                 {"name": "ARCHONDEX_PAPER_STATE_PREFIX",
-                 "value": f"paper_state_{acct['key'].replace('-', '_')}"},
+                 "value": acct.get("state_prefix")
+                 or f"paper_state_{acct['key'].replace('-', '_')}"},
                 {"name": "ARCHONDEX_PAPER_ALLOCATOR", "value": "mean_variance"},
                 {"name": "ARCHONDEX_PAPER_STRATEGY", "value": acct["strategy"]},
                 {"name": "ARCHONDEX_SLEEVE_NOTIONAL_CAP", "value": "10000"},
                 {"name": "ARCHONDEX_SLEEVE_TIF", "value": "day"},
                 {"name": "ARCHONDEX_PAPER_ACCOUNT", "value": acct["key"]},
             ] + ([{"name": "ARCHONDEX_OFFENSE_DAMPING", "value": acct["damping"]}]
-                 if acct.get("damping") else []),
+                 if acct.get("damping") else [])
+              + ([  # T-329 account-3: where to cross-read the analyst notes from
+                  # (intel_pulse runs on the account-1 branch only), and the
+                  # trading kill switch's no-image-rebuild surface. Present and
+                  # EXPLICITLY "0" so the control is visible in the jobdef rather
+                  # than being an undocumented env name someone has to know.
+                  {"name": "ARCHONDEX_NOTES_SOURCE_PREFIX", "value": "paper_state"},
+                  {"name": "ARCHONDEX_TRADING_KILL_SWITCH", "value": "0"},
+              ] if acct["strategy"] == "llm_analyst" else []),
             "secrets": [
                 {"name": "ALPACA_API_KEY", "valueFrom": f"{sec_arn}:ALPACA_API_KEY::"},
                 {"name": "ALPACA_SECRET_KEY", "valueFrom": f"{sec_arn}:ALPACA_SECRET_KEY::"}],
@@ -125,10 +200,20 @@ def create_schedule(acct, jobdef_name, sched_role_arn):
                  "--output", "text")
     q_arn = aws("batch", "describe-job-queues", "--job-queues", QUEUE,
                 "--query", "jobQueues[0].jobQueueArn", "--output", "text")
+    # jd_arn is the REVISION-PINNED ARN (…/name:N). A bare, revisionless ARN is what
+    # caused the 2026-07-13→24 silent outage: it failed the scheduler role's `:*` IAM
+    # pattern, every scheduled submit AccessDenied'd, and the retries drained with no
+    # DLQ. Both halves of that lesson are pinned here — the revision and the DLQ.
+    assert ":" in jd_arn.rsplit("/", 1)[-1], f"jobdef ARN is not revision-pinned: {jd_arn}"
     target = {"Arn": "arn:aws:scheduler:::aws-sdk:batch:submitJob",
               "RoleArn": sched_role_arn,
               "Input": json.dumps({"JobName": f"paper-{acct['key']}-day",
-                                   "JobQueue": q_arn, "JobDefinition": jd_arn})}
+                                   "JobQueue": q_arn, "JobDefinition": jd_arn}),
+              "DeadLetterConfig": {"Arn": DLQ_ARN},
+              # FAST-FAIL. AWS's default is 185 attempts over 24h, which turns a
+              # broken submit into a day-long silent retry storm instead of a prompt,
+              # visible failure in the DLQ.
+              "RetryPolicy": dict(RETRY_POLICY)}
     cron = f"cron({acct['minute']} 9 ? * MON-FRI *)"
     exists = subprocess.run(["aws", "scheduler", "get-schedule", "--name", name,
                              "--profile", PROFILE, "--region", REGION],
@@ -167,7 +252,9 @@ def main():
     ap.add_argument("--image", required=True, help="the rev14 ECR image ref")
     args = ap.parse_args()
     exec_arn, job_arn, sched_arn = role_arn(EXEC_ROLE), role_arn(JOB_ROLE), role_arn(SCHED_ROLE)
-    sec = {a["key"]: secret_arn(a["key"]) for a in FLEET}
+    # `secret` defaults to the account key; ai-trader INHERITS btc-sleeve's secret
+    # (aliased, never renamed — a rename touches IAM ARNs and the jobdef binding).
+    sec = {a["key"]: secret_arn(a.get("secret", a["key"])) for a in FLEET}
     print("== extend exec-role secret policy ==")
     extend_exec_secret_policy(sec.values())
     sched_gap = []
