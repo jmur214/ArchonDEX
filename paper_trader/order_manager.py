@@ -106,15 +106,56 @@ _BROKER_STATE_MAP: Dict[str, Optional[OrderState]] = {
 }
 
 
+# T-329 §3: a STREAM token tags every order with the decision-source that
+# produced it (account-3 runs the LLM analyst on day 1; the event desk and the
+# thesis book join later on their own bars). It is applied from ORDER #1 —
+# retrofitting one later would blur the record exactly where attribution has to
+# be sharp, because the early orders would be indistinguishable from each other.
+# Constrained to [a-z0-9-] so it can never inject separators into the id or push
+# it past Alpaca's 128-char client_order_id limit.
+_STREAM_MAX = 24
+_STREAM_OK = set("abcdefghijklmnopqrstuvwxyz0123456789-")
+
+
+def _validate_stream(stream: Optional[str]) -> Optional[str]:
+    """None → byte-identical legacy behaviour. A malformed token RAISES — a
+    silently-dropped stream tag would produce an unattributable order, which is
+    worse than a loud refusal to construct one."""
+    if stream is None:
+        return None
+    s = str(stream)
+    if not s or len(s) > _STREAM_MAX or not set(s) <= _STREAM_OK or s.startswith("-") \
+            or s.endswith("-"):
+        raise ValueError(
+            f"invalid coid stream token {stream!r}: want 1-{_STREAM_MAX} chars of "
+            f"[a-z0-9-], no leading/trailing '-'")
+    return s
+
+
 def make_client_order_id(
-    trade_date: str, ticker: str, side: str, qty: int, config_hash: str
+    trade_date: str, ticker: str, side: str, qty: int, config_hash: str,
+    stream: Optional[str] = None,
 ) -> str:
     """Deterministic, restart-stable order id (NOT Python's salted
-    ``hash()``). Same (date,ticker,side,qty,config) → same id, so a
-    retry collides with the already-submitted order at the broker."""
+    ``hash()``). Same (date,ticker,side,qty,config[,stream]) → same id, so a
+    retry collides with the already-submitted order at the broker.
+
+    ``stream`` (T-329 §3) prefixes the id AND enters the digest. Both matter:
+    the prefix makes the record greppable per decision-source, and the digest
+    keeps two streams that happen to want the same (date,ticker,side,qty) from
+    colliding into ONE order — which would silently net two independent
+    decisions into a single fill, the exact netting the ladder forbids.
+
+    ``stream=None`` is byte-identical to the pre-T-329 id (account-1's live
+    path is unchanged — regression-locked)."""
+    s = _validate_stream(stream)
     canonical = f"{trade_date}|{ticker.upper()}|{side.lower()}|{int(qty)}|{config_hash}"
+    if s:
+        canonical = f"{s}|{canonical}"
     digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:16]
     # Alpaca client_order_id: ≤128 chars, our prefix keeps it greppable.
+    if s:
+        return f"archondex-{s}-{trade_date}-{ticker.upper()}-{digest}"
     return f"archondex-{trade_date}-{ticker.upper()}-{digest}"
 
 
@@ -190,7 +231,8 @@ class OrderManager:
 
     def __init__(self, client, journal_path: str,
                  reconcile_on_start: bool = True,
-                 wash_guard=None, account: Optional[str] = None):
+                 wash_guard=None, account: Optional[str] = None,
+                 stream: Optional[str] = None, halt_check=None):
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
@@ -201,6 +243,16 @@ class OrderManager:
         # bites when a fleet passes a shared guard + this account's tax label.
         self.wash_guard = wash_guard
         self.account = account
+        # T-329 §3: the default coid STREAM token for orders staged by this
+        # manager (account-3 = "analyst-a3" on day 1). None ⇒ byte-identical
+        # legacy ids, so account-1's live path is untouched.
+        self.stream = _validate_stream(stream)
+        # T-329: the TRADING kill switch. A CALLABLE returning a HaltStatus,
+        # injected so tests drive it and so account-1 (halt_check=None) runs
+        # byte-identically — NOTHING below consults it when None. Resolved
+        # PER SUBMIT, never cached: an operator who trips the switch mid-run
+        # must stop the very next order, not the next container.
+        self.halt_check = halt_check
         self._replay_from_journal()
         # T-163 crit-2: a restart must reconcile its replayed belief
         # against broker TRUTH before acting. T-163-fix2 SURFACE 1: a
@@ -291,10 +343,16 @@ class OrderManager:
 
     # ------------------------------ lifecycle -------------------------- #
     def stage(self, trade_date: str, ticker: str, side: str, qty: int,
-              tif: TimeInForce, config_hash: str) -> OrderRecord:
+              tif: TimeInForce, config_hash: str,
+              stream: Optional[str] = None) -> OrderRecord:
         """Construct + journal a STAGED order. Idempotent on
-        client_order_id (re-staging an existing id returns it)."""
-        coid = make_client_order_id(trade_date, ticker, side, qty, config_hash)
+        client_order_id (re-staging an existing id returns it).
+
+        ``stream`` overrides this manager's default stream token for a single
+        order (the multi-stream door: once account-3's event desk joins, one
+        container stages orders under two tokens in the same cycle)."""
+        coid = make_client_order_id(trade_date, ticker, side, qty, config_hash,
+                                    stream=stream if stream is not None else self.stream)
         if coid in self.orders:
             return self.orders[coid]
         order = OrderRecord(
@@ -319,6 +377,27 @@ class OrderManager:
         broker truth, NOT mark it terminal-REJECTED."""
         if order.state != OrderState.STAGED.value:
             return order
+        # T-329: the TRADING kill switch — PRE-SUBMISSION, ahead of every other
+        # check, because a halt outranks every reason to trade. It refuses BUYS
+        # AND SELLS alike: a halt STOPS NEW ACTIONS, it NEVER LIQUIDATES (letting
+        # sells through would force-sell the book at precisely the moment an
+        # operator is most likely to pull the switch). The order is journaled
+        # REJECTED with a typed reason and never reaches the broker; the run
+        # continues reconcile-only. Byte-neutral when ``halt_check is None``
+        # (account-1's live path never consults it). A RAISING halt check is
+        # itself a halt — fail-closed; we do not trade on an unreadable control.
+        if self.halt_check is not None:
+            try:
+                status = self.halt_check()
+                halted, reason = bool(status.halted), str(status.reason)
+            except Exception as exc:
+                halted, reason = True, f"halt_check_raised:{type(exc).__name__}"
+            if halted:
+                from paper_trader.trading_halt import TradingHalted
+                order.reject_reason = f"trading_halt:{reason}"
+                self._record(order, event="trading_halt_refused",
+                             new_state=OrderState.REJECTED)
+                raise TradingHalted(reason)
         # T-319: cross-account wash-sale guard — PRE-SUBMISSION, before the broker
         # POST. A REFUSE marks the order REJECTED (typed reason), journals it, and
         # RAISES ``WashSaleRefusal`` — the order NEVER reaches the broker and is

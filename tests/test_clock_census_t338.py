@@ -47,9 +47,18 @@ def test_every_exemption_carries_a_nonempty_reason():
 
 
 def test_durable_dirs_are_covered_by_the_analyst_clock():
+    """Same rule as the paths tripwire: covered-by-a-clock OR exempted-with-a-reason.
+
+    (Widened 2026-08-15/T-329: it previously demanded a CLOCK for every durable dir,
+    which left no honest home for a diagnostic archive whose healthy state is 'no new
+    file today' — `data/intel/llm_raw`, added by the T-325 token-truncation fix, sat
+    unclassified and this tripwire was RED on main. Exemption is the same discipline,
+    not an escape hatch: `test_every_exemption_carries_a_nonempty_reason` still applies,
+    so a dir can only leave the census by SAYING WHY.)"""
     covered = {c for clock in REGISTRY for c in clock.covers}
     for d in DURABLE_DIRS:
-        assert d in covered, f"{d} not covered by any clock"
+        assert d in covered or d in EXEMPT, (
+            f"{d} not covered by any clock and not exempted with a reason")
 
 
 # ---------- FAIL-CLOSED: unverifiable is a MISS, never a skip ----------

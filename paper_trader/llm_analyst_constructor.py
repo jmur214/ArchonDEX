@@ -47,6 +47,17 @@ MAX_WEIGHT = 0.20                  # ≤20% per name
 MAX_GROSS = 2.0                   # Σ|w| ≤ 2.0
 MAX_TURNOVER = 0.50               # ≤50% NAV/day rebalance turnover
 
+# T-329b: the STALENESS bound on "yesterday's note". `as_of < trade_date` alone is
+# unbounded backwards — if the note feed stalls (the analyst step fails, the cloud
+# secret lapses, the cross-account pull is denied), the newest note on disk stays
+# eligible forever and the account keeps acting on a belief formed weeks ago. That
+# is the frozen-price-CSV / stalled-archiver class this program has now hit five
+# times, and its signature is always the same: a clock believed to be accruing that
+# isn't. Beyond this many CALENDAR days the note is refused and the day HOLDS with a
+# stated reason. 5 covers a long weekend plus a holiday; anything longer is a stall,
+# not a gap.
+MAX_NOTE_AGE_DAYS = 5
+
 
 @dataclass
 class LLMAnalystPlan:
@@ -66,7 +77,8 @@ class LLMAnalystConstructor:
                  notes_dir: str = NOTES_DIR, tif: str = "day", sub_budget: float = 1.0,
                  allowlist: Optional[Tuple[str, ...]] = None,
                  max_weight: float = MAX_WEIGHT, max_gross: float = MAX_GROSS,
-                 max_turnover: float = MAX_TURNOVER, note: Optional[dict] = None):
+                 max_turnover: float = MAX_TURNOVER, note: Optional[dict] = None,
+                 max_note_age_days: int = MAX_NOTE_AGE_DAYS):
         self.trade_date = str(trade_date)
         self.root = root
         self.notes_dir = notes_dir
@@ -76,6 +88,7 @@ class LLMAnalystConstructor:
         self.max_weight = float(max_weight)
         self.max_gross = float(max_gross)
         self.max_turnover = float(max_turnover)
+        self.max_note_age_days = int(max_note_age_days)
         self._injected_note = note          # tests inject; else loaded from the notes dir
 
     # ---- note loading (yesterday's validated note — look-ahead impossible) ----
@@ -101,13 +114,34 @@ class LLMAnalystConstructor:
                 cands.append((as_of, payload))
         if not cands:
             return None, "no note with as_of < trade_date yet"
-        _, payload = max(cands, key=lambda x: x[0])          # the latest such note
+        as_of, payload = max(cands, key=lambda x: x[0])      # the latest such note
+        stale = self._staleness(as_of)
+        if stale is not None:                                # a stalled feed must HOLD
+            return None, stale
         if validate_note is not None:                        # independent re-validation
             note, reason = validate_note(payload)
             if note is None:
                 return None, f"note failed re-validation: {reason}"
             payload = note.model_dump()
         return payload, None
+
+    def _staleness(self, as_of: str) -> Optional[str]:
+        """None if the note is fresh enough to act on; a stated reason otherwise.
+
+        Fail-closed on an UNPARSEABLE date too: a note we cannot age is a note we
+        cannot trust, and 'assume it's fresh' is how a stalled feed keeps trading."""
+        if self.max_note_age_days <= 0:                       # bound disabled explicitly
+            return None
+        import datetime as dt
+        try:
+            age = (dt.date.fromisoformat(self.trade_date[:10])
+                   - dt.date.fromisoformat(str(as_of)[:10])).days
+        except Exception:
+            return f"unparseable_note_date:{as_of!r} (cannot age the note → HOLD)"
+        if age > self.max_note_age_days:
+            return (f"stale_note:as_of={as_of} is {age}d old "
+                    f"(> {self.max_note_age_days}d) — the note feed has STALLED")
+        return None
 
     def _targets(self, note: dict) -> Dict[str, float]:
         """{symbol: target_weight} from the shadow actions, allowlist-filtered."""
