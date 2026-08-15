@@ -57,4 +57,30 @@ The question decomposes into two quantities with wildly different variance. Conf
 - **CAN:** retire an execution-timing question with a receipt, at low cost.
 - **CANNOT:** become an alpha claim. Arm B is the alpha-shaped question and it is pre-registered as unresolvable; no result here may be cited as return evidence.
 
-**Awaiting director freeze. Nothing run; no trading change.**
+## 🧊 DIRECTOR FREEZE — 2026-08-15 (NARROWED; BINDING)
+**Arm A APPROVED but RESTRICTED to open-vs-close on data we already hold. NO minute-bar build.**
+The ruling turns on my own numbers: we already execute within ~1 bp of arrival, so building
+minute-bar infrastructure to chase a ~1 bp ceiling is negative-EV effort — and B's T-341
+verdict independently killed the free-1-min-data hope (same vendor, survivorship untrustworthy).
+The narrowed form still answers the CLASS question: *is there a material cost difference between
+the two times we could actually execute?* Gate unchanged (CI-excludes-zero **AND** ≥0.5 bps).
+Arm B: CI + MDE, **no verdict**. The n=3 real-fill arm: **validation-only**, as drafted.
+
+### ⚠ Feasibility finding recorded BEFORE the run (T-337 discipline)
+Checking what the narrowed Arm A can actually use:
+- **Daily OHLC contains no quote data**, so an open-vs-close *effective-spread* split is **not
+  directly measurable** on held data.
+- The standard OHLC-based substitute, **Corwin-Schultz (JF 2012), is unreliable at our liquidity
+  tier**: on our own panels (2015+) it returns **median 0.0 bps (negatives clipped) and mean 23.0
+  bps for SPY**, against a true SPY spread of ~0.5-1 bp — wrong by **20-40×**. AGG 5.0, GLD 14.4
+  show the same inflation. **Using it would fabricate a number**, which is the exact failure this
+  program exists not to produce.
+- **The one trustworthy effective-spread measurement we own is our own realized slippage**
+  (0.26 / 0.51 / 1.02 bps, n=3) — which is precisely an execution-cost-vs-arrival measurement,
+  and it bounds the ceiling directly.
+
+**Consequence, pre-stated:** Arm A is expected to return **NOT MEASURABLE on held data** rather
+than a number. That is a legitimate, reportable outcome — the instrument does not exist at this
+liquidity tier — and it closes the door with a receipt instead of leaving it ajar.
+
+**FROZEN. Committed BEFORE the run; the git trail is the freeze-predates-run proof. N += 1.**
