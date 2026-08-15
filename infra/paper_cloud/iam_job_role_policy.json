@@ -1,5 +1,5 @@
 {
-  "_comment": "Permissions for the paper-loop CONTAINER (jobRoleArn): durable-state S3 read/write under EACH account's own state prefix, and CloudWatch put-metric-data for the dead-man's-switch. T-288: the fleet accounts write paper_state_offense_sso/* and paper_state_btc_sleeve/* — `paper_state/*` does NOT match those, so their pushes were silently AccessDenied (CloudState fails open). T-325 (2026-08-05): the SAME class recurred — the daily news-panel push (news_panel/YYYY/MM/) and the alt-data hoard push (altdata/) go to DIFFERENT prefixes than paper_state/, so push_news_month/push_altdata were silently AccessDenied every run and the panel never accrued in-cloud (the empty-tape root cause; silent-wrongness near-miss #5). Both prefixes granted now, and the push methods now CHECK the return code. Prefixes are enumerated EXPLICITLY (not a wildcard) so a new prefix must be granted deliberately. Deliberately NOT granted broker creds (those come via the execution role's Secrets Manager binding) and NOT granted any live-trading AWS surface. __RESULTS_BUCKET__ substituted at deploy.",
+  "_comment": "Permissions for the paper-loop CONTAINER (jobRoleArn): durable-state S3 read/write under EACH account's own state prefix, and CloudWatch put-metric-data for the dead-man's-switch. T-288: the fleet accounts write paper_state_offense_sso/* and paper_state_btc_sleeve/* — `paper_state/*` does NOT match those, so their pushes were silently AccessDenied (CloudState fails open). T-325 (2026-08-05): the SAME class recurred — the daily news-panel push (news_panel/YYYY/MM/) and the alt-data hoard push (altdata/) go to DIFFERENT prefixes than paper_state/, so push_news_month/push_altdata were silently AccessDenied every run and the panel never accrued in-cloud (the empty-tape root cause; silent-wrongness near-miss #5). Both prefixes granted now, and the push methods now CHECK the return code. Prefixes are enumerated EXPLICITLY (not a wildcard) so a new prefix must be granted deliberately. Deliberately NOT granted broker creds (those come via the execution role's Secrets Manager binding) and NOT granted any live-trading AWS surface. __RESULTS_BUCKET__ substituted at deploy. T-329 (2026-08-15): account-3 = the stage-2 AI TRADER writes paper_state_ai_trader/* — a NEW prefix, NOT the inherited btc-sleeve one (that prefix holds the 2026-07-08 armed-run journal/ledger and stays intact as the archive; the AI trader's forward record must not open with somebody else's page). The grant is load-bearing, not cosmetic: without it every push is silently AccessDenied and the account runs with an amnesiac journal — the exact failure this explicit enumeration exists to prevent, twice over.",
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -10,6 +10,7 @@
         "arn:aws:s3:::__RESULTS_BUCKET__/paper_state/*",
         "arn:aws:s3:::__RESULTS_BUCKET__/paper_state_offense_sso/*",
         "arn:aws:s3:::__RESULTS_BUCKET__/paper_state_btc_sleeve/*",
+        "arn:aws:s3:::__RESULTS_BUCKET__/paper_state_ai_trader/*",
         "arn:aws:s3:::__RESULTS_BUCKET__/news_panel/*",
         "arn:aws:s3:::__RESULTS_BUCKET__/altdata/*"
       ]
@@ -21,7 +22,7 @@
       "Resource": "arn:aws:s3:::__RESULTS_BUCKET__",
       "Condition": {"StringLike": {"s3:prefix": [
         "paper_state/*", "paper_state_offense_sso/*", "paper_state_btc_sleeve/*",
-        "news_panel/*", "altdata/*"]}}
+        "paper_state_ai_trader/*", "news_panel/*", "altdata/*"]}}
     },
     {
       "Sid": "DeadMansSwitchMetrics",

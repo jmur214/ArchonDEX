@@ -227,6 +227,29 @@ class PaperHeartbeat:
         status["exec_cost"] = block
         self._atomic_write(self.status_path, status)
 
+    def record_stream(self, label: str, block: Dict[str, Any]) -> None:
+        """T-329: stamp a decision-STREAM's own daily verdict onto the status file
+        under ``streams.<label>`` (account-3 day-1: the LLM analyst). Report-only —
+        a stream that HOLDS (no note yet, a firewall rejection, a trading halt) is a
+        correct, healthy outcome, not an operational failure, so this NEVER flips
+        ``canonical``/``alert``. But it must never be silent either: 'no orders
+        today' is ambiguous between 'the analyst had nothing to do', 'the firewall
+        rejected the note', and 'the switch is pulled', and only a stated reason
+        tells them apart (the silent-wrongness doctrine — report the OUTCOME, not
+        the config). A HALT additionally fires the notify channel: an operator must
+        be told the machine is deliberately not trading, every day it isn't."""
+        status = self._read_status() or {}
+        streams = dict(status.get("streams") or {})
+        streams[label] = {**block, "ts": _utcnow_iso()}
+        status["streams"] = streams
+        self._atomic_write(self.status_path, status)
+        if block.get("halted"):
+            msg = (f"[TRADING-HALT][{label}] new orders refused — "
+                   f"{block.get('halt_reason', 'unstated')} (positions untouched; "
+                   f"a halt stops new actions, it never liquidates)")
+            print(msg)
+            self._notify(msg)
+
     def check(self, today: _date, is_trading_day: bool) -> HeartbeatVerdict:
         """The dead-man's-switch. On a trading day, today's run must have
         happened AND been canonical — else ALERT. On a non-trading day,

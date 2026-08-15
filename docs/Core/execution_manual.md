@@ -775,6 +775,80 @@ Verify a run: `aws batch describe-jobs --jobs <id>` (SUCCEEDED = canonical
 exit 0), CloudWatch log group `/aws/batch/job` stream prefix `paper-cloud`,
 and the durable state under `s3://archondex-results-407539788432/paper_state/`.
 
+### FLEET DRIFT CHECK — run BEFORE any provisioning touch (T-329b)
+
+```bash
+# READ-ONLY. Diffs the checked-in templates against the LIVE AWS resources.
+# Exit 1 = drift. Non-negotiable pre-flight: a live hand-fix that was never
+# written back is silently REVERTED by the next provisioner re-run, while
+# every log line still reads success. Already caught three: a live
+# archondex/anthropic-api grant the template didn't render (a blind PUT =
+# fleet-wide LLM blackout), missing DLQ + fast-fail on the schedules, and
+# each new S3 state prefix needing an explicit job-role grant.
+python scripts/diff_live_paper_infra.py
+```
+
+### PRE-IGNITION FLAT-CHECK — verify a paper account from the BROKER (T-329b)
+
+The CLI user deliberately has NO `secretsmanager:GetSecretValue`, so an
+account's true state cannot be read from the laptop. Ask the container
+instead: a read-only Batch job on that account's jobdef, with the command
+overridden so the paper entrypoint never runs. Never trust dashboard memory
+that an account is flat — check it ([NN-FIRST-ARTIFACT]).
+
+```bash
+cat > /tmp/flatcheck.py <<'PY'
+import json
+from paper_trader.paper_client import AlpacaPaperClient
+c = AlpacaPaperClient(); a = c.get_account(); pos = c.list_positions()
+TERM = {"filled","canceled","expired","rejected","done_for_day","replaced"}
+op = [o for o in c.list_orders() if str(o.get("status","")).lower() not in TERM]
+print("FLATCHECK " + json.dumps({"status": a.get("status"), "equity": a.get("equity"),
+      "n_positions": len(pos), "n_open_orders": len(op), "positions": pos}, default=str))
+print("FLAT=%s" % (not pos and not op))
+PY
+python -c "import json;print(json.dumps({'command':['python','-c',open('/tmp/flatcheck.py').read()]}))" > /tmp/ov.json
+aws batch submit-job --profile archondex --region us-east-1 \
+  --job-name preignition-flatcheck --job-queue archondex-backtest-queue \
+  --job-definition archondex-paper-<acct> --container-overrides file:///tmp/ov.json
+# then read the log stream from describe-jobs → container.logStreamName
+```
+
+### ACCOUNT 3 — the stage-2 AI trader (`--strategy llm_analyst`, T-329/T-329b)
+
+```bash
+# Provision (jobdef + DISABLED schedule + alarms). Run the drift check FIRST.
+python scripts/provision_paper_fleet.py --image "$REF"
+```
+
+Jobdef env specific to this account: `ARCHONDEX_PAPER_STRATEGY=llm_analyst`,
+`ARCHONDEX_PAPER_STATE_PREFIX=paper_state_ai_trader` (a NEW prefix — the
+inherited btc-sleeve prefix stays intact as the archive),
+`ARCHONDEX_NOTES_SOURCE_PREFIX=paper_state` (where it cross-reads account-1's
+analyst notes read-only), `ARCHONDEX_TRADING_KILL_SWITCH=0`,
+`ARCHONDEX_SLEEVE_NOTIONAL_CAP=10000` (the analyst stream's sub-budget).
+Secret is the INHERITED `archondex/alpaca-paper-btc-sleeve` — aliased in
+config, never renamed (a rename touches IAM ARNs and the jobdef binding).
+
+**Tripping the trading kill switch** — three surfaces, by latency. Any one
+halts; a halt STOPS NEW ORDERS and NEVER liquidates:
+
+```bash
+# 1. FASTEST — one S3 object, effective next run, no deploy at all:
+echo "halted <who/why/when>" | aws s3 cp - \
+  s3://archondex-results-407539788432/paper_state_ai_trader/data/state/TRADING_HALT \
+  --profile archondex
+#    clear it by deleting that object.
+# 2. jobdef env ARCHONDEX_TRADING_KILL_SWITCH=1 (a jobdef revision, no rebuild)
+# 3. config/llm_settings.json → llm.trading_kill_switch (needs an image rev).
+#    NB llm.kill_switch (the SPEND switch) also halts trading: the constructor
+#    consumes YESTERDAY's note, so halting spend alone still trades one more day.
+```
+
+Read the day's stream verdict from the heartbeat's `streams.llm_analyst`
+block (`note_as_of`, `n_orders`, `reject_reason`, `halted`, `notes_pull_ok`)
+— "0 orders" alone never says which of the four reasons applied.
+
 ## Alt-data daily archivers (Info-Layer program, Lane 2.1 Phase A — 2026-07-07)
 
 ```bash

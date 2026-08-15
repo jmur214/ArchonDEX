@@ -33,7 +33,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 # The durable files the loop must carry between days. Paths are relative
 # to the repo/app root; the S3 mirror preserves this layout.
@@ -98,6 +98,16 @@ DURABLE_PATHS: List[str] = [
     # in its own container/S3-prefix, so only its own file is ever populated).
     "data/state/offense_tracking.json",
     "data/state/sleeve_btc_tracking.json",
+    # T-329 account-3 (the stage-2 AI trader): its own forward tracker, same
+    # per-container scoping as the two above.
+    "data/state/llm_analyst_tracking.json",
+    # T-329: the TRADING kill switch's fastest operator surface. Durable so that
+    # writing ONE S3 object halts the next run — no image rebuild, no jobdef
+    # revision, no deploy window. It round-trips harmlessly (push only uploads a
+    # file that EXISTS; clearing the halt = deleting the S3 object, after which
+    # the ephemeral container simply never receives it). Per-account by
+    # construction: it lives under each account's own state prefix.
+    "data/state/TRADING_HALT",
     # T-302: the report-only LLM analyst virtual shadow book (Phase 2; same need —
     # the forward directional record must survive the ephemeral Fargate disk).
     "data/state/llm_shadow_book.json",
@@ -281,6 +291,54 @@ class CloudState:
                 print(f"   PUSH-FAIL {rel}/: {err[-1][:160] if err else 'unknown error'}",
                       file=sys.stderr)
         return ok
+
+    # --- T-329: the CROSS-ACCOUNT, READ-ONLY note pull -------------------- #
+    def pull_readonly_from(self, source_prefix: str,
+                           rels: Iterable[str]) -> Dict[str, Any]:
+        """Sync directories from ANOTHER account's state prefix → local. STRICTLY
+        READ-ONLY: this never writes to ``source_prefix``, and the puller must not
+        list these paths in its own DURABLE_PATHS/DIRS (else ``push()`` would copy
+        another account's memory into its prefix and the two records would drift).
+
+        Why account-3 needs it: ``intel_pulse`` — and therefore the analyst note —
+        runs ONLY on the account-1 branch, so the notes land in ``paper_state/``.
+        Account-3's container syncs ``paper_state_ai_trader/`` and would otherwise
+        see NO note, ever, and hold forever while reporting a plausible
+        ``no_note:...`` reason. That is exactly the shape of failure this program
+        keeps finding: a clock that reads empty and says so politely.
+
+        Returns a per-rel outcome dict so the caller can report the OUTCOME rather
+        than the config ([NN-FAIL-CLOSED] / the silent-wrongness doctrine): the
+        constructor's fail-closed HOLD is only trustworthy if we can tell "no note
+        was written" apart from "the pull failed". ``ok=False`` on any rel means
+        the local copy is NOT proven current — treat a resulting HOLD as degraded,
+        never as an honest no-trade day."""
+        out: Dict[str, Any] = {"enabled": self.cfg.enabled, "source": source_prefix,
+                               "ok": True, "rels": {}}
+        if not self.cfg.enabled:
+            out["ok"] = False
+            out["reason"] = "s3 disabled (no bucket) — local files only"
+            return out
+        if source_prefix == self.cfg.prefix:
+            # Not an error: account-1 reads its own notes. Say so explicitly
+            # rather than issuing a pointless self-sync.
+            out["reason"] = "source prefix == own prefix (no cross-account pull needed)"
+            return out
+        for rel in rels:
+            local = self.root / rel
+            local.mkdir(parents=True, exist_ok=True)
+            r = self._aws("s3", "sync", f"s3://{self.cfg.bucket}/{source_prefix}/{rel}",
+                          str(local), "--no-progress")
+            rc = getattr(r, "returncode", 0)
+            n_files = sum(1 for _ in local.rglob("*") if _.is_file())
+            out["rels"][rel] = {"rc": rc, "n_files": n_files}
+            if rc != 0:
+                out["ok"] = False
+                err = (getattr(r, "stderr", "") or "").strip().splitlines()
+                out["rels"][rel]["error"] = err[-1][:160] if err else "unknown error"
+                print(f"   CROSS-PULL FAIL {source_prefix}/{rel}: "
+                      f"{out['rels'][rel]['error']}", file=sys.stderr)
+        return out
 
     def _altdata_s3(self, rel: str) -> str:
         return f"s3://{self.cfg.bucket}/{ALTDATA_PREFIX}/{rel}"

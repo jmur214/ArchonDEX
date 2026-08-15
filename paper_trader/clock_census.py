@@ -300,6 +300,17 @@ EXEMPT: Dict[str, str] = {
     "data/state/tax_lots.jsonl": "advances only on taxable lots; a no-lot day is healthy",
     "data/state/offense_tracking.json": "fleet acct-2 file, populated only in that account's container",
     "data/state/sleeve_btc_tracking.json": "fleet acct-3 file, populated only in that account's container",
+    # T-329 — the stage-2 AI trader. Same container-scoping as the two fleet files
+    # above: this census runs in ACCOUNT-1's container, which never holds account-3's
+    # tracker, so a clock here could only ever report a MISS it cannot diagnose.
+    # Account-3's own record is gated where it IS visible — in its own container, by
+    # its own canonical/heartbeat verdict, its own dead-man's-switch alarm (metric
+    # dimension Account=ai-trader), and the per-run stream block that states WHY a
+    # day held. This exemption is a statement about WHERE the clock lives, not a
+    # claim that the record needs no clock.
+    "data/state/llm_analyst_tracking.json": "acct-3 (ai-trader) file, populated only in that account's container; gated there by its own canonical/heartbeat + dead-man's-switch",
+    "data/state/TRADING_HALT": "an OPERATOR CONTROL, not a forward record — its healthy state is ABSENT, so 'did not advance' is correct and a clock would invert the meaning",
+    "data/intel/llm_raw": "diagnostic archive of raw LLM responses — written only when a call is MADE, so a no-call day is healthy; the calls themselves are clocked by analyst_note_written and scan_filed_when_due",
 }
 
 

@@ -57,8 +57,30 @@ from paper_trader.held_reconcile import (
     adopt_explained_broker_truth,
     known_tickers_for,
 )
+from paper_trader.trading_halt import HaltStatus, check_trading_halt
 
 STATE_DIR = "data/paper_state"
+
+# T-329 §3: the coid STREAM token per strategy — applied from ORDER #1 so the
+# record is attributable to its decision-source without a retrofit. Absent ⇒
+# the legacy untagged id (accounts 1/2 are byte-unchanged). When account-3's
+# second stream lands (the event desk, on its T-304 bar), it gets its own token
+# here and `stage(stream=...)` per order — never a shared one, because sharing
+# tokens is how two independent decisions silently net into one fill.
+STREAM_TOKEN = {"llm_analyst": "analyst-a3"}
+
+# Strategies whose OrderManager consults the TRADING kill switch before every
+# submit. Deliberately an explicit allow-list, not "everything": account-1's
+# live path must consult NOTHING new ([NN-FIRST-ARTIFACT]'s sibling discipline —
+# a safety feature added to a working record is still a change to that record).
+HALT_GATED_STRATEGIES = {"llm_analyst"}
+
+# The state prefix the analyst NOTES live under. `intel_pulse` runs only on the
+# account-1 branch, so account-3 must read account-1's notes across prefixes,
+# read-only. Overridable per-jobdef so the source is configuration, not a
+# hard-coded assumption that would silently rot if account-1 ever moved.
+NOTES_SOURCE_PREFIX_ENV = "ARCHONDEX_NOTES_SOURCE_PREFIX"
+NOTES_RELS = ("data/intel/analyst_notes",)
 
 
 def _news_universe_collapse_reason(universe, special_sits) -> "str | None":
@@ -110,7 +132,8 @@ def _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts):
 
 
 def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
-                         client, om, cfg, today, broker_positions, cap):
+                         client, om, cfg, today, broker_positions, cap,
+                         stream=None, stage_orders=True):
     """Shared sleeve-FAMILY pipeline (T-288 fleet — offense_sso, sleeve_btc, and
     the future Stage-2 LLM account). Byte-for-byte the same steps the live
     trend_sleeve block runs, parameterised only by the constructor + universe:
@@ -144,9 +167,15 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     arrival_ts = _dt.datetime.now(_dt.timezone.utc)
     arrival_px = (client.fetch_latest_prices([o.ticker for o in plan.orders])
                   if plan.orders else {})
-    staged = [om.stage(str(today), s.ticker, s.side, s.qty,
-                       s.stage_args()["tif"], cfg.config_hash())
-              for s in plan.orders]
+    # T-329: ``stage_orders=False`` (a TRADING HALT) still CONSTRUCTS and returns
+    # the plan but stages nothing. Constructing under a halt is deliberate: the
+    # record then shows what the halt prevented, which is the only evidence that
+    # tells "the switch is doing something" apart from "the switch is pointed at
+    # a dead stream". Nothing can reach the broker — there is no staged order to
+    # submit, and submit() re-checks the halt anyway (defence in depth).
+    staged = ([om.stage(str(today), s.ticker, s.side, s.qty,
+                        s.stage_args()["tif"], cfg.config_hash(), stream=stream)
+               for s in plan.orders] if stage_orders else [])
     # Freshest completed bar in the panel — the econ-health stale-data tripwire.
     latest_bar_date = max(
         (closes[t].index[-1].date() for t in fetch_universe
@@ -182,10 +211,14 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
         order_errors=order_errs, canonical=canonical)
 
 
-def main(argv=None, *, now=None, client=None, cloud=None) -> int:
-    """Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
+def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
+    """Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
     for tests (drive a non-trading day, a held position, etc. without a
-    real broker); production passes none and they are constructed live."""
+    real broker); production passes none and they are constructed live.
+
+    ``root`` is the state/config base. Without it a test that drives ``main()`` writes
+    its journal, ledger and heartbeat into the REPO's own ``data/`` — which is how a
+    smoke test silently edits the state a developer is looking at."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--allocator", required=True,
                     help="EXPLICIT runtime allocator; designation is the "
@@ -193,13 +226,17 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="run the cycle WITHOUT arming submission (observe only)")
     ap.add_argument("--strategy",
-                    choices=["reconcile_only", "trend_sleeve", "offense_sso", "sleeve_btc"],
+                    choices=["reconcile_only", "trend_sleeve", "offense_sso",
+                             "sleeve_btc", "llm_analyst"],
                     default="reconcile_only",
                     help="reconcile_only = the daily pulse (no orders, the proven "
                          "default); trend_sleeve = the T-238 defensive sleeve "
                          "(Account 1, LIVE); offense_sso = the T-284 gated-2× SSO "
                          "offense (Account 2); sleeve_btc = the T-272 sleeve+IBIT "
-                         "(Account 3) — the T-288 fleet, one account per jobdef. "
+                         "(RETIRED — its science moved to the virtual btc_shadow "
+                         "book; kept runnable for the record); llm_analyst = the "
+                         "T-329 stage-2 AI trader (Account 3): yesterday's VALIDATED "
+                         "analyst note → real paper orders. One account per jobdef. "
                          "trend_sleeve = construct + submit the T-204 "
                          "3-asset trend sleeve (T-238 paper validation)")
     ap.add_argument("--sleeve-notional-cap", type=float, default=None,
@@ -216,7 +253,7 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         print("FATAL: no designated allocator.", file=sys.stderr)
         return 65
 
-    root = Path(__file__).resolve().parents[1]
+    root = Path(root) if root else Path(__file__).resolve().parents[1]
     cloud = cloud if cloud is not None else CloudState(root=str(root))
     now = now or now_et()
     today = now.date()
@@ -229,7 +266,10 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)")
 
     cal = MarketCalendar(client=client)
-    hb = PaperHeartbeat()
+    # root-relative, like every other state surface this driver owns. (It used to
+    # take the module default — identical in production, where root IS the repo
+    # root, but it meant an injected root could not fully redirect the run's state.)
+    hb = PaperHeartbeat(root=str(root))
 
     # Non-trading day: skip cleanly. Still emit a 'happened' pulse so the
     # silent-stop alarm sees the schedule fired (the calendar — not a dead
@@ -247,7 +287,15 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     state = root / STATE_DIR
     state.mkdir(parents=True, exist_ok=True)
     acct = client.get_account()
-    om = OrderManager(client, journal_path=str(state / "orders.jsonl"))
+    # T-329 account-3: this account's orders carry a per-STREAM coid token from
+    # ORDER #1, and its OrderManager consults the TRADING kill switch before every
+    # submit. Both are None for every other strategy, so accounts 1/2 stage and
+    # submit byte-identically (the account-1 regression lock).
+    om_stream = STREAM_TOKEN.get(args.strategy)
+    om_halt = ((lambda: check_trading_halt(root=str(root)))
+               if args.strategy in HALT_GATED_STRATEGIES else None)
+    om = OrderManager(client, journal_path=str(state / "orders.jsonl"),
+                      stream=om_stream, halt_check=om_halt)
     led = LedgerStore(str(state / "ledger.jsonl"),
                       starting_cash=acct["cash"], account="roth")
     armed = not args.dry_run
@@ -381,15 +429,23 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
                                    spec.stage_args()["tif"], cfg.config_hash()))
 
-    elif args.strategy in ("offense_sso", "sleeve_btc"):
+    elif args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst"):
         # T-288 fleet Accounts 2/3 — the sleeve-FAMILY shared pipeline. The live
         # account-1 (trend_sleeve) block above stays inline + untouched.
+        # T-329 joins account-3's LLM analyst to the SAME pipeline: the point of
+        # stage 2 is that the model's decision rides the existing deterministic
+        # order/exec/reconcile stack unchanged — the AI supplies target weights and
+        # nothing else. A separate order path for the AI would be the special
+        # pleading `[NN-AI-GATE]` forbids.
         sleeve_tif = os.getenv("ARCHONDEX_SLEEVE_TIF", "day").lower()
         if sleeve_tif not in ("day", "opg"):
             print(f"FATAL: [NN-FAIL-CLOSED] invalid ARCHONDEX_SLEEVE_TIF="
                   f"{sleeve_tif!r} (want day|opg).", file=sys.stderr)
             cloud.emit_metrics(happened=True, canonical=False); cloud.push()
             return 69
+        # Only the halt-gated strategies resolve a halt; for the others this
+        # stays a literal "clear" and the pipeline is byte-identical.
+        halt, note_pull = HaltStatus(False), None
         if args.strategy == "offense_sso":
             from paper_trader.offense_sso_constructor import OffenseSSOConstructor
             # T-298 flip: damping is a CONFIG flip (a jobdef env var), not a code
@@ -409,6 +465,48 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
             # a flip must announce itself, not just be true in the jobdef).
             print(f"   OFFENSE-SSO  damping={damping}"
                   f"{' (T-298: damp re-entry, never de-risk)' if damping=='asymmetric' else ''}")
+        elif args.strategy == "llm_analyst":
+            # --- T-329 ACCOUNT 3, the stage-2 AI trader. Day-1 stream = the
+            # CONSTRAINED analyst only (the ladder's event desk joins on its T-304
+            # bar, the thesis book on promotion_check — NOT here). ------------- #
+            from paper_trader.llm_analyst_constructor import LLMAnalystConstructor
+            from paper_trader.sleeve_constructor import SLEEVE_UNIVERSE
+
+            # 1. THE CROSS-ACCOUNT NOTE PULL. The notes are written by intel_pulse,
+            # which runs on the ACCOUNT-1 branch only, so they live in account-1's
+            # state prefix. Without this the constructor would find an empty dir and
+            # HOLD every day forever while reporting a perfectly plausible
+            # "no_note:no notes dir yet" — a stopped clock with a good excuse.
+            notes_src = os.getenv(NOTES_SOURCE_PREFIX_ENV, "paper_state")
+            note_pull = cloud.pull_readonly_from(notes_src, NOTES_RELS)
+            _npf = note_pull["rels"].get(NOTES_RELS[0], {})
+            print(f"   NOTE-PULL  from s3://…/{notes_src}/ ok={note_pull['ok']} "
+                  f"notes_on_disk={_npf.get('n_files', 0)}"
+                  + (f" — {note_pull['reason']}" if note_pull.get("reason") else ""))
+
+            # 2. THE TRADING KILL SWITCH, resolved BEFORE construction. On a trip
+            # the day is reconcile-only: the plan is still built (so the record
+            # shows what was prevented) but NOTHING is staged. A halt stops new
+            # actions; it never liquidates, so held positions are untouched.
+            halt = check_trading_halt(root=str(root))
+            if halt.halted:
+                print(f"   {halt.banner()}")
+
+            constructor = LLMAnalystConstructor(
+                trade_date=str(today), root=str(root), tif=sleeve_tif,
+                # Day 1 the analyst is the ONLY stream, so it gets the whole
+                # capped budget (sub_budget=1.0 × min(equity, $10k cap)). The
+                # per-stream structure is already here for stream 2 — no netting
+                # decision is deferred, only a second number.
+                sub_budget=float(os.getenv("ARCHONDEX_LLM_SUB_BUDGET", "1.0")),
+                # Defence in depth: intel_pulse already allowlists the constrained
+                # analyst to the sleeve universe, but the constructor re-enforces
+                # it so a note written under some OTHER pulse configuration can
+                # never reach a name this run cannot price or halt on.
+                allowlist=tuple(SLEEVE_UNIVERSE))
+            fetch_u = tuple(SLEEVE_UNIVERSE)          # SPY/AGG/GLD — also the robo bench
+            family_state = {"tracker_file": "llm_analyst_tracking.json",
+                            "label": "LLM-ANALYST"}
         else:
             from paper_trader.sleeve_btc_constructor import SleeveBtcConstructor
             constructor = SleeveBtcConstructor(tif=sleeve_tif)
@@ -421,7 +519,9 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                     constructor=constructor, fetch_universe=fetch_u,
                     tracking_universe=fetch_u, client=client, om=om, cfg=cfg,
                     today=today, broker_positions=broker_positions,
-                    cap=args.sleeve_notional_cap)
+                    cap=args.sleeve_notional_cap,
+                    stream=STREAM_TOKEN.get(args.strategy),
+                    stage_orders=not halt.halted)
             staged.extend(staged2)
         except _FailClosed as fc:
             print(f"FATAL: [NN-FAIL-CLOSED] {args.strategy} {fc.msg} — refusing "
@@ -433,7 +533,13 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
                   f"${args.sleeve_notional_cap:,.0f} (equity ${equity:,.0f})")
         print(f"   {family_state['label']}  tif={sleeve_tif} signals={plan.signals} "
               f"targets={plan.targets} → {len(plan.orders)} order(s): "
-              f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}")
+              f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}"
+              + (f" [HALTED — {len(plan.orders)} order(s) NOT staged]"
+                 if halt.halted else ""))
+        if args.strategy == "llm_analyst":
+            print(f"   LLM-ANALYST note_as_of={plan.note_as_of} "
+                  f"degraded={plan.degraded} "
+                  f"reason={plan.reject_reason or 'none'} halted={halt.halted}")
 
     summary = sched.run_trading_day(str(today), staged, inputs_fn,
                                     account_explained=account_explained)
@@ -444,6 +550,30 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
     print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
+
+    # --- T-329: the STREAM's own daily verdict. AFTER record_run, like every other
+    # heartbeat block — record_run REPLACES the status file, so anything stamped
+    # before it is silently erased. A zero-order day is ambiguous between four very
+    # different things (no note yet / the note asked for no change / the firewall
+    # REJECTED it / the switch is pulled) and only a named reason tells them apart;
+    # the notes-pull outcome rides along because a fail-closed HOLD is honest
+    # evidence only if the note was actually reachable. Report-only. ---------- #
+    if args.strategy == "llm_analyst" and plan is not None:
+        try:
+            hb.record_stream("llm_analyst", {
+                "stream": STREAM_TOKEN["llm_analyst"], "note_as_of": plan.note_as_of,
+                "n_orders": len(plan.orders), "targets": plan.targets,
+                "degraded": bool(plan.degraded), "reject_reason": plan.reject_reason,
+                "halted": bool(halt.halted), "halt_reason": halt.reason or None,
+                "notes_pull_ok": bool((note_pull or {}).get("ok")),
+                "notes_on_disk": (note_pull or {}).get(
+                    "rels", {}).get(NOTES_RELS[0], {}).get("n_files"),
+                "sub_budget_usd": (min(equity, args.sleeve_notional_cap)
+                                   if args.sleeve_notional_cap else equity),
+            })
+        except Exception as exc:
+            print(f"   LLM-ANALYST stream-record WARN {type(exc).__name__} "
+                  f"(non-fatal, report-only)", file=sys.stderr)
 
     # --- T-238 Part 2: forward-track the sleeve vs both robos + feed the
     # pre-registered EXECUTION-fidelity gates (report-only, never changes
@@ -762,7 +892,8 @@ def main(argv=None, *, now=None, client=None, cloud=None) -> int:
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
-    elif args.strategy in ("offense_sso", "sleeve_btc") and sleeve_closes and family_state:
+    elif (args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst")
+          and sleeve_closes and family_state):
         # T-288 fleet Accounts 2/3 forward tracker + report-only execution gates
         # (shared helper; per-strategy tracker file; robo benchmark = SPY/AGG/GLD).
         try:
