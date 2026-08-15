@@ -188,7 +188,8 @@ class TestFeedHealthGate:
         column must FAIL the gate, not pass silently."""
         detail, stale = aa.assess_feed_health(tmp_path)      # nothing on disk
         assert stale, "missing feeds must be reported, not silently OK"
-        assert all(v["ok"] is False for v in detail.values())
+        # T-340b: local-only feeds are EXEMPT by ruling; every NON-exempt feed must fail.
+        assert all(v["ok"] is False for v in detail.values() if not v.get("exempt"))
 
     def test_fresh_feed_within_budget_passes(self, tmp_path):
         p = tmp_path / "data/macro_data/alt/cef_daily.parquet"
@@ -252,3 +253,31 @@ class TestAlarmMessagesDoNotContradictTheirNumbers:
         res = aa.run_altdata_archive(str(tmp_path))         # nothing on disk
         assert res.snapshot_degraded is True
         assert "ZERO market-snapshot" in res.reason
+
+
+class TestLocalOnlyExemptions:
+    """T-340b (director ruling): gpr_daily + finra_margin are LOCAL-ONLY Phase-A
+    feeds — EXEMPTED-WITH-REASON in the gate rather than failed. The gate's job is
+    to DECLARE what the cloud actually collects; failing a feed the cloud was never
+    going to collect is the false-alarm class that causes alarm fatigue."""
+
+    def test_local_only_feeds_are_exempt_with_a_stated_reason(self, tmp_path):
+        detail, stale = aa.assess_feed_health(tmp_path)      # nothing on disk
+        for feed in ("gpr_daily", "finra_margin"):
+            assert detail[feed]["ok"] is True, f"{feed} must not fail the gate"
+            assert detail[feed].get("exempt"), f"{feed} must carry a stated reason"
+            assert "no cloud consumer" in detail[feed]["exempt"]
+            assert not any(feed in s for s in stale), f"{feed} must not be an offender"
+
+    def test_exemption_is_declared_not_silent(self):
+        """An exemption with no reason is indistinguishable from a forgotten feed."""
+        for name, *_rest in aa._FEED_HEALTH:
+            exempt = _rest[-1]
+            if exempt is not None:
+                assert isinstance(exempt, str) and len(exempt) > 20, \
+                    f"{name}: exemption must state WHY, not just be flagged"
+
+    def test_non_exempt_feeds_still_fail_when_stale(self, tmp_path):
+        """The exemption must not become a blanket amnesty."""
+        detail, stale = aa.assess_feed_health(tmp_path)
+        assert any("kalshi" in s for s in stale), "gated feeds must still be checked"
