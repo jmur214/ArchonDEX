@@ -271,6 +271,46 @@ _ROLLED = [
     ("llm_shadow_book_rolled", "data/state/llm_shadow_book.json"),
 ]
 
+
+def _similarity_panel_refreshed(root: Path, as_of: str) -> ClockResult:
+    """T-341b: the T-237 similarity panel must be REFRESHED on its cadence.
+
+    It went 8 weeks stale with no clock at all. The clock ages the refresh RECEIPT,
+    not the panel's newest decision_date, because that date conflates two states a
+    census must never confuse: "no new 10-Ks were filed" (healthy — filings are
+    sharply seasonal, 2026 ran Feb 408 -> Jun 5) and "the refresh never ran" (a dead
+    clock). Both leave the panel unchanged. The receipt distinguishes them: a refresh
+    that ran and found nothing is ADVANCED and says so.
+
+    Budget 45d, set from the panel's OWN measured cadence (distinct decision-date
+    gaps: median 2d, p95 14d, MAX 35d all-time) — clears the largest natural lull
+    with margin while still catching the 53-day stall that prompted this.
+    FAIL-CLOSED: missing or unparseable receipt is a MISS, never a skip."""
+    rel = "data/edgar/similarity_panel_refresh.json"
+    p = root / rel
+    if not p.exists():
+        return ClockResult("similarity_panel_refreshed", MISS,
+                           f"no refresh receipt at {rel} — the panel has no clock")
+    try:
+        import datetime as _dt          # module-local: the file has no top-level datetime
+        r = json.loads(p.read_text())
+        ts = str(r.get("refreshed_at", ""))[:10]
+        budget = int(r.get("budget_days", 45))
+        age = (_dt.datetime.strptime(as_of, "%Y-%m-%d")
+               - _dt.datetime.strptime(ts, "%Y-%m-%d")).days
+    except Exception as exc:
+        return ClockResult("similarity_panel_refreshed", MISS,
+                           f"receipt unparseable ({type(exc).__name__}) — cannot census it")
+    newest = r.get("newest_decision_date")
+    if age <= budget:
+        return ClockResult("similarity_panel_refreshed", ADVANCED,
+                           f"refreshed {age}d ago (budget {budget}d); "
+                           f"newest filing {newest}; +{r.get('rows_added', 0)} rows")
+    return ClockResult("similarity_panel_refreshed", MISS,
+                       f"last refresh {age}d ago EXCEEDS the {budget}d budget "
+                       f"(newest filing {newest}) — the panel is going stale unnoticed")
+
+
 REGISTRY: List[Clock] = (
     [Clock("analyst_note_written", _analyst_note,
            ("data/intel/analyst_notes", "data/intel/analyst_notes_agentic")),
@@ -280,6 +320,8 @@ REGISTRY: List[Clock] = (
            ("data/intel/thesis_scan_state.json", "data/intel/thesis_scan_provenance.jsonl")),
      Clock("stage2_clock_ticked", _stage2_ticked, ("data/state/stage2_clock.jsonl",)),
      Clock("archive_feeds_in_budget", _archive_feeds_in_budget, ()),
+     Clock("similarity_panel_refreshed", _similarity_panel_refreshed,
+           ("data/edgar/similarity_panel_refresh.json",)),
      Clock("exec_ledger_on_fill_days", _exec_ledger_on_fill_days,
            ("data/state/exec_cost_ledger.jsonl", "data/paper_state/orders.jsonl"))]
     + [_rolled(n, p) for n, p in _ROLLED])
