@@ -94,7 +94,34 @@ def _news_section(as_of: dt.date, symbols: List[str],
             })
         # deterministic order + per-symbol cap via a stable sort
         items.sort(key=lambda x: (x["created_at"], x["headline"]))
-        return {"items": items[: max_per_symbol * max(1, len(want))], "degraded": False}
+        capped = items[: max_per_symbol * max(1, len(want))]
+        # T-331b — SEPARATE "the tape is broken" from "your universe isn't covered".
+        # The panel can be perfectly healthy while THIS analyst's slice is near-empty:
+        # its universe is a 3-ETF sleeve and the news tape is company-tagged (AGG has
+        # ZERO coverage by construction). Without this the model guessed, and wrote a
+        # free-text `news_degraded` risk flag every day — indistinguishable from a real
+        # outage. `degraded` now means a genuine FAULT only; thin coverage is stated as
+        # the structural fact it is, with the panel's own freshness so a REAL freeze is
+        # visible as a stale max_created_at rather than inferred from silence.
+        covered = sorted({s for it in items for s in it["symbols"]})
+        try:
+            newest = str(df["created_at"].max())[:19]
+        except Exception:
+            newest = None
+        return {"items": capped, "degraded": False,
+                "coverage": {
+                    "panel_rows": int(len(df)),
+                    "panel_newest_created_at": newest,
+                    "symbols_requested": sorted(want),
+                    "symbols_with_news": covered,
+                    "symbols_with_zero_coverage": sorted(want - set(covered)),
+                    "matched_items": len(items),
+                    "thin_coverage": len(items) == 0,
+                    "note": ("the PANEL is healthy; a short/empty item list here means the "
+                             "news tape does not cover THESE symbols (ETFs are barely "
+                             "company-tagged) — it does NOT mean the feed is broken. A real "
+                             "feed fault sets degraded=true with a reason."),
+                }}
     except Exception as e:   # noqa: BLE001
         return {"items": [], "degraded": True, "reason": f"news_error:{type(e).__name__}"}
 
