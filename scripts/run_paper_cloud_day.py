@@ -564,6 +564,12 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                 "stream": STREAM_TOKEN["llm_analyst"], "note_as_of": plan.note_as_of,
                 "n_orders": len(plan.orders), "targets": plan.targets,
                 "degraded": bool(plan.degraded), "reject_reason": plan.reject_reason,
+                # T-329c: a zero-order day now always names its cause. `no_view`
+                # is the HEALTHY zero (the analyst looked and chose to hold, with
+                # a stated reason); a bare zero with neither this nor a
+                # reject_reason would mean the channel is dead again.
+                "no_view": bool(plan.no_view), "no_view_reason": plan.no_view_reason,
+                "prompt_version": (plan.note_prompt_version or "unknown"),
                 "halted": bool(halt.halted), "halt_reason": halt.reason or None,
                 "notes_pull_ok": bool((note_pull or {}).get("ok")),
                 "notes_on_disk": (note_pull or {}).get(

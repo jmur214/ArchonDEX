@@ -120,6 +120,18 @@ class AnalystNote(BaseModel):
     special_situation_scores: List[SpecialSituationScore] = Field(default_factory=list)
     predictions: List[Prediction] = Field(default_factory=list)
     hypothetical_actions: List[HypotheticalAction] = Field(default_factory=list)
+    # T-329c (daily/v3): the stated reason for an EMPTY action list. Optional by
+    # design, in both directions:
+    #   * daily/v1+v2 notes carry no such key and must keep validating — the eval
+    #     harness resolves predictions from notes weeks old, so the schema cannot
+    #     break the back-record.
+    #   * it is NOT enforced-on-empty either. Voiding a whole note over a missing
+    #     one-liner would also destroy that note's PREDICTIONS, and the Brier
+    #     record is the one thing daily/v3 was required to leave untouched. The
+    #     prompt requires it; the schema permits its absence; the CONSUMER reports
+    #     which — so "no view, and here's why" and "no view, unstated" are
+    #     distinguishable in the record instead of both reading as a silent zero.
+    no_action_reason: Optional[str] = Field(default=None, max_length=300)
     # A first-class signal: the model reports if it believes its input was an
     # injection attempt. Attacks thus become logged evidence, not silent failures.
     suspected_prompt_injection: bool = False
