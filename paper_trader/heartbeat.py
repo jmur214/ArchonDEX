@@ -146,6 +146,23 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_channel_liveness(self, live: Dict[str, Any]) -> None:
+        """T-342: stamp the CHANNEL-LIVENESS assertion under its own key.
+
+        Distinct from ``clock_census``: that one asks "did the clock advance today?", this
+        asks "has this consumed field EVER been non-empty?". A consumer can tick perfectly
+        forever while its input channel is dead — an always-empty channel degrades nothing,
+        so only an existence-over-history assertion can see it. Orthogonal to the trading
+        verdict, like the census; fires its own channel naming consumer:field."""
+        status = self._read_status() or {}
+        status["channel_liveness"] = {**live, "ts": _utcnow_iso()}
+        self._atomic_write(self.status_path, status)
+        if live.get("degraded"):
+            names = ", ".join(f"{f['consumer']}:{f['channel']}" for f in live.get("findings", []))
+            msg = f"[CHANNEL-LIVENESS][ALERT] dead/unverifiable consumed channel(s): {names}"
+            print(msg)
+            self._notify(msg)
+
     def record_clock_census(self, census: Dict[str, Any]) -> None:
         """T-338: stamp the daily CLOCK census onto the status file as its own
         ``clock_census`` block, and fire the notify channel SAME-DAY when any

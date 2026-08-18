@@ -790,6 +790,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                 _cc = run_census(root=str(root), as_of=str(today))
                 print(f"   {census_line(_cc)}")
                 hb.record_clock_census(_cc)
+                # T-342 CHANNEL LIVENESS: the census asks whether clocks ADVANCED; this
+                # asks whether the fields they CONSUME have ever been non-empty. The
+                # shadow book ran 17 honest days over a structurally empty channel — an
+                # always-empty channel degrades nothing, so only this sees it.
+                from paper_trader.clock_census import channel_liveness, liveness_line
+                _lv = channel_liveness(root=str(root))
+                print(f"   {liveness_line(_lv)}")
+                hb.record_channel_liveness(_lv)
             except Exception as exc:
                 # even the census failing must be LOUD — a silent census is the disease
                 print(f"   [CLOCK-CENSUS][ALERT] census itself failed: {type(exc).__name__} "
