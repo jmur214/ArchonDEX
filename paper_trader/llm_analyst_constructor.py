@@ -67,9 +67,20 @@ class LLMAnalystPlan:
     held_qty: Dict[str, int] = field(default_factory=dict)
     signals: Dict[str, float] = field(default_factory=dict)     # == targets (fleet-plan parity)
     note_as_of: Optional[str] = None
+    # T-329c: WHICH prompt version produced the note that drove this day. The eval
+    # record already segments by (model, prompt_version); the TRADING record must
+    # too, or the daily/v2→v3 cohort boundary is invisible in the one place the
+    # orders actually live.
+    note_prompt_version: Optional[str] = None
     stream: str = STREAM
     degraded: bool = False
     reject_reason: Optional[str] = None     # non-None ⇒ HOLD (no orders); a stated, loud reason
+    # T-329c: the analyst held NO view today (empty hypothetical_actions). A real,
+    # healthy outcome — NOT degraded, NOT a rejection — but it must be stated, or
+    # "the analyst chose to hold" is indistinguishable from "the channel is dead",
+    # which is exactly what daily/v2 produced for 15 days running.
+    no_view: bool = False
+    no_view_reason: Optional[str] = None
 
 
 class LLMAnalystConstructor:
@@ -182,6 +193,7 @@ class LLMAnalystConstructor:
             plan.reject_reason = f"no_note:{reason}"
             return plan
         plan.note_as_of = note.get("as_of")
+        plan.note_prompt_version = (note.get("provenance") or {}).get("prompt_version")
 
         budget = float(equity) * self.sub_budget
         # held weights (against the SUB-BUDGET, the stream's own NAV slice)
@@ -196,6 +208,18 @@ class LLMAnalystConstructor:
             return px if px > 0 else None
 
         targets = self._targets(note)
+        # T-329c: an EMPTY action list is a NAMED outcome, never a silent zero.
+        # This is the defect that held ignition: with daily/v2 the analyst emitted
+        # no actions for 15 straight days, and the plan came back
+        # `orders=[], degraded=False, reject_reason=None` — indistinguishable from
+        # "the analyst looked and chose to hold". Under daily/v3 an empty list is a
+        # deliberate hold-the-book decision AND the model must say why, so record
+        # which of the two it was. NOT degraded — a genuine no-view day is healthy
+        # — but never again unstated.
+        if not targets:
+            plan.no_view = True
+            plan.no_view_reason = (note.get("no_action_reason")
+                                   or "UNSTATED (model emitted no actions and no reason)")
         # every name we'd TRADE (a target, or a held name we might sell) must be priceable
         need = set(targets) | {t for t, q in (current_positions or {}).items() if int(q or 0) != 0}
         px = {t: _last_px(t) for t in need}

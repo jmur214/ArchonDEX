@@ -236,9 +236,15 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                 as_of, portfolios=portfolios, allowlist=allowlist,
                 # T-325: daily/v2 adds the shared question anchor (fresh common
                 # A/B start; the eval segments by prompt_version, which is intended).
-                prompt_path="config/prompts/analyst/daily_v2.md",
+                # T-329c: daily/v3 opens the hypothetical_actions channel, which v2
+                # had closed by its own words ("never executed", "omit the whole
+                # list") — 0 of 15 notes carried an action. ONLY that section
+                # changed; the predictions contract is byte-identical, so the Brier
+                # record stays comparable across the cohort boundary the version
+                # bump creates. Stamped in docs/Core/prompt_evolution_log.md.
+                prompt_path="config/prompts/analyst/daily_v3.md",
                 model_call=model_call, governor=gov,
-                model_id_requested=model_id, prompt_version="daily/v2",
+                model_id_requested=model_id, prompt_version="daily/v3",
                 projected_cost_usd=_PROJ_ANALYST, raw_dir=raw_dir,
                 load_panel=load_panel, now_iso=now_iso)
             res.analyst = {"status": r.status,
