@@ -156,10 +156,12 @@ def test_thesis_without_falsifier_is_parked_as_a_story(tmp_path):
 # ---------- horizon exit + SPY twin ----------
 def test_horizon_exit_scores_against_spy_over_matched_window(tmp_path):
     b = ThesisBook(root=str(tmp_path))
+    # T-343: the horizon clock runs from the FILING date (as_of 2026-07-27), not from the
+    # session count — so hz=2 matures on 07-29, the second day after filing, regardless of
+    # when the basket could actually be opened.
     b.record("2026-07-28", closes={"AAA": 100.0, "BBB": 100.0, "SPY": 600.0},
              theses=[_thesis(hz=2)])
-    b.record("2026-07-29", closes={"AAA": 105.0, "BBB": 105.0, "SPY": 606.0})
-    b.record("2026-07-30", closes={"AAA": 110.0, "BBB": 110.0, "SPY": 612.0})
+    b.record("2026-07-29", closes={"AAA": 110.0, "BBB": 110.0, "SPY": 612.0})
     c = b._state()["closed"][0]
     assert c["exit_reason"] == "horizon" and c["killed_by_falsifier"] is False
     assert c["gross_ret"] == pytest.approx(0.10)              # both legs +10%
@@ -251,3 +253,42 @@ def test_idempotent_per_date(tmp_path):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+# ---------- T-343: the price fetch FOLLOWS the book ----------
+def test_never_seen_ticker_is_requested_by_the_price_fetch(tmp_path):
+    """The dispatch bar: a thesis naming a ticker nobody pre-listed must have its price
+    FETCHED. Nobody can enumerate what the machine will pick (FN and AMTM proved it), so
+    the symbol list has to be derived from the book, never from a static universe."""
+    b = ThesisBook(root=str(tmp_path))
+    legs = [{"symbol": s, "role": "primary", "weight_hint": 0.5, "mapping_reason": "r"}
+            for s in ("FN", "AMTM")]
+    # file on the 28th (a session the book has seen) — the 29th run consumes it
+    b.record("2026-07-28", closes={"SPY": 600.0}, theses=[])
+    import json
+    src = tmp_path / "data/intel/thesis_calls.jsonl"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text(json.dumps(_thesis(tid="TZ", legs=legs, as_of="2026-07-28")) + "\n")
+    syms = b.pending_symbols("2026-07-29")
+    assert "FN" in syms and "AMTM" in syms, "unseen legs must reach the fetch"
+    assert "SPY" in syms, "the twin is always armed"
+
+
+def test_missing_price_parks_with_a_reason_and_is_retried_not_lost(tmp_path):
+    """Fail-closed stays: no price → PENDING with the reason naming the leg, never a
+    fabricated fill. But the thesis must SURVIVE the park — the old code skipped it and
+    the loader only ever looks at the prior session, so it was silently LOST."""
+    b = ThesisBook(root=str(tmp_path))
+    # AAA priced, BBB absent → parks
+    st = b.record("2026-07-28", closes={"AAA": 10.0, "SPY": 600.0}, theses=[_thesis()])
+    assert st["n_open"] == 0 and st["n_pending"] == 1
+    assert any("missing price for BBB" in r and "PENDING" in r
+               for r in b._state()["days"][-1]["reasons"])
+    # the parked leg is still demanded by the next fetch...
+    assert "BBB" in b.pending_symbols("2026-07-29")
+    # ...and once it prices, the thesis OPENS rather than having been dropped
+    st2 = b.record("2026-07-29", closes={"AAA": 10.0, "BBB": 20.0, "SPY": 606.0})
+    assert st2["n_open"] == 1 and st2["n_pending"] == 0
+    pos = b._state()["open"][0]
+    assert pos["filed_date"] == "2026-07-27" and pos["entry_date"] == "2026-07-29"
+    assert pos["days_pending"] == 1          # the delay is ON THE RECORD, not erased

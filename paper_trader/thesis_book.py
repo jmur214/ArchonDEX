@@ -77,7 +77,7 @@ class ThesisBook:
         except Exception:
             return {"_schema": "thesis_book/v1", "desk": self.cfg.name,
                     "origin": _ORIGIN_FOR.get(self.cfg.name, "machine"),
-                    "open": [], "closed": [], "days": []}
+                    "open": [], "closed": [], "days": [], "pending": []}
 
     def _write(self, st: Dict[str, Any]) -> None:
         self._file().write_text(json.dumps(st, indent=2, default=str))
@@ -87,6 +87,75 @@ class ThesisBook:
         return _ORIGIN_FOR.get(self.cfg.name, "machine")
 
     # ---------- source (channel-filtered: the firewall) ----------
+    def _load_all(self) -> tuple[List[Dict[str, Any]], str]:
+        """Every record on this sub-book's channel, unfiltered by date."""
+        src = self._base() / self.cfg.source_path
+        if not src.exists():
+            return [], f"no source yet at {self.cfg.source_path} (dormant-but-armed)"
+        out: List[Dict[str, Any]] = []
+        try:
+            for line in src.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                # THE CHANNEL FIREWALL: this sub-book only ever sees its own origin.
+                if str(rec.get("origin", "machine")) != self.origin:
+                    continue
+                out.append(rec)
+        except Exception as exc:
+            return [], f"source unreadable: {type(exc).__name__}"
+        return out, "ok"
+
+    def _due_theses(self, trade_date: str,
+                    st: Dict[str, Any]) -> tuple[List[Dict[str, Any]], List[str]]:
+        """Every thesis this session should try to open.
+
+        T-343: the old rule loaded exactly ONE filing date — the prior recorded session —
+        so a thesis that parked for want of a price became unreachable the moment the book
+        recorded another day. That is precisely what stranded the machine's first two
+        theses (filed 08-19, parked 08-20; from 08-21 onward the loader only ever looked at
+        08-20). The rule is now: filed strictly BEFORE today (no look-ahead, t+1 at the
+        earliest), within `RECOVERY_WINDOW_DAYS`, and not already open/closed/pending.
+
+        Past the window a thesis is EXPIRED, said once, and never opened — entering months
+        later at a drifted price would be a fabricated entry wearing a real timestamp.
+        Silent-drop is the failure mode being closed here, so expiry is always announced.
+        """
+        recs, why = self._load_all()
+        reasons: List[str] = [] if why == "ok" else [why]
+        seen = ({str(p.get("thesis_id", "")) for p in st.get("open", [])}
+                | {str(c.get("thesis_id", "")) for c in st.get("closed", [])}
+                | {str(t.get("thesis_id", "")) for t in st.get("pending", [])}
+                | set(st.get("expired", [])))
+        td = pd.Timestamp(trade_date)
+        due: List[Dict[str, Any]] = []
+        for rec in recs:
+            tid = str(rec.get("thesis_id", ""))
+            if tid in seen:
+                continue
+            asof = str(rec.get("as_of", ""))[:10]
+            try:
+                age = (td - pd.Timestamp(asof)).days
+            except Exception:
+                reasons.append(f"{tid}: unparseable as_of {asof!r} → skipped (fail-closed)")
+                continue
+            if age < 1:
+                continue                               # filed today or later — not due yet
+            if age > RECOVERY_WINDOW_DAYS:
+                st.setdefault("expired", []).append(tid)
+                reasons.append(f"{tid}: filed {asof} ({age}d ago) — EXPIRED past the "
+                               f"{RECOVERY_WINDOW_DAYS}d recovery window; NOT opened at a "
+                               f"stale price")
+                continue
+            rec = dict(rec)
+            if age > 1:                                # late, and the lateness is recorded
+                rec["_pending_since"] = rec.get("_pending_since") or asof
+            due.append(rec)
+        if not due and why == "ok" and not reasons:
+            reasons.append("no theses due this session")
+        return due, reasons
+
     def _load_theses(self, as_of: str) -> tuple[List[Dict[str, Any]], str]:
         src = self._base() / self.cfg.source_path
         if not src.exists():
@@ -156,6 +225,28 @@ class ThesisBook:
                 "unconstrained_scale": round(by_gross, 5),
                 "downsized": bool(by_name < by_gross - 1e-12)}, None
 
+    def pending_symbols(self, as_of: Optional[str] = None) -> List[str]:
+        """Every ticker the next run must price: PENDING legs + OPEN legs + the twin.
+
+        T-343: nobody can pre-list what the machine will pick (FN and AMTM proved it), so
+        the price fetch has to FOLLOW the book rather than a static universe. Also includes
+        theses filed in the prior session, because those are what `record()` will consume —
+        gathering symbols from a different day than the one consumed is exactly the bug
+        that parked the machine's first two theses."""
+        st = self._state()
+        syms = {TWIN_TICKER}
+        for pos in st.get("open", []):
+            syms |= set(pos.get("weights", {}))
+        for th in st.get("pending", []):
+            syms |= {str(l.get("symbol", "")).upper()
+                     for l in (th.get("instruments") or []) if l.get("symbol")}
+        if as_of:
+            newly, _ = self._due_theses(as_of, dict(st))   # dict() → never mutates state
+            for th in newly:
+                syms |= {str(l.get("symbol", "")).upper()
+                         for l in (th.get("instruments") or []) if l.get("symbol")}
+        return sorted(s for s in syms if s)
+
     @staticmethod
     def _falsifier_fired(th: Dict[str, Any], trade_date: str,
                          fired_ids: Optional[Dict[str, bool]] = None) -> Optional[str]:
@@ -191,7 +282,16 @@ class ThesisBook:
         for pos in st["open"]:
             pos["held"] = int(pos.get("held", 0)) + 1
             kill = self._falsifier_fired(pos["thesis"], trade_date, falsifiers_fired)
-            at_horizon = pos["held"] >= int(pos["horizon_days"])
+            # T-343: the thesis's clock runs from ITS FILING date, so days spent PENDING
+            # (awaiting prices) consume horizon rather than extending it — a thesis is a
+            # claim about a period, not about however long we took to open it. Returns are
+            # still measured from the ACTUAL entry prices. Both dates are on the record.
+            _filed = pos.get("filed_date") or pos.get("entry_date")
+            try:
+                _elapsed = (pd.Timestamp(trade_date) - pd.Timestamp(_filed)).days
+            except Exception:
+                _elapsed = pos["held"]          # unparseable filing date → session count
+            at_horizon = _elapsed >= int(pos["horizon_days"])
             if not (kill or at_horizon):
                 still_open.append(pos)
                 continue
@@ -224,12 +324,22 @@ class ThesisBook:
         st["open"] = still_open
 
         # 2) open new qualifying theses (fill at TODAY's close ⇒ t+1 vs the filing date)
+        #
+        # T-343: candidates are the PENDING queue PLUS anything newly filed. Before this,
+        # a thesis whose legs had no price was simply skipped and NEVER retried — the
+        # loader only ever looks at the prior session, so the machine's first two theses
+        # would have been silently LOST rather than merely delayed. A parked thesis now
+        # persists in `pending` and is retried every run until it opens.
         if theses is None:
-            theses, why = self._load_theses(_prev_key(trade_date, st))
-            if why != "ok":
-                reasons.append(why)
+            theses, _why = self._due_theses(trade_date, st)
+            reasons.extend(_why)
+        pend = {str(t.get("thesis_id", "")): t for t in st.get("pending", [])}
+        for t in (theses or []):
+            pend.setdefault(str(t.get("thesis_id", "")), t)
+        candidates = list(pend.values())
+        still_pending: List[Dict[str, Any]] = []
         opened = 0
-        for th in (theses or []):
+        for th in candidates:
             tid = str(th.get("thesis_id", ""))
             conv = float(th.get("conviction", 0.0) or 0.0)
             if conv < CONVICTION_FLOOR:
@@ -253,7 +363,15 @@ class ThesisBook:
                                f"{sized['unconstrained_scale']:.4f}) — recorded, not silent")
             entry = {s: closes.get(s) for s in w}
             if any(p is None for p in entry.values()) or twin_px is None:
-                reasons.append(f"{tid}: missing leg/twin price → parked (no fabricated fill)")
+                # TRANSIENT: prices may arrive next run → stay PENDING and retry.
+                missing = sorted([s for s, v in entry.items() if v is None]
+                                 + ([TWIN_TICKER] if twin_px is None else []))
+                th = dict(th)
+                th["_pending_since"] = th.get("_pending_since") or trade_date
+                th["_pending_reason"] = f"awaiting price for {', '.join(missing)}"
+                still_pending.append(th)
+                reasons.append(f"{tid}: missing price for {', '.join(missing)} → PENDING "
+                               f"(retried next run; no fabricated fill)")
                 continue
             st["open"].append({
                 "thesis_id": tid, "theme_class": th.get("theme_class", "unknown"),
@@ -265,13 +383,22 @@ class ThesisBook:
                 "downsized": sized["downsized"],
                 "entry_px": {s: round(float(p), 4) for s, p in entry.items()},
                 "twin_entry_px": round(float(twin_px), 4),
-                "entry_date": trade_date, "horizon_days": hz, "held": 0,
+                # BOTH dates travel (T-343): the thesis's clock runs from its FILING date,
+                # while returns are measured from the ACTUAL entry prices on the day the
+                # basket could really be opened. Parked days are pre-entry, never backfilled.
+                "filed_date": str(th.get("as_of", ""))[:10] or trade_date,
+                "entry_date": trade_date,
+                "days_pending": (0 if not th.get("_pending_since") else
+                                 max(0, (pd.Timestamp(trade_date)
+                                         - pd.Timestamp(th["_pending_since"])).days)),
+                "horizon_days": hz, "held": 0,
                 "thesis": {"thesis_id": tid, "falsifiers": th.get("falsifiers") or []}})
             opened += 1
 
+        st["pending"] = still_pending
         st["days"].append({"date": trade_date, "opened": opened, "closed": closed_today,
-                           "n_open": len(st["open"]), "degraded": bool(reasons),
-                           "reasons": reasons[:8]})
+                           "n_open": len(st["open"]), "n_pending": len(still_pending),
+                           "degraded": bool(reasons), "reasons": reasons[:8]})
         self._write(st)
         return self._summary(st)
 
@@ -280,7 +407,10 @@ class ThesisBook:
         cl = st["closed"]
         s: Dict[str, Any] = {"desk": self.cfg.name, "origin": self.origin,
                              "n_days": len(st["days"]), "n_open": len(st["open"]),
-                             "n_closed": len(cl), "armed": True}
+                             "n_closed": len(cl),
+                             # T-343: a parked thesis must be VISIBLE in the summary —
+                             # an invisible queue is how one gets silently lost.
+                             "n_pending": len(st.get("pending", [])), "armed": True}
         if cl:
             ex = [c["excess_vs_twin"] for c in cl]
             s["mean_excess_vs_twin"] = round(sum(ex) / len(ex), 5)
@@ -311,6 +441,12 @@ class ThesisBook:
                             "channel-separated (no blending)" % MIN_RESOLVED_PER_CLASS,
                 "n_closed": len(outs), "per_theme_class": per,
                 "promote_any": any(bool(v.get("PROMOTED")) for v in per.values())}
+
+
+RECOVERY_WINDOW_DAYS = 10
+"""How far back a still-unopened thesis stays recoverable. Long enough to survive a long
+weekend or a multi-day outage (the Jul 13-24 outage ran 10 trading days); short enough that
+nothing is ever opened at a price that has drifted away from the call it is scoring."""
 
 
 def _prev_key(trade_date: str, st: Dict[str, Any]) -> str:

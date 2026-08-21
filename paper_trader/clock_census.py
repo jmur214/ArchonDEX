@@ -349,3 +349,141 @@ def census_line(census: Dict[str, Any]) -> str:
     names = ", ".join(m["clock"] for m in census["missed"])
     return (f"[CLOCK-CENSUS][ALERT] clocks_advanced={census['clocks_advanced']} "
             f"MISSED: {names}")
+
+
+# ======================================================================================
+# CHANNEL LIVENESS (T-342) — the class fix behind the shadow book's 14 dark days.
+#
+# The census above asks "did this clock ADVANCE today?". That question is blind to a
+# different failure: a consumer that runs perfectly every day while the field it consumes
+# has NEVER ONCE been non-empty. The llm_shadow_book spent 14 days honestly reporting
+# action:'applied' over a structurally empty `hypothetical_actions` — applying nothing IS
+# applying the note, so every clock ticked, every record was truthful, and the channel was
+# dead the whole time.
+#
+# E's rule is the charter: AN ALWAYS-EMPTY CHANNEL DEGRADES NOTHING, so no freshness gate,
+# no clock, and no daily assertion can see it. Only an EXISTENCE-OVER-HISTORY assertion can:
+#   "has this load-bearing field EVER been non-empty, across its entire observed history?"
+#
+# Fail-closed in spirit: a channel we cannot verify is FLAGGED, never assumed alive.
+# Read-only, like the census.
+# ======================================================================================
+LIVE, NEVER_ALIVE, UNVERIFIABLE, NO_HISTORY = "LIVE", "NEVER_ALIVE", "UNVERIFIABLE", "NO_HISTORY"
+
+
+@dataclass
+class Channel:
+    """One load-bearing consumed field, declared BY ITS CONSUMER."""
+    name: str                                    # the field, e.g. "hypothetical_actions"
+    consumer: str                                # who breaks if it is dead
+    check: Callable[[Path], Tuple[str, str]]     # -> (status, detail); scans ALL history
+
+
+def _scan_dir_field(rel_dir: str, field: str, sub: Optional[str] = None):
+    """Has `field` EVER been non-empty across every file in a per-day directory?"""
+    def _c(root: Path) -> Tuple[str, str]:
+        d = root / rel_dir
+        if not d.exists():
+            return UNVERIFIABLE, f"source dir missing: {rel_dir} (cannot establish liveness)"
+        files = sorted(d.glob("*.json"))
+        if not files:
+            return NO_HISTORY, f"no records yet in {rel_dir} — nothing to assert"
+        n_seen, n_nonempty, bad = 0, 0, 0
+        for f in files:
+            try:
+                rec = json.loads(f.read_text())
+            except Exception:
+                bad += 1
+                continue
+            n_seen += 1
+            vals = rec.get(field)
+            if sub and isinstance(vals, list):
+                vals = [v for v in vals if isinstance(v, dict) and v.get(sub)]
+            if vals:
+                n_nonempty += 1
+        if n_seen == 0:
+            return UNVERIFIABLE, f"{bad} record(s) in {rel_dir} but none parseable"
+        if n_nonempty == 0:
+            return NEVER_ALIVE, (f"'{field}' EMPTY in all {n_seen} record(s) of its entire "
+                                 f"observed history — channel never non-empty; "
+                                 f"VERIFY UPSTREAM INTENT")
+        return LIVE, f"'{field}' non-empty in {n_nonempty}/{n_seen} record(s)"
+    return _c
+
+
+def _scan_jsonl_field(rel: str, field: str):
+    """Has `field` EVER been non-empty across every row of a jsonl ledger?"""
+    def _c(root: Path) -> Tuple[str, str]:
+        p = root / rel
+        if not p.exists():
+            return UNVERIFIABLE, f"source missing: {rel} (cannot establish liveness)"
+        n_seen = n_nonempty = 0
+        try:
+            for line in p.read_text().splitlines():
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                n_seen += 1
+                if rec.get(field):
+                    n_nonempty += 1
+        except Exception:
+            return UNVERIFIABLE, f"unparseable: {rel}"
+        if n_seen == 0:
+            return NO_HISTORY, f"no rows yet in {rel} — nothing to assert"
+        if n_nonempty == 0:
+            return NEVER_ALIVE, (f"'{field}' EMPTY in all {n_seen} row(s) of its entire "
+                                 f"observed history — channel never non-empty; "
+                                 f"VERIFY UPSTREAM INTENT")
+        return LIVE, f"'{field}' non-empty in {n_nonempty}/{n_seen} row(s)"
+    return _c
+
+
+# THE CHANNEL REGISTRY — declared per consumer. A consumer that reads a load-bearing
+# field registers it here, so "my input has never carried anything" becomes visible.
+CHANNELS: List[Channel] = [
+    Channel("hypothetical_actions", "llm_shadow_book",
+            _scan_dir_field("data/intel/analyst_notes", "hypothetical_actions")),
+    Channel("hypothetical_actions", "llm_shadow_book(agentic)",
+            _scan_dir_field("data/intel/analyst_notes_agentic", "hypothetical_actions")),
+    Channel("predictions", "eval_harness",
+            _scan_dir_field("data/intel/analyst_notes", "predictions")),
+    Channel("event_calls", "event_shadow_book",
+            _scan_jsonl_field("data/intel/event_calls.jsonl", "symbol")),
+    Channel("thesis_calls", "thesis_book",
+            _scan_jsonl_field("data/intel/thesis_calls.jsonl", "instruments")),
+]
+
+
+def channel_liveness(root: Optional[str] = None) -> Dict[str, Any]:
+    """Assert every declared load-bearing channel has EVER been non-empty. READ-ONLY.
+
+    Distinct from the clock census by design: a clock can tick perfectly forever while its
+    input channel is dead. Only this existence-over-history assertion sees that."""
+    base = Path(root) if root else Path(__file__).resolve().parents[1]
+    results = []
+    for ch in CHANNELS:
+        try:
+            status, detail = ch.check(base)
+        except Exception as exc:                 # a raising check is UNVERIFIABLE, not alive
+            status, detail = UNVERIFIABLE, f"check raised {type(exc).__name__}"
+        results.append({"channel": ch.name, "consumer": ch.consumer,
+                        "status": status, "detail": detail})
+    dead = [r for r in results if r["status"] == NEVER_ALIVE]
+    unver = [r for r in results if r["status"] == UNVERIFIABLE]
+    return {"_schema": "channel_liveness/v1",
+            "n_channels": len(results), "n_live": sum(1 for r in results if r["status"] == LIVE),
+            "n_never_alive": len(dead), "n_unverifiable": len(unver),
+            "n_no_history": sum(1 for r in results if r["status"] == NO_HISTORY),
+            # a dead OR unverifiable channel is a FINDING — never assumed benign
+            "findings": dead + unver,
+            "degraded": bool(dead or unver),
+            "detail": results}
+
+
+def liveness_line(live: Dict[str, Any]) -> str:
+    if not live.get("degraded"):
+        return (f"CHANNEL-LIVENESS {live['n_live']}/{live['n_channels']} live "
+                f"({live['n_no_history']} awaiting first record) — all consumed channels alive")
+    names = ", ".join(f"{f['consumer']}:{f['channel']}" for f in live["findings"])
+    return (f"[CHANNEL-LIVENESS][ALERT] {live['n_never_alive']} never-alive / "
+            f"{live['n_unverifiable']} unverifiable — {names}")

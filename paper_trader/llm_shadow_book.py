@@ -200,4 +200,41 @@ class LlmShadowBook:
               "delta_vs_twin": round(float(st["book"]["nav"]) - float(st["twin"]["nav"]), 4),
               "n_rejected": sum(1 for p in pts if str(p.get("action", "")).startswith("REJECTED")),
               "armed": len(pts) > 0}
+        hb.update(self._cohort_annotation(pts))
         return hb
+
+    # ---------------------------------------------------------------------------------
+    # T-342 DARK-COHORT ANNOTATION — a framing field, raw record byte-unchanged.
+    #
+    # E's ignition hold found this book spent its early life rehearsing a STRUCTURALLY
+    # EMPTY channel: 0/17 notes ever carried a `hypothetical_action`, because the daily_v2
+    # prompt told the model those actions "are never executed" and to omit the list. The
+    # book reported action:'applied' every day and was TELLING THE TRUTH — applying nothing
+    # IS applying the note. So the record is honest and the days are real, but they are NOT
+    # allocation decisions and must never be scored as though a model chose 100% cash.
+    #
+    # Same class as the NOT-EVALUABLE guard: the framing travels WITH the numbers, because
+    # a doc does not. The persisted points are untouched.
+    # ---------------------------------------------------------------------------------
+    def _cohort_annotation(self, pts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Label days whose consumed channel was structurally empty. Read-only."""
+        empty_days = [p for p in pts
+                      if not p.get("degraded") and not (p.get("targets") or p.get("positions"))]
+        if not pts or len(empty_days) != len(
+                [p for p in pts if not p.get("degraded")]):
+            return {}                    # channel has carried something → no dark cohort
+        return {"cohort": {
+            "label": "daily_v2 era — channel structurally empty; NOT an allocation decision",
+            "n_days": len(empty_days),
+            "can_evidence": ("that the book, the firewall and the fill path RAN correctly "
+                             "end-to-end on validated notes — the plumbing is proven."),
+            "cannot_evidence": ("ANY judgement about the analyst's allocation skill. The "
+                                "consumed field carried nothing in its entire observed "
+                                "history (the daily_v2 prompt said the actions are never "
+                                "executed and to omit the list), so 100% cash was the "
+                                "PROMPT's behaviour, not the model's choice. Do NOT score "
+                                "this stretch against the twin as if a decision was made."),
+            "re_baseline": ("when a new prompt version lands, this book RE-BASELINES at the "
+                            "version boundary together with the real account — that is the "
+                            "clean A/B; comparing across the boundary is not."),
+            "source": "T-342 / E's ignition hold"}}
