@@ -725,15 +725,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # one standard, not a second. Report-only, fail-closed. -------------------- #
             try:
                 from paper_trader.thesis_book import (MACHINE_DESK, USER_DESK, ThesisBook)
-                from paper_trader.event_shadow_book import TWIN_TICKER as _TWIN
                 for _tcfg in (MACHINE_DESK, USER_DESK):
                     _tb = ThesisBook(cfg=_tcfg, root=str(root))
-                    _tst = _tb._state()
-                    _th, _twhy = _tb._load_theses(str(today))
-                    _tsyms = sorted({s for p in _tst.get("open", []) for s in p["weights"]}
-                                    | {str(l.get("symbol", "")).upper()
-                                       for t in _th for l in (t.get("instruments") or [])}
-                                    | {_TWIN})
+                    # T-343: the fetch FOLLOWS the book — pending legs + open legs + the
+                    # twin + the legs of the session `record()` will actually consume.
+                    # The old gather read theses dated TODAY while record() consumes the
+                    # PRIOR session, so a newly-filed leg was never priced and the thesis
+                    # parked. Nobody can pre-list what the machine will pick (FN, AMTM).
+                    _tsyms = _tb.pending_symbols(str(today))
                     _tpx = {}
                     if _tsyms:
                         try:
@@ -742,11 +741,18 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                                     if v is not None and len(v)}
                         except Exception:
                             _tpx = {}      # → the book parks the day (never fabricates)
-                    _ts = _tb.record(str(today), closes=_tpx, theses=_th or None)
+                    _miss = [s for s in _tsyms if s not in _tpx]
+                    # record() loads the prior session's theses itself; do NOT pass today's.
+                    _ts = _tb.record(str(today), closes=_tpx)
                     print(f"   THESIS-BOOK[{_tcfg.name}] days={_ts.get('n_days')} "
                           f"open={_ts.get('n_open')} closed={_ts.get('n_closed')}"
                           + (f" falsified={_ts.get('n_falsified')}"
                              if _ts.get('n_falsified') else "")
+                          + (f" pending={_ts.get('n_pending')}"
+                             if _ts.get('n_pending') else "")
+                          + (f" fetched={len(_tpx)}/{len(_tsyms)}"
+                             f" no-price={','.join(_miss)}" if _miss
+                             else f" fetched={len(_tpx)}/{len(_tsyms)}")
                           + " (report-only T-326; gate = D/T-324 bar)")
             except Exception as exc:
                 print(f"   THESIS-BOOK warn: {type(exc).__name__} (non-fatal)")
