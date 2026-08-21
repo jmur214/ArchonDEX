@@ -115,3 +115,24 @@ def test_kill_switch_has_a_real_path(tmp_path):
     gov = load_governor(str(s), str(tmp_path / "spend.jsonl"))
     assert gov.check("2026-08", 0.01).allowed is False   # the documented operator control binds
     assert gov.cfg.kill_switch is True
+
+
+# ── T-292 segmentation: a PROMPT BUMP must not pool two analyst regimes ────────
+def test_summary_segments_by_prompt_version_and_model_prompt():
+    """daily/v2 -> daily/v3 is a DIFFERENT analyst; pooling would hide what the bump
+    changed. prompt_version was recorded but nothing segmented on it until T-331b."""
+    recs = []
+    for i in range(20):
+        pv = "daily/v2" if i < 10 else "daily/v3"
+        recs.append({"resolvable": True, "outcome": i % 2, "probability": 0.9 if pv.endswith("v3") else 0.5,
+                     "category": "px", "prompt_version": pv, "model_id": "claude-haiku-4-5-20251001",
+                     "resolve_date": f"2026-08-{(i % 27) + 1:02d}", "prediction_id": f"p{i}"})
+    s = eh.summarize(recs)
+    assert set(s["by_prompt_version"]) == {"daily/v2", "daily/v3"}
+    assert s["by_prompt_version"]["daily/v2"]["n"] == 10
+    assert s["by_prompt_version"]["daily/v3"]["n"] == 10
+    # the two regimes score differently and are NOT pooled into one Brier
+    assert s["by_prompt_version"]["daily/v2"]["brier"] != s["by_prompt_version"]["daily/v3"]["brier"]
+    assert set(s["by_model_prompt"]) == {"claude-haiku-4-5-20251001|daily/v2",
+                                         "claude-haiku-4-5-20251001|daily/v3"}
+    assert set(s["g1_skill_by_prompt_version"]) == {"daily/v2", "daily/v3"}

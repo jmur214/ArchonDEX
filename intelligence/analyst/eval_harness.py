@@ -608,6 +608,9 @@ def _g1_block(recs: list[dict]) -> dict:
 def summarize(recs: list[dict]) -> dict:
     resolvable = [r for r in recs if r.get("resolvable")]
     cats = sorted({r.get("category") for r in resolvable})
+    prompts = sorted({r.get("prompt_version") or "" for r in resolvable})
+    model_prompts = sorted({(r.get("model_id") or "", r.get("prompt_version") or "")
+                            for r in resolvable})
     by_cat = {c: {"n": sum(1 for r in resolvable if r.get("category") == c),
                   "brier": _brier([r for r in resolvable if r.get("category") == c])} for c in cats}
     return {
@@ -617,10 +620,28 @@ def summarize(recs: list[dict]) -> dict:
         "base_rate": round(sum(r["outcome"] for r in resolvable) / len(resolvable), 4) if resolvable else None,
         "calibration_deciles": _calibration_deciles(resolvable),
         "by_category": by_cat,
+        # T-292 requires the eval record to segment by (model, PROMPT). prompt_version
+        # was recorded per row but nothing segmented on it, so a prompt bump (daily/v2 ->
+        # daily/v3) would POOL the two regimes and hide whatever the bump changed. A
+        # prompt change is a different analyst; it gets a different bucket.
+        "by_prompt_version": {
+            pv: {"n": sum(1 for r in resolvable if r.get("prompt_version") == pv),
+                 "brier": _brier([r for r in resolvable if r.get("prompt_version") == pv])}
+            for pv in prompts},
+        "by_model_prompt": {
+            f"{mp[0]}|{mp[1]}": {
+                "n": sum(1 for r in resolvable
+                         if (r.get("model_id"), r.get("prompt_version")) == mp),
+                "brier": _brier([r for r in resolvable
+                                 if (r.get("model_id"), r.get("prompt_version")) == mp])}
+            for mp in model_prompts},
         # amended-G1: calibration necessary-not-sufficient; skill = beat market-implied
         # + persistence + base-rate per category at ci_low>0, gimmes excluded.
         "g1_skill": _g1_block(resolvable),
         "g1_skill_by_category": {c: _g1_block([r for r in resolvable if r.get("category") == c]) for c in cats},
+        "g1_skill_by_prompt_version": {
+            pv: _g1_block([r for r in resolvable if r.get("prompt_version") == pv])
+            for pv in prompts},
         "unresolvable_reasons": _reason_counts(recs),
     }
 
