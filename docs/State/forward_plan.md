@@ -51,6 +51,35 @@
 > one thing paper can't rehearse). The "September decision" is RENAMED the real-money OPTION,
 > evidence-triggered. Dispatched: E (T-327 amended + drill), C (T-328), A (T-329), D (T-330).
 >
+> ## 🎯 2026-08-20 — THE STANDING DISTANCE-TO-IDEAL LIST (user directive: "the machine isn't even
+> close to ideal — I always want forward progress." Maintain alongside the OPEN FRONTIER; items move
+> to "in motion" when owned, and OFF only when built-and-observed. The gaps sort into three kinds —
+> never conflate them when reporting progress.)
+>
+> **UNOWNED GAPS (the next frontier, priority order):**
+> 1. **The portfolio brain** — cross-stream, conviction-weighted, risk-budgeted allocation with EARNED
+>    authority (today: fixed sub-budgets, no-netting by pre-statement — correct scaffolding, not the
+>    building). The largest unbuilt piece of machine-as-PM. Gated on: per-stream records existing first.
+> 2. **The AI reference library** — the papers pipeline feeds the humans; the mechanism-knowledge feed
+>    to the analysts (triaged summaries as queryable context; NEVER strategy recipes, NEVER the blind
+>    generator per the firewall rule) is unbuilt.
+> 3. **Evidence-paced learning, broadened** — exec costs learn; calibration scoring starts ~08-27; ONE
+>    provenance-stamped prompt edit ever. The richer loop (Brier-decomposition-driven prompt/context
+>    revisions on forward windows) barely exists. T-305 strategy-self-tuning stays CONTESTED (Goodhart
+>    evidence banked) — this is the admissible lane beside it.
+> 4. **Conviction-scaled sizing** — the desk writes conviction 0.68 vs 0.55; the book ignores the
+>    difference. Sizing-by-conviction gated on a real Brier/promotion record.
+> 5. **The third uncorrelated stream** — still unsolved; DBMF shadow is a clock, not an answer.
+> 6. **Intraday** — deferred, never refuted; one Gao-momentum probe queued; needs trustworthy minute data.
+>
+> **IN MOTION (progress arrives without new decisions):** AI first trade (Mon 08-24); calibration eval
+> (days); analyst thin-slice fix + canonical flags (next E pass); v2 contract live (rev28/scan 5);
+> drill week; Act 2 = the structural stack IMPLEMENTED (VOO core, momentum satellite, SGOV cash,
+> enforcing wash guard, tier reset).
+>
+> **DELIBERATELY GATED (chosen, not stalled):** real money (user confidence only); streams joining
+> acct-3 before their bars; the sleeve's role (user's clock; T-333 + Rogoff on the label).
+>
 > ## 🧭 2026-07-28 — THE TRADER-ACCELERATION REFRAME (user directive) + the standing OPEN FRONTIER list
 >
 > **The user's correction, adopted:** "the arc is closed" was wrong language with a bad track record (three
