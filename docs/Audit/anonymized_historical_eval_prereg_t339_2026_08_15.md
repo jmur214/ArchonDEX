@@ -157,3 +157,11 @@ implausibly-good-Brier tripwire are how we act on it rather than hope.
 **Estimated cost if approved:** ~300 questions + 40 holdout ≈ 340 cheap-tier calls, well
 inside the existing ≤$30/mo governor; ~1 day of build (the anonymizer is the only new
 component — resolvers, scoring, baselines, and CIs are all existing harness code).
+
+---
+## APPROVAL STAMP (the gated exception's first exercise)
+- Director review: PASSED 2026-08-15 (merged with review notes).
+- **User approval: GRANTED 2026-08-20** ("yes, I always want improvements") — the
+  2026-08-06 amendment's final gate is satisfied. The run may proceed exactly as frozen
+  above; any deviation voids the exception and requires re-approval. The leakage gates
+  (≥5/40 entity identifications OR Brier < 0.10 → VOID, reported either way) govern.
