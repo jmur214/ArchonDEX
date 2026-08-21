@@ -849,6 +849,28 @@ Read the day's stream verdict from the heartbeat's `streams.llm_analyst`
 block (`note_as_of`, `n_orders`, `reject_reason`, `halted`, `notes_pull_ok`)
 — "0 orders" alone never says which of the four reasons applied.
 
+### ENABLE with a StartDate — skip occurrences BEFORE a dependency exists (T-329d)
+
+Used at account-3 ignition (2026-08-20): the constructor consumes YESTERDAY's
+note, so the first firing had to land the day AFTER the first daily/v3 note.
+EventBridge Scheduler's `StartDate` makes that mechanical — the schedule is
+ENABLED tonight but every cron occurrence before StartDate is skipped, so no
+human has to be present in between to flip it at the right moment.
+
+```bash
+# update-schedule REPLACES the whole schedule config: always GET the live
+# schedule first, mutate only State+StartDate, and send everything back
+# (dropping Target/RetryPolicy/DLQ here silently reverts the July lessons).
+aws scheduler get-schedule --name archondex-paper-ai-trader-daily \
+  --profile archondex --region us-east-1 > /tmp/sched.json
+# ... keep Name/ScheduleExpression/Timezone/FlexibleTimeWindow/Target verbatim,
+#     set State=ENABLED + StartDate=<ISO8601 with offset>, then:
+aws scheduler update-schedule --cli-input-json file:///tmp/sched_update.json \
+  --profile archondex --region us-east-1
+# READ BACK State + StartDate + Target.Input's :N pin after every update.
+# First firing = first cron occurrence AFTER StartDate in the schedule's TZ.
+```
+
 ## Alt-data daily archivers (Info-Layer program, Lane 2.1 Phase A — 2026-07-07)
 
 ```bash
