@@ -55,29 +55,35 @@ _SNAPSHOT_FRESHNESS: List[Tuple[str, str, str]] = [
 # outage went unread — so each feed declares its OWN staleness budget from its real
 # publication cadence. A feed whose dates cannot be PARSED is also a failure: you
 # cannot monitor what you cannot age.
-# (name, relpath, datecol, max_age_days, fmt)
+# (name, relpath, datecol, max_age_days, fmt, exempt_reason)
+# exempt_reason != None => LOCAL-ONLY Phase-A feed: reported as EXEMPT with the
+# reason, never as staleness. The gate's job is to DECLARE what the cloud actually
+# collects; silently failing a feed the cloud was never going to collect is the
+# false-alarm class that produces alarm fatigue (director ruling 2026-08-15).
 _FEED_HEALTH: List[Tuple[str, str, str, int, str]] = [
     # daily market snapshots (weekend tolerance)
-    ("kalshi", "data/macro_data/alt/kalshi_snapshots.parquet", "snap_date", 4, "iso"),
-    ("kxfed", "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", "snap_date", 4, "iso"),
-    ("polymarket", "data/macro_data/alt/polymarket_snapshots.parquet", "snap_date", 4, "iso"),
-    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date", 4, "iso"),
+    ("kalshi", "data/macro_data/alt/kalshi_snapshots.parquet", "snap_date", 4, "iso", None),
+    ("kxfed", "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", "snap_date", 4, "iso", None),
+    ("polymarket", "data/macro_data/alt/polymarket_snapshots.parquet", "snap_date", 4, "iso", None),
+    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date", 4, "iso", None),
     # daily-ish constructed series / resolution feeds
-    ("epu_daily", "data/macro_data/alt/epu_daily_us.parquet", "archive_vintage", 7, "iso"),
-    ("gpr_daily", "data/macro_data/alt/gpr_daily_recent.parquet", "archive_vintage", 7, "iso"),
-    ("fred_rate_path", "data/macro_data/alt/fred_rate_path.parquet", "observation_date", 7, "iso"),
+    ("epu_daily", "data/macro_data/alt/epu_daily_us.parquet", "archive_vintage", 7, "iso", None),
+    ("gpr_daily", "data/macro_data/alt/gpr_daily_recent.parquet", "archive_vintage", 7, "iso",
+     "local-only Phase-A; legacy .xls needs xlrd (absent from the lean image); no cloud consumer"),
+    ("fred_rate_path", "data/macro_data/alt/fred_rate_path.parquet", "observation_date", 7, "iso", None),
     # T-334 feeds (weekday / posting-lag cadence)
-    ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso"),
-    ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso"),
+    ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso", None),
+    ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso", None),
     ("credit_oas", "data/macro_data/alt/credit_spread_oas.parquet",
-     "observation_date", 7, "iso"),          # T-336 C5 (deep history + live tail)
+     "observation_date", 7, "iso", None),          # T-336 C5 (deep history + live tail)
     # positioning: real cadences are weekly → twice-monthly → monthly (+ publication lag)
-    ("regsho", "data/positioning/finra_regsho_short_volume.parquet", "date", 7, "iso"),
-    ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel"),
+    ("regsho", "data/positioning/finra_regsho_short_volume.parquet", "date", 7, "iso", None),
+    ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel", None),
     ("finra_short_interest", "data/positioning/finra_short_interest.parquet",
-     "accountingYearMonthNumber", 30, "iso"),
-    ("sec_ftd", "data/positioning/sec_ftd.parquet", "settlement_date", 45, "iso"),
-    ("finra_margin", "data/positioning/finra_margin_debt.parquet", "month/year", 75, "monthyear"),
+     "accountingYearMonthNumber", 40, "iso", None),   # observed max gap 31d (T-340b: budget was 1d too tight)
+    ("sec_ftd", "data/positioning/sec_ftd.parquet", "settlement_date", 45, "iso", None),
+    ("finra_margin", "data/positioning/finra_margin_debt.parquet", "month/year", 75, "monthyear",
+     "local-only Phase-A; month/year strings unparseable in-container; no cloud consumer"),
 ]
 
 
@@ -109,7 +115,11 @@ def assess_feed_health(root: Path) -> Tuple[Dict[str, dict], List[str]]:
     """Age EVERY feed against its own budget. Returns (per-feed detail, offenders)."""
     now = pd.Timestamp.now().normalize()
     detail, stale = {}, []
-    for name, rel, col, budget, fmt in _FEED_HEALTH:
+    for name, rel, col, budget, fmt, exempt in _FEED_HEALTH:
+        if exempt:
+            detail[name] = {"age_days": None, "budget": budget, "ok": True,
+                            "exempt": exempt}
+            continue
         newest = _newest(root / rel, col, fmt)
         if newest is None or pd.isna(newest):
             detail[name] = {"age_days": None, "budget": budget, "ok": False,
