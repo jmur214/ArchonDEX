@@ -51,6 +51,25 @@
 > one thing paper can't rehearse). The "September decision" is RENAMED the real-money OPTION,
 > evidence-triggered. Dispatched: E (T-327 amended + drill), C (T-328), A (T-329), D (T-330).
 >
+> ## 🏗️ 2026-08-22 — THE GAP-CLOSURE PROGRAM (user-approved; the plan of record; full text:
+> ~/.claude/plans/foamy-foraging-horizon.md). Closes every item on the Distance-to-Ideal list
+> below by CONSTRUCTION where constructible, by evidence-machinery where not — with the honest
+> certainty ledger stated up front (construction certain; verdicts never promisable).
+> **Phases:** 0 drill week (NON-DEFERRABLE, blocks Act 2) → 1 THE STRUCTURAL STACK LIVE
+> (deploy-candidate acct: VOO core + MTUM satellite + SGOV cash + enforcing wash guard +
+> Rule-B contributions + arrival-event rehearsal) → 1.5 THE ADVISOR SURFACE (the wrapper &
+> contribution layer — the gap the user's challenge surfaced: 401k match/HSA/backdoor-Roth/contribution-rate
+> sensitivity/cash-flow-aware rebalancing/HIFO — wrapper census with the user first) →
+> 2 the AI layer compounds (T-339b, input repair, bounded repair, rev28/v2, THE REFERENCE
+> LIBRARY [BANK/mechanism only; NEVER the blind generator], conviction-sizing + learning-loop
+> pre-statements) → 3 THE PORTFOLIO BRAIN (pre-statement → report-only brain book → authority
+> only by beating its twin) → 4 third stream (free-data battery; honest cannot-be-willed) →
+> 5 reliability steady-state + ALTERNATING DEFECT/OPPORTUNITY discovery rounds (~6-8wk).
+> **Standing rulings:** sleeve keeps running, DEMOTED to regime-shelf record, decision memo at
+> Sept gate-d maturity; data budget free-only. **Program checkpoint ~Sept 20:** structural
+> stack live-and-accruing, or the review doc must say "research instrument mistaken for an
+> investment system" and re-point.
+>
 > ## 🎯 2026-08-20 — THE STANDING DISTANCE-TO-IDEAL LIST (user directive: "the machine isn't even
 > close to ideal — I always want forward progress." Maintain alongside the OPEN FRONTIER; items move
 > to "in motion" when owned, and OFF only when built-and-observed. The gaps sort into three kinds —
