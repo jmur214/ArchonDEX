@@ -956,3 +956,36 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 # the cloud pulse's 09:45 ET capture is a separate pre-open series on S3.
 # Do NOT retire one into the other (program-doc amendment 2026-07-08).
 ```
+
+### THIRD-STREAM CANDIDATE BATTERY — same-day $0 verdict (2026-08-25, T-313 formalized)
+
+The standing screen for any candidate proposed as the genuinely-independent 3rd return
+stream (tripwire #2). Run it BEFORE pre-registering a probe — a candidate that co-falls
+with equity in a fast crash is refuted by free data alone, so no trial should be spent
+discovering that.
+
+```bash
+# a TR-reconciled ticker (T-256 substrate: data/processed/tr_reconciled/)
+python scripts/third_stream_battery.py --ticker DBMF
+
+# an arbitrary series; --file-kind is REQUIRED and never guessed
+python scripts/third_stream_battery.py --file data/research/mycand.csv \
+       --file-kind price --label MYCAND [--json out.json]
+```
+
+Panel → `data/research/third_stream_battery_<label>.json` (also printed).
+
+Reading it:
+- Bar is `+0.30`, **imported** from `paper_trader.dbmf_shadow.GATE_A_CORR_MAX` (T-316 frozen)
+  so the screen and the live gate cannot drift apart.
+- Verdicts are **CI-aware**: `PASS` (whole CI clears) / `FAIL` (whole CI above) /
+  `UNRESOLVED` (CI straddles — the window cannot settle it) / `NOT_COVERED` (+ reason) /
+  `PARTIAL` (<90% coverage, deliberately not scored). A point estimate under the bar is
+  NOT a pass.
+- `SCREEN: REJECT` → SKIP it. `CLEARS` → eligible for pre-registration (necessary, not
+  sufficient). `INCONCLUSIVE` → the T-316 situation: needs a live forward clock, not a
+  longer backtest.
+
+Papers-pipeline route: `docs/Sources/Papers/README.md` flags third-stream submissions
+through this battery at triage. Full design + the DBMF first artifact:
+`docs/Audit/third_stream_battery_2026_08_25.md`.
