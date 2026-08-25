@@ -126,11 +126,49 @@ def check_schedules(findings) -> None:
             _report(findings, name, f"retry policy {retry} != fast-fail {FAST_FAIL}")
 
 
+def check_scheduler_submit_policy(findings) -> None:
+    """Every EXISTING schedule's target jobdef must be covered by the scheduler
+    role's batch:SubmitJob resource list. The gap this catches is the T-329d
+    ignition miss (found 2026-08-25): a NEW jobdef + schedule provisioned without
+    the scheduler role ever learning the new ARN → every scheduled submit
+    AccessDenied → straight to the DLQ, with zero FAILED Batch jobs to see.
+    Same class as July 2026, one IAM layer over. IAM patterns and their
+    consumers change together — this check makes that rule mechanical."""
+    print("== scheduler-role submit policy covers every scheduled jobdef ==")
+    rc, out, _ = aws("iam", "get-role-policy", "--role-name",
+                     "archondex-paper-scheduler-role",
+                     "--policy-name", "submit-paper-job",
+                     "--query", "PolicyDocument", "--output", "json")
+    if rc != 0:
+        return _report(findings, "scheduler-role policy", "unreadable")
+    resources: list = []
+    for st in json.loads(out).get("Statement", []):
+        res = st.get("Resource", [])
+        resources += [res] if isinstance(res, str) else list(res)
+    covered = {r.rsplit("/", 1)[-1].split(":")[0]
+               for r in resources if ":job-definition/" in r}
+    for name in SCHEDULES:
+        rc, out, _ = aws("scheduler", "get-schedule", "--name", name, "--output", "json")
+        if rc != 0:
+            continue
+        jd_arn = json.loads(json.loads(out).get("Target", {}).get("Input", "{}")) \
+            .get("JobDefinition", "")
+        jd_name = jd_arn.rsplit("/", 1)[-1].split(":")[0]
+        if jd_name and jd_name not in covered:
+            _report(findings, name,
+                    f"target jobdef {jd_name!r} NOT in the scheduler role's "
+                    f"batch:SubmitJob resources — every scheduled submit will "
+                    f"AccessDenied straight to the DLQ (the T-329d ignition miss)")
+        else:
+            print(f"  ok     {name} → {jd_name}")
+
+
 def main() -> int:
     findings: list = []
     check_job_role(findings)
     check_exec_role(findings)
     check_schedules(findings)
+    check_scheduler_submit_policy(findings)
     print()
     if findings:
         print(f"DRIFT: {len(findings)} finding(s). Reconcile the TEMPLATE to live "

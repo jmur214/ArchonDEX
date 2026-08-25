@@ -242,9 +242,13 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                 # changed; the predictions contract is byte-identical, so the Brier
                 # record stays comparable across the cohort boundary the version
                 # bump creates. Stamped in docs/Core/prompt_evolution_log.md.
-                prompt_path="config/prompts/analyst/daily_v3.md",
+                # T-331bc: daily/v4 describes the new ticker-agnostic market_tape
+                # bundle section (the input repair for the 19/19 structural news
+                # starvation). Predictions contract again byte-identical; stamped
+                # as evolution #2 in docs/Core/prompt_evolution_log.md.
+                prompt_path="config/prompts/analyst/daily_v4.md",
                 model_call=model_call, governor=gov,
-                model_id_requested=model_id, prompt_version="daily/v3",
+                model_id_requested=model_id, prompt_version="daily/v4",
                 projected_cost_usd=_PROJ_ANALYST, raw_dir=raw_dir,
                 load_panel=load_panel, now_iso=now_iso)
             res.analyst = {"status": r.status,

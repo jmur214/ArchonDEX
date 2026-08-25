@@ -126,6 +126,40 @@ def _news_section(as_of: dt.date, symbols: List[str],
         return {"items": [], "degraded": True, "reason": f"news_error:{type(e).__name__}"}
 
 
+def _market_tape_section(as_of: dt.date, load_panel=None, cap: int = 40) -> Dict[str, Any]:
+    """T-331bc input repair — a BROAD, ticker-AGNOSTIC recent-headline slice of the
+    SAME news panel the ticker-scoped `news` section reads. The analyst's sleeve is
+    ETF-heavy and the tape is company-tagged (AGG/BIL/IEF carry ZERO tags by
+    construction), so the scoped slice is structurally thin on a perfectly healthy
+    tape — the exact starvation behind the 19/19 news-degraded record. The blind
+    scan already reads the whole tape this way (`_broad_news_digest`, cap 40) and
+    sees a full bundle on the SAME panel; this gives the daily analysts the same
+    view. PIT-guarded (created_at strictly < as_of), deterministic (dedupe on
+    headline, stable sort, tail(cap)); fail-open to a degraded empty section."""
+    try:
+        import pandas as pd
+        if load_panel is None:
+            from intelligence.news_panel import load_panel as _lp
+            load_panel = _lp
+        df = load_panel(as_of=as_of)
+        if df is None or len(df) == 0:
+            return {"items": [], "degraded": True, "reason": "empty_panel"}
+        created = pd.to_datetime(df["created_at"], utc=True, errors="coerce")
+        cutoff = pd.Timestamp(as_of.isoformat(), tz="UTC")
+        df = df.assign(_ca=created)[created.notna() & (created < cutoff)]
+        df = df.dropna(subset=["headline"]).drop_duplicates("headline")
+        df = df.sort_values(["_ca", "headline"]).tail(int(cap))
+        items = [{"created_at": str(r["_ca"])[:19],
+                  "headline": str(r["headline"])[:300]}
+                 for _, r in df.iterrows()]
+        return {"items": items, "degraded": False, "cap": int(cap),
+                "note": ("ticker-AGNOSTIC: the most recent headlines from the whole "
+                         "tape, unfiltered by portfolio symbols — market context, "
+                         "not coverage of your holdings.")}
+    except Exception as e:   # noqa: BLE001 — fail-open like every other section
+        return {"items": [], "degraded": True, "reason": f"tape_error:{type(e).__name__}"}
+
+
 def _special_sits_section(as_of: dt.date, events_path: Path = EVENTS_PARQUET) -> Dict[str, Any]:
     try:
         import pandas as pd
@@ -182,12 +216,16 @@ def build_bundle(as_of, *, portfolios: Optional[Dict[str, Dict[str, float]]] = N
     symbols = sorted(set(held) | {s.upper() for s in (watchlist or [])})
 
     bundle = {
-        "bundle_version": "analyst_input/v1",
+        # v2 = T-331bc input repair: + market_tape (ticker-agnostic broad slice).
+        # No other section changed; the version exists so a bundle either side of
+        # the boundary is identifiable from its own bytes.
+        "bundle_version": "analyst_input/v2",
         "as_of": as_of.isoformat(),
         "event_state": event_state,               # context only (T-291/T-233)
         "portfolios": _portfolio_section(portfolios),
         "watchlist": sorted({s.upper() for s in (watchlist or [])}),
         "news": _news_section(as_of, symbols, load_panel=load_panel),
+        "market_tape": _market_tape_section(as_of, load_panel=load_panel),
         "special_situations": _special_sits_section(as_of),
         "open_predictions": _open_predictions_section(as_of),
     }

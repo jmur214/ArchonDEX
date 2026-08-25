@@ -144,6 +144,51 @@ def extend_exec_secret_policy(new_arns):
           f"({len(want) - len(live)} added, 0 revoked, readback verified)")
 
 
+def extend_scheduler_submit_policy(jobdef_names):
+    """Grant the SCHEDULER role batch:SubmitJob on every fleet jobdef — as a UNION
+    with whatever the live policy already grants, never a blind overwrite.
+
+    This closes the T-329d ignition miss (2026-08-25): this script registered the
+    ai-trader jobdef and created its schedule, but the scheduler role's submit
+    policy still listed only the three older jobdefs — so every scheduled submit
+    AccessDenied'd straight to the DLQ, with zero FAILED Batch jobs to notice.
+    Same class as the July outage, one IAM layer over: IAM patterns and their
+    consumers change together, so the script that adds a consumer must extend the
+    pattern in the same run. Read-modify-write + readback, per the exec-role fix."""
+    role, pol = SCHED_ROLE, "submit-paper-job"
+
+    def _live():
+        r = subprocess.run(
+            ["aws", "iam", "get-role-policy", "--role-name", role,
+             "--policy-name", pol, "--query", "PolicyDocument", "--output", "json",
+             "--profile", PROFILE, "--region", REGION], capture_output=True, text=True)
+        if r.returncode != 0:
+            return []
+        out = []
+        for st in json.loads(r.stdout).get("Statement", []):
+            res = st.get("Resource", [])
+            out += [res] if isinstance(res, str) else list(res)
+        return out
+
+    live = _live()
+    want = sorted(set(live) | {
+        f"arn:aws:batch:{REGION}:{ACCOUNT}:job-definition/{n}:*" for n in jobdef_names})
+    dropped = sorted(set(live) - set(want))
+    assert not dropped, f"REFUSING to revoke live grants: {dropped}"
+    if want == sorted(live):
+        print(f"  scheduler-role submit policy already covers all {len(jobdef_names)} jobdefs")
+        return
+    doc = {"Version": "2012-10-17", "Statement": [{
+        "Sid": "SubmitPaperJob", "Effect": "Allow",
+        "Action": "batch:SubmitJob", "Resource": want}]}
+    aws("iam", "put-role-policy", "--role-name", role, "--policy-name", pol,
+        "--policy-document", json.dumps(doc))
+    readback = sorted(_live())
+    assert readback == want, f"readback mismatch: {readback} != {want}"
+    print(f"  scheduler-role submit policy → {len(want)} resources "
+          f"({len(want) - len(live)} added, 0 revoked, readback verified)")
+
+
 def register_jobdef(acct, image, exec_arn, job_arn, sec_arn) -> str:
     name = f"archondex-paper-{acct['key']}"
     jd = {
@@ -215,15 +260,25 @@ def create_schedule(acct, jobdef_name, sched_role_arn):
               # visible failure in the DLQ.
               "RetryPolicy": dict(RETRY_POLICY)}
     cron = f"cron({acct['minute']} 9 ? * MON-FRI *)"
-    exists = subprocess.run(["aws", "scheduler", "get-schedule", "--name", name,
-                             "--profile", PROFILE, "--region", REGION],
-                            capture_output=True).returncode == 0
+    probe = subprocess.run(["aws", "scheduler", "get-schedule", "--name", name,
+                            "--output", "json",
+                            "--profile", PROFILE, "--region", REGION],
+                           capture_output=True, text=True)
+    exists = probe.returncode == 0
+    # T-329d lesson: a re-run must never revert a live enable. A NEW schedule is
+    # born DISABLED (enable is its own deliberate act, possibly StartDate-armed —
+    # see the execution manual); an EXISTING schedule keeps its LIVE state and this
+    # update only repoints the jobdef pin + re-asserts DLQ/fast-fail. (StartDate is
+    # deliberately not carried: it is an arming-time control, and a past StartDate
+    # is rejected by the API anyway.)
+    state = json.loads(probe.stdout).get("State", "DISABLED") if exists else "DISABLED"
     verb = "update-schedule" if exists else "create-schedule"
-    aws("scheduler", verb, "--name", name, "--state", "DISABLED",
+    aws("scheduler", verb, "--name", name, "--state", state,
         "--schedule-expression", cron,
         "--schedule-expression-timezone", "America/New_York",
         "--flexible-time-window", '{"Mode":"OFF"}', "--target", json.dumps(target))
-    print(f"  schedule {name} @ {cron} America/New_York — DISABLED")
+    print(f"  schedule {name} @ {cron} America/New_York — {state}"
+          f"{' (live state preserved)' if exists else ''}")
 
 
 def create_alarms(acct):
@@ -257,6 +312,8 @@ def main():
     sec = {a["key"]: secret_arn(a.get("secret", a["key"])) for a in FLEET}
     print("== extend exec-role secret policy ==")
     extend_exec_secret_policy(sec.values())
+    print("== extend scheduler-role submit policy ==")
+    extend_scheduler_submit_policy([f"archondex-paper-{a['key']}" for a in FLEET])
     sched_gap = []
     for acct in FLEET:
         print(f"== provision {acct['key']} (strategy={acct['strategy']}) ==")
