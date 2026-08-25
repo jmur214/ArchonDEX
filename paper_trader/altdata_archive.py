@@ -78,7 +78,12 @@ _FEED_HEALTH: List[Tuple[str, str, str, int, str]] = [
      "observation_date", 7, "iso", None),          # T-336 C5 (deep history + live tail)
     # positioning: real cadences are weekly → twice-monthly → monthly (+ publication lag)
     ("regsho", "data/positioning/finra_regsho_short_volume.parquet", "date", 7, "iso", None),
-    ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel", None),
+    ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel",
+     "COLLECTOR BROKEN 2026-07-29 by a NAAIM site redesign (WordPress/Bricks): the series "
+     "now renders client-side — 0 table elements, 0 date+value pairs, no static .xls/.csv "
+     "export (both legacy paths 404). Repair means scraping an undocumented JS endpoint. "
+     "ZERO code consumers, so the consumer-less rule applies as it did for GDELT/gpr; "
+     "1,047 banked observations retained. Un-exempt if a consumer appears."),
     ("finra_short_interest", "data/positioning/finra_short_interest.parquet",
      "accountingYearMonthNumber", 40, "iso", None),   # observed max gap 31d (T-340b: budget was 1d too tight)
     ("sec_ftd", "data/positioning/sec_ftd.parquet", "settlement_date", 45, "iso", None),

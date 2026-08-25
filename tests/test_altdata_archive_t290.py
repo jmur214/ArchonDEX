@@ -200,13 +200,29 @@ class TestFeedHealthGate:
         assert detail["cef"]["ok"] is True and detail["cef"]["age_days"] == 0
 
     def test_excel_serial_dates_are_ageable(self, tmp_path):
-        """NAAIM ships raw Excel serials — previously unageable, so unmonitorable."""
-        p = tmp_path / "data/positioning/naaim_exposure.parquet"
-        p.parent.mkdir(parents=True, exist_ok=True)
-        serial = (pd.Timestamp.now().normalize() - pd.Timestamp("1899-12-30")).days
+        """Excel serials must parse to a real date. Tested against `_newest` DIRECTLY:
+        NAAIM was the only feed carrying fmt="excel", and exempting it (below) would
+        otherwise have silently orphaned this parser's only coverage."""
+        p = tmp_path / "serials.parquet"
+        today = pd.Timestamp.now().normalize()
+        serial = (today - pd.Timestamp("1899-12-30")).days
         pd.DataFrame({"date": [serial]}).to_parquet(p, index=False)
-        detail, _ = aa.assess_feed_health(tmp_path)
-        assert detail["naaim"]["age_days"] == 0, "Excel serials must parse"
+        assert pd.Timestamp(aa._newest(p, "date", "excel")).normalize() == today
+
+    def test_naaim_is_exempt_with_a_reason_that_names_the_cause(self):
+        """The 2026-08-25 ruling: the collector is broken by a site redesign and the
+        feed has zero code consumers, so it is exempt-with-reason rather than a
+        permanent true alarm. The reason must stay specific enough to un-exempt on."""
+        row = next(r for r in aa._FEED_HEALTH if r[0] == "naaim")
+        exempt = row[5]
+        assert exempt, "naaim must carry an explicit exemption reason, never a silent pass"
+        assert "consumer" in exempt.lower() and "redesign" in exempt.lower()
+
+    def test_exempt_feeds_all_carry_a_written_reason(self):
+        """No feed may be exempted by omission — `exempt` is the reason string itself."""
+        for name, _rel, _col, _b, _f, exempt in aa._FEED_HEALTH:
+            if exempt is not None:
+                assert isinstance(exempt, str) and len(exempt) > 40, name
 
 
 def _stub_collectors(monkeypatch):

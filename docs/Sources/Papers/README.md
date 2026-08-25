@@ -31,6 +31,33 @@ triage template, applied to each paper:
    - **BANK** — doctrine/evidence recorded (a durable memory + ledger row; no build).
    - **SKIP** — with the reason written down, so it is never re-litigated silently.
 
+### Standing fast-route: third-stream candidates (added 2026-08-25, T-313 formalized)
+
+Any submission proposing a **genuinely-independent 3rd return stream** (tripwire #2 from
+T-305/T-248 — "awaits 3rd") is flagged at triage and routed through
+`scripts/third_stream_battery.py` **before** it can become a PROBE:
+
+    python scripts/third_stream_battery.py --ticker <TICKER>
+    python scripts/third_stream_battery.py --file <returns.csv> --file-kind price|return
+
+Why this is a gate and not a courtesy: T-313 refuted international equity **for $0 at the
+data-reality stage** by measuring crisis correlation directly — no trial burned. A
+candidate that co-falls with equity in a fast crash is refuted by the free data alone, so
+paying honest N to discover that is waste. The battery is that check, standardized.
+
+Reading the outcome:
+- **REJECT** → the candidate co-moves in a fast crash (the T-214 trap). Verdict is SKIP,
+  ledger row records the failing window; do NOT open a PROBE.
+- **CANDIDATE CLEARS** → eligible to proceed to PROBE through the normal freeze machinery.
+  Clearing the screen is *necessary, never sufficient* — it is a cheap falsifier, not
+  evidence of an edge.
+- **INCONCLUSIVE / NO VERDICT** → the candidate's history does not span enough crises for
+  a backtest to settle it. This is the **T-316 situation**, and the answer is a live
+  forward clock with pre-registered gates, *not* a longer backtest on a shorter history.
+
+The screen reads bootstrap CIs, so UNRESOLVED windows are expected and honest; a point
+estimate under the bar is not a pass.
+
 Verdicts land as one row each in `PAPERS_LEDGER.md` (append-only, greppable). Deep-dive
 triages get their own doc in this directory; the row links it.
 
