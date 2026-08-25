@@ -100,11 +100,14 @@ def test_v3_keeps_the_firewall_bound_unchanged():
     assert "REJECTED WHOLE — never quietly trimmed to fit" in t
 
 
-def test_the_caller_points_at_v3_everywhere_the_record_segments():
+def test_the_caller_never_points_back_at_the_channel_dark_prompt():
+    """Superseded as the CURRENT-version lock by daily/v4 (T-331bc) — the
+    forward-pointing assertion lives in test_analyst_daily_v4_t331bc.py. What
+    this test still owns: the caller must never backslide to v2, the prompt
+    that closed the channel."""
     src = (ROOT / "paper_trader/intel_pulse.py").read_text()
-    assert 'prompt_path="config/prompts/analyst/daily_v3.md"' in src
-    assert 'prompt_version="daily/v3"' in src
     assert 'prompt_version="daily/v2"' not in src
+    assert 'prompt_path="config/prompts/analyst/daily_v2.md"' not in src
 
 
 def test_the_prompt_evolution_stamp_exists_and_carries_every_required_field():

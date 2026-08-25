@@ -871,6 +871,33 @@ aws scheduler update-schedule --cli-input-json file:///tmp/sched_update.json \
 # First firing = first cron occurrence AFTER StartDate in the schedule's TZ.
 ```
 
+### DIAGNOSE a schedule that never fires — DLQ count first (T-329d postmortem)
+
+A scheduler-side AccessDenied leaves ZERO trace in Batch (no FAILED job — the
+submit never arrives); the only artifacts are DLQ messages. Found 2026-08-25:
+the ai-trader schedule was ENABLED and correct, but the SCHEDULER role's
+`submit-paper-job` policy had never learned the new jobdef ARN — the same class
+as the July outage, one IAM layer over.
+
+```bash
+# 1. Message COUNT (the CLI user has this; one message per dead firing):
+aws sqs get-queue-attributes --profile archondex --region us-east-1 \
+  --queue-url https://sqs.us-east-1.amazonaws.com/407539788432/archondex-scheduler-dlq \
+  --attribute-names ApproximateNumberOfMessages
+# NB: sqs:ReceiveMessage is DENIED for the CLI user — the count is the signal,
+# the message bodies need the console (or a policy grant, the user's call).
+# 2. The likely cause when count > 0 and the schedule is new:
+aws iam get-role-policy --role-name archondex-paper-scheduler-role \
+  --policy-name submit-paper-job --query PolicyDocument --profile archondex
+#    → is the new jobdef's ":*" ARN in Resource? provision_paper_fleet.py now
+#      extends this policy itself (union+readback), and diff_live_paper_infra.py
+#      asserts every scheduled jobdef is covered — run the drift check first.
+# 3. Alarm subtlety: a dead-man alarm that went ALARM at CREATION (missing-data
+#    = breaching, before the first scheduled run was ever due) never TRANSITIONS
+#    on the real miss — so no new notification fires. Check StateUpdatedTimestamp,
+#    not just StateValue.
+```
+
 ## Alt-data daily archivers (Info-Layer program, Lane 2.1 Phase A — 2026-07-07)
 
 ```bash
