@@ -142,3 +142,44 @@ def test_orders_are_orderspecs_fleet_plan_parity(tmp_path):
     p = _ctor(_note(actions=[_act("SPY", 0.15)]))
     assert all(hasattr(o, "stage_args") for o in p.orders)   # plugs into _run_family_strategy
     assert p.orders[0].stage_args()["ticker"] == "SPY"
+
+
+# ---------------- T-329d3: the NEGATIVE-weight (short-tilt) path ----------------
+# The channel's spec has permitted negative target_weights in [-0.20, 0) since
+# daily/v2 — the prompt's own bound language — and the shadow book applies them
+# as virtual short positions. These tests document what the REAL order path does
+# with one, discovered on the eve of the first action-bearing note (2026-08-26:
+# SPY +0.08 / AGG -0.05). NOTE for the record: there is NO long-only firewall
+# anywhere in this path; whether the real account should ever short is a
+# DIRECTOR-RULING question, not something this module decides. If a long-only
+# gate is ever added, it must cover the shadow book too or the paired
+# real-vs-shadow A/B breaks.
+
+def test_short_rounding_truncates_toward_zero_never_overshooting(tmp_path):
+    """floor(-5.1) is -6: under math.floor a -5% target on a $10k budget became
+    a $588 (5.9%) short — |realized| EXCEEDED |requested|, the exact thing the
+    conservative long-side rounding exists to prevent. int() truncation keeps
+    the invariant sign-symmetric: -5.1 shares → -5."""
+    p = _ctor(_note(actions=[_act("AGG", -0.05)]), equity=10_000.0,
+              closes=_closes(AGG=98.01))
+    assert p.reject_reason is None
+    assert p.target_qty["AGG"] == -5                      # not -6
+    assert abs(p.target_qty["AGG"] * 98.01) <= 0.05 * 10_000.0
+
+
+def test_a_short_target_currently_emits_a_sell_of_unheld_shares(tmp_path):
+    """CURRENT behavior, documented: a negative target with nothing held becomes
+    a plain SELL order (qty = |target_qty|) — i.e. a broker short on the paper
+    account. No gate in the constructor or the OMS refuses it (the ±20%/gross/
+    turnover firewall passes it by design). If this test starts failing because
+    a long-only gate was added, make sure that was a ruled, stamped decision."""
+    p = _ctor(_note(actions=[_act("AGG", -0.05)]), equity=10_000.0,
+              closes=_closes(AGG=98.01))
+    o = {x.ticker: x for x in p.orders}
+    assert o["AGG"].side == "sell" and o["AGG"].qty == 5
+
+
+def test_a_short_beyond_the_bound_is_still_rejected_whole(tmp_path):
+    p = _ctor(_note(actions=[_act("AGG", -0.25)]))
+    assert p.reject_reason is not None and "REJECTED" in p.reject_reason
+    assert p.orders == []

@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import glob
 import json
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -239,7 +238,13 @@ class LLMAnalystConstructor:
 
         for t in sorted(need):
             target_w = float(targets.get(t, 0.0))
-            target_qty = int(math.floor(budget * target_w / px[t])) if target_w != 0 else 0
+            # T-329d3: whole-share rounding TRUNCATES TOWARD ZERO on both sides.
+            # int() does that; math.floor does NOT for negatives — floor(-5.1) is
+            # -6, so a -5% target on a $10k budget became a $588 (5.9%) short: the
+            # realized weight EXCEEDED the requested one, the exact thing the
+            # conservative long-side rounding exists to prevent. |realized| must
+            # never exceed |requested| for any sign.
+            target_qty = int(budget * target_w / px[t]) if target_w != 0 else 0
             held = int(current_positions.get(t, 0))
             plan.targets[t] = round(target_w, 4)
             plan.signals[t] = round(target_w, 4)

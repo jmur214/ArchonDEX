@@ -792,28 +792,11 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                           + " (report-only T-328; NOT EVALUABLE on a short record)")
             except Exception as exc:
                 print(f"   LIVE-BOOK warn: {type(exc).__name__} (non-fatal)")
-            # --- T-338 CLOCK CENSUS: runs AFTER every step, and asserts that each
-            # forward-accruing record ACTUALLY ADVANCED today — verified from the
-            # ARTIFACT, never from config. Fail-closed: an unreadable clock is a MISS,
-            # never a skip. Read-only: it observes, it never repairs. Any miss fires the
-            # notify channel SAME-DAY naming the clock, so silence becomes trustworthy. -- #
-            try:
-                from paper_trader.clock_census import census_line, run_census
-                _cc = run_census(root=str(root), as_of=str(today))
-                print(f"   {census_line(_cc)}")
-                hb.record_clock_census(_cc)
-                # T-342 CHANNEL LIVENESS: the census asks whether clocks ADVANCED; this
-                # asks whether the fields they CONSUME have ever been non-empty. The
-                # shadow book ran 17 honest days over a structurally empty channel — an
-                # always-empty channel degrades nothing, so only this sees it.
-                from paper_trader.clock_census import channel_liveness, liveness_line
-                _lv = channel_liveness(root=str(root))
-                print(f"   {liveness_line(_lv)}")
-                hb.record_channel_liveness(_lv)
-            except Exception as exc:
-                # even the census failing must be LOUD — a silent census is the disease
-                print(f"   [CLOCK-CENSUS][ALERT] census itself failed: {type(exc).__name__} "
-                      f"— clocks UNVERIFIED today")
+            # (T-329d3: the T-338 clock census + T-342 channel liveness used to run
+            # HERE — before the intel pulse, shadow book, eval, and news append whose
+            # artifacts five of its clocks measure, so those clocks false-MISSED every
+            # day. Both now run at the TRUE tail of the run, after step 8. Found by
+            # the census's own first in-cloud emission on 2026-08-26.)
             # --- T-310 INTEL PULSE: the day's report-only LLM steps — the analyst
             # note (PERSISTED to data/intel/analyst_notes/, which is what wakes the
             # shadow book below the NEXT day + feeds the eval harness), A's ops
@@ -1104,6 +1087,47 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                             "reason": f"news append raised: {type(exc).__name__}"})
         except Exception:
             pass
+
+    # --- T-338 CLOCK CENSUS + T-342 CHANNEL LIVENESS — at the TRUE tail (T-329d3).
+    # The census asserts every forward-accruing record ACTUALLY ADVANCED today,
+    # verified from the ARTIFACT never the config; fail-closed (unreadable = MISS);
+    # read-only. It originally ran before the intel pulse / shadow book / news
+    # append, so five clocks measured state their producing steps had not yet
+    # written and false-MISSED every day — the cry-wolf shape that gets a census
+    # tuned away (caught by its own first in-cloud emission, 2026-08-26). Account-1
+    # only: the fleet accounts' records are gated in their own containers (see the
+    # per-clock exemptions in clock_census.py). ------------------------------- #
+    if args.strategy == "trend_sleeve":
+        try:
+            from paper_trader.clock_census import (census_line, channel_liveness,
+                                                   liveness_line, run_census)
+            _cc = run_census(root=str(root), as_of=str(today))
+            print(f"9. CENSUS    {census_line(_cc)}")
+            hb.record_clock_census(_cc)
+            # T-342: the census asks whether clocks ADVANCED; this asks whether the
+            # fields they CONSUME have ever been non-empty. The shadow book ran 17
+            # honest days over a structurally empty channel — only this sees that.
+            _lv = channel_liveness(root=str(root))
+            print(f"   {liveness_line(_lv)}")
+            hb.record_channel_liveness(_lv)
+        except Exception as exc:
+            # even the census failing must be LOUD — a silent census is the disease
+            print(f"   [CLOCK-CENSUS][ALERT] census itself failed: {type(exc).__name__} "
+                  f"— clocks UNVERIFIED today")
+
+    # --- Tail heartbeat re-sync (T-329d3). The main durable push (step 5) sealed
+    # the day's canonical verdict, but steps 7 (altdata), 8 (news), and the census
+    # above all mutate the heartbeat AFTER it — without this second push their
+    # records (including, ironically, step 8's s3_push_failed degraded flag from
+    # the T-325 loud-push fix) never left the container: the S3 heartbeat carried
+    # no news block at all. Best-effort and NEVER touches canonical — the verdict
+    # is sealed; a failure here is loud but only delays these blocks one day. --- #
+    try:
+        if not cloud.push():
+            print("   TAIL-PUSH  WARN: heartbeat tail re-sync failed — census/news "
+                  "blocks reach S3 on the next run's push", file=sys.stderr)
+    except Exception as exc:
+        print(f"   TAIL-PUSH  WARN: {type(exc).__name__} (non-fatal)", file=sys.stderr)
 
     if not canonical:
         print("RESULT: NON-CANONICAL — exiting non-zero so the job is marked "
