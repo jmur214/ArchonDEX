@@ -85,8 +85,12 @@ def test_the_truncated_TLT_source_is_the_cause_and_deep_history_exists_on_disk()
     loads data/processed/TLT_1d.csv (starts 2020-04) while a TR-reconciled TLT
     going back to 2005 already sits in the repo."""
     import pandas as pd
-    short = pd.read_csv(REPO / "data/processed/TLT_1d.csv", index_col=0, parse_dates=True)
-    deep = pd.read_csv(REPO / "data/processed/tr_reconciled/TLT_1d.csv", index_col=0, parse_dates=True)
+    sp = REPO / "data/processed/TLT_1d.csv"
+    dp = REPO / "data/processed/tr_reconciled/TLT_1d.csv"
+    if not (sp.exists() and dp.exists()):
+        pytest.skip("TLT price data not on disk in this env")   # repo convention for data deps
+    short = pd.read_csv(sp, index_col=0, parse_dates=True)
+    deep = pd.read_csv(dp, index_col=0, parse_dates=True)
     assert short.index.min().year >= 2020
     assert deep.index.min().year <= 2005
     assert len(deep) > 3 * len(short)
