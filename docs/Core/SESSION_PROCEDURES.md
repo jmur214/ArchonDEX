@@ -134,6 +134,32 @@ For Engine B (Risk) and `live_trader/` specifically, also include:
 
 ---
 
+## Recording a REFUTED / SUPERSEDED verdict — sweep the dependents
+
+**A refutation dissolves the trigger of everything downstream of it.** When
+any verdict flips to `refuted` or `superseded`, the SAME commit that writes
+the status must sweep for that T-number and either **RE-OWN** or **FORMALLY
+RETIRE** every dependent whose activation trigger, precondition, or
+"tested by" pointer cited it:
+
+```
+grep -rn "T-<number>" docs/State/ docs/Core/ config/ data/governor/ | grep -v TASK_LEDGER
+```
+
+Every hit is a dependent. `TASK_LEDGER.md` is excluded because the ledger is
+the *record* of the verdict, not a dependent of it. Without this sweep the
+dependents do not fail — **they go quiet**, which is indistinguishable from
+being fine: the T-118 HMM repoint sat orphaned for months because T-118's
+refutation dissolved its activation trigger and nothing checked. The sweep is
+part of the verdict, not follow-up work. **A verdict that leaves live
+dependents pointing at a dissolved trigger is only half-recorded.**
+
+The same applies to a verdict that merely *lands*: a shelf or roadmap entry
+phrased as "T-XXX tests whether ..." is stale the moment T-XXX returns, and
+must be restated against the settled verdict. Adopted 2026-08-26 (T-346,
+whose residue review was the retroactive sweep for the biggest instance and
+found three live orphans).
+
 ## During substantive work
 
 **Before writing code**: read the relevant engine's `index.md` if it 
