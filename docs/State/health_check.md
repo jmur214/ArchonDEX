@@ -49,6 +49,24 @@ then LOW. Within each severity, list newest at the top.
   behavior and SHOULD fail when the fail-closed fix lands).
 - Second-order: consider making a NaN-driven abstention set `degraded=True` and counting it
   in the census, so this class cannot recur silently on a different feature.
+- **ROOT CAUSE FOUND 2026-08-26 (generalizes well beyond the HMM): the deep-history backfill
+  of `data/processed/` was PARTIAL, and nothing detects which tickers were left behind.**
+  Comparing `data/processed/` against `data/processed_alpaca_backup_2026_05_23` (the
+  pre-backfill Alpaca-only snapshot, every file exactly 1,513 rows from 2020-04-09):
+  **12 of 730 tickers still match the shallow backup** — i.e. were never backfilled — and
+  they are disproportionately the ETFs:
+  `DBC, DKNG, EEM, GLD, IEF, IWM, MARA, QQQ, RIOT, TLT, USO, UUP`.
+  **Six are load-bearing: `DBC, GLD, IEF, IWM, QQQ, TLT`** — the sleeve and regime assets.
+  SPY (1993+) and AAPL (1984+) WERE backfilled, which is why the truncation is invisible in
+  casual inspection: the headline tickers look deep.
+  **Any consumer reading `data/processed/<T>_1d.csv` for a deep window silently gets a
+  2020-04 truncation on those 12.** The HMM's `tlt_ret_20d` blindness above is one instance,
+  not the whole defect.
+  **Deep, dividend-reconciled versions of all six critical tickers already exist** in
+  `data/processed/tr_reconciled/` (GLD/TLT back to 2005-02-22) — so the fix is a REPOINT of
+  the consumers, or a completion of the backfill, not a data acquisition.
+  Suggested guard: a check that fails when a ticker's span is materially shorter than its
+  `tr_reconciled` counterpart, so a partial backfill announces itself.
 
 ### [HIGH] Info-Layer fresh-eyes audit findings (external read-only review, 2026-07-08)
 - Engine: cross-cutting (ingest layer / paper_trader / info-layer program)
