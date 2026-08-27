@@ -22,6 +22,52 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] The HMM is structurally BLIND before 2020-05-08, and says nothing (2026-08-26)
+- Engine: E (Regime) — `engines/engine_e_regime/macro_features.py`, `hmm_classifier.py`
+- Found during the T-2026-08-26 HMM production repoint, while verifying its consumers.
+- **`tlt_ret_20d` is NaN for 82.1% of the feature panel** (everything before 2020-05-08):
+  the panel loads `data/processed/TLT_1d.csv`, which **starts 2020-04-09**. Only
+  **1,493 / 8,361 rows (17.9%)** carry all 7 features.
+- On every other bar `HMMRegimeClassifier.predict_proba_at` hits
+  `if not np.all(np.isfinite(vals)): return self._uniform_proba()` and returns a **uniform
+  posterior — indistinguishable from genuine maximum uncertainty**. No `degraded` flag is
+  set. **The census does not catch it**: `regime_unknown_bars` counts `macro_regime`, not the
+  HMM. Textbook `[NN-FAIL-CLOSED]` ("missing required input → abstain/fallback").
+- **Impact:** any backtest conditioning on HMM output over a deep window silently gets a
+  meaningless uniform posterior on 82% of bars — including the whole of the 2008 GFC and
+  COVID (0 complete bars in each). This blocks honest arming of the `hmm_p_crisis`-gated
+  shelf entries, which is what the repoint was meant to enable.
+- **FIX IS A REPOINT, NOT A REBUILD** — TR-reconciled TLT back to 2005-02-22 already sits in
+  `data/processed/tr_reconciled/`. Measured: complete rows **1,493 → 5,041 (60.3%)**, span
+  back to **2006-04-04** (= exactly the crisis model's `train_start`), GFC **0 → 378** bars,
+  COVID **0 → 62** bars. One-line change.
+- Status: **OPEN — proposed, not applied.** It alters Engine E's feature inputs across all
+  history (every measurement reading regime output shifts), so it deserves its own review
+  rather than a ride-along in a config repoint. Diagnosis + numbers:
+  `docs/Sources/prereg_hmm_repoint_2026_08_26.md`. Pinned by
+  `tests/test_hmm_repoint_t_2026_08_26.py` (the uniform-posterior test documents CURRENT
+  behavior and SHOULD fail when the fail-closed fix lands).
+- Second-order: consider making a NaN-driven abstention set `degraded=True` and counting it
+  in the census, so this class cannot recur silently on a different feature.
+- **ROOT CAUSE FOUND 2026-08-26 (generalizes well beyond the HMM): the deep-history backfill
+  of `data/processed/` was PARTIAL, and nothing detects which tickers were left behind.**
+  Comparing `data/processed/` against `data/processed_alpaca_backup_2026_05_23` (the
+  pre-backfill Alpaca-only snapshot, every file exactly 1,513 rows from 2020-04-09):
+  **12 of 730 tickers still match the shallow backup** — i.e. were never backfilled — and
+  they are disproportionately the ETFs:
+  `DBC, DKNG, EEM, GLD, IEF, IWM, MARA, QQQ, RIOT, TLT, USO, UUP`.
+  **Six are load-bearing: `DBC, GLD, IEF, IWM, QQQ, TLT`** — the sleeve and regime assets.
+  SPY (1993+) and AAPL (1984+) WERE backfilled, which is why the truncation is invisible in
+  casual inspection: the headline tickers look deep.
+  **Any consumer reading `data/processed/<T>_1d.csv` for a deep window silently gets a
+  2020-04 truncation on those 12.** The HMM's `tlt_ret_20d` blindness above is one instance,
+  not the whole defect.
+  **Deep, dividend-reconciled versions of all six critical tickers already exist** in
+  `data/processed/tr_reconciled/` (GLD/TLT back to 2005-02-22) — so the fix is a REPOINT of
+  the consumers, or a completion of the backfill, not a data acquisition.
+  Suggested guard: a check that fails when a ticker's span is materially shorter than its
+  `tr_reconciled` counterpart, so a partial backfill announces itself.
+
 ### [HIGH] Info-Layer fresh-eyes audit findings (external read-only review, 2026-07-08)
 - Engine: cross-cutting (ingest layer / paper_trader / info-layer program)
 - First flagged: 2026-07-08 (fresh-eyes agent, zero-prior-context repo review). Full report: `data/coordination/fresh_eyes_report_2026_07.md` (gitignored relay copy — findings itemized here so they persist in git).

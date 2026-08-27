@@ -151,7 +151,7 @@ class HMMConfig:
     advisory.risk_scalar by HMM posterior entropy.
     """
     hmm_enabled: bool = False
-    model_path: str = "engines/engine_e_regime/models/hmm_3state_v1.pkl"
+    model_path: str = "engines/engine_e_regime/models/hmm_3state_crisis_v1.pkl"
     # When confidence (1 - normalized entropy) is low, scale risk down.
     # Linear: scalar = min_confidence_floor + (1 - min_confidence_floor) * confidence.
     # Example: min_confidence_floor=0.6 → uniform-distribution gives 0.6x;
@@ -164,9 +164,16 @@ class HMMConfig:
     on_model_missing: str = "warn"
     # E-rebuild Phase 1 wire-up — feature-panel selection. Determines
     # which feature set the HMM operates on:
-    #   "legacy"     → 4 features (spy_vol_20d, yield_curve_spread,
-    #                  credit_spread_baa_aaa, dollar_ret_63d). Pairs
-    #                  with hmm_3state_v1.pkl. Default.
+    #   "legacy"     → the 7-feature panel (spy_ret_5d, spy_vol_20d,
+    #                  tlt_ret_20d, vix_level, yield_curve_spread,
+    #                  credit_spread_baa_aaa, dollar_ret_63d). Pairs with
+    #                  BOTH hmm_3state_v1.pkl and hmm_3state_crisis_v1.pkl
+    #                  — their feature_names are byte-identical, so the
+    #                  T-2026-08-26 repoint needed no feature_set change.
+    #                  (This comment previously said "4 features"; the
+    #                  artifacts on disk carry 7. Corrected against the
+    #                  pickles themselves, which are the authority.)
+    #                  PRODUCTION = hmm_3state_crisis_v1.pkl. Default.
     #   "minimal_a"  → 4 features (same as legacy but trained against
     #                  the minimal-HMM target). Pairs with
     #                  hmm_minimal_A_v1.pkl. Phase-1 verdict:
