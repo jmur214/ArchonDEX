@@ -744,6 +744,13 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                     _miss = [s for s in _tsyms if s not in _tpx]
                     # record() loads the prior session's theses itself; do NOT pass today's.
                     _ts = _tb.record(str(today), closes=_tpx)
+                    # T-347: an approaching expiry must reach the NOTIFY path, not
+                    # just the book's own reasons — the window is a deadline on us.
+                    if _ts.get("expiring"):
+                        try:
+                            hb.record_thesis_expiry(_tcfg.name, _ts["expiring"])
+                        except Exception as _e:
+                            print(f"   THESIS-EXPIRY warn: {type(_e).__name__} (non-fatal)")
                     print(f"   THESIS-BOOK[{_tcfg.name}] days={_ts.get('n_days')} "
                           f"open={_ts.get('n_open')} closed={_ts.get('n_closed')}"
                           + (f" falsified={_ts.get('n_falsified')}"

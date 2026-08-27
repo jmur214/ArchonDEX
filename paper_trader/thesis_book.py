@@ -396,8 +396,14 @@ class ThesisBook:
             opened += 1
 
         st["pending"] = still_pending
+        expiring = _expiry_warnings(still_pending, trade_date)
+        for w in expiring:
+            reasons.append(f"{w['thesis_id']}: {w['days_to_expiry']}d from EXPIRY "
+                           f"(filed {w['filed_date']}, age {w['age_days']}d of "
+                           f"{RECOVERY_WINDOW_DAYS}d) — {w['blocked_on']}")
         st["days"].append({"date": trade_date, "opened": opened, "closed": closed_today,
                            "n_open": len(st["open"]), "n_pending": len(still_pending),
+                           "expiring": expiring,
                            "degraded": bool(reasons), "reasons": reasons[:8]})
         self._write(st)
         return self._summary(st)
@@ -410,7 +416,12 @@ class ThesisBook:
                              "n_closed": len(cl),
                              # T-343: a parked thesis must be VISIBLE in the summary —
                              # an invisible queue is how one gets silently lost.
-                             "n_pending": len(st.get("pending", [])), "armed": True}
+                             "n_pending": len(st.get("pending", [])),
+                             # T-347: the approaching-expiry warning has to reach the
+                             # notify path, so it must be on the SUMMARY the pulse reads
+                             # — a warning buried in state is the silence it exists to end.
+                             "expiring": (st.get("days") or [{}])[-1].get("expiring", []),
+                             "armed": True}
         if cl:
             ex = [c["excess_vs_twin"] for c in cl]
             s["mean_excess_vs_twin"] = round(sum(ex) / len(ex), 5)
@@ -443,10 +454,51 @@ class ThesisBook:
                 "promote_any": any(bool(v.get("PROMOTED")) for v in per.values())}
 
 
+EXPIRY_WARN_FRACTION = 0.5
+"""T-347: warn once a pending thesis has burned HALF its recovery window.
+
+The receipt is the machine's own first two theses: they opened at age 7 of a 10-day
+window. Three days of margin, and nothing warned — the window silently counts down and
+then, correctly and loudly, throws the thesis away. A bound that only speaks at the
+moment it destroys something is not a guard, it is a trapdoor. Half the window leaves
+enough runway to actually fix the cause.
+
+The warning runs on the SAME CLOCK as the expiry — age since FILING, not time spent in
+the pending queue. Those differ (a thesis parked on its first due day has queue-age
+filed+1), and a guard measured on a different clock than the bound it guards is a guard
+that fires at the wrong time.
+"""
+
 RECOVERY_WINDOW_DAYS = 10
 """How far back a still-unopened thesis stays recoverable. Long enough to survive a long
 weekend or a multi-day outage (the Jul 13-24 outage ran 10 trading days); short enough that
 nothing is ever opened at a price that has drifted away from the call it is scoring."""
+
+
+def _expiry_warnings(pending: List[Dict[str, Any]],
+                     trade_date: str) -> List[Dict[str, Any]]:
+    """Pending theses that have burned at least `EXPIRY_WARN_FRACTION` of the window.
+
+    Read-only over the queue. Each warning names the thesis, how long it has left, and
+    WHAT IT IS BLOCKED ON — "3 days from expiry" without the blocking leg is an alarm
+    nobody can act on."""
+    import math
+    threshold = max(1, math.ceil(RECOVERY_WINDOW_DAYS * EXPIRY_WARN_FRACTION))
+    out: List[Dict[str, Any]] = []
+    for th in pending:
+        filed = str(th.get("as_of", ""))[:10]
+        try:
+            age = (pd.Timestamp(trade_date) - pd.Timestamp(filed)).days
+        except Exception:
+            continue                      # _due_theses already reports an unparseable as_of
+        if age < threshold:
+            continue
+        out.append({"thesis_id": str(th.get("thesis_id", "")), "filed_date": filed,
+                    "age_days": age,
+                    "days_to_expiry": max(0, RECOVERY_WINDOW_DAYS - age),
+                    "blocked_on": str(th.get("_pending_reason", "reason not recorded")),
+                    "window_days": RECOVERY_WINDOW_DAYS})
+    return sorted(out, key=lambda w: w["days_to_expiry"])
 
 
 def _prev_key(trade_date: str, st: Dict[str, Any]) -> str:
