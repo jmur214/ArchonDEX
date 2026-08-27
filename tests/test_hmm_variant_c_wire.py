@@ -28,7 +28,17 @@ def test_hmm_config_defaults_to_legacy_feature_set() -> None:
     cfg = HMMConfig()
     assert cfg.feature_set == "legacy"
     assert cfg.hmm_enabled is False
-    assert cfg.model_path.endswith("hmm_3state_v1.pkl")
+    # T-2026-08-26 repoint: the VALIDATED crisis model is the single answer to
+    # "which HMM", in the dataclass default as well as the production JSON.
+    assert cfg.model_path.endswith("hmm_3state_crisis_v1.pkl")
+
+
+def test_production_json_and_dataclass_default_name_the_same_model() -> None:
+    """The drift this repoint fixed was a config pointing at a superseded
+    artifact. Lock the two pointers together so they cannot diverge again."""
+    import json
+    cfg_json = json.loads((REPO / "config" / "regime_settings.json").read_text())
+    assert cfg_json["hmm"]["model_path"] == HMMConfig().model_path
 
 
 def test_hmm_config_accepts_known_feature_set_values() -> None:
