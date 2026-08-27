@@ -20,6 +20,11 @@ from engines.engine_a_alpha.edges.herding_edge import HerdingEdge
 from engines.engine_a_alpha.edges.earnings_vol_edge import EarningsVolEdge
 
 # Research Modules
+from core.census import assert_census
+from engines.engine_d_discovery.gate1_signal_cache import (
+    CandidateSignalCensus,
+    DiscoveryCandidateCensusError,
+)
 from engines.engine_d_discovery.tree_scanner import DecisionTreeScanner
 from engines.engine_d_discovery.feature_engineering import FeatureEngineer
 
@@ -1268,7 +1273,13 @@ class DiscoveryEngine:
             # Build the with-candidate ensemble (baseline + candidate at default weight)
             cand_edge = self._instantiate_candidate(candidate_spec)
             with_edges = dict(wrapped_baseline)
-            with_edges[cand_id] = cand_edge
+            # T-2026-08-26-347: the candidate rides in a COUNTING-ONLY proxy so
+            # its silence is countable. Byte-identical behaviour (no memoizing,
+            # no swallowing) — it only tallies non-zero emissions for the census
+            # below. Applied unconditionally, NOT gated on `use_signal_cache`:
+            # the guard must exist exactly where the cache is off too.
+            cand_census = CandidateSignalCensus(cand_edge, cand_id)
+            with_edges[cand_id] = cand_census
             with_weights = dict(baseline_weights)
             with_weights[cand_id] = float(candidate_default_weight)
 
@@ -1308,6 +1319,42 @@ class DiscoveryEngine:
                 **run_kwargs,
             )
 
+            # ---- T-2026-08-26-347: the Gate-1 CANDIDATE census (`[NN-CENSUS]`) ----
+            # T-346 established that an exactly +0.000 contribution has three
+            # causes and only one is a refutation. `assert_baseline_healthy`
+            # above guards the BASELINE (and only against crashes); nothing
+            # guarded the CANDIDATE, so an edge that emitted no signal was
+            # published as REFUTED, indistinguishable from a genuine null.
+            # A candidate that emits zero signals must get a VERDICT, not a
+            # NUMBER. Routed through the SAME `assert_census` the measurement
+            # path uses — never a second, drifting health standard.
+            # NB: `trade_log` is a DataFrame — never test it for truthiness
+            # (`df or []` raises "truth value of a DataFrame is ambiguous").
+            _tl = getattr(with_candidate_result, "trade_log", None)
+            n_trades_with = 0 if _tl is None else int(len(_tl))
+            _census_block = {
+                "edges_blind": ([cand_id] if cand_census.nonzero_calls == 0 else []),
+                "edges_errored": ({cand_id: {"crash_bars": cand_census.errors}}
+                                  if cand_census.errors else {}),
+                "n_trades": n_trades_with,
+            }
+            _cv = assert_census(
+                {"census": _census_block,
+                 # A Gate-1 contribution run is not a headline measurement; the
+                 # CI lives on the attribution stream downstream. Declared, not
+                 # silently absent, so the census emits no spurious warning.
+                 "bootstrap_ci_skip_reason": "gate1_contribution_run"},
+            )
+            if not _cv.canonical:
+                raise DiscoveryCandidateCensusError(
+                    f"Gate-1 candidate census NON-CANONICAL for {cand_id!r}: "
+                    f"{'; '.join(_cv.failures)} "
+                    f"[signal calls={cand_census.calls}, non-zero={cand_census.nonzero_calls}, "
+                    f"errors={cand_census.errors}, last_error={cand_census.last_error!r}, "
+                    f"n_trades={n_trades_with}] — the contribution would measure "
+                    f"the harness, not the edge, so it is not a verdict."
+                )
+
             # Pull Sharpes
             baseline_sharpe = float(baseline_result.metrics.get("Sharpe Ratio", 0.0))
             with_candidate_sharpe = float(
@@ -1331,6 +1378,26 @@ class DiscoveryEngine:
                 with_candidate_result.daily_returns,
                 baseline_result.daily_returns,
             )
+
+            # ---- T-347: the SECOND cause, kept DISTINCT from blindness ----
+            # The candidate spoke, yet the return stream is bit-identical to the
+            # baseline: the allocator absorbed it exactly. That is the T-156
+            # result (inverse-vol normalization is scale-invariant in signal
+            # level, so a uniform signal cancels algebraically; T-158 confirmed
+            # it exact at runtime). The contribution then measures the HARNESS,
+            # not the edge — equally not a verdict, but a DIFFERENT diagnosis.
+            # Collapsing the two is precisely how three mechanisms hid behind
+            # one +0.000 for months (T-346 §1), so they never share a message.
+            if cand_census.nonzero_calls > 0 and len(attribution) > 0 \
+                    and not (attribution != 0.0).any():
+                raise DiscoveryCandidateCensusError(
+                    f"Gate-1 candidate ABSORBED for {cand_id!r}: emitted non-zero "
+                    f"signals on {cand_census.nonzero_calls}/{cand_census.calls} calls, "
+                    f"yet the attribution stream is identically zero over "
+                    f"{len(attribution)} bars — the allocator cancelled it exactly "
+                    f"(T-156/T-158 scale-invariance). The contribution measures the "
+                    f"harness, not the edge; this is NOT a refutation of the edge."
+                )
             attribution_sharpe = stream_sharpe(attribution)
             result["attribution_sharpe"] = attribution_sharpe
             attr_diag = attribution_diagnostics(attribution, capital=100_000.0)

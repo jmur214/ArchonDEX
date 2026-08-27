@@ -45,6 +45,7 @@ to Engine A, B, C, mode_controller, or backtest_controller.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Dict, Hashable, Optional
 
 import pandas as pd
@@ -326,6 +327,113 @@ class Gate1SignalCache:
                 "discovery baseline ensemble is degenerate — a swallowed edge "
                 "crash produced empty signals (NOT a legitimate no-signal); "
                 f"contribution against it would be meaningless: {detail}")
+
+
+def _emitted_nonzero(out: Any) -> bool:
+    """True iff `out` (an edge's signal return value) carries any finite non-zero
+    score. Defensive across the shapes edges actually return: Dict[ticker, score],
+    a sequence, a pandas Series, or None."""
+    if out is None:
+        return False
+    if isinstance(out, dict):
+        it: Any = out.values()
+    elif isinstance(out, (list, tuple, set)):
+        it = out
+    else:
+        try:
+            it = list(out)
+        except TypeError:
+            it = [out]
+    for v in it:
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f != 0.0 and math.isfinite(f):
+            return True
+    return False
+
+
+class CandidateSignalCensus:
+    """T-2026-08-26-347 — a COUNTING-ONLY proxy over the Gate-1 candidate edge.
+
+    The candidate is deliberately never wrapped by `Gate1SignalCache` (memoizing
+    a per-candidate edge buys nothing — see this module's header). But that left
+    the candidate as the ONE edge in the with-arm whose silence nobody counted:
+    an edge emitting no signal makes the with-arm behaviourally identical to the
+    baseline, so Gate-1 contribution is EXACTLY +0.000 and the candidate is
+    recorded as REFUTED — indistinguishable from a genuine null (T-346).
+    `assert_baseline_healthy` guards the BASELINE, and only against crashes.
+
+    This proxy counts and does NOTHING else. It does not memoize, does not
+    swallow (a crash stays a crash and propagates), and returns the delegate's
+    object unchanged — so the backtest is byte-identical with or without it.
+    """
+
+    _COUNTED = ("compute_signals", "generate_signals", "generate")
+
+    def __init__(self, wrapped_edge: Any, edge_id: str) -> None:
+        self._wrapped = wrapped_edge
+        self._edge_id = edge_id
+        self._calls = 0
+        self._nonzero_calls = 0
+        self._errors = 0
+        self._last_error: Optional[str] = None
+
+    @property
+    def edge_id(self) -> str:
+        return self._edge_id
+
+    @property
+    def calls(self) -> int:
+        """Times a signal method was invoked at all (0 => never even called)."""
+        return self._calls
+
+    @property
+    def nonzero_calls(self) -> int:
+        """Invocations that returned at least one finite non-zero score."""
+        return self._nonzero_calls
+
+    @property
+    def errors(self) -> int:
+        return self._errors
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
+
+    def __getattr__(self, name: str) -> Any:
+        # Only reached for attributes not on the proxy itself.
+        attr = getattr(self._wrapped, name)
+        if name not in self._COUNTED or not callable(attr):
+            return attr
+
+        def _counted(*args: Any, **kwargs: Any) -> Any:
+            self._calls += 1
+            try:
+                out = attr(*args, **kwargs)
+            except Exception as exc:                     # noqa: BLE001
+                self._errors += 1
+                self._last_error = f"{type(exc).__name__}: {exc}"
+                raise                                    # NEVER swallow
+            if _emitted_nonzero(out):
+                self._nonzero_calls += 1
+            return out
+
+        return _counted
+
+
+class DiscoveryCandidateCensusError(RuntimeError):
+    """Raised when the Gate-1 CANDIDATE fails its census (T-2026-08-26-347).
+
+    Two distinct causes, kept distinct on purpose (T-346 showed that collapsing
+    them is exactly how three different mechanisms hid behind one +0.000):
+      * BLIND    — the candidate emitted no non-zero signal (or was never called).
+      * ABSORBED — the candidate spoke, but the allocator cancelled it exactly,
+        leaving a bit-identical return stream (the T-156/T-158 inverse-vol
+        scale-invariance result).
+    In both cases the contribution measures the harness, not the edge, so it is
+    not a verdict and must not be published as one."""
 
 
 class DiscoveryBaselineError(RuntimeError):
