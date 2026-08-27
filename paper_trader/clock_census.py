@@ -162,20 +162,120 @@ def _eval_scored_when_due(root: Path, as_of: str) -> ClockResult:
                        f"{matured_unscored} matured predictions UNSCORED and none scored today")
 
 
+def _newest_ingest_date(part: Path) -> Tuple[Optional[str], str]:
+    """Newest ingest date inside a news partition, read from ONE parquet column.
+
+    Fail-closed: every path that cannot establish the date returns None WITH a reason,
+    so the caller can report "not checked" instead of passing quietly."""
+    try:
+        import pyarrow.parquet as pq
+    except Exception:
+        return None, "pyarrow unavailable — row freshness NOT verifiable"
+    try:
+        f = pq.ParquetFile(part)
+        names = set(f.schema_arrow.names)
+        col = next((c for c in ("ingest_ts", "created_at") if c in names), None)
+        if col is None:
+            return None, f"no ingest_ts/created_at column in {part.name}"
+        vals = f.read(columns=[col]).column(col).to_pylist()
+        stamps = [str(v)[:10] for v in vals if v is not None]
+        if not stamps:
+            return None, f"{col} column is entirely null"
+        return max(stamps), "ok"
+    except Exception as exc:
+        return None, f"partition unreadable ({type(exc).__name__})"
+
+
 def _news_month_pushed(root: Path, as_of: str) -> ClockResult:
-    """Clock 3: the current month's panel partition advanced TODAY (mtime + rows grew)."""
-    ym = as_of[:7].replace("-", "")
-    part = root / f"data/intel/news_panel/{as_of[:4]}/{as_of[5:7]}/news_{ym}.parquet"
+    """Clock 3: the current month's news panel advanced TODAY.
+
+    T-346 — THIS CLOCK WAS A PERMANENT FALSE MISS. It built the S3 date-partitioned key
+    (`news_panel/YYYY/MM/news_YYYYMM.parquet`) and then looked for it on the LOCAL disk,
+    where D's layout is FLAT (`news_panel/news_YYYYMM.parquet`). The partitioned path
+    never existed locally, so the clock reported "partition missing" every day of its
+    life — a miss that could not clear, which is precisely how a census trains its
+    operators to ignore it. A clock that cries wolf daily is worse than no clock. The
+    path now comes from `cloud_state` BY IMPORT: one layout, one owner, no second copy
+    to drift.
+
+    Two halves, because they answer different questions:
+      * `mtime == as_of` proves the PUSHER RAN today;
+      * the newest ingest stamp proves the TAPE ACTUALLY MOVED.
+    A file touched today whose newest row is weeks old is the frozen-feed class this
+    program has already been bitten by twice (an empty news tape, a price source months
+    stale) — and it reads perfectly healthy on mtime alone. Where the row half cannot be
+    performed the clock MISSES and names why, rather than passing on the half it did.
+    """
+    try:
+        from paper_trader.cloud_state import CloudState
+        rel = CloudState._news_rel(int(as_of[:4]), int(as_of[5:7]))
+    except Exception as exc:
+        return ClockResult("news_month_pushed", MISS,
+                           f"cannot resolve the panel path from cloud_state "
+                           f"({type(exc).__name__}) — layout unknown, not assumed")
+    part = root / rel
     if not part.exists():
-        return ClockResult("news_month_pushed", MISS, f"partition missing: {part.name}")
+        return ClockResult("news_month_pushed", MISS, f"month panel missing: {rel}")
     try:
         import datetime as dt
         mt = dt.datetime.fromtimestamp(part.stat().st_mtime).date().isoformat()
     except Exception:
-        return ClockResult("news_month_pushed", MISS, "partition mtime unreadable")
+        return ClockResult("news_month_pushed", MISS, "panel mtime unreadable")
     if mt != as_of:
-        return ClockResult("news_month_pushed", MISS, f"partition mtime {mt} != {as_of}")
-    return ClockResult("news_month_pushed", ADVANCED, f"partition touched {mt}")
+        return ClockResult("news_month_pushed", MISS,
+                           f"panel mtime {mt} != {as_of} — the push did not run today")
+    newest, why = _newest_ingest_date(part)
+    if newest is None:
+        return ClockResult("news_month_pushed", MISS,
+                           f"touched {mt} but row freshness UNVERIFIED: {why}")
+    if newest != as_of:
+        return ClockResult("news_month_pushed", MISS,
+                           f"panel touched {mt} but newest row is {newest} — the file "
+                           f"moved and the TAPE DID NOT (frozen-feed class)")
+    return ClockResult("news_month_pushed", ADVANCED,
+                       f"panel touched {mt}, newest row {newest}")
+
+
+DIGEST_BUDGET_DAYS = 9
+"""A weekly cadence plus a 2-day grace, so a holiday-shifted run is not a false alarm
+while a genuinely skipped week still fires."""
+
+
+def _digest_written_weekly(root: Path, as_of: str) -> ClockResult:
+    """Clock 9 (T-346): the WEEKLY PERFORMANCE DIGEST — the user's main window.
+
+    Registered because it had ZERO production callers and sat frozen at 2026-07-28: built,
+    verified once, and orphaned. That is the exact silence this census exists to catch,
+    and nothing required its registration — so nothing caught it. Artifact-derived: the
+    date is parsed from the digest's OWN header, never from mtime (a git checkout rewrites
+    mtime and would fake an advance) and never from a schedule (the config is not the
+    artifact).
+
+    NOT_DUE is what a healthy in-budget week looks like — the digest is weekly, so most
+    days it is correctly silent. EXPECT THIS CLOCK TO MISS until the generator is wired
+    into the pulse; that miss is a true finding, not a defect in the clock."""
+    rel = "docs/State/performance_digest.md"
+    p = root / rel
+    if not p.exists():
+        return ClockResult("digest_written_weekly", MISS,
+                           f"no digest at {rel} — the user's main window has never rendered")
+    try:
+        import datetime as _dt
+        head = p.read_text().splitlines()[0]
+        stamp = head.rsplit("\u2014", 1)[-1].strip()[:10]
+        age = (_dt.datetime.strptime(as_of, "%Y-%m-%d")
+               - _dt.datetime.strptime(stamp, "%Y-%m-%d")).days
+    except Exception:
+        return ClockResult("digest_written_weekly", MISS,
+                           "digest header carries no parseable as_of date (fail-closed)")
+    if age == 0:
+        return ClockResult("digest_written_weekly", ADVANCED, f"digest written today ({stamp})")
+    if age <= DIGEST_BUDGET_DAYS:
+        return ClockResult("digest_written_weekly", NOT_DUE,
+                           f"digest {age}d old (budget {DIGEST_BUDGET_DAYS}d) — inside cadence")
+    return ClockResult("digest_written_weekly", MISS,
+                       f"digest last written {stamp} ({age}d ago) EXCEEDS the "
+                       f"{DIGEST_BUDGET_DAYS}d weekly budget")
 
 
 def _scan_filed_when_due(root: Path, as_of: str) -> ClockResult:
@@ -323,8 +423,25 @@ REGISTRY: List[Clock] = (
      Clock("similarity_panel_refreshed", _similarity_panel_refreshed,
            ("data/edgar/similarity_panel_refresh.json",)),
      Clock("exec_ledger_on_fill_days", _exec_ledger_on_fill_days,
-           ("data/state/exec_cost_ledger.jsonl", "data/paper_state/orders.jsonl"))]
+           ("data/state/exec_cost_ledger.jsonl", "data/paper_state/orders.jsonl")),
+     Clock("digest_written_weekly", _digest_written_weekly,
+           ("docs/State/performance_digest.md",))]
     + [_rolled(n, p) for n, p in _ROLLED])
+
+# T-346 — notes that travel WITH a clock's result. A clock can be forward-correct and
+# still be guarding something nothing reads yet; deleting it would lose a real guard, and
+# leaving it unannotated lets a reader assume a consumer exists. Say which, in the record.
+CLOCK_NOTES: Dict[str, str] = {
+    "similarity_panel_refreshed": (
+        "EXEMPT-WITH-REASON from the consumer requirement: this dataset currently has NO "
+        "consumer — its intended one is the T-341 filing-change flag, pending the parser "
+        "repair (15.1% of filings fail the section carve; 15 tickers fully blind). The "
+        "clock is forward-correct and stays: it costs nothing and the panel already went "
+        "8 weeks stale once with no clock at all. Re-point this note when T-341 lands."),
+    "digest_written_weekly": (
+        "Registered by T-346 while the generator has ZERO production callers. Until the "
+        "digest is wired into the pulse this clock reports a TRUE miss, not a false one."),
+}
 
 # Durable paths deliberately NOT clock-censused, each with a REASON. The tripwire test
 # asserts every DURABLE_PATH is either covered by a clock or listed here — so a new
@@ -356,6 +473,101 @@ EXEMPT: Dict[str, str] = {
 }
 
 
+# ======================================================================================
+# CADENCE REGISTRATION (T-346) — the class fix behind the orphaned digest.
+#
+# The digest was built, verified once, and then sat frozen for a month. Nothing was
+# broken: no clock was missing an artifact, no channel was empty, no test failed. It was
+# simply never CALLED, and nothing in the system required it to be registered anywhere.
+# The covered-or-exempted tripwire already guards durable PATHS; this extends the same
+# pattern to CONSUMERS. Any module whose own docstring claims a cadence — "runs weekly",
+# "per-run", "daily" — is making a promise about a clock, and a promise nobody watches is
+# how "built-with-a-cadence-but-unwatched" becomes a discovery for the next external
+# review instead of a failing test.
+#
+# The rule: claim a cadence in your module docstring => appear HERE, mapped either to the
+# clock that watches you or to an explicit reason you need no clock. Neither is a
+# judgement about code quality; both are a refusal to let the claim go unexamined.
+# ======================================================================================
+CADENCE_SCAN_DIRS: Tuple[str, ...] = ("paper_trader", "intelligence")
+
+CADENCE_CLAIMS: Dict[str, str] = {
+    # --- watched by a registered clock ---
+    "intelligence/analyst/anthropic_adapter.py": "clock:analyst_note_written",
+    "intelligence/analyst/context_builder.py": "clock:analyst_note_written",
+    "intelligence/analyst/eval_harness.py": "clock:eval_scored_when_due",
+    "intelligence/analyst/note_schema.py": "clock:analyst_note_written",
+    "intelligence/analyst/performance_digest.py": "clock:digest_written_weekly",
+    "intelligence/event_call/run_forward.py": "clock:event_desk_rolled",
+    "intelligence/news_panel.py": "clock:news_month_pushed",
+    "intelligence/thesis_desk/thesis_desk.py": "clock:scan_filed_when_due",
+    "intelligence/watchdog.py": "clock:analyst_note_written",
+    "paper_trader/altdata_archive.py": "clock:archive_feeds_in_budget",
+    "paper_trader/btc_shadow.py": "clock:btc_shadow_rolled",
+    "paper_trader/dbmf_shadow.py": "clock:dbmf_shadow_rolled",
+    "paper_trader/sleeve_tracker.py": "clock:sleeve_tracker_rolled",
+    "paper_trader/clock_census.py": "clock:SELF — the census runs every pulse and its own "
+                                    "absence is caught by the heartbeat's census key",
+    "paper_trader/heartbeat.py": "clock:SELF — the heartbeat IS the per-run receipt every "
+                                 "other clock is read out of",
+    # --- no clock needed, with the reason ---
+    "paper_trader/__init__.py": "exempt: package docstring describes the package's cadence, "
+                                "not a surface of its own",
+    "paper_trader/scheduler.py": "exempt: decides WHETHER today is a run day; it has no "
+                                 "forward record of its own, and the pulse not running at "
+                                 "all is what the dead-man's-switch alarm covers",
+    "paper_trader/intel_pulse.py": "exempt: the orchestrator — every step it drives is "
+                                   "individually clocked, and its own failure surfaces as "
+                                   "those steps missing",
+    "paper_trader/held_reconcile.py": "exempt: runs inside the trading path and is gated by "
+                                      "the trading census (canonical verdict), not this one",
+    "paper_trader/sleeve_constructor.py": "exempt: pure constructor — emits weights on demand, "
+                                          "holds no forward record; the BOOKS it feeds are clocked",
+    "paper_trader/offense_sso_constructor.py": "exempt: pure constructor, as sleeve_constructor; "
+                                               "acct-2 fleet record is clocked in its own container",
+    "paper_trader/econ_health.py": "exempt: read-only diagnostic over other artifacts; it "
+                                   "accrues nothing that could silently stall",
+    "paper_trader/paper_telemetry.py": "exempt: emits CloudWatch metrics as a side effect of "
+                                       "runs that are themselves clocked; no durable record here",
+    "intelligence/analyst/cost_governor.py": "exempt: a BUDGET GATE, not a forward record — its "
+                                             "healthy state on a no-spend day is not advancing "
+                                             "(same class as the llm_spend.jsonl exemption)",
+    # --- registered as a KNOWN GAP: claims a cadence, has no production caller ---
+    "intelligence/analyst/advisor_surface.py": "UNWATCHED-KNOWN: the advisor memo generator "
+                                               "claims a weekly cadence, has ZERO production "
+                                               "callers, and docs/State/advisor_surface.md has "
+                                               "NEVER been generated — it has not produced a "
+                                               "first artifact at all. Surfaced by this lint on "
+                                               "its first run; owner: A (T-343-era build). "
+                                               "Replace with a clock: or exempt: line once ruled.",
+}
+
+
+def cadence_claimants(root: Optional[str] = None) -> Dict[str, str]:
+    """Every module whose docstring claims a cadence -> the cadence word it claimed."""
+    import ast
+    import re as _re
+    pat = _re.compile(r"\b(weekly|daily|hourly|monthly|nightly|per[- ]run|every run|"
+                      r"each run|fortnight)\b", _re.I)
+    base = Path(root) if root else Path(__file__).resolve().parents[1]
+    out: Dict[str, str] = {}
+    for d in CADENCE_SCAN_DIRS:
+        for f in sorted((base / d).rglob("*.py")):
+            try:
+                doc = ast.get_docstring(ast.parse(f.read_text())) or ""
+            except Exception:
+                continue
+            m = pat.search(doc)
+            if m:
+                out[str(f.relative_to(base))] = m.group(0).lower()
+    return out
+
+
+def unregistered_cadences(root: Optional[str] = None) -> Dict[str, str]:
+    """The tripwire's finding set: claims a cadence, appears in no registry entry."""
+    return {k: v for k, v in cadence_claimants(root).items() if k not in CADENCE_CLAIMS}
+
+
 def run_census(root: Optional[str] = None, as_of: Optional[str] = None) -> Dict[str, Any]:
     """Run every registered clock. READ-ONLY. Returns the census dict."""
     import datetime as dt
@@ -379,7 +591,10 @@ def run_census(root: Optional[str] = None, as_of: Optional[str] = None) -> Dict[
         "n_not_due": len(not_due), "n_missed": len(missed),
         "degraded": bool(missed),
         "missed": [{"clock": r.name, "detail": r.detail} for r in missed],
-        "detail": {r.name: {"status": r.status, "detail": r.detail} for r in results},
+        "detail": {r.name: dict({"status": r.status, "detail": r.detail},
+                                 **({"note": CLOCK_NOTES[r.name]} if r.name in CLOCK_NOTES
+                                    else {}))
+                   for r in results},
     }
 
 
