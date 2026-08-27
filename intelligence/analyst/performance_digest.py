@@ -105,16 +105,31 @@ def build_rows(streams: dict[str, dict]) -> list[dict]:
     rows = []
     for name in sorted(streams):
         s = streams[name] or {}
-        d = _per_10k(s.get("book_nav"), s.get("twin_nav"))
+        # UNIT SAFETY (T-344): the live books publish DOLLAR navs against DIFFERENT
+        # notionals (sleeve_tier_50k: book $50k vs twin $10k). Differencing raw navs
+        # would emit a wildly wrong "+$4,000 per $10K". Prefer the books' own
+        # NORMALIZED growth ratios whenever present; fall back to navs only for
+        # index-at-1.0 streams. A caller can also pass excess_growth directly.
+        if s.get("book_growth") is not None and s.get("twin_growth") is not None:
+            d = _per_10k(s.get("book_growth"), s.get("twin_growth"))
+        elif s.get("excess_growth") is not None:
+            d = round(float(s["excess_growth"]) * 10_000.0, 2)
+        else:
+            d = _per_10k(s.get("book_nav"), s.get("twin_nav"))
         ca = s.get("cash_adj") or {}
-        adj_d = _per_10k(ca.get("book_nav_cash_adj"), ca.get("twin_nav_cash_adj")) if ca else None
+        if ca.get("excess_growth_cash_adj") is not None:
+            adj_d = round(float(ca["excess_growth_cash_adj"]) * 10_000.0, 2)
+        elif ca:
+            adj_d = _per_10k(ca.get("book_nav_cash_adj"), ca.get("twin_nav_cash_adj"))
+        else:
+            adj_d = None
         rows.append({
             "stream": name,
             "delta_per_10k": d,                     # THE RECORD (raw NAV)
             "current_drawdown_pct": s.get("current_drawdown_pct"),
             "n_days": s.get("n_days"),
             "verdict": verdict(d, s.get("n_days")),  # verdict is ALWAYS off the raw record
-            "missing": not s or s.get("book_nav") is None,
+            "missing": not s or d is None,   # keyed off the COMPUTED delta, not a raw field
             # annotation only — carried separately so it can never occupy the column
             "cash_adj_per_10k": adj_d,
             "cash_adj_note": ca.get("note") or None,
