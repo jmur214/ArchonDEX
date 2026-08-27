@@ -185,6 +185,33 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_thesis_expiry(self, desk: str, expiring: List[Dict[str, Any]]) -> None:
+        """T-347: fire when a PENDING thesis is running out of recovery window.
+
+        The receipt: the machine's first two theses opened at age 7 of a 10-day window —
+        three days from being thrown away, with nothing warning. The window is a deadline
+        on US (fix the blocking price feed), not merely a data-hygiene rule, so it needs a
+        voice BEFORE it acts, not a log line after.
+
+        Orthogonal to the trading verdict like the census and liveness blocks: a research
+        book's stalled thesis must never flip ``canonical`` and fail the Batch job. It
+        fires its own channel, naming the thesis, its remaining days, AND what it is
+        blocked on — a countdown without the blocker is an alarm nobody can act on."""
+        if not expiring:
+            return
+        status = self._read_status() or {}
+        blk = status.get("thesis_expiry") or {}
+        blk[desk] = {"expiring": expiring, "ts": _utcnow_iso()}
+        status["thesis_expiry"] = blk
+        self._atomic_write(self.status_path, status)
+        worst = expiring[0]
+        names = ", ".join(f"{w['thesis_id']} ({w['days_to_expiry']}d left, "
+                          f"blocked on {w['blocked_on']})" for w in expiring)
+        msg = (f"[THESIS-EXPIRY][ALERT] {desk}: {len(expiring)} pending thesis(es) past "
+               f"half their {worst['window_days']}d recovery window — {names}")
+        print(msg)
+        self._notify(msg)
+
     def record_news(self, result: Dict[str, Any]) -> None:
         """T-290b: stamp the daily news-panel forward-append health onto the
         status file as a SEPARATE ``news`` block. Like ``record_altdata`` it is

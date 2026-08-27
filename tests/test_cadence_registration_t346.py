@@ -58,12 +58,28 @@ def test_every_registry_entry_states_a_reason_not_just_a_verdict():
     assert not bare, f"exemptions without a real reason: {bare}"
 
 
-def test_the_known_unwatched_module_is_labelled_as_a_gap_not_as_covered():
-    """advisor_surface claims a weekly cadence, has no production caller, and has never
-    rendered its artifact. It must NOT be quietly filed as exempt."""
+def test_any_unwatched_module_is_labelled_as_a_gap_never_quietly_exempted():
+    """T-347: advisor_surface — the entry this test was written to lock — has been RULED
+    on and now carries `clock:advisor_surface_rendered`, so the specific lock is spent.
+    The lock itself is not: it generalises. Any module the lint catches with a cadence
+    and no watcher must be filed as UNWATCHED-KNOWN, naming what is missing and who owns
+    it, so it can never be quietly downgraded to `exempt:` to make the suite green.
+
+    An empty finding set is the healthy state here and the assertion still has teeth —
+    it constrains the SHAPE of any future gap entry, not the existence of one."""
+    gaps = {m: v for m, v in CADENCE_CLAIMS.items() if v.startswith("UNWATCHED-KNOWN")}
+    for m, v in gaps.items():
+        assert "owner" in v.lower(), f"{m}: an unwatched gap must name an owner"
+        assert len(v) > 60, f"{m}: an unwatched gap must state what is missing"
+
+
+def test_the_lint_first_catch_got_a_consumer_not_an_exemption():
+    """The director's ruling, locked in the record: advisor_surface was WIRED. If anyone
+    later reverts it to `exempt:`, that is a decision that must be made deliberately —
+    this test makes it visible rather than silent."""
     v = CADENCE_CLAIMS["intelligence/analyst/advisor_surface.py"]
-    assert v.startswith("UNWATCHED-KNOWN")
-    assert "NEVER" in v and "owner" in v.lower()
+    assert v == "clock:advisor_surface_rendered", (
+        "advisor_surface was ruled WIRED (2026-08-26) — it gets a clock, not an exemption")
 
 
 # ---------- the digest clock ----------

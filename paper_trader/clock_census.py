@@ -240,42 +240,77 @@ DIGEST_BUDGET_DAYS = 9
 """A weekly cadence plus a 2-day grace, so a holiday-shifted run is not a false alarm
 while a genuinely skipped week still fires."""
 
+ADVISOR_BUDGET_DAYS = 35
+"""T-347: a MONTHLY cadence plus grace. The advisor surface also regenerates on-change,
+so it may advance far more often — the budget is the OUTER bound (has it rendered at all
+this month?), never a claim about how often it should."""
 
-def _digest_written_weekly(root: Path, as_of: str) -> ClockResult:
-    """Clock 9 (T-346): the WEEKLY PERFORMANCE DIGEST — the user's main window.
 
-    Registered because it had ZERO production callers and sat frozen at 2026-07-28: built,
-    verified once, and orphaned. That is the exact silence this census exists to catch,
-    and nothing required its registration — so nothing caught it. Artifact-derived: the
-    date is parsed from the digest's OWN header, never from mtime (a git checkout rewrites
-    mtime and would fake an advance) and never from a schedule (the config is not the
-    artifact).
+def _md_header_date(p: Path) -> Tuple[Optional[str], str]:
+    """The `as_of` stamped in a rendered markdown surface's own H1.
 
-    NOT_DUE is what a healthy in-budget week looks like — the digest is weekly, so most
-    days it is correctly silent. EXPECT THIS CLOCK TO MISS until the generator is wired
-    into the pulse; that miss is a true finding, not a defect in the clock."""
-    rel = "docs/State/performance_digest.md"
-    p = root / rel
-    if not p.exists():
-        return ClockResult("digest_written_weekly", MISS,
-                           f"no digest at {rel} — the user's main window has never rendered")
+    Both A's surfaces render `# <Title> \u2014 YYYY-MM-DD`. The date is read from the
+    ARTIFACT, never from mtime (a git checkout rewrites mtime and would fake an advance)
+    and never from a schedule (the config is not the artifact). ONE parser for both
+    surfaces — a second copy is a second thing to drift."""
+    try:
+        head = p.read_text().splitlines()[0]
+    except Exception:
+        return None, "surface unreadable"
+    stamp = head.rsplit("\u2014", 1)[-1].strip()[:10]
     try:
         import datetime as _dt
-        head = p.read_text().splitlines()[0]
-        stamp = head.rsplit("\u2014", 1)[-1].strip()[:10]
+        _dt.datetime.strptime(stamp, "%Y-%m-%d")
+    except Exception:
+        return None, "header carries no parseable as_of date (fail-closed)"
+    return stamp, "ok"
+
+
+def _dated_surface_clock(name: str, rel: str, budget: int, what: str):
+    """A cadence clock over a rendered markdown surface that stamps its own date.
+
+    ADVANCED written today / NOT_DUE inside budget / MISS past it. NOT_DUE is what a
+    healthy periodic artifact looks like on most days — and because NOT_DUE is excluded
+    from the expected count, a correctly-silent surface can never dilute the ratio."""
+    def _c(root: Path, as_of: str) -> ClockResult:
+        p = root / rel
+        if not p.exists():
+            return ClockResult(name, MISS, f"no {what} at {rel} \u2014 it has never rendered")
+        stamp, why = _md_header_date(p)
+        if stamp is None:
+            return ClockResult(name, MISS, why)
+        import datetime as _dt
         age = (_dt.datetime.strptime(as_of, "%Y-%m-%d")
                - _dt.datetime.strptime(stamp, "%Y-%m-%d")).days
-    except Exception:
-        return ClockResult("digest_written_weekly", MISS,
-                           "digest header carries no parseable as_of date (fail-closed)")
-    if age == 0:
-        return ClockResult("digest_written_weekly", ADVANCED, f"digest written today ({stamp})")
-    if age <= DIGEST_BUDGET_DAYS:
-        return ClockResult("digest_written_weekly", NOT_DUE,
-                           f"digest {age}d old (budget {DIGEST_BUDGET_DAYS}d) — inside cadence")
-    return ClockResult("digest_written_weekly", MISS,
-                       f"digest last written {stamp} ({age}d ago) EXCEEDS the "
-                       f"{DIGEST_BUDGET_DAYS}d weekly budget")
+        if age == 0:
+            return ClockResult(name, ADVANCED, f"{what} written today ({stamp})")
+        if age <= budget:
+            return ClockResult(name, NOT_DUE,
+                               f"{what} {age}d old (budget {budget}d) \u2014 inside cadence")
+        return ClockResult(name, MISS,
+                           f"{what} last written {stamp} ({age}d ago) EXCEEDS the "
+                           f"{budget}d budget")
+    return _c
+
+
+_digest_written_weekly = _dated_surface_clock(
+    "digest_written_weekly", "docs/State/performance_digest.md", DIGEST_BUDGET_DAYS,
+    "digest")
+"""Clock 9 (T-346): the WEEKLY PERFORMANCE DIGEST \u2014 the user's main window.
+
+Registered because it had ZERO production callers and sat frozen at 2026-07-28: built,
+verified once, and orphaned. Nothing required its registration, so nothing caught it."""
+
+_advisor_surface_rendered = _dated_surface_clock(
+    "advisor_surface_rendered", "docs/State/advisor_surface.md", ADVISOR_BUDGET_DAYS,
+    "advisor surface")
+"""Clock 10 (T-347): the ADVISOR MEMO \u2014 the lint's first catch, now given a CONSUMER
+rather than an exemption (director ruling, 2026-08-26).
+
+It claimed a weekly cadence, had zero production callers, and had NEVER rendered its
+artifact once. A is wiring the census-independent generator on a monthly/on-change
+cadence; this clock watches it from the moment it lands. Until then it reports the honest
+state \u2014 "it has never rendered" \u2014 which is a true finding, not a broken clock."""
 
 
 def _scan_filed_when_due(root: Path, as_of: str) -> ClockResult:
@@ -425,7 +460,9 @@ REGISTRY: List[Clock] = (
      Clock("exec_ledger_on_fill_days", _exec_ledger_on_fill_days,
            ("data/state/exec_cost_ledger.jsonl", "data/paper_state/orders.jsonl")),
      Clock("digest_written_weekly", _digest_written_weekly,
-           ("docs/State/performance_digest.md",))]
+           ("docs/State/performance_digest.md",)),
+     Clock("advisor_surface_rendered", _advisor_surface_rendered,
+           ("docs/State/advisor_surface.md",))]
     + [_rolled(n, p) for n, p in _ROLLED])
 
 # T-346 — notes that travel WITH a clock's result. A clock can be forward-correct and
@@ -532,14 +569,7 @@ CADENCE_CLAIMS: Dict[str, str] = {
     "intelligence/analyst/cost_governor.py": "exempt: a BUDGET GATE, not a forward record — its "
                                              "healthy state on a no-spend day is not advancing "
                                              "(same class as the llm_spend.jsonl exemption)",
-    # --- registered as a KNOWN GAP: claims a cadence, has no production caller ---
-    "intelligence/analyst/advisor_surface.py": "UNWATCHED-KNOWN: the advisor memo generator "
-                                               "claims a weekly cadence, has ZERO production "
-                                               "callers, and docs/State/advisor_surface.md has "
-                                               "NEVER been generated — it has not produced a "
-                                               "first artifact at all. Surfaced by this lint on "
-                                               "its first run; owner: A (T-343-era build). "
-                                               "Replace with a clock: or exempt: line once ruled.",
+"intelligence/analyst/advisor_surface.py": "clock:advisor_surface_rendered",
 }
 
 
