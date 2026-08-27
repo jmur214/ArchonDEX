@@ -109,3 +109,38 @@ def test_t103_prestated_that_the_repoint_is_justified_on_COMBINED_not_p_crisis()
     combined = oos["horizon_5d_hmm_p_crisis_or_stressed"]["auc_point"]
     assert p_crisis < 0.55, "p_crisis alone is not better than chance OOS"
     assert combined > 0.90 and oos["horizon_5d_hmm_p_crisis_or_stressed"]["auc_ci_low"] > 0.87
+
+
+# ---- the 2026-08-26 substrate repoint (macro_features) ----------------------
+
+def test_feature_panel_prefers_the_deeper_substrate_per_ticker():
+    """The fix for the blindness: `_safe_load_price_csv` takes tr_reconciled ONLY
+    when the flat copy is materially shallower, so properly-backfilled tickers
+    (SPY: 1993) keep their depth and the trained model's feature distribution
+    moves as little as possible."""
+    import engines.engine_e_regime.macro_features as mf
+    root = REPO
+    if not (root / "data/processed/tr_reconciled/TLT_1d.csv").exists():
+        pytest.skip("price data not on disk in this env")
+    tlt = mf._safe_load_price_csv("TLT", root)
+    spy = mf._safe_load_price_csv("SPY", root)
+    assert tlt is not None and spy is not None
+    assert tlt.index.min().year <= 2006, "TLT must now reach back past the 2020-04 truncation"
+    assert spy.index.min().year <= 1995, "SPY must KEEP its deeper flat-copy history"
+
+
+def test_the_hmm_can_now_see_the_gfc_at_all():
+    """The blindness, closed. Before the repoint every pre-2020-05 bar returned a
+    uniform posterior; the GFC peak must now produce an actual classification."""
+    import engines.engine_e_regime.macro_features as mf
+    import pandas as pd
+    from engines.engine_e_regime.hmm_classifier import HMMRegimeClassifier
+    if not (REPO / "data/processed/tr_reconciled/TLT_1d.csv").exists():
+        pytest.skip("price data not on disk in this env")
+    panel = mf.build_feature_panel(include_aux=False)
+    assert panel["tlt_ret_20d"].isna().mean() < 0.50, "tlt_ret_20d was 82% NaN before the repoint"
+    clf = HMMRegimeClassifier.load(NEW)
+    row = mf.latest_feature_row(panel, pd.Timestamp("2008-10-15"))
+    proba = clf.predict_proba_at(row, history_panel=panel)
+    assert max(proba.values()) > 0.5, f"still uniform/blind at the GFC peak: {proba}"
+    assert max(proba, key=proba.get) in ("crisis", "stressed")

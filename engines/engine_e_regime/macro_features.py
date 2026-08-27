@@ -143,9 +143,38 @@ def _safe_load_fred(series_id: str) -> Optional[pd.Series]:
     return s.sort_index()
 
 
+def _first_date_of(path: Path) -> pd.Timestamp:
+    """First Date in a price csv (header + one row) — cheap depth probe."""
+    try:
+        with open(path) as f:
+            f.readline()
+            return pd.Timestamp(f.readline().split(",")[0])
+    except Exception:
+        return pd.Timestamp("2262-01-01")     # unreadable → never looks deeper
+
+
 def _safe_load_price_csv(ticker: str, root: Path) -> Optional[pd.Series]:
-    """Load Close-price column from data/processed/<ticker>_1d.csv."""
-    p = root / "data" / "processed" / f"{ticker}_1d.csv"
+    """Load the Close column for `ticker`, preferring the DEEPER substrate.
+
+    T-2026-08-26: the deep-history backfill of `data/processed/` was PARTIAL —
+    12 tickers (the ETFs: TLT, GLD, IEF, IWM, QQQ, DBC, ...) were never deepened
+    and still stop at the 2020-04-09 Alpaca boundary, while SPY/AAPL/etc. were
+    backfilled. For TLT that made `tlt_ret_20d` NaN on 82% of the panel, and the
+    HMM silently returned a UNIFORM posterior on every one of those bars — blind
+    through the entire GFC and COVID with nothing announcing it.
+
+    Fix is a REPOINT: `tr_reconciled/` (T-256) carries deep, dividend-reconciled
+    copies. Used ONLY when the flat copy is materially shallower, so tickers that
+    were properly backfilled (SPY: 1993) keep their greater depth and the trained
+    model's feature distribution moves as little as possible. Verified after the
+    change: 2008-10-15 and 2008-11-20 now read crisis=1.00 (previously uniform).
+    """
+    flat = root / "data" / "processed" / f"{ticker}_1d.csv"
+    tr = root / "data" / "processed" / "tr_reconciled" / f"{ticker}_1d.csv"
+    p = flat
+    if tr.exists():
+        if not flat.exists() or _first_date_of(tr) < _first_date_of(flat) - pd.Timedelta(days=30):
+            p = tr
     if not p.exists():
         log.debug(f"price csv missing: {p}")
         return None
