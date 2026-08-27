@@ -76,3 +76,41 @@ trusts a caller's self-report would have reproduced it exactly.
    `as_of` in the artifact.
 3. **C:** the clock reports `NOT_DUE` mid-week, `OK` after a Friday render, and **MISSED**
    when the artifact is artificially aged past 10 days.
+
+---
+
+# Advisor surface wiring (T-345) — monthly / on-change
+
+Same shape as the digest above, different cadence. `intelligence/analyst/advisor_surface.py`
+→ `docs/State/advisor_surface.md`. **First render committed 2026-08-26** (census-independent
+half: the sensitivity table + tier matrix + the published input contract).
+
+**Cadence: MONTHLY, or ON-CHANGE — whichever comes first.**
+* monthly: first pulse of a new month (`as_of.month != last_render.month`);
+* **on-change** fires when any input actually moves: the **wrapper census** arriving or
+  changing, a contribution-rate change, or a tier-table edit. A surface about slow
+  decisions should not churn weekly — but it must not go stale through an input change
+  either, and "on-change" is what prevents a quietly-wrong page.
+
+**Contract:** `generate(v0, contrib, r, as_of=..., wrapper_census=...) -> {"ok": ...}`.
+Report-only, fail-open, heartbeat line `ADVISOR ok=<bool> census=<bool>`. `generate()`
+already **refuses to write** if any banned pressure word appears — that check stays
+inside the generator, not in the caller, so a future caller cannot bypass it.
+
+**Census clock (owner: C):**
+
+| field | value |
+|---|---|
+| `clock` | `advisor_surface` |
+| `artifact` | `docs/State/advisor_surface.md` |
+| `expected_cadence` | monthly, or on input change |
+| `staleness_alarm` | **> 45 days** since the artifact's `as_of` (a month plus slack) |
+| `derivation` | **artifact-derived** — read the `as_of` in the file, never a run-flag |
+| `NOT_DUE` | mid-month with no input change |
+
+**Pending, and deliberately visible:** the wrapper-moves section renders
+"Awaiting the wrapper census" and publishes the input contract. When the census lands it
+is an **on-change trigger**, and the header flips from `ASSUMED starting balance …
+these are ASSUMPTIONS, not the user's figures` to `Actual starting balance`. Until then
+the page states plainly that its inputs are assumptions — which is why the tier matrix
+exists: the conclusion must not depend on guessing one balance.

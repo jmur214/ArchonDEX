@@ -71,17 +71,38 @@ def _money(x: float) -> str:
     return f"${x:,.0f}"
 
 
+# The project's own tier boundaries (config/advisor_tier_table.json): <$10k, $10k+,
+# $18k (futures), $65k (index premium). The capital-adaptive directive (2026-07-02) says
+# test at MULTIPLE tiers rather than one assumed balance — so the surface renders across
+# them instead of inventing a single number for the user's account.
+DEFAULT_TIERS = (5_000, 10_000, 25_000, 65_000)
+
+
+def tier_matrix(tiers, contrib: float, r: float, horizons=(10, 20, 40),
+                extra: float = 1000.0):
+    """equivalent-alpha exchange rate at each (tier, horizon). Capital-adaptive."""
+    return [{"tier": t,
+             "cells": [(h, equivalent_alpha_bps(t, contrib, r, h, extra)) for h in horizons]}
+            for t in tiers]
+
+
 def render(v0: float, contrib: float, r: float, extra: float = 1000.0,
-           wrapper_census: Optional[dict] = None, as_of: str = "") -> str:
+           wrapper_census: Optional[dict] = None, as_of: str = "",
+           tiers=DEFAULT_TIERS) -> str:
     rows = sensitivity_table(v0, contrib, r, extra=extra)
     out = [f"# Advisor surface — {as_of}", "",
            "*Auto-generated. Informational only: this page quantifies options the user",
            "owns. It does not recommend a date, schedule anything, or urge an action.*", "",
            "## Contribution-rate sensitivity", "",
-           f"Starting balance **{_money(v0)}**, contributions **{_money(contrib)}/yr**, "
-           f"assumed return **{r*100:.1f}%/yr**. The last column is the exchange rate that "
-           f"matters: **how much annual alpha would be worth the same as adding "
-           f"{_money(extra)}/yr.**", "",
+           (f"{'ASSUMED' if not wrapper_census else 'Actual'} starting balance "
+            f"**{_money(v0)}**, contributions **{_money(contrib)}/yr**, assumed return "
+            f"**{r*100:.1f}%/yr**"
+            + ("" if wrapper_census else
+               " — **these are ASSUMPTIONS, not the user's figures**; the wrapper census "
+               "(pending) replaces them with real balances. The tier matrix below is here "
+               "precisely so the conclusion does not depend on guessing one number")
+            + ". The last column is the exchange rate that matters: "
+            + f"**how much annual alpha would be worth the same as adding {_money(extra)}/yr.**"), "",
            f"| horizon | terminal (base) | terminal (+{_money(extra)}/yr) | difference | "
            f"= alpha of |", "|---|---|---|---|---|"]
     for x in rows:
@@ -93,6 +114,21 @@ def render(v0: float, contrib: float, r: float, extra: float = 1000.0,
             "statistically-significant alpha (CEF discount capture, t_HAC 2.31) has no",
             "retail data path. A contribution increase is certain-sign; an alpha of the",
             "same size is not yet evidenced anywhere in this system.*", ""]
+
+    if tiers:
+        hs = (10, 20, 40)
+        out += ["### The same exchange rate across capital tiers", "",
+                "*Capital-adaptive (2026-07-02 directive): the surface does not assume one "
+                "balance. Tier boundaries are the advisor tier table's own.*", "",
+                "| starting balance | " + " | ".join(f"year {h}" for h in hs) + " |",
+                "|---|" + "---|" * len(hs)]
+        for row in tier_matrix(tiers, contrib, r, hs, extra):
+            cells = " | ".join("—" if b is None else f"{b:.0f} bps" for _, b in row["cells"])
+            out.append(f"| {_money(row['tier'])} | {cells} |")
+        out += ["", f"*Each cell: the annual alpha that would match adding {_money(extra)}/yr. "
+                    "The smaller the balance, the more a contribution increase dominates — at "
+                    "the tiers this system actually runs at, no plausible edge competes with "
+                    "the contribution rate.*", ""]
 
     out += ["## Wrapper moves", ""]
     if not wrapper_census:

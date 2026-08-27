@@ -51,3 +51,27 @@ def test_census_present_ranks_by_annual_dollars_certain_sign_only():
 
 def test_generator_is_fail_open():
     assert ad.generate("bad", 7_000, 0.07, as_of="x")["ok"] is False   # never raises
+
+
+# ── T-345: capital-adaptive tier matrix + assumption labelling ────────────────
+def test_tier_matrix_is_capital_adaptive_and_decays_with_balance():
+    """A contribution increase dominates MORE at small balances — the exchange rate
+    must fall as the tier rises (that is the whole point of showing tiers)."""
+    rows = ad.tier_matrix(ad.DEFAULT_TIERS, 7_000, 0.07, horizons=(10, 20, 40))
+    assert [r["tier"] for r in rows] == list(ad.DEFAULT_TIERS)
+    y10 = [dict(r["cells"])[10] for r in rows]
+    assert y10 == sorted(y10, reverse=True)      # smaller balance -> larger equivalent alpha
+    for r in rows:                                # and decays with horizon within a tier
+        c = dict(r["cells"])
+        assert c[10] > c[20] > c[40] > 0
+
+
+def test_inputs_are_labelled_ASSUMPTIONS_until_the_census_lands():
+    """The surface must never read as if it knows the user's balance."""
+    no_census = ad.render(10_000, 7_000, 0.07, as_of="2026-08-26")
+    assert "ASSUMED starting balance" in no_census
+    assert "these are ASSUMPTIONS, not the user's figures" in no_census
+    with_census = ad.render(10_000, 7_000, 0.07, as_of="2026-08-26",
+                            wrapper_census={"accounts": []})
+    assert "Actual starting balance" in with_census
+    assert "these are ASSUMPTIONS" not in with_census
