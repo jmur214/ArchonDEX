@@ -31,6 +31,16 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _signalling_candidate():
+    """T-347: a stub candidate that actually EMITS. A bare MagicMock returns a
+    MagicMock from compute_signals, which carries no numeric signal — so the
+    Gate-1 candidate census correctly reports it blind and refuses to publish a
+    contribution. The stub is made faithful; the guard is not relaxed."""
+    m = MagicMock()
+    m.compute_signals.return_value = {"AAA": 0.5, "BBB": 0.0}
+    return m
+
+
 def _make_synthetic_dfs(seed: int = 0):
     """Build a (data_map, idx) pair the gates can run a fake backtest on."""
     idx = pd.date_range("2024-01-02", periods=200, freq="B")
@@ -63,7 +73,10 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
     def _fake_result(sharpe: float, daily_returns: pd.Series):
         return SimpleNamespace(
             metrics={"Sharpe Ratio": sharpe, "Sortino": 1.0},
-            trade_log=pd.DataFrame(),
+            # T-347: a real with-arm places trades; an empty trade_log now
+            # (correctly) reads as a zero-trade run and fails the candidate
+            # census. The stub is made faithful rather than the guard relaxed.
+            trade_log=pd.DataFrame({"pnl": [1.0, -0.5, 2.0]}),
             equity_curve=(1.0 + daily_returns).cumprod() * 100_000.0,
             daily_returns=daily_returns,
             attributed_pnl_per_edge={},
@@ -82,6 +95,13 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
         is_substrate_b = "SUBSTRATEB" in data_map_used
         is_with = "candidate_v0" in edges
         call_log["calls"].append((is_substrate_b, is_with))
+        # T-347: a real backtest invokes the candidate's compute_signals; the
+        # stub must too, or the candidate census correctly reports it as blind
+        # (0 non-zero signals) and refuses to publish a contribution.
+        if is_with:
+            cand = edges.get("candidate_v0")
+            if cand is not None and hasattr(cand, "compute_signals"):
+                cand.compute_signals(data_map_used, None)
         if is_substrate_b:
             sharpe = results_b["with_sharpe"] if is_with else results_b["baseline_sharpe"]
             rets = results_b["daily_returns_with"] if is_with else results_b["daily_returns_baseline"]
@@ -101,7 +121,7 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
     )
     monkeypatch.setattr(
         DiscoveryEngine, "_instantiate_candidate",
-        staticmethod(lambda spec: MagicMock()),
+        staticmethod(lambda spec: _signalling_candidate()),
     )
     # Gate 5 path needs universe-B; provide a synthetic one.
     df_b = pd.DataFrame(

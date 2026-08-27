@@ -235,8 +235,17 @@ sleeve beats always-on 20% net-of-cost OUT-of-sample. (Not "fires before
 retail-AUM fine.
 
 **Gating switch.** `hmm_p_crisis` is predictive (T-087/089) but does NOT yet
-clear the bar (dotcom-blind, T-118r). **T-172 tests whether a deep-history
-re-train fixes generalization.** Same family as the de-gross overlay (T-118r
+clear the bar (dotcom-blind, T-118r). **T-172 HAS SINCE RUN — verdict
+MARGINAL** (the detector is regime-classification-grade, not crash-timing-grade;
+the deep-history re-train did not rescue generalization), and the regime family
+closed with T-220/221/222/233: tail protection is the always-on OVERLAY, not the
+regime flip. **T-178 then answered this entry's own re-test question for the
+closest analogue** — a `hmm_p_crisis`-SIZED managed-futures sleeve does NOT beat
+always-on 20% OOS net-of-cost, closing the crash-timing lane. That was a
+different sleeve, so this entry is not itself refuted; but its gating switch is
+settled-negative and its prior is correspondingly LOW.
+*(Restated 2026-08-26 per the T-346 supersession-dependents rule: this entry had
+stood for months phrased as awaiting a test that had already returned.)* Same family as the de-gross overlay (T-118r
 REFUTED) but a **DIFFERENT action — size the BOUGHT sleeve, not de-gross the
 equity book** — so the de-gross failure does not pre-doom it, but the
 dotcom-blindness must be fixed first. Re-test: does a `hmm_p_crisis`-sized

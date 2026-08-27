@@ -39,6 +39,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 
 
+def _signalling_candidate():
+    """T-347: a stub candidate that actually EMITS. A bare MagicMock returns a
+    MagicMock from compute_signals, which carries no numeric signal — so the
+    Gate-1 candidate census correctly reports it blind and refuses to publish a
+    contribution. The stub is made faithful; the guard is not relaxed."""
+    m = MagicMock()
+    m.compute_signals.return_value = {"AAA": 0.5, "BBB": 0.0}
+    return m
+
+
 def _gate_5_decision(universe_b_sharpe: float) -> bool:
     """Gate 5 final decision rule (post-remediation, fail-closed on NaN)."""
     return bool(not math.isnan(universe_b_sharpe) and universe_b_sharpe > 0)
@@ -98,7 +108,7 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         equity = pd.concat([pd.Series([100_000.0], index=[idx[0]]), equity])
         return _NS(
             metrics={"Sharpe Ratio": 1.0 if daily_offset >= 0 else 0.5, "Sortino": 1.2},
-            trade_log=pd.DataFrame(),
+            trade_log=pd.DataFrame({"pnl": [1.0, -0.5, 2.0]}),  # T-347: a real with-arm trades
             equity_curve=equity,
             daily_returns=rets,
             attributed_pnl_per_edge={},
@@ -109,6 +119,11 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         # Two distinct results so the diff produces a non-trivial
         # attribution stream — Gates 1-5 must reach Gate 6.
         edges = kwargs.get("edges", {})
+        # T-347: a real backtest invokes the candidate's compute_signals; the
+        # stub must too, or the candidate census correctly reports it blind.
+        cand = edges.get("candidate_v0")
+        if cand is not None and hasattr(cand, "compute_signals"):
+            cand.compute_signals(kwargs.get("data_map", {}), None)
         return _fake_result(0.001 if "candidate_v0" in edges else 0.0)
 
     monkeypatch.setattr(
@@ -128,7 +143,7 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
     monkeypatch.setattr(
         DiscoveryEngine,
         "_instantiate_candidate",
-        staticmethod(lambda spec: MagicMock()),
+        staticmethod(lambda spec: _signalling_candidate()),
     )
     # Gate 5 needs a non-empty universe-B map; reuse the same synthetic df.
     monkeypatch.setattr(
@@ -242,7 +257,7 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
         equity = pd.concat([pd.Series([100_000.0], index=[idx[0]]), equity])
         return _NS(
             metrics={"Sharpe Ratio": 1.0, "Sortino": 1.2},
-            trade_log=pd.DataFrame(),
+            trade_log=pd.DataFrame({"pnl": [1.0, -0.5, 2.0]}),  # T-347: a real with-arm trades
             equity_curve=equity,
             daily_returns=rets,
             attributed_pnl_per_edge={},
@@ -251,6 +266,11 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
 
     def fake_run_backtest_pure(**kwargs):
         edges = kwargs.get("edges", {})
+        # T-347: a real backtest invokes the candidate's compute_signals; the
+        # stub must too, or the candidate census correctly reports it blind.
+        cand = edges.get("candidate_v0")
+        if cand is not None and hasattr(cand, "compute_signals"):
+            cand.compute_signals(kwargs.get("data_map", {}), None)
         return _fake_result(0.001 if "candidate_v0" in edges else 0.0)
 
     monkeypatch.setattr(
@@ -268,7 +288,7 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
     )
     monkeypatch.setattr(
         DiscoveryEngine, "_instantiate_candidate",
-        staticmethod(lambda spec: MagicMock()),
+        staticmethod(lambda spec: _signalling_candidate()),
     )
     monkeypatch.setattr(
         DiscoveryEngine, "_load_universe_b",
