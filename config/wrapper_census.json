@@ -1,0 +1,25 @@
+{
+  "_doc": "Wrapper census — user answers 2026-08-27, verbatim in substance. This is the INPUT to intelligence/analyst/advisor_surface.py. Facts only; no inferred balances.",
+  "as_of": "2026-08-27",
+  "accounts": [
+    {"account_type": "roth", "status": "maxing", "annual_contribution": 7000,
+     "contribution_headroom": 0, "note": "captured; phase-out question unanswered (see post-school phase)"},
+    {"account_type": "401k", "status": "none", "eligibility": "possible in ~2 years at current employer",
+     "employer_match": null, "note": "NO match exists to capture today — a calendar trigger, not a move"},
+    {"account_type": "hsa", "status": "none_but_eligible_in_principle",
+     "note": "user could get one; REQUIRES verifying the plan is HDHP-qualified"},
+    {"account_type": "after_tax_401k", "status": "n/a", "note": "no 401k, so no mega-backdoor"}
+  ],
+  "capacity": {"extra_annual_capacity": 5000, "note": "'could be more'; see phase structure — likely PRE- and POST-school, not during"},
+  "life_events": [
+    {"event": "law_school", "duration_years": 3, "status": "ahead",
+     "implications": ["low-bracket years", "contribution capacity likely ~zero during",
+                       "tuition/living liquidity must NOT sit in the 40-year machine",
+                       "post-school income likely exceeds Roth phase-out"]}
+  ],
+  "open_inputs": [
+    {"question": "How is school being funded — loans, savings, family, or a mix?",
+     "why": "It determines how much capital must stay liquid and OUT of the long-horizon machine. Everything else is downstream of it.",
+     "status": "UNANSWERED — the memo's top open input"}
+  ]
+}
