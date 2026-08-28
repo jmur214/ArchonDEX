@@ -211,6 +211,90 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
         order_errors=order_errs, canonical=canonical)
 
 
+def _digest_streams(root) -> dict:
+    """T-344 wiring — assemble the 8 digest streams from PERSISTED state.
+
+    Per stream fail-open to {} (the generator lists it under 'Not reporting',
+    never drops it). THE UNIT TRAP (stated in the wiring spec so it cannot be
+    re-introduced): the live books publish DOLLAR NAVs against DIFFERENT
+    notionals — pass each book's own NORMALIZED growth ratios, which
+    ``LiveBook.summary()`` already provides; raw nav pairs only for the
+    index-at-1.0 shadow streams."""
+    import json as _json
+    from pathlib import Path as _Path
+    streams: dict = {}
+
+    def _load(rel):
+        p = _Path(root) / rel
+        return _json.loads(p.read_text()) if p.exists() else None
+
+    def _dd(navs):
+        """Current drawdown off the running peak of a nav series."""
+        try:
+            peak, last = max(navs), navs[-1]
+            return round(float(last) / float(peak) - 1.0, 5) if peak else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    try:
+        from paper_trader.live_books import ALL_BOOKS, LiveBook
+        for spec in ALL_BOOKS:
+            key = f"book: {spec.name}"
+            try:
+                lb = LiveBook(spec, root=str(root))
+                s = lb.summary()
+                clean = [d for d in lb._state()["days"] if not d.get("degraded")]
+                s["current_drawdown_pct"] = _dd([d["book_nav"] for d in clean])
+                streams[key] = s
+            except Exception:  # noqa: BLE001
+                streams[key] = {}
+    except Exception:  # noqa: BLE001
+        pass
+
+    # account-1 sleeve vs the 60/40 robo twin: book growth EXACT from the equity
+    # series; twin growth inverted from the tracker's own robo CAGR over the same
+    # window (cagr = growth**(252/n) - 1 round-trips, so the inversion is faithful).
+    try:
+        t = _load("data/state/sleeve_tracking.json") or {}
+        pts = [p for p in (t.get("points") or []) if p.get("sleeve_equity")]
+        robo = ((t.get("summary") or {}).get("robos") or {}).get("60_40") or {}
+        n = int(robo.get("n_days") or 0)
+        if pts and n and robo.get("cagr") is not None:
+            eqs = [float(p["sleeve_equity"]) for p in pts]
+            streams["account-1 trend sleeve (paper)"] = {
+                "book_growth": eqs[-1] / eqs[0],
+                "twin_growth": (1.0 + float(robo["cagr"])) ** (n / 252.0),
+                "n_days": n, "current_drawdown_pct": _dd(eqs),
+                "cash_adj": (t.get("summary") or {}).get("cash_adj") or {}}
+        else:
+            streams["account-1 trend sleeve (paper)"] = {}
+    except Exception:  # noqa: BLE001
+        streams["account-1 trend sleeve (paper)"] = {}
+
+    # the three shadow streams publish index-at-1.0 nav pairs
+    for name, rel, va, ba in (
+            ("btc 5% shadow (exploratory)",
+             "data/state/btc_shadow_tracking.json", "variant_nav", "base_nav"),
+            ("dbmf shadow (3rd-stream clock)",
+             "data/state/dbmf_shadow_tracking.json", "variant_nav", "base_nav"),
+            ("llm analyst shadow book",
+             "data/state/llm_shadow_book.json", "book_nav", "twin_nav")):
+        try:
+            d = _load(rel) or {}
+            pts = d.get("points") or d.get("days") or []
+            last = pts[-1] if pts else {}
+            if last.get(va) is not None and last.get(ba) is not None:
+                streams[name] = {
+                    "book_nav": last[va], "twin_nav": last[ba], "n_days": len(pts),
+                    "current_drawdown_pct": _dd(
+                        [p[va] for p in pts if p.get(va) is not None])}
+            else:
+                streams[name] = {}
+        except Exception:  # noqa: BLE001
+            streams[name] = {}
+    return streams
+
+
 def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     """Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
     for tests (drive a non-trading day, a held position, etc. without a
@@ -899,6 +983,37 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                       f"clears={_g1.get('clears')} (report-only prediction ledger)")
             except Exception as exc:
                 print(f"   EVAL warn: {type(exc).__name__} (non-fatal)")
+            # --- T-344 DIGEST: the weekly performance digest as a FRIDAY pulse
+            # step (docs/Core/digest_wiring_spec_t344.md — closing 'the surface
+            # built to watch everything was the last unwatched clock').
+            # REPORT-ONLY + FAIL-OPEN, exactly the T-308 eval contract. Runs LAST
+            # in this branch: it reads the trackers/books/shadow state the steps
+            # above just wrote. NO Monday catch-up — a digest is a weekly
+            # snapshot; back-dating one would stamp Monday's state as Friday's
+            # (the miss is made visible by C's artifact-derived census clock,
+            # never repaired here). ------------------------------------------ #
+            try:
+                import datetime as _dt
+                if _dt.date.fromisoformat(str(today)).weekday() == 4:   # Friday
+                    from intelligence.analyst.performance_digest import generate
+                    _dg = generate(_digest_streams(root), as_of=str(today))
+                    print(f"   DIGEST     streams={_dg.get('streams')} "
+                          f"ok={_dg.get('ok')} path={_dg.get('path')}"
+                          + ("" if _dg.get("ok") else f" err={_dg.get('error')}"))
+                    # Durability: the container cannot git-commit, so push the
+                    # render to S3 under the account's own (already-granted)
+                    # paper_state prefix — a digest that renders and evaporates
+                    # is the failure class this step exists to close.
+                    if _dg.get("ok") and cloud.cfg.enabled:
+                        for _p in filter(None, (_dg.get("path"), _dg.get("archived"))):
+                            _r = cloud._aws("s3", "cp", str(_p),
+                                            f"{cloud.cfg.s3_root}/docs/{Path(_p).name}")
+                            if getattr(_r, "returncode", 1) != 0:
+                                print("   DIGEST     WARN s3 push failed "
+                                      f"({Path(_p).name}) — render is container-local only",
+                                      file=sys.stderr)
+            except Exception as exc:
+                print(f"   DIGEST warn: {type(exc).__name__} (non-fatal, report-only)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
