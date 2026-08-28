@@ -165,3 +165,9 @@ component — resolvers, scoring, baselines, and CIs are all existing harness co
   2026-08-06 amendment's final gate is satisfied. The run may proceed exactly as frozen
   above; any deviation voids the exception and requires re-approval. The leakage gates
   (≥5/40 entity identifications OR Brier < 0.10 → VOID, reported either way) govern.
+
+---
+## T-339b APPROVAL STAMP
+- **User approval: GRANTED 2026-08-27** ("yes"). The NER-corrected rerun may proceed exactly
+  as drafted — one trial, §5 leakage gates govern unchanged, VOID-and-report either way.
+  Pre-stated interpretation stands: a second VOID closes the exception class for news text.
