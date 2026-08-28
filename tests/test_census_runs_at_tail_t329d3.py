@@ -39,3 +39,17 @@ def test_a_tail_push_persists_the_post_step5_heartbeat_blocks():
 def test_the_tail_push_never_touches_canonical():
     tail = SRC[SRC.rindex("Tail heartbeat re-sync"):]
     assert "canonical = False" not in tail
+
+
+def test_analyst_note_clock_matches_the_real_filename_convention(tmp_path):
+    """T-327 Day-0: notes are note_<date>.json; startswith(<date>) matched nothing
+    ever written — a permanent false MISS by filename (the T-346 class)."""
+    from paper_trader.clock_census import _analyst_note
+    for d in ("data/intel/analyst_notes", "data/intel/analyst_notes_agentic"):
+        p = tmp_path / d
+        p.mkdir(parents=True)
+        (p / "note_2026-08-28.json").write_text("{}")
+    r = _analyst_note(tmp_path, "2026-08-28")
+    assert r.status == "ADVANCED", r.detail
+    r2 = _analyst_note(tmp_path, "2026-08-31")
+    assert r2.status == "MISS" and "constrained" in r2.detail
