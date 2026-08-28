@@ -171,3 +171,8 @@ component — resolvers, scoring, baselines, and CIs are all existing harness co
 - **User approval: GRANTED 2026-08-27** ("yes"). The NER-corrected rerun may proceed exactly
   as drafted — one trial, §5 leakage gates govern unchanged, VOID-and-report either way.
   Pre-stated interpretation stands: a second VOID closes the exception class for news text.
+
+## spaCy DEPENDENCY APPROVAL
+- **User approved 2026-08-28** ("fine with proceeding... if you think it will be valuable" —
+  director affirms value). spacy + en_core_web_sm enter the RESEARCH environment lock only —
+  never the lean cloud image. T-339b runs exactly as frozen.
