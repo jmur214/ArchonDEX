@@ -142,6 +142,15 @@ DURABLE_PATHS: List[str] = [
     # empty the 61-day window and let a permanently-disallowed (Rev. Rul. 2008-5)
     # buy through (the T-308 durability lesson, applied to a fail-closed guard).
     "data/state/tax_lots.jsonl",
+    # T-348: the two rendered DOC SURFACES. The T-344 Friday step writes the digest
+    # INSIDE the container and no docs/ path was durable, so the artifact evaporated on
+    # exit — leaving its census clock reading whatever copy happened to be baked into the
+    # git image rather than what the step actually wrote. A clock that measures a proxy
+    # for the event instead of the event is the same defect as T-331/T-346/T-348's
+    # filename drift, one layer up. Persisting them makes the artifact the clock reads
+    # the artifact the step produced.
+    "docs/State/performance_digest.md",
+    "docs/State/advisor_surface.md",
 ]
 
 # T-310: whole-directory durable state (per-day files with dynamic names, so they

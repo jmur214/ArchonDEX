@@ -26,10 +26,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 # where C's shadow book + A's eval harness both read notes from
-NOTES_DIR = "data/intel/analyst_notes"
+from paper_trader.artifact_paths import ANALYST_NOTE, ANALYST_NOTE_AGENTIC
+
+NOTES_DIR = ANALYST_NOTE.directory
 # T-325: the agentic analyst's OWN note dir (distinct source so C's 2nd shadow
 # book + the A/B pair the two analysts separately). Same analyst_note/v1 shape.
-AGENTIC_NOTES_DIR = "data/intel/analyst_notes_agentic"
+AGENTIC_NOTES_DIR = ANALYST_NOTE_AGENTIC.directory
 SPEND_LEDGER = "data/intel/llm_spend.jsonl"
 STAGE2_LEDGER = "data/state/stage2_clock.jsonl"   # T-325 #5: the readiness record
 RAW_DIR = "data/intel/llm_raw"
@@ -255,7 +257,9 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                            "firewall_rejections": r.firewall_rejections}
             if r.note is not None:
                 as_of_s = str(r.note.get("as_of", as_of))
-                note_path = base / NOTES_DIR / f"note_{as_of_s}.json"
+                # T-348: the name comes from the ONE declaration the
+                # census reads through, so writer and reader cannot drift.
+                note_path = ANALYST_NOTE.path_for(base, as_of_s)
                 _atomic_write_json(note_path, r.note)
                 res.note_written = str(note_path)
     except Exception as exc:   # noqa: BLE001 — report-only, never raise
@@ -288,7 +292,7 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                            "firewall_rejections": ar.firewall_rejections}
             if ar.note is not None:
                 as_of_s = str(ar.note.get("as_of", as_of))
-                ap = base / AGENTIC_NOTES_DIR / f"note_{as_of_s}.json"
+                ap = ANALYST_NOTE_AGENTIC.path_for(base, as_of_s)
                 _atomic_write_json(ap, ar.note)
                 res.agentic_note_written = str(ap)
     except Exception as exc:   # noqa: BLE001 — report-only, never raise

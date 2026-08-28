@@ -118,13 +118,22 @@ def _rolled(label: str, rel: str) -> Clock:
 
 
 def _analyst_note(root: Path, as_of: str) -> ClockResult:
-    """Clock 1: a note file exists for as_of — constrained AND agentic."""
-    miss = []
-    for lbl, d in (("constrained", "data/intel/analyst_notes"),
-                   ("agentic", "data/intel/analyst_notes_agentic")):
-        p = root / d
-        if not p.exists() or not any(f.name.startswith(as_of) for f in p.glob("*.json")):
-            miss.append(lbl)
+    """Clock 1: a note exists for as_of — constrained AND agentic.
+
+    T-348 — THIS CLOCK COULD NEVER ADVANCE. It matched `<as_of>*.json` while the pulse
+    writes `note_<as_of>.json`, so it reported a miss every day of its life. Worse than
+    useless: the permanent false alarm HID A REAL MISS — no constrained note exists for
+    2026-08-27, and nobody could see it inside a clock already crying wolf daily. That is
+    the concrete cost of a clock that never clears.
+
+    It is the THIRD instance of one disease (T-331 in the eval harness, T-346 in the news
+    clock, this): a reader encoding a writer's naming independently of the writer. The
+    name now comes from `artifact_paths`, the one place it is declared — the same object
+    the pulse writes through, so the two cannot drift apart again."""
+    from paper_trader.artifact_paths import ANALYST_NOTE, ANALYST_NOTE_AGENTIC
+    miss = [lbl for lbl, art in (("constrained", ANALYST_NOTE),
+                                 ("agentic", ANALYST_NOTE_AGENTIC))
+            if not art.exists_for(root, as_of)]
     if miss:
         return ClockResult("analyst_note_written", MISS,
                            f"no note for {as_of}: {', '.join(miss)}")
@@ -548,6 +557,13 @@ CADENCE_CLAIMS: Dict[str, str] = {
     "paper_trader/heartbeat.py": "clock:SELF — the heartbeat IS the per-run receipt every "
                                  "other clock is read out of",
     # --- no clock needed, with the reason ---
+    # T-348: caught by this very lint on its author. The module claims no cadence — the
+    # word appears in prose ("crying wolf daily"). The scan matches anywhere in the
+    # docstring on purpose: a conservative matcher that demands an exemption line is
+    # better than a clever one that misses a real claim. This is the cost, paid once.
+    "paper_trader/artifact_paths.py": "exempt: a pure DECLARATION of artifact names — no "
+                                      "cadence of its own, no I/O, nothing that can stall; "
+                                      "the artifacts it names are clocked individually",
     "paper_trader/__init__.py": "exempt: package docstring describes the package's cadence, "
                                 "not a surface of its own",
     "paper_trader/scheduler.py": "exempt: decides WHETHER today is a run day; it has no "

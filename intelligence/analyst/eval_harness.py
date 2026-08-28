@@ -318,7 +318,14 @@ AGENTIC_NOTES_DIR = ROOT / "data" / "intel" / "analyst_notes_agentic"
 # externally-archived file is picked up too) AND project the note's real fields —
 # a note carries `as_of` + a nested `provenance`, NOT note_date/note_id/model_id, so
 # fixing only the glob would still have produced unresolvable rows.
-NOTE_GLOBS = ("note_*.json", "analyst_note_*.json")
+# T-348: these patterns are no longer spelled here. They come from the ONE declaration
+# the pulse writes through and the census reads through — this harness was the FIRST
+# instance of the drift (T-331), so it is the last place that should keep its own copy.
+try:
+    from paper_trader.artifact_paths import ANALYST_NOTE as _AN
+    NOTE_GLOBS = _AN.globs()
+except Exception:                      # off-tree: keep the harness runnable standalone
+    NOTE_GLOBS = ("note_*.json", "analyst_note_*.json")
 
 
 def _project_note(raw: dict, path: Optional[Path] = None, source: str = "analyst_constrained") -> dict:
