@@ -79,6 +79,36 @@ from analytics.edge_feedback import update_edge_weights_from_latest_trades
 # Modes / Interfaces
 # =============================================================================
 
+def discovery_validation_window(
+    data_map: Dict[str, "pd.DataFrame"], months_env: Optional[str] = None
+) -> Tuple[Optional[str], Optional[str]]:
+    """The window `validate_candidate` (and therefore MBL Gate-0 / DSR) runs on.
+
+    T-2026-06-17-197 FIX, extracted here 2026-08-27 so it is DIRECTLY testable:
+    the default must be the FULL data extent, never a trailing sub-window. The
+    original bug computed Gate-0 on a 24-month quick-filter (T_years=2.0 vs an
+    MBL minimum ~9.66yr at N~125), so EVERY candidate died at Gate-0 before any
+    alpha gate ran and the discovery cycle structurally could not promote
+    anything (T-193/T-195 root cause).
+
+    A regression here is SILENT — the cycle still runs, still logs, and simply
+    never promotes — which is why it gets a pinned test rather than the
+    byte-identical-canon argument it previously relied on.
+
+    `months_env` (the DISCOVERY_VALIDATION_MONTHS env var) remains an explicit
+    opt-in for the cheap pre-screen; Gate-0 will then correctly fail unless that
+    shorter window itself clears MBL.
+    """
+    first = next(iter(data_map.keys()), None)
+    if first is None or data_map[first].empty:
+        return None, None
+    idx = data_map[first].index
+    end = idx[-1].isoformat()
+    if months_env:
+        return (idx[-1] - pd.DateOffset(months=int(months_env))).isoformat(), end
+    return idx[0].isoformat(), end          # full MBL-clearing extent
+
+
 class Mode(str, Enum):
     BACKTEST = "backtest"
     PAPER = "paper"
@@ -1302,15 +1332,7 @@ class ModeController:
                 # (Gate-0 will then correctly fail unless that window clears MBL).
                 # Gate-3 (WFO) still does proper multi-window OOS internally.
                 _val_months_env = _os_diag.environ.get("DISCOVERY_VALIDATION_MONTHS")
-                _first_tkr = next(iter(data_map.keys()), None)
-                _val_start = _val_end = None
-                if _first_tkr is not None and not data_map[_first_tkr].empty:
-                    _idx = data_map[_first_tkr].index
-                    _val_end = _idx[-1].isoformat()
-                    if _val_months_env:
-                        _val_start = (_idx[-1] - pd.DateOffset(months=int(_val_months_env))).isoformat()
-                    else:
-                        _val_start = _idx[0].isoformat()  # full MBL-clearing extent
+                _val_start, _val_end = discovery_validation_window(data_map, _val_months_env)
                 try:
                     result = discovery.validate_candidate(
                         cand, data_map, significance_threshold=None,
