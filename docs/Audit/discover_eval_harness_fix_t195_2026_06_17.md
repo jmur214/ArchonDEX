@@ -18,7 +18,9 @@ outcome: HARNESS FIXED + root-caused; VALID TEST is cloud-bound. The two T-193
   intractable (≈3-5 min/candidate over the 13yr MBL window × 35 features × 3
   determinism runs = many hours, AND the recurring fundamentals-fetch stall) —
   exactly the brief's trigger to build the pre-authorized cloud-discover path.
-status: HARNESS FIXED; valid verdict needs the cloud-discover path (compute trigger hit)
+status: HARNESS FIXED; valid verdict needs the cloud-discover path (compute trigger hit).
+  §'Proposed production-code fixes' RESOLVED 2026-08-27 — all three shipped (see the
+  RESOLUTION banner below). This section is NO LONGER an open ask.
 ---
 
 # T-195 — discovery eval-harness fix
@@ -103,3 +105,34 @@ LOCAL substrate just can't run it repeatably.
 Governor restored to the clean 6-active anchor; `ga_population.yml` legacy preserved
 in Archive (gitignored, worktree-local). No edges promoted; no `edge_weights.json`
 edits. The fill-print gate is the only behavior change to committed code (canon-safe).
+
+---
+
+## ✅ RESOLUTION (2026-08-27, Agent B) — the three proposed production fixes are ALL SHIPPED
+
+D's supersession sweep flagged this section as "deferred, no owner". It was not deferred —
+**it was implemented the same day by T-2026-06-17-197** (`docs/Audit/discover_prod_fixes_t197_2026_06_17.md`,
+whose title reads *"ported from T-195"*), and nobody wrote the forward pointer. Verified in
+the code as it stands today, not by taking T-197's word:
+
+| # | proposed fix | state | evidence |
+|---|---|---|---|
+| 1 | MBL Gate-0 on the full evaluation extent, not the 24-month quick-filter | **SHIPPED (T-197)** | `orchestration/mode_controller.py:1292-1313` — default is now `_idx[0]` (full extent); `DISCOVERY_VALIDATION_MONTHS` remains as an explicit opt-in legacy sub-window. The in-code comment names T-197. |
+| 2 | `CachedEdgeWrapper` must not swallow a crashing edge to `{}` | **SHIPPED (T-197) + wired (T-199)** | `gate1_signal_cache.py` records `_eval_errors`/`_last_error`; `assert_baseline_healthy()` (line 311) raises `DiscoveryBaselineError` on a systematic rate and **is called in production** at `discovery.py:1315`; `edges_errored` reaches `core/census.py:101-109`, where `assert_census` treats it as **NON-CANONICAL**. Candidate-level coverage added by T-347. |
+| 3 | gate the unconditional `[DEBUG_BACKTEST_FILL_CREATED]` print | **SHIPPED (in T-195 itself)** | `backtester/backtest_controller.py:827` — `if is_controller_debug():` |
+
+**Nothing to implement. Closed as already-done.**
+
+### The actual defect was the record, not the code
+A doc that PROPOSES fixes and a doc that IMPLEMENTS them must link in **both** directions.
+T-197 pointed back at T-195; T-195 never pointed forward at T-197 — so for ten weeks this
+section read as an open ask, and cost a supersession sweep plus a dispatch to re-derive an
+answer that already existed. Per `[NN-SUPERSEDED]`, a superseded finding is only safely
+retired if the pointer to its resolution is written down.
+
+**Scope check:** `docs/Audit/vrp_literature_edge_t122_*` and `bab_literature_edge_t123_*`
+carry similar "proposals for the director" sections with no resolution pointer, but they are a
+**different class** — strategic/architecture proposals explicitly marked "NOT executed", with
+`status: CURRENT`. They are legitimately open, not orphaned production fixes. (Whether their
+substance has since been answered by the T-196 H0 / substrate-extension work is a separate
+question, not assessed here.)
