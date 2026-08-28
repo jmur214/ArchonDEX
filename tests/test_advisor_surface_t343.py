@@ -75,3 +75,54 @@ def test_inputs_are_labelled_ASSUMPTIONS_until_the_census_lands():
                             wrapper_census={"accounts": []})
     assert "Actual starting balance" in with_census
     assert "these are ASSUMPTIONS" not in with_census
+
+
+# ── T-346: the phase-structured census memo ───────────────────────────────────
+import json as _json
+from pathlib import Path as _Path
+
+_CENSUS = _json.loads(_Path("config/wrapper_census.json").read_text())
+
+
+def test_memo_leads_with_the_open_question_not_a_ranked_list():
+    """The school-funding question determines liquidity; ranking anything above it
+    would be optimising under an unknown constraint."""
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27")
+    q_at = t.index("The top open question")
+    assert q_at < t.index("Phase 1")            # the question precedes every phase
+    assert "UNANSWERED" in t
+    assert "does not try" in t                   # it declines to rank against liquidity
+
+
+def test_memo_is_scoped_as_a_sidebar_not_a_steering_input():
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27")
+    assert "sidebar, not a steering input" in t
+    assert "does **not** re-prioritise the research program" in t
+
+
+def test_memo_carries_the_liquidity_flag_before_any_optimisation():
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27")
+    assert t.index("liquidity flag") < t.index("Phase 1")
+    assert "must NOT sit in the 40-year" in t
+
+
+def test_memo_has_three_phases_and_states_capacity_drops_during_school():
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27")
+    for p in ("Phase 1 — NOW", "Phase 2 — DURING SCHOOL", "Phase 3 — POST-SCHOOL"):
+        assert p in t
+    assert "falls to ~zero" in t                 # capacity is NOT projected straight-line
+    assert "pre- and post-school" in t
+
+
+def test_memo_reports_absent_wrappers_honestly_not_as_moves():
+    """No 401k and no match today: a calendar trigger, never a 'capture the match' item."""
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27")
+    assert "no match exists to capture now" in t.lower()
+    assert "calendar trigger" in t
+    assert "HDHP" in t and "verify" in t.lower()  # HSA is conditional on a fact to check
+
+
+def test_memo_has_no_pressure_words():
+    t = ad.render_memo(_CENSUS, as_of="2026-08-27").lower()
+    for w in ad.BANNED_PRESSURE_WORDS:
+        assert w not in t
