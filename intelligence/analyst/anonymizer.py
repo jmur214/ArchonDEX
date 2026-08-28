@@ -70,7 +70,7 @@ def scrub(text: str, token: str, symbol: str, company: Optional[str] = None,
 
 
 def verify(text: str, symbol: str, company: Optional[str] = None,
-           ner_fn: Optional[NerFn] = None) -> tuple[bool, list[str]]:
+           ner_fn: Optional[NerFn] = None, token: Optional[str] = None) -> tuple[bool, list[str]]:
     """MANDATORY pre-call gate. Re-checks the SCRUBBED output independently of the
     scrubber: returns (admitted, surviving_identifiers). Deliberately strict — an
     admitted text must carry ZERO surviving names, tickers, or explicit dates."""
@@ -79,8 +79,12 @@ def verify(text: str, symbol: str, company: Optional[str] = None,
         if re.search(rf"(?<![A-Za-z0-9]){re.escape(v)}(?![A-Za-z0-9])", text):
             surviving.append(f"name:{v}")
     if ner_fn is not None:
+        # The replacement TOKEN is itself tagged ORG by a real NER model, and [DATE]
+        # is our own placeholder — treating either as a surviving identifier would
+        # drop 100% of texts (found the moment the real backend was wired).
+        placeholders = {token, "[DATE]"} if token else {"[DATE]"}
         for span in ner_fn(text):
-            if span and len(span) > 1:
+            if span and len(span) > 1 and span not in placeholders:
                 surviving.append(f"ner:{span}")
     for pat in _DATE_PATTERNS:
         m = pat.search(text)
@@ -94,5 +98,26 @@ def scrub_or_drop(text: str, token: str, symbol: str, company: Optional[str] = N
     """The only entry point the runner may use: returns (admitted_text | None, reasons).
     None ⇒ DROP the question. A text is never sent partially scrubbed."""
     s = scrub(text, token, symbol, company, ner_fn)
-    ok, surviving = verify(s, symbol, company, ner_fn)
+    ok, surviving = verify(s, symbol, company, ner_fn, token=token)
     return (s if ok else None), surviving
+
+
+# ── the spaCy NER backend (T-339b, user-approved 2026-08-28) ──────────────────
+# RESEARCH ENVIRONMENT ONLY — spaCy is deliberately NOT added to
+# requirements.lock.txt, because that file builds the lean cloud image and this is a
+# research-only dependency. The import is LAZY and the backend is INJECTED, so no
+# cloud/pulse code path can ever import spaCy: absent it, `spacy_ner()` raises at
+# call time and only the T-339b runner (which is research-only) is affected.
+_NLP = None
+NER_LABELS = ("ORG", "PERSON", "PRODUCT", "GPE", "FAC")     # frozen spec §A.1
+
+
+def spacy_ner(model: str = "en_core_web_sm") -> NerFn:
+    """Build the frozen spec's NER backend. Lazy: imported on first call only."""
+    def _ner(text: str):
+        global _NLP
+        if _NLP is None:
+            import spacy                      # noqa: PLC0415 — deliberate lazy import
+            _NLP = spacy.load(model)
+        return [e.text for e in _NLP(text or "").ents if e.label_ in NER_LABELS]
+    return _ner
