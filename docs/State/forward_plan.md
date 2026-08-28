@@ -65,6 +65,15 @@
 > pre-statements) → 3 THE PORTFOLIO BRAIN (pre-statement → report-only brain book → authority
 > only by beating its twin) → 4 third stream (free-data battery; honest cannot-be-willed) →
 > 5 reliability steady-state + ALTERNATING DEFECT/OPPORTUNITY discovery rounds (~6-8wk).
+> **PHASE 6 (user-approved 2026-08-28): AUTONOMOUS DEVELOPMENT** — the codebase develops
+> itself under human gates. Constitution: docs/Core/autonomous_development_prestatement.md
+> (constitutional exclusions: the REFEREE and the GATES are never autonomously modifiable;
+> T-305 stands). Ladder: rung 0 = the janitor + scheduled director/worker passes (transport
+> retired); rung 1 = trigger→draft; rung 2+ = class-approved merges BY RECORD (autonomy is
+> itself a scored stream; reverts demote symmetrically). Pilot: B builds after the drill
+> week, parallel to Act 2; first artifacts = janitor's first report + first zero-human-
+> transport cycle + the autonomy ledger's first row.
+>
 > **Standing rulings:** sleeve keeps running, DEMOTED to regime-shelf record, decision memo at
 > Sept gate-d maturity; data budget free-only. **Program checkpoint ~Sept 20:** structural
 > stack live-and-accruing, or the review doc must say "research instrument mistaken for an
