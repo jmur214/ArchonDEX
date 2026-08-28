@@ -118,12 +118,18 @@ def _rolled(label: str, rel: str) -> Clock:
 
 
 def _analyst_note(root: Path, as_of: str) -> ClockResult:
-    """Clock 1: a note file exists for as_of — constrained AND agentic."""
+    """Clock 1: a note file exists for as_of — constrained AND agentic.
+
+    T-327 Day-0 fix: notes are named ``note_<as_of>.json`` — the original
+    ``startswith(as_of)`` matched NOTHING ever written, so this clock was a
+    permanent false MISS by filename convention (the same class as T-346's
+    flat-path key). Match the date anywhere in the name so both the current
+    ``note_`` prefix and any bare-date legacy file count."""
     miss = []
     for lbl, d in (("constrained", "data/intel/analyst_notes"),
                    ("agentic", "data/intel/analyst_notes_agentic")):
         p = root / d
-        if not p.exists() or not any(f.name.startswith(as_of) for f in p.glob("*.json")):
+        if not p.exists() or not any(as_of in f.name for f in p.glob("*.json")):
             miss.append(lbl)
     if miss:
         return ClockResult("analyst_note_written", MISS,
