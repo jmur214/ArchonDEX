@@ -136,3 +136,24 @@ def test_summary_segments_by_prompt_version_and_model_prompt():
     assert set(s["by_model_prompt"]) == {"claude-haiku-4-5-20251001|daily/v2",
                                          "claude-haiku-4-5-20251001|daily/v3"}
     assert set(s["g1_skill_by_prompt_version"]) == {"daily/v2", "daily/v3"}
+
+
+# ── T-348: a VOIDED note must be VISIBLE, not just absent ─────────────────────
+def test_note_coverage_names_the_missing_day():
+    """2026-08-27: the model fenced its JSON, fail-loud voided the note, and NOTHING
+    surfaced it — the harness just saw one fewer note. Coverage makes the gap a number."""
+    notes = [{"note_date": "2026-08-26", "source": "analyst_constrained", "predictions": []},
+             {"note_date": "2026-08-28", "source": "analyst_constrained", "predictions": []}]
+    cov = eh.note_coverage(notes, "2026-08-28")["analyst_constrained"]
+    assert cov["missing_days"] == ["2026-08-27"]
+    assert cov["n_missing"] == 1 and cov["coverage_pct"] < 100
+
+
+def test_note_coverage_segments_by_source():
+    notes = [{"note_date": "2026-08-26", "source": "analyst_constrained", "predictions": []},
+             {"note_date": "2026-08-26", "source": "analyst_agentic", "predictions": []},
+             {"note_date": "2026-08-27", "source": "analyst_agentic", "predictions": []}]
+    cov = eh.note_coverage(notes, "2026-08-27")
+    assert set(cov) == {"analyst_constrained", "analyst_agentic"}
+    assert cov["analyst_agentic"]["n_missing"] == 0
+    assert cov["analyst_constrained"]["missing_days"] == ["2026-08-27"]
