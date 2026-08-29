@@ -163,12 +163,43 @@ def check_scheduler_submit_policy(findings) -> None:
             print(f"  ok     {name} → {jd_name}")
 
 
+def check_alarm_suppression(findings) -> None:
+    """T-327 ruling (2026-08-28): a disabled alarm must SAY WHY. Dormant accounts'
+    alarms are legitimately actions-disabled (six weeks of standing ALARM on a
+    dark account was channel-blunting noise) — but a disabled alarm with NO
+    [DORMANT-SUPPRESSED …] marker in its description is indistinguishable from
+    someone quietly silencing a real alarm, so it is a drift finding. Re-arming
+    is the Act-2 arming protocol (prove one ALARM→OK→ALARM transition, drill 3)."""
+    print("== alarms: actions-disabled requires a stated reason ==")
+    names = []
+    for key in ("cloud-day", "offense-sso", "btc-sleeve", "ai-trader"):
+        names += [f"archondex-paper-{key}-silent-stop",
+                  f"archondex-paper-{key}-non-canonical"]
+    # account-1's alarms predate the fleet naming; look them up by prefix instead
+    rc, out, _ = aws("cloudwatch", "describe-alarms", "--alarm-name-prefix",
+                     "archondex-paper", "--query",
+                     "MetricAlarms[].{n:AlarmName,e:ActionsEnabled,d:AlarmDescription,s:StateValue}",
+                     "--output", "json")
+    if rc != 0:
+        return _report(findings, "alarms", "describe-alarms unreadable")
+    for a in json.loads(out):
+        if a.get("e"):
+            print(f"  armed      {a['n']} ({a.get('s')})")
+        elif "[DORMANT-SUPPRESSED" in (a.get("d") or ""):
+            print(f"  suppressed {a['n']} — reason stamped")
+        else:
+            _report(findings, a["n"],
+                    "actions DISABLED with NO [DORMANT-SUPPRESSED …] reason — "
+                    "indistinguishable from a quietly-silenced real alarm")
+
+
 def main() -> int:
     findings: list = []
     check_job_role(findings)
     check_exec_role(findings)
     check_schedules(findings)
     check_scheduler_submit_policy(findings)
+    check_alarm_suppression(findings)
     print()
     if findings:
         print(f"DRIFT: {len(findings)} finding(s). Reconcile the TEMPLATE to live "

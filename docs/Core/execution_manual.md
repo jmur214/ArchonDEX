@@ -1016,3 +1016,34 @@ Reading it:
 Papers-pipeline route: `docs/Sources/Papers/README.md` flags third-stream submissions
 through this battery at triage. Full design + the DBMF first artifact:
 `docs/Audit/third_stream_battery_2026_08_25.md`.
+
+### DORMANT-ACCOUNT ALARMS + the ARMING PROTOCOL (T-327 ruling, 2026-08-28)
+
+A dormant account's dead-man alarm sits in standing ALARM (missing-data =
+breaching) — weeks of noise that blunt the channel AND make a real miss
+un-notifiable (an alarm already in ALARM never re-alerts). The ruling:
+
+```bash
+# While an account is deliberately dark: alarms provisioned ACTIONS-DISABLED
+# with the reason STAMPED in the description ("[DORMANT-SUPPRESSED: …]").
+# provision_paper_fleet.py renders this from the FLEET entry's `dormant` key.
+# The drift gate FAILS on any actions-disabled alarm without the marker —
+# a reasonless disabled alarm is indistinguishable from a quietly-silenced one.
+python scripts/diff_live_paper_infra.py     # includes the alarm-suppression check
+
+# ARMING PROTOCOL (mandatory when the account goes live — e.g. Act-2):
+# 1. remove `dormant` from the FLEET entry; re-provision (alarms re-arm).
+# 2. PROVE one full ALARM→OK→ALARM transition before trusting the alarm
+#    (the drill-3 pattern: one metric-only Batch job on the account's own
+#    jobdef emits the datapoint → OK; the next missing 24h window → ALARM).
+#    An alarm that has never transitioned is a claim, not a control.
+```
+
+### TRADING KILL SWITCH — FLEET PROPERTY (T-327 ruling, 2026-08-28)
+
+Every strategy's OrderManager consults `check_trading_halt` before every
+submit — no longer an llm_analyst opt-in. Semantics unchanged: a halt REFUSES
+new BUYS and SELLS with a typed journaled reason and NEVER liquidates. The
+per-account surfaces (S3 TRADING_HALT object in the account's own state
+prefix / jobdef env / config flag) are documented in the ACCOUNT 3 section
+above and now apply to every account.

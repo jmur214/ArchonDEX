@@ -72,3 +72,28 @@ flips it back ALARM — both directions proven by one datapoint.
 for weeks (offense-sso since 07-12) — noise that blunts the channel. Proposal
 for the director: dormant-account alarms should be disabled-with-reason (or
 actions-suppressed) until the account arms, then proven by exactly this drill.
+
+---
+
+## Rulings applied — 2026-08-28 evening (both built + live same night)
+
+**Ruling 1 — dormant alarms suppressed-with-reason (LIVE).** offense-sso ×2 +
+btc-sleeve ×2 re-put with `--no-actions-enabled` and the reason stamped in the
+description; provisioner renders the same from the FLEET `dormant` key (so a
+re-run preserves it — template==live); the drift gate gained
+`check_alarm_suppression` (a reasonless disabled alarm = drift) and reads
+green: 4 armed / 4 suppressed-with-reason. Arming protocol documented in the
+execution manual (remove `dormant` → re-provision → prove ALARM→OK→ALARM,
+the drill-3 pattern).
+
+**Drill-3 second-half adjustment (honest note):** with offense-sso's actions
+now suppressed by the ruling, the weekend OK→ALARM flip is a STATE-TRANSITION
+receipt only (evaluation continues; notify correctly silent — that silence is
+now the ruling working, not a dead channel). The notify path was already
+proven on the ALARM→OK leg while actions were enabled.
+
+**Ruling 2 — kill switch = fleet property (BUILT, rides next rev).**
+`om_halt` is unconditional in the runner: every strategy's OrderManager now
+consults `check_trading_halt` pre-submission (halt-new NEVER liquidate,
+unchanged; no-halt path behaviorally identical for accounts 1/2). Deploys
+with the next rev — drill 8 then exercises it fleet-wide, per-surface.

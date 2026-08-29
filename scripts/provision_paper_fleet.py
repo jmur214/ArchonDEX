@@ -44,7 +44,16 @@ FLEET = [
     # T-298 flip: offense-sso runs the DAMPED spec (damp re-entry, never de-risk)
     # now that its undamped armed run is clean + the real SSO slippage (2.2 bps)
     # is measured.
-    dict(key="offense-sso", strategy="offense_sso", minute=50, damping="asymmetric"),
+    dict(key="offense-sso", strategy="offense_sso", minute=50, damping="asymmetric",
+         # T-327 ruling (2026-08-28): a dormant account's dead-man alarm sat in
+         # standing ALARM for six weeks — noise that blunts the channel. While
+         # `dormant` is set, the alarms are provisioned with ACTIONS DISABLED and
+         # the reason stamped in the description (the drift gate asserts the
+         # marker). REMOVE this key at Act-2 arming, re-provision, then prove one
+         # ALARM→OK→ALARM transition (the drill-3 arming protocol) before
+         # trusting the alarm.
+         dormant="account dark until Act-2 arming (ruling 2026-08-28); "
+                 "re-enable requires the drill-3 arming protocol"),
     # --- T-329 ACCOUNT 3 = the stage-2 AI trader (the constrained analyst's
     # validated note → real paper orders). It INHERITS the dormant btc-sleeve slot:
     #
@@ -283,23 +292,35 @@ def create_schedule(acct, jobdef_name, sched_role_arn):
 
 def create_alarms(acct):
     dim = [{"Name": "Account", "Value": acct["key"]}]
+    # T-327 ruling (2026-08-28): dormant accounts get their alarms provisioned
+    # with ACTIONS DISABLED + the reason stamped in the description — never a
+    # reasonless disabled alarm (the drift gate treats that as drift). The alarm
+    # still EVALUATES (state visible in the console); it just cannot page anyone
+    # while the account is deliberately dark.
+    dormant = acct.get("dormant")
+    marker = f" [DORMANT-SUPPRESSED: {dormant}]" if dormant else ""
+    actions = ["--no-actions-enabled"] if dormant else []
     aws("cloudwatch", "put-metric-alarm",
         "--alarm-name", f"archondex-paper-{acct['key']}-silent-stop",
-        "--alarm-description", f"Paper account {acct['key']} did not run today (dead-man's-switch).",
+        "--alarm-description",
+        f"Paper account {acct['key']} did not run today (dead-man's-switch).{marker}",
         "--namespace", "ArchonDEX/PaperLoop", "--metric-name", "PaperRunHappened",
         "--dimensions", json.dumps(dim), "--statistic", "Maximum", "--period", "86400",
         "--evaluation-periods", "1", "--threshold", "1", "--comparison-operator",
         "LessThanThreshold", "--treat-missing-data", "breaching",
-        "--alarm-actions", TOPIC, "--ok-actions", TOPIC)
+        "--alarm-actions", TOPIC, "--ok-actions", TOPIC, *actions)
     aws("cloudwatch", "put-metric-alarm",
         "--alarm-name", f"archondex-paper-{acct['key']}-non-canonical",
-        "--alarm-description", f"Paper account {acct['key']} ran but was NON-CANONICAL.",
+        "--alarm-description",
+        f"Paper account {acct['key']} ran but was NON-CANONICAL.{marker}",
         "--namespace", "ArchonDEX/PaperLoop", "--metric-name", "PaperRunCanonical",
         "--dimensions", json.dumps(dim), "--statistic", "Minimum", "--period", "86400",
         "--evaluation-periods", "1", "--threshold", "1", "--comparison-operator",
         "LessThanThreshold", "--treat-missing-data", "notBreaching",
-        "--alarm-actions", TOPIC, "--ok-actions", TOPIC)
-    print(f"  alarms archondex-paper-{acct['key']}-{{silent-stop,non-canonical}} (dim Account={acct['key']})")
+        "--alarm-actions", TOPIC, "--ok-actions", TOPIC, *actions)
+    state = "SUPPRESSED (dormant)" if dormant else "armed"
+    print(f"  alarms archondex-paper-{acct['key']}-{{silent-stop,non-canonical}} "
+          f"(dim Account={acct['key']}) — {state}")
 
 
 def main():
