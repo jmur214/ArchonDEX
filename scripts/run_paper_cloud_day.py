@@ -73,7 +73,9 @@ STREAM_TOKEN = {"llm_analyst": "analyst-a3"}
 # submit. Deliberately an explicit allow-list, not "everything": account-1's
 # live path must consult NOTHING new ([NN-FIRST-ARTIFACT]'s sibling discipline —
 # a safety feature added to a working record is still a change to that record).
-HALT_GATED_STRATEGIES = {"llm_analyst"}
+# T-327 ruling 2026-08-28: the halt gate is FLEET-WIDE — the old
+# HALT_GATED_STRATEGIES = {"llm_analyst"} opt-in set is retired; every
+# OrderManager consults check_trading_halt (see om_halt below).
 
 # The state prefix the analyst NOTES live under. `intel_pulse` runs only on the
 # account-1 branch, so account-3 must read account-1's notes across prefixes,
@@ -372,12 +374,15 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     state.mkdir(parents=True, exist_ok=True)
     acct = client.get_account()
     # T-329 account-3: this account's orders carry a per-STREAM coid token from
-    # ORDER #1, and its OrderManager consults the TRADING kill switch before every
-    # submit. Both are None for every other strategy, so accounts 1/2 stage and
-    # submit byte-identically (the account-1 regression lock).
+    # ORDER #1 (None for the others — the coid record stays byte-identical).
+    # T-327 RULING (2026-08-28): the TRADING kill switch is a FLEET PROPERTY —
+    # EVERY strategy's OrderManager consults it before every submit, from birth.
+    # Semantics unchanged: a halt STOPS NEW ORDERS (buys AND sells) and NEVER
+    # liquidates. With no halt set, check_trading_halt returns not-halted and
+    # submit proceeds identically — the no-halt path stays behaviorally
+    # byte-equivalent for accounts 1/2 (locked by test).
     om_stream = STREAM_TOKEN.get(args.strategy)
-    om_halt = ((lambda: check_trading_halt(root=str(root)))
-               if args.strategy in HALT_GATED_STRATEGIES else None)
+    om_halt = (lambda: check_trading_halt(root=str(root)))
     om = OrderManager(client, journal_path=str(state / "orders.jsonl"),
                       stream=om_stream, halt_check=om_halt)
     led = LedgerStore(str(state / "ledger.jsonl"),
