@@ -480,6 +480,10 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
                 fh.write(json.dumps(r) + "\n")
     summ = summarize(_load_log(pred_log))
     summ["as_of"] = as_of
+    # T-348: make a VOIDED/missing note VISIBLE. A note that was never written leaves
+    # no trace in the prediction log — the harness just sees fewer rows. This reports
+    # note-days present vs business days expected, per source, and names the gaps.
+    summ["note_coverage"] = note_coverage(notes, as_of)
     if directional is not None:
         summ["directional_twin"] = directional     # shadow-book Δwealth vs 60/40 twin (G1 directional leg)
     summary.parent.mkdir(parents=True, exist_ok=True)
@@ -610,6 +614,37 @@ def _g1_block(recs: list[dict]) -> dict:
             "vs_persistence": _brier_skill(ordered, "persistence", use_recal=True),
         },
     }
+
+
+def note_coverage(notes: list[dict], as_of: str) -> dict:
+    """T-348: a VOIDED note surfaces NOWHERE today.
+
+    On 2026-08-27 the constrained analyst produced no note (the model fenced its JSON;
+    fail-loud correctly voided it; the staleness fallback held) — and nothing announced
+    it. My harness simply saw one fewer note, which is the silent-gap class: a clock
+    that looks fine because the missing thing leaves no trace.
+
+    Reports, per source, the note-days PRESENT vs the business days EXPECTED in the
+    window, and names the missing dates. A missing day is now a visible number rather
+    than an absence."""
+    out: dict[str, Any] = {}
+    by_src: dict[str, set] = {}
+    for n in notes or []:
+        d = (n or {}).get("note_date")
+        if d:
+            by_src.setdefault((n or {}).get("source") or "analyst_constrained", set()).add(str(d)[:10])
+    for src, days in sorted(by_src.items()):
+        first, last = min(days), max(as_of[:10], max(days))
+        try:
+            expected = {d.date().isoformat()
+                        for d in pd.bdate_range(first, last)}
+        except Exception:
+            expected = set(days)
+        missing = sorted(expected - days)
+        out[src] = {"note_days_present": len(days), "business_days_expected": len(expected),
+                    "missing_days": missing[:20], "n_missing": len(missing),
+                    "coverage_pct": round(100.0 * len(days) / max(1, len(expected)), 1)}
+    return out
 
 
 def summarize(recs: list[dict]) -> dict:
