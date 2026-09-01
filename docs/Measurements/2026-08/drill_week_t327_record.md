@@ -97,3 +97,42 @@ proven on the ALARM→OK leg while actions were enabled.
 consults `check_trading_halt` pre-submission (halt-new NEVER liquidate,
 unchanged; no-halt path behaviorally identical for accounts 1/2). Deploys
 with the next rev — drill 8 then exercises it fleet-wide, per-surface.
+
+---
+
+## Drill 3 — CLOSED (second half receipt) — 2026-09-01
+
+`archondex-paper-offense-sso-silent-stop`: **OK → ALARM at 2026-08-31 13:58 CDT**
+(StateUpdatedTimestamp), `ActionsEnabled: false` — the full ALARM→OK→ALARM
+cycle is proven, and the reverse leg's notify was CORRECTLY silent under the
+suppression ruling (pre-stated 08-28). **Drill 3 verdict: PASS, closed.**
+This exact cycle is now the mandatory arming protocol for any account going live.
+
+---
+
+## Drill 5 — frozen-clock → census names it (group B) — 2026-09-01
+
+| step | detail |
+|---|---|
+| mechanics (local A/B against REAL state) | copied the live `llm_shadow_book.json` into a scratch root; census `as_of=2026-09-01` → `llm_shadow_book_rolled` **ADVANCED**; froze `points[-1].date` to 08-31 → **MISS: "last=2026-08-31 != as_of=2026-09-01 (did not roll)"** — the census names exactly the frozen clock with the stale date |
+| live receipt | the in-cloud census names non-advancing artifacts daily in production (`digest_written_weekly` naming its absent artifact since 08-28) — the naming chain is proven on the scheduled principal, not only locally |
+| notify leg | CONSOLIDATED INTO DRILL 15: `PAPER_NOTIFY_WEBHOOK` is set nowhere, so every census miss is heartbeat-visible but push-silent today — the drill-15 wiring is what closes the last link |
+| restored | nothing live was touched (scratch-root exercise) |
+
+**Drill 5 verdict: PASS (naming mechanics + live receipt); notify leg deferred to drill 15 by design.**
+
+---
+
+## Drill 6 — append-failure → loud push (group B) — INJECTED 2026-09-01, ACTIVE overnight
+
+| step | detail |
+|---|---|
+| injected | `news_panel/*` PUT revoked from the job role's `PaperStateRW` (readback verified). ⚠ FAULT ACTIVE until the 2026-09-02 ~10:05 observation |
+| assertion A (pre-observation) | drift gate → **DRIFT: job-role/PaperStateRW** — the gate flags the revocation before any run ✅ |
+| expected tomorrow | both 9:45/9:55 runs: local append succeeds, `push_news_month` AccessDenied → `pushed=False` → `s3_push_failed` degraded reason in the news block — AND that block reaches the SAME-DAY S3 heartbeat (the T-329d3 tail re-sync under deliberate fault). Runs stay canonical (news is report-only). |
+| restore plan | re-grant (readback) + drift gate green + **backfill the one-day tape hole** via the resumable Alpaca builder + verify row counts — the deliberate data cost of this drill, and its repair exercises the backfill machinery |
+
+**Sequencing note:** rev31 (fleet kill switch + digest step + T-348 + A's
+agentic_v2 when drafted) deliberately NOT built tonight — one fault in flight;
+tomorrow's observation stays on the known rev30 baseline. rev31 = tomorrow
+evening, post-restore.
