@@ -177,3 +177,57 @@ instructions — both arms of the A/B (constrained + agentic share
 comparison stays like-for-like. Notes with `prompt_version` ≤ `daily/v3` are
 the ticker-scoped-starvation cohort for any news-evidence analysis; do not pool
 their risk-flag rates with v4's.
+
+---
+
+## `daily_agentic/v2` — open the agentic `hypothetical_actions` channel (ruling 2026-08-28, drafted 2026-09-01, A/T-348)
+
+**Version + file:** `daily_agentic/v2` — `config/prompts/analyst/daily_agentic_v2.md`
+(copied from `daily_agentic_v1.md`, then edited, so the diff is provably scoped).
+SHA-256 `c1a3ac1e52add266b42f7288c456086192066715e27c1e564081a414ee03f334`.
+Caller: `paper_trader/intel_pulse.py` → agentic `prompt_path` + `prompt_version`
+(**deployment is E's**; prompt authorship is A's, per the standing pattern).
+
+**Scope of change — verified by diff, section by section:**
+
+| section | state |
+|---|---|
+| Role · How to investigate (tools) · **Anchor questions** · **Calibration** · **Resolvers** · Input bundle | **BYTE-IDENTICAL** |
+| Absolute rules — the `hypothetical_actions` bullet | **changed (the whole point)** |
+| Output shape — one added key (`no_action_reason`) | changed |
+| Header comment | changed (version stamp) |
+
+**The predictions contract is untouched**, so the Brier record stays comparable across
+the cohort boundary and the paired prediction A/B is unaffected by this bump.
+
+**Trigger:** the T-348 ruling (`docs/Audit/agentic_channel_ruling_t348_2026_08_28.md`).
+The book-vs-book leg of the T-323 A/B is **structurally impossible** while only one arm
+can act — a book with no action channel holds nothing. v1 carried the exact wording that
+killed the constrained channel ("never executed", "omit the whole list"), which produced
+**0 actions in 19 notes**, a book at **100% cash**, and **−$240/$10K** in the first
+production digest. Leaving v1 in place would re-run a known-dead measurement.
+
+**Pre-stated outcome measure** (written before the first v2 note lands):
+1. actions appear on genuine-view days, and `no_action_reason` is present on the days
+   they do not — i.e. an empty list becomes *distinguishable from a broken pipe*;
+2. the agentic shadow book stops being structurally 100% cash;
+3. the paired book comparison becomes computable at all (it currently cannot run).
+**Not** a prediction that the agentic arm wins — see the tie-break below.
+
+**★ BINDING CONDITIONS (carried from the ruling, and load-bearing):**
+- **The book comparison runs on the COMMON WINDOW ONLY** — starting from the **later**
+  of the two channel-open dates (constrained opened **2026-08-18**; the agentic open
+  date is whatever E deploys). Without this the constrained book's head start reads as
+  skill (T-323 §1.3, the different-windows error).
+- **Record the agentic open date here when E deploys**, so the common-window start is a
+  stamped fact rather than a later reconstruction.
+- **The T-323 tie-break is unchanged: no difference proven ⇒ KEEP THE CONSTRAINED ARM.**
+  Opening the channel makes the comparison possible; it does not presume its outcome.
+
+**Revert ID:** `daily_agentic/v1` — `config/prompts/analyst/daily_agentic_v1.md`;
+revert = point the agentic `prompt_path`/`prompt_version` back at v1. One edit.
+
+**Cohort note:** `(model, prompt_version)` segmentation makes this a labeled boundary
+automatically. v1 and v2 agentic notes must **never be pooled** in a book comparison;
+prediction-side pooling is acceptable *only* because the predictions contract is
+byte-identical — and even then the record segments by version by construction.
