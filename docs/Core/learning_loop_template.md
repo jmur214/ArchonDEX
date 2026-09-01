@@ -88,5 +88,9 @@ construction — it is the prompt-engineering form of fitting the noise you just
 | **1** | `daily/v3` — open the `hypothetical_actions` channel | **0 of 19 notes** ever carried an action; `daily/v2` said actions "are never executed" and the model complied. A structural 0/N, exempt from the 30-prediction floor | actions appear on genuine-view days; `no_action_reason` present otherwise | shipped 2026-08-18 (T-329c); **awaiting first forward cohort** |
 | **2** | analyst news-context / universe broadening | **coverage measurement** (T-331b): the analyst's slice is thin BY CONSTRUCTION — SPY 47, GLD 10, **AGG 0, BIL 0, IEF 0** of 6,237 ticker-tags; 19/19 notes flagged it. An INPUT repair, per Stage 2 | per-ticker doc counts in the bundle's new `coverage` block; the flag stops firing on healthy days | **approved in principle, HELD** until after daily/v3's first firing (one change at a time) |
 
+| **3** | `daily_agentic/v2` — open the agentic `hypothetical_actions` channel | **structural, not statistical**: the book-vs-book A/B leg is *impossible* while only one arm can act, and v1 carried the exact wording that produced the constrained arm's 0/19. Exempt from the 30-prediction floor by the same 0/N rule as instance #1 | actions appear on view days + `no_action_reason` otherwise; the agentic book stops being structurally 100% cash; the paired book comparison becomes computable | drafted 2026-09-01 (A/T-348); **awaiting E's deploy** — record the open date for the common-window start |
+
 *Instance 2 also carries E's writer-side adoption of the canonical risk-flag tokens
-(`intelligence/analyst/risk_flags.py`) in the same pass.*
+(`intelligence/analyst/risk_flags.py`) in the same pass. Instance 3's validation is
+governed by Stage 4 with one addition from the ruling: the book leg compares on the
+**common window only**, from the later of the two channel-open dates.*
