@@ -46,6 +46,10 @@ from intelligence.thesis_desk.thesis_scan import (SCAN_STATE, build_scan_bundle,
 # the auditable blindness record — one line per scan, DURABLE (rides S3). This is what
 # makes "the first scan was provably blind" a checkable artifact, not a claim.
 SCAN_PROV_LOG = SCAN_STATE.parent / "thesis_scan_provenance.jsonl"
+# T-327 (drill-6 collateral): the scan EVIDENCE FLOOR — below this the model is
+# never called (a generator with no documents has nothing to generalize from).
+# 1 restores the refuse-literally-empty intent; D's evidence-floor v2 owns more.
+MIN_SCAN_DOCUMENTS = 1
 
 
 # ---------------- results ----------------
@@ -153,6 +157,19 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     error is a clean skip (no scan recorded, hold NOT released); a ``FirewallBreach`` PROPAGATES."""
     month = str(now_iso)[:7]
     n_docs = len(news or []) + len(events or [])     # what the generator actually sees
+
+    # 0. THE EVIDENCE FLOOR (T-327 drill-6 collateral, 2026-09-02): n_docs was
+    # computed here and then used only for the POST-HOC reason classification —
+    # the call itself was never gated. When the injected news fault starved the
+    # tape, the scan called the model on 822 bytes of non-news context and it
+    # FILED A PRIOR-RECITATION (evidence-free near-duplicate of an open basket;
+    # quarantined same day). Refusing the call is the only honest output. Same
+    # clean-skip shape as a governor refusal: no spend, no record_scan — the scan
+    # stays due and retries when the tape returns.
+    if n_docs < MIN_SCAN_DOCUMENTS:
+        return BlindScanResult(
+            skip_reason=f"skipped:evidence_floor:n_documents={n_docs}<{MIN_SCAN_DOCUMENTS}",
+            reason="empty_bundle", n_documents=n_docs)
 
     # 1. governor / kill switch — no call on refusal
     decision = governor.check(month, projected_cost_usd)
