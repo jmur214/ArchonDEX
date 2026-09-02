@@ -124,14 +124,25 @@ def test_digest_date_comes_from_the_header_not_the_mtime(tmp_path):
 
 
 # ---------- the news clock: the permanent false miss ----------
-def _panel(tmp_path, rows_stamp, name="news_202608.parquet"):
+def _panel(tmp_path, rows_stamp, as_of=None):
+    """Write a month panel where the clock will actually look for it.
+
+    T-349: this fixture used to hard-code `news_202608.parquet` while deriving `as_of`
+    from the wall clock, so it passed only during August 2026 and broke the moment the
+    month rolled. That is the T-348 disease inside a test — the fixture encoded the path
+    independently of the code under test. The name now comes from the same single
+    declaration the clock reads through."""
     pytest.importorskip("pyarrow")
+    import datetime as dt
     import pyarrow as pa, pyarrow.parquet as pq
-    d = tmp_path / "data/intel/news_panel"
-    d.mkdir(parents=True, exist_ok=True)
+    from paper_trader.cloud_state import CloudState
+    as_of = as_of or dt.date.today().isoformat()
+    rel = CloudState._news_rel(int(as_of[:4]), int(as_of[5:7]))
+    f = tmp_path / rel
+    f.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.table({"ingest_ts": [f"{rows_stamp}T12:00:00Z"],
-                             "headline": ["h"]}), d / name)
-    return d / name
+                             "headline": ["h"]}), f)
+    return f
 
 
 def test_news_clock_reads_the_FLAT_local_layout(tmp_path):
@@ -164,10 +175,11 @@ def test_news_clock_misses_when_row_freshness_cannot_be_verified(tmp_path):
     pytest.importorskip("pyarrow")
     import pyarrow as pa, pyarrow.parquet as pq
     today = dt.date.today().isoformat()
-    d = tmp_path / "data/intel/news_panel"
-    d.mkdir(parents=True)
-    pq.write_table(pa.table({"headline": ["h"]}), d / "news_202608.parquet")  # no stamp col
-    os.utime(d / "news_202608.parquet", None)
+    from paper_trader.cloud_state import CloudState
+    f = tmp_path / CloudState._news_rel(int(today[:4]), int(today[5:7]))
+    f.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table({"headline": ["h"]}), f)          # no ingest stamp column
+    os.utime(f, None)
     r = _news_month_pushed(tmp_path, today)
     assert r.status == MISS and "UNVERIFIED" in r.detail
 
@@ -193,3 +205,19 @@ def test_notes_reference_only_registered_clocks():
 
 def test_digest_budget_is_a_week_plus_grace():
     assert 7 < DIGEST_BUDGET_DAYS <= 10
+
+
+def test_the_news_clock_is_not_coupled_to_the_CURRENT_month(tmp_path):
+    """T-349 guard: the original fixture passed only during August 2026 and broke silently
+    when the month rolled — a defect invisible for ~30 days at a time. Exercise the clock
+    on a month that is deliberately NOT today's, so month-coupling fails immediately
+    rather than on the 1st."""
+    import os
+    other = "2026-03-17"
+    f = _panel(tmp_path, other, as_of=other)
+    os.utime(f, None)                       # touched now, rows stamped in March
+    r = _news_month_pushed(tmp_path, other)
+    # touched today but as_of is March -> the mtime half must fail on ITS OWN terms,
+    # naming the date mismatch, not "panel missing" (which would mean a path bug).
+    assert r.status == MISS and "missing" not in r.detail
+    assert "did not run today" in r.detail
