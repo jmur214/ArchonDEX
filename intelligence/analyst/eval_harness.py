@@ -443,19 +443,29 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
         if backfill_raw_dir is not None:
             notes += _load_raw_backfill(backfill_raw_dir, seen_dates={
                 n.get("note_date") for n in notes})
-    logged = {r["prediction_id"] for r in _load_log(pred_log)}
+    # T-349: idempotency applies to SETTLED rows only. A `resolvable: false` row is a
+    # FAIL-CLOSED "could not settle yet" (missing/stale source), NOT a verdict — and
+    # treating it as terminal killed the entire record: a prediction expiring ON a pulse
+    # day sees prices causally trimmed to `< today`, fails `_has_thru`, is logged
+    # unresolvable, and was then NEVER RETRIED. 55/57 rows sat permanently dead this way
+    # while every one of them resolves cleanly against live prices. Settled rows are
+    # still never re-resolved, so the log stays idempotent where it matters.
+    _prior = _load_log(pred_log)
+    logged = {r["prediction_id"] for r in _prior if r.get("resolvable")}
+    _retryable = {r["prediction_id"] for r in _prior if not r.get("resolvable")}
     new_records = []
     for note in notes:
         nid = note.get("note_id") or note.get("note_date", "?")
         for i, p in enumerate(note.get("predictions", [])):
             pid = _pred_id(nid, i, p)
             if pid in logged:
-                continue                          # idempotent: never double-resolve
+                continue                    # idempotent: a SETTLED row is never re-resolved
             res = resolve(p["resolver"], note.get("note_date", ""), as_of, price_fn, event_fn)
             if res is None:
                 continue                          # not yet expired — resolve on a later run
             rec = {
                 "prediction_id": pid, "note_id": nid, "note_date": note.get("note_date", ""),
+                "retry_of_unresolvable": pid in _retryable,   # T-349: visible, not silent
                 # T-331: fleet source tag (constrained / agentic / event) — the T-323
                 # A/B segments on this; `backfilled` marks archive-recovered rows.
                 "source": note.get("source") or ("event_interpreter"
