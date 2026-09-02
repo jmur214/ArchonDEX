@@ -1047,3 +1047,54 @@ new BUYS and SELLS with a typed journaled reason and NEVER liquidates. The
 per-account surfaces (S3 TRADING_HALT object in the account's own state
 prefix / jobdef env / config flag) are documented in the ACCOUNT 3 section
 above and now apply to every account.
+
+### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
+
+The autonomous-development pilot's first rung
+(`docs/Core/autonomous_development_prestatement.md`). Runs checks, reports, and —
+only when explicitly enabled — makes mechanical fixes on a branch. **It never merges.**
+
+```bash
+# checks-only (the DEFAULT, and what the schedule runs during the pilot)
+.venv/bin/python scripts/janitor_nightly.py
+
+# with the autonomous fix phase (opt-in; director enables it on the checks record)
+.venv/bin/python scripts/janitor_nightly.py --fix [--branch janitor/2026-08-27]
+
+# the scheduled entry point (launchd; PATH-hardened, alarms only if the JANITOR fails)
+bash scripts/run_janitor_nightly.sh
+```
+
+Artifacts it writes each run:
+- `docs/State/janitor_report.md` — the nightly report. **Watched by the
+  `janitor_ran_nightly` clock** (budget 2d): a silent janitor alarms like any dead feed.
+- `data/state/autonomy_ledger.jsonl` — one row per run (session, trigger, checks,
+  diff summary, outcome) so the autonomy stream can be SCORED and a bad class demoted.
+- `data/coordination/janitor_merge_requests.md` — appended only when a vetted branch
+  is offered. The director pass decides; the janitor does not merge.
+
+**The guard is the safety mechanism, not the prompt.** `scripts/janitor_guard.py`
+vets the diff against the constitution's exclusions after the session and before
+anything is offered: deny-wins-over-allow, deny-by-default for unfamiliar paths, and
+**all-or-nothing** (one forbidden path refuses the whole branch). To inspect it:
+
+```bash
+.venv/bin/python -c "import sys;sys.path.insert(0,'.');\
+from scripts.janitor_guard import vet_branch;from pathlib import Path;\
+print(vet_branch(Path('.')).report())"
+```
+
+### TEST TIERS (2026-08-27)
+
+```bash
+.venv/bin/python -m pytest              # DEFAULT = fast tier (pytest.ini deselects `slow`)
+.venv/bin/python -m pytest -m ""        # everything (what the nightly janitor runs)
+.venv/bin/python -m pytest -m slow      # the slow tier alone (~95s, 4 tests)
+```
+
+`slow` is for expensive replays and explicit PERFORMANCE tests. **Determinism pins,
+census/contract gates, and anything in the measurement path stay in the default tier**
+— a determinism regression that waits for the next nightly is a measurement-integrity
+gap the seconds do not buy back. Measured 2026-08-27: full suite 4:15-5:13 for ~3,590
+tests (the "20+ min" report did not reproduce); `pytest-xdist` is NOT installed and
+adding it is propose-first (a new dependency).
