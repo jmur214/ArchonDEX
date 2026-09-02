@@ -1028,6 +1028,44 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                                       file=sys.stderr)
             except Exception as exc:
                 print(f"   DIGEST warn: {type(exc).__name__} (non-fatal, report-only)")
+            # --- T-345 ADVISOR SURFACE: monthly OR on-change (the wiring spec's
+            # second half; same report-only/fail-open contract as the digest).
+            # Cadence is ARTIFACT-DERIVED (the rendered file's own date — never a
+            # run-flag): render on the first pulse of a new month, or when the
+            # wrapper census's as_of is newer than the artifact (a changed input
+            # must not leave a quietly-wrong page). The artifact rides
+            # DURABLE_PATHS, so the S3-synced copy — not the image-baked one —
+            # is what the cadence reads and the census clock checks. Inputs match
+            # the committed first render exactly (v0 $10k ASSUMED, $7k/yr Roth,
+            # 7%/yr, extra from the census's own capacity figure); the generator
+            # itself refuses to write if any banned pressure word appears.
+            try:
+                import datetime as _dt2
+                import json as _json2
+                import re as _re2
+                _surf = root / "docs/State/advisor_surface.md"
+                _cens_p = root / "config/wrapper_census.json"
+                _cens = _json2.loads(_cens_p.read_text()) if _cens_p.exists() else None
+                _m = (_re2.search(r"(\d{4}-\d{2}-\d{2})", _surf.read_text()[:200])
+                      if _surf.exists() else None)
+                _last = _m.group(1) if _m else None
+                _due = (_last is None
+                        or _last[:7] != str(today)[:7]
+                        or (bool(_cens) and str(_cens.get("as_of", "")) > _last))
+                if _due:
+                    from intelligence.analyst.advisor_surface import generate as _adv_gen
+                    _extra = float(((_cens or {}).get("capacity") or {})
+                                   .get("extra_annual_capacity", 1000.0))
+                    _ad = _adv_gen(10_000.0, 7_000.0, 0.07, as_of=str(today),
+                                   wrapper_census=_cens, extra=_extra, out_path=_surf)
+                    print(f"   ADVISOR    ok={_ad.get('ok')} "
+                          f"census={_ad.get('census_present')}"
+                          + ("" if _ad.get("ok") else f" err={_ad.get('error')}"))
+                else:
+                    print(f"   ADVISOR    not due (last={_last}, month unchanged, "
+                          f"census as_of not newer)")
+            except Exception as exc:
+                print(f"   ADVISOR warn: {type(exc).__name__} (non-fatal, report-only)")
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 

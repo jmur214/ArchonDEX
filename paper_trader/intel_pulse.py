@@ -282,10 +282,16 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
             tools = AgenticTools(readers=build_readers(base, as_of))
             ar = run_agentic_note(
                 as_of, portfolios=portfolios, allowlist=allowlist,
-                prompt_path="config/prompts/analyst/daily_agentic_v1.md",
+                # T-348a (A drafts, E ships): daily_agentic/v2 opens the agentic
+                # hypothetical_actions channel SYMMETRICALLY (the ruling: asymmetry
+                # doesn't create a baseline, it creates a confound). Actions section
+                # ONLY; predictions/tools contract byte-identical to v1 (A's locks).
+                # Evolution #3 in docs/Core/prompt_evolution_log.md; the paired
+                # book comparison runs on the COMMON WINDOW from the agentic open.
+                prompt_path="config/prompts/analyst/daily_agentic_v2.md",
                 agentic_call=make_agentic_call(tier, settings=settings), tools=tools,
                 governor=gov, model_id_requested=model_id,
-                prompt_version="daily_agentic/v1", projected_cost_usd=_PROJ_AGENTIC,
+                prompt_version="daily_agentic/v2", projected_cost_usd=_PROJ_AGENTIC,
                 raw_dir=raw_dir, load_panel=load_panel,
                 max_tool_calls=AGENTIC_MAX_TOOL_CALLS, now_iso=now_iso)
             res.agentic = {"status": ar.status, "n_tool_calls": ar.n_tool_calls,
