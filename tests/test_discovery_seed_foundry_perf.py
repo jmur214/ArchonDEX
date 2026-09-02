@@ -92,6 +92,7 @@ def test_classify_ticker_dependent_falls_back_to_probe():
     assert is_indep is False
 
 
+@pytest.mark.slow
 def test_correlation_average_60d_panel_cache_hit():
     """T-038-CONT vectorization: panel built once, subsequent calls
     skip the universe assembly."""
@@ -263,6 +264,7 @@ def test_engine_d_cache_short_circuits_for_annotated_feature():
     assert cached == v1 or (cached is None and v1 is None)
 
 
+@pytest.mark.slow
 def test_compute_foundry_features_synthetic_panel_perf():
     """End-to-end perf gate (T-038-CONT brief acceptance #4): a
     100-bar × 30-ticker invocation of `FeatureEngineer.compute_all_

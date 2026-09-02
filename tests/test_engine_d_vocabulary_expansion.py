@@ -133,6 +133,7 @@ def test_foundry_features_appear_in_engineered_columns():
     )
 
 
+@pytest.mark.slow
 def test_foundry_missing_data_features_skipped_not_crashed():
     """Foundry features whose data source is unavailable (e.g. local
     OHLCV CSV missing for a synthetic ticker) must return None and
