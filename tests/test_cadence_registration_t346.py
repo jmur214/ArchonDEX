@@ -124,7 +124,15 @@ def test_digest_date_comes_from_the_header_not_the_mtime(tmp_path):
 
 
 # ---------- the news clock: the permanent false miss ----------
-def _panel(tmp_path, rows_stamp, name="news_202608.parquet"):
+def _panel(tmp_path, rows_stamp, name=None):
+    # The FILENAME must track the month the clock will ask for — i.e. TODAY's — while
+    # `rows_stamp` independently controls the row CONTENT (that separation is the point
+    # of the frozen-feed test: current file, stale rows). Hardcoding "news_202608.parquet"
+    # silently stopped matching the clock's month key the moment the calendar rolled into
+    # September, and all three tests went red on 2026-09-01 for that reason alone — the
+    # clock was behaving correctly throughout.
+    import datetime as _dt
+    name = name or f"news_{_dt.date.today():%Y%m}.parquet"
     pytest.importorskip("pyarrow")
     import pyarrow as pa, pyarrow.parquet as pq
     d = tmp_path / "data/intel/news_panel"
@@ -166,8 +174,9 @@ def test_news_clock_misses_when_row_freshness_cannot_be_verified(tmp_path):
     today = dt.date.today().isoformat()
     d = tmp_path / "data/intel/news_panel"
     d.mkdir(parents=True)
-    pq.write_table(pa.table({"headline": ["h"]}), d / "news_202608.parquet")  # no stamp col
-    os.utime(d / "news_202608.parquet", None)
+    fn = f"news_{dt.date.today():%Y%m}.parquet"     # today's month, not a hardcoded one
+    pq.write_table(pa.table({"headline": ["h"]}), d / fn)  # no stamp col
+    os.utime(d / fn, None)
     r = _news_month_pushed(tmp_path, today)
     assert r.status == MISS and "UNVERIFIED" in r.detail
 

@@ -191,6 +191,7 @@ def _print_shadow_diff(curr: dict, stored: dict):
 # The gate
 # --------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_golden_master_pipeline_replay():
     data_map = _load_data_map()
 

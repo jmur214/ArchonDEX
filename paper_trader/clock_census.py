@@ -471,7 +471,14 @@ REGISTRY: List[Clock] = (
      Clock("digest_written_weekly", _digest_written_weekly,
            ("docs/State/performance_digest.md",)),
      Clock("advisor_surface_rendered", _advisor_surface_rendered,
-           ("docs/State/advisor_surface.md",))]
+           ("docs/State/advisor_surface.md",)),
+     # Phase-6 rung 0: "the census watches the watchmen" — a silent janitor alarms
+     # like any dead feed. Budget 2d gives a nightly job one night of grace before
+     # it is called a MISS.
+     Clock("janitor_ran_nightly",
+           _dated_surface_clock("janitor_ran_nightly", "docs/State/janitor_report.md", 2,
+                                "the nightly janitor report"),
+           ("docs/State/janitor_report.md",))]
     + [_rolled(n, p) for n, p in _ROLLED])
 
 # T-346 — notes that travel WITH a clock's result. A clock can be forward-correct and
