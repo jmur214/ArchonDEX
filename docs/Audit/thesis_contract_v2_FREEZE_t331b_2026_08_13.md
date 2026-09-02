@@ -160,5 +160,12 @@ it is not mistaken for scope creep.)*
   unmeasurable.**
 
 ---
+## ADDENDUM (T-348, 2026-08-26) — §9 the evidence floor, §10 the duplicate guard
+Added after scan 6's zero-document filing during drill 6's injected news fault. See
+**`docs/Audit/thesis_contract_v2_addendum_evidence_floor_t348_2026_08_26.md`** — it extends this contract with
+§9 (the per-channel evidence floor + its null-comparison selection rule) and §10 (the duplicate guard, scoped
+to open MACHINE theses only). **Nothing in §§0-8 above changes.**
+
+---
 **FINAL — for the director's stamp.** On stamp this bakes into **rev28** and applies from **scan 5**. Any change
 after the stamp line = a new pre-registration.
