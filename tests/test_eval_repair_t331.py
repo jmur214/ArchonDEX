@@ -157,3 +157,50 @@ def test_note_coverage_segments_by_source():
     assert set(cov) == {"analyst_constrained", "analyst_agentic"}
     assert cov["analyst_agentic"]["n_missing"] == 0
     assert cov["analyst_constrained"]["missing_days"] == ["2026-08-27"]
+
+
+# ── T-349: the THIRD broken clock — a fail-closed row must be RETRIED ─────────
+def test_expiring_today_then_retried_tomorrow_actually_settles(tmp_path):
+    """THE LIVE FAILURE, reproduced end to end.
+
+    A prediction expiring on day D meets prices causally trimmed to `< D`, fails
+    `_has_thru`, and is logged unresolvable. Under the old idempotency rule that row was
+    terminal and the prediction was dead forever — 55 of 57 live rows sat that way while
+    every one resolved cleanly against live prices. It must settle on the next run."""
+    d = tmp_path / "analyst_notes"; d.mkdir()
+    (d / "note_2026-08-03.json").write_text(json.dumps(_note("2026-08-03", level=100.0)))
+    idx = pd.bdate_range("2026-07-01", "2026-08-11")
+    full = pd.Series([100.0 + 0.2 * i for i in range(len(idx))], index=idx)
+    log, summ = tmp_path / "preds.jsonl", tmp_path / "summary.json"
+    kw = dict(pred_log=log, summary=summ, notes_dir=d,
+              event_ledger=tmp_path / "none.jsonl", agentic_notes_dir=tmp_path / "no_agentic")
+
+    # day D: the causal trim hides the expiry bar -> fail-closed, NOT a verdict
+    trimmed = full[full.index < pd.Timestamp("2026-08-10")]
+    eh.run("2026-08-10", price_fn=lambda s: trimmed, **kw)
+    rows = eh._load_log(log)
+    assert len(rows) == 1 and rows[0]["resolvable"] is False
+    assert rows[0]["resolve_detail"] == "source_absent_or_stale"
+
+    # next run, prices now cover the expiry -> it SETTLES (was permanently dead before)
+    eh.run("2026-08-11", price_fn=lambda s: full, **kw)
+    rows = eh._load_log(log)
+    settled = [r for r in rows if r.get("resolvable")]
+    assert len(settled) == 1, "the fail-closed row must be retried, not left dead"
+    assert settled[0]["outcome"] == 1
+    assert settled[0]["retry_of_unresolvable"] is True      # the retry is visible
+
+
+def test_a_settled_row_is_never_re_resolved(tmp_path):
+    """The half that must NOT change: a settled verdict is immutable."""
+    d = tmp_path / "analyst_notes"; d.mkdir()
+    (d / "note_2026-08-01.json").write_text(json.dumps(_note("2026-08-01", level=100.0)))
+    idx = pd.bdate_range("2026-07-01", "2026-08-12")
+    px = pd.Series([100.0 + 0.2 * i for i in range(len(idx))], index=idx)
+    log, summ = tmp_path / "preds.jsonl", tmp_path / "summary.json"
+    kw = dict(price_fn=lambda s: px, pred_log=log, summary=summ, notes_dir=d,
+              event_ledger=tmp_path / "none.jsonl", agentic_notes_dir=tmp_path / "no_agentic")
+    eh.run("2026-08-12", **kw)
+    eh.run("2026-08-13", **kw)
+    ids = [r["prediction_id"] for r in eh._load_log(log) if r.get("resolvable")]
+    assert len(ids) == len(set(ids)) == 1

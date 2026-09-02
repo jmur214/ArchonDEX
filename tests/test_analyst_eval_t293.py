@@ -74,12 +74,31 @@ def test_five_synthetic_predictions_resolve_exactly(tmp_path):
     assert summ["base_rate"] == pytest.approx(0.75)   # 3 of 4 outcomes = 1
 
 
-def test_idempotency_no_double_resolve(tmp_path):
+def test_idempotency_settled_rows_never_double_resolve(tmp_path):
+    """T-349 amends this: idempotency binds on SETTLED rows only.
+
+    The original assertion (`n1 == n2`, nothing ever re-attempted) encoded the defect
+    that killed the live record — a fail-closed `resolvable: false` row is "could not
+    settle YET", not a verdict, and treating it as terminal meant 55/57 live rows sat
+    permanently dead while every one of them resolved cleanly against live prices.
+    Settled rows must still never be re-resolved; unresolvable ones must be retried."""
     _run(tmp_path)
-    n1 = len(eh._load_log(tmp_path / "preds.jsonl"))
+    log1 = eh._load_log(tmp_path / "preds.jsonl")
+    settled1 = [r for r in log1 if r.get("resolvable")]
     _run(tmp_path)                                     # re-run same as-of
-    n2 = len(eh._load_log(tmp_path / "preds.jsonl"))
-    assert n1 == n2 == 5                               # append-only, never double-resolved
+    log2 = eh._load_log(tmp_path / "preds.jsonl")
+    settled2 = [r for r in log2 if r.get("resolvable")]
+
+    # settled rows are NEVER duplicated — one row per prediction_id
+    ids = [r["prediction_id"] for r in settled2]
+    assert len(ids) == len(set(ids)) == len(settled1)
+    # and an UNRESOLVABLE row is re-attempted rather than left permanently dead
+    unres1 = [r for r in log1 if not r.get("resolvable")]
+    if unres1:
+        assert len(log2) > len(log1)
+        assert any(r.get("retry_of_unresolvable") for r in log2)
+    else:
+        assert len(log2) == len(log1)
 
 
 def test_p6_resolves_once_expired(tmp_path):

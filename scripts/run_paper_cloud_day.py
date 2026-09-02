@@ -471,9 +471,18 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
         # forming TODAY bar so the signal can never read an intraday price
         # (the 09:00 ET schedule is pre-open, but this holds at any run time).
         import pandas as _pd
+        raw_closes = closes                      # pre-trim: every COMPLETED bar
         closes = {t: s[s.index < _pd.Timestamp(today)] for t, s in closes.items()}
-        # T-331: hand these LIVE, causally-trimmed series to the eval harness (below).
-        eval_price_series = closes
+        # T-331: hand LIVE series to the eval harness (below).
+        # T-349 — hand it the UNTRIMMED series. The `< today` trim above is a SIGNAL
+        # causality guard (a signal must never read a forming bar) and it is correct
+        # there. Resolution is the opposite operation: it looks BACKWARD at an expiry
+        # that has already happened. Feeding it the trimmed series meant a prediction
+        # expiring ON a pulse day could not see its own expiry bar, failed `_has_thru`,
+        # and was logged unresolvable — which (before the T-349 retry fix) was terminal.
+        # The strategy still uses the trimmed `closes`; only the report-only eval sees
+        # this one, so no signal can read a forming bar through this path.
+        eval_price_series = raw_closes
         # [NN-FAIL-CLOSED]: never trade a STALE signal — every asset's last
         # completed bar must be recent (the prior session), else HALT.
         stale = [t for t in SLEEVE_UNIVERSE
