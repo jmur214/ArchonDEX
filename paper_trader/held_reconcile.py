@@ -79,6 +79,24 @@ def adopt_explained_broker_truth(
     to paper over a standalone cash mystery)."""
     explained, _jnet = explain_broker_positions(broker_positions, orders)
     bpos = {t.upper(): int(q) for t, q in broker_positions.items() if int(q) != 0}
-    if explained and bpos:
+    # T-327 (2026-09-03, account-3's first FAILED run): the guard here used to read
+    # ``if explained and bpos`` — "are there broker positions NOW" — which skipped
+    # adoption in exactly the case that needs it most: an account our own fills took
+    # FLAT. The ledger has no fill-application path (LedgerStore.apply_fill has zero
+    # production callers); it stays in sync ONLY by re-adopting broker truth. So on
+    # the day the AI sold everything, the ledger kept 5 AGG / 1 GLD / 1 SPY and
+    # $1,664 of already-spent cash, the reconciler correctly raised position_drift +
+    # cash_drift, and the run went NON-CANONICAL. It would have stayed wedged: with
+    # the broker flat, every later run skipped adoption too, so preflight would halt
+    # and block submission every day, forever.
+    #
+    # The condition the docstring actually describes is an explained position
+    # CHANGE, not a non-empty position SET — and going flat is a position change.
+    # So adopt when the broker holds explained positions OR when the LEDGER still
+    # holds positions the (strictly-equal) journal says are gone. A flat ledger with
+    # a standalone cash gap still adopts NOTHING and is left to CASH_DRIFT, which is
+    # the mystery this guard exists to protect.
+    ledger_stale_positions = any(int(q) != 0 for q in (ledger.positions() or {}).values())
+    if explained and (bpos or ledger_stale_positions):
         ledger.adopt_broker_truth(bpos, cash=broker_cash, reason=reason)
     return explained
