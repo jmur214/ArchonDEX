@@ -136,3 +136,30 @@ This exact cycle is now the mandatory arming protocol for any account going live
 agentic_v2 when drafted) deliberately NOT built tonight — one fault in flight;
 tomorrow's observation stays on the known rev30 baseline. rev31 = tomorrow
 evening, post-restore.
+
+---
+
+## Drill 6 — OBSERVED + RESTORED — 2026-09-02
+
+| step | detail |
+|---|---|
+| observed (~13:25 CDT) | **PASS**: both 9:45/9:55 runs canonical/clean; local append fine; `pushed=False`; the news block carries `s3_push_failed: news panel did NOT persist to S3 (the forward tape cannot accrue)` — **IN the same-day S3 heartbeat on BOTH accounts** (the T-329d3 tail re-sync proven under deliberate fault; pre-fix this flag died with the container every day) |
+| restored | grant re-added (readback); job-role re-put in template order (the gate's list comparison is ORDER-SENSITIVE — a false-positive class noted for a later gate improvement); drift gate **"No drift"** |
+| tape repair | the one-day hole backfilled via the resumable builder: `news_202609.parquet` rebuilt (490 rows; **240 for the lost day 09-02**) and pushed to the durable S3 partition — the backfill machinery exercised as part of the restore, per the drill's stated cost |
+
+**Drill 6 verdict: PASS.**
+
+### ⚠ Drill-6 COLLATERAL — the scan filed on a zero-document bundle (director dispatch)
+
+The injected fault starved the weekly scan's bundle; provenance:
+`{n_documents: 0, bundle_bytes: 822, reason: 'filed'}` — `n_docs` existed only
+in the post-hoc reason classification, never as a CALL GATE, so the model was
+called on 822 bytes of non-news context and recited its power-buildout priors
+(near-duplicate of the open m-2026-08-19 basket, conv 0.62). **The desk fails
+UNSAFE on input starvation — found by an injected fault instead of a real
+outage: the drill week doing exactly its job.**
+
+| action | detail |
+|---|---|
+| quarantine (same day, before first book intake) | `m-2026-09-02-picks_and_shovels` EXPIRED-with-reason via the existing skip path: appended a superseding quarantine row to the append-only ledger + `expired=[tid]` + a reasoned day-row + `quarantine_notes` in the book state (both in S3). **Mechanically verified**: `_due_theses('2026-09-03')` returns `[]` against the modified state — the book cannot open it |
+| the guard (rev31) | `MIN_SCAN_DOCUMENTS` evidence floor in `run_blind_scan` — refuses to CALL below the floor (clean-skip: no spend, no record_scan, scan stays due and retries when the tape returns). 2 tests incl. the ordering lock (floor before governor). Deeper spec (higher floor + duplicate detection) → D |
