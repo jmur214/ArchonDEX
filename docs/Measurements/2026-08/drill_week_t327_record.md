@@ -163,3 +163,83 @@ outage: the drill week doing exactly its job.**
 |---|---|
 | quarantine (same day, before first book intake) | `m-2026-09-02-picks_and_shovels` EXPIRED-with-reason via the existing skip path: appended a superseding quarantine row to the append-only ledger + `expired=[tid]` + a reasoned day-row + `quarantine_notes` in the book state (both in S3). **Mechanically verified**: `_due_theses('2026-09-03')` returns `[]` against the modified state — the book cannot open it |
 | the guard (rev31) | `MIN_SCAN_DOCUMENTS` evidence floor in `run_blind_scan` — refuses to CALL below the floor (clean-skip: no spend, no record_scan, scan stays due and retries when the tape returns). 2 tests incl. the ordering lock (floor before governor). Deeper spec (higher floor + duplicate detection) → D |
+
+---
+
+## 🔴 INCIDENT — account-3's first FAILED run (2026-09-03) — the drill week's best find, unplanned
+
+**Not a drill. The AI's own decision produced it**, and the machinery the drill
+week has been proving is what caught it.
+
+The 09-02 note took the account to zero (`{AGG: 0.0, GLD: 0.0, SPY: 0.05}` →
+sell 5 AGG, 1 GLD, 1 SPY). The fills executed at the broker; **the ledger never
+learned.** Reconcile caught it on the first post-submit cycle:
+
+```
+reconcile_1  cash_drift      halt  ledger cash 98,377.56 vs broker 100,041.66 (gap 1,664.10)
+             position_drift  halt  AGG ledger 5 vs broker 0
+             position_drift  halt  GLD ledger 1 vs broker 0
+             position_drift  halt  SPY ledger 1 vs broker 0
+→ NON-CANONICAL "reconcile 1/3; halted" → exit 70 → Batch FAILED → alarm
+```
+
+The gap is exactly the three sales' proceeds. **The system failed SAFE and LOUD
+— it refused to certify a day whose record it could not vouch for.**
+
+**Root cause** (`held_reconcile.py:82`, `if explained and bpos:`): the ledger has
+**no fill-application path** — `LedgerStore.apply_fill` has ZERO production
+callers. It is not an independent record; it is a MIRROR kept in sync by
+re-adopting broker truth. That adoption was gated on *"are there broker positions
+NOW"*, so it skipped the one case that needs it most: an account our own fills
+took FLAT. Six prior trading days looked clean only because each ended non-empty
+— **the agreement was tautological, not evidence.**
+
+**The wedge (why it mattered):** with the broker flat, every later run would skip
+adoption too, so preflight would halt and BLOCK submission **every day, forever**.
+It could not self-heal.
+
+**The fix** (merge-ready, NOT aboard rev31): the condition the docstring actually
+describes is an explained position **CHANGE**, not a non-empty position **SET** —
+and going flat is a position change. Adopt when the broker holds explained
+positions **or** the ledger still holds positions the strictly-equal journal says
+are gone. A flat ledger with a *standalone* cash gap still adopts nothing and is
+left to CASH_DRIFT — the mystery the guard exists to protect, locked by its own
+test. Lock proven by reversion; pre-existing reconciliation suite green.
+
+**Self-heal verified against the real artifacts, not predicted:** the live journal
+nets to `{}`, which equals the flat broker, so `explained` is True and the ledger
+is stale ⇒ the next run's start-of-run adoption converges it **through the
+machine's own documented path**. No hand-editing of a forward record.
+
+**Flagged, not fixed here:** that the ledger never applies fills at all is a
+design question — it means the ledger cannot independently detect a broker-side
+error, which is the thing a ledger is *for*. Scope for the director.
+
+---
+
+## rev31 DEPLOYED — 2026-09-03 evening
+
+Image `paper-sha-55ef859` **from merged main** (the branch-build rule held: the
+incident fix is on my branch only and is therefore deliberately NOT aboard —
+stated, not hidden). In-container verified: fleet kill switch (opt-in set
+retired) · digest Friday step · advisor step · census at tail · tail re-sync ·
+`daily_agentic_v2` (SHA `c1a3ac1e52add266…` matching repo) · `daily_v4` ·
+evidence floor **after** the firewall · floor self-explaining · artifact_paths ·
+short-truncation fix · PIT parquet.
+
+Fleet: acct-1 `:31` ENABLED · offense-sso `:13` DISABLED with **alarms SUPPRESSED
+(dormant)** — the 08-28 ruling rendering correctly on its first provisioner
+exercise · ai-trader `:4` ENABLED (live state preserved). IAM 0 added / 0 revoked.
+**Drift gate: no drift.**
+
+**Agentic open date stamped at deploy: 2026-09-04** ⇒ common-window start for the
+paired book comparison (per A's binding condition).
+
+### Friday 2026-09-04 — the pre-stated reads
+1. **DIGEST** line fires for the first time (Friday cadence).
+2. **ADVISOR** renders its second memo (artifact reads 08-27 → new month).
+3. **rev31 verify** on the scheduled principal.
+4. **Agentic v2's first note** — the channel opens; T-342 liveness should flip
+   `hypothetical_actions/llm_shadow_book(agentic)` off NEVER_ALIVE in the days after.
+5. **⚠ acct-3 will FAIL AGAIN** (wedged; fix not aboard) — *expected and explained*,
+   not a new finding. It unwedges on the rev that carries the incident fix.

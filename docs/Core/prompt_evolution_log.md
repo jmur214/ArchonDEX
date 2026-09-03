@@ -221,6 +221,15 @@ production digest. Leaving v1 in place would re-run a known-dead measurement.
   skill (T-323 §1.3, the different-windows error).
 - **Record the agentic open date here when E deploys**, so the common-window start is a
   stamped fact rather than a later reconstruction.
+  - ✅ **STAMPED AT DEPLOY (E, 2026-09-03): the agentic channel opens 2026-09-04.**
+    rev31 (`paper-sha-55ef859`) was deployed the evening of 2026-09-03 with the
+    caller on `daily_agentic/v2`, so the FIRST note written under v2 is the
+    2026-09-04 09:45 ET scheduled pulse. This is the deploy-day fact, not a
+    reconstruction: the image was verified in-container to carry
+    `daily_agentic_v2.md` at SHA-256 `c1a3ac1e52add266…`, matching the repo.
+  - **⇒ COMMON-WINDOW START = 2026-09-04** (the later of 2026-08-18 constrained and
+    2026-09-04 agentic). Any paired book-vs-book directional comparison that begins
+    earlier than this date is measuring the constrained arm's head start, not skill.
 - **The T-323 tie-break is unchanged: no difference proven ⇒ KEEP THE CONSTRAINED ARM.**
   Opening the channel makes the comparison possible; it does not presume its outcome.
 
