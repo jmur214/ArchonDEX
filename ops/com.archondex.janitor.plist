@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Phase-6 rung 0 — the nightly janitor.
+
+  NOT LOADED BY THE AGENT. Installing a schedule is a deploy-shaped action, and the
+  pre-statement puts deploys on the propose-first list. This file is the artifact to
+  review; the director/user installs it:
+
+      cp ops/com.archondex.janitor.plist ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.archondex.janitor.plist
+      launchctl list | grep archondex.janitor          # verify it is registered
+
+  Per [NN-FIRST-ARTIFACT], verify on the NEXT SCHEDULED FIRING, never a manual run —
+  a manual invocation proves the script, not the schedule (the 2026-07-13 silent
+  outage was exactly this gap).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.archondex.janitor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonmurphy/Dev/trading_machine-agent-b/scripts/run_janitor_nightly.sh</string>
+    </array>
+    <!-- 03:00 local: after the 18:30 archivers, well before the 09:45 ET pulse. -->
+    <key>StartCalendarInterval</key>
+    <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+    <key>RunAtLoad</key><false/>
+    <key>StandardOutPath</key><string>/Users/jacksonmurphy/Dev/trading_machine-agent-b/data/logs/janitor/launchd.out</string>
+    <key>StandardErrorPath</key><string>/Users/jacksonmurphy/Dev/trading_machine-agent-b/data/logs/janitor/launchd.err</string>
+</dict>
+</plist>

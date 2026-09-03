@@ -40,7 +40,14 @@ from scripts.janitor_guard import vet_branch                      # noqa: E402
 REPORT = ROOT / "docs/State/janitor_report.md"
 LEDGER = ROOT / "data/state/autonomy_ledger.jsonl"
 MERGE_REQUESTS = ROOT / "data/coordination/janitor_merge_requests.md"
-PY = str(ROOT / ".venv/bin/python")          # never a bare `python` — launchd has no PATH
+# THE INTERPRETER. Never a bare `python` (launchd has no PATH), and never a
+# hardcoded ROOT/.venv either: worktrees do not each carry a venv, and this module
+# ran first on a worktree that has none — the same interpreter-resolution class the
+# WRAPPER was already hardened against, reintroduced one layer down. sys.executable
+# is the interpreter already running us, so it is correct by construction in every
+# worktree, venv, and launchd context. (Caught by the janitor's own first run:
+# 22 tests green, integration dead on first contact — `[NN-FIRST-ARTIFACT]`.)
+PY = sys.executable
 FAST_SUITE = ["-q", "-p", "no:randomly", "-m", "not slow"]
 
 
