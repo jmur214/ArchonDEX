@@ -158,19 +158,6 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     month = str(now_iso)[:7]
     n_docs = len(news or []) + len(events or [])     # what the generator actually sees
 
-    # 0. THE EVIDENCE FLOOR (T-327 drill-6 collateral, 2026-09-02): n_docs was
-    # computed here and then used only for the POST-HOC reason classification —
-    # the call itself was never gated. When the injected news fault starved the
-    # tape, the scan called the model on 822 bytes of non-news context and it
-    # FILED A PRIOR-RECITATION (evidence-free near-duplicate of an open basket;
-    # quarantined same day). Refusing the call is the only honest output. Same
-    # clean-skip shape as a governor refusal: no spend, no record_scan — the scan
-    # stays due and retries when the tape returns.
-    if n_docs < MIN_SCAN_DOCUMENTS:
-        return BlindScanResult(
-            skip_reason=f"skipped:evidence_floor:n_documents={n_docs}<{MIN_SCAN_DOCUMENTS}",
-            reason="empty_bundle", n_documents=n_docs)
-
     # 1. governor / kill switch — no call on refusal
     decision = governor.check(month, projected_cost_usd)
     if not decision.allowed:
@@ -184,7 +171,44 @@ def run_blind_scan(as_of: str, *, model_call: ModelCall, governor: CostGovernor,
     # A FirewallBreach here is a BUILD BUG (our own data leaked a user seed) — let it raise.
     bundle = build_scan_bundle(as_of, news=news, events=events, rate_path=rate_path,
                                universe_hint=universe_hint, ledger=ledger)
+
+    # 3b. THE EVIDENCE FLOOR (T-327 drill-6 collateral) — DELIBERATELY AFTER the
+    # firewall, and the ordering is the whole point. n_docs used to be computed
+    # only for the POST-HOC reason classification, so the call was never gated:
+    # when the injected news fault starved the tape, the scan called the model on
+    # 822 bytes of non-news context and it FILED A PRIOR-RECITATION (an
+    # evidence-free near-duplicate of an open basket, quarantined same day).
+    # But B's catch (2026-09-02) is the sharper half: the floor first shipped
+    # ABOVE the bundle build, so a POISONED-BUT-THIN bundle would have
+    # clean-skipped instead of raising — a fail-open skip swallowing the one
+    # fail-CLOSED check in the pulse. A BREACH ALWAYS OUT-RANKS A SKIP: the
+    # firewall runs first (inside build_scan_bundle) and propagates; only then
+    # may a thin bundle refuse the call. The refusal keeps its clean-skip shape —
+    # no spend, no record_scan, so the scan stays due and retries when the tape
+    # returns.
     prov = scan_provenance(as_of, path=scan_state, inbox=inbox)   # stamp blindness BEFORE the call
+    if n_docs < MIN_SCAN_DOCUMENTS:
+        # SELF-EXPLAINING, per T-325: the refusal still writes its provenance row, so
+        # an evidence-starved day leaves a durable trace instead of vanishing — a
+        # silent zero is the very class T-325 closed. What it does NOT do is
+        # ``record_scan``: the cadence is untouched, so the scan stays DUE and retries
+        # when the tape returns. Explaining the zero and advancing the clock are two
+        # different acts, and only the second one would be a lie here.
+        bundle_bytes = len(_canonical_json(bundle).encode("utf-8"))
+        prov_log.parent.mkdir(parents=True, exist_ok=True)
+        with prov_log.open("a") as fh:
+            fh.write(json.dumps({**prov, "n_filed": 0, "n_rejected": 0,
+                                 "n_theses_seen": 0, "n_documents": n_docs,
+                                 "bundle_bytes": bundle_bytes, "reason": "empty_bundle",
+                                 "call_made": False,
+                                 "skip_reason": f"evidence_floor:n_documents={n_docs}"
+                                                f"<{MIN_SCAN_DOCUMENTS}"},
+                                default=str) + "\n")
+        return BlindScanResult(
+            skip_reason=f"skipped:evidence_floor:n_documents={n_docs}<{MIN_SCAN_DOCUMENTS}",
+            provenance=prov, reason="empty_bundle", n_documents=n_docs,
+            bundle_bytes=bundle_bytes)
+
     bundle_json = _canonical_json(bundle)
     bundle_bytes = len(bundle_json.encode("utf-8"))
     bundle_sha = _sha256(bundle_json)
