@@ -175,19 +175,11 @@ def test_news_clock_misses_when_row_freshness_cannot_be_verified(tmp_path):
     pytest.importorskip("pyarrow")
     import pyarrow as pa, pyarrow.parquet as pq
     today = dt.date.today().isoformat()
-<<<<<<< HEAD
-    d = tmp_path / "data/intel/news_panel"
-    d.mkdir(parents=True)
-    fn = f"news_{dt.date.today():%Y%m}.parquet"     # today's month, not a hardcoded one
-    pq.write_table(pa.table({"headline": ["h"]}), d / fn)  # no stamp col
-    os.utime(d / fn, None)
-=======
     from paper_trader.cloud_state import CloudState
     f = tmp_path / CloudState._news_rel(int(today[:4]), int(today[5:7]))
     f.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.table({"headline": ["h"]}), f)          # no ingest stamp column
     os.utime(f, None)
->>>>>>> feature/buyhold-spread-prereg-t349
     r = _news_month_pushed(tmp_path, today)
     assert r.status == MISS and "UNVERIFIED" in r.detail
 
