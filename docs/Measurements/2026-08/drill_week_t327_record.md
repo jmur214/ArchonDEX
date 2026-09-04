@@ -243,3 +243,42 @@ paired book comparison (per A's binding condition).
    `hypothetical_actions/llm_shadow_book(agentic)` off NEVER_ALIVE in the days after.
 5. **⚠ acct-3 will FAIL AGAIN** (wedged; fix not aboard) — *expected and explained*,
    not a new finding. It unwedges on the rev that carries the incident fix.
+
+---
+
+## rev32 DEPLOYED — 2026-09-03 evening (the one-rider surgical rev)
+
+Image `paper-sha-fcfb6f5` **from merged main** (the rule held both ways: the fix
+waited for the merge, and the rev carries exactly one rider). Deployed acct-1
+`:32` (image-only swap off LIVE `:31`), offense-sso `:14`, ai-trader `:5`; all
+schedules readback-verified ENABLED/DISABLED as before, revision-pinned, DLQ +
+fast-fail intact. IAM 0/0. **Drift gate: no drift.**
+
+**The fix was verified BEHAVIOURALLY inside the container, not by grep** — the
+incident's own numbers replayed through `adopt_explained_broker_truth`:
+
+```
+ledger {AGG:5, GLD:1, SPY:1} cash 98,377.56 · broker {} cash 100,041.66
+→ explained=True · adopted=True (was False = the wedge)
+→ ledger positions {} · ledger cash 100,041.66     WEDGE CLEARED: True
+```
+
+### 🔔 Unplanned alarm proof — the non-canonical alarm's FIRST REAL FIRING
+
+`archondex-paper-ai-trader-non-canonical` went **ALARM at 2026-09-03 08:58:41
+CDT** (`PaperRunCanonical=0`), actions **enabled**. Drill 3 proved a dead-man
+alarm could transition on a synthetic datapoint; this is the *other* fleet alarm
+proving itself **on a real defect, unprompted**. Its return to OK on the first
+canonical run is now also the self-heal's own confirmation signal.
+
+### Friday 2026-09-04 — the five reads, updated for rev32
+
+1. **DIGEST** fires for the first time (Friday cadence).
+2. **ADVISOR** renders its second memo (artifact reads 08-27 → new month).
+3. **rev32 verify** on the scheduled principal.
+4. **Agentic v2's first note** — channel opens; common-window start = 2026-09-04.
+5. **acct-3 SELF-HEALS** (superseding yesterday's "will fail again"): start-of-run
+   adoption converges the stale ledger to the flat broker through the machine's
+   own documented path, preflight reads clean, the run trades normally, and
+   `ai-trader-non-canonical` returns **ALARM → OK**. If it does NOT, the fix is
+   wrong and the wedge is deeper than diagnosed — stated in advance either way.
