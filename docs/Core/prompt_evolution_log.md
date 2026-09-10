@@ -240,3 +240,67 @@ revert = point the agentic `prompt_path`/`prompt_version` back at v1. One edit.
 automatically. v1 and v2 agentic notes must **never be pooled** in a book comparison;
 prediction-side pooling is acceptable *only* because the predictions contract is
 byte-identical — and even then the record segments by version by construction.
+
+---
+
+## `analyst_input/agentic` — the PRICE-BLINDNESS repair (evidence 2026-09-09, ruling 2026-09-09, E/T-327j)
+
+**Not a prompt version — an INFORMATION-SET change**, stamped here because the
+director's ruling put it under the same doctrine: *"the fix deploys as an
+information-set change with its own provenance stamp."* No prompt file moves.
+
+**Scope of change:** `scripts/build_paper_image.sh` stages
+`data/processed/tr_reconciled/` (39 files, ~23 MB) into the paper image,
+fail-closed; `agentic_readers.query_prices` prepends a **coverage marker** stating
+`last_available` / `as_of` / `staleness_days`. No prompt, no schema, no firewall,
+no allocator touched. The constrained arm is unaffected — it never had this tool.
+
+**Trigger (the three-way proof, none of it requiring a container):**
+1. `build_paper_image.sh` stages code+config with **"no data substrate"** (one PIT
+   parquet excepted);
+2. `query_prices` reads **only** `data/processed/tr_reconciled/<T>_1d.csv`;
+3. that path is in **neither** `DURABLE_PATHS` nor `DURABLE_DIRS`, and nothing in
+   the runner or entrypoint pulls it.
+
+⇒ the tool returned `[]` on **every call since the agentic arm deployed**. The
+model said so itself, in prose, on the days its notes voided: *"no live price
+feeds available"* (2026-09-04), *"no live price history available as of
+2026-09-09"*. September note yield: constrained 5/6, agentic **4/6**.
+
+**★ The qualification the ruling did not have when it was written:** the substrate
+is **RESEARCH-grade and 110 days stale** — all 39 files end **2026-05-22**.
+Packaging it *alone* would have traded a silent blindness for a silent staleness,
+which is the frozen-price defect `[NN-FIRST-ARTIFACT]` was adopted over. Hence the
+coverage marker: it carries **no `close` key**, so it can never be parsed as a
+price, and it says plainly that the last row is not today's level. **This fixes
+"the tool is empty"; it does NOT deliver a live quote feed** — see the follow-up.
+
+**Pre-stated outcome measure** (written before the first post-fix agentic note):
+1. **Primary (the ruling's own):** `query_prices` returns non-empty in the next
+   agentic note's tool trace.
+2. **The voids stop having this cause:** no agentic note voids with a
+   "no price data" rationale on a day the substrate is present. Other void causes
+   (e.g. the ` ```json ` fence) are a different defect and are NOT counted here.
+3. **Guardrail — no false currency:** no agentic note quotes a `tr_reconciled`
+   close as the *current* price. If one does, the marker is insufficient and the
+   fix is wrong, not merely incomplete.
+4. **Guardrail — the constrained arm does not move.** Its bundle is untouched; a
+   step change in its behaviour at this boundary is a contamination signal.
+5. **Honest null:** if the agentic arm, now fed, still shows no advantage, that is
+   a finding about agency — not a licence to feed it more.
+
+**Revert ID:** drop the `TR_REL` staging block from `build_paper_image.sh` and the
+coverage-marker block from `query_prices`. Both are additive and independent.
+
+**★ Cohort note — THE WINDOW (per the ruling):** the paired **book** comparison's
+common window **re-baselines to this fix's deploy date**, superseding the 09-04
+stamp *for the book comparison only* — "a head start in FEED must not read as
+skill any more than a head start in TIME." The **2026-09-04 stamp REMAINS** as the
+agentic actions-channel open date: history is annotated, never rewritten. The
+prediction/Brier record segments by cohort as always; nothing else moves.
+**Deploy date to be stamped here when rev33 deploys**, as deploy-day fact.
+
+**Follow-up, deliberately NOT bundled:** a genuinely current price path (the pulse
+already fetches live closes from the broker each run; appending them to a
+forward-accruing PIT store would give the agentic arm today's levels honestly).
+That is a new capability, not a blindness repair, and belongs in its own task.

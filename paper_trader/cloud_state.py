@@ -223,6 +223,15 @@ class CloudStateConfig:
         return f"s3://{self.bucket}/{self.prefix}"
 
 
+def _is_denial(stderr: str) -> bool:
+    """AccessDenied / 403 — a LOCKOUT, not a first-run missing key (404 / NoSuchKey).
+    Kept deliberately narrow: anything we cannot positively identify as a denial is
+    treated as the benign missing-key case, so this can never invent an outage."""
+    s = (stderr or "").lower()
+    return ("accessdenied" in s or "access denied" in s
+            or "forbidden" in s or "(403)" in s)
+
+
 class CloudState:
     """Durable-state sync + metric emission. No-ops off-cloud."""
 
@@ -240,7 +249,17 @@ class CloudState:
 
     def pull(self) -> bool:
         """Sync durable state from S3 → local. Returns True if anything
-        was synced; False (clean start / off-cloud) is NOT an error."""
+        was synced; False (clean start / off-cloud) is NOT an error.
+
+        T-327j: a missing key and an AccessDenied BOTH return non-zero, and this
+        method used to treat every non-zero as the benign first-run case. That is
+        the silent-denial shape the T-325 push fix closed on the write side, left
+        open on the read side — and a denied READ is *worse* than a denied write:
+        the run continues from empty/stale state and every held position reads as
+        unexplained. Denials are now separated from missing keys and recorded in
+        ``self.pull_denied`` for the caller to treat as the integrity failure it is.
+        A missing key stays benign, because a first run genuinely has no state."""
+        self.pull_denied: List[str] = []
         if not self.cfg.enabled:
             return False
         synced = False
@@ -251,6 +270,8 @@ class CloudState:
                           "--no-progress")
             if r.returncode == 0:
                 synced = True
+            elif _is_denial(r.stderr):
+                self.pull_denied.append(rel)
             # a missing key (first run) returns non-zero — that is FINE.
         for rel in DURABLE_DIRS:                       # T-310: whole-dir sync
             local = self.root / rel

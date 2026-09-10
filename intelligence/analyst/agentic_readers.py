@@ -156,8 +156,28 @@ def build_readers(root: Union[str, Path],
             if dto is not None:
                 mask &= ddate <= dto
             sub = df.assign(_d=ddate, _c=close)[mask].sort_values("_d").tail(MAX_ROWS)
-            return [{"date": str(r["_d"]), "close": round(float(r["_c"]), 6)}
+            rows = [{"date": str(r["_d"]), "close": round(float(r["_c"]), 6)}
                     for _, r in sub.iterrows()]
+            if not rows:
+                return []
+            # T-327j — STATE THE COVERAGE, never let staleness pass as currency.
+            # This store is RESEARCH-grade (the T-256 TR-reconciled unlock) and its
+            # newest row can be far behind `as_of` — 110 days behind on the day this
+            # was written. Handing back a bare series invites the model to read the
+            # last close as "today's price", which is the frozen-price defect
+            # [NN-FIRST-ARTIFACT] was adopted over. The marker carries NO `close`
+            # key, so it can never be parsed as a price, and it mirrors the
+            # `coverage` idiom the news section already uses.
+            newest = rows[-1]["date"]
+            stale_days = (as_of_date - dt.date.fromisoformat(newest)).days
+            return [{"coverage": "price history for %s" % ticker,
+                     "last_available": newest, "as_of": str(as_of_date),
+                     "staleness_days": int(stale_days), "n_rows": len(rows),
+                     "note": ("RESEARCH substrate, NOT a live quote feed. The last row "
+                              "is %s, %d day(s) before as_of — do NOT treat it as the "
+                              "current price. Use this for history and how comparable "
+                              "setups resolved, not for today's level."
+                              % (newest, stale_days))}] + rows
         except Exception:  # noqa: BLE001
             return []
 

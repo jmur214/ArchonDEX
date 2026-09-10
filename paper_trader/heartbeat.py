@@ -271,6 +271,21 @@ class PaperHeartbeat:
         status["exec_cost"] = block
         self._atomic_write(self.status_path, status)
 
+    def record_halt(self, halted: bool, reason: Optional[str] = None) -> None:
+        """T-327j — the TRADING KILL SWITCH's status, on EVERY account.
+
+        rev31 made the kill switch a fleet property; its VISIBILITY stayed
+        account-3-only (`streams.llm_analyst`), and the top-level ``halted`` is the
+        *reconcile* halt — a different control that happens to share the word. So an
+        operator who dropped the halt object on account 1 or 2 saw
+        ``canonical/alive, alert=False`` and got no confirmation the control was in
+        force. A control you cannot observe is a control you cannot trust."""
+        status = self._read_status() or {}
+        status["trading_halt"] = {"halted": bool(halted),
+                                  "reason": reason or None,
+                                  "checked_at": _utcnow_iso()}
+        self._atomic_write(self.status_path, status)
+
     def record_stream(self, label: str, block: Dict[str, Any]) -> None:
         """T-329: stamp a decision-STREAM's own daily verdict onto the status file
         under ``streams.<label>`` (account-3 day-1: the LLM analyst). Report-only —

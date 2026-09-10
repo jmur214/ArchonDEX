@@ -46,6 +46,28 @@ mkdir -p "$STAGE/$(dirname "$PIT_REL")"
 cp "$PIT_SRC" "$STAGE/$PIT_REL"
 echo "[paper-build] staged $PIT_REL ($(wc -c < "$PIT_SRC" | tr -d ' ') bytes, sha256 $(shasum -a 256 "$PIT_SRC" | cut -c1-16)…)"
 
+# T-327j: the PRICE SUBSTRATE for the agentic analyst's `query_prices` tool.
+# Without it the tool returns [] on EVERY call — which is exactly what happened
+# from the agentic arm's deploy until 2026-09-09: the image ships no data
+# substrate, `data/processed/` is in neither DURABLE_PATHS nor DURABLE_DIRS, and
+# nothing pulls it, so the A/B's *treatment* arm — whose whole thesis is "a trader
+# INVESTIGATES" — investigated with an empty price store and said so in prose
+# ("no live price feeds available"), voiding notes. Same class as the PIT parquet
+# above: a data file git-archive cannot carry, so stage it explicitly.
+# FAIL-CLOSED: refuse to build rather than ship the blindness again.
+TR_REL="data/processed/tr_reconciled"
+TR_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/$TR_REL"
+[ -d "$TR_SRC" ] && [ -n "$(ls -A "$TR_SRC" 2>/dev/null)" ] || {
+    echo "[paper-build] ERROR: missing $TR_REL — the agentic analyst's query_prices" \
+         "would return [] on every call (the T-327j blindness). Refusing to build." >&2
+    exit 67
+}
+mkdir -p "$STAGE/$TR_REL"
+cp "$TR_SRC"/*.csv "$STAGE/$TR_REL"/
+echo "[paper-build] staged $TR_REL ($(ls "$TR_SRC"/*.csv | wc -l | tr -d ' ') files, \
+$(du -sh "$TR_SRC" | cut -f1 | tr -d ' ')); NOTE: this substrate is RESEARCH-grade and \
+its own last row is the coverage bound query_prices reports — it is not a live quote feed."
+
 echo "[paper-build] docker build (registry-direct, linux/arm64)"
 # --platform arm64: the Fargate fleet is ARM64 (same as the backtest infra).
 # --provenance/--sbom=false: attestation manifests confuse Fargate's pull.
