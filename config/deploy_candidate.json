@@ -1,0 +1,12 @@
+{
+  "_doc": "T-350 / Act 2 — the DEPLOY-CANDIDATE allocation. The approved plan gives RANGES (VOO core ~80-85%, MTUM satellite 15-20%), so the exact split is a judgement inside an approved envelope and lives HERE, changeable without a code deploy. The default sits at the CONSERVATIVE end on non-data grounds: T-318/T-320 found long-only momentum the only CI-significant tilt but with ~half its premium decayed, so the smallest approved dose. Bands are in SHARE QUANTA, not percentage points, because a band below the trade quantum cannot bind (T-297's argument) — at a $10k budget one VOO share is ~6% of the book and one MTUM share ~2.3%, so a flat deadband would mean two different things. buy_quanta > sell_quanta is the buy/hold spread: stricter to add than to trim. NOTHING here is fitted to data.",
+  "core":      {"ticker": "VOO",  "weight": 0.85},
+  "satellite": {"ticker": "MTUM", "weight": 0.15},
+  "cash_ticker": "SGOV",
+  "bands": {
+    "buy_quanta": 1.5,
+    "sell_quanta": 1.0,
+    "max_drift": 0.10,
+    "_doc": "buy/sell in share-quanta of the instrument governed; max_drift is the absolute-weight backstop that binds regardless of quantum."
+  }
+}
