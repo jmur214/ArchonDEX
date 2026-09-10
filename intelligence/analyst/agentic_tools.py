@@ -121,6 +121,9 @@ class AgenticTools:
     whose reader was supplied are offered to the model."""
     readers: Dict[str, Reader]
     trace: List[ToolCallRecord] = field(default_factory=list)
+    # T-327j: {tool_name: fn} describing what a tool CANNOT answer. Never offered as
+    # tools (specs() reads _TOOL_SPECS ∩ readers); appended to the rendered result.
+    coverage: Dict[str, Reader] = field(default_factory=dict)
 
     def specs(self) -> List[Dict[str, Any]]:
         """The Messages-API ``tools`` array — only the tools we have a reader for."""
@@ -141,6 +144,19 @@ class AgenticTools:
             text = json.dumps(scrubbed, default=str)
             if len(text) > MAX_RESULT_CHARS:
                 text = text[:MAX_RESULT_CHARS] + f"\n…[truncated at {MAX_RESULT_CHARS} chars]"
+            # T-327j — attach a tool's COVERAGE statement, when it registers one.
+            # Registry-driven (a separate `coverage` map), so the dispatcher stays generic
+            # and no tool is special-cased here. This is how `query_prices` tells the
+            # model that a RESEARCH substrate's last row is not today's price —
+            # honesty the reader cannot carry without bending its row contract.
+            cov_fn = self.coverage.get(name)
+            if cov_fn is not None:
+                try:
+                    cov = cov_fn(dict(tool_input) if isinstance(tool_input, dict) else {})
+                    if cov:
+                        text += "\n[coverage] " + json.dumps(_scrub(cov), default=str)
+                except Exception:  # noqa: BLE001 — coverage never breaks a tool call
+                    pass
             self.trace.append(ToolCallRecord(name, tool_input, False, n_results=n))
             return text, False
         except Exception as exc:   # noqa: BLE001 — fail-closed, the model sees an error result

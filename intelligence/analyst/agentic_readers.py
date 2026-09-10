@@ -156,28 +156,8 @@ def build_readers(root: Union[str, Path],
             if dto is not None:
                 mask &= ddate <= dto
             sub = df.assign(_d=ddate, _c=close)[mask].sort_values("_d").tail(MAX_ROWS)
-            rows = [{"date": str(r["_d"]), "close": round(float(r["_c"]), 6)}
+            return [{"date": str(r["_d"]), "close": round(float(r["_c"]), 6)}
                     for _, r in sub.iterrows()]
-            if not rows:
-                return []
-            # T-327j — STATE THE COVERAGE, never let staleness pass as currency.
-            # This store is RESEARCH-grade (the T-256 TR-reconciled unlock) and its
-            # newest row can be far behind `as_of` — 110 days behind on the day this
-            # was written. Handing back a bare series invites the model to read the
-            # last close as "today's price", which is the frozen-price defect
-            # [NN-FIRST-ARTIFACT] was adopted over. The marker carries NO `close`
-            # key, so it can never be parsed as a price, and it mirrors the
-            # `coverage` idiom the news section already uses.
-            newest = rows[-1]["date"]
-            stale_days = (as_of_date - dt.date.fromisoformat(newest)).days
-            return [{"coverage": "price history for %s" % ticker,
-                     "last_available": newest, "as_of": str(as_of_date),
-                     "staleness_days": int(stale_days), "n_rows": len(rows),
-                     "note": ("RESEARCH substrate, NOT a live quote feed. The last row "
-                              "is %s, %d day(s) before as_of — do NOT treat it as the "
-                              "current price. Use this for history and how comparable "
-                              "setups resolved, not for today's level."
-                              % (newest, stale_days))}] + rows
         except Exception:  # noqa: BLE001
             return []
 
@@ -330,3 +310,31 @@ def build_readers(root: Union[str, Path],
         "query_own_notes": query_own_notes,
         "query_resolved_predictions": query_resolved_predictions,
     }
+
+
+def build_coverage(root: Union[str, Path], as_of: Union[str, dt.date]) -> Dict[str, Reader]:
+    """T-327j — COVERAGE functions, keyed by the tool they describe. Deliberately a
+    SEPARATE factory from ``build_readers``: that one's output is guarded as an exact
+    six-key allowlist (the tool surface), and a coverage helper is not a tool. These
+    never reach ``specs()``; ``AgenticTools`` appends their output to the rendered
+    result so a tool can state what it cannot answer."""
+    readers = build_readers(root, as_of)
+    as_of_date = as_of if isinstance(as_of, dt.date) else dt.date.fromisoformat(str(as_of)[:10])
+
+    def price_coverage(inp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            rows = readers["query_prices"](inp)
+            if not rows:
+                return None
+            newest = rows[-1]["date"]
+            stale = (as_of_date - dt.date.fromisoformat(newest)).days
+            return {"last_available": newest, "as_of": str(as_of_date),
+                    "staleness_days": int(stale),
+                    "note": ("RESEARCH substrate, NOT a live quote feed. The last row is "
+                             "%s, %d day(s) before as_of — do NOT treat it as the current "
+                             "price. Use it for history and how comparable setups "
+                             "resolved, not for today's level." % (newest, stale))}
+        except Exception:  # noqa: BLE001
+            return None
+
+    return {"query_prices": price_coverage}

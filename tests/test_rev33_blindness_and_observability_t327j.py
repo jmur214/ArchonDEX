@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from intelligence.analyst.agentic_readers import build_readers
+from intelligence.analyst.agentic_readers import build_coverage, build_readers
 from paper_trader.cloud_state import _is_denial
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,24 +37,54 @@ def test_query_prices_returns_rows_when_the_substrate_is_present(tmp_path):
     assert [x for x in r if "close" in x], "the price rows are the whole point"
 
 
-def test_query_prices_states_its_coverage_and_cannot_be_read_as_a_quote(tmp_path):
+def test_query_prices_keeps_its_pure_row_contract(tmp_path):
+    """The coverage rides as PRESENTATION, not inside the reader's rows — the
+    homogeneous-row contract predates this fix and its PIT test stays untouched."""
     r = build_readers(str(_price_root(tmp_path)), "2026-09-09")["query_prices"]({"ticker": "SPY"})
-    marker = r[0]
-    assert "close" not in marker, "a coverage marker must never parse as a price"
-    assert marker["last_available"] == "2026-05-22" and marker["as_of"] == "2026-09-09"
-    assert marker["staleness_days"] == 110
-    assert "NOT a live quote feed" in marker["note"]
+    assert all(set(x) == {"date", "close"} for x in r)
+
+
+def test_the_model_is_told_the_substrate_is_stale_not_current(tmp_path):
+    from intelligence.analyst.agentic_tools import AgenticTools
+    root = str(_price_root(tmp_path))
+    tools = AgenticTools(readers=build_readers(root, "2026-09-09"),
+                         coverage=build_coverage(root, "2026-09-09"))
+    text, is_err = tools.execute("query_prices", {"ticker": "SPY"})
+    assert is_err is False
+    assert '"close": 102.5' in text                      # the data still arrives
+    assert "[coverage]" in text and '"staleness_days": 110' in text
+    assert "NOT a live quote feed" in text
+
+
+def test_coverage_is_never_offered_as_a_tool_and_readers_stay_six(tmp_path):
+    """Both pre-existing guards hold UNMODIFIED: build_readers' exact six-key
+    allowlist, and the tool surface the model is offered."""
+    from intelligence.analyst.agentic_tools import AgenticTools
+    root = str(_price_root(tmp_path))
+    assert len(build_readers(root, "2026-09-09")) == 6
+    tools = AgenticTools(readers=build_readers(root, "2026-09-09"),
+                         coverage=build_coverage(root, "2026-09-09"))
+    assert "query_prices" in {s["name"] for s in tools.specs()}
+    assert len(tools.specs()) == 6
 
 
 def test_a_fresh_substrate_reports_zero_staleness(tmp_path):
-    r = build_readers(str(_price_root(tmp_path, last="2026-09-09")),
-                      "2026-09-09")["query_prices"]({"ticker": "SPY"})
-    assert r[0]["staleness_days"] == 0
+    from intelligence.analyst.agentic_tools import AgenticTools
+    root = str(_price_root(tmp_path, last="2026-09-09"))
+    tools = AgenticTools(readers=build_readers(root, "2026-09-09"),
+                         coverage=build_coverage(root, "2026-09-09"))
+    text, _ = tools.execute("query_prices", {"ticker": "SPY"})
+    assert '"staleness_days": 0' in text
 
 
-def test_a_missing_substrate_still_returns_empty_not_a_bare_marker(tmp_path):
-    """No data must stay honestly empty — never a marker implying coverage."""
+def test_a_missing_substrate_stays_honestly_empty_with_no_coverage_claim(tmp_path):
+    """No data must stay empty — and must NOT emit a coverage line implying any."""
+    from intelligence.analyst.agentic_tools import AgenticTools
     assert build_readers(str(tmp_path), "2026-09-09")["query_prices"]({"ticker": "SPY"}) == []
+    tools = AgenticTools(readers=build_readers(str(tmp_path), "2026-09-09"),
+                         coverage=build_coverage(str(tmp_path), "2026-09-09"))
+    text, _ = tools.execute("query_prices", {"ticker": "SPY"})
+    assert "[coverage]" not in text
 
 
 def test_the_image_build_refuses_to_ship_the_blindness_again():
