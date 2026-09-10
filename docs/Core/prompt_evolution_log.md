@@ -298,7 +298,18 @@ stamp *for the book comparison only* — "a head start in FEED must not read as
 skill any more than a head start in TIME." The **2026-09-04 stamp REMAINS** as the
 agentic actions-channel open date: history is annotated, never rewritten. The
 prediction/Brier record segments by cohort as always; nothing else moves.
-**Deploy date to be stamped here when rev33 deploys**, as deploy-day fact.
+✅ **STAMPED AT DEPLOY (E, 2026-09-10): rev33 = `paper-sha-7021abc`, deployed the
+afternoon of 2026-09-10** (acct-1 jobdef `:33`, ai-trader `:6`, offense-sso `:15`;
+drift gate clean). Verified IN-CONTAINER before the deploy, not assumed: the
+substrate is present (39 files), `query_prices` returns **50 rows where it
+returned 0**, the coverage line attaches reporting `staleness_days: 111`, and the
+tool surface is still exactly 6. **The first agentic note written under the fed
+tool is the 2026-09-11 09:45 ET pulse.**
+
+⇒ **BOOK-COMPARISON COMMON WINDOW = 2026-09-11** (the later of the two arms'
+full-feed dates), superseding the 09-04 stamp *for the book comparison only*. The
+**2026-09-04 actions-channel open date REMAINS** — history annotated, never
+rewritten. The prediction/Brier record segments by cohort as always.
 
 **Follow-up, deliberately NOT bundled:** a genuinely current price path (the pulse
 already fetches live closes from the broker each run; appending them to a
