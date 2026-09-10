@@ -243,3 +243,148 @@ paired book comparison (per A's binding condition).
    `hypothetical_actions/llm_shadow_book(agentic)` off NEVER_ALIVE in the days after.
 5. **⚠ acct-3 will FAIL AGAIN** (wedged; fix not aboard) — *expected and explained*,
    not a new finding. It unwedges on the rev that carries the incident fix.
+
+---
+
+## rev32 DEPLOYED — 2026-09-03 evening (the one-rider surgical rev)
+
+Image `paper-sha-fcfb6f5` **from merged main** (the rule held both ways: the fix
+waited for the merge, and the rev carries exactly one rider). Deployed acct-1
+`:32` (image-only swap off LIVE `:31`), offense-sso `:14`, ai-trader `:5`; all
+schedules readback-verified ENABLED/DISABLED as before, revision-pinned, DLQ +
+fast-fail intact. IAM 0/0. **Drift gate: no drift.**
+
+**The fix was verified BEHAVIOURALLY inside the container, not by grep** — the
+incident's own numbers replayed through `adopt_explained_broker_truth`:
+
+```
+ledger {AGG:5, GLD:1, SPY:1} cash 98,377.56 · broker {} cash 100,041.66
+→ explained=True · adopted=True (was False = the wedge)
+→ ledger positions {} · ledger cash 100,041.66     WEDGE CLEARED: True
+```
+
+### 🔔 Unplanned alarm proof — the non-canonical alarm's FIRST REAL FIRING
+
+`archondex-paper-ai-trader-non-canonical` went **ALARM at 2026-09-03 08:58:41
+CDT** (`PaperRunCanonical=0`), actions **enabled**. Drill 3 proved a dead-man
+alarm could transition on a synthetic datapoint; this is the *other* fleet alarm
+proving itself **on a real defect, unprompted**. Its return to OK on the first
+canonical run is now also the self-heal's own confirmation signal.
+
+### Friday 2026-09-04 — the five reads, updated for rev32
+
+1. **DIGEST** fires for the first time (Friday cadence).
+2. **ADVISOR** renders its second memo (artifact reads 08-27 → new month).
+3. **rev32 verify** on the scheduled principal.
+4. **Agentic v2's first note** — channel opens; common-window start = 2026-09-04.
+5. **acct-3 SELF-HEALS** (superseding yesterday's "will fail again"): start-of-run
+   adoption converges the stale ledger to the flat broker through the machine's
+   own documented path, preflight reads clean, the run trades normally, and
+   `ai-trader-non-canonical` returns **ALARM → OK**. If it does NOT, the fix is
+   wrong and the wedge is deeper than diagnosed — stated in advance either way.
+
+---
+
+## Friday's five reads — OBSERVED 2026-09-09 (relay lagged; six days of artifacts read at once)
+
+| read | outcome |
+|---|---|
+| 1. DIGEST debut | ✅ **fired 2026-09-04 08:47** — `performance_digest.md` + dated archive in S3. T-344's "last unwatched clock" now has both a caller and an artifact. |
+| 2. ADVISOR 2nd render | ✅ `docs/State/advisor_surface.md` present (09-09); its census clock no longer MISSes. |
+| 3. rev32 verify | ✅ four consecutive clean scheduled days (09-04, 09-08, 09-09 + acct-1 throughout). |
+| 4. agentic v2 first note | ⚠️ **opened, but starved** — see the finding below. |
+| 5. **acct-3 SELF-HEALS** | ✅ **CONFIRMED BY THE PREDICTED MECHANISM** — ledger seq 22 `adopt_broker:cloud cycle 2026-09-04` → positions `{}`, cash 100,041.60; preflight clean 09-04 onward. The falsifier stated in advance did **not** fire. |
+
+---
+
+## 🔴 FINDING — the agentic analyst's price tool has been BLIND in production for its entire life
+
+Chased from a census MISS (`analyst_note_written`) that was a **true** miss, not a
+clock bug: today's constrained note exists, the **agentic** note does not.
+
+**September note yield** (6 trading days; 09-07 = Labor Day):
+constrained **5/6** (missing 09-08) · agentic **4/6** (missing 09-04, 09-09).
+
+**Three voids, two mechanisms** — the calls were MADE (raws archived), the
+responses were REJECTED at validation (fail-loud, working):
+- `09-08` constrained — ` ```json ` **FENCE**. **Second instance** (08-27 was the
+  first). Deterministic to recover; strengthens the queued bounded-repair case.
+- `09-04` + `09-09` agentic — **PROSE, not schema**, both saying the same thing:
+  *"no live price feeds available"* / *"no live price history available as of
+  2026-09-09"*. 5 tool calls, `stopped: end_turn` — not budget-exhausted, blind.
+
+**Root cause, proven three independent ways without needing a container:**
+1. `build_paper_image.sh` stages code+config **"no data substrate"**, plus exactly
+   one data file (the PIT membership parquet).
+2. `query_prices` reads **only** `data/processed/tr_reconciled/<T>_1d.csv`
+   (`agentic_readers.py:144`).
+3. `data/processed` is in neither `DURABLE_PATHS` nor `DURABLE_DIRS`, and nothing
+   in the runner or entrypoint pulls it.
+
+⇒ **`query_prices` has returned `[]` on every call, every day, since deploy.** The
+price data exists (the T-256 TR-reconciled unlock) — it is a **packaging gap, not
+an accrual gap**, which is what separates it from the accepted "4-of-6 tools dark
+by design".
+
+**Why it matters beyond yield:** the agentic arm is the A/B's *treatment* arm and
+its entire thesis is *"a trader INVESTIGATES."* Its most central investigative
+tool has been empty in production throughout. **The T-323/T-348 comparison has
+been running a fully-fed constrained arm against a partially-blinded agentic
+one** — a confound larger than the channel asymmetry T-348a was written to remove.
+It is textbook [NN-FIRST-ARTIFACT]: *a passing local smoke does not prove the
+production environment has the same inputs* — the readers were built where
+`tr_reconciled/` exists and shipped into a lean image where it does not.
+
+**NOT fixed here, deliberately:** feeding the agentic arm prices changes an arm's
+information set mid-experiment — a cohort boundary needing its own stamp and
+possibly a common-window reset. That is a measurement ruling, not an E fix.
+
+---
+
+## Drill 4 — S3 push-fail → canonical=False → dead-man (group B) — 2026-09-09 — **PASS**
+
+| step | detail |
+|---|---|
+| injected | revoked the job role's `paper_state_offense_sso/*` from `PaperStateRW` (readback verified) |
+| observed | **the full chain, end to end**: `pushed-to-s3=False` → `FATAL: durable-state push FAILED — the next run would resume from STALE state … Marking NON-CANONICAL so the dead-man's-switch fires` → `PaperRunCanonical=0` → `RESULT: NON-CANONICAL` → exit **70** → Batch **FAILED** |
+| restored | grant re-added in **template order** (the gate's order-sensitivity), readback verified; drift gate **"No drift"** |
+
+**Verdict: PASS.** This is the T-288 lesson's regression proof — the fleet's first
+armed runs lost state to an IAM denial while printing `pushed-to-s3=True` (it was
+echoing `cfg.enabled`, not the result). It now fails loudly and correctly.
+
+**Two honest caveats, not scored as findings:** my injection removed **read+write**
+(the statement covers both actions) rather than write-only as the drill doc
+specifies, so the accompanying `reconcile 0/3 · UNEXPLAINED position` is likely an
+artifact of that coarser fault (or IAM propagation timing), **observed but not
+isolated** — I am not claiming a second defect I did not chase down.
+
+**One thing the code proves regardless of this drill:** `CloudState.pull()` treats
+*every* non-zero `s3 cp` as benign ("a missing key (first run) returns non-zero —
+that is FINE"), so it **cannot distinguish a missing key from AccessDenied**. That
+is the same silent-denial shape the T-325 push fix was written to close, still
+open on the pull side. Latent, provable from source, worth its own small unit.
+
+---
+
+## Drill 8 — kill switch → reconcile-only — 2026-09-09 — **INCONCLUSIVE (my error), re-run required**
+
+| step | detail |
+|---|---|
+| injected | `TRADING_HALT` object into `paper_state_offense_sso/data/state/` (verified present; the path **is** in DURABLE_PATHS, so it was delivered) |
+| observed | run canonical, `halted=False`, order `sell 7 SSO` reached **`state: staged`** and stopped — **no `submit_acked`**, but also **no REJECTED row and no typed `trading_halt:` reason** |
+| verdict | **INCONCLUSIVE.** I ran it at 20:56 ET on a `day`-TIF order, so `submit()` was likely never reached — the refusal path was never exercised. The staged-and-stopped order is consistent with the halt working *and* with the after-hours window; it does not discriminate. |
+| restored | halt object removed. The staged 09-09 journal row never reached the broker (no ack) — a journal artifact only, documented rather than silently left. |
+
+**Re-run recipe (in-window):** fire during market hours and assert the *positive*
+artifact — an order journaled **REJECTED** with reason `trading_halt:…` — not
+merely the absence of a submit. Also assert BUY and SELL are both refused.
+
+**Observability gap found while diagnosing (real, independent of the drill):** the
+kill switch became **fleet-wide** in rev31, but its **visibility did not**. The
+heartbeat exposes `halted`/`halt_reason` only inside `streams.llm_analyst`;
+accounts 1 and 2 have no halt field at all, and the top-level `halted` is the
+*reconcile* halt, a different control that shares the word. An operator who drops
+the halt object on acct-1/2 today sees `canonical/alive, alert=False` and gets no
+confirmation the control is in force. **A control you cannot observe is a control
+you cannot trust** — proposed as a small unit alongside the drill re-run.
