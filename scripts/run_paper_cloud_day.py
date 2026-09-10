@@ -349,7 +349,18 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
 
     # --- 1. pull durable state (resume yesterday's memory) ------------- #
     pulled = cloud.pull()
-    print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)")
+    # T-327j: a DENIED read is not a clean start — the run would proceed from empty
+    # or stale state and every held position would read as unexplained. Denials are
+    # now distinguished from first-run missing keys and carried into the verdict
+    # (the same treatment the push already gets); a missing key stays benign.
+    pull_denied = list(getattr(cloud, "pull_denied", []) or [])
+    print(f"1. STATE     pulled-from-s3={pulled} (clean start if False)"
+          + (f" | ⚠ {len(pull_denied)} DENIED read(s): {pull_denied[:3]}" if pull_denied else ""))
+    if pull_denied:
+        print("FATAL: durable-state READ was DENIED (not a missing key) — the run "
+              "would resume from EMPTY/STALE state and held positions would read as "
+              "unexplained. Marking NON-CANONICAL so the dead-man's-switch fires.",
+              file=sys.stderr)
 
     cal = MarketCalendar(client=client)
     # root-relative, like every other state surface this driver owns. (It used to
@@ -383,6 +394,17 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     # byte-equivalent for accounts 1/2 (locked by test).
     om_stream = STREAM_TOKEN.get(args.strategy)
     om_halt = (lambda: check_trading_halt(root=str(root)))
+    # T-327j: the control went fleet-wide in rev31; its VISIBILITY did not. Resolve
+    # it once here — for EVERY strategy, not just llm_analyst — and surface it in
+    # the heartbeat so an operator can confirm the switch is in force on any
+    # account. Read-only; the enforcement still happens in OrderManager.submit().
+    _fleet_halt = check_trading_halt(root=str(root))
+    try:
+        hb.record_halt(_fleet_halt.halted, _fleet_halt.reason)
+    except Exception:  # noqa: BLE001 — reporting must never break the trading path
+        pass
+    if _fleet_halt.halted:
+        print(f"   TRADING-HALT in force: {_fleet_halt.reason}")
     om = OrderManager(client, journal_path=str(state / "orders.jsonl"),
                       stream=om_stream, halt_check=om_halt)
     led = LedgerStore(str(state / "ledger.jsonl"),
@@ -644,7 +666,11 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
 
     # --- 3. heartbeat verdict → metrics + exit code ------------------- #
     v = hb.check(today, is_trading_day=True)
-    canonical = bool(v.alive and not v.alert)
+    # T-327j: a DENIED durable read is an integrity failure of the same class as a
+    # denied push — the run's inputs were not what it believes they were — so it
+    # flips the verdict here rather than merely printing (the T-288 lesson: never a
+    # cheerful line where a failure occurred).
+    canonical = bool(v.alive and not v.alert) and not pull_denied
     print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")

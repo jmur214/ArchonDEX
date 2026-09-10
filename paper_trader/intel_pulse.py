@@ -181,7 +181,7 @@ def _scan_inputs(base: Path, as_of: str) -> "tuple[list, list, dict]":
     news = _broad_news_digest(base, as_of)
     events, rate_path = [], {}
     try:
-        from intelligence.analyst.agentic_readers import build_readers
+        from intelligence.analyst.agentic_readers import build_coverage, build_readers
         readers = build_readers(base, as_of)
         events = readers["query_events"]({"limit": 30}) or []
         rp = readers["query_rate_path"]({}) or []
@@ -274,12 +274,13 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
     try:
         from intelligence.analyst.analyst_agentic import run_agentic_note
         from intelligence.analyst.agentic_tools import AgenticTools
-        from intelligence.analyst.agentic_readers import build_readers
+        from intelligence.analyst.agentic_readers import build_coverage, build_readers
         if model_call is None:
             res.agentic = {"status": "skipped:no_model_adapter"}
         else:
             from intelligence.analyst.anthropic_adapter import make_agentic_call
-            tools = AgenticTools(readers=build_readers(base, as_of))
+            tools = AgenticTools(readers=build_readers(base, as_of),
+                                 coverage=build_coverage(base, as_of))
             ar = run_agentic_note(
                 as_of, portfolios=portfolios, allowlist=allowlist,
                 # T-348a (A drafts, E ships): daily_agentic/v2 opens the agentic
