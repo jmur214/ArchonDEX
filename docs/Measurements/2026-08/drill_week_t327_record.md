@@ -388,3 +388,94 @@ accounts 1 and 2 have no halt field at all, and the top-level `halted` is the
 the halt object on acct-1/2 today sees `canonical/alive, alert=False` and gets no
 confirmation the control is in force. **A control you cannot observe is a control
 you cannot trust** — proposed as a small unit alongside the drill re-run.
+
+---
+
+## Drill 8 — kill switch → reconcile-only — RE-RUN IN-WINDOW 2026-09-10 — **PASS**
+
+Yesterday's attempt was inconclusive because I fired it after hours, so `submit()`
+was never reached. Re-run at **14:34 ET, market open**, on the deployed rev32
+(the halt *enforcement* shipped in rev31; rev33 only adds its visibility).
+
+| step | detail |
+|---|---|
+| injected | `TRADING_HALT` object into `paper_state_offense_sso/data/state/` |
+| plan | the constructor produced a real order to refuse: `sell 5 SSO` |
+| **observed — THE POSITIVE ARTIFACT** | the order journal carries the typed rejection, twice over: `state: rejected, event: "trading_halt_refused"` and `event: "submit_error:TradingHalted"`, both with `reject_reason: "trading_halt:halt_file:data/state/TRADING_HALT present"`. **No `submit_acked` — the order never reached the broker.** |
+| both sides | the live artifact covers the **sell** side. The **buy** side is proven by the pre-existing `test_submit_refuses_and_the_order_never_reaches_the_broker`, which stages a buy *and* a sell and asserts refusal for each (13 halt/refusal tests green). The halt check is the **first** statement in `submit()`, ahead of any side branch — so it is structurally side-agnostic, and both proofs agree. |
+| restored | halt object removed. |
+
+**Verdict: PASS.** This is **ruling 2 proven in production on account-2** — an
+account that had *no* kill-switch surface at all before rev31 made the control a
+fleet property. It refuses, it types its reason, it journals it, and it never
+reaches the broker.
+
+**Deferred to the rev33 deploy (stated, not skipped):** the drill's secondary
+assertion — that the *halt block reports itself* in the heartbeat — cannot be made
+on rev32, which has no `trading_halt` block. It rides the rev33 verify.
+
+**Collateral I own, so Act 2 is not surprised by it:** account-2's state is now
+untidy from my own drills — drill 4 denied its push (so state did not persist) and
+these runs rejected orders, leaving it NON-CANONICAL with `reconcile 1/3` and a
+stale ledger. That is **acceptable and expected** on a dormant account whose Act-2
+spec *already* calls for a state rotation/archive and re-baseline at the arrival
+event — but it is written down here rather than left as a surprise.
+
+---
+
+# T-327 ACT 1 — THE WEEK'S CLOSE
+
+**Bar met:** every drill is an expected-artifact assertion with a restore and a
+receipt; a silent alarm is a finding; an unrestorable drill is a finding.
+
+## Scoreboard
+
+| drill | verdict |
+|---|---|
+| 1 — scheduler-break → DLQ | **PASS** (detection *pair*: drift gate before the firing, DLQ after) |
+| 3 — new-alarm fresh transition | **PASS** (full ALARM→OK→ALARM; now the mandatory arming protocol) |
+| 4 — S3 push-fail → canonical=False | **PASS** (the T-288 regression proof, end to end) |
+| 5 — frozen clock → census names it | **PASS** (naming mechanics + live daily receipts) |
+| 6 — append-failure → loud push | **PASS** (same-day durable degraded flag under deliberate fault; tape hole repaid) |
+| 8 — kill switch → reconcile-only | **PASS** (typed REJECTED, in-window; ruling 2 proven in prod) |
+| 2, 7, 9-17 | **NOT RUN** — see below |
+
+**Six drills run, six passed** — but only after **one was scored INCONCLUSIVE and
+re-run**, which is the part of the record I care most about: the week's bar held
+against my own work.
+
+## What the week actually bought — the defects it found
+
+The drills passing is the *least* interesting output. The week's value is what it
+surfaced, none of which any test suite had caught:
+
+1. **The ledger is a MIRROR, not a record** (`apply_fill` has zero production
+   callers). Six "clean" days were **tautological**. Found because the AI went
+   flat; would have wedged the account forever.
+2. **The agentic arm was PRICE-BLIND in production its entire life** — and the
+   A/B was therefore comparing a fed arm to a blinded one.
+3. **The census clock that could never advance** (filename mismatch), which had
+   been *hiding* a real void.
+4. **`pull()` could not tell AccessDenied from a missing key** — the silent-denial
+   shape, still open on the read side.
+5. **The kill switch was fleet-wide but invisible on 2 of 3 accounts.**
+6. **The scan called the model on a zero-document bundle** (drill-6 collateral).
+7. **Dormant alarms sat in standing ALARM for six weeks**, blunting the channel.
+
+Two of those (1, 2) changed how an existing measurement must be *read*, not just
+how the code runs.
+
+## What remains, honestly
+
+Drills 2, 7, 9-17 were **not run** — the week was repeatedly preempted by real
+incidents the drills themselves surfaced, which is a defensible trade but must not
+be recorded as completion. Carried forward with their scope intact:
+wash-guard REAL refusal (9), forced broker rejection (10), marketable-LIMIT +
+fractional check (11), forced-split reconcile + `corporate_action_tickers` (12),
+synthetic dividend + the paper-dividend empirical (13), 2027 calendar (14),
+`PAPER_NOTIFY_WEBHOOK` + SMS (15), secrets-missing clean-skip (16), exec-IAM
+would-revoke (17), missed-day catch-up (2), stalled-feed cadence (7).
+
+**Act 1's gate function is satisfied** — the free window was used to find real
+defects before the Act-2 record starts — but Act 1 is **not exhausted**, and the
+remaining drills should ride alongside Act 2 rather than be quietly dropped.
