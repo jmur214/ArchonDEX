@@ -149,6 +149,9 @@ DURABLE_PATHS: List[str] = [
     # for the event instead of the event is the same defect as T-331/T-346/T-348's
     # filename drift, one layer up. Persisting them makes the artifact the clock reads
     # the artifact the step produced.
+    # T-350: the Act-2 momentum attribution book (same persistence need as the other
+    # LiveBooks — without this it resets to one point every run and never accrues).
+    "data/state/book_momentum_satellite.json",
     "docs/State/performance_digest.md",
     "docs/State/advisor_surface.md",
 ]
