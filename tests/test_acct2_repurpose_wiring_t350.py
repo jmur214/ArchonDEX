@@ -53,11 +53,16 @@ def test_the_offense_science_is_annotated_as_preserved_not_deleted():
     assert "damped_offense_t298" in PROV
 
 
-def test_account_2_stays_dormant_until_the_arming_protocol_runs():
-    """Repurposing does not arm it — the alarms stay suppressed-with-reason until
-    the drill-3 ALARM→OK→ALARM protocol is run at arming."""
+def test_account_2_was_armed_DELIBERATELY_and_the_protocol_is_recorded():
+    """Repurposing alone did not arm it. The account went live on 2026-09-11 at
+    the Act-2 transition — after the legacy position was closed and the account
+    verified flat — and the arming carries its protocol obligation in writing:
+    an alarm is not trusted until a fresh ALARM→OK→ALARM transition is PROVEN."""
     i = PROV.index('strategy="deploy_candidate"')
-    assert "dormant=" in PROV[i:i + 900]
+    seg = PROV[i:i + 1200]
+    assert "dormant=" not in seg                       # armed
+    assert "ARMED 2026-09-11" in seg
+    assert "ALARM→OK→ALARM" in seg and "PROVEN" in seg
 
 
 # ---------------- the transition script ----------------

@@ -312,6 +312,23 @@ def build_readers(root: Union[str, Path],
     }
 
 
+def _price_span(ticker: Optional[str], root: Union[str, Path]
+                ) -> Optional["tuple[str, str]"]:
+    """(first, last) date in a ticker's price file — the store's REAL span, read
+    from the artifact rather than assumed. None when the file is absent."""
+    try:
+        if not ticker:
+            return None
+        p = Path(root) / "data" / "processed" / "tr_reconciled" / f"{str(ticker).upper()}_1d.csv"
+        if not p.exists():
+            return None
+        df = pd.read_csv(p, usecols=["Date"])
+        d = pd.to_datetime(df["Date"], errors="coerce").dropna()
+        return (str(d.min())[:10], str(d.max())[:10]) if len(d) else None
+    except Exception:      # noqa: BLE001
+        return None
+
+
 def build_coverage(root: Union[str, Path], as_of: Union[str, dt.date]) -> Dict[str, Reader]:
     """T-327j — COVERAGE functions, keyed by the tool they describe. Deliberately a
     SEPARATE factory from ``build_readers``: that one's output is guarded as an exact
@@ -322,10 +339,37 @@ def build_coverage(root: Union[str, Path], as_of: Union[str, dt.date]) -> Dict[s
     as_of_date = as_of if isinstance(as_of, dt.date) else dt.date.fromisoformat(str(as_of)[:10])
 
     def price_coverage(inp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """T-350e: the EMPTY case is the one that most needs explaining.
+
+        The first price_fed note (2026-09-11) proved it. The model asked for
+        SPY 2026-08-01→2026-09-11 — a perfectly sensible "recent prices" window —
+        and got `n_results: 0`, because this RESEARCH substrate ends 2026-05-22.
+        Coverage returned None on an empty result, so no explanation was attached
+        either, and the arm concluded "no live price history" and said so in its
+        note. The store was full and the answer was empty and nothing said why:
+        the silent-zero shape, reproduced inside the very fix meant to end it.
+
+        So an empty result now explains ITSELF — naming the store's real span and
+        saying plainly that the requested window lies outside it."""
         try:
             rows = readers["query_prices"](inp)
             if not rows:
-                return None
+                span = _price_span(inp.get("ticker"), root)
+                if span is None:
+                    return {"result": "empty",
+                            "note": ("no price store for this ticker at all — not a "
+                                     "date-window problem; treat prices as UNAVAILABLE "
+                                     "for it, and do not infer a level.")}
+                first, last = span
+                return {"result": "empty", "store_covers": f"{first} … {last}",
+                        "requested_from": inp.get("date_from"),
+                        "requested_to": inp.get("date_to"),
+                        "note": ("EMPTY because your requested window lies outside the "
+                                 "store's coverage, NOT because prices do not exist. "
+                                 f"This RESEARCH substrate ends {last}; there is no "
+                                 "live quote feed behind this tool. Re-query inside "
+                                 "the covered span for history, and do NOT treat the "
+                                 "absence as evidence about today's market.")}
             newest = rows[-1]["date"]
             stale = (as_of_date - dt.date.fromisoformat(newest)).days
             return {"last_available": newest, "as_of": str(as_of_date),
