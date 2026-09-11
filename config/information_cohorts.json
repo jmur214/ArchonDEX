@@ -3,7 +3,7 @@
     "INFORMATION-SET cohort boundaries (A/T-350).",
     "A cohort boundary is NOT always a prompt bump. The agentic arm's query_prices",
     "returned [] from deploy (the substrate was never packaged), so the arm was",
-    "PRICE-BLIND while carrying prompt_version daily_agentic/v1 the whole time —",
+    "PRICE-BLIND while carrying prompt_version daily_agentic/v1 the whole time \u2014",
     "by_prompt_version cannot see that boundary, because the prompt never changed.",
     "",
     "Each boundary splits one source's record at a DATE. Rows on or after `from_date`",
@@ -13,16 +13,22 @@
     "",
     "E: when the packaging fix deploys, set `from_date` on the price_fed cohort to the",
     "DEPLOY DATE as a stamped fact. Until then it stays null and every agentic row is",
-    "price_blind — which is the honest default, not a placeholder."
+    "price_blind \u2014 which is the honest default, not a placeholder."
   ],
   "sources": {
     "analyst_agentic": {
       "default_cohort": "price_blind",
       "cohorts": [
-        {"label": "price_blind", "from_date": null,
-         "note": "query_prices returned [] since deploy — the arm could not see prices at all"},
-        {"label": "price_fed", "from_date": null,
-         "note": "E stamps the packaging-fix DEPLOY DATE here; null = not yet deployed"}
+        {
+          "label": "price_blind",
+          "from_date": null,
+          "note": "query_prices returned [] since deploy \u2014 the arm could not see prices at all; closes 2026-09-10 inclusive (the 09-10 run used jobdef :32, verified from the Batch record)"
+        },
+        {
+          "label": "price_fed",
+          "from_date": "2026-09-11",
+          "note": "STAMPED BY E 2026-09-10 as a fact, not a plan. rev33 (paper-sha-7021abc) deployed the afternoon of 2026-09-10 and was verified IN-CONTAINER before deploy: query_prices returns 50 rows where it returned 0. The date is 2026-09-11, NOT the deploy date itself, and the distinction is the whole point of the label rule: the 2026-09-10 agentic run fired at 08:45 CDT on jobdef archondex-paper-cloud-day:32 \u2014 the PRE-rev33 image \u2014 which is provable from the Batch record, so that row was written price-BLIND. Stamping 09-10 would have let a price-blind row wear the price_fed label. The first run that can see prices is the 2026-09-11 09:45 ET pulse."
+        }
       ]
     }
   }
