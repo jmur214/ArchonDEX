@@ -105,6 +105,22 @@ def _paired_brier_diff(pairs: list[tuple[dict, dict]], use_recal: bool = False,
             "verdict": verdict, "clears": verdict in ("A_WINS", "B_WINS")}
 
 
+def _spans_boundary(rows: list[dict]) -> bool:
+    try:
+        from intelligence.analyst.information_cohorts import spans_a_boundary
+        return spans_a_boundary(rows)
+    except Exception:            # noqa: BLE001
+        return False
+
+
+def _cohort_counts(rows: list[dict]) -> dict:
+    try:
+        from intelligence.analyst.information_cohorts import cohort_counts
+        return cohort_counts(rows)
+    except Exception:            # noqa: BLE001
+        return {}
+
+
 def ab_constrained_vs_agentic(constrained: list[dict], agentic: list[dict]) -> dict:
     """§1 the A/B. Two-sided; a TIE keeps the constrained source (less surface, less
     cost) — absence of evidence never promotes the more complex system."""
@@ -120,11 +136,24 @@ def ab_constrained_vs_agentic(constrained: list[dict], agentic: list[dict]) -> d
     verdict = raw.get("verdict")
     if drifted:
         verdict = "INCONCLUSIVE_DRIFTED_SETS"           # §1.4 hard override
+    # T-350 — INFORMATION-SET boundary override. The agentic arm was PRICE-BLIND from
+    # deploy (query_prices returned []) while its prompt_version never changed, so a
+    # pooled aggregate would average a blinded era with a fed one and call it "the
+    # agentic arm". A comparison that straddles such a boundary is not a weak result,
+    # it is an INVALID one — the arms did not see the same world. Same rule as the
+    # later-of-two-dates condition, applied to information instead of time.
+    spanned = _spans_boundary(constrained) or _spans_boundary(agentic)
+    if spanned:
+        verdict = "INCONCLUSIVE_SPANS_INFORMATION_BOUNDARY"
     tie_break = ("keep_constrained (tie → less attack surface + cost)"
-                 if verdict in ("NO_DIFFERENCE_PROVEN", "INSUFFICIENT", "INCONCLUSIVE_DRIFTED_SETS")
+                 if verdict in ("NO_DIFFERENCE_PROVEN", "INSUFFICIENT",
+                                "INCONCLUSIVE_DRIFTED_SETS",
+                                "INCONCLUSIVE_SPANS_INFORMATION_BOUNDARY")
                  else None)
     return {"eligible_pairs": len(pairs), "smaller_pool": smaller,
             "question_set_drifted": drifted, "raw": raw, "recalibrated": recal,
+            "spans_information_boundary": spanned,
+            "information_cohorts": _cohort_counts(constrained + agentic),
             "verdict": verdict, "tie_break": tie_break,
             "note": "A=constrained, B=agentic; positive mean_diff ⇒ agentic better"}
 
