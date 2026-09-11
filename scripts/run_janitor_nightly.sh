@@ -12,7 +12,11 @@
 # janitor breaking. A non-zero rc here means the JANITOR ITSELF could not run,
 # which is the only thing worth waking someone for.
 set -u
-REPO="/Users/jacksonmurphy/Dev/trading_machine-agent-b"
+# SELF-LOCATING. A wrapper that hardcodes a worktree IS the venue bug in miniature:
+# the nightly job ran for nine nights against whatever branch an agent had left
+# checked out, because the path was baked in here. Derive the repo from this
+# script's own location so the wrapper operates on the worktree it lives in.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="$REPO/.venv/bin/python"
 [ -x "$PY" ] || PY="/Users/jacksonmurphy/Dev/trading_machine-2/.venv/bin/python"
 LOG_DIR="$REPO/data/logs/janitor"
@@ -25,6 +29,17 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   cd "$REPO" || exit 1
   # Refresh the base so 'behind origin/main' is meaningful; never merges, never resets.
   git fetch origin --quiet 2>&1 || echo "JANITOR_FETCH_FAILED (continuing; base may be stale)"
+  # SYNC THE RUNNER TO CANONICAL CODE. Only safe in a DEDICATED runner worktree —
+  # never in one an agent works in, which is why the worktree is a precondition and
+  # not a nicety. `checkout --detach` moves HEAD without `reset --hard` (deny-listed);
+  # it refuses rather than clobbers if the tree is dirty, so a failure here is loud
+  # and the run proceeds on the old checkout with runner_canon recording that fact.
+  if [ -z "$(git status --porcelain)" ]; then
+    git checkout --detach origin/main --quiet 2>&1 \
+      || echo "JANITOR_SYNC_FAILED (running previous checkout; runner_canon will say so)"
+  else
+    echo "JANITOR_SYNC_SKIPPED: runner worktree is DIRTY — not a clean runner venue"
+  fi
   "$PY" scripts/janitor_nightly.py "$@" 2>&1
   RC=$?
   echo "=== janitor rc=$RC ==="
