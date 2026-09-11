@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.archondex.t289tests</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2/.venv/bin/python3</string>
+    <string>-u</string>
+    <string>-m</string>
+    <string>scripts.news_interaction_tests_t289</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/jacksonmurphy/Dev/trading_machine-agent-d</string>
+  <key>StandardOutPath</key>
+  <string>/Users/jacksonmurphy/Dev/trading_machine-agent-d/data/intel/probe/t289_tests.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/jacksonmurphy/Dev/trading_machine-agent-d/data/intel/probe/t289_tests.err</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+</dict>
+</plist>

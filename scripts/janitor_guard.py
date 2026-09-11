@@ -35,6 +35,7 @@ FORBIDDEN: Tuple[Tuple[str, str], ...] = (
     ("docs/Core/autonomous_development_prestatement.md", "this pilot's own constitution"),
     ("scripts/janitor_guard.py", "the guard may not edit its own exclusions"),
     ("scripts/doc_lint.py", "a gate the janitor is checked BY"),
+    ("scripts/launchd_canon.py", "the registry of what may run unattended — an autonomous session may neither grant itself a job nor exempt a rogue one"),
     # "The referee" — the measurement stack. The thing measured never controls the measure.
     ("core/census.py", "referee: the census"),
     ("core/metrics_engine.py", "referee: the metrics engine"),

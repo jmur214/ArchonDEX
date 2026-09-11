@@ -36,6 +36,7 @@ from typing import List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.janitor_guard import vet_branch                      # noqa: E402
+from scripts.launchd_canon import audit_live                      # noqa: E402
 
 REPORT = ROOT / "docs/State/janitor_report.md"
 LEDGER = ROOT / "data/state/autonomy_ledger.jsonl"
@@ -91,17 +92,42 @@ def check_census() -> Check:
                  (r.stdout or r.stderr).strip().splitlines()[-1] if (r.stdout or r.stderr) else "no output")
 
 
+#: The janitor's OWN generated artifacts. They are written by the very run doing the
+#: checking, so counting them as "uncommitted" makes worktree_canon fail EVERY night
+#: over a file the janitor just wrote — a permanent false alarm, which is the exact
+#: alarm-fatigue anti-pattern the per-feed budgets and the census exist to avoid.
+#: (Found by reading the janitor's own first report: "2 uncommitted path(s)".)
+SELF_WRITTEN = ("docs/State/janitor_report.md", "data/state/autonomy_ledger.jsonl")
+
+
 def check_worktree_canon() -> Check:
-    """Worktree hygiene: is this worktree clean and based on a known origin/main?"""
-    dirty = _run(["git", "status", "--porcelain"]).stdout.strip()
+    """Worktree hygiene: is this worktree clean — apart from what this run wrote —
+    and based on a known origin/main?"""
+    raw = _run(["git", "status", "--porcelain"]).stdout.strip()
+    dirty = [l for l in raw.splitlines()
+             if l.strip() and not any(l.endswith(p) for p in SELF_WRITTEN)]
     behind = _run(["git", "rev-list", "--count", "HEAD..origin/main"]).stdout.strip() or "?"
-    ok = (dirty == "")
-    detail = "clean" if ok else f"{len(dirty.splitlines())} uncommitted path(s)"
+    ok = not dirty
+    detail = "clean (excluding the janitor's own artifacts)" if ok else \
+             f"{len(dirty)} uncommitted path(s): {', '.join(l[3:] for l in dirty[:4])}"
     return Check("worktree_canon", ok, f"{detail}; {behind} commit(s) behind origin/main")
 
 
+def check_launchd_canon() -> Check:
+    """Registered launchd jobs must map to LIVE tasks, or carry an exemption.
+
+    The census tripwire one layer down, and BIDIRECTIONAL on purpose: an ORPHANED
+    job is a closed task still firing (t295-population fired 88 times over six weeks
+    telling its own log to unload it), while a MISSING one is a schedule everyone
+    believes is running that quietly is not — the 2026-07-13 silent-outage shape. A
+    one-directional check catches the zombies and misses the outage."""
+    v = audit_live()
+    return Check("launchd_canon", v.ok, v.report())
+
+
 def run_checks() -> List[Check]:
-    return [check_worktree_canon(), check_doc_lint(), check_census(), check_suite()]
+    return [check_worktree_canon(), check_launchd_canon(),
+            check_doc_lint(), check_census(), check_suite()]
 
 
 # ── the record ─────────────────────────────────────────────────────────────────

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.archondex.t295-population</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonmurphy/Dev/trading_machine-2/scripts/run_t295_gated_population.sh</string>
+    </array>
+    <!-- Two firings/day, each spends AT MOST one Yahoo contact (the gated
+         protocol aborts on 429). ~22:30 CT tonight + ~06:30 CT pre-market. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>22</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>6</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2</string>
+    <key>StandardOutPath</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2/data/macro_data/alt/logs/t295_launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-2/data/macro_data/alt/logs/t295_launchd_stderr.log</string>
+</dict>
+</plist>
