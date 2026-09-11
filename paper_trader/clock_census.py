@@ -413,6 +413,12 @@ _ROLLED = [
     ("book_quality_sat_rolled", "data/state/book_quality_satellite.json"),
     ("book_sleeve_tier_rolled", "data/state/book_sleeve_tier50k.json"),
     ("llm_shadow_book_rolled", "data/state/llm_shadow_book.json"),
+    # T-350 — the Act-2 attribution book. Added here AND to DURABLE_PATHS in the same
+    # change: a LiveBook that is not durable resets to one point every run on the
+    # ephemeral Fargate disk (the T-238 class), and one that is not clocked stalls
+    # without anyone noticing. The BookSpec alone is not the unit; the tripwire in
+    # tests/test_momentum_satellite_t350.py now fails any book missing either half.
+    ("book_momentum_sat_rolled", "data/state/book_momentum_satellite.json"),
 ]
 
 

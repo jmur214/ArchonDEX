@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 
+import pathlib
+
 import pandas as pd
 import pytest
 
@@ -26,6 +28,29 @@ VALID_NOTE = json.dumps({
 
 def _empty_panel(*a, **k):
     return pd.DataFrame(columns=["created_at", "symbols", "headline", "content"])
+
+
+def _seed_news_tape(root, as_of="2026-07-10", n=1):
+    """Put `n` real documents where the SCAN actually reads them.
+
+    T-350: the fire-and-file test used to run on `_empty_panel`, which worked before the
+    T-327 evidence floor; afterwards the scan correctly REFUSES a zero-document bundle, so
+    an empty tape can no longer demonstrate the filing path. The fixture now supplies the
+    evidence the path requires, rather than the assertion being weakened to match a refusal.
+
+    Note the scan does NOT read `load_panel` — that feeds the ticker-scoped readers. It
+    globs the news-panel parquet directory itself, PIT-guarded on `created_at < as_of`.
+    The filename is derived from the one declaration (T-348), never spelled here, so this
+    fixture cannot drift from the layout the way the T-346 month-coupled one did."""
+    import pandas as pd
+    from paper_trader.cloud_state import CloudState
+    f = pathlib.Path(root) / CloudState._news_rel(int(as_of[:4]), int(as_of[5:7]))
+    f.parent.mkdir(parents=True, exist_ok=True)
+    day = pd.Timestamp(as_of, tz="UTC") - pd.Timedelta(days=1)     # strictly before as_of
+    pd.DataFrame([{"created_at": day,
+                   "headline": f"Grid interconnect queues hit a record ({i})",
+                   "symbols": ["SPY"], "content": "c"} for i in range(n)]).to_parquet(f)
+    return f
 
 
 def _fake_call_note(*a, **k):
@@ -162,6 +187,7 @@ def test_scan_fires_when_due_and_files_a_machine_thesis(tmp_path, monkeypatch):
     monkeypatch.setattr(ip, "_scan_model_call_or_none", lambda settings: _fake_scan_call)
     import intelligence.event_call.run_forward as rf
     monkeypatch.setattr(rf, "pulse_step", lambda *a, **k: {"status": "ok", "reason": "x", "n_ok": 0})
+    _seed_news_tape(tmp_path)                    # the floor requires real evidence
     r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
                            allowlist=["SPY"], root=str(tmp_path),
                            now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
@@ -189,3 +215,59 @@ def test_firewall_breach_surfaces_loud_and_files_nothing(tmp_path, monkeypatch):
                            now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
     assert r.thesis["status"] == "FIREWALL_BREACH"          # loud, not a clean skip
     assert not (tmp_path / "data/intel/thesis_calls.jsonl").exists()   # filed NOTHING
+
+
+# --- T-350: the EVIDENCE FLOOR's contract, asserted at the PULSE level ------- #
+def test_zero_document_tape_clean_skips_and_leaves_the_scan_STILL_DUE(tmp_path, monkeypatch):
+    """The T-327 drill-6 collateral, in the pulse rather than the runner.
+
+    An evidence-starved tape must produce a CLEAN SKIP: no thesis filed, no model spend,
+    and crucially NO `record_scan` — the cadence is untouched so the scan stays DUE and
+    retries when the tape returns. Explaining a zero and advancing the clock are two
+    different acts, and only the second would be a lie. Before the floor, this exact
+    input made the scan call the model on 822 bytes of non-news context and file a
+    prior-recitation that had to be quarantined the same day.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-FAKE")
+    monkeypatch.setattr(ip, "_model_call_or_none", lambda tier, settings: _fake_call_note)
+    called = []
+
+    def _never(settings):
+        def _c(*a, **k):
+            called.append(1)
+            raise AssertionError("the model was called on a zero-document bundle")
+        return _c
+    monkeypatch.setattr(ip, "_scan_model_call_or_none", _never)
+    import intelligence.event_call.run_forward as rf
+    monkeypatch.setattr(rf, "pulse_step", lambda *a, **k: {"status": "ok", "reason": "x", "n_ok": 0})
+    r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
+                           allowlist=["SPY"], root=str(tmp_path),
+                           now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)  # NO tape
+
+    assert not called, "no spend: the floor must refuse BEFORE the governor can spend"
+    assert r.thesis["scan"]["n_filed"] == 0
+    # the scan STAYS DUE — the cadence clock must not have advanced
+    from intelligence.thesis_desk.thesis_scan import due
+    assert due("2026-07-10", path=tmp_path / "data/intel/thesis_scan_state.json") is True
+    # ...and the refusal is SELF-EXPLAINING, not a silent zero (the T-325 class)
+    prov = tmp_path / "data/intel/thesis_scan_provenance.jsonl"
+    assert prov.exists(), "an evidence-starved day must leave a durable trace"
+    body = prov.read_text()
+    assert "empty_bundle" in body and "evidence_floor" in body and '"call_made": false' in body
+
+
+def test_a_seeded_tape_lets_the_same_pulse_file_normally(tmp_path, monkeypatch):
+    """The paired half: the refusal above is about EVIDENCE, not a broken scan path.
+    Same pulse, same day, one real document — it files."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-FAKE")
+    monkeypatch.setattr(ip, "_model_call_or_none", lambda tier, settings: _fake_call_note)
+    monkeypatch.setattr(ip, "_scan_model_call_or_none", lambda settings: _fake_scan_call)
+    import intelligence.event_call.run_forward as rf
+    monkeypatch.setattr(rf, "pulse_step", lambda *a, **k: {"status": "ok", "reason": "x", "n_ok": 0})
+    _seed_news_tape(tmp_path)
+    r = ip.run_intel_pulse("2026-07-10", portfolios={"sleeve": {"SPY": 0.66}},
+                           allowlist=["SPY"], root=str(tmp_path),
+                           now_iso="2026-07-10T13:00:00", load_panel=_empty_panel)
+    assert r.thesis["scan"]["n_filed"] == 1
+    from intelligence.thesis_desk.thesis_scan import due
+    assert due("2026-07-10", path=tmp_path / "data/intel/thesis_scan_state.json") is False

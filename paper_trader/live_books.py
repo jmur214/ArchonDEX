@@ -181,7 +181,30 @@ SLEEVE_TIER50K = BookSpec(
                     "construction; only the granularity differs. AND (T-333): neither side "
                     "evidences that the sleeve 'wins' — " + SLEEVE_INSURANCE_FRAMING["cannot_evidence"])
 
-ALL_BOOKS: tuple = (SPY_NULL, DAMPED_OFFENSE, QUALITY_SAT, SLEEVE_TIER50K)
+MOMENTUM_SAT = BookSpec(
+    name="momentum_satellite", state_path="data/state/book_momentum_satellite.json",
+    symbols=("SPY", "MTUM"), weights_fn=_static({"MTUM": 1.0}),
+    twin_weights_fn=_static({"SPY": 1.0}),
+    gate="No promotion gate — this is ATTRIBUTION for the Act-2 deploy candidate "
+         "(VOO+MTUM+SGOV). The reported quantity is the satellite's own path vs SPY, with "
+         "days-accrued displayed. T-320's bar is carried, not re-litigated: long-only "
+         "momentum is the only tilt in the program whose CI excludes zero — but the DECAYED "
+         "variant straddles (premium halved 6.25 → 3.02%/yr), so no live window promotes it.",
+    can_evidence="the tilt's realized path, turnover and regret SEPARATE FROM THE CORE. Held "
+                 "satellite-only rather than blended like quality_satellite (80/20): inside a "
+                 "blend the tilt's own signal is diluted by its weight, and the deploy account "
+                 "holds the core itself, so attribution is only clean if the book isolates the "
+                 "satellite. T-320 measured the smallest regret of any tilt here (−5.7%, $568 "
+                 "per $10k, 6.1yr underwater) — this is whether that behavior recurs live.",
+    cannot_evidence="that the momentum premium survives publication. T-320's significance "
+                    "rests on PRE-publication data and the decayed arm straddles zero — and "
+                    "the decayed arm is the regime this book actually lives in. A live record "
+                    "of months cannot settle a premium whose 63-year decayed CI straddles. "
+                    "Nor does it evidence the long-SHORT factor: the momentum crash lives in "
+                    "the short leg (−37.6%, never recovered) that a long-only holder never "
+                    "touches, so this book is silent about that risk by construction.")
+
+ALL_BOOKS: tuple = (SPY_NULL, DAMPED_OFFENSE, QUALITY_SAT, SLEEVE_TIER50K, MOMENTUM_SAT)
 
 
 @dataclass
