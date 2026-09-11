@@ -640,6 +640,18 @@ def _g1_block(recs: list[dict]) -> dict:
     }
 
 
+def _market_holidays() -> frozenset:
+    """NYSE closed days — reused from the feature foundry's published list (T-353)."""
+    try:
+        from core.feature_foundry.features.calendar import US_MARKET_HOLIDAYS
+        return US_MARKET_HOLIDAYS
+    except Exception:              # noqa: BLE001 — absent list => weekday-only fallback
+        return frozenset()
+
+
+_MARKET_HOLIDAYS = _market_holidays()
+
+
 def note_coverage(notes: list[dict], as_of: str) -> dict:
     """T-348: a VOIDED note surfaces NOWHERE today.
 
@@ -660,8 +672,15 @@ def note_coverage(notes: list[dict], as_of: str) -> dict:
     for src, days in sorted(by_src.items()):
         first, last = min(days), max(as_of[:10], max(days))
         try:
+            # T-353: business days MINUS market holidays. bdate_range alone counts every
+            # NYSE holiday as a "missing note" — on 2026-09-07 (Labor Day) it flagged
+            # BOTH arms for a day the market was shut and the pulse correctly never ran.
+            # A coverage alarm that fires on closed days trains its reader to ignore it,
+            # which is exactly what a missing-note alarm cannot afford. Reuses the
+            # in-repo NYSE list rather than adding a calendar dependency.
             expected = {d.date().isoformat()
-                        for d in pd.bdate_range(first, last)}
+                        for d in pd.bdate_range(first, last)
+                        if d.date() not in _MARKET_HOLIDAYS}
         except Exception:
             expected = set(days)
         missing = sorted(expected - days)

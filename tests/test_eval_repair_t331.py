@@ -204,3 +204,24 @@ def test_a_settled_row_is_never_re_resolved(tmp_path):
     eh.run("2026-08-13", **kw)
     ids = [r["prediction_id"] for r in eh._load_log(log) if r.get("resolvable")]
     assert len(ids) == len(set(ids)) == 1
+
+
+# ── T-353: a coverage alarm must not fire on days the market was SHUT ─────────
+def test_note_coverage_does_not_flag_a_market_holiday():
+    """2026-09-07 was Labor Day. bdate_range alone counted it a missing note for BOTH
+    arms — an alarm firing on a closed day trains its reader to ignore it, which is
+    exactly what a missing-note alarm cannot afford."""
+    notes = [{"note_date": "2026-09-04", "source": "analyst_constrained"},
+             {"note_date": "2026-09-08", "source": "analyst_constrained"}]
+    cov = eh.note_coverage(notes, "2026-09-08")["analyst_constrained"]
+    assert "2026-09-07" not in cov["missing_days"]      # Labor Day: market shut
+    assert cov["n_missing"] == 0 and cov["coverage_pct"] == 100.0
+
+
+def test_note_coverage_still_flags_a_REAL_missing_trading_day():
+    """The other half: suppressing holidays must not suppress genuine gaps."""
+    notes = [{"note_date": "2026-09-08", "source": "analyst_agentic"},
+             {"note_date": "2026-09-10", "source": "analyst_agentic"}]
+    cov = eh.note_coverage(notes, "2026-09-10")["analyst_agentic"]
+    assert cov["missing_days"] == ["2026-09-09"]        # a real open-market gap
+    assert cov["n_missing"] == 1
