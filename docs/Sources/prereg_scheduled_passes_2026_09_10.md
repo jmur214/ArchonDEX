@@ -1,6 +1,6 @@
 # Scheduled director/worker passes — the pre-statement (Phase-6 rung 0, second half)
 
-**Status: DESIGN ONLY. No code. Awaiting director FREEZE.**
+**Status: FROZEN 2026-09-10 (director). Rulings in §7. Build may begin against this contract.**
 **Date:** 2026-09-10 · **Agent:** B · Extends `docs/Core/autonomous_development_prestatement.md`
 Written BEFORE the capability, per the house rule the pilot's own constitution set.
 
@@ -89,3 +89,36 @@ gets built**, which is new authority and brings failure modes the janitor never 
    (launchd `WatchPaths`) — simple, but it fires on any write. A polled digest is duller and
    more predictable. I lean `WatchPaths` + debounce.
 4. **Dispatch budget** — propose 3/pass.
+
+## 7. Director rulings (FREEZE, 2026-09-10)
+
+The four open questions, ruled. This section plus §§0–6 is the frozen contract; changing
+any of it after code exists is itself a propose-first event.
+
+1. **Rung-0 merge: PREPARE-ONLY, confirmed.** Both of B's grounds stand (rung 2 would be
+   empty; the propose-first list is unchanged for autonomous sessions), and today's own
+   cycle supplies a third: this very merge wave required a semantic conflict resolution
+   (A's T-351 schema × E's stamp landing on the same config in the same cycle) that no
+   rule-following pass should make. The judgment in a merge is not transport overhead —
+   it is the part that must stay behind a gate. Transport was the cost; the queue retires
+   the transport. Rung-0 merging, if it ever happens, arrives as a deliberate rung-2
+   promotion with its own pre-statement.
+
+2. **The approvals queue lives TRACKED, in `ops/approvals/`.** A gate surface must be
+   auditable in history — a gitignored gate is an uninspectable gate, and the queue is
+   constitutionally a gate (§3). `data/coordination/` stays the human-relay surface;
+   the machine-written queue gets git history from day 1. This also pre-solves the
+   constitution's cloud-scale-up flag rather than deferring it.
+
+3. **Worker wake: `WatchPaths` + debounce, B's lean endorsed.** It is B's engineering
+   call; the pre-stated falsifier is noise — if the watch fires on non-dispatch writes
+   often enough to pollute the ledger, fall back to the polled digest and record why.
+
+4. **Dispatch budget: 3 per pass, approved** — counted in the ledger, halt + approvals
+   entry on breach, exactly as §4 states.
+
+**Rider approved with the freeze: the dedicated runner worktree.** The venue flaw
+(nine nights measured on in-progress trees) makes it a precondition, not an enhancement:
+scheduled passes inherit the janitor's venue, so the runner worktree pinned to
+`origin/main` lands FIRST, before any pass code. The plist repoint follows the July rule —
+verified on the NEXT SCHEDULED firing, never a manual run.
