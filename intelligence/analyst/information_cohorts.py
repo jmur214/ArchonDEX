@@ -23,6 +23,7 @@ from typing import Any, Optional
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "config" / "information_cohorts.json"
 _CACHE: Optional[dict] = None
+UNSTAMPED_SUFFIX = "_UNSTAMPED"
 
 
 def load_registry(path: Path = REGISTRY) -> dict:
@@ -43,14 +44,25 @@ def cohort_for(source: str, note_date: str, registry: Optional[dict] = None) -> 
     if not spec:
         return None
     best_label, best_date = spec.get("default_cohort"), None
+    pending_label = None
     for c in spec.get("cohorts", []):
-        frm = c.get("from_date")
-        if not frm or not note_date:
-            continue                      # a null from_date has NOT started yet
-        if str(note_date)[:10] >= str(frm)[:10]:
+        frm, pend = c.get("from_date"), c.get("pending_from")
+        if not note_date:
+            continue
+        if frm and str(note_date)[:10] >= str(frm)[:10]:
             if best_date is None or str(frm)[:10] >= str(best_date)[:10]:
                 best_label, best_date = c.get("label"), frm
-    return best_label
+        elif not frm and pend and str(note_date)[:10] >= str(pend)[:10]:
+            # T-351: announced but UNCONFIRMED. Flag it rather than asserting the prior
+            # cohort — once the fix is live, defaulting to "price_blind" is a MISLABEL.
+            pending_label = f"{c.get('label')}{UNSTAMPED_SUFFIX}"
+    # a STAMPED boundary always wins over a pending one
+    return best_label if best_date else (pending_label or best_label)
+
+
+def is_unstamped(cohort: Optional[str]) -> bool:
+    """True for a label that is explicitly NOT vouched for yet (T-351)."""
+    return bool(cohort) and str(cohort).endswith(UNSTAMPED_SUFFIX)
 
 
 def label_rows(rows: list[dict], registry: Optional[dict] = None) -> list[dict]:

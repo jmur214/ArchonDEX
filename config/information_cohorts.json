@@ -3,26 +3,36 @@
     "INFORMATION-SET cohort boundaries (A/T-350).",
     "A cohort boundary is NOT always a prompt bump. The agentic arm's query_prices",
     "returned [] from deploy (the substrate was never packaged), so the arm was",
-    "PRICE-BLIND while carrying prompt_version daily_agentic/v1 the whole time —",
+    "PRICE-BLIND while carrying prompt_version daily_agentic/v1 the whole time \u2014",
     "by_prompt_version cannot see that boundary, because the prompt never changed.",
     "",
-    "Each boundary splits one source's record at a DATE. Rows on or after `from_date`",
-    "take the cohort's label; earlier rows take the prior cohort's. Labels are NEVER",
-    "retroactively reinterpreted (the risk_flags canonicalization rule): a price-blind",
-    "row stays price-blind forever, because that is what the arm actually saw.",
     "",
-    "E: when the packaging fix deploys, set `from_date` on the price_fed cohort to the",
-    "DEPLOY DATE as a stamped fact. Until then it stays null and every agentic row is",
-    "price_blind — which is the honest default, not a placeholder."
+    "STAMPED vs PENDING (T-351). `from_date` is a CONFIRMED, stamped fact. `pending_from`",
+    "is an ANNOUNCED deploy that has not been confirmed yet. They are different states and",
+    "collapsing them makes the registry assert something false: once the fix is live, the",
+    "default 'price_blind' stops being an honest default and becomes a silent MISLABEL of",
+    "rows the arm could actually see prices for. A row on/after `pending_from` with no",
+    "`from_date` is labelled `price_fed_UNSTAMPED` \u2014 an explicit 'not vouched for yet',",
+    "never a confident claim. Resolving that explicit unknown when E stamps the date is a",
+    "RESOLUTION, not a retroactive reinterpretation: the never-reinterpret rule protects",
+    "SETTLED claims (a price_blind row stays blind forever), not declared unknowns."
   ],
   "sources": {
     "analyst_agentic": {
       "default_cohort": "price_blind",
       "cohorts": [
-        {"label": "price_blind", "from_date": null,
-         "note": "query_prices returned [] since deploy — the arm could not see prices at all"},
-        {"label": "price_fed", "from_date": null,
-         "note": "E stamps the packaging-fix DEPLOY DATE here; null = not yet deployed"}
+        {
+          "label": "price_blind",
+          "from_date": null,
+          "note": "query_prices returned [] since deploy \u2014 the arm could not see prices at all"
+        },
+        {
+          "label": "price_fed",
+          "from_date": null,
+          "note": "E stamps the packaging-fix DEPLOY DATE here; null = not yet deployed",
+          "pending_from": "2026-09-11",
+          "pending_note": "rev33 deployed 2026-09-10 (query_prices 0 -> 50 rows); book window opens 2026-09-11. E stamps `from_date` from the deploy record; until then rows here are UNSTAMPED, not blind."
+        }
       ]
     }
   }
