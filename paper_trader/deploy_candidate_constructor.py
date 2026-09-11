@@ -248,3 +248,51 @@ class DeployCandidateConstructor:
                 ticker=t, side=("buy" if d > 0 else "sell"), qty=abs(d),
                 tif=self.tif, engine_side=("long" if d > 0 else "exit"), edge=EDGE))
         return plan
+
+
+def contributed_cap(base_cap: float, as_of: str, cfg: Optional[dict] = None,
+                    root: Optional[str] = None) -> Tuple[float, str]:
+    """T-350 Act 2 item 4 — Rule-B monthly contributions, SIMULATED by growing the
+    notional cap (the existing fleet pattern), never by inventing broker money.
+
+    Rule B is the T-299 always-invest rule: a fixed monthly inflow goes in
+    regardless of level. The rehearsal that matters is the MECHANICS — does the
+    machine deploy a contribution into the bands without churning the book — so
+    the honest simulation is a cap that grows on a schedule, with the run stating
+    how much of its budget is contributed rather than original.
+
+    Whole months ELAPSED since ``start_date`` only: a partial month contributes
+    nothing, because a contribution that lands halfway through a month is a
+    different event than one that landed on the first. Returns
+    ``(cap, explanation)`` — the explanation is printed, so the number can never
+    grow silently.
+    """
+    import datetime as _dt
+    if cfg is None:
+        base = Path(root) if root else Path(__file__).resolve().parents[1]
+        f = base / CONFIG_REL
+        try:
+            cfg = json.loads(f.read_text()) if f.exists() else {}
+        except Exception:      # noqa: BLE001
+            return float(base_cap), "contributions: config unreadable → BASE CAP ONLY"
+    c = (cfg or {}).get("contributions") or {}
+    if not c.get("enabled"):
+        return float(base_cap), "contributions: disabled → base cap only"
+    monthly = float(c.get("monthly_usd", 0.0))
+    start = str(c.get("start_date", ""))
+    if monthly <= 0 or not start:
+        return float(base_cap), "contributions: enabled but unconfigured → base cap only"
+    try:
+        s = _dt.date.fromisoformat(start[:10])
+        d = _dt.date.fromisoformat(str(as_of)[:10])
+    except Exception:          # noqa: BLE001
+        return float(base_cap), "contributions: unparseable dates → base cap only"
+    months = (d.year - s.year) * 12 + (d.month - s.month)
+    if d.day < s.day:          # the month has not completed
+        months -= 1
+    months = max(0, months)
+    added = monthly * months
+    return (float(base_cap) + added,
+            f"contributions: +${added:,.0f} = {months} whole month(s) x "
+            f"${monthly:,.0f}/mo since {start} (SIMULATED via the notional cap; "
+            f"no broker money moves)")

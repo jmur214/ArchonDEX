@@ -1,12 +1,24 @@
 {
-  "_doc": "T-350 / Act 2 — the DEPLOY-CANDIDATE allocation. The approved plan gives RANGES (VOO core ~80-85%, MTUM satellite 15-20%), so the exact split is a judgement inside an approved envelope and lives HERE, changeable without a code deploy. The default sits at the CONSERVATIVE end on non-data grounds: T-318/T-320 found long-only momentum the only CI-significant tilt but with ~half its premium decayed, so the smallest approved dose. Bands are in SHARE QUANTA, not percentage points, because a band below the trade quantum cannot bind (T-297's argument) — at a $10k budget one VOO share is ~6% of the book and one MTUM share ~2.3%, so a flat deadband would mean two different things. buy_quanta > sell_quanta is the buy/hold spread: stricter to add than to trim. NOTHING here is fitted to data.",
-  "core":      {"ticker": "VOO",  "weight": 0.85},
-  "satellite": {"ticker": "MTUM", "weight": 0.15},
+  "_doc": "T-350 / Act 2 \u2014 the DEPLOY-CANDIDATE allocation. The approved plan gives RANGES (VOO core ~80-85%, MTUM satellite 15-20%), so the exact split is a judgement inside an approved envelope and lives HERE, changeable without a code deploy. The default sits at the CONSERVATIVE end on non-data grounds: T-318/T-320 found long-only momentum the only CI-significant tilt but with ~half its premium decayed, so the smallest approved dose. Bands are in SHARE QUANTA, not percentage points, because a band below the trade quantum cannot bind (T-297's argument) \u2014 at a $10k budget one VOO share is ~6% of the book and one MTUM share ~2.3%, so a flat deadband would mean two different things. buy_quanta > sell_quanta is the buy/hold spread: stricter to add than to trim. NOTHING here is fitted to data.",
+  "core": {
+    "ticker": "VOO",
+    "weight": 0.85
+  },
+  "satellite": {
+    "ticker": "MTUM",
+    "weight": 0.15
+  },
   "cash_ticker": "SGOV",
   "bands": {
     "buy_quanta": 1.5,
     "sell_quanta": 1.0,
-    "max_drift": 0.10,
+    "max_drift": 0.1,
     "_doc": "buy/sell in share-quanta of the instrument governed; max_drift is the absolute-weight backstop that binds regardless of quantum."
+  },
+  "contributions": {
+    "enabled": true,
+    "monthly_usd": 583.0,
+    "start_date": "2026-09-11",
+    "_doc": "Rule-B (T-299 always-invest) monthly contribution, ~$7k/yr, SIMULATED by growing the notional cap \u2014 no broker money moves and the run says so every day. start_date is the arrival-event date: month 0 contributes nothing, so the arrival lump sum is not double-counted as a contribution. Whole months only \u2014 a mid-month contribution is a different event than a first-of-month one, and pretending otherwise would flatter the mechanics rehearsal."
   }
 }

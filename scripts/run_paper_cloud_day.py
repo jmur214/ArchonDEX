@@ -68,6 +68,10 @@ STATE_DIR = "data/paper_state"
 # here and `stage(stream=...)` per order — never a shared one, because sharing
 # tokens is how two independent decisions silently net into one fill.
 STREAM_TOKEN = {"llm_analyst": "analyst-a3", "deploy_candidate": "deploycand-a2"}
+# T-350: which accounts the cross-account wash guard ENFORCES on. Account-1 is
+# deliberately absent — its gate-d record must stay byte-neutral for single-account
+# Roth-only operation (a locked property). The guard READS all accounts' lots.
+WASH_GUARDED_STRATEGIES = {"deploy_candidate"}
 
 # Strategies whose OrderManager consults the TRADING kill switch before every
 # submit. Deliberately an explicit allow-list, not "everything": account-1's
@@ -405,8 +409,47 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
         pass
     if _fleet_halt.halted:
         print(f"   TRADING-HALT in force: {_fleet_halt.reason}")
+    # T-350 Act 2 item 3 — the CROSS-ACCOUNT WASH GUARD, ENFORCING on the deploy
+    # candidate and on NOTHING else. The seam has existed inert since T-319; this
+    # is the first account to pass a guard through it.
+    #
+    # WHY ONLY THIS ACCOUNT: account-1's gate-d record must stay byte-neutral for
+    # single-account Roth-only operation — that is a locked property, not a
+    # preference — so it keeps `wash_guard=None` and its submit path is unchanged.
+    # The guard reads every account's lots (it is cross-account by design) but
+    # only REFUSES on the account it is wired to.
+    #
+    # KNOWN AND INTENDED COUPLING: VOO and SPY share US_LARGE_BLEND, and account-1
+    # holds SPY — so a VOO buy here CAN be refused because of an account-1 loss
+    # inside the 61-day window. That is the guard working, and it is the likeliest
+    # arrival of deferred drill 12's real artifact. It is on the record BEFORE the
+    # first refusal rather than after, which is the whole point.
+    #
+    # FAIL-CLOSED on its own config: if the guard is requested but cannot be built
+    # (missing//unreadable classes or ledger), the run REFUSES rather than trading
+    # unguarded — an enforcing guard that silently becomes None is worse than no
+    # guard, because the record would claim protection it did not have.
+    om_wash = None
+    if args.strategy in WASH_GUARDED_STRATEGIES:
+        try:
+            from engines.engine_b_risk.cross_account_wash_guard import (
+                CrossAccountWashGuard, EquivalenceClasses, TaxLotLedger)
+            om_wash = CrossAccountWashGuard(
+                ledger=TaxLotLedger(str(root / "data/state/tax_lots.jsonl")),
+                classes=EquivalenceClasses.load(
+                    str(root / "config/substantially_identical.json")))
+            print(f"   WASH-GUARD ENFORCING on {args.strategy} "
+                  f"(classes v{om_wash.classes.version}); acct-1 path unchanged")
+        except Exception as exc:   # noqa: BLE001
+            print(f"FATAL: [NN-FAIL-CLOSED] wash guard requested for "
+                  f"{args.strategy} but could not be built "
+                  f"({type(exc).__name__}: {exc}) — refusing to trade unguarded.",
+                  file=sys.stderr)
+            cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+            return 69
     om = OrderManager(client, journal_path=str(state / "orders.jsonl"),
-                      stream=om_stream, halt_check=om_halt)
+                      stream=om_stream, halt_check=om_halt,
+                      wash_guard=om_wash, account=args.strategy)
     led = LedgerStore(str(state / "ledger.jsonl"),
                       starting_cash=acct["cash"], account="roth")
     armed = not args.dry_run
@@ -480,6 +523,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     latest_bar_date = None                      # econ-health stale-data tripwire
     plan = None                                 # set by the content-layer block
     family_state = None                         # T-288 fleet Accounts 2/3 context
+    deploy_cap = None       # T-350: the contribution-grown cap (deploy candidate only)
     if args.strategy == "trend_sleeve":
         from paper_trader.sleeve_constructor import SleeveOrderConstructor, SLEEVE_UNIVERSE
         try:
@@ -602,6 +646,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                        constructor.cash_ticker, "SPY", "AGG", "GLD")
             family_state = {"tracker_file": "deploy_candidate_tracking.json",
                             "label": "DEPLOY-CAND"}
+            # T-350 item 4 — Rule-B contributions, simulated by GROWING THE CAP
+            # (the existing fleet pattern). No broker money moves, and the run
+            # states the uplift every day so the budget can never grow silently.
+            from paper_trader.deploy_candidate_constructor import contributed_cap
+            if args.sleeve_notional_cap:
+                deploy_cap, contrib_why = contributed_cap(
+                    args.sleeve_notional_cap, str(today), root=str(root))
+                print(f"   DEPLOY-CAND  {contrib_why}")
             # The allocation announces itself in the banner — a config-driven
             # weight that is only true in a JSON file is the silent-wrongness shape.
             print(f"   DEPLOY-CAND  {constructor.core_ticker} "
@@ -664,7 +716,8 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                     constructor=constructor, fetch_universe=fetch_u,
                     tracking_universe=fetch_u, client=client, om=om, cfg=cfg,
                     today=today, broker_positions=broker_positions,
-                    cap=args.sleeve_notional_cap,
+                    cap=(deploy_cap if deploy_cap is not None
+                         else args.sleeve_notional_cap),
                     stream=STREAM_TOKEN.get(args.strategy),
                     stage_orders=not halt.halted)
             staged.extend(staged2)
