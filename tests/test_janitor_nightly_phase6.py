@@ -75,7 +75,7 @@ def test_the_janitor_does_not_flag_its_OWN_artifacts_as_a_dirty_worktree(monkeyp
     clean. Counting its own output would fail worktree_canon EVERY night over a file
     it just wrote — a permanent false alarm, the alarm-fatigue anti-pattern this
     program keeps closing. (Found by reading the janitor's own first report.)"""
-    porcelain = (" M docs/State/janitor_report.md\n"
+    porcelain = (" M data/state/janitor_report.md\n"
                  " M data/state/autonomy_ledger.jsonl\n")
 
     class _R:
@@ -134,3 +134,55 @@ def test_runner_canon_is_REPORTED_not_fatal():
     src = inspect.getsource(jn.check_runner_canon)
     assert "raise" not in src and "sys.exit" not in src
     assert "check_runner_canon()" in inspect.getsource(jn.run_checks)
+
+# ---- the runner VENUE (2026-09-10): a runner must not share a checkout ---------
+
+def test_the_wrapper_is_SELF_LOCATING_not_pinned_to_an_agent_worktree():
+    """A wrapper that hardcodes a worktree IS the venue bug in miniature — the path
+    was baked in, so the nightly job ran against whatever branch an agent left
+    checked out."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert 'REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' in sh
+    assert "trading_machine-agent-b" not in sh, "no agent worktree may be hardcoded"
+
+
+def test_the_wrapper_syncs_to_origin_main_WITHOUT_a_denylisted_reset():
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert "git checkout --detach origin/main" in sh
+    # Strip comments first: the file EXPLAINS why reset --hard is avoided, and a
+    # naive grep flags the explanation as the offence.
+    code = "\n".join(l for l in sh.splitlines() if not l.lstrip().startswith("#"))
+    assert "reset --hard" not in code, "reset --hard is deny-listed; checkout --detach is the move"
+
+
+def test_the_sync_REFUSES_on_a_dirty_tree_rather_than_clobbering():
+    """Only safe in a DEDICATED runner worktree. If the tree is dirty it is not a
+    clean runner venue, and the run proceeds on the old checkout with runner_canon
+    recording exactly that."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert 'if [ -z "$(git status --porcelain)" ]; then' in sh
+    assert "JANITOR_SYNC_SKIPPED" in sh
+
+
+def test_runtime_artifacts_live_in_the_GITIGNORED_tree():
+    """A TRACKED report makes the runner dirty on every run, so the nightly re-sync
+    could never succeed. The venue fix and the artifact location are one problem."""
+    assert jn.REPORT.parts[-3:] == ("data", "state", "janitor_report.md"), jn.REPORT
+    assert jn.LEDGER.parent == jn.REPORT.parent, "record and report belong together"
+    assert str(jn.REPORT.relative_to(REPO)) in jn.SELF_WRITTEN
+
+
+def test_the_clock_watches_where_the_report_ACTUALLY_lands():
+    """Moving an artifact without moving its clock is how a watched promise goes
+    quietly unwatched."""
+    from paper_trader.clock_census import REGISTRY
+    clock = next(c for c in REGISTRY if c.name == "janitor_ran_nightly")
+    assert str(jn.REPORT.relative_to(REPO)) in set(clock.covers), clock.covers
+
+
+def test_the_plist_targets_the_dedicated_runner_not_an_agent_worktree():
+    import plistlib
+    d = plistlib.load(open(REPO / "ops/com.archondex.janitor.plist", "rb"))
+    target = d["ProgramArguments"][1]
+    assert "trading_machine-janitor" in target, target
+    assert "agent-" not in target, "the runner must not be an agent's worktree"

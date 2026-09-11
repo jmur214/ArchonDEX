@@ -482,9 +482,9 @@ REGISTRY: List[Clock] = (
      # like any dead feed. Budget 2d gives a nightly job one night of grace before
      # it is called a MISS.
      Clock("janitor_ran_nightly",
-           _dated_surface_clock("janitor_ran_nightly", "docs/State/janitor_report.md", 2,
+           _dated_surface_clock("janitor_ran_nightly", "data/state/janitor_report.md", 2,
                                 "the nightly janitor report"),
-           ("docs/State/janitor_report.md",))]
+           ("data/state/janitor_report.md",))]
     + [_rolled(n, p) for n, p in _ROLLED])
 
 # T-346 — notes that travel WITH a clock's result. A clock can be forward-correct and

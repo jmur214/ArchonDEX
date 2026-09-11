@@ -38,7 +38,11 @@ sys.path.insert(0, str(ROOT))
 from scripts.janitor_guard import vet_branch                      # noqa: E402
 from scripts.launchd_canon import audit_live                      # noqa: E402
 
-REPORT = ROOT / "docs/State/janitor_report.md"
+# Runtime artifacts live in the gitignored data/ tree, beside the ledger. A TRACKED
+# report would make the runner worktree dirty on every run, so the nightly
+# re-sync to origin/main could never succeed — the venue fix and the artifact
+# location are the same problem.
+REPORT = ROOT / "data/state/janitor_report.md"
 LEDGER = ROOT / "data/state/autonomy_ledger.jsonl"
 MERGE_REQUESTS = ROOT / "data/coordination/janitor_merge_requests.md"
 # THE INTERPRETER. Never a bare `python` (launchd has no PATH), and never a
@@ -97,7 +101,7 @@ def check_census() -> Check:
 #: over a file the janitor just wrote — a permanent false alarm, which is the exact
 #: alarm-fatigue anti-pattern the per-feed budgets and the census exist to avoid.
 #: (Found by reading the janitor's own first report: "2 uncommitted path(s)".)
-SELF_WRITTEN = ("docs/State/janitor_report.md", "data/state/autonomy_ledger.jsonl")
+SELF_WRITTEN = ("data/state/janitor_report.md", "data/state/autonomy_ledger.jsonl")
 
 
 def check_worktree_canon() -> Check:
