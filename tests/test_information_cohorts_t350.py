@@ -85,3 +85,49 @@ def test_cohort_counts_report_what_is_in_the_pool():
             _row("analyst_agentic", "2026-08-16", "price_blind"),
             _row("analyst_agentic", "2026-09-20", "price_fed")]
     assert ic.cohort_counts(rows)["analyst_agentic"] == {"price_blind": 2, "price_fed": 1}
+
+
+# ── T-351: STAMPED vs PENDING — an unconfirmed boundary must not assert the old label ──
+REG_PENDING = {"analyst_agentic": {"default_cohort": "price_blind", "cohorts": [
+    {"label": "price_blind", "from_date": None},
+    {"label": "price_fed", "from_date": None, "pending_from": "2026-09-11"}]}}
+
+REG_STAMPED = {"analyst_agentic": {"default_cohort": "price_blind", "cohorts": [
+    {"label": "price_blind", "from_date": None},
+    {"label": "price_fed", "from_date": "2026-09-11", "pending_from": "2026-09-11"}]}}
+
+
+def test_once_the_fix_is_LIVE_the_old_default_becomes_a_MISLABEL():
+    """The defect T-351 closes: rev33 deployed and the arm could see prices, but with a
+    null from_date every post-fix row would still have been labelled `price_blind` —
+    a confident claim that is simply false."""
+    assert ic.cohort_for("analyst_agentic", "2026-09-10", REG_PENDING) == "price_blind"
+    after = ic.cohort_for("analyst_agentic", "2026-09-11", REG_PENDING)
+    assert after == "price_fed_UNSTAMPED"
+    assert ic.is_unstamped(after) is True
+    assert after != "price_blind"          # the mislabel is what this prevents
+
+
+def test_stamping_RESOLVES_the_declared_unknown():
+    """Resolving an explicit UNSTAMPED marker is a resolution, not a retroactive
+    reinterpretation — the never-reinterpret rule protects SETTLED claims."""
+    assert ic.cohort_for("analyst_agentic", "2026-09-11", REG_STAMPED) == "price_fed"
+    assert ic.is_unstamped("price_fed") is False
+    # and a SETTLED pre-boundary row is untouched by the stamp landing
+    assert ic.cohort_for("analyst_agentic", "2026-08-15", REG_STAMPED) == "price_blind"
+    assert ic.cohort_for("analyst_agentic", "2026-08-15", REG_PENDING) == "price_blind"
+
+
+def test_a_stamped_boundary_wins_over_a_pending_one():
+    assert ic.cohort_for("analyst_agentic", "2026-09-20", REG_STAMPED) == "price_fed"
+
+
+def test_AB_still_refuses_when_rows_straddle_into_the_UNSTAMPED_era():
+    """An unstamped era is still a different information set — pooling it is invalid."""
+    con = [_row("analyst_constrained", f"2026-08-{d:02d}", key=str(d)) for d in (15, 16, 17)]
+    ag = [_row("analyst_agentic", "2026-08-15", "price_blind", key="15"),
+          _row("analyst_agentic", "2026-08-16", "price_blind", key="16"),
+          _row("analyst_agentic", "2026-09-12", "price_fed_UNSTAMPED", key="17")]
+    out = fs.ab_constrained_vs_agentic(con, ag)
+    assert out["verdict"] == "INCONCLUSIVE_SPANS_INFORMATION_BOUNDARY"
+    assert out["tie_break"].startswith("keep_constrained")
