@@ -125,8 +125,35 @@ def check_launchd_canon() -> Check:
     return Check("launchd_canon", v.ok, v.report())
 
 
+def check_runner_canon() -> Check:
+    """Is the janitor running CANONICAL code?
+
+    The pilot's mechanics put the runner in a shared worktree, so the nightly job
+    executes whatever branch an agent happened to leave checked out at 03:00 — for
+    the first nine nights of this ledger that was a feature branch, and the checks
+    were measuring in-progress work rather than main. The results were not wrong;
+    they were about the wrong tree, which is worse, because nothing said so.
+
+    Reported, not fatal: a refusal would alarm on every night an agent is mid-task,
+    which is most of them. A recorded PASS/FAIL makes every ledger row INTERPRETABLE
+    after the fact — you can ask "was this night canonical?" instead of guessing.
+    The durable fix (a dedicated runner worktree pinned to origin/main) needs a plist
+    repoint, which is deploy-shaped and therefore propose-first."""
+    head = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    main = _run(["git", "rev-parse", "origin/main"]).stdout.strip()
+    if not head or not main:
+        return Check("runner_canon", False, "could not resolve HEAD or origin/main")
+    if head == main:
+        return Check("runner_canon", True, f"HEAD == origin/main ({head[:8]}) — canonical")
+    ahead = _run(["git", "rev-list", "--count", "origin/main..HEAD"]).stdout.strip() or "?"
+    branch = _run(["git", "branch", "--show-current"]).stdout.strip() or "detached"
+    return Check("runner_canon", False,
+                 f"running {branch!r} at {head[:8]}, {ahead} commit(s) off origin/main "
+                 f"({main[:8]}) — these checks describe THAT tree, not main")
+
+
 def run_checks() -> List[Check]:
-    return [check_worktree_canon(), check_launchd_canon(),
+    return [check_runner_canon(), check_worktree_canon(), check_launchd_canon(),
             check_doc_lint(), check_census(), check_suite()]
 
 

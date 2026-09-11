@@ -91,3 +91,46 @@ def test_the_janitor_does_not_flag_its_OWN_artifacts_as_a_dirty_worktree(monkeyp
     porcelain += " M engines/engine_a_alpha/something.py\n"
     c2 = jn.check_worktree_canon()
     assert not c2.ok and "something.py" in c2.detail, "real dirt must still be reported"
+
+
+def test_runner_canon_flags_a_non_canonical_checkout(monkeypatch):
+    """The pilot's mechanics put the runner in a SHARED worktree, so for the first
+    nine nights the nightly job executed whatever feature branch an agent had left
+    checked out. The results were not wrong — they were about the wrong tree, which
+    is worse, because nothing said so. Every ledger row must now record whether that
+    night was canonical."""
+    def fake_run(cmd, **kw):
+        class _R: returncode = 0
+        r = _R()
+        if "rev-parse" in cmd:
+            r.stdout = "a" * 40 if cmd[-1] == "HEAD" else "b" * 40
+        elif "rev-list" in cmd:
+            r.stdout = "3"
+        elif "--show-current" in cmd:
+            r.stdout = "feature/whatever"
+        else:
+            r.stdout = ""
+        return r
+    monkeypatch.setattr(jn, "_run", fake_run)
+    c = jn.check_runner_canon()
+    assert not c.ok
+    assert "feature/whatever" in c.detail and "not main" in c.detail
+
+
+def test_runner_canon_passes_when_HEAD_equals_origin_main(monkeypatch):
+    def fake_run(cmd, **kw):
+        class _R: returncode = 0
+        r = _R(); r.stdout = "c" * 40 if "rev-parse" in cmd else ""
+        return r
+    monkeypatch.setattr(jn, "_run", fake_run)
+    c = jn.check_runner_canon()
+    assert c.ok and "canonical" in c.detail
+
+
+def test_runner_canon_is_REPORTED_not_fatal():
+    """A refusal would alarm every night an agent is mid-task — which is most of
+    them. Alarm fatigue is the failure this program keeps closing."""
+    import inspect
+    src = inspect.getsource(jn.check_runner_canon)
+    assert "raise" not in src and "sys.exit" not in src
+    assert "check_runner_canon()" in inspect.getsource(jn.run_checks)
