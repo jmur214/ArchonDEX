@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.archondex.t289</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/jacksonmurphy/Dev/trading_machine-agent-d/scripts/run_t289_backfill_tests.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/tmp/t289_launchd.log</string>
+  <key>StandardErrorPath</key><string>/tmp/t289_launchd.err</string>
+  <key>ProcessType</key><string>Background</string>
+</dict></plist>

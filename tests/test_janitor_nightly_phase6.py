@@ -68,3 +68,26 @@ def test_the_report_surface_is_the_one_the_clock_watches():
     clock = next(c for c in REGISTRY if c.name == "janitor_ran_nightly")
     watched = set(clock.covers)
     assert str(jn.REPORT.relative_to(REPO)) in watched, watched
+
+
+def test_the_janitor_does_not_flag_its_OWN_artifacts_as_a_dirty_worktree(monkeypatch):
+    """It writes the report and the ledger, then checks whether the worktree is
+    clean. Counting its own output would fail worktree_canon EVERY night over a file
+    it just wrote — a permanent false alarm, the alarm-fatigue anti-pattern this
+    program keeps closing. (Found by reading the janitor's own first report.)"""
+    porcelain = (" M docs/State/janitor_report.md\n"
+                 " M data/state/autonomy_ledger.jsonl\n")
+
+    class _R:
+        def __init__(self, out): self.stdout = out; self.returncode = 0
+
+    def fake_run(cmd, **kw):
+        return _R(porcelain if "status" in cmd else "0")
+
+    monkeypatch.setattr(jn, "_run", fake_run)
+    c = jn.check_worktree_canon()
+    assert c.ok, f"the janitor's own artifacts must not count as dirt: {c.detail}"
+
+    porcelain += " M engines/engine_a_alpha/something.py\n"
+    c2 = jn.check_worktree_canon()
+    assert not c2.ok and "something.py" in c2.detail, "real dirt must still be reported"
