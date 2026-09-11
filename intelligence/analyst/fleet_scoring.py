@@ -158,6 +158,67 @@ def ab_constrained_vs_agentic(constrained: list[dict], agentic: list[dict]) -> d
             "note": "A=constrained, B=agentic; positive mean_diff ⇒ agentic better"}
 
 
+def ab_by_information_cohort(constrained: list[dict], agentic: list[dict],
+                             boundary_source: str = "analyst_agentic") -> dict:
+    """T-352 — the A/B run WITHIN each information cohort, separately.
+
+    The pooled comparison correctly refuses once the record straddles a boundary
+    (INCONCLUSIVE_SPANS_INFORMATION_BOUNDARY), but a guard that refuses without offering
+    the VALID alternative is half a feature: left alone the A/B reads INCONCLUSIVE
+    forever, and the natural wrong response months later is to weaken the guard. This is
+    the supported path — one comparison per era, each with its own n and verdict.
+
+    ★ The blinded era's result answers a DIFFERENT QUESTION and is labelled as such:
+    "constrained vs PRICE-BLIND agentic" is not "the A/B", and must never be quoted as
+    the arm comparison. An era whose agentic arm was blinded cannot tell you whether the
+    agentic DESIGN is better — only what a blinded version of it did.
+    """
+    # The era is a property of the COMPARISON, not of a single row. Only the arm whose
+    # information set changed carries labels (the agentic arm); the constrained arm has
+    # no declared boundary, so bucketing each row by its OWN label would put the two arms
+    # in different buckets and yield ZERO pairs in every era — a comparison that can never
+    # run. Both arms are therefore bucketed by DATE against the boundary-carrying source.
+    def era_of(r: dict) -> str:
+        try:
+            from intelligence.analyst.information_cohorts import cohort_for
+            c = cohort_for(boundary_source, r.get("note_date", ""))
+        except Exception:                     # noqa: BLE001
+            c = None
+        return c or r.get("information_cohort") or "unsegmented"
+
+    eras: dict[str, dict] = {}
+    for r in list(constrained) + list(agentic):
+        eras.setdefault(era_of(r), {"constrained": [], "agentic": []})
+    for r in constrained:
+        eras[era_of(r)]["constrained"].append(r)
+    for r in agentic:
+        eras[era_of(r)]["agentic"].append(r)
+
+    out: dict[str, Any] = {}
+    for era, arms in sorted(eras.items()):
+        res = ab_constrained_vs_agentic(arms["constrained"], arms["agentic"])
+        res["information_cohort"] = era
+        # the blinded era answers a different question — say so IN the result, so a
+        # reader who sees only this block cannot mistake it for the arm comparison
+        if "blind" in era.lower():
+            res["question_answered"] = (
+                "constrained vs PRICE-BLIND agentic — NOT a comparison of the agentic "
+                "DESIGN. The agentic arm could not see prices in this era; this can only "
+                "say what a blinded version did, never whether the design is better.")
+            res["quotable_as_the_AB"] = False
+        elif era == "unsegmented":
+            res["question_answered"] = "rows with no declared information boundary"
+            res["quotable_as_the_AB"] = True
+        else:
+            res["question_answered"] = f"constrained vs agentic, both in the {era} era"
+            res["quotable_as_the_AB"] = True
+        out[era] = res
+    return {"by_cohort": out,
+            "note": ("Per-era comparisons. The POOLED A/B still refuses to straddle a "
+                     "boundary — that refusal is correct; this is how you get a valid "
+                     "read instead of weakening it.")}
+
+
 def book_vs_twin(book: dict) -> Optional[dict]:
     """§1.3 directional: a book clears iff Δwealth ci_low > 0 vs its 60/40 twin AND
     MaxDD ≤ twin + 5pp. `book` carries daily paired returns when available."""
