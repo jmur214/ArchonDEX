@@ -28,10 +28,14 @@ def test_halt_semantics_still_never_liquidate():
 def test_provisioner_renders_suppression_only_for_dormant_accounts():
     assert '"--no-actions-enabled"] if dormant else []' in PROV
     assert "[DORMANT-SUPPRESSED:" in PROV
-    # offense-sso is dormant until Act-2 arming; ai-trader is live and must NOT be
-    assert 'dormant="account dark until Act-2 arming' in PROV
-    ai = PROV[PROV.index('key="ai-trader"'):PROV.index('RETIRED — btc-sleeve')]
-    assert "dormant" not in ai
+    # The MECHANISM is what this guards, and it is unchanged. The example moved:
+    # offense-sso was the dormant account until T-350 armed it at the Act-2
+    # transition (2026-09-11), so NO live account may carry `dormant` now —
+    # a stricter assertion than the original, not a weaker one.
+    for key in ('key="ai-trader"', 'key="offense-sso"'):
+        seg = PROV[PROV.index(key):]
+        seg = seg[:seg.index("dict(") if "dict(" in seg[5:] else len(seg)]
+        assert "dormant=" not in seg, f"{key} is LIVE and must not be suppressed"
 
 
 def test_drift_gate_fails_on_a_reasonless_disabled_alarm():

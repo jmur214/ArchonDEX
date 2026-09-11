@@ -71,27 +71,40 @@ def snapshot(today: str) -> dict:
     return snap
 
 
-def close_legacy_position(execute: bool) -> dict:
+def close_legacy_position(execute: bool, today: str) -> dict:
     """Step 2 — close the offense-era position via a READ-ONLY-SAFE container job.
 
     The close runs THROUGH the account's own jobdef (its secret, its role, its
     prefix) rather than from a laptop holding broker keys — the CLI user has no
     GetSecretValue by design, and that boundary is not worth crossing for a
     migration."""
+    # 2026-09-11: the first --execute FAILED here because this body guessed
+    # submit_order's signature (`type=`/`time_in_force=`) instead of reading it —
+    # the [NN-NO-GUESS-CLI] class, applied to an API. It failed SAFE (the TypeError
+    # raised before anything reached the broker) but it cost a window, and the
+    # reason the dry run missed it is the real lesson: **a dry run that skips the
+    # mutating call cannot validate the mutating call.** So the dry run now BINDS
+    # the very same arguments against the real signature via inspect, proving the
+    # call would succeed without making it.
     body = f'''
-import json
+import inspect, json
 from paper_trader.paper_client import AlpacaPaperClient
 c = AlpacaPaperClient()
 pos = {{p["symbol"]: int(p["qty"]) for p in c.list_positions()}}
 print("TRANSITION positions_before=" + json.dumps(pos))
 qty = pos.get("{LEGACY_TICKER}", 0)
+kw = dict(client_order_id="t350-transition-{today}-{LEGACY_TICKER}-sell",
+          symbol="{LEGACY_TICKER}", qty=qty, side="sell", tif="day")
 if qty <= 0:
     print("TRANSITION nothing_to_close")
 else:
+    # bind FIRST, always — in dry-run this is the whole check; in execute it
+    # turns a signature mistake into a clean refusal instead of a half-transition
+    inspect.signature(c.submit_order).bind(**kw)
+    print("TRANSITION signature_binds=True kwargs=" + json.dumps(sorted(kw)))
     if {execute!r}:
-        o = c.submit_order(symbol="{LEGACY_TICKER}", qty=qty, side="sell",
-                           type="market", time_in_force="day")
-        print("TRANSITION closed qty=%d order=%s" % (qty, getattr(o, "id", o)))
+        o = c.submit_order(**kw)
+        print("TRANSITION closed qty=%d order=%s" % (qty, json.dumps(o, default=str)[:200]))
     else:
         print("TRANSITION DRY-RUN would_sell qty=%d {LEGACY_TICKER}" % qty)
 '''
@@ -138,7 +151,7 @@ def main(argv=None) -> int:
 
     print(f"\n2. CLOSE the legacy {LEGACY_TICKER} position "
           f"(the CAPITAL, not the experiment — damped_offense_t298 keeps accruing)")
-    res = close_legacy_position(execute)
+    res = close_legacy_position(execute, today)
     print(f"   submitted job {res['job_id']} — read its log for the artifact")
 
     print("\n3. ARCHIVE the offense-era state + clear the T-327 drill residue")

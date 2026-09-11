@@ -58,8 +58,12 @@ FLEET = [
          # marker). REMOVE this key at Act-2 arming, re-provision, then prove one
          # ALARM→OK→ALARM transition (the drill-3 arming protocol) before
          # trusting the alarm.
-         dormant="account dark until Act-2 arming (ruling 2026-08-28); "
-                 "re-enable requires the drill-3 arming protocol"),
+         # ARMED 2026-09-11 at the Act-2 transition: the legacy position is closed,
+         # the account is flat, and it now carries the deploy candidate. `dormant`
+         # is removed so the alarms come up with ACTIONS ENABLED — and per the
+         # arming protocol that is not enough on its own: a fresh
+         # ALARM→OK→ALARM transition must be PROVEN before the alarm is trusted.
+         ),
     # --- T-329 ACCOUNT 3 = the stage-2 AI trader (the constrained analyst's
     # validated note → real paper orders). It INHERITS the dormant btc-sleeve slot:
     #
@@ -244,7 +248,31 @@ def register_jobdef(acct, image, exec_arn, job_arn, sec_arn) -> str:
                 "awslogs-group": "/aws/batch/job", "awslogs-region": REGION,
                 "awslogs-stream-prefix": f"paper-{acct['key']}"}},
         },
-        "retryStrategy": {"attempts": 1}, "timeout": {"attemptDurationSeconds": 1800},
+        # T-350e (2026-09-11): account-1 lost a whole trading day — and with it the
+        # first price_fed note — to a single `CannotPullContainerError` (an i/o
+        # timeout dialling ECR). One attempt, no retry, day gone; the silent-stop
+        # alarm never crossed its threshold, so nothing surfaced it.
+        #
+        # The fix is NOT a blanket attempts=2. A retry must fire on INFRASTRUCTURE
+        # failure and NEVER on the application's own non-zero exit: exit 70 is the
+        # deliberate NON-CANONICAL verdict and exit 69 the fail-closed refusal, and
+        # re-running either would re-execute the trading path on a day the machine
+        # already judged unfit — turning a loud, correct refusal into a silent
+        # second attempt. So `evaluateOnExit` retries the pull/host class only and
+        # EXITS on every exit code.
+        #
+        # Safe to retry a pull failure specifically because nothing ran: the
+        # container never started. And even in the racier case, order client-ids
+        # are idempotent by construction (T-163 crit-2 — a duplicate coid means the
+        # order is already live at the broker and we adopt broker truth).
+        "retryStrategy": {
+            "attempts": 2,
+            "evaluateOnExit": [
+                {"onStatusReason": "CannotPullContainerError*", "action": "RETRY"},
+                {"onStatusReason": "Task failed to start*", "action": "RETRY"},
+                {"onExitCode": "*", "action": "EXIT"},
+            ]},
+        "timeout": {"attemptDurationSeconds": 1800},
     }
     rev = aws("batch", "register-job-definition", "--cli-input-json", json.dumps(jd),
               "--query", "revision", "--output", "text")
