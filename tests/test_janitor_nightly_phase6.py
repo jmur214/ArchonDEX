@@ -186,3 +186,23 @@ def test_the_plist_targets_the_dedicated_runner_not_an_agent_worktree():
     target = d["ProgramArguments"][1]
     assert "trading_machine-janitor" in target, target
     assert "agent-" not in target, "the runner must not be an agent's worktree"
+
+
+def test_the_wrapper_RECORDS_which_tree_it_ran_in():
+    """The venue defect was invisible for nine nights precisely because nothing
+    recorded which tree the job used. The log must answer "where did this run?" on
+    its own, without reconstructing what branch was checked out that night."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert 'repo=$REPO' in sh, "the log must name the repo it resolved to"
+    assert "rev-parse --short HEAD" in sh, "and the commit it ran"
+
+
+def test_the_bootstrap_requirement_is_written_down_where_it_bites():
+    """A self-syncing wrapper cannot bootstrap itself: the sync only runs if the
+    ALREADY-CHECKED-OUT wrapper contains it. Creating the runner without a manual
+    first advance reproduces the venue defect wearing the fix's clothes — this
+    nearly cost a night's observation and must not depend on someone remembering."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert "BOOTSTRAP" in sh
+    assert "checkout --detach origin/main" in sh
+    assert "cannot bootstrap itself" in sh

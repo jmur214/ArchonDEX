@@ -11,6 +11,15 @@
 # exiting non-zero for them — a red suite is the janitor doing its job, not the
 # janitor breaking. A non-zero rc here means the JANITOR ITSELF could not run,
 # which is the only thing worth waking someone for.
+#
+# BOOTSTRAP — learned the hard way (2026-09-10, caught with three hours to spare):
+# a SELF-SYNCING wrapper cannot bootstrap itself. The sync below only runs if the
+# ALREADY-CHECKED-OUT copy of this file contains it, so a freshly created (or
+# recreated) runner worktree still holds whatever wrapper its checkout had. After
+# `git worktree add`, advance it to origin/main ONCE BY HAND:
+#     git -C <runner> fetch origin && git -C <runner> checkout --detach origin/main
+# Skip that and the job silently executes the old checkout's instructions — which is
+# exactly the venue defect this design exists to close, wearing the fix's clothes.
 set -u
 # SELF-LOCATING. A wrapper that hardcodes a worktree IS the venue bug in miniature:
 # the nightly job ran for nine nights against whatever branch an agent had left
@@ -25,8 +34,13 @@ LOG="$LOG_DIR/janitor_$(date +%Y-%m-%d).log"
 SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
 
 {
-  echo "=== janitor $(date '+%Y-%m-%d %H:%M:%S %Z') ==="
+  # SAY WHERE YOU RAN. The venue defect was invisible for nine nights precisely
+  # because nothing recorded which tree the job used. A log that names its own repo
+  # and HEAD makes "where did this run?" answerable from the log alone, without
+  # reconstructing what branch happened to be checked out that night.
+  echo "=== janitor $(date '+%Y-%m-%d %H:%M:%S %Z') repo=$REPO ==="
   cd "$REPO" || exit 1
+  echo "    HEAD=$(git rev-parse --short HEAD 2>/dev/null) origin/main=$(git rev-parse --short origin/main 2>/dev/null)"
   # Refresh the base so 'behind origin/main' is meaningful; never merges, never resets.
   git fetch origin --quiet 2>&1 || echo "JANITOR_FETCH_FAILED (continuing; base may be stale)"
   # SYNC THE RUNNER TO CANONICAL CODE. Only safe in a DEDICATED runner worktree —
