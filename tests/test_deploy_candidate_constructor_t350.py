@@ -22,7 +22,6 @@ PX = {"VOO": 600.0, "MTUM": 230.0, "SGOV": 100.0}
 
 def _c(**kw):
     kw.setdefault("config", CFG)
-    kw.setdefault("sub_budget", 10_000.0)
     return DeployCandidateConstructor(trade_date="2026-09-11", tif="day", **kw)
 
 
@@ -59,8 +58,8 @@ def test_a_drift_inside_the_band_does_NOT_trade_and_says_why():
 def test_buying_is_held_to_a_STRICTER_band_than_trimming():
     """The buy/hold spread: the same |gap| that triggers a trim must NOT trigger a buy."""
     c = _c()
-    buy_band = c._band(PX["MTUM"], "buy")
-    sell_band = c._band(PX["MTUM"], "sell")
+    buy_band = c._band(PX["MTUM"], "buy", 10_000.0)
+    sell_band = c._band(PX["MTUM"], "sell", 10_000.0)
     assert buy_band > sell_band
     # a gap between the two bands: trims, does not buy
     assert sell_band < 0.030 < buy_band
@@ -70,8 +69,8 @@ def test_a_band_is_denominated_in_share_quanta_not_flat_percent():
     """The T-297 argument: a band below the quantum cannot bind. VOO's band must be
     materially wider than MTUM's precisely because its share is worth more."""
     c = _c()
-    assert c._band(PX["VOO"], "buy") > c._band(PX["MTUM"], "buy")
-    assert c._band(PX["VOO"], "buy") == pytest.approx(600.0 / 10_000.0 * 1.5)
+    assert c._band(PX["VOO"], "buy", 10_000.0) > c._band(PX["MTUM"], "buy", 10_000.0)
+    assert c._band(PX["VOO"], "buy", 10_000.0) == pytest.approx(600.0 / 10_000.0 * 1.5)
 
 
 def test_max_drift_binds_even_when_the_quantum_band_would_not():
@@ -150,3 +149,14 @@ def test_the_core_shares_a_class_with_account_1s_holding():
     guard on acct-2 CAN bite. That is the design, and it must not regress silently."""
     cls = json.loads(open("config/substantially_identical.json").read())["classes"]
     assert any("VOO" in v and "SPY" in v for v in cls.values())
+
+
+def test_the_budget_is_a_FRACTION_of_sizing_equity_not_a_dollar_figure():
+    """Fleet idiom: budget = equity * sub_budget, and the pipeline passes
+    sizing_equity = min(equity, notional_cap). Treating sub_budget as dollars would
+    have silently bypassed the cap at the arrival-event tier reset."""
+    p_full = _c().construct(10_000.0, {}, PX)
+    p_half = _c(sub_budget=0.5).construct(10_000.0, {}, PX)
+    assert p_half.target_qty["VOO"] * 2 <= p_full.target_qty["VOO"] + 1
+    # and the CAP binds: a bigger account still sizes to the capped equity handed in
+    assert _c().construct(10_000.0, {}, PX).target_qty["VOO"] == 14

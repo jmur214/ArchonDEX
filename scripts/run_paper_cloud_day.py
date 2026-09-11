@@ -67,7 +67,7 @@ STATE_DIR = "data/paper_state"
 # second stream lands (the event desk, on its T-304 bar), it gets its own token
 # here and `stage(stream=...)` per order — never a shared one, because sharing
 # tokens is how two independent decisions silently net into one fill.
-STREAM_TOKEN = {"llm_analyst": "analyst-a3"}
+STREAM_TOKEN = {"llm_analyst": "analyst-a3", "deploy_candidate": "deploycand-a2"}
 
 # Strategies whose OrderManager consults the TRADING kill switch before every
 # submit. Deliberately an explicit allow-list, not "everything": account-1's
@@ -312,7 +312,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="run the cycle WITHOUT arming submission (observe only)")
     ap.add_argument("--strategy",
-                    choices=["reconcile_only", "trend_sleeve", "offense_sso",
+                    choices=["reconcile_only", "trend_sleeve", "offense_sso", "deploy_candidate",
                              "sleeve_btc", "llm_analyst"],
                     default="reconcile_only",
                     help="reconcile_only = the daily pulse (no orders, the proven "
@@ -549,7 +549,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
                                    spec.stage_args()["tif"], cfg.config_hash()))
 
-    elif args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst"):
+    elif args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst", "deploy_candidate"):
         # T-288 fleet Accounts 2/3 — the sleeve-FAMILY shared pipeline. The live
         # account-1 (trend_sleeve) block above stays inline + untouched.
         # T-329 joins account-3's LLM analyst to the SAME pipeline: the point of
@@ -585,6 +585,31 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # a flip must announce itself, not just be true in the jobdef).
             print(f"   OFFENSE-SSO  damping={damping}"
                   f"{' (T-298: damp re-entry, never de-risk)' if damping=='asymmetric' else ''}")
+        elif args.strategy == "deploy_candidate":
+            # --- T-350 ACCOUNT 2, THE DEPLOY CANDIDATE (Act 2). The allocation a
+            # real-money option would eventually read: VOO core + MTUM satellite +
+            # SGOV cash leg, static targets with quantum-scaled asymmetric bands.
+            # The account is REPURPOSED IN PLACE — same key, same secret, same alarm
+            # names — because a rename touches IAM ARNs and the jobdef binding, which
+            # is the deploy-drift class that produced the July outage. Only the
+            # STRATEGY changes.
+            from paper_trader.deploy_candidate_constructor import (
+                DeployCandidateConstructor)
+            constructor = DeployCandidateConstructor(
+                trade_date=str(today), root=str(root), tif=sleeve_tif,
+                sub_budget=float(sleeve_cap))
+            fetch_u = (constructor.core_ticker, constructor.sat_ticker,
+                       constructor.cash_ticker, "SPY", "AGG", "GLD")
+            family_state = {"tracker_file": "deploy_candidate_tracking.json",
+                            "label": "DEPLOY-CAND"}
+            # The allocation announces itself in the banner — a config-driven
+            # weight that is only true in a JSON file is the silent-wrongness shape.
+            print(f"   DEPLOY-CAND  {constructor.core_ticker} "
+                  f"{constructor.core_weight:.0%} / {constructor.sat_ticker} "
+                  f"{constructor.sat_weight:.0%} / cash→{constructor.cash_ticker} | "
+                  f"bands buy {constructor.buy_band_q}q > sell "
+                  f"{constructor.sell_band_q}q (stricter to add), "
+                  f"max_drift {constructor.max_drift:.0%}")
         elif args.strategy == "llm_analyst":
             # --- T-329 ACCOUNT 3, the stage-2 AI trader. Day-1 stream = the
             # CONSTRAINED analyst only (the ladder's event desk joins on its T-304
@@ -1095,7 +1120,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
         except Exception as exc:
             print(f"   TRACK warn: {type(exc).__name__} (non-fatal)")
 
-    elif (args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst")
+    elif (args.strategy in ("offense_sso", "sleeve_btc", "llm_analyst", "deploy_candidate")
           and sleeve_closes and family_state):
         # T-288 fleet Accounts 2/3 forward tracker + report-only execution gates
         # (shared helper; per-strategy tracker file; robo benchmark = SPY/AGG/GLD).
