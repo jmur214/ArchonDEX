@@ -77,14 +77,19 @@ def test_a_fresh_substrate_reports_zero_staleness(tmp_path):
     assert '"staleness_days": 0' in text
 
 
-def test_a_missing_substrate_stays_honestly_empty_with_no_coverage_claim(tmp_path):
-    """No data must stay empty — and must NOT emit a coverage line implying any."""
+def test_a_missing_substrate_claims_NO_coverage_rather_than_going_silent(tmp_path):
+    """The intent here has always been 'never imply coverage you do not have'.
+    Originally that was enforced as SILENCE; T-350e showed silence is the worse
+    failure — an unexplained empty is what made the first price_fed note conclude
+    it had no prices. So the rule is now enforced positively: say there is no
+    store, which claims less than silence did and tells the reader more."""
     from intelligence.analyst.agentic_tools import AgenticTools
     assert build_readers(str(tmp_path), "2026-09-09")["query_prices"]({"ticker": "SPY"}) == []
     tools = AgenticTools(readers=build_readers(str(tmp_path), "2026-09-09"),
                          coverage=build_coverage(str(tmp_path), "2026-09-09"))
     text, _ = tools.execute("query_prices", {"ticker": "SPY"})
-    assert "[coverage]" not in text
+    assert "no price store for this ticker at all" in text
+    assert "UNAVAILABLE" in text and "do not infer a level" in text
 
 
 def test_the_image_build_refuses_to_ship_the_blindness_again():
@@ -128,3 +133,41 @@ def test_heartbeat_exposes_a_top_level_trading_halt_block(tmp_path):
     hb.record_halt(True, "halt_file:data/state/TRADING_HALT present")
     blk = json.loads((tmp_path / "data/state/paper_heartbeat.json").read_text())["trading_halt"]
     assert blk["halted"] is True and "halt_file" in blk["reason"] and blk["checked_at"]
+
+
+# ---------------- T-350e: the EMPTY case, from the real first price_fed note ----
+def test_an_out_of_coverage_window_EXPLAINS_ITSELF(tmp_path):
+    """THE REGRESSION, reproduced from the live artifact.
+
+    The first price_fed note (2026-09-11) asked for SPY 2026-08-01→2026-09-11 — a
+    sensible "recent prices" window — and got n_results: 0, because the RESEARCH
+    substrate ends 2026-05-22. Coverage returned None on an empty result, so no
+    explanation was attached, and the arm concluded "no live price history" in its
+    note. A full store, an empty answer, and nothing saying why: the silent-zero
+    shape reproduced inside the fix meant to end it.
+    """
+    from intelligence.analyst.agentic_readers import build_coverage
+    from intelligence.analyst.agentic_tools import AgenticTools
+    root = str(_price_root(tmp_path))          # store ends 2026-05-22
+    tools = AgenticTools(readers=build_readers(root, "2026-09-11"),
+                         coverage=build_coverage(root, "2026-09-11"))
+    text, is_err = tools.execute(
+        "query_prices", {"ticker": "SPY", "date_from": "2026-08-01",
+                         "date_to": "2026-09-11"})
+    assert is_err is False
+    assert "[coverage]" in text, "an empty answer must never be silent"
+    assert '"store_covers": "2026-05-20' in text and '2026-05-22"' in text
+    assert "outside the store's coverage" in text
+    assert "NOT because prices do not exist" in text
+
+
+def test_an_unknown_ticker_says_UNAVAILABLE_not_out_of_window(tmp_path):
+    """The two empties are different facts and must not read the same."""
+    from intelligence.analyst.agentic_readers import build_coverage
+    from intelligence.analyst.agentic_tools import AgenticTools
+    root = str(_price_root(tmp_path))
+    tools = AgenticTools(readers=build_readers(root, "2026-09-11"),
+                         coverage=build_coverage(root, "2026-09-11"))
+    text, _ = tools.execute("query_prices", {"ticker": "NOSUCH"})
+    assert "no price store for this ticker at all" in text
+    assert "do not infer a level" in text
