@@ -131,3 +131,45 @@ def test_AB_still_refuses_when_rows_straddle_into_the_UNSTAMPED_era():
     out = fs.ab_constrained_vs_agentic(con, ag)
     assert out["verdict"] == "INCONCLUSIVE_SPANS_INFORMATION_BOUNDARY"
     assert out["tie_break"].startswith("keep_constrained")
+
+
+# ── T-352: the per-era A/B — the VALID path a refusal must offer ─────────────
+def test_per_era_AB_buckets_BOTH_arms_by_DATE_not_by_their_own_label():
+    """THE BUG THIS LOCKS: only the agentic arm carries cohort labels. Bucketing each
+    row by its OWN label put constrained in `unsegmented` and agentic in `price_blind`
+    — ZERO pairs in every era, a comparison that could never run. Both arms must bucket
+    by DATE against the boundary-carrying source."""
+    con = [_row("analyst_constrained", f"2026-08-{d:02d}", key=str(d)) for d in (15, 16, 17)]
+    ag = [_row("analyst_agentic", f"2026-08-{d:02d}", "price_blind", key=str(d))
+          for d in (15, 16, 17)]
+    out = fs.ab_by_information_cohort(con, ag)["by_cohort"]
+    assert "price_blind" in out
+    assert out["price_blind"]["eligible_pairs"] == 3, "both arms must land in the same era"
+
+
+def test_the_blinded_era_is_NOT_quotable_as_the_AB():
+    """An era whose agentic arm was blinded cannot say whether the agentic DESIGN is
+    better — only what a blinded version did. The result must say so itself."""
+    con = [_row("analyst_constrained", "2026-08-15", key="a")]
+    ag = [_row("analyst_agentic", "2026-08-15", "price_blind", key="a")]
+    res = fs.ab_by_information_cohort(con, ag)["by_cohort"]["price_blind"]
+    assert res["quotable_as_the_AB"] is False
+    assert "NOT a comparison of the agentic DESIGN" in res["question_answered"]
+
+
+def test_a_post_stamp_era_IS_quotable():
+    con = [_row("analyst_constrained", "2026-09-15", key="a")]
+    ag = [_row("analyst_agentic", "2026-09-15", key="a")]
+    out = fs.ab_by_information_cohort(con, ag)["by_cohort"]
+    era = [k for k in out if "fed" in k][0]
+    assert out[era]["quotable_as_the_AB"] is True
+
+
+def test_eras_are_kept_SEPARATE_so_neither_pools_into_the_other():
+    con = ([_row("analyst_constrained", "2026-08-15", key="a")]
+           + [_row("analyst_constrained", "2026-09-15", key="b")])
+    ag = ([_row("analyst_agentic", "2026-08-15", key="a")]
+          + [_row("analyst_agentic", "2026-09-15", key="b")])
+    out = fs.ab_by_information_cohort(con, ag)["by_cohort"]
+    assert len(out) == 2                      # one comparison per era, never merged
+    assert all(r["spans_information_boundary"] is False for r in out.values())
