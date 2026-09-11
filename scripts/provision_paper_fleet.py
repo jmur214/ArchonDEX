@@ -41,10 +41,16 @@ SECRET_BASE = "archondex/alpaca-paper"
 # `secret` defaults to the key; set it explicitly when an account INHERITS another
 # slot's secret (see ai-trader below).
 FLEET = [
-    # T-298 flip: offense-sso runs the DAMPED spec (damp re-entry, never de-risk)
-    # now that its undamped armed run is clean + the real SSO slippage (2.2 bps)
-    # is measured.
-    dict(key="offense-sso", strategy="offense_sso", minute=50, damping="asymmetric",
+    # (HISTORY: this slot ran the T-298 damped-offense spec until 2026-09-10. Its
+    # science is NOT lost — the question lives on in the damped_offense_t298 virtual
+    # book, which keeps accruing untouched.)
+    # T-350 ACT 2 — REPURPOSED IN PLACE to the DEPLOY CANDIDATE. The account key,
+    # its secret, its S3 prefix and its alarm names are all UNCHANGED on purpose: a
+    # cosmetic rename touches IAM ARNs and the jobdef binding, which is the
+    # deploy-drift class that produced the July outage. Only the STRATEGY changes.
+    # The offense question is not lost — it lives on in the damped_offense_t298
+    # virtual book, which keeps accruing untouched.
+    dict(key="offense-sso", strategy="deploy_candidate", minute=50,
          # T-327 ruling (2026-08-28): a dormant account's dead-man alarm sat in
          # standing ALARM for six weeks — noise that blunts the channel. While
          # `dormant` is set, the alarms are provisioned with ACTIONS DISABLED and

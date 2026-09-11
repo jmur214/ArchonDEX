@@ -90,11 +90,16 @@ class DeployCandidateConstructor:
     """Static-target rebalancer with quantum-scaled asymmetric bands + a cash leg."""
 
     def __init__(self, *, trade_date: str, root: Optional[str] = None,
-                 tif: str = "day", sub_budget: float = 10_000.0,
+                 tif: str = "day", sub_budget: float = 1.0,
                  config: Optional[dict] = None):
         self.trade_date = str(trade_date)
         self.root = root
         self.tif = tif
+        # FLEET IDIOM: ``sub_budget`` is a FRACTION of the sizing equity, not a
+        # dollar figure — the dollar budget is ``equity * sub_budget``, and the
+        # pipeline hands us ``sizing_equity = min(equity, notional_cap)``. Getting
+        # this wrong would have silently bypassed the notional cap at exactly the
+        # moment it matters most: the arrival-event tier reset.
         self.sub_budget = float(sub_budget)
         cfg = config if config is not None else self._load_config()
         core = cfg.get("core", {})
@@ -136,11 +141,11 @@ class DeployCandidateConstructor:
     def targets(self) -> Dict[str, float]:
         return {self.core_ticker: self.core_weight, self.sat_ticker: self.sat_weight}
 
-    def _band(self, px: float, side: str) -> float:
+    def _band(self, px: float, side: str, budget: float) -> float:
         """The no-trade band for one name, as a WEIGHT, scaled to its own share
         quantum (docstring §2). Below the quantum a band cannot bind, so the band
         is denominated in quanta rather than in flat percentage points."""
-        quantum = px / self.sub_budget if self.sub_budget > 0 else 0.0
+        quantum = px / budget if budget > 0 else 0.0
         q = self.buy_band_q if side == "buy" else self.sell_band_q
         return quantum * q
 
@@ -162,7 +167,7 @@ class DeployCandidateConstructor:
             except Exception:   # noqa: BLE001
                 return None
 
-        budget = self.sub_budget
+        budget = float(equity) * self.sub_budget
         need = [self.core_ticker, self.sat_ticker, self.cash_ticker]
         px = {t: _last(t) for t in need}
         # FAIL-CLOSED: a missing price on a name we would TRADE holds the whole day
@@ -192,7 +197,7 @@ class DeployCandidateConstructor:
             cur_w = held[t] * px[t] / budget if budget > 0 else 0.0
             gap = tgt_w - cur_w                      # >0 underweight, <0 overweight
             side = "buy" if gap > 0 else "sell"
-            band = self._band(px[t], side)
+            band = self._band(px[t], side, budget)
             if abs(gap) <= band and abs(gap) < self.max_drift:
                 plan.band_report[t] = (
                     f"HOLD gap {gap:+.4f} within {side} band {band:.4f} "
