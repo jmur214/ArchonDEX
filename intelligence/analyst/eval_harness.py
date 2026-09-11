@@ -38,6 +38,15 @@ PROCESSED = ROOT / "data" / "processed"
 
 RESOLVER_TYPES = {"price_above", "relative_return", "dd_exceeds", "event_occurs"}
 
+
+def _cohort_for(source: str, note_date: str):
+    """T-350 information-set cohort (None when the source declares no boundaries)."""
+    try:
+        from intelligence.analyst.information_cohorts import cohort_for
+        return cohort_for(source, note_date)
+    except Exception:              # noqa: BLE001 — labelling must never break the eval
+        return None
+
 # ── injectable lookups (defaults hit disk; tests inject fixtures) ──────────────
 PriceFn = Callable[[str], Optional[pd.Series]]
 EventFn = Callable[[str, str], Optional[str]]   # (source, event_id) -> settled outcome | None
@@ -466,6 +475,11 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
             rec = {
                 "prediction_id": pid, "note_id": nid, "note_date": note.get("note_date", ""),
                 "retry_of_unresolvable": pid in _retryable,   # T-349: visible, not silent
+                # T-350: the INFORMATION SET this row was produced under. Not always a
+                # prompt bump — the agentic arm was price-blind while its prompt_version
+                # never changed, so by_prompt_version cannot see that boundary.
+                "information_cohort": _cohort_for(
+                    note.get("source") or "analyst_constrained", note.get("note_date", "")),
                 # T-331: fleet source tag (constrained / agentic / event) — the T-323
                 # A/B segments on this; `backfilled` marks archive-recovered rows.
                 "source": note.get("source") or ("event_interpreter"
@@ -680,6 +694,19 @@ def summarize(recs: list[dict]) -> dict:
             pv: {"n": sum(1 for r in resolvable if r.get("prompt_version") == pv),
                  "brier": _brier([r for r in resolvable if r.get("prompt_version") == pv])}
             for pv in prompts},
+        # T-350: segment by INFORMATION SET too. A boundary with no prompt bump is
+        # invisible to by_prompt_version, and pooling across one averages an arm that
+        # could see prices with one that could not.
+        "by_information_cohort": {
+            ic: {"n": sum(1 for r in resolvable if r.get("information_cohort") == ic),
+                 "brier": _brier([r for r in resolvable if r.get("information_cohort") == ic])}
+            for ic in sorted({r.get("information_cohort") for r in resolvable
+                              if r.get("information_cohort")})},
+        "by_source_information_cohort": {
+            f"{sc[0]}|{sc[1]}": sum(1 for r in resolvable
+                                    if (r.get("source"), r.get("information_cohort")) == sc)
+            for sc in sorted({(r.get("source") or "", r.get("information_cohort") or "")
+                              for r in resolvable if r.get("information_cohort")})},
         "by_model_prompt": {
             f"{mp[0]}|{mp[1]}": {
                 "n": sum(1 for r in resolvable
