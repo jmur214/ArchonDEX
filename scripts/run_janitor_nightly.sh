@@ -54,7 +54,8 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   else
     echo "JANITOR_SYNC_SKIPPED: runner worktree is DIRTY — not a clean runner venue"
   fi
-  "$PY" scripts/janitor_nightly.py "$@" 2>&1
+  # Only the SCHEDULED path may claim the scheduled trigger.
+  "$PY" scripts/janitor_nightly.py --trigger nightly_schedule "$@" 2>&1
   RC=$?
   echo "=== janitor rc=$RC ==="
   if [ "$RC" -ne 0 ]; then

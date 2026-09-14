@@ -42,8 +42,35 @@ from scripts.launchd_canon import audit_live                      # noqa: E402
 # report would make the runner worktree dirty on every run, so the nightly
 # re-sync to origin/main could never succeed — the venue fix and the artifact
 # location are the same problem.
-REPORT = ROOT / "data/state/janitor_report.md"
-LEDGER = ROOT / "data/state/autonomy_ledger.jsonl"
+def _canonical_root() -> Path:
+    """The MAIN worktree, resolved from wherever this runs.
+
+    The autonomy ledger is a PROGRAM-level record, not a worktree-level one, and
+    resolving it against ROOT split it in two: a run from a worktree whose
+    data/state is a real directory rather than the usual symlink silently started a
+    second file also called "the autonomy ledger". That already cost one hand-merge
+    of ten stranded rows, and a manual run afterwards went straight back into the
+    phantom. `--git-common-dir` points at the main worktree's .git from ANY worktree,
+    so one record exists no matter where the janitor is invoked.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, timeout=15, check=True).stdout.strip()
+        if out:
+            common = Path(out)
+            main = common.parent if common.name == ".git" else common
+            if (main / "data").exists():
+                return main
+    except Exception:
+        pass
+    return ROOT          # degrade to local rather than lose the row entirely
+
+
+CANON = _canonical_root()
+REPORT = CANON / "data/state/janitor_report.md"
+LEDGER = CANON / "data/state/autonomy_ledger.jsonl"
 MERGE_REQUESTS = ROOT / "data/coordination/janitor_merge_requests.md"
 # THE INTERPRETER. Never a bare `python` (launchd has no PATH), and never a
 # hardcoded ROOT/.venv either: worktrees do not each carry a venv, and this module
@@ -70,10 +97,54 @@ def _run(cmd: List[str], cwd: Path = ROOT, timeout: int = 3600) -> subprocess.Co
 
 # ── the checks ─────────────────────────────────────────────────────────────────
 
+#: How many failing test NAMES to persist on a red suite. Names, never tracebacks:
+#: enough to diagnose, small enough that a bad night cannot bury the log.
+MAX_FORENSIC_LINES = 40
+
+
+def forensic_lines(pytest_output: str) -> List[str]:
+    """The FAILED/ERROR names from a pytest run, in order.
+
+    Kept separate from the subprocess call so it can be tested against REAL
+    captured output instead of by re-running a red suite — the thing being parsed
+    is pytest's short-summary format, and that is what must not drift.
+    """
+    out: List[str] = []
+    for line in pytest_output.splitlines():
+        t = line.strip()
+        if t.startswith("FAILED ") or t.startswith("ERROR "):
+            out.append(t)
+    return out
+
+
 def check_suite() -> Check:
+    """Run the fast tier; on FAILURE, persist WHICH tests failed.
+
+    The 2026-09-11 row cost us a diagnosis: 17 failed + 96 errors, and the janitor
+    had kept only the summary line, so by the time anyone looked the tree passed
+    clean and the failure was unattributable. A red check that cannot say WHAT was
+    red is barely better than no check. Printed to stdout, which the wrapper
+    redirects into the dated log.
+    """
     r = _run([PY, "-m", "pytest", *FAST_SUITE])
-    tail = (r.stdout or r.stderr).strip().splitlines()
+    out = (r.stdout or "") + (r.stderr or "")
+    tail = out.strip().splitlines()
     summary = next((l for l in reversed(tail) if "passed" in l or "failed" in l), "no summary")
+
+    if r.returncode != 0:
+        names = forensic_lines(out)
+        print(f"[JANITOR-FORENSICS] suite FAILED — {len(names)} FAILED/ERROR line(s):")
+        for l in names[:MAX_FORENSIC_LINES]:
+            print(f"    {l}")
+        if len(names) > MAX_FORENSIC_LINES:
+            print(f"    ... and {len(names) - MAX_FORENSIC_LINES} more (capped at "
+                  f"{MAX_FORENSIC_LINES}; the pattern is in the names, not the volume)")
+        # Counts travel in the detail so the LEDGER row is comparable night to night
+        # without reading the log at all.
+        n_fail = sum(1 for l in names if l.startswith("FAILED"))
+        n_err = sum(1 for l in names if l.startswith("ERROR"))
+        summary = f"{summary} | failed={n_fail} errors={n_err}"
+
     return Check("suite", r.returncode == 0, summary, mechanical=False)
 
 
@@ -179,6 +250,21 @@ def write_report(checks: List[Check], guard_note: str, branch: Optional[str], as
     REPORT.write_text("\n".join(lines) + "\n")
 
 
+def _env_snapshot() -> dict:
+    """Cheap environment facts worth having on every row, not just bad ones."""
+    import shutil
+    try:
+        usage = shutil.disk_usage(str(ROOT))
+        disk_free_gb = round(usage.free / 1024 ** 3, 2)
+    except Exception:
+        disk_free_gb = None
+    try:
+        load1 = round(os.getloadavg()[0], 2)
+    except Exception:
+        load1 = None
+    return {"disk_free_gb": disk_free_gb, "load1": load1}
+
+
 def append_ledger(as_of: str, trigger: str, checks: List[Check],
                   diff_summary: str, outcome: str) -> None:
     """The autonomy ledger — every autonomous action, so the stream can be SCORED and
@@ -188,6 +274,13 @@ def append_ledger(as_of: str, trigger: str, checks: List[Check],
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "as_of": as_of, "session": "janitor_nightly", "rung": 0, "trigger": trigger,
         "checks": {c.name: ("PASS" if c.ok else "FAIL") for c in checks},
+        # ENVIRONMENT, recorded every night whether or not anything failed. The
+        # disk-pressure hypothesis for the 09-11..09-13 failures could not be tested
+        # because nothing measured the disk at 03:00 — by the time a human looked,
+        # the balloon had refilled. A hypothesis you cannot test from the record is
+        # a shrug; one number per row makes tomorrow's row able to confirm or refute it.
+        "env": _env_snapshot(),
+        "detail": {c.name: c.detail for c in checks},
         "diff_summary": diff_summary, "outcome": outcome,
     }
     with open(LEDGER, "a") as f:
@@ -242,6 +335,12 @@ def main() -> int:
                          "first nights establish a checks-only record first)")
     ap.add_argument("--branch", default=None, help="branch name for fixes")
     ap.add_argument("--timeout", type=int, default=1800, help="fix-phase timeout (s)")
+    # A manual run and a scheduled one were indistinguishable in the ledger except
+    # by timestamp — working out that row 10 was manual cost the director a check of
+    # the file's mtime. The wrapper (and only the wrapper) passes the scheduled
+    # trigger, so a bare invocation is honestly labelled `manual`.
+    ap.add_argument("--trigger", default="manual",
+                    help="what caused this run; the launchd wrapper passes nightly_schedule")
     a = ap.parse_args()
 
     as_of = datetime.now().strftime("%Y-%m-%d")
@@ -282,7 +381,7 @@ def main() -> int:
         guard_note = "fix phase enabled, but no mechanical findings to fix"
 
     write_report(checks, guard_note, branch if outcome == "merge_requested" else None, as_of)
-    append_ledger(as_of, trigger="nightly_schedule", checks=checks,
+    append_ledger(as_of, trigger=a.trigger, checks=checks,
                   diff_summary=diff_summary, outcome=outcome)
 
     print(f"[JANITOR] {as_of} outcome={outcome} "
