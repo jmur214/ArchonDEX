@@ -76,3 +76,43 @@ ALARM→OK→ALARM before trusting the alarm) → 6. observe the arrival event.
 enabled — to a new image on the same morning as the first `price_fed` verify,
 adding a variable to the observation that matters most, for no benefit. The
 provision takes seconds in-window.
+
+---
+
+## 2026-09-14 — the arrival event was POSTPONED, not corrupted
+
+The first scheduled firing under `deploy_candidate` **failed closed** at 13:51Z
+with a `NameError: name 'sleeve_cap' is not defined`, before any order. No broker
+contact, no partial fill, no state to unwind. **The pre-statement above stands
+completely untouched** and is still the thing to check when the event fires.
+
+**This is a THIRD kind of outcome**, distinct from both correct-looking failures
+I listed above: not a wash-guard refusal, not a guard that failed to build, but
+**an honest crash in my own wiring**. `sub_budget=float(sleeve_cap)` was a
+leftover from the constructor's original dollars-based design that survived the
+refactor to the fleet's FRACTION idiom — I changed the semantics and never
+updated this call site.
+
+**Why 53 green tests missed it, which is the durable part:** they exercised the
+constructor directly, and the wiring tests read `main()` as *text*. Nothing ever
+RAN this branch. **A text assertion cannot catch an undefined name; only
+execution can.** `tests/test_deploy_candidate_driver_t350f.py` now drives
+`main()` through the real branch with an injected client, and the lock is proven
+by reversion — restore `sleeve_cap` and three of its four tests fail. The same
+drive verifies the pre-stated shape locally: from flat, BUY 14 VOO / 6 MTUM, no
+sells.
+
+**Alarm reading:** account-2's alarm staying in ALARM today is the alarm system
+**correctly reporting a failed run**, not a defect. The arming proof's second
+half now closes on the first SUCCESSFUL firing.
+
+**Why the event was not recovered by a manual submit today**, despite the window
+being open and a same-day path being offered: the pre-statement above — endorsed
+as a ruling — says the arrival event *belongs to the first SCHEDULED firing* and
+is "not run from here". A manual catch-up would have bought back one paper day by
+making the arrival event a manual artifact, which is the one property it must not
+have. **The fix was deployed today so that tomorrow's 9:50 ET scheduled firing is
+the arrival event**; the deploy deadline was never the market close.
+
+Deployed for it: `paper-sha-20b6f1f`, account-2 jobdef `:17` (infra-only retry
+preserved), schedule ENABLED and revision-pinned, drift gate clean.

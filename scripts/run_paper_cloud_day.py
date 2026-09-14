@@ -638,22 +638,39 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # is the deploy-drift class that produced the July outage. Only the
             # STRATEGY changes.
             from paper_trader.deploy_candidate_constructor import (
-                DeployCandidateConstructor)
+                DeployCandidateConstructor, contributed_cap)
+            # T-350 item 4 FIRST — Rule-B contributions grow the CAP (the existing
+            # fleet pattern); no broker money moves and the uplift is printed every
+            # day so the budget can never grow silently. Computed BEFORE anything
+            # consumes a budget, so reading order matches dependency order.
+            #
+            # [NN-FAIL-CLOSED]: this account IS a tier rehearsal — an uncapped run
+            # would size off full equity (~$100k) and call it a $10k arrival. The
+            # cap is not optional here.
+            if not args.sleeve_notional_cap:
+                print("FATAL: [NN-FAIL-CLOSED] deploy_candidate requires "
+                      "--sleeve-notional-cap (the tier IS the rehearsal); refusing "
+                      "to size off full equity.", file=sys.stderr)
+                cloud.emit_metrics(happened=True, canonical=False); cloud.push()
+                return 69
+            deploy_cap, contrib_why = contributed_cap(
+                args.sleeve_notional_cap, str(today), root=str(root))
+            print(f"   DEPLOY-CAND  {contrib_why}")
+            # SEMANTIC, stated because the crash came from getting it wrong:
+            # `sub_budget` is a FRACTION of sizing equity, never a dollar figure
+            # (the fleet idiom — llm_analyst passes 1.0 the same way). The DOLLARS
+            # arrive via `cap=deploy_cap` at the _run_family_strategy call below,
+            # where sizing_equity = min(equity, deploy_cap). So the CONTRIBUTED cap
+            # is what sizes the book — item 4's whole point — and 1.0 means "this
+            # stream gets the entire capped budget", true while it is the only
+            # stream on the account.
             constructor = DeployCandidateConstructor(
                 trade_date=str(today), root=str(root), tif=sleeve_tif,
-                sub_budget=float(sleeve_cap))
+                sub_budget=1.0)
             fetch_u = (constructor.core_ticker, constructor.sat_ticker,
                        constructor.cash_ticker, "SPY", "AGG", "GLD")
             family_state = {"tracker_file": "deploy_candidate_tracking.json",
                             "label": "DEPLOY-CAND"}
-            # T-350 item 4 — Rule-B contributions, simulated by GROWING THE CAP
-            # (the existing fleet pattern). No broker money moves, and the run
-            # states the uplift every day so the budget can never grow silently.
-            from paper_trader.deploy_candidate_constructor import contributed_cap
-            if args.sleeve_notional_cap:
-                deploy_cap, contrib_why = contributed_cap(
-                    args.sleeve_notional_cap, str(today), root=str(root))
-                print(f"   DEPLOY-CAND  {contrib_why}")
             # The allocation announces itself in the banner — a config-driven
             # weight that is only true in a JSON file is the silent-wrongness shape.
             print(f"   DEPLOY-CAND  {constructor.core_ticker} "
