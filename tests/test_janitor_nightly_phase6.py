@@ -67,7 +67,7 @@ def test_the_report_surface_is_the_one_the_clock_watches():
     from paper_trader.clock_census import REGISTRY
     clock = next(c for c in REGISTRY if c.name == "janitor_ran_nightly")
     watched = set(clock.covers)
-    assert str(jn.REPORT.relative_to(REPO)) in watched, watched
+    assert str(jn.REPORT.relative_to(jn.CANON)) in watched, watched
 
 
 def test_the_janitor_does_not_flag_its_OWN_artifacts_as_a_dirty_worktree(monkeypatch):
@@ -169,7 +169,7 @@ def test_runtime_artifacts_live_in_the_GITIGNORED_tree():
     could never succeed. The venue fix and the artifact location are one problem."""
     assert jn.REPORT.parts[-3:] == ("data", "state", "janitor_report.md"), jn.REPORT
     assert jn.LEDGER.parent == jn.REPORT.parent, "record and report belong together"
-    assert str(jn.REPORT.relative_to(REPO)) in jn.SELF_WRITTEN
+    assert str(jn.REPORT.relative_to(jn.CANON)) in jn.SELF_WRITTEN
 
 
 def test_the_clock_watches_where_the_report_ACTUALLY_lands():
@@ -177,7 +177,7 @@ def test_the_clock_watches_where_the_report_ACTUALLY_lands():
     quietly unwatched."""
     from paper_trader.clock_census import REGISTRY
     clock = next(c for c in REGISTRY if c.name == "janitor_ran_nightly")
-    assert str(jn.REPORT.relative_to(REPO)) in set(clock.covers), clock.covers
+    assert str(jn.REPORT.relative_to(jn.CANON)) in set(clock.covers), clock.covers
 
 
 def test_the_plist_targets_the_dedicated_runner_not_an_agent_worktree():
@@ -206,3 +206,94 @@ def test_the_bootstrap_requirement_is_written_down_where_it_bites():
     assert "BOOTSTRAP" in sh
     assert "checkout --detach origin/main" in sh
     assert "cannot bootstrap itself" in sh
+
+
+# ---- forensics (2026-09-14): a red check must say WHAT was red -----------------
+
+_REAL_PYTEST_TAIL = """tests/test_x.py ..F                                              [ 12%]
+=========================== short test summary info ============================
+FAILED tests/test_cadence_registration_t346.py::test_news_clock_reads_the_FLAT_local_layout
+FAILED tests/test_intel_pulse_t310.py::test_scan_fires_when_due - AssertionError
+ERROR tests/test_thesis_scan_runner_t325.py::test_reason_empty_bundle - KeyError: 'x'
+17 failed, 96 errors, 3605 passed, 22 skipped in 196.00s (0:03:16)
+"""
+
+
+def test_forensic_lines_parses_pytest_short_summary():
+    """The 2026-09-11 row kept only the summary line, so 17 failed + 96 errors were
+    unattributable by the time anyone looked — the tree passed clean three hours
+    later. A red check that cannot say WHAT was red is barely better than none."""
+    lines = jn.forensic_lines(_REAL_PYTEST_TAIL)
+    assert len(lines) == 3
+    assert lines[0].startswith("FAILED tests/test_cadence_registration_t346.py")
+    assert lines[2].startswith("ERROR tests/test_thesis_scan_runner_t325.py")
+
+
+def test_forensic_lines_is_empty_on_a_green_run():
+    assert jn.forensic_lines("3731 passed, 22 skipped in 143.05s\n") == []
+
+
+def test_forensic_lines_ignores_prose_that_merely_mentions_failure():
+    """Only pytest's own summary prefixes count; a traceback line or a docstring
+    saying 'FAILED' must not be mistaken for a test name."""
+    noisy = "  # this ERRORED once\nE   AssertionError: FAILED to converge\nFAILED tests/t.py::a\n"
+    assert jn.forensic_lines(noisy) == ["FAILED tests/t.py::a"]
+
+
+def test_forensics_are_capped_so_a_bad_night_cannot_bury_the_log():
+    assert jn.MAX_FORENSIC_LINES <= 60, "names, not a transcript"
+    src = __import__("inspect").getsource(jn.check_suite)
+    assert "MAX_FORENSIC_LINES" in src and "and {len(names) - MAX_FORENSIC_LINES} more" in src
+
+
+def test_every_ledger_row_records_the_ENVIRONMENT_not_just_bad_ones(tmp_path, monkeypatch):
+    """The disk-pressure hypothesis for 09-11..09-13 could not be TESTED because
+    nothing measured the disk at 03:00; by the time a human looked the balloon had
+    refilled. One number per row makes tomorrow's row able to settle it."""
+    monkeypatch.setattr(jn, "LEDGER", tmp_path / "ledger.jsonl")
+    jn.append_ledger("2026-09-14", "nightly_schedule",
+                     [jn.Check("suite", True, "3731 passed")], "no changes", "checks_only")
+    row = json.loads((tmp_path / "ledger.jsonl").read_text().strip())
+    assert "env" in row and "disk_free_gb" in row["env"]
+    assert row["env"]["disk_free_gb"] is None or row["env"]["disk_free_gb"] > 0
+    assert row["detail"]["suite"] == "3731 passed", "the row carries each check's own words"
+
+
+def test_env_snapshot_degrades_to_None_rather_than_raising(monkeypatch):
+    """Forensics must never be the thing that breaks the janitor."""
+    import shutil
+    monkeypatch.setattr(shutil, "disk_usage", lambda p: (_ for _ in ()).throw(OSError("nope")))
+    snap = jn._env_snapshot()
+    assert snap["disk_free_gb"] is None
+
+
+def test_a_manual_run_is_LABELLED_manual_and_only_the_wrapper_claims_the_schedule():
+    """Row 10 was a manual run that looked scheduled; it took reading the file's
+    mtime to tell. Provenance belongs IN the row."""
+    import inspect
+    src = inspect.getsource(jn.main)
+    assert 'default="manual"' in src
+    assert "trigger=a.trigger" in src, "the row must record the trigger it was given"
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert "--trigger nightly_schedule" in sh
+
+
+def test_the_ledger_is_a_PROGRAM_record_not_a_worktree_one():
+    """Resolving against ROOT split the record in two: a worktree whose data/state
+    is a real directory rather than the usual symlink silently began a SECOND file
+    also called "the autonomy ledger". Ten rows were stranded that way, hand-merged,
+    and a manual run went straight back into the phantom hours later."""
+    assert jn.LEDGER.parent.parent.parent == jn.CANON
+    assert jn.REPORT.parent.parent.parent == jn.CANON
+    # from any worktree, CANON is the MAIN one — never the local checkout
+    assert (jn.CANON / "data").exists()
+    assert jn.CANON.name.endswith("trading_machine-2") or jn.CANON == jn.ROOT
+
+
+def test_canonical_root_degrades_to_local_rather_than_losing_the_row(monkeypatch):
+    """Forensics and bookkeeping must never be the thing that breaks the janitor:
+    if git cannot answer, write locally rather than raise."""
+    import subprocess
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("no git")))
+    assert jn._canonical_root() == jn.ROOT
