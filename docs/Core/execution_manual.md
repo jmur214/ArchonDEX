@@ -814,6 +814,38 @@ aws batch submit-job --profile archondex --region us-east-1 \
 # then read the log stream from describe-jobs → container.logStreamName
 ```
 
+### Redeploy ONE account without touching the others (surgical clone)
+
+`provision_paper_fleet.py --image "$REF"` bumps the WHOLE fleet. Use it when the
+fleet should move together. When a fix is account-specific — or when another
+account is mid-observation and must not gain a variable — clone that account's
+LIVE jobdef and change ONLY the image. Used for account-2 at T-350g (rev 17→18,
+paper-sha-8901ef5) while accounts 1 and 3 deliberately stayed on c288c42.
+
+```bash
+# 1. Read the LIVE revision and assert the ONLY delta is the image. Never
+#    re-render from a template: hand-fixes that were never written back get
+#    silently reverted (the stranded-fix class, 2026-07-28).
+#    scripts/redeploy_one_account.py does exactly this and refuses on any
+#    other diff; it prints "diff-vs-LIVE: image ONLY ✓" before registering.
+python scripts/redeploy_one_account.py --account offense-sso --image "$REF"
+#    ^ DRY RUN by default: prints the diff verdict and the schedule repoint it
+#      WOULD make, and writes nothing. Add --execute to register + repoint.
+
+# 2. Repoint the schedule at the NEW revision-pinned ARN, PRESERVING State.
+#    A bare revisionless ARN fails the scheduler role's `:*` IAM pattern and
+#    every submit AccessDenies silently (the 2026-07 two-week outage). The
+#    script asserts ":" is present in the ARN tail and never writes State.
+# 3. Verify by READBACK, then the drift gate:
+aws scheduler get-schedule --name archondex-paper-<acct>-daily \
+  --profile archondex --region us-east-1
+python scripts/diff_live_paper_infra.py     # must print "No drift."
+```
+
+Verification is the NEXT SCHEDULED FIRING, never a manual submit — a manual run
+proves the image, not the wiring that invokes it.
+
+
 ### ACCOUNT 3 — the stage-2 AI trader (`--strategy llm_analyst`, T-329/T-329b)
 
 ```bash
