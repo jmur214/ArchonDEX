@@ -26,6 +26,19 @@ set -u
 # checked out, because the path was baked in here. Derive the repo from this
 # script's own location so the wrapper operates on the worktree it lives in.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The aws CLI, resolved ABSOLUTELY — same reason as PY below. launchd's PATH is
+# /usr/bin:/bin:/usr/sbin:/sbin and the CLI lives in /opt/homebrew/bin, so a bare
+# `aws` works from an interactive shell and silently fails at 03:00. This alarm path
+# had never been exercised under launchd (it fires only on rc!=0, and the one
+# recorded failure was a MANUAL run), so the loud-failure channel was untested where
+# it matters most.
+AWS="$(command -v aws 2>/dev/null || true)"
+if [ ! -x "${AWS:-}" ]; then
+  for c in /opt/homebrew/bin/aws /usr/local/bin/aws /usr/bin/aws; do
+    [ -x "$c" ] && AWS="$c" && break
+  done
+fi
+AWS="${AWS:-aws}"
 PY="$REPO/.venv/bin/python"
 [ -x "$PY" ] || PY="/Users/jacksonmurphy/Dev/trading_machine-2/.venv/bin/python"
 LOG_DIR="$REPO/data/logs/janitor"
@@ -81,7 +94,7 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
     # Loud-failure marker (grep target) + the alarm channels. This fires only when
     # the janitor itself failed — check failures are REPORTED, not alarmed here.
     echo "JANITOR_RUN_FAILED rc=$RC"
-    aws sns publish --profile archondex --region us-east-1 \
+    "$AWS" sns publish --profile archondex --region us-east-1 \
       --topic-arn "$SNS_TOPIC" \
       --subject "ArchonDEX nightly janitor FAILED (launchd)" \
       --message "run_janitor_nightly.sh $(date '+%Y-%m-%d %H:%M %Z'): rc=$RC. See $LOG" \

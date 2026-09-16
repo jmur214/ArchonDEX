@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.janitor_guard import vet_branch                      # noqa: E402
 from scripts.launchd_canon import audit_live                      # noqa: E402
+from scripts import ledger_backup                                 # noqa: E402
 
 # Runtime artifacts live in the gitignored data/ tree, beside the ledger. A TRACKED
 # report would make the runner worktree dirty on every run, so the nightly
@@ -227,9 +228,20 @@ def check_runner_canon() -> Check:
                  f"({main[:8]}) — these checks describe THAT tree, not main")
 
 
+def check_ledger_backup() -> Check:
+    """Does a readable REMOTE copy of the authority record exist, and is it current?
+
+    Runs at the START, before tonight's row is appended, so it reports on LAST
+    night's sync. A push that failed silently is then caught within 24 hours instead
+    of at the moment of loss — which, for a single-copy record, is the only moment
+    that is too late (T-337: Arm-1's run dirs were gone before anyone asked)."""
+    v = ledger_backup.verify(LEDGER)
+    return Check("ledger_backup", v.ok, v.detail)
+
+
 def run_checks() -> List[Check]:
     return [check_runner_canon(), check_worktree_canon(), check_launchd_canon(),
-            check_doc_lint(), check_census(), check_suite()]
+            check_ledger_backup(), check_doc_lint(), check_census(), check_suite()]
 
 
 # ── the record ─────────────────────────────────────────────────────────────────
@@ -383,6 +395,14 @@ def main() -> int:
     write_report(checks, guard_note, branch if outcome == "merge_requested" else None, as_of)
     append_ledger(as_of, trigger=a.trigger, checks=checks,
                   diff_summary=diff_summary, outcome=outcome)
+
+    # SURVIVAL, after the row is written so tonight's row is the thing that survives.
+    # Never `allow_rewrite` on the scheduled path: a nightly job must not be able to
+    # overwrite history, only extend it. Reported, never fatal — losing the backup is
+    # serious, but a janitor that dies on an S3 hiccup stops producing the record it
+    # is protecting.
+    v = ledger_backup.sync(LEDGER, as_of=as_of)
+    print(f"[JANITOR] ledger_sync {v.status}: {v.detail}")
 
     print(f"[JANITOR] {as_of} outcome={outcome} "
           f"checks={{{', '.join(f'{c.name}={"PASS" if c.ok else "FAIL"}' for c in checks)}}}")
