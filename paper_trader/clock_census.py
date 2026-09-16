@@ -517,6 +517,7 @@ EXEMPT: Dict[str, str] = {
     "data/intel/llm_spend.jsonl": "budget ledger — advances only when spend occurs; a no-spend day is healthy",
     "data/state/tax_lots.jsonl": "advances only on taxable lots; a no-lot day is healthy",
     "data/state/offense_tracking.json": "fleet acct-2 file, populated only in that account's container",
+    "data/state/deploy_candidate_tracking.json": "fleet acct-2 file (T-351), populated only in that account's container; gated there by its own canonical/heartbeat verdict, exactly as offense_tracking above",
     "data/state/sleeve_btc_tracking.json": "fleet acct-3 file, populated only in that account's container",
     # T-329 — the stage-2 AI trader. Same container-scoping as the two fleet files
     # above: this census runs in ACCOUNT-1's container, which never holds account-3's

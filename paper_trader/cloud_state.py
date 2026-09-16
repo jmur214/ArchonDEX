@@ -101,6 +101,13 @@ DURABLE_PATHS: List[str] = [
     # T-329 account-3 (the stage-2 AI trader): its own forward tracker, same
     # per-container scoping as the two above.
     "data/state/llm_analyst_tracking.json",
+    # T-351: the DEPLOY CANDIDATE's forward tracker. Every other family strategy's
+    # tracker is here; this one was missed, so the account traded canonically from the
+    # 09-15 arrival event while its forward record was written to the ephemeral disk
+    # and discarded on every exit. Nothing alarmed — the runs were clean, the fills
+    # real, the heartbeat green. A record that never accrues is indistinguishable from
+    # one that is merely young, which is why this needed a tripwire and not a habit.
+    "data/state/deploy_candidate_tracking.json",
     # T-329: the TRADING kill switch's fastest operator surface. Durable so that
     # writing ONE S3 object halts the next run — no image rebuild, no jobdef
     # revision, no deploy window. It round-trips harmlessly (push only uploads a
