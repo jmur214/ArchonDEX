@@ -1234,7 +1234,18 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     try:
         import datetime as _dt
         from paper_trader.econ_health import evaluate_econ_health
-        managed_universe = list(plan.targets.keys()) if plan is not None else None
+        # The managed universe is "what has an exit rule", NOT "what carries a
+        # target weight". deploy_candidate's cash leg (SGOV) absorbs the residue
+        # and therefore holds no weight, so reading `targets` alone reported the
+        # deliberate cash leg as an orphan — permanently, since the condition can
+        # never clear. A heartbeat that is degraded every single day teaches its
+        # reader to ignore `degraded`, which is the one thing that field cannot
+        # afford. Constructors that manage anything off-target declare it; the
+        # rest fall through to `targets`, which is exactly right for them.
+        managed_universe = None
+        if plan is not None:
+            managed_universe = list(getattr(plan, "managed_universe", None)
+                                    or plan.targets.keys())
         last_trade_date = max(
             (_dt.date.fromisoformat(o.trade_date) for o in om.orders.values()),
             default=None)

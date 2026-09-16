@@ -116,3 +116,67 @@ the arrival event**; the deploy deadline was never the market close.
 
 Deployed for it: `paper-sha-20b6f1f`, account-2 jobdef `:17` (infra-only retry
 preserved), schedule ENABLED and revision-pinned, drift gate clean.
+
+---
+
+## 2026-09-15 — ✅ THE ARRIVAL EVENT FIRED, AND THE SHAPE HELD
+
+The 09:50 ET scheduled firing ran with no hands on it. Read off the live order
+journal (`s3://…/paper_state_offense_sso/data/paper_state/orders.jsonl`), the full
+lifecycle is present for all three legs — `stage → submitting → submit_acked →
+broker_update → broker_poll → broker_update(filled)`:
+
+| leg  | qty | fill px | notional | % of $10k tier |
+|------|----:|--------:|---------:|---------------:|
+| VOO  |  12 |  698.04 | 8,376.48 |         83.76% |
+| MTUM |   5 |  300.28 | 1,501.40 |         15.01% |
+| SGOV |   1 |  100.54 |   100.54 |          1.01% |
+|      |     |         | **9,978.42** |     **99.78%** |
+
+Against the five pre-stated criteria:
+
+1. **Three buys, no sells** — ✅ exactly three orders, all `buy`.
+2. **Core ~85% / satellite ~15%, each rounded DOWN** — ✅, *and this one needed
+   checking rather than eyeballing* (see below).
+3. **SGOV absorbs the residue** — ✅ $21.58 left uninvested, less than one SGOV
+   share ($100.54).
+4. **Canonical, with the allocation and bands stated** — ✅ `VOO 85% / MTUM 15% /
+   cash→SGOV | bands buy 1.5q > sell 1.0q (stricter to add), max_drift 10%`,
+   `notional cap $10,000 (equity $100,382)` — the cap binding on the tier, not on
+   equity, exactly as the sub_budget catch required.
+5. **Contribution +$0** — ✅ `+$0 = 0 whole month(s) x $583/mo since 2026-09-11
+   (SIMULATED via the notional cap; no broker money moves)`.
+
+Neither correct-looking failure fired. The wash guard built and enforced, and did
+not refuse the VOO buy — account-1 evidently carries no SPY loss inside the 61-day
+window, so **drill 12 stays latent, which is the correct outcome, not a skipped
+test.** The 09-16 run then submitted 0 (holds inside the bands) and the silent-stop
+alarm cleared: the arming proof closed its own second half.
+
+### ⚠️ Criterion 2 nearly fired as a FALSE positive — the falsifier was underspecified
+
+At the FILL price, MTUM's 5 shares are **15.01%** of the tier — *above* the 15%
+target, which the falsifier list calls "truncation failed." It did not. The
+constructor sizes off the prior close, and the arithmetic on its actual input is:
+
+```
+MTUM  10000 × 0.15 / 299.097 (09-14 close) = 5.0151 → 5   ✓ truncated DOWN
+      realized at the sizing price: 14.95%  ≤ 15%         ✓
+VOO   10000 × 0.85 / 699.300 (09-14 close) = 12.1550 → 12 ✓ truncated DOWN
+      realized at the sizing price: 83.92%  ≤ 85%         ✓
+```
+
+MTUM simply opened 0.40% above its close. **A falsifier that is evaluated at the
+fill price fires on ordinary overnight market movement** — it would have cried
+"truncation failed" on a day truncation worked perfectly, and the next reader would
+have spent the morning debugging a working invariant. Same wolf-crier class as the
+orphan check fixed in T-350g, arriving from the opposite direction.
+
+**The criterion is hereby sharpened for all future arrival/rebalance events:**
+truncation is judged against the **sizing input** (the close the constructor
+actually divided by), never against the realized fill. Slippage between the two is
+a separate, already-measured channel (`exec_cost`: VOO 1.65 bps, SGOV 0.99 bps,
+MTUM 0.00 bps on this event).
+
+**Verdict: the pre-statement is CONFIRMED.** The structural stack is live and
+accruing, and the dollars-vs-SPY line has its t=0.

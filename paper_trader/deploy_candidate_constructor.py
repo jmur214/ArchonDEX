@@ -84,6 +84,11 @@ class DeployCandidatePlan:
     band_report: Dict[str, str] = field(default_factory=dict)
     cash_deployed: float = 0.0
     funded_by_cash: List[str] = field(default_factory=list)   # gaps closed WITHOUT selling
+    # EVERY ticker this strategy manages, INCLUDING the cash leg — which carries
+    # no target WEIGHT (it absorbs the residue) and so is absent from `targets`.
+    # Consumers that ask "will anything ever exit this holding?" must read THIS,
+    # never `targets`: the cash leg has an exit rule and is not an orphan.
+    managed_universe: List[str] = field(default_factory=list)
 
 
 class DeployCandidateConstructor:
@@ -141,6 +146,18 @@ class DeployCandidateConstructor:
     def targets(self) -> Dict[str, float]:
         return {self.core_ticker: self.core_weight, self.sat_ticker: self.sat_weight}
 
+    def managed_tickers(self) -> Tuple[str, ...]:
+        """Every ticker this strategy has an exit rule for — core, satellite AND
+        the cash leg.
+
+        Deliberately NOT derived from a day's plan. `target_qty[cash]` is only
+        populated when the cash price resolves, so a plan-derived universe would
+        drop the cash leg on exactly the days the price feed hiccups — an alarm
+        that fires intermittently is worse than one that never fires, because
+        the reader learns to discount it. The managed universe is a property of
+        the STRATEGY, so it is stated here and is true on every day."""
+        return (self.core_ticker, self.sat_ticker, self.cash_ticker)
+
     def _band(self, px: float, side: str, budget: float) -> float:
         """The no-trade band for one name, as a WEIGHT, scaled to its own share
         quantum (docstring §2). Below the quantum a band cannot bind, so the band
@@ -153,6 +170,7 @@ class DeployCandidateConstructor:
     def construct(self, equity: float, current_positions: Dict[str, int],
                   closes: Dict[str, "object"]) -> DeployCandidatePlan:
         plan = DeployCandidatePlan()
+        plan.managed_universe = list(self.managed_tickers())
         plan.targets = {k: round(v, 4) for k, v in self.targets().items()}
         plan.signals = dict(plan.targets)
 
