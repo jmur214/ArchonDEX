@@ -48,11 +48,30 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   # not a nicety. `checkout --detach` moves HEAD without `reset --hard` (deny-listed);
   # it refuses rather than clobbers if the tree is dirty, so a failure here is loud
   # and the run proceeds on the old checkout with runner_canon recording that fact.
+  SELF="${BASH_SOURCE[0]}"
+  BEFORE="$(shasum "$SELF" 2>/dev/null | cut -d' ' -f1)"
   if [ -z "$(git status --porcelain)" ]; then
     git checkout --detach origin/main --quiet 2>&1 \
       || echo "JANITOR_SYNC_FAILED (running previous checkout; runner_canon will say so)"
   else
     echo "JANITOR_SYNC_SKIPPED: runner worktree is DIRTY — not a clean runner venue"
+  fi
+  echo "    post-sync HEAD=$(git rev-parse --short HEAD 2>/dev/null)"
+
+  # RE-EXEC IF THIS SCRIPT ITSELF CHANGED.
+  # A self-updating wrapper otherwise runs ONE GENERATION BEHIND for its own code:
+  # bash reads the script into memory at invocation, so the sync above rewrites the
+  # FILE but not the RUNNING PROCESS. The janitor it launches is current; the
+  # wrapper's own behaviour is a night stale. That is not hypothetical — on
+  # 2026-09-15 the pre-merge wrapper ran the post-merge janitor without the
+  # --trigger flag, and a genuinely scheduled 03:02 run was recorded as 'manual' in
+  # the permanent record. The env guard makes exactly one hop, so a wrapper that
+  # somehow keeps changing cannot loop.
+  AFTER="$(shasum "$SELF" 2>/dev/null | cut -d' ' -f1)"
+  if [ -n "$BEFORE" ] && [ "$BEFORE" != "$AFTER" ] && [ -z "${JANITOR_REEXECED:-}" ]; then
+    echo "JANITOR_WRAPPER_UPDATED ${BEFORE:0:8}->${AFTER:0:8} — re-executing the new wrapper"
+    export JANITOR_REEXECED=1
+    exec /bin/bash "$SELF" "$@"
   fi
   # Only the SCHEDULED path may claim the scheduled trigger.
   "$PY" scripts/janitor_nightly.py --trigger nightly_schedule "$@" 2>&1

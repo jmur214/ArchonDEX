@@ -297,3 +297,32 @@ def test_canonical_root_degrades_to_local_rather_than_losing_the_row(monkeypatch
     monkeypatch.setattr(subprocess, "run",
                         lambda *a, **k: (_ for _ in ()).throw(OSError("no git")))
     assert jn._canonical_root() == jn.ROOT
+
+
+# ---- the wrapper's own staleness (2026-09-16) ---------------------------------
+
+def test_the_wrapper_REEXECS_when_the_sync_changes_its_own_file():
+    """A self-updating wrapper otherwise runs ONE GENERATION BEHIND for its own
+    code: bash loads the script into memory at invocation, so the sync rewrites the
+    FILE but not the RUNNING PROCESS. On 2026-09-15 the pre-merge wrapper ran the
+    post-merge janitor without --trigger, and a genuinely scheduled 03:02 firing was
+    recorded as 'manual' in the permanent record."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert 'BEFORE="$(shasum' in sh and 'AFTER="$(shasum' in sh
+    assert 'exec /bin/bash "$SELF"' in sh, "it must re-exec, not merely warn"
+
+
+def test_the_reexec_can_hop_exactly_once():
+    """An unguarded re-exec on a file that keeps changing is an infinite loop at
+    03:00 with nobody watching."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert 'export JANITOR_REEXECED=1' in sh
+    assert '[ -z "${JANITOR_REEXECED:-}" ]' in sh, "the guard must gate the exec"
+
+
+def test_the_log_shows_HEAD_on_BOTH_sides_of_the_sync():
+    """The 09-15 diagnosis was only possible because the log printed HEAD and
+    origin/main. It printed them BEFORE the sync, so the line described the moment
+    before the run rather than the code that ran."""
+    sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    assert "post-sync HEAD=" in sh
