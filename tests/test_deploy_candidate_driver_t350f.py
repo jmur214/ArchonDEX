@@ -44,10 +44,30 @@ class _Cloud:
         pass
 
 
-def _drive(tmp_path, cap="10000", positions=None):
+def _seed_journal(tmp_path, fills):
+    """Seed the order journal with observed FILLS so held positions are
+    *explained* and the run can reach canonical — the state account-2 was
+    actually in on 2026-09-16, the day the wolf-crier was found. Without this a
+    held position is an unexplained mystery and the run correctly refuses."""
+    state = tmp_path / "data/paper_state"
+    state.mkdir(parents=True, exist_ok=True)
+    with (state / "orders.jsonl").open("w") as fh:
+        for tkr, qty, px in fills:
+            fh.write(json.dumps({
+                "event": "broker_update", "state": "filled",
+                "client_order_id": f"archondex-deploycand-a2-2026-09-15-{tkr}-seed",
+                "trade_date": "2026-09-15", "ticker": tkr, "side": "buy",
+                "qty": qty, "tif": "day", "filled_qty": qty,
+                "filled_avg_price": px, "filled_at": "2026-09-15T13:52:00+00:00",
+                "last_broker_status": "filled"}) + "\n")
+
+
+def _drive(tmp_path, cap="10000", positions=None, journal=None):
     today = dt.date(2026, 9, 15)
     now = dt.datetime(2026, 9, 15, 9, 50, tzinfo=dt.timezone.utc)
     (tmp_path / "config").mkdir(parents=True, exist_ok=True)
+    if journal:
+        _seed_journal(tmp_path, journal)
     (tmp_path / "config/deploy_candidate.json").write_text(json.dumps({
         "core": {"ticker": "VOO", "weight": 0.85},
         "satellite": {"ticker": "MTUM", "weight": 0.15},
@@ -128,3 +148,83 @@ def test_an_uncapped_deploy_candidate_REFUSES_to_size_off_full_equity(tmp_path):
     rc, cloud = _drive(tmp_path, cap=None)
     assert rc == 69
     assert cloud.metrics and cloud.metrics[-1] == (True, False)
+
+
+# --------------------------------------------------------------------------- #
+# T-350g — the cash leg is not an orphan.
+#
+# Locked from the LIVE artifact: the 2026-09-16 heartbeat on account-2 read
+#
+#   econ_health.degraded = true
+#   orphan_positions tripped — "held ['SGOV'] outside managed universe
+#   ['MTUM', 'VOO'] — no constructor rule will ever exit these"
+#
+# with the real arrival-event holdings VOO 12 / MTUM 5 / SGOV 1. The claim in
+# that detail line was simply FALSE: the constructor does have an exit rule for
+# the cash leg (it sets target_qty[cash] and the delta can be negative). The
+# caller was reading `plan.targets` — what carries a target WEIGHT — as if it
+# were "what has an exit rule", and the cash leg holds no weight BY DESIGN
+# because it absorbs the residue.
+#
+# The cost of getting this wrong is not a wrong number, it is a wrong HABIT: the
+# condition can never clear, so `degraded` would read true every day forever and
+# its reader would learn to skip it. Same shape as A's Labor-Day wolf-crier.
+# --------------------------------------------------------------------------- #
+
+# The real 2026-09-15 arrival-event fills, read off the live order journal at
+# s3://…/paper_state_offense_sso/data/paper_state/orders.jsonl.
+ARRIVAL_FILLS = [("VOO", 12, 698.04), ("MTUM", 5, 300.28), ("SGOV", 1, 100.54)]
+ARRIVAL_HOLDINGS = {t: q for t, q, _ in ARRIVAL_FILLS}
+
+
+def _econ(tmp_path):
+    hb = json.loads((tmp_path / "data/state/paper_heartbeat.json").read_text())
+    eh = hb["econ_health"]
+    return eh, next(f for f in eh["findings"] if f["channel"] == "orphan_positions")
+
+
+def test_the_cash_leg_reads_as_MANAGED_not_orphaned(tmp_path):
+    """THE REGRESSION, from the live heartbeat. Before the fix this run reported
+    SGOV as an orphan and set degraded=true — permanently."""
+    rc, _ = _drive(tmp_path, positions=dict(ARRIVAL_HOLDINGS),
+                   journal=ARRIVAL_FILLS)
+    assert rc == 0
+    eh, orphan = _econ(tmp_path)
+    assert orphan["status"] == "ok", orphan["detail"]
+    assert eh["degraded"] is False, [f for f in eh["findings"]
+                                     if f["status"] == "tripped"]
+
+
+def test_a_REAL_orphan_still_trips_the_fix_did_not_blind_the_check(tmp_path):
+    """The fix must not be 'stop asking the question'. SSO — account-2's own
+    legacy position, closed by the transition — is a true orphan: nothing in
+    deploy_candidate will ever sell it."""
+    held = dict(ARRIVAL_HOLDINGS, SSO=149)
+    rc, _ = _drive(tmp_path, positions=held,
+                   journal=ARRIVAL_FILLS + [("SSO", 149, 92.11)])
+    assert rc == 0
+    eh, orphan = _econ(tmp_path)
+    assert orphan["status"] == "tripped"
+    # SGOV must appear in the UNIVERSE half of the message and never in the
+    # ORPHAN half — the distinction the old wiring collapsed.
+    held_half, uni_half = orphan["detail"].split("outside managed universe")
+    assert "SSO" in held_half and "SGOV" not in held_half
+    assert "SGOV" in uni_half
+    assert eh["degraded"] is True
+
+
+def test_the_managed_universe_does_not_depend_on_the_days_prices(tmp_path):
+    """Why managed_tickers() is a property of the STRATEGY, not of a plan:
+    target_qty[cash] is only populated when the cash price resolves, so a
+    plan-derived universe would drop SGOV on exactly the days the feed hiccups.
+    An alarm that fires intermittently is worse than one that never fires."""
+    from paper_trader.deploy_candidate_constructor import DeployCandidateConstructor
+    idx = pd.bdate_range(end=pd.Timestamp("2026-09-14"), periods=40)
+    closes = {t: pd.Series([v] * len(idx), index=idx)
+              for t, v in (("VOO", 600.0), ("MTUM", 230.0))}   # NO SGOV price
+    c = DeployCandidateConstructor(trade_date="2026-09-15", root=str(tmp_path))
+    (tmp_path / "config").mkdir(parents=True, exist_ok=True)
+    plan = c.construct(10_000.0, {}, closes)
+    assert "SGOV" in plan.managed_universe
+    assert "SGOV" not in plan.target_qty        # the plan-derived route WOULD drop it
+    assert set(plan.managed_universe) == {"VOO", "MTUM", "SGOV"}
