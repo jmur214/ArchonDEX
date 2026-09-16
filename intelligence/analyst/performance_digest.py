@@ -147,10 +147,12 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
     missing = [r for r in rows if r["missing"]]
 
     # ---- the 20-second summary (exactly 3 lines) ----
-    l1 = f"**{n_streams} streams tracked** as of {as_of}."
+    l1 = (f"**{n_streams} stream{'' if n_streams == 1 else 's'} tracked** "
+          f"as of {as_of}.")
     if early and not (ahead or behind):
-        l2 = (f"**Nothing is decidable yet** — all {len(early)} streams are still "
-              f"inside the {MIN_DAYS_FOR_VERDICT}-day minimum record.")
+        l2 = (f"**Nothing is decidable yet** — "
+              + (f"the stream is" if len(early) == 1 else f"all {len(early)} streams are")
+              + f" still inside the {MIN_DAYS_FOR_VERDICT}-day minimum record.")
     else:
         l2 = (f"**{len(ahead)} beating** their benchmark, **{len(behind)} trailing**, "
               f"**{len(early)} too early to say.**")
@@ -173,6 +175,14 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
                 f"> **Can evidence:** {fr['can_evidence']}",
                 f"> **Cannot evidence:** {fr['cannot_evidence']}",
                 f"> *(source: {fr['source']})*", ""]
+
+    # T-354 — the deploy-candidate header. Rendered ONLY when that row is present, and
+    # placed ABOVE the table so the coupling statement cannot be read after the number.
+    if any(r["stream"] == DEPLOY_CANDIDATE_STREAM for r in rows):
+        f = DEPLOY_CANDIDATE_FRAMING
+        out += [f"> **Deploy candidate:** {f['what_this_is']}",
+                f"> **⚠ Coupled:** {f['coupling']}",
+                f"> **Execution cost:** {f['execution_cost_is_in_the_record']}", ""]
 
     out += [l1, l2, l3, "", "---", "",
             "## Per-stream", "",
@@ -239,3 +249,72 @@ def generate(streams: dict[str, dict], as_of: str, *, out_path: Path = DIGEST,
                 "archived": str(archived) if archived else None}
     except Exception as e:  # noqa: BLE001 — Law 5: never fail the pulse
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+# ── the DEPLOY-CANDIDATE row (T-354) ──────────────────────────────────────────
+# The stream the real-money option eventually reads. Same machinery as every other
+# row — dollars per $10K, the 60-day gate, verdict off the RAW record — plus two
+# statements this row carries that no other row needs.
+DEPLOY_CANDIDATE_STREAM = "account-2 deploy candidate (paper)"
+
+DEPLOY_CANDIDATE_FRAMING = {
+    "what_this_is": (
+        "This row tracks the deploy candidate against buy-and-hold SPY at the same "
+        "tier. It is the stream a future real-money decision would read. It reports; "
+        "it does not recommend, and nothing here proposes a date."),
+    "coupling": (
+        "NOT INDEPENDENT OF ACCOUNT 1: the candidate holds VOO, which shares the "
+        "US_LARGE_BLEND wash class with account-1's SPY. A rebalance here can be "
+        "refused because of an account-1 loss inside the 61-day window, so this "
+        "stream's turnover is coupled to account-1's tax lots — its results are not "
+        "those of a standalone book."),
+    "execution_cost_is_in_the_record": (
+        "The book's basis is its ACTUAL fills; the twin buys at the same session's "
+        "close. The candidate therefore starts behind by its real execution cost, "
+        "which is the honest starting point and is never netted out."),
+}
+
+
+def deploy_candidate_stream(lots: list[dict], price_fn, as_of: str,
+                            start_date: str, twin_symbol: str = "SPY") -> dict:
+    """Build the deploy-candidate stream from REAL tax lots + live prices.
+
+    `lots` are the account's actual fills ({symbol, qty, price}). The book's basis is
+    what it actually paid; the twin puts the SAME dollars into `twin_symbol` at the
+    start session's close. Returns {} when a required price is missing — a missing
+    input is reported as a missing row, never marked at a guessed price
+    (`[NN-FAIL-CLOSED]` in the measurement path).
+    """
+    try:
+        basis = 0.0
+        value = 0.0
+        for lot in lots or []:
+            sym = lot.get("symbol")
+            qty = float(lot.get("qty") or lot.get("quantity") or 0)
+            fill = float(lot.get("price") or lot.get("cost_basis") or 0)
+            if not sym or qty <= 0 or fill <= 0:
+                return {}
+            s = price_fn(sym)
+            if s is None or not len(s):
+                return {}                      # missing mark → report the row missing
+            basis += qty * fill
+            value += qty * float(s.iloc[-1])
+        t = price_fn(twin_symbol)
+        if not basis or t is None or not len(t):
+            return {}
+        t_start = t[t.index <= _pd().Timestamp(start_date)]
+        if not len(t_start):
+            return {}
+        twin_growth = float(t.iloc[-1]) / float(t_start.iloc[-1])
+        n_days = int(len(t[t.index >= _pd().Timestamp(start_date)]))
+        return {"book_growth": value / basis, "twin_growth": twin_growth,
+                "n_days": n_days, "basis_dollars": round(basis, 2),
+                "value_dollars": round(value, 2), "twin_symbol": twin_symbol,
+                "start_date": start_date}
+    except Exception:                          # noqa: BLE001 — never raise into the pulse
+        return {}
+
+
+def _pd():
+    import pandas as pd
+    return pd
