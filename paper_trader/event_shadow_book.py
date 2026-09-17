@@ -90,19 +90,40 @@ class DeskConfig:
     name: str
     state_path: str
     source_path: str                       # jsonl file OR notes directory
-    loader: str = "event_calls"            # "event_calls" | "analyst_notes"
+    # NOTE: `_load_calls` reads ONE format (the event-calls jsonl). This field used
+    # to advertise an "analyst_notes" option that no code path ever implemented —
+    # a config key promising a behaviour that did not exist, which is how the
+    # retired ANALYST_DESK looked wireable when it was not. Kept as a single-valued
+    # field rather than deleted so the jsonl format stays named at the seam; add a
+    # branch here BEFORE adding a value.
+    loader: str = "event_calls"            # "event_calls" (the only implemented loader)
 
 
 EVENT_DESK = DeskConfig(name="event_desk",
                         state_path="data/state/event_shadow_book.json",
                         source_path="data/intel/event_calls.jsonl",
                         loader="event_calls")
-# E/T-321's agentic analyst: SAME machinery, different feed. Ships dormant-but-armed until
-# the feed exists (the T-302 posture) — point `source_path` at it when it lands.
-ANALYST_DESK = DeskConfig(name="analyst_desk",
-                          state_path="data/state/analyst_desk_book.json",
-                          source_path="data/intel/agentic_analyst_calls.jsonl",
-                          loader="event_calls")
+# ANALYST_DESK — RETIRED 2026-09-16 (T-355), after 36 days recording nothing.
+#
+# It shipped "dormant-but-armed until the feed exists — point `source_path` at it
+# when it lands; no code change". The feed DID land, in a shape this desk cannot
+# consume: E/T-321's agentic analyst emits `hypothetical_actions` (continuous
+# TARGET WEIGHTS), not event-style calls with horizons. A call-driven desk and a
+# weight-driven book are different objects, so "no code change" was never going
+# to be true, and `data/intel/agentic_analyst_calls.jsonl` was never written by
+# anything, anywhere.
+#
+# What the 36 days cost: nothing was wrong-looking. The book was DURABLE, was
+# written every session, and accrued days — with `open: 0, closed: 0` and not a
+# single day carrying a call. Durability of a book whose feed does not exist is
+# a null guarantee; only a LIVENESS check can see it (T-342), which is the
+# inverse of C's T-351 defect and the reason both read "too early to say"
+# forever.
+#
+# The agentic arm is NOT left unbooked: its weights go to `LlmShadowBook`, which
+# already implements exactly the weights→NAV-vs-twin machinery and is now
+# instantiated for that arm (T-355, `llm_shadow_book_agentic.json`). Reusing the
+# fitting machinery beats reviving the unfitting one.
 
 
 @dataclass

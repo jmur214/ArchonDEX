@@ -911,9 +911,12 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # The gate is D's OWN T-304 bar #5, so the desk record and the Brier record
             # share one standard. Report-only; fail-closed parking, never a fake fill. --- #
             try:
-                from paper_trader.event_shadow_book import (ANALYST_DESK, EVENT_DESK,
-                                                            TWIN_TICKER, EventShadowBook)
-                for _cfg in (EVENT_DESK, ANALYST_DESK):
+                from paper_trader.event_shadow_book import (EVENT_DESK, TWIN_TICKER,
+                                                            EventShadowBook)
+                # ANALYST_DESK retired T-355: its feed never existed and the agentic
+                # arm's output is weights, not calls — it is booked by LlmShadowBook
+                # below instead. One desk on this machinery now.
+                for _cfg in (EVENT_DESK,):
                     _bk = EventShadowBook(cfg=_cfg, root=str(root))
                     _stt = _bk._state()
                     _calls, _why = _bk._load_calls(str(today))
@@ -1067,15 +1070,27 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # Gated on a note EXISTING → ships dormant-but-armed; wakes the day E's
             # first validated note lands. Fill = yesterday's note @ today's close
             # (signal-t/fill-t+1, no look-ahead); firewall re-enforced fail-closed. -- #
+            # T-355: TWO ARMS on this ONE machinery (parameterized, not forked — the
+            # same discipline the desk used). The constrained arm is unchanged and is
+            # STILL the only book that feeds `_shadow_twin` → the eval harness's
+            # directional G1 leg: that is a running measurement with its own accrued
+            # history, and quietly swapping or blending its input would corrupt it.
+            # The agentic arm gets its OWN book and its own t=0, so the A/B compares
+            # two records rather than one record and an assumption.
             _shadow_twin = None
-            try:
-                from paper_trader.llm_shadow_book import LlmShadowBook
-                _lsb = LlmShadowBook(root=str(root))
-                _note, _reason = _lsb._load_yesterday_note(str(today))
-                _held = list(_lsb._state()["book"]["positions"].keys())
-                if _note is None and not _held:
-                    print("   LLM-SHADOW dormant (no analyst note yet — armed, waiting on first note)")
-                else:
+            for _arm, _kw, _feeds_eval in (
+                ("", {}, True),
+                ("agentic", {"path": "data/state/llm_shadow_book_agentic.json",
+                             "notes_dir": "data/intel/analyst_notes_agentic"}, False)):
+                _tag = f"LLM-SHADOW[{_arm}]" if _arm else "LLM-SHADOW"
+                try:
+                    from paper_trader.llm_shadow_book import LlmShadowBook
+                    _lsb = LlmShadowBook(root=str(root), **_kw)
+                    _note, _reason = _lsb._load_yesterday_note(str(today))
+                    _held = list(_lsb._state()["book"]["positions"].keys())
+                    if _note is None and not _held:
+                        print(f"   {_tag} dormant (no analyst note yet — armed, waiting on first note)")
+                        continue
                     _syms = set(_held) | {"SPY", "AGG"} | {
                         a["symbol"] for a in (_note or {}).get("hypothetical_actions", [])
                         if a.get("account") == "shadow"}
@@ -1086,13 +1101,15 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                     except Exception:
                         _closes = None      # fail-closed → degraded (positions hold)
                     lsum = _lsb.record(str(today), closes=_closes, note=_note, note_reason=_reason)
-                    _shadow_twin = {"book_nav": lsum.get("book_nav"), "twin_nav": lsum.get("twin_nav"),
-                                    "n_days": lsum.get("n_days")}
-                    print(f"   LLM-SHADOW n_days={lsum['n_days']} clean={lsum['n_clean']} "
+                    if _feeds_eval:
+                        _shadow_twin = {"book_nav": lsum.get("book_nav"),
+                                        "twin_nav": lsum.get("twin_nav"),
+                                        "n_days": lsum.get("n_days")}
+                    print(f"   {_tag} n_days={lsum['n_days']} clean={lsum['n_clean']} "
                           f"book_nav={lsum['book_nav']} vs twin={lsum['twin_nav']} "
                           f"rejected={lsum['n_rejected']} (report-only analyst record)")
-            except Exception as exc:
-                print(f"   LLM-SHADOW warn: {type(exc).__name__} (non-fatal)")
+                except Exception as exc:
+                    print(f"   {_tag} warn: {type(exc).__name__} (non-fatal)")
             # --- T-308 EVAL HARNESS: resolve expired analyst + event-call predictions
             # against prices/Kalshi/FRED/calendar; append-only log + summary (skill,
             # calibration, g1_skill). REPORT-ONLY, fully fail-open (never blocks trading).

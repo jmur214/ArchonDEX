@@ -58,7 +58,14 @@ DURABLE_PATHS: List[str] = [
     # their horizon elapses, so an ephemeral disk would silently drop live positions
     # and the ≥30-closed-per-type bar could never accrue.
     "data/state/event_shadow_book.json",
-    "data/state/analyst_desk_book.json",
+    # T-355: ANALYST_DESK RETIRED. `analyst_desk_book.json` is deliberately NOT here
+    # any more — 36 sessions of durable days with open:0 closed:0 and no call ever,
+    # because its feed did not exist. Dropping it from the sync FREEZES the existing
+    # S3 object as the historical record ([NN-ARCHIVE]: it is archived by being left
+    # alone, not deleted) and stops the census counting a phantom.
+    # Its replacement, the agentic arm's shadow book, IS durable — same reason the
+    # constrained one is: positions carry across sessions.
+    "data/state/llm_shadow_book_agentic.json",
     # T-326: the thesis books — TWO channel sub-books (machine / user_seeded) kept
     # separate so the records never blend (the bias firewall applies to scoring
     # attribution). Theses hold for MONTHS, so durability is load-bearing: an

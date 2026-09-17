@@ -405,7 +405,7 @@ _ROLLED = [
     ("btc_shadow_rolled", "data/state/btc_shadow_tracking.json"),
     ("dbmf_shadow_rolled", "data/state/dbmf_shadow_tracking.json"),
     ("event_desk_rolled", "data/state/event_shadow_book.json"),
-    ("analyst_desk_rolled", "data/state/analyst_desk_book.json"),
+    ("llm_shadow_agentic_rolled", "data/state/llm_shadow_book_agentic.json"),
     ("thesis_machine_rolled", "data/state/thesis_book_machine.json"),
     ("thesis_user_rolled", "data/state/thesis_book_user_seeded.json"),
     ("book_spy_null_rolled", "data/state/book_spy_null.json"),
@@ -760,6 +760,8 @@ def _scan_jsonl_field(rel: str, field: str):
 CHANNELS: List[Channel] = [
     Channel("hypothetical_actions", "llm_shadow_book",
             _scan_dir_field("data/intel/analyst_notes", "hypothetical_actions")),
+    # T-355: this row declared a consumer that did not exist until now — the agentic
+    # arm's LlmShadowBook is instantiated in the pulse as of 2026-09-16.
     Channel("hypothetical_actions", "llm_shadow_book(agentic)",
             _scan_dir_field("data/intel/analyst_notes_agentic", "hypothetical_actions")),
     Channel("predictions", "eval_harness",
