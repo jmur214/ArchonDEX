@@ -278,7 +278,8 @@ def _env_snapshot() -> dict:
 
 
 def append_ledger(as_of: str, trigger: str, checks: List[Check],
-                  diff_summary: str, outcome: str) -> None:
+                  diff_summary: str, outcome: str,
+                  env_before: Optional[dict] = None) -> None:
     """The autonomy ledger — every autonomous action, so the stream can be SCORED and
     a bad class DEMOTED (symmetric, no ratchet)."""
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
@@ -292,6 +293,7 @@ def append_ledger(as_of: str, trigger: str, checks: List[Check],
         # the balloon had refilled. A hypothesis you cannot test from the record is
         # a shrug; one number per row makes tomorrow's row able to confirm or refute it.
         "env": _env_snapshot(),
+        "env_before": env_before,
         "detail": {c.name: c.detail for c in checks},
         "diff_summary": diff_summary, "outcome": outcome,
     }
@@ -356,6 +358,13 @@ def main() -> int:
     a = ap.parse_args()
 
     as_of = datetime.now().strftime("%Y-%m-%d")
+    # Sample the environment BEFORE the checks as well as after. The row previously
+    # carried only a post-run snapshot, which cannot distinguish "the machine was
+    # already under pressure" from "this run consumed the headroom" — and that is
+    # exactly the distinction the suite-slowdown question turns on. Five instrumented
+    # runs have shown a stable 132-139s suite while free disk fell 9.89 -> 6.38 GB, so
+    # the level is not obviously the driver; the DELTA is the untested half.
+    env_before = _env_snapshot()
     checks = run_checks()
     failed = [c for c in checks if not c.ok]
     fixable = [c for c in failed if c.mechanical]
@@ -394,7 +403,7 @@ def main() -> int:
 
     write_report(checks, guard_note, branch if outcome == "merge_requested" else None, as_of)
     append_ledger(as_of, trigger=a.trigger, checks=checks,
-                  diff_summary=diff_summary, outcome=outcome)
+                  diff_summary=diff_summary, outcome=outcome, env_before=env_before)
 
     # SURVIVAL, after the row is written so tonight's row is the thing that survives.
     # Never `allow_rewrite` on the scheduled path: a nightly job must not be able to

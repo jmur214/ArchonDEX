@@ -326,3 +326,25 @@ def test_the_log_shows_HEAD_on_BOTH_sides_of_the_sync():
     before the run rather than the code that ran."""
     sh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
     assert "post-sync HEAD=" in sh
+
+
+def test_the_row_records_the_environment_BEFORE_and_AFTER(tmp_path, monkeypatch):
+    """A post-run snapshot alone cannot distinguish 'the machine was already under
+    pressure' from 'this run consumed the headroom' — and that is exactly the
+    distinction the suite-slowdown question turns on. Five instrumented runs showed a
+    stable 132-139s suite while free disk fell 9.89 -> 6.38 GB, so the LEVEL is not
+    obviously the driver; the DELTA is the untested half."""
+    monkeypatch.setattr(jn, "LEDGER", tmp_path / "l.jsonl")
+    jn.append_ledger("2026-09-17", "manual", [jn.Check("suite", True, "ok")],
+                     "x", "checks_only", env_before={"disk_free_gb": 9.0, "load1": 1.0})
+    row = json.loads((tmp_path / "l.jsonl").read_text().strip())
+    assert row["env_before"]["disk_free_gb"] == 9.0
+    assert "disk_free_gb" in row["env"], "the after-snapshot must still be there"
+
+
+def test_env_before_is_captured_BEFORE_the_checks_run():
+    """Captured after them, it would measure the run's own footprint as the
+    starting condition."""
+    import inspect
+    src = inspect.getsource(jn.main)
+    assert src.index("env_before = _env_snapshot()") < src.index("checks = run_checks()")
