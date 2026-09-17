@@ -97,6 +97,17 @@ def repoint(schedule: str, jd_arn: str, execute: bool) -> None:
     s = aws("scheduler", "get-schedule", "--name", schedule, "--output", "json")
     inp = json.loads(s["Target"]["Input"])
     prev = inp["JobDefinition"].rsplit("/", 1)[-1]
+    # THE PAIRING GUARD. The schedule we are about to rewrite must ALREADY point
+    # at the same jobdef NAME we just registered a revision of. Without this, a
+    # wrong --account/--schedule pair silently repoints one account's schedule at
+    # another account's jobdef — an account would start running the wrong
+    # strategy on the right cron, which is the worst possible shape of this
+    # mistake: plausible, scheduled, and completely wrong.
+    if prev.rsplit(":", 1)[0] != jd_arn.rsplit("/", 1)[-1].rsplit(":", 1)[0]:
+        sys.exit(f"FATAL: schedule {schedule} currently targets {prev}, but this "
+                 f"run registered {jd_arn.rsplit('/', 1)[-1]}. Refusing to repoint "
+                 f"a schedule at a DIFFERENT account's jobdef — check --account "
+                 f"and --schedule.")
     inp["JobDefinition"] = jd_arn
     s["Target"]["Input"] = json.dumps(inp)
     print(f"  schedule {schedule}: {prev} -> {jd_arn.rsplit('/', 1)[-1]}")
@@ -118,12 +129,18 @@ def main(argv=None) -> int:
     ap.add_argument("--account", required=True,
                     help="fleet key, e.g. offense-sso (jobdef archondex-paper-<key>)")
     ap.add_argument("--image", required=True, help="full ECR image ref")
+    ap.add_argument("--schedule", default=None,
+                    help="schedule name, when it does not follow the "
+                         "archondex-paper-<key>-daily convention. Account 1 is the "
+                         "exception: jobdef archondex-paper-cloud-day is driven by "
+                         "schedule archondex-paper-daily (it predates the convention). "
+                         "The pairing guard verifies whatever you pass.")
     ap.add_argument("--execute", action="store_true",
                     help="without this, nothing is registered or repointed")
     a = ap.parse_args(argv)
 
     jd_name = f"archondex-paper-{a.account}"
-    sched = f"archondex-paper-{a.account}-daily"
+    sched = a.schedule or f"archondex-paper-{a.account}-daily"
     live = live_jobdef(jd_name)
     print(f"  LIVE {jd_name}:{live['revision']} "
           f"image={live['containerProperties']['image'].rsplit(':', 1)[-1]}")

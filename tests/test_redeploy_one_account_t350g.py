@@ -12,6 +12,8 @@ they are locked rather than trusted:
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import scripts.redeploy_one_account as r
@@ -74,3 +76,45 @@ def test_a_revisionless_jobdef_ARN_is_REFUSED(monkeypatch):
                   "arn:aws:batch:us-east-1:407539788432:job-definition/"
                   "archondex-paper-offense-sso", execute=True)
     assert "revision-pinned" in str(e.value)
+
+
+# --------------------------------------------------------------------------- #
+# T-355b — found on the tool's SECOND use, against account 1.
+# --------------------------------------------------------------------------- #
+
+def test_the_schedule_name_convention_has_a_known_exception():
+    """Account 1 predates the naming convention: jobdef `archondex-paper-cloud-day`
+    is driven by schedule `archondex-paper-daily`, NOT `…-cloud-day-daily`. The
+    convention default would look up a schedule that does not exist, so the
+    override exists and is documented at the flag."""
+    import argparse
+    import scripts.redeploy_one_account as rr
+    src = __import__("inspect").getsource(rr.main)
+    assert "a.schedule or f\"archondex-paper-{a.account}-daily\"" in src
+    assert "archondex-paper-daily" in src, "the exception must be documented at the flag"
+
+
+def test_repoint_REFUSES_to_aim_a_schedule_at_another_accounts_jobdef(monkeypatch):
+    """The pairing guard. A wrong --account/--schedule pair would otherwise point
+    one account's cron at another account's jobdef — an account running the wrong
+    STRATEGY on the right schedule: plausible, scheduled, completely wrong."""
+    sched_doc = {"State": "ENABLED", "Target": {"Input": json.dumps({
+        "JobDefinition": "arn:aws:batch:us-east-1:407539788432:job-definition/"
+                         "archondex-paper-cloud-day:34"})}}
+    monkeypatch.setattr(r, "aws", lambda *a: sched_doc)
+    with pytest.raises(SystemExit) as e:
+        r.repoint("archondex-paper-daily",
+                  "arn:aws:batch:us-east-1:407539788432:job-definition/"
+                  "archondex-paper-offense-sso:19", execute=True)
+    assert "DIFFERENT account's jobdef" in str(e.value)
+
+
+def test_repoint_ALLOWS_a_matching_pair(monkeypatch):
+    """The guard must not block the legitimate case it sits in front of."""
+    sched_doc = {"State": "ENABLED", "Target": {"Input": json.dumps({
+        "JobDefinition": "arn:aws:batch:us-east-1:407539788432:job-definition/"
+                         "archondex-paper-cloud-day:34"})}}
+    monkeypatch.setattr(r, "aws", lambda *a: sched_doc)
+    r.repoint("archondex-paper-daily",
+              "arn:aws:batch:us-east-1:407539788432:job-definition/"
+              "archondex-paper-cloud-day:35", execute=False)   # dry run, no write
