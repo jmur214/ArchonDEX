@@ -252,6 +252,14 @@ def main() -> int:
     a = p.parse_args()
 
     as_of = datetime.now().strftime("%Y-%m-%d")
+    if ROOT != CANON:
+        # The queue is TRACKED but only CANON's copy is LIVE. Another worktree's
+        # checkout of ops/approvals is a snapshot from whenever it last synced, so
+        # committing the queue from here would REVERT answers a human has given.
+        # Say so out loud rather than leaving it to be discovered in a diff.
+        print(f"[DIRECTOR-PASS] NOTE: running from {ROOT.name}, writing the LIVE queue in "
+              f"{CANON.name}. This worktree's ops/approvals is a stale snapshot — do not "
+              f"commit it from here.")
     env_before = _env_snapshot()
     candidates = collect_merge_candidates(max_age_days=a.max_age_days)
 

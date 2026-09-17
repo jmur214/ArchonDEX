@@ -238,3 +238,13 @@ def test_the_director_wrapper_carries_the_janitors_hard_won_lessons():
     assert "/opt/homebrew/bin/aws" in sh and '"$AWS" sns publish' in sh
     assert "DIRECTOR_REEXECED" in sh and 'exec /bin/bash "$SELF"' in sh
     assert "repo=$REPO" in sh
+
+
+def test_running_outside_the_canonical_worktree_ANNOUNCES_the_stale_copy():
+    """The queue is TRACKED but only CANON's copy is LIVE. Another worktree's
+    checkout of ops/approvals is a snapshot from its last sync, so committing the
+    queue from there would REVERT answers a human has given. Said out loud rather
+    than left to be discovered in a diff."""
+    code = _executable_source(dp.main)
+    assert "ROOT != CANON" in code
+    assert "stale snapshot" in code and "do not " in code
