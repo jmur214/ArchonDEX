@@ -113,6 +113,14 @@ def _spans_boundary(rows: list[dict]) -> bool:
         return False
 
 
+def _cohort_caveat(source: str, era: str):
+    try:
+        from intelligence.analyst.information_cohorts import cohort_caveat
+        return cohort_caveat(source, era)
+    except Exception:            # noqa: BLE001
+        return None
+
+
 def _cohort_counts(rows: list[dict]) -> dict:
     try:
         from intelligence.analyst.information_cohorts import cohort_counts
@@ -212,6 +220,11 @@ def ab_by_information_cohort(constrained: list[dict], agentic: list[dict],
         else:
             res["question_answered"] = f"constrained vs agentic, both in the {era} era"
             res["quotable_as_the_AB"] = True
+        # T-355: a label says WHEN an era starts; a caveat says what it is WORTH. Carry
+        # it with the numbers so a reader who gets only this block meets it too.
+        cav = _cohort_caveat(boundary_source, era)
+        if cav:
+            res["treatment_caveat"] = cav
         out[era] = res
     return {"by_cohort": out,
             "note": ("Per-era comparisons. The POOLED A/B still refuses to straddle a "
