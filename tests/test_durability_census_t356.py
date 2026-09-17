@@ -56,16 +56,35 @@ def test_every_known_gap_carries_an_owner():
         assert "T-356" in r.reason, f"{r.path}: gap not traceable to its finding"
 
 
-def test_the_five_findings_are_on_the_record():
-    """The sweep's output, locked so a later edit cannot quietly drop a gap."""
+def test_the_findings_are_on_the_record_and_closures_are_EXPLICIT():
+    """The sweep's output, locked so a later edit cannot quietly drop a gap.
+
+    T-355 closed finding #5 (`agentic_analyst_calls.jsonl`) by RETIRING its
+    consumer rather than adding a writer. This lock objected to that edit, which
+    is the lock working: a gap may leave this set only by being resolved on the
+    record, never by being deleted from it. The closed one is asserted BELOW, so
+    the count going 5 → 4 is a statement, not an omission."""
     gaps = {r.path for r in open_gaps()}
     assert gaps == {
         "data/state/autonomy_ledger.jsonl",
         "data/governor/lifecycle_history.csv",
         "data/governor/feedback_history.log",
         "data/research/discovery_log.jsonl",
-        "data/intel/agentic_analyst_calls.jsonl",
     }, f"the recorded gap set changed: {sorted(gaps)}"
+
+
+def test_finding_5_is_CLOSED_by_retirement_and_says_so():
+    """Closed, with the mechanism stated — and closed the RIGHT way. Adding a
+    writer for a feed the agentic arm never emits would have manufactured a live
+    channel to satisfy a check; retiring the consumer that could not be fed is
+    the honest resolution, and the arm is booked by LlmShadowBook instead."""
+    rec = next(r for r in REGISTRY
+               if r.path == "data/intel/agentic_analyst_calls.jsonl")
+    assert rec.status == "EXEMPT", "finding #5 must be CLOSED, not silently dropped"
+    assert "T-355" in rec.reason and "RETIRE" in rec.reason.upper()
+    assert "llm_shadow_book_agentic" in rec.reason, (
+        "a retirement must name what covers the need instead, or it reads as "
+        "abandoning the measurement")
 
 
 def test_the_authority_record_gap_is_stated_as_a_DIFFERENT_failure_than_C_found():

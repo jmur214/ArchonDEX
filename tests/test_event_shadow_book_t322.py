@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from paper_trader.event_shadow_book import (  # noqa: E402
-    ANALYST_DESK, EVENT_DESK, GATE_MIN_CLOSED_PER_TYPE, MATERIALITY_FLOOR, MAX_WEIGHT,
+    DeskConfig, EVENT_DESK, GATE_MIN_CLOSED_PER_TYPE, MATERIALITY_FLOOR, MAX_WEIGHT,
     EventShadowBook, parse_horizon_days)
 
 
@@ -134,14 +134,36 @@ def test_dormant_but_armed_when_no_source(tmp_path):
     assert any("dormant-but-armed" in r for r in b._state()["days"][-1]["reasons"])
 
 
-def test_second_desk_is_same_machinery_different_state(tmp_path):
+def test_a_second_desk_is_same_machinery_different_state(tmp_path):
+    """The parameterized-not-forked property, which is what this test was always
+    for. It used to be demonstrated with ANALYST_DESK; that config was RETIRED in
+    T-355 (its feed never existed and the agentic arm emits weights, not calls),
+    so the property is now shown with an ad-hoc second config. Reframed to its
+    intent rather than deleted — the machinery must still take a config."""
+    other = DeskConfig(name="other_desk",
+                       state_path="data/state/other_desk_book.json",
+                       source_path="data/intel/other_calls.jsonl")
     ev = EventShadowBook(cfg=EVENT_DESK, root=str(tmp_path))
-    an = EventShadowBook(cfg=ANALYST_DESK, root=str(tmp_path))
+    an = EventShadowBook(cfg=other, root=str(tmp_path))
     assert type(ev) is type(an)                                      # no fork
     assert ev._file() != an._file()                                  # separate books
     ev.record("2026-07-28", closes={"ACME": 10.0, "SPY": 600.0}, calls=[_call()])
     assert len(ev._state()["open"]) == 1
     assert an._state()["open"] == []                                 # independent state
+
+
+def test_the_retired_analyst_desk_stays_retired(tmp_path):
+    """T-355 lock. ANALYST_DESK burned 36 sessions writing a durable book with
+    open:0 / closed:0 and no call ever, because `agentic_analyst_calls.jsonl` had
+    no writer anywhere. Re-adding it here would silently restart that: durable,
+    green, and recording nothing. The agentic arm belongs to LlmShadowBook."""
+    import paper_trader.event_shadow_book as esb
+    assert not hasattr(esb, "ANALYST_DESK"), (
+        "ANALYST_DESK is retired — the agentic arm emits target weights, which "
+        "LlmShadowBook books; this machinery consumes event-style calls")
+    import paper_trader.cloud_state as cs
+    assert "data/state/analyst_desk_book.json" not in cs.DURABLE_PATHS
+    assert "data/state/llm_shadow_book_agentic.json" in cs.DURABLE_PATHS
 
 
 # ---------- the SHARED D/T-304 gate ----------

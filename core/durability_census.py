@@ -197,17 +197,22 @@ REGISTRY: Tuple[Record, ...] = (
         "substrate. A measurement artifact, not a forward record.",
     ),
 
-    # ---- the inverse defect: durable, but nothing ever writes the source -------------
+    # ---- the inverse defect: RESOLVED BY RETIREMENT (T-355, 2026-09-16) --------------
     Record(
-        path="data/intel/agentic_analyst_calls.jsonl", venue="cloud_paper", status=KNOWN_GAP,
-        writer="(NONE — no writer exists)", owner="E (agentic analyst lane)",
-        reason="T-356 finding #5 (2026-09-16). THE INVERSE OF C'S DEFECT. "
-               "`analyst_desk_book.json` IS durable, but its source_path has NO WRITER "
-               "anywhere in the tree and the file does not exist — a NEVER_ALIVE channel "
-               "(T-342). C found a record that accrued and was not saved; this is one that "
-               "is saved and can never accrue. BOTH read 'too early to say' forever. "
-               "Durability of a book whose feed does not exist is a null guarantee, and no "
-               "durability check can catch it — only a liveness check can.",
+        path="data/intel/agentic_analyst_calls.jsonl", venue="cloud_paper", status=EXEMPT,
+        writer="(none — the consumer was retired, not the writer added)",
+        owner="E (agentic analyst lane)",
+        reason="T-356 finding #5, ANSWERED T-355. Was KNOWN_GAP: `analyst_desk_book.json` "
+               "was durable while this source had no writer anywhere — a NEVER_ALIVE "
+               "channel (T-342), the inverse of C's T-351 defect, both reading 'too early "
+               "to say' forever. The verdict was RETIRE, not wire: the agentic analyst "
+               "emits `hypothetical_actions` (continuous TARGET WEIGHTS), never "
+               "event-style calls with horizons, so this path was never going to be "
+               "written and the desk's 'point source_path at it when it lands, no code "
+               "change' premise was false. Evidence: 36 durable sessions, open:0, "
+               "closed:0, not one day carrying a call. The arm is NOT left unbooked — "
+               "`llm_shadow_book_agentic.json` books the same weights on the machinery "
+               "that already fits them. Exempt because nothing should ever write this.",
     ),
 )
 
