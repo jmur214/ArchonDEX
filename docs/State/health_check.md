@@ -22,6 +22,15 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] Fresh-eyes program audit 2026-09-17 — the "cross-account" wash guard has no cross-account feed; main() god-function; governance surface points at the legacy layer; current-truth surface 52 days stale
+- Category: fail-closed drift / god-class / doc-currency (consolidated entry — one pointer, not eight trackers)
+- Files: `scripts/run_paper_cloud_day.py:74,304-1460,418-452,493-509,1315`; `paper_trader/cloud_state.py:158`; `paper_trader/order_manager.py:539-546`; `paper_trader/paper_client.py:206-217`; `paper_trader/held_reconcile.py:99-101`; `paper_trader/market_calendar.py:35-40,65`; `paper_trader/intel_pulse.py:120,142,189`; `paper_trader/sleeve_tracker.py:102`; `core/combined_candidate_scorecard.py:327`; `docs/State/CURRENT_STATE.md`; `docs/State/TASK_LEDGER.md`; `cockpit/dashboard_v2/**` (uncommitted)
+- First flagged: 2026-09-17 (independent reviewer; four read-only sub-audits)
+- Status: not started — findings only; every live-path item is Engine B / paper_trader propose-first
+- Detail + ranked list + proposal: `docs/Audit/fresh_eyes_program_audit_2026_09_17.md`
+- Headline, verified by hand: `tax_lots.jsonl` is per-account S3 prefix, the only writer runs only when a guard is attached, account-1 runs with `wash_guard=None`, and account-2 never pulls another prefix's lots — so the digest's "⚠ Coupled" banner and the driver comment "reads every account's lots" describe a coupling that has never existed (T-342 channel-liveness class).
+- Recommended next step: director/user ruling on (1) feed-or-relabel the wash guard, (2) marketable-limit collar + pre-trade gate in OrderManager, (3) journal checkpoint to S3 after submit/fill; then extract `main()` into an ordered step registry with ONE strategy pipeline and convert the five text-assertion wiring tests to execution tests; commit the dashboard work to a branch; reconcile CURRENT_STATE/TASK_LEDGER.
+
 ### [HIGH] The HMM is structurally BLIND before 2020-05-08, and says nothing (2026-08-26)
 - Engine: E (Regime) — `engines/engine_e_regime/macro_features.py`, `hmm_classifier.py`
 - Found during the T-2026-08-26 HMM production repoint, while verifying its consumers.
