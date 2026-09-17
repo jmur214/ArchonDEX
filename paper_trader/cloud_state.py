@@ -66,6 +66,11 @@ DURABLE_PATHS: List[str] = [
     # Its replacement, the agentic arm's shadow book, IS durable — same reason the
     # constrained one is: positions carry across sessions.
     "data/state/llm_shadow_book_agentic.json",
+    # T-357: each account's fleet-mirror slice. Durable because the app reads it
+    # between runs and because day_change needs yesterday's tier_equity — an
+    # ephemeral slice would show a null day_change forever, the quiet kind of
+    # broken this program keeps finding.
+    "data/state/fleet_mirror_slice.json",
     # T-326: the thesis books — TWO channel sub-books (machine / user_seeded) kept
     # separate so the records never blend (the bias firewall applies to scoring
     # attribution). Theses hold for MONTHS, so durability is load-bearing: an

@@ -406,6 +406,7 @@ _ROLLED = [
     ("dbmf_shadow_rolled", "data/state/dbmf_shadow_tracking.json"),
     ("event_desk_rolled", "data/state/event_shadow_book.json"),
     ("llm_shadow_agentic_rolled", "data/state/llm_shadow_book_agentic.json"),
+    ("fleet_mirror_slice_rolled", "data/state/fleet_mirror_slice.json"),
     ("thesis_machine_rolled", "data/state/thesis_book_machine.json"),
     ("thesis_user_rolled", "data/state/thesis_book_user_seeded.json"),
     ("book_spy_null_rolled", "data/state/book_spy_null.json"),

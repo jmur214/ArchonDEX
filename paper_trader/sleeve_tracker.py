@@ -89,12 +89,32 @@ def _curve_metrics(equity: pd.Series) -> Dict[str, float]:
 class SleeveTracker:
     path: str = DEFAULT_PATH
     root: Optional[str] = None
+    # WHICH book this is. The framing block below travels with the numbers so the
+    # record and A's digest cannot drift apart — but that only holds if the
+    # framing matches the BOOK. Until T-357 every family tracker carried the
+    # SLEEVE's drawdown-insurance framing, so account-2's deploy-candidate record
+    # asserted "cannot evidence that the sleeve beats its twin… a drawdown
+    # instrument" on a book whose entire purpose is beating buy-and-hold SPY at
+    # the same tier. True sentence, wrong book — and the drift it was written to
+    # prevent, in the surface it was written to protect.
+    strategy: str = "trend_sleeve"
 
     def _file(self) -> Path:
         base = Path(self.root) if self.root else Path(__file__).resolve().parents[1]
         p = (base / self.path) if not Path(self.path).is_absolute() else Path(self.path)
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
+
+    def _framing(self):
+        """(key, block) for THIS book. Imported from the owning module, never
+        re-typed here — two copies of a framing sentence is how the digest and
+        the record start disagreeing, which is the exact thing the framing exists
+        to prevent."""
+        if self.strategy == "deploy_candidate":
+            from intelligence.analyst.performance_digest import DEPLOY_CANDIDATE_FRAMING
+            return "deploy_candidate_framing", DEPLOY_CANDIDATE_FRAMING
+        from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING
+        return "sleeve_framing", SLEEVE_INSURANCE_FRAMING
 
     def _load(self) -> List[Dict[str, Any]]:
         try:
@@ -223,11 +243,11 @@ class SleeveTracker:
         # record is exactly when "is the sleeve winning?" is easiest to misread, so the
         # framing must not wait for the record to mature. Imported, never re-typed, so
         # this surface and A's digest cannot drift.
-        from paper_trader.live_books import SLEEVE_INSURANCE_FRAMING
+        framing_key, framing = self._framing()
         exec_pts = [p for p in pts if "exec" in p]
         if len(pts) < 2:
             base: Dict[str, Any] = {"status": "accruing", "n_days": len(pts),
-                                    "sleeve_framing": SLEEVE_INSURANCE_FRAMING}
+                                    framing_key: framing}
             if exec_pts:
                 base["execution_gates"] = self._eval_gates(exec_pts)
             return base
@@ -253,5 +273,5 @@ class SleeveTracker:
         # T-333 FRAMING — travels WITH the numbers (a doc does not). Imported, never
         # re-typed, so this surface and A's digest cannot drift apart. The raw record
         # above is byte-unchanged; this is a framing field like the NOT-EVALUABLE guard.
-        out['sleeve_framing'] = SLEEVE_INSURANCE_FRAMING
+        out[framing_key] = framing
         return out

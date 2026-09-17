@@ -190,9 +190,25 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
             equity, latest_bar_date)
 
 
+def _last_closes(closes):
+    """Latest price per ticker from either a {ticker: float} or {ticker: Series}
+    map. A missing/empty series is OMITTED, not zero-filled — the mirror treats
+    an absent price as UNKNOWN and refuses to publish a partial total."""
+    out = {}
+    for t, v in (closes or {}).items():
+        if v is None:
+            continue
+        try:
+            out[t] = float(v.iloc[-1]) if hasattr(v, "iloc") else float(v)
+        except (TypeError, ValueError, IndexError):
+            continue
+    return out
+
+
 def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
                            sizing_equity, broker_positions, staged, arrival_px,
-                           arrival_ts, summary, canonical, root, robo_closes):
+                           arrival_ts, summary, canonical, root, robo_closes,
+                           strategy="trend_sleeve"):
     """Record a family strategy's forward tracker + report-only execution gates,
     reusing the exact T-238 gate logic (held_qty vs the achievable whole-share
     target on the sizing basis; slippage vs arrival; order-state errors; clean
@@ -211,7 +227,8 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
         held_w = {t: (broker_positions.get(t, 0) * closes_latest[t]) / sizing_equity
                   for t in trade if t in closes_latest}
     slippage_bps = _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts)
-    return SleeveTracker(path=tracker_path, root=str(root)).record(
+    return SleeveTracker(path=tracker_path, root=str(root),
+                         strategy=strategy).record(
         str(summary.trade_date), equity, robo_closes,
         target_weights=tgt_w, held_weights=held_w, slippage_bps=slippage_bps,
         order_errors=order_errs, canonical=canonical)
@@ -1216,6 +1233,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             robo_closes = {t: sleeve_closes[t] for t in ("SPY", "AGG", "GLD")
                            if t in sleeve_closes}
             tsum = _record_family_tracker(
+                strategy=args.strategy,
                 tracker_path=f"data/state/{family_state['tracker_file']}",
                 plan=plan, closes_latest=sleeve_closes, equity=equity,
                 sizing_equity=sizing_equity, broker_positions=broker_positions,
@@ -1280,6 +1298,54 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
         # Fail-open: an econ-health miss must never touch the trading exit code.
         print(f"9. ECON-HEALTH WARN {type(exc).__name__} (non-fatal, report-only)",
               file=sys.stderr)
+
+    # --- T-357 FLEET MIRROR slice: the tier-honest view of THIS account, written
+    # into THIS account's prefix. The serving layer assembles the pinned
+    # `accounts[]` array at read time — one account cannot write a whole-fleet
+    # object, because the accounts run in separate containers at separate times
+    # and the last writer would overwrite its siblings. DISPLAY-ONLY and
+    # read-only: nothing downstream of this can move machine state. Runs BEFORE
+    # the push so the slice persists this run (it is in DURABLE_PATHS). Fully
+    # fail-open — a display surface must never touch the trading exit code. ---- #
+    try:
+        from paper_trader.fleet_mirror import build_slice, MirrorSlice
+        # Basis = what this account ACTUALLY paid, from its own filled orders —
+        # the same thing A's digest means by `lots`, so the two surfaces cannot
+        # report different money.
+        _basis = 0.0
+        for _o in om.orders.values():
+            _fq = int(getattr(_o, "filled_qty", 0) or 0)
+            _fp = getattr(_o, "filled_avg_price", None)
+            if _fq > 0 and _fp:
+                _sign = 1 if str(_o.side).lower() in ("buy", "long", "cover") else -1
+                _basis += _sign * _fq * float(_fp)
+        _prev = None
+        try:      # yesterday's slice, for day_change — absent on day 1, which is fine
+            _prev = json.loads(
+                (root / "data/state/fleet_mirror_slice.json").read_text()
+            ).get("tier_equity")
+        except Exception:
+            _prev = None
+        _slice = build_slice(
+            account_id=args.strategy, strategy=args.strategy,
+            run_date=str(today), as_of=_dt.datetime.now(_dt.timezone.utc).isoformat(),
+            canonical=bool(canonical), positions=broker_positions,
+            # `sleeve_closes` is a dict of FLOATS on the trend_sleeve path and a
+            # dict of Series elsewhere. Accept both rather than assume one — the
+            # first driver run raised "object of type 'float' has no len()" here,
+            # inside a fail-open block that would have swallowed it in production
+            # and written no mirror at all, silently, forever.
+            closes=_last_closes(sleeve_closes),
+            tier_cap=float(args.sleeve_notional_cap or 0) or None,
+            basis_dollars=(_basis if _basis > 0 else None),
+            prev_tier_equity=_prev)
+        MirrorSlice(_slice).write(str(root))
+        print(f"11. MIRROR   tier_equity={_slice['tier_equity']} "
+              f"cap={_slice['tier_cap']} cash={_slice['cash']} "
+              f"canonical={_slice['canonical']}")
+    except Exception as exc:
+        print(f"11. MIRROR   WARN {type(exc).__name__}: {exc} "
+              f"(non-fatal, display-only)", file=sys.stderr)
 
     # --- T-301 / P2.1 exec-cost ledger: append THIS run's proven-fresh fills
     # (per account, per instrument) to the append-only ledger + surface the
