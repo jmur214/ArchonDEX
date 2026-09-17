@@ -1163,3 +1163,24 @@ verified, so the design does not depend on it.
 ⚠ **The `aws` CLI is resolved by absolute path, never by bare name** — launchd's PATH
 is `/usr/bin:/bin:/usr/sbin:/sbin` and the CLI lives in `/opt/homebrew/bin`. A bare
 name works in every interactive test and resolves to nothing at 03:00.
+
+### ALARM DRILL — exercise a loud-failure channel without a real failure (2026-09-16)
+
+```bash
+# Fire the archiver's SNS alarm under launchd's EXACT environment. Archivers are
+# NOT run and no data is touched; the wrapper takes its real failure branch.
+env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME="$HOME" ARCHONDEX_ALARM_DRILL=1 \
+  /bin/bash scripts/run_altdata_archivers.sh
+tail -12 data/macro_data/alt/logs/archive_$(date +%Y-%m-%d).log   # expect an SNS MessageId
+```
+
+**Why this exists.** The channel fires only when an archiver fails, so it had never
+run on the scheduled path — and its `aws sns publish` was a BARE name, which resolves
+to nothing under launchd's `PATH=/usr/bin:/bin:/usr/sbin:/sbin` (the CLI lives in
+`/opt/homebrew/bin`). The alarm was dead for as long as it had existed. Measured
+2026-09-16: bare → `command not found, rc=127`; absolute → rc=0; the drilled wrapper →
+SNS MessageId returned.
+
+**An alarm you cannot exercise is the defect.** Testing it used to require something
+to break first, so nobody ever did. Drill any channel you have just repaired — a
+fixed-but-never-fired alarm is half repaired.
