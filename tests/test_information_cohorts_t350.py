@@ -173,3 +173,46 @@ def test_eras_are_kept_SEPARATE_so_neither_pools_into_the_other():
     out = fs.ab_by_information_cohort(con, ag)["by_cohort"]
     assert len(out) == 2                      # one comparison per era, never merged
     assert all(r["spans_information_boundary"] is False for r in out.values())
+
+
+# ── T-355: a label says WHEN an era starts; a caveat says what it is WORTH ────
+def test_the_stamped_note_is_never_rewritten_only_appended_beside():
+    """E's `note` is a stamped record of a FACT. The caveat lives in its own field so
+    revising interpretation can never touch the stamped provenance."""
+    import json as _j
+    from pathlib import Path as _P
+    reg = _j.loads(_P("config/information_cohorts.json").read_text())
+    fed = [c for c in reg["sources"]["analyst_agentic"]["cohorts"]
+           if c["label"] == "price_fed"][0]
+    assert "STAMPED BY E" in fed["note"]                  # the fact, intact
+    assert "treatment_caveat" in fed                       # the interpretation, beside it
+    assert "2026-05-22" in fed["treatment_caveat"]
+    assert "STAMPED BY E" not in fed["treatment_caveat"]   # the two never merge
+
+
+def test_the_caveat_travels_with_the_label_IN_CODE():
+    """A consumer that gets 'price_fed' from cohort_for must be able to reach the
+    sentence saying what that label is worth — otherwise the caveat is prose nobody
+    programmatic ever meets."""
+    cav = ic.cohort_caveat("analyst_agentic", "price_fed")
+    assert cav and "close to NO TREATMENT" in cav
+    assert "NOT evidence that the agentic design does not work" in cav
+
+
+def test_the_caveat_resolves_for_the_UNSTAMPED_variant_too():
+    assert ic.cohort_caveat("analyst_agentic", "price_fed_UNSTAMPED") == \
+           ic.cohort_caveat("analyst_agentic", "price_fed")
+
+
+def test_an_era_with_no_caveat_returns_None_not_a_placeholder():
+    assert ic.cohort_caveat("analyst_agentic", "price_blind") is None
+    assert ic.cohort_caveat("analyst_constrained", "anything") is None
+
+
+def test_the_per_era_AB_result_CARRIES_the_caveat():
+    """A reader who sees only the A/B block must meet the caveat with the numbers."""
+    con = [_row("analyst_constrained", "2026-09-15", key="a")]
+    ag = [_row("analyst_agentic", "2026-09-15", key="a")]
+    out = fs.ab_by_information_cohort(con, ag)["by_cohort"]
+    era = [k for k in out if "fed" in k][0]
+    assert "close to NO TREATMENT" in out[era]["treatment_caveat"]

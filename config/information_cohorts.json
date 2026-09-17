@@ -35,7 +35,9 @@
           "from_date": "2026-09-11",
           "note": "STAMPED BY E 2026-09-10 as a fact, not a plan. rev33 (paper-sha-7021abc) deployed the afternoon of 2026-09-10 and was verified IN-CONTAINER before deploy: query_prices returns 50 rows where it returned 0. The date is 2026-09-11, NOT the deploy date itself, and the distinction is the whole point of the label rule: the 2026-09-10 agentic run fired at 08:45 CDT on jobdef archondex-paper-cloud-day:32 — the PRE-rev33 image — which is provable from the Batch record, so that row was written price-BLIND. Stamping 09-10 would have let a price-blind row wear the price_fed label. The first run that can see prices is the 2026-09-11 09:45 ET pulse.",
           "pending_from": "2026-09-11",
-          "pending_note": "rev33 deployed 2026-09-10 (query_prices 0 -> 50 rows); book window opens 2026-09-11. Announcement record; superseded by the stamped from_date above."
+          "pending_note": "rev33 deployed 2026-09-10 (query_prices 0 -> 50 rows); book window opens 2026-09-11. Announcement record; superseded by the stamped from_date above.",
+          "treatment_caveat": "WHAT THE LABEL IS WORTH, as distinct from when it starts. The arm in this era can HONESTLY QUERY a price substrate that ends 2026-05-22 — verified on the first price_fed note, which asked for recent SPY prices and correctly got zero rows. So the era's actual treatment is 'can query a stale research substrate', which is close to NO TREATMENT. A price_fed-era A/B read measures a nearly-empty treatment and should surprise nobody by showing nothing; it is NOT evidence that the agentic design does not work. The real treatment begins with the live-price cohort.",
+          "caveat_note": "Kept in its own field: the `note` above is a stamped record of a FACT (when the label starts) and must stay byte-identical. This is INTERPRETATION (what the label is worth) and may be revised without ever touching the stamped fact."
         }
       ]
     }

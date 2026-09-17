@@ -65,6 +65,28 @@ def is_unstamped(cohort: Optional[str]) -> bool:
     return bool(cohort) and str(cohort).endswith(UNSTAMPED_SUFFIX)
 
 
+def cohort_caveat(source: str, label: Optional[str],
+                  registry: Optional[dict] = None) -> Optional[str]:
+    """T-355 — the INTERPRETATION caveat attached to a cohort, if any.
+
+    A label says WHEN an era starts; a caveat says WHAT THE LABEL IS WORTH. The
+    price_fed era is the case that forced the distinction: the arm can honestly query a
+    substrate ending 2026-05-22, so the era's real treatment is close to none — a read
+    over it measures a nearly-empty treatment and is NOT evidence the design fails.
+
+    This exists so the caveat travels with the label IN CODE, not only as prose in the
+    registry: a consumer that gets "price_fed" from `cohort_for` would otherwise never
+    meet the sentence that says what it is worth.
+    """
+    reg = registry if registry is not None else load_registry()
+    spec = (reg or {}).get(source) or {}
+    base = str(label or "").replace(UNSTAMPED_SUFFIX, "")
+    for c in spec.get("cohorts", []):
+        if c.get("label") == base:
+            return c.get("treatment_caveat")
+    return None
+
+
 def label_rows(rows: list[dict], registry: Optional[dict] = None) -> list[dict]:
     """Attach `information_cohort` in place-ish (returns the same list)."""
     for r in rows or []:
