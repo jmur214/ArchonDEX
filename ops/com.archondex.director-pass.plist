@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Phase-6 rung 0 — the scheduled director pass. OBSERVE-ONLY.
+
+  NOT LOADED BY THE AGENT, same propose-install pattern as the janitor's: installing a
+  schedule is deploy-shaped and therefore propose-first.
+
+      launchctl unload ~/Library/LaunchAgents/com.archondex.director-pass.plist 2>/dev/null
+      cp ops/com.archondex.director-pass.plist ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.archondex.director-pass.plist
+      launchctl list | grep archondex           # expect janitor + altdata + director-pass
+
+  APPLY ONLY AFTER the matching wrapper is merged to main — the runner tracks
+  origin/main, so pointing here sooner would execute an older checkout (the bootstrap
+  lesson of 2026-09-10). After installing, ADVANCE THE RUNNER ONCE BY HAND:
+      cd /Users/jacksonmurphy/Dev/trading_machine-janitor
+      git fetch origin
+      git checkout (detach) origin/main
+
+  Per the July rule, verify on the NEXT SCHEDULED firing, never a manual run.
+  07:00 sits after the janitor's 03:00 so the night's report exists before the pass
+  reads the tree, and puts the approvals queue in front of a human at the start of the day.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.archondex.director-pass</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonmurphy/Dev/trading_machine-janitor/scripts/run_director_pass.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
+    <key>RunAtLoad</key><false/>
+    <key>StandardOutPath</key><string>/Users/jacksonmurphy/Dev/trading_machine-janitor/data/logs/director_pass/launchd.out</string>
+    <key>StandardErrorPath</key><string>/Users/jacksonmurphy/Dev/trading_machine-janitor/data/logs/director_pass/launchd.err</string>
+</dict>
+</plist>

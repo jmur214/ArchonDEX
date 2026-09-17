@@ -198,3 +198,43 @@ def test_withdrawal_does_not_DELETE_the_record(tmp_path):
     dp.prepare_merge_approvals([_cand("feature/gone")], "2026-09-17", tmp_path)
     dp.withdraw_stale([], "2026-09-18", tmp_path)
     assert len(aq.load_all(tmp_path)) == 1, "the entry must survive its withdrawal"
+
+
+# ---- the schedule artifacts --------------------------------------------------
+
+@pytest.mark.parametrize("name", ["com.archondex.janitor.plist",
+                                  "com.archondex.director-pass.plist"])
+def test_every_plist_is_WELL_FORMED_xml(name):
+    """A plist that does not parse is a schedule that does not run — and launchd
+    reports that by simply doing nothing at 03:00. Caught at build time here: XML
+    forbids `--` ANYWHERE inside a comment, and `--detach` in an install note is
+    enough to make the whole file unreadable."""
+    import plistlib
+    d = plistlib.load(open(REPO / "ops" / name, "rb"))
+    assert d["Label"].startswith("com.archondex.")
+    assert d["ProgramArguments"][0] == "/bin/bash"
+    assert "StartCalendarInterval" in d
+
+
+@pytest.mark.parametrize("name", ["com.archondex.janitor.plist",
+                                  "com.archondex.director-pass.plist"])
+def test_no_plist_targets_an_agents_worktree(name):
+    """A runner must never share a checkout with an agent doing work."""
+    import plistlib
+    target = plistlib.load(open(REPO / "ops" / name, "rb"))["ProgramArguments"][1]
+    assert "trading_machine-janitor" in target and "agent-" not in target
+
+
+def test_the_director_wrapper_runs_OBSERVE_mode_explicitly():
+    sh = (REPO / "scripts/run_director_pass.sh").read_text()
+    assert "--mode observe" in sh, "the wrapper must state the mode, not rely on a default"
+
+
+def test_the_director_wrapper_carries_the_janitors_hard_won_lessons():
+    """Same venue, same traps: self-locating repo, absolute interpreter and aws,
+    re-exec on self-change, and a log that names where it ran."""
+    sh = (REPO / "scripts/run_director_pass.sh").read_text()
+    assert 'REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' in sh
+    assert "/opt/homebrew/bin/aws" in sh and '"$AWS" sns publish' in sh
+    assert "DIRECTOR_REEXECED" in sh and 'exec /bin/bash "$SELF"' in sh
+    assert "repo=$REPO" in sh
