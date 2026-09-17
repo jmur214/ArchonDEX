@@ -262,12 +262,26 @@ DEPLOY_CANDIDATE_FRAMING = {
         "This row tracks the deploy candidate against buy-and-hold SPY at the same "
         "tier. It is the stream a future real-money decision would read. It reports; "
         "it does not recommend, and nothing here proposes a date."),
+    # CORRECTED 2026-09-17 (T-358, fresh-eyes audit finding A1). This text
+    # previously stated the coupling as a live fact: "A rebalance here can be
+    # refused because of an account-1 loss inside the 61-day window." It is
+    # FALSE IN CODE — the wash guard is single-account (its ledger is rooted at
+    # the container's own prefix, and account-1 runs unguarded so it has never
+    # written a lot event; account-1 has no tax_lots.jsonl at all). A banner
+    # asserting a protection the code does not provide is worse than no banner:
+    # a reader discounts the stream's turnover for a constraint that never binds.
+    # The intended coupling is real and still planned — it is stated here as
+    # PENDING, not as in force.
     "coupling": (
-        "NOT INDEPENDENT OF ACCOUNT 1: the candidate holds VOO, which shares the "
-        "US_LARGE_BLEND wash class with account-1's SPY. A rebalance here can be "
-        "refused because of an account-1 loss inside the 61-day window, so this "
-        "stream's turnover is coupled to account-1's tax lots — its results are not "
-        "those of a standalone book."),
+        "WASH GUARD IS SINGLE-ACCOUNT TODAY — the cross-account coupling is NOT "
+        "yet in force. The candidate holds VOO, which shares the US_LARGE_BLEND "
+        "class with account-1's SPY, so the INTENT is that a rebalance here can be "
+        "refused for an account-1 loss inside the 61-day window. In code it cannot: "
+        "the guard reads only this account's own lot ledger, and account-1 trades "
+        "unguarded and has never written a lot event. So this stream's turnover is "
+        "currently NOT constrained by account-1's tax lots, and any refusal you see "
+        "here is account-2's own 61-day rule. Treat the results as a standalone "
+        "book until this line says otherwise."),
     "execution_cost_is_in_the_record": (
         "The book's basis is its ACTUAL fills; the twin buys at the same session's "
         "close. The candidate therefore starts behind by its real execution cost, "
