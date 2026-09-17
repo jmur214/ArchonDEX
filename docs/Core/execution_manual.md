@@ -1130,3 +1130,36 @@ census/contract gates, and anything in the measurement path stay in the default 
 gap the seconds do not buy back. Measured 2026-08-27: full suite 4:15-5:13 for ~3,590
 tests (the "20+ min" report did not reproduce); `pytest-xdist` is NOT installed and
 adding it is propose-first (a new dependency).
+
+### AUTONOMY-LEDGER SURVIVAL (2026-09-16, D's T-356 Finding 1)
+
+The record on which autonomous authority is granted and demoted is gitignored and
+single-copy. The janitor now **verifies at the start** and **syncs at the end** of every
+nightly run; these are the manual equivalents.
+
+```bash
+# is a readable remote copy current with local?
+.venv/bin/python -c "import sys;sys.path.insert(0,'.');from pathlib import Path;\
+from scripts.ledger_backup import verify;\
+print(verify(Path('data/state/autonomy_ledger.jsonl')).detail)"
+
+# guarded push (canonical key + a dated key)
+.venv/bin/python -c "import sys;sys.path.insert(0,'.');from pathlib import Path;\
+from scripts.ledger_backup import sync;\
+print(sync(Path('data/state/autonomy_ledger.jsonl')).detail)"
+```
+
+**The sync is APPEND-ONLY and refuses anything else.** A local file that is not a
+byte-exact extension of the remote is REFUSED — truncated, emptied, or reordered all
+stop the push, because a naive mirror is a rewrite path wearing a backup's clothes.
+A legitimate reconciliation (the 2026-09-14 re-sort) needs `allow_rewrite=True`,
+which the nightly path can never pass.
+
+Keys: `s3://archondex-results-407539788432/ops/phase6/autonomy_ledger.jsonl` plus
+`ops/phase6/daily/autonomy_ledger_<date>.jsonl`. The dated key exists because
+`s3:GetBucketVersioning` is **denied** to this IAM user — versioning could not be
+verified, so the design does not depend on it.
+
+⚠ **The `aws` CLI is resolved by absolute path, never by bare name** — launchd's PATH
+is `/usr/bin:/bin:/usr/sbin:/sbin` and the CLI lives in `/opt/homebrew/bin`. A bare
+name works in every interactive test and resolves to nothing at 03:00.
