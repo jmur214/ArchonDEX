@@ -491,9 +491,43 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                   file=sys.stderr)
             cloud.emit_metrics(happened=True, canonical=False); cloud.push()
             return 69
+    # T-359 (audit A1 phase 1): every UNGUARDED account records lots WITHOUT
+    # being able to refuse. Phase 1 gives the ledger a feed; phase 2 (guarded
+    # containers reading siblings' ledgers read-only) is a separate unit, and
+    # DRILL 12 UNBLOCKS ONLY WHEN PHASE 2 IS LIVE.
+    #
+    # ACCOUNT-1'S SUBMIT PATH IS BYTE-IDENTICAL, and here is the mechanism
+    # rather than the assurance: the refuse branch in OrderManager.submit() is
+    # gated on `wash_guard`, which stays None for this account, so that branch
+    # is NOT ENTERED. The recorder writes at the post-submit fill-observation
+    # site only, on a broker-CONFIRMED fill. `lot_ledger` is a bare TaxLotLedger
+    # with no `check_order` at all, and the constructor rejects anything that
+    # has one — structurally refusal-incapable, not refusal-disabled.
+    #
+    # THE GATE-D PROPERTY THIS PROTECTS: account-1's forward record is the
+    # program's longest live clock. Any change to what it SUBMITS restarts that
+    # record's comparability. Recording a fill after the fact changes nothing it
+    # submits — which is exactly why the recorder goes here and enforcement
+    # does not.
+    om_lots = None
+    if om_wash is None:
+        try:
+            from engines.engine_b_risk.cross_account_wash_guard import TaxLotLedger
+            om_lots = TaxLotLedger(str(root / "data/state/tax_lots.jsonl"))
+        except Exception as exc:   # noqa: BLE001
+            # Recorder-only: it feeds a window that is not yet consulted, so a
+            # failure here must NOT stop an account trading. Loud, not fatal —
+            # and the missing artifact is itself the alarm (the ledger simply
+            # does not appear in S3).
+            print(f"   LOT-RECORDER WARN {type(exc).__name__} — not recording "
+                  f"lots this run (trading unaffected)", file=sys.stderr)
     om = OrderManager(client, journal_path=str(state / "orders.jsonl"),
                       stream=om_stream, halt_check=om_halt,
-                      wash_guard=om_wash, account=args.strategy)
+                      wash_guard=om_wash, lot_ledger=om_lots,
+                      account=args.strategy)
+    if om_lots is not None:
+        print(f"   LOT-RECORDER on {args.strategy} — records fills, CANNOT "
+              f"refuse (no check_order exists); submit path unchanged")
     led = LedgerStore(str(state / "ledger.jsonl"),
                       starting_cash=acct["cash"], account="roth")
     armed = not args.dry_run
