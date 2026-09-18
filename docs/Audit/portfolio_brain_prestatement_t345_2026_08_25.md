@@ -120,6 +120,12 @@ point estimate; and **a spectacular 10-day record still reads "too early to say"
 
 ## 6. PRECONDITION FOR BUILDING — and a caveat on today's state
 
+**Reconstructed points do not count toward the gate (ruled 2026-09-18, T-352).** The rule
+and its reason live in `paper_trader.live_books.RECONSTRUCTED_POINT_POLICY` — imported by
+identity, never paraphrased here, so one wording governs every surface. The short form: the
+digest counts robo-PAIRED evaluable days, and a reconstructed point has no execution half,
+so counting it would be a category error rather than a matter of strictness.
+
 **C builds the report-only brain book only after ≥2 streams have live records.** That is a gate on *records*,
 not on streams existing: a stream that trades but is inside the 60-day window has no record yet.
 

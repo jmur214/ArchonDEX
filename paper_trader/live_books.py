@@ -54,6 +54,47 @@ ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness
 # counterfactual (what a cash sweep could really have earned, net of the fund's ER).
 CASH_RATE_TICKER = "BIL"
 
+# --- T-352 RECONSTRUCTED POINTS (the laboratory's rule; ONE source of truth) -------------
+# Ruled 2026-09-18 by C, who owns the books, on the director's referral of the 09-15/16
+# deploy-candidate gap. My earlier "permanent holes" claim was WRONG and is retracted:
+# E showed the durable ledger carries per-cycle shares and cash for both dates and the
+# closes are historically fetchable. The points are reconstructible. The ruling is that
+# we do not reconstruct them, and the reason is evidentiary rather than stylistic.
+#
+# A tracker point is NOT one number. It carries a NAV side (equity, closes) that a ledger
+# replay CAN rebuild, and an `exec` side — slippage_bps, order_errors, canonical,
+# target_w — that it CANNOT. Slippage needs the arrival price and timestamp captured at
+# the moment of execution; `canonical` is a verdict a run reaches about itself. Those are
+# properties of a run that happened and was not recorded, and no replay recovers them.
+#
+# So a reconstructed point would be NAV-real and exec-absent: a different KIND of record
+# wearing the same shape as its neighbours. That is the silent-wrongness shape this
+# program keeps closing, and it would be introduced into the measurement path deliberately.
+#
+# THE RULES, in force:
+#   1. We do not reconstruct missing tracker points. The hole is the honest artifact —
+#      the account traded and its record was not kept, which is a true fact about the
+#      operation and should not be papered over with arithmetic.
+#   2. If a point is EVER reconstructed (a future ruling may differ), it MUST be labelled
+#      `reconstructed: true` and MUST NOT be blended into the live series.
+#   3. A reconstructed point does NOT count toward the 60-day evaluable gate. Not merely
+#      because the gate exists to prove live operation — though it does — but because the
+#      digest counts ROBO-PAIRED evaluable days, and a point with no execution half is not
+#      evaluable in that sense. Calling it evaluable would be a category error.
+RECONSTRUCTED_POINT_POLICY: Dict[str, Any] = {
+    "reconstruct": False,
+    "why": ("a tracker point's exec half (slippage_bps, order_errors, canonical) is a "
+            "property of a run that happened and was not recorded; a ledger replay "
+            "rebuilds the NAV half only, so the result would be NAV-real and exec-absent "
+            "— a different kind of record wearing the same shape"),
+    "if_ever_reconstructed": ("label `reconstructed: true`; never blend into the live "
+                              "series"),
+    "counts_toward_evaluable_gate": False,
+    "gate_reason": ("the digest counts robo-PAIRED evaluable days; a point with no "
+                    "execution half is not evaluable in that sense"),
+    "ruled": "2026-09-18 (T-352)",
+}
+
 # --- T-333 SLEEVE FRAMING (the canonical wording; ONE source of truth) ------------------
 # T-333 measured the sleeve's excess-of-cash attribution: timing ~80% / cash ~20%, and the
 # TIMING component is significantly VALUE-DESTROYING net of cash in the modern era
