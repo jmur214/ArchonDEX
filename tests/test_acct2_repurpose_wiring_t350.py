@@ -131,9 +131,20 @@ def test_a_guard_that_cannot_be_built_REFUSES_to_trade_unguarded():
 
 
 def test_the_acct1_coupling_is_documented_at_the_wiring_site():
+    """REFRAMED T-358. This used to assert that the wiring site documented the
+    coupling as a live fact — and it passed, because the comment said so. The
+    comment was FALSE (audit A1): the guard is single-account, so drill 12
+    cannot fire at all. A test that locks a claim, rather than the behaviour
+    behind it, passes hardest exactly when the claim is wrong.
+
+    The intent survives: a maintainer must meet the coupling situation before
+    the guard is constructed. What must be documented is now the TRUTH — that
+    it is not wired yet, and what it would take."""
     i = RUNNER.index("om_wash = None")
-    blk = RUNNER[max(0, i - 1800):i + 200]
-    assert "US_LARGE_BLEND" in blk and "drill 12" in blk
+    blk = RUNNER[max(0, i - 3000):i + 200]
+    assert "US_LARGE_BLEND" in blk
+    assert "NOT CROSS-ACCOUNT YET" in blk
+    assert "drill 12" in blk and "CANNOT fire" in blk
 
 
 # ---------------- item 4: Rule-B contributions ----------------

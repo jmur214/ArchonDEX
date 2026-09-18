@@ -433,14 +433,40 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     # WHY ONLY THIS ACCOUNT: account-1's gate-d record must stay byte-neutral for
     # single-account Roth-only operation — that is a locked property, not a
     # preference — so it keeps `wash_guard=None` and its submit path is unchanged.
-    # The guard reads every account's lots (it is cross-account by design) but
-    # only REFUSES on the account it is wired to.
+    # ⚠️ IT IS NOT CROSS-ACCOUNT YET. This comment previously asserted that the
+    # guard read every account's lots by design, and that a VOO buy here could be
+    # refused for an account-1 SPY loss. (The old wording is not reproduced here
+    # on purpose: a false claim left verbatim in the file is still grep-able as
+    # if it were true.) BOTH CLAIMS WERE FALSE IN CODE
+    # (found by the 2026-09-17 fresh-eyes audit, finding A1; verified from the
+    # artifacts before this rewrite). The guard is single-account TWICE OVER:
     #
-    # KNOWN AND INTENDED COUPLING: VOO and SPY share US_LARGE_BLEND, and account-1
-    # holds SPY — so a VOO buy here CAN be refused because of an account-1 loss
-    # inside the 61-day window. That is the guard working, and it is the likeliest
-    # arrival of deferred drill 12's real artifact. It is on the record BEFORE the
-    # first refusal rather than after, which is the whole point.
+    #   1. `TaxLotLedger` below is rooted at THIS container's own prefix, so the
+    #      only lots it can read are this account's. Nothing pulls a sibling's.
+    #   2. The only writer of lot events is inside the guard itself, and
+    #      WASH_GUARDED_STRATEGIES is {"deploy_candidate"} — so account-1 runs
+    #      with wash_guard=None and HAS NEVER WRITTEN A LOT EVENT AT ALL. There
+    #      is no tax_lots.jsonl under account-1's prefix; account-2's holds 3
+    #      events, all its own (VOO/MTUM/SGOV), no SPY.
+    #
+    # Consequence for the record, stated plainly because I got this wrong in
+    # writing: deferred drill 12 CANNOT fire as things stand. I previously
+    # reported its silence as "account-1 evidently had no SPY loss in the 61-day
+    # window" — a plausible explanation for an absence whose real cause is that
+    # the channel has never been fed. That is silent-wrongness (T-342 channel
+    # liveness: has the consumed field EVER been non-empty? Here: never).
+    #
+    # What the guard DOES do today, which is real and worth keeping: it enforces
+    # the 61-day rule WITHIN account-2, and it fails closed if it cannot build.
+    # The intended coupling, kept on the record so nobody re-derives it: VOO and
+    # SPY share the US_LARGE_BLEND equivalence class, and account-1 holds SPY, so
+    # once lots actually flow a VOO buy here SHOULD be refusable for an account-1
+    # loss inside the 61-day window. That is the design. It is not the behaviour.
+    #
+    # Making it genuinely cross-account needs (a) account-1 to write lots and
+    # (b) each guarded container to read its siblings' ledgers read-only — both
+    # touch a live account's path and (b) touches Engine B, so they are PROPOSED,
+    # not done here.
     #
     # FAIL-CLOSED on its own config: if the guard is requested but cannot be built
     # (missing//unreadable classes or ledger), the run REFUSES rather than trading
@@ -456,7 +482,8 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                 classes=EquivalenceClasses.load(
                     str(root / "config/substantially_identical.json")))
             print(f"   WASH-GUARD ENFORCING on {args.strategy} "
-                  f"(classes v{om_wash.classes.version}); acct-1 path unchanged")
+                  f"(classes v{om_wash.classes.version}) — SINGLE-ACCOUNT: this "
+                  f"account's own lots only; siblings are NOT consulted")
         except Exception as exc:   # noqa: BLE001
             print(f"FATAL: [NN-FAIL-CLOSED] wash guard requested for "
                   f"{args.strategy} but could not be built "

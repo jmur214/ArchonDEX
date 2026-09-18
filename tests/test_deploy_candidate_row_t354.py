@@ -54,10 +54,16 @@ def test_the_COUPLING_statement_reaches_the_reader_BEFORE_the_number():
     px = _px({"VOO": 698.04, "MTUM": 300.28, "SGOV": 100.54, "SPY": 757.39})
     st = pdg.deploy_candidate_stream(LOTS, px, "2026-09-16", "2026-09-15")
     text = pdg.render(pdg.build_rows({pdg.DEPLOY_CANDIDATE_STREAM: st}), "2026-09-16")
-    assert "US_LARGE_BLEND" in text and "NOT INDEPENDENT OF ACCOUNT 1" in text
+    # REFRAMED T-358 (audit A1). The ORDERING intent — caveat above the number —
+    # is untouched and still asserted. What the caveat SAYS changed: the coupling
+    # was never in force (single-account guard), so the banner now states it as
+    # pending. A banner promising a protection the code lacks is worse than none:
+    # it makes a reader discount turnover for a constraint that never binds.
+    assert "US_LARGE_BLEND" in text
+    assert "SINGLE-ACCOUNT TODAY" in text
     assert text.index("US_LARGE_BLEND") < text.index("| stream |")
     assert "61-day window" in text
-    assert "not those of a standalone book" in text
+    assert "standalone book" in text
 
 
 def test_no_pressure_words_on_the_row_that_matters_most():
