@@ -756,6 +756,35 @@ def _scan_jsonl_field(rel: str, field: str):
     return _c
 
 
+def _scan_points_field(rel: str, field: str):
+    """Has `field` EVER appeared on any point of a tracker's own series?
+
+    T-352: the family trackers carry a `cash_adj` annotation that is written ONLY when the
+    pulse supplies `cash_rate`. It never does — there is not one call site — so the block
+    has read `n_days_no_rate = <every day>` since inception on every account. The summary
+    then reports an accrual of exactly 0, which is indistinguishable from a real,
+    correctly-measured zero. That is the shape this check exists to see: a number that
+    means "never measured" wearing the face of a number that means "no effect"."""
+    def _c(root: Path) -> Tuple[str, str]:
+        p = root / rel
+        if not p.exists():
+            return UNVERIFIABLE, f"source missing: {rel} (cannot establish liveness)"
+        try:
+            st = json.loads(p.read_text())
+            pts = st.get("points") or st.get("days") or []
+        except Exception:
+            return UNVERIFIABLE, f"unparseable: {rel}"
+        if not pts:
+            return NO_HISTORY, f"no points yet in {rel} — nothing to assert"
+        n_nonempty = sum(1 for pt in pts if isinstance(pt, dict) and pt.get(field))
+        if n_nonempty == 0:
+            return NEVER_ALIVE, (f"'{field}' ABSENT from all {len(pts)} point(s) of its "
+                                 f"entire observed history — the annotation's zero means "
+                                 f"NEVER MEASURED, not 'no effect'; VERIFY UPSTREAM INTENT")
+        return LIVE, f"'{field}' present on {n_nonempty}/{len(pts)} point(s)"
+    return _c
+
+
 # THE CHANNEL REGISTRY — declared per consumer. A consumer that reads a load-bearing
 # field registers it here, so "my input has never carried anything" becomes visible.
 CHANNELS: List[Channel] = [
@@ -771,6 +800,15 @@ CHANNELS: List[Channel] = [
             _scan_jsonl_field("data/intel/event_calls.jsonl", "symbol")),
     Channel("thesis_calls", "thesis_book",
             _scan_jsonl_field("data/intel/thesis_calls.jsonl", "instruments")),
+    # T-352: the family trackers' cash-drag annotation. `cash_rate` has NO call site in
+    # the pulse, so `cash_adj` has never been written on any point, on any account —
+    # 0/43 on acct-1, 0/2 on acct-2 at registration. Declared here so the dead channel
+    # is VISIBLE rather than reading as a measured zero. Whether to feed it or retire it
+    # is the tracker owner's call; this row only refuses to let it stay silent.
+    Channel("cash_rate", "family_tracker(trend_sleeve)",
+            _scan_points_field("data/state/sleeve_tracking.json", "cash_adj")),
+    Channel("cash_rate", "family_tracker(deploy_candidate)",
+            _scan_points_field("data/state/deploy_candidate_tracking.json", "cash_adj")),
 ]
 
 
