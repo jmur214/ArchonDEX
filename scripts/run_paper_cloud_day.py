@@ -205,10 +205,37 @@ def _last_closes(closes):
     return out
 
 
+def _cash_rate(client) -> "float | None":
+    """BIL's realized daily return, fetched ON ITS OWN and FAIL-OPEN.
+
+    DELIBERATELY NOT part of any trading fetch universe. Those are fail-CLOSED
+    on a missing or stale ticker (`_FailClosed(68)`), so adding BIL there would
+    let a cash-ANNOTATION ticker refuse the day's trading — a display concern
+    with veto power over the trading path. It gets its own call and its own
+    failure mode: no rate, no annotation, trading untouched.
+
+    Returns None when it cannot be computed, and the tracker then writes no
+    cash annotation at all — "we don't know what cash earned" and "cash earned
+    nothing" are different facts, and only one of them is true."""
+    from paper_trader.live_books import CASH_RATE_TICKER
+    try:
+        got = client.fetch_daily_closes([CASH_RATE_TICKER], lookback_days=10)
+    except Exception:
+        return None
+    s_ = (got or {}).get(CASH_RATE_TICKER)
+    try:
+        if s_ is None or len(s_) < 2:
+            return None
+        prev, last = float(s_.iloc[-2]), float(s_.iloc[-1])
+        return (last / prev - 1.0) if prev else None
+    except (TypeError, ValueError, ZeroDivisionError, AttributeError, IndexError):
+        return None
+
+
 def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
                            sizing_equity, broker_positions, staged, arrival_px,
                            arrival_ts, summary, canonical, root, robo_closes,
-                           strategy="trend_sleeve"):
+                           strategy="trend_sleeve", cash_rate=None):
     """Record a family strategy's forward tracker + report-only execution gates,
     reusing the exact T-238 gate logic (held_qty vs the achievable whole-share
     target on the sizing basis; slippage vs arrival; order-state errors; clean
@@ -227,11 +254,27 @@ def _record_family_tracker(*, tracker_path, plan, closes_latest, equity,
         held_w = {t: (broker_positions.get(t, 0) * closes_latest[t]) / sizing_equity
                   for t in trade if t in closes_latest}
     slippage_bps = _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts)
+    # T-360: FEED the cash_adj channel. C found it had never been written on any
+    # family tracker point — 0 of 43 on account-1's whole life — so the zero a
+    # reader would have taken as "this book holds no idle cash" was a DEAD
+    # CHANNEL, not a measurement. The tracker's machinery was complete; it was
+    # only ever missing its caller.
+    #
+    # Idle cash is what the TIER did not deploy: the sizing basis minus the
+    # market value of what is held. Not the broker's cash, which carries the
+    # ~$90k this account may not touch. Passed only when BOTH the cash and the
+    # rate are known — the tracker writes the annotation only then, so a missing
+    # rate leaves the day unannotated rather than accruing a silent zero.
+    invested = sum(int(q) * closes_latest[t]
+                   for t, q in (broker_positions or {}).items()
+                   if int(q) != 0 and t in closes_latest)
+    idle_cash = max(float(sizing_equity) - invested, 0.0) if sizing_equity else None
     return SleeveTracker(path=tracker_path, root=str(root),
                          strategy=strategy).record(
         str(summary.trade_date), equity, robo_closes,
         target_weights=tgt_w, held_weights=held_w, slippage_bps=slippage_bps,
-        order_errors=order_errs, canonical=canonical)
+        order_errors=order_errs, canonical=canonical,
+        cash_balance=idle_cash, cash_rate=cash_rate)
 
 
 def _digest_streams(root) -> dict:
@@ -911,13 +954,20 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
             # re-discovered fill is not this run's execution — T-288).
             slippage_bps = _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts)
             tracker = SleeveTracker(root=str(root))
+            # T-360: idle cash = the tier basis not deployed. NOT the broker's
+            # cash, which holds the ~$90k this account may not touch.
+            _invested = sum(int(q) * sleeve_closes[t]
+                            for t, q in (broker_positions or {}).items()
+                            if int(q) != 0 and t in sleeve_closes)
+            _idle = max(float(sizing_equity) - _invested, 0.0) if sizing_equity else None
             tsum = tracker.record(
                 str(today), equity, sleeve_closes,
                 target_weights=tgt_w,
                 held_weights=held_w,
                 slippage_bps=slippage_bps,   # DAY fill vs arrival price (gate b)
                 order_errors=order_errs,
-                canonical=canonical)
+                canonical=canonical,
+                cash_balance=_idle, cash_rate=_cash_rate(client))
             eg = tsum.get("execution_gates", {})
             print(f"6. TRACK     sleeve forward vs robos: {tsum.get('status')} "
                   f"({tsum.get('n_days', tsum.get('sleeve', {}).get('n_days'))} pts)"
@@ -1295,6 +1345,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                            if t in sleeve_closes}
             tsum = _record_family_tracker(
                 strategy=args.strategy,
+                cash_rate=_cash_rate(client),
                 tracker_path=f"data/state/{family_state['tracker_file']}",
                 plan=plan, closes_latest=sleeve_closes, equity=equity,
                 sizing_equity=sizing_equity, broker_positions=broker_positions,

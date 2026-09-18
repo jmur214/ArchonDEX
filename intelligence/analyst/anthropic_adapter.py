@@ -178,8 +178,14 @@ def make_agentic_call(tier_name: str = "daily", *,
             tool_uses = [b for b in content if b.get("type") == "tool_use"]
             if data.get("stop_reason") != "tool_use" or not tool_uses:
                 text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
+                # T-360: carry the API's OWN stop_reason. `stopped` is our loop's
+                # verdict and only ever says "max_calls"; for four sessions a
+                # max_tokens truncation was therefore recorded as "end_turn",
+                # and the record said the call ended normally when it had been
+                # cut mid-JSON. Report the OUTCOME, not our belief about it.
                 return {"text": text, "model_id_served": model_served, "usage": agg,
-                        "n_tool_calls": n_tool_calls, "stopped": stopped}
+                        "n_tool_calls": n_tool_calls, "stopped": stopped,
+                        "stop_reason": data.get("stop_reason")}
             # cap reached: stop offering tools — force a final answer next hop.
             if n_tool_calls >= max_calls:
                 stopped = "max_calls"
@@ -199,7 +205,8 @@ def make_agentic_call(tier_name: str = "daily", *,
                 text = "".join(b.get("text", "") for b in d2.get("content", [])
                                if b.get("type") == "text")
                 return {"text": text, "model_id_served": d2.get("model", model_served),
-                        "usage": agg, "n_tool_calls": n_tool_calls, "stopped": stopped}
+                        "usage": agg, "n_tool_calls": n_tool_calls, "stopped": stopped,
+                        "stop_reason": d2.get("stop_reason")}
             # execute every requested tool, return all results in ONE user turn.
             messages.append({"role": "assistant", "content": content})
             results = []

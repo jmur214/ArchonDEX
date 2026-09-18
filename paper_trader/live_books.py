@@ -54,6 +54,31 @@ ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness
 # counterfactual (what a cash sweep could really have earned, net of the fund's ER).
 CASH_RATE_TICKER = "BIL"
 
+
+def accrue_cash_adj(prev_total: float, idle_cash: float,
+                    px_today, px_prev) -> "tuple[float, bool]":
+    """Accrue what yesterday's IDLE CASH would have earned overnight, priced by
+    BIL's realized daily return. Returns ``(new_total, rate_available)``.
+
+    FAIL-CLOSED: with no usable rate the total is returned UNCHANGED and the
+    caller counts a missing day — a missing rate is never silently treated as
+    0%, which would read as "cash earned nothing" instead of "we don't know".
+
+    Extracted T-360 so the LiveBooks annotation and the family trackers share
+    ONE implementation. C found `cash_adj` had never been written on a family
+    tracker point (0 of 43 on account-1's whole life) — the zero a reader would
+    have taken as "the sleeve holds no idle cash" was a dead channel. Two copies
+    of this arithmetic is how the two surfaces would start disagreeing once the
+    channel is live, which is the same defect one layer over.
+    """
+    try:
+        if px_today is None or not px_prev:
+            return float(prev_total), False
+        rate = float(px_today) / float(px_prev) - 1.0
+    except (TypeError, ValueError, ZeroDivisionError):
+        return float(prev_total), False
+    return round(float(prev_total) + float(idle_cash or 0.0) * rate, 6), True
+
 # --- T-333 SLEEVE FRAMING (the canonical wording; ONE source of truth) ------------------
 # T-333 measured the sleeve's excess-of-cash attribution: timing ~80% / cash ~20%, and the
 # TIMING component is significantly VALUE-DESTROYING net of cash in the modern era
@@ -281,11 +306,8 @@ class LiveBook:
         # Uses the cash held BEFORE today's rebalance, priced by BIL's realized daily
         # return. FAIL-CLOSED: no rate today -> no accrual + the day is counted in
         # `cash_rate_missing_days`; a missing rate is never silently treated as 0%.
-        _rate = None
         _bil = closes.get(CASH_RATE_TICKER)
         _bil_prev = st.get("cash_rate_prev_px")
-        if _bil is not None and _bil_prev:
-            _rate = float(_bil) / float(_bil_prev) - 1.0
         prev_cash_book = (st["side"]["book"] or {}).get("cash", 0.0)
         prev_cash_twin = (st["side"]["twin"] or {}).get("cash", 0.0)
 
@@ -295,13 +317,13 @@ class LiveBook:
                                         self.spec.twin_notional, self.spec.whole_shares)
         b, t = st["side"]["book"]["nav"], st["side"]["twin"]["nav"]
 
-        if _rate is None:
+        st["cash_adj_book"], _have = accrue_cash_adj(
+            st.get("cash_adj_book", 0.0), prev_cash_book, _bil, _bil_prev)
+        st["cash_adj_twin"], _ = accrue_cash_adj(
+            st.get("cash_adj_twin", 0.0), prev_cash_twin, _bil, _bil_prev)
+        _rate = True if _have else None
+        if not _have:
             st["cash_rate_missing_days"] = int(st.get("cash_rate_missing_days", 0)) + 1
-        else:
-            st["cash_adj_book"] = round(float(st.get("cash_adj_book", 0.0))
-                                        + prev_cash_book * _rate, 6)
-            st["cash_adj_twin"] = round(float(st.get("cash_adj_twin", 0.0))
-                                        + prev_cash_twin * _rate, 6)
         if _bil is not None:
             st["cash_rate_prev_px"] = float(_bil)
         st["days"].append({

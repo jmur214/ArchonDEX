@@ -55,7 +55,8 @@ def run_agentic_note(as_of, *, portfolios, allowlist, prompt_path,
                      projected_cost_usd: float, raw_dir: str,
                      watchlist=None, event_state=None, load_panel=None,
                      max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
-                     now_iso: str = "1970-01-01T00:00:00") -> AgenticResult:
+                     now_iso: str = "1970-01-01T00:00:00",
+                     max_output_tokens: Optional[int] = None) -> AgenticResult:
     """Run one governed agentic note. ``agentic_call`` is
     ``anthropic_adapter.make_agentic_call(...)``; ``tools`` an ``AgenticTools``.
     Never raises into the trading path."""
@@ -80,7 +81,13 @@ def run_agentic_note(as_of, *, portfolios, allowlist, prompt_path,
 
     # 3. the capped tool-use loop (raw REST, no SDK). Raw always archived.
     try:
-        resp = agentic_call(prompt, bundle_json, decision.max_output_tokens,
+        # T-360: the agentic arm needs MORE output budget than the constrained
+        # one because it narrates its tool trace before the note. The override is
+        # never allowed to LOWER the governor's cap — the governor is a cost
+        # control and this is a truncation fix, so it may only raise the ceiling.
+        _cap = max(int(decision.max_output_tokens),
+                   int(max_output_tokens or 0)) or decision.max_output_tokens
+        resp = agentic_call(prompt, bundle_json, _cap,
                             tools.specs(), tools.execute, max_tool_calls)
     except Exception as e:   # noqa: BLE001
         return AgenticResult(None, f"skipped:model_call_error:{type(e).__name__}",
@@ -92,6 +99,9 @@ def run_agentic_note(as_of, *, portfolios, allowlist, prompt_path,
         {"as_of": bundle["as_of"], "response": resp.get("text", ""),
          "model_id_served": resp.get("model_id_served"),
          "n_tool_calls": resp.get("n_tool_calls"), "stopped": resp.get("stopped"),
+         # the API's own verdict, distinct from our loop's — "max_tokens" here is
+         # the single fact that makes a truncated note diagnosable at a glance
+         "stop_reason": resp.get("stop_reason"),
          "tool_trace": tools.trace_dicts(),
          "input_bundle_sha256": bundle_sha256(bundle)}, default=str))
 
@@ -102,9 +112,19 @@ def run_agentic_note(as_of, *, portfolios, allowlist, prompt_path,
     try:
         payload = _loads_lenient(resp.get("text", ""))
     except Exception:
-        return AgenticResult(None, "invalid:not_json", raw_path=raw_path,
-                             tool_trace=tools.trace_dicts(),
-                             n_tool_calls=resp.get("n_tool_calls", 0))
+        # T-360: name the ACTUAL failure. A truncated note and a malformed one
+        # need opposite fixes (more budget vs. a prompt/schema problem), and for
+        # four sessions both reported as "not_json", which sent the diagnosis
+        # nowhere. Truncation is detectable without guessing: the response
+        # contains an unbalanced '{'.
+        _txt = resp.get("text", "") or ""
+        _truncated = (_txt.count("{") > _txt.count("}")) or \
+                     str(resp.get("stop_reason") or "") == "max_tokens"
+        return AgenticResult(
+            None,
+            ("invalid:truncated" if _truncated else "invalid:not_json"),
+            raw_path=raw_path, tool_trace=tools.trace_dicts(),
+            n_tool_calls=resp.get("n_tool_calls", 0))
 
     raw_actions = payload.pop("hypothetical_actions", []) or []
     if not isinstance(raw_actions, list):
