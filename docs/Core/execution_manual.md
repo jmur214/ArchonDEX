@@ -1080,6 +1080,40 @@ per-account surfaces (S3 TRADING_HALT object in the account's own state
 prefix / jobdef env / config flag) are documented in the ACCOUNT 3 section
 above and now apply to every account.
 
+### THE REVIEWER LIVENESS SWEEP — Agent R's instrument (2026-09-18, director-approved)
+
+Read-only, advisory, registry-reusing. Makes two questions mechanical over EVERY rendered
+field and EVERY schedule-class ledger label: "has this field EVER been non-default?" and
+"does this 'scheduled' row's time match the installed launchd schedule?". Born from the
+two misses of the 2026-09-17 fresh-eyes audit. It gates nothing and alarms nothing; its
+table is read into a DEFECT round or the checkpoint addendum by a person.
+
+```bash
+# 1. pull the real artifacts OUTSIDE the tool (it has no write path by construction)
+S=/tmp/sweep && B=archondex-results-407539788432
+for p in paper_state paper_state_offense_sso paper_state_ai_trader; do
+  aws s3 sync s3://$B/$p/data/state $S/$p/data/state --profile archondex --quiet
+  aws s3 sync s3://$B/$p/data/intel $S/$p/data/intel --profile archondex --quiet \
+      --exclude "*" --include "analyst_notes*/*" --include "*.jsonl"
+done
+
+# 2. the sweep (stdout = the fixed-format table; exit 0 rendered / 2 an input unreadable, NO table)
+.venv/bin/python scripts/reviewer_liveness_sweep.py \
+    --root acct1=$S/paper_state --root acct2=$S/paper_state_offense_sso \
+    --root acct3=$S/paper_state_ai_trader \
+    --ledger data/state/autonomy_ledger.jsonl \
+    --plist ops/com.archondex.janitor.plist --plist ops/com.archondex.director-pass.plist \
+    [--as-of YYYY-MM-DD] [--tz America/Chicago] [--all]
+```
+
+Sections: (1) the registries reused verbatim per root (`channel_liveness` + `run_census`
+from `paper_trader/clock_census.py`); (2) the over-inclusive field scan — a never-non-default
+field the T-342 registry does not declare is marked **undeclared** = file it against the
+registry owner, never add a private list; (3) schedule-class ledger labels vs the plists
+(±20 min), with B's `trigger_correction` annotations honoured by prefix match.
+The three rails are PROVEN in `tests/test_reviewer_liveness_sweep.py` (AST scan + tree hash
++ mutation of the guard itself).
+
 ### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
 
 The autonomous-development pilot's first rung

@@ -95,10 +95,38 @@ and a current-truth surface that costs less than a page to keep current.
 
 | date | expected artifact | observed |
 |---|---|---|
-| 09-18 07:00 | director pass first scheduled firing, observe-only, one report | _pending_ |
-| 09-18 09:50 | account-2 third firing; tracker point #2 durable in S3 | _pending_ |
+| 09-18 07:00 | director pass first scheduled firing, observe-only, one report | **OBSERVED** — ledger row `session=director_pass, trigger=scheduled_pass` at 12:00:07Z = 07:00:07 local (Δ 0 min vs the plist; the first schedule-class row whose label is self-evidencing after B's 4c94219 fix) |
+| 09-18 09:50 | account-2 third firing; tracker point #2 durable in S3 | **OBSERVED** — `paper_state_offense_sso/data/state/deploy_candidate_tracking.json` in S3 (08:52 local object time) holds points 2026-09-17 and 2026-09-18, both `canonical: true`. **"Accruing" holds.** |
 | 09-19 09:50 | account-2 fourth firing | _pending_ |
 | 09-20 | this review's verdict re-read against the three rows above | _pending_ |
 
 The verdict in §1 stands unless the addendum shows the tracker not accruing in S3 on 09-18 or
 09-19 — in which case "accruing" is not met and the sentence applies.
+
+## 7. The reviewer liveness sweep — first artifact (2026-09-18), per `[NN-FIRST-ARTIFACT]`
+
+The instrument approved by the director on 09-18 (`scripts/reviewer_liveness_sweep.py`; three
+rails proven in `tests/test_reviewer_liveness_sweep.py`) was run over the three accounts' real
+S3 artifacts and the local autonomy ledger. Full table:
+`docs/Measurements/2026-09/reviewer_liveness_sweep_2026_09_18.md`. The rows that matter:
+
+**Retroactive catches — the proof the instrument closes the class it was born from:**
+
+| what | sweep row | the miss it would have caught |
+|---|---|---|
+| ledger row labeled `scheduled_pass` at **13:37** local vs a 07:00 schedule (Δ 397 min) — plus 18:34 / 18:35 | §3, three `LABEL_MISMATCH` rows, now `annotated: yes` (B's 09-18 correction row) | miss 1 |
+| `cash_adj` **ABSENT** on all 43 points (acct-1) and all 2 (acct-2) | §2, `ABSENT`, `in registry: yes` (T-352 declared it) | miss 2 |
+
+**New candidates surfaced by the same run (findings to route, not fixes):**
+
+| candidate | evidence | route |
+|---|---|---|
+| **Seven janitor rows 09-02 → 09-10 labeled `nightly_schedule` at 18:42, 05:23, 09:45, 08:48, 04:04, 10:51, 22:34 local** — the schedule has been 03:00 since the plist's first commit (`54a462e`). These are the janitor's own pre-fix version of the row-10 defect and, unlike the three director-pass rows, are **not annotated**. | §3, 7 `LABEL_MISMATCH` / `annotated: no` | B (annotate, never rewrite — the 09-16 convention) |
+| **`book_damped_offense.json` has NEVER produced a NAV**: 37/37 days `degraded: true`, reason "strategy stance unavailable → parked", `book_nav: null` since 07-29. The 09-16 digest rendered it as "too early to say (35 days)" and "no data this period" — a stream that has never had data reading as a young one. | §2, `book_nav` / `twin_nav` `NEVER_NONDEFAULT`, undeclared | C (books lane): feed-or-retire, and the digest should say NEVER, not "this period" |
+| `llm_analyst_tracking.json` `exec.te` never computed (17/17 None) | §2, undeclared | E, minor |
+| `deploy_candidate_tracking.json` `exec.slippage_bps` 0.0 on both durable points | §2 | **consistent with T-351** (the arrival-day point carrying the real slippage was the one lost); watch, no action |
+| 28 never-non-default fields undeclared in the T-342 registry; most benign by construction (`degraded: false`, open/closed counts of 0 on books with no closes, `spy_null.excess_growth` ≡ 0) | §2 | registry owner (C) to triage: declare the load-bearing ones, name the benign ones so the sweep can stop listing them |
+
+**What the sweep does NOT say:** the clock-census MISSED lines under §1 for acct-2/acct-3 are
+expected — those roots hold only the files their container writes, and the census asks about
+every clock. Read §1 per root, not as a fleet verdict.
