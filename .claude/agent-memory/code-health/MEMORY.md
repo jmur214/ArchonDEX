@@ -6,3 +6,4 @@
 - [Unused-def scan false-positive classes](pattern_unused_def_false_positives.md) — pytest fixtures and same-file script helpers dominate; ~78% of raw unused-def candidates are these two classes
 - [Orphan-script accumulation in scripts/](pattern_orphan_script_accumulation.md) — scripts/ is the #1 debt sink; T-xxx one-offs never archived (~132/170 orphaned); they form self-contained import webs that archive as a unit
 - [Archive-verification: string-ref vs real import](pattern_archive_verification_string_vs_import.md) — a live module naming a script is often a docstring/error-string/comment not an import; doesn't block archiving but flag the stale pointer
+- [Live runner main() is the new god function](pattern_live_runner_main_is_the_new_god_function.md) — debt migrated from engines/* to run_paper_cloud_day.py main() (1157 lines) + text-assertion wiring tests; rank by live-path membership first
