@@ -35,13 +35,32 @@ sys.path.insert(0, str(ROOT))
 from scripts import approvals_queue as aq                      # noqa: E402
 from scripts.janitor_nightly import CANON, _env_snapshot        # noqa: E402
 
-APPROVALS = ROOT / "ops/approvals"
+# The queue resolves to the CANONICAL worktree, like the ledger and the reports.
+# Two reasons, and the second is the one that bites:
+#   1. There is ONE queue, not one per worktree — the split-ledger lesson.
+#   2. Approvals are TRACKED by ruling, and the runner worktree re-syncs itself with
+#      `git checkout --detach` every night, which REFUSES on a dirty tree. A pass that
+#      wrote tracked files into its own runner would quietly disable the venue fix that
+#      makes the runner trustworthy.
+APPROVALS = CANON / "ops/approvals"
 LEDGER = CANON / "data/state/autonomy_ledger.jsonl"
 REPORT = CANON / "data/state/director_pass_report.md"
 COORD = CANON / "data/coordination"
 
 DISPATCH_BUDGET = 3          # ruled 2026-09-11
 COOLDOWN_DAYS = 7            # a persisting finding is not re-dispatched nightly
+
+# MODES. Ruled 2026-09-18: the first scheduled firings run OBSERVE-ONLY — report,
+# ledger row and queue entries, but no auto-drafted dispatches — until a real pass
+# report has been read by both the director and me. A pass that drafts work on its
+# first-ever firing has no baseline to be compared against, so its output cannot be
+# reviewed, only accepted.
+#
+# The mode is EXPLICIT rather than incidental. This pass could not dispatch today
+# anyway (the machinery exists; main() never calls it), and that is exactly the kind
+# of safety-by-accident that stops being safe the moment someone wires the last
+# function up. Stated, defaulted, recorded in every row, and tested.
+MODE_OBSERVE, MODE_DISPATCH = "observe", "dispatch"
 
 
 @dataclass
@@ -182,7 +201,8 @@ def dispatch_allowed(fingerprint: str, ledger: Path = LEDGER,
 
 def append_ledger(as_of: str, checks: Dict[str, str], raised: List[str],
                   skipped: List[str], fingerprints: List[str],
-                  env_before: Optional[dict] = None, ledger: Path = LEDGER) -> None:
+                  env_before: Optional[dict] = None, ledger: Path = LEDGER,
+                  mode: str = MODE_OBSERVE) -> None:
     ledger.parent.mkdir(parents=True, exist_ok=True)
     row = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -190,6 +210,7 @@ def append_ledger(as_of: str, checks: Dict[str, str], raised: List[str],
         "trigger": "scheduled_pass", "checks": checks,
         "approvals_raised": raised, "approvals_skipped": skipped,
         "dispatch_fingerprints": fingerprints,
+        "mode": mode,             # observe | dispatch — stated, never inferred
         "merged": False,          # stated explicitly every row: rung 0 never merges
         "env_before": env_before, "env": _env_snapshot(),
     }
@@ -198,7 +219,8 @@ def append_ledger(as_of: str, checks: Dict[str, str], raised: List[str],
 
 
 def write_report(as_of: str, candidates: List[MergeCandidate], raised: List[str],
-                 skipped: List[str], open_count: int, report: Path = REPORT) -> None:
+                 skipped: List[str], open_count: int, report: Path = REPORT,
+                 mode: str = MODE_OBSERVE) -> None:
     lines = [f"# Director pass — {as_of}", "",
              "Rung-0 scheduled pass (`docs/Sources/prereg_scheduled_passes_2026_09_10.md`). "
              "**PREPARE-ONLY: this pass never merges.** It reads machine-checkable facts, "
@@ -207,7 +229,10 @@ def write_report(as_of: str, candidates: List[MergeCandidate], raised: List[str]
              f"- merge candidates seen: **{len(candidates)}**",
              f"- approvals raised this pass: **{len(raised)}**",
              f"- skipped (already asked): **{len(skipped)}**",
-             f"- approvals now OPEN in `ops/approvals/`: **{open_count}**", ""]
+             f"- approvals now OPEN in `ops/approvals/`: **{open_count}**",
+             f"- mode: **{mode}**"
+             + ("  — no dispatches drafted; this pass only reports and queues decisions."
+                if mode == MODE_OBSERVE else ""), ""]
     if candidates:
         lines += ["| branch | commits ahead | newest commit |", "|---|--:|---|"]
         lines += [f"| `{c.branch}` | {c.commits} | {c.last_commit} |" for c in candidates]
@@ -220,9 +245,21 @@ def main() -> int:
     p.add_argument("--dry-run", action="store_true",
                    help="report what would be raised; write nothing")
     p.add_argument("--max-age-days", type=int, default=14)
+    p.add_argument("--mode", choices=[MODE_OBSERVE, MODE_DISPATCH], default=MODE_OBSERVE,
+                   help="observe (default): report + ledger + queue entries only. "
+                        "dispatch: additionally auto-draft dispatches — held until one "
+                        "real pass report has been reviewed (ruled 2026-09-18).")
     a = p.parse_args()
 
     as_of = datetime.now().strftime("%Y-%m-%d")
+    if ROOT != CANON:
+        # The queue is TRACKED but only CANON's copy is LIVE. Another worktree's
+        # checkout of ops/approvals is a snapshot from whenever it last synced, so
+        # committing the queue from here would REVERT answers a human has given.
+        # Say so out loud rather than leaving it to be discovered in a diff.
+        print(f"[DIRECTOR-PASS] NOTE: running from {ROOT.name}, writing the LIVE queue in "
+              f"{CANON.name}. This worktree's ops/approvals is a stale snapshot — do not "
+              f"commit it from here.")
     env_before = _env_snapshot()
     candidates = collect_merge_candidates(max_age_days=a.max_age_days)
 
@@ -236,10 +273,21 @@ def main() -> int:
     raised, skipped = prepare_merge_approvals(candidates, as_of)
     withdrawn = withdraw_stale(candidates, as_of)
     open_count = len(aq.open_items(APPROVALS))
-    write_report(as_of, candidates, raised, skipped, open_count)
-    append_ledger(as_of, {"merge_prep": "PASS"}, raised, skipped, [], env_before)
-    print(f"[DIRECTOR-PASS] {as_of} raised={len(raised)} skipped={len(skipped)} "
-          f"withdrawn={len(withdrawn)} open={open_count} merged=False")
+
+    fingerprints: List[str] = []
+    if a.mode == MODE_DISPATCH:
+        # Deliberately unreachable until the mode is opted into: the ruling is that a
+        # first firing must be observable before it is allowed to generate work.
+        raise SystemExit(
+            "dispatch mode is HELD: the contract requires one real pass report to be "
+            "reviewed first (ruled 2026-09-18). Run in observe mode until then."
+        )
+
+    write_report(as_of, candidates, raised, skipped, open_count, mode=a.mode)
+    append_ledger(as_of, {"merge_prep": "PASS"}, raised, skipped, fingerprints,
+                  env_before, mode=a.mode)
+    print(f"[DIRECTOR-PASS] {as_of} mode={a.mode} raised={len(raised)} "
+          f"skipped={len(skipped)} withdrawn={len(withdrawn)} open={open_count} merged=False")
     return 0
 
 
