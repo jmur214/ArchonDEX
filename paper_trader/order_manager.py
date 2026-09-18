@@ -232,7 +232,8 @@ class OrderManager:
     def __init__(self, client, journal_path: str,
                  reconcile_on_start: bool = True,
                  wash_guard=None, account: Optional[str] = None,
-                 stream: Optional[str] = None, halt_check=None):
+                 stream: Optional[str] = None, halt_check=None,
+                 lot_ledger=None):
         self.client = client
         self.journal = JsonlStore(journal_path)
         self.orders: Dict[str, OrderRecord] = {}
@@ -242,6 +243,29 @@ class OrderManager:
         # consults it: submit() and _apply_broker() run byte-identically. It only
         # bites when a fleet passes a shared guard + this account's tax label.
         self.wash_guard = wash_guard
+        # T-359 RECORDER-ONLY LOT LEDGER. Audit A1 found the "cross-account"
+        # guard was single-account: lot events are written ONLY inside the
+        # guard, and only account-2 had one, so account-1 had never written a
+        # lot event and the 61-day window could never see it. This lets an
+        # account FEED the ledger without being able to refuse anything.
+        #
+        # STRUCTURALLY REFUSAL-INCAPABLE, not refusal-disabled. The refuse path
+        # is gated on `wash_guard`, which stays None here, so that branch is not
+        # entered at all — account-1's submit path runs byte-identically. And a
+        # bare TaxLotLedger has no `check_order` to call even by mistake, which
+        # the assertion below enforces rather than promises: a mode flag on the
+        # full guard would leave the refuse code reachable one edit away.
+        if lot_ledger is not None:
+            if hasattr(lot_ledger, "check_order"):
+                raise TypeError(
+                    "lot_ledger must be a RECORDER (no refuse path). Got an "
+                    f"object exposing check_order: {type(lot_ledger).__name__}. "
+                    "Pass it as wash_guard= if enforcement is intended.")
+            if wash_guard is not None:
+                raise TypeError(
+                    "pass wash_guard= OR lot_ledger=, never both — two write "
+                    "paths into one ledger is how a fill gets recorded twice")
+        self.lot_ledger = lot_ledger
         self.account = account
         # T-329 §3: the default coid STREAM token for orders staged by this
         # manager (account-3 = "analyst-a3" on day 1). None ⇒ byte-identical
@@ -534,13 +558,19 @@ class OrderManager:
         new_state = _BROKER_STATE_MAP.get(status, None)
         if new_state is not None and new_state.value != order.state:
             self._record(order, event="broker_update", new_state=new_state)
-            # T-319: populate the cross-account lot ledger from BROKER TRUTH (not
-            # intent) the moment a fill is CONFIRMED — so the wash-sale window sees
-            # what actually happened. Idempotent (the ledger dedups by event_id).
-            # Byte-neutral when wash_guard is None.
-            if (self.wash_guard is not None and new_state is OrderState.FILLED
+            # T-319/T-359: populate the lot ledger from BROKER TRUTH (not intent)
+            # the moment a fill is CONFIRMED — so the wash-sale window sees what
+            # actually happened. Idempotent (the ledger dedups by event_id).
+            # ONE write path, resolved from whichever was supplied: the enforcing
+            # guard's ledger, or a recorder-only ledger. Never both (the
+            # constructor refuses that), so a fill cannot be recorded twice.
+            # Byte-neutral when both are None. This site is POST-SUBMIT — it runs
+            # on a confirmed fill, never in the submit path.
+            _lot_ledger = (self.wash_guard.ledger if self.wash_guard is not None
+                           else self.lot_ledger)
+            if (_lot_ledger is not None and new_state is OrderState.FILLED
                     and order.filled_qty > 0 and order.filled_avg_price is not None):
-                self.wash_guard.ledger.record_fill(
+                _lot_ledger.record_fill(
                     account=self.account, symbol=order.ticker, side=order.side,
                     qty=order.filled_qty, price=order.filled_avg_price,
                     ts=order.filled_at or order.trade_date,
