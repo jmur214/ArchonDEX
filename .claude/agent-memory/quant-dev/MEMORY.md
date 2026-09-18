@@ -5,3 +5,4 @@
 - [T-165 in-process harness deadlock lives in the per-bar loop](project_t165_deadlock_per_bar_loop.md) — threaded logger-flush machinery; any path that drives BacktestController.run hits it.
 - [Deployable-account leverage originates downstream of allocator weights](project_deployable_borrow_is_downstream.md) — Engine-B per-name sizing with no cash budget, not the allocator. Fix is propose-first.
 - [T-237 EDGAR Lazy-Prices ingest: built + cost numbers + doc-format gotchas](project_t237_edgar_lazy_prices_ingest_2026_06_26.md) — PIT key=acceptanceDateTime, SGML-wrapped old .htm, full-universe ~3-4h cold / offline re-run, NN-FAIL-CLOSED verified.
+- [T-321 agentic-analyst reader store map](project_t321_agentic_reader_stores.md) — exact paths/schemas for the 6 read-only tool readers; 4 of 6 stores don't exist on disk yet (fail-closed to []); data/processed is a symlink to tm-2.

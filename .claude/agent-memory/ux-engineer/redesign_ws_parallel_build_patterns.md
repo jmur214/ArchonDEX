@@ -1,0 +1,17 @@
+---
+name: redesign-ws-parallel-build-patterns
+description: Patterns from the 2026-07-02 mission-control redesign WS-E — guarded-import parallel-build bridge, demo nav-key contract, reactive badge slots, pytest invocation gotcha
+metadata:
+  type: project
+---
+
+Patterns validated building WS-E of the dashboard_v2 mission-control redesign (Execution parent + Ops/Paper/Command/Settings/Legacy restyle, 2026-07-02):
+
+- **Guarded-import parallel-build bridge** — when sibling workstreams own frozen-API modules that haven't landed yet (`utils/components.py`, `utils/theme.py`, `utils/demo_provider.py`), every consumer does `try: from ..utils.components import X / except ImportError: from ..utils._wse_compat import X`, with ONE bridge module holding spec-exact fallbacks (extra params keyword-only so call sites stay signature-compatible). Siblings landed MID-FLIGHT and everything auto-bound to the real modules with zero edits — the validated generalization of the "rename-safe parallel integration" alias trick. SUPERSEDED 2026-07-03: the bridge was ARCHIVED to Archive/dashboard_v2_orphans/ (duplicated honesty logic = drift risk once unreachable); all call sites import the real modules directly and the bridge tests were repointed at the production demo_provider — do not re-introduce `_wse_compat` imports. See [[pulse-gate-short-circuit]].
+- **Demo nav-key contract gotcha** — `demo_provider.resolve_sleeve_curves` demo payload uses fixture keys `("sleeve","robo_60_40","schwab_mkt","schwab_below_mkt")` while the REAL tracker payload uses `("sleeve","60_40","schwab_like")`. Any chart consuming a Resolved must iterate a `_CURVE_ORDER` covering BOTH sets (skip-missing), or demo mode silently drops the robo curves. Caught only by READING the sibling's documented contract in demo_provider.py's docstring — always re-read sibling contracts after they land.
+- **Reactive demo badge slot** — static layouts can't know demo state, so the panel header declares an empty `html.Span(id="ops_chart_demo_badge")` and the pulse callback outputs `demo_badge()` or `""`. Watermark inside the figure via `fig.add_annotation(**theme.demo_watermark_annotation())` only when `resolved.is_demo`; label becomes `resolved.demo_label`. Renderers take the `Resolved` (not the bare dataclass) — the real/pending branches stay byte-identical to pre-demo behavior.
+- **Pending-clock for gates** — `components.progress_bar(None, f"{observed} — starts at go-live", pending=True)` when `not gates.found or progress <= 0`; a real bar only once clean days > 0. Gate b stays `status_label` text forever (feed gap ≠ progress).
+- **pytest invocation gotcha** — there is NO conftest.py in this repo; `cockpit` imports in tests only resolve via `.venv/bin/python -m pytest ...` (cwd → sys.path). Bare `.venv/bin/pytest` fails with `ModuleNotFoundError: No module named 'cockpit'`.
+- **Class-based restyle discipline** — className from the frozen inventory (`.card .card-title .section-title .grid .table-dense .btn .btn-primary/-danger .badge .note .muted .mono .tnum .accent-* .dot .dot-* .pending .progress`); inline styles kept ONLY for layout-specific values (grid template columns, border-left accent hex from COLORS). Callbacks that toggle a panel visibility return only `{"display": "none"}`-style dicts — the card look lives on the className so there is no style duplication between layout and callback.
+
+Related: [[dashboard-v2-idiom]], [[ops-tab-ws1-patterns]].
