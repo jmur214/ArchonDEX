@@ -652,7 +652,7 @@ def _market_holidays() -> frozenset:
 _MARKET_HOLIDAYS = _market_holidays()
 
 
-def note_coverage(notes: list[dict], as_of: str) -> dict:
+def note_coverage(notes: list[dict], as_of: str, until: Optional[str] = None) -> dict:
     """T-348: a VOIDED note surfaces NOWHERE today.
 
     On 2026-08-27 the constrained analyst produced no note (the model fenced its JSON;
@@ -670,7 +670,13 @@ def note_coverage(notes: list[dict], as_of: str) -> dict:
         if d:
             by_src.setdefault((n or {}).get("source") or "analyst_constrained", set()).add(str(d)[:10])
     for src, days in sorted(by_src.items()):
-        first, last = min(days), max(as_of[:10], max(days))
+        # T-360: an ERA is bounded. Without `until`, a pre-boundary cohort's expected
+        # window ran to today and counted every POST-boundary day as a missing note —
+        # scoring an era for days that were never its own. Surfaced the first time a
+        # pre/post split was actually run.
+        end = (until or as_of)[:10]
+        first = min(days)
+        last = max(end, max(days)) if until is None else end
         try:
             # T-353: business days MINUS market holidays. bdate_range alone counts every
             # NYSE holiday as a "missing note" — on 2026-09-07 (Labor Day) it flagged

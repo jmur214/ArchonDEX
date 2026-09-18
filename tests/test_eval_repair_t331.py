@@ -225,3 +225,24 @@ def test_note_coverage_still_flags_a_REAL_missing_trading_day():
     cov = eh.note_coverage(notes, "2026-09-10")["analyst_agentic"]
     assert cov["missing_days"] == ["2026-09-09"]        # a real open-market gap
     assert cov["n_missing"] == 1
+
+
+# ── T-360: an ERA is bounded — don't score a cohort for days that weren't its own ──
+def test_a_bounded_era_is_not_scored_for_days_after_its_boundary():
+    """Surfaced the first time a pre/post split was actually run: without `until`, the
+    PRE-fix cohort's expected window ran to today and counted every POST-fix day as a
+    missing note — penalising an era for days it never owned."""
+    notes = [{"note_date": "2026-09-08", "source": "analyst_constrained"},
+             {"note_date": "2026-09-09", "source": "analyst_constrained"},
+             {"note_date": "2026-09-10", "source": "analyst_constrained"}]
+    bounded = eh.note_coverage(notes, "2026-09-18", until="2026-09-10")["analyst_constrained"]
+    assert bounded["n_missing"] == 0 and bounded["coverage_pct"] == 100.0
+    unbounded = eh.note_coverage(notes, "2026-09-18")["analyst_constrained"]
+    assert unbounded["n_missing"] > 0          # the old behaviour, still right for a live era
+
+
+def test_an_unbounded_era_still_runs_to_as_of():
+    """The open era must keep counting today — bounding is opt-in, not the default."""
+    notes = [{"note_date": "2026-09-14", "source": "analyst_agentic"}]
+    cov = eh.note_coverage(notes, "2026-09-18")["analyst_agentic"]
+    assert "2026-09-18" in cov["missing_days"]
