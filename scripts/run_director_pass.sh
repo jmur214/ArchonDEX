@@ -52,7 +52,8 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   fi
 
   # OBSERVE-ONLY by ruling until one real pass report has been reviewed (2026-09-18).
-  "$PY" scripts/director_pass.py --mode observe "$@" 2>&1
+  # Only the SCHEDULED path may claim the scheduled trigger.
+  "$PY" scripts/director_pass.py --mode observe --trigger scheduled_pass "$@" 2>&1
   RC=$?
   echo "=== director pass rc=$RC ==="
   if [ "$RC" -ne 0 ]; then

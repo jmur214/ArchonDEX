@@ -248,3 +248,36 @@ def test_running_outside_the_canonical_worktree_ANNOUNCES_the_stale_copy():
     code = _executable_source(dp.main)
     assert "ROOT != CANON" in code
     assert "stale snapshot" in code and "do not " in code
+
+
+def test_a_manual_director_pass_is_LABELLED_manual():
+    """The row-10 defect, reintroduced in a NEW component the day after it was fixed
+    in the old one: the trigger was hardcoded to 'scheduled_pass', so two of my own
+    manual runs on 2026-09-17 sit in the permanent record claiming a schedule they
+    never had.
+
+    The lesson generalises past this field — a fix applied to ONE component is not a
+    fix to the CLASS, and a new component written by the same hand inherits the same
+    habits unless the rule is carried across deliberately."""
+    import inspect
+    src = inspect.getsource(dp.main)
+    assert 'default="manual"' in src
+    assert "trigger=a.trigger" in src, "the row must record the trigger it was GIVEN"
+    code = _executable_source(dp.append_ledger)
+    assert '"scheduled_pass"' not in code, "no component may hardcode the schedule claim"
+
+
+def test_only_the_director_wrapper_claims_the_schedule():
+    sh = (REPO / "scripts/run_director_pass.sh").read_text()
+    assert "--trigger scheduled_pass" in sh
+
+
+def test_the_two_jobs_write_DISTINCT_trigger_strings():
+    """If both jobs wrote the same string the rows would lose the distinction the
+    trigger_correction work established."""
+    from scripts import janitor_nightly as jn
+    jsh = (REPO / "scripts/run_janitor_nightly.sh").read_text()
+    dsh = (REPO / "scripts/run_director_pass.sh").read_text()
+    assert "--trigger nightly_schedule" in jsh
+    assert "--trigger scheduled_pass" in dsh
+    assert "nightly_schedule" != "scheduled_pass"

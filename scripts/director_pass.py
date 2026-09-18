@@ -202,12 +202,24 @@ def dispatch_allowed(fingerprint: str, ledger: Path = LEDGER,
 def append_ledger(as_of: str, checks: Dict[str, str], raised: List[str],
                   skipped: List[str], fingerprints: List[str],
                   env_before: Optional[dict] = None, ledger: Path = LEDGER,
-                  mode: str = MODE_OBSERVE) -> None:
+                  mode: str = MODE_OBSERVE, trigger: str = "manual") -> None:
+    """Append one pass row.
+
+    `trigger` DEFAULTS TO MANUAL and only the wrapper may claim the schedule. This
+    was hardcoded to "scheduled_pass" for one day — which is the row-10 defect
+    (a manual run recorded as scheduled) reintroduced in a new component the day
+    after it was fixed in the old one. Two of my own manual runs on 2026-09-17 sit
+    in the permanent record claiming a schedule they never had.
+
+    The lesson generalises past this field: a fix applied to ONE component is not a
+    fix to the CLASS, and a new component written by the same hand inherits the same
+    habits unless the rule is carried across deliberately.
+    """
     ledger.parent.mkdir(parents=True, exist_ok=True)
     row = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "as_of": as_of, "session": "director_pass", "rung": 0,
-        "trigger": "scheduled_pass", "checks": checks,
+        "trigger": trigger, "checks": checks,
         "approvals_raised": raised, "approvals_skipped": skipped,
         "dispatch_fingerprints": fingerprints,
         "mode": mode,             # observe | dispatch — stated, never inferred
@@ -245,6 +257,8 @@ def main() -> int:
     p.add_argument("--dry-run", action="store_true",
                    help="report what would be raised; write nothing")
     p.add_argument("--max-age-days", type=int, default=14)
+    p.add_argument("--trigger", default="manual",
+                   help="what caused this run; only the launchd wrapper passes scheduled_pass")
     p.add_argument("--mode", choices=[MODE_OBSERVE, MODE_DISPATCH], default=MODE_OBSERVE,
                    help="observe (default): report + ledger + queue entries only. "
                         "dispatch: additionally auto-draft dispatches — held until one "
@@ -285,7 +299,7 @@ def main() -> int:
 
     write_report(as_of, candidates, raised, skipped, open_count, mode=a.mode)
     append_ledger(as_of, {"merge_prep": "PASS"}, raised, skipped, fingerprints,
-                  env_before, mode=a.mode)
+                  env_before, mode=a.mode, trigger=a.trigger)
     print(f"[DIRECTOR-PASS] {as_of} mode={a.mode} raised={len(raised)} "
           f"skipped={len(skipped)} withdrawn={len(withdrawn)} open={open_count} merged=False")
     return 0
