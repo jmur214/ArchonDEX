@@ -315,3 +315,47 @@ rewritten. The prediction/Brier record segments by cohort as always.
 already fetches live closes from the broker each run; appending them to a
 forward-accruing PIT store would give the agentic arm today's levels honestly).
 That is a new capability, not a blindness repair, and belongs in its own task.
+
+---
+
+## Evolution #4 — 2026-09-18 (T-360): the AGENTIC arm's output cap, 1500 → 3000
+
+**Not a prompt change and not an information-set change.** The arm sees exactly
+what it saw yesterday: same prompt, same tools, same bundle, same model. Only
+how much it is permitted to WRITE changes. It is logged here because a
+generation parameter is provenance for every note produced after it, and a
+reader comparing notes across 09-18 must be able to see that something moved.
+
+**Why.** Measured from the raw archives before anything was touched:
+
+| date | preamble | JSON part | braces balanced | note |
+|---|---:|---:|---|---|
+| 09-15 | 880 | 3524 | yes | ✅ |
+| 09-16 | 2869 | 2177 | no | ✗ |
+| 09-17 | 2587 | 2460 | no | ✗ |
+| 09-18 | 2664 | 2251 | no | ✗ |
+
+The tool loop completed every time (5–7 calls). The arm's prose preamble before
+the note roughly **tripled**, and the 1500-token cap then cut the JSON
+mid-value. Coverage fell **84.4% → 33.3%** while the constrained arm held 100%.
+
+**The control arm is untouched, deliberately.** The new cap lives in its own
+`tiers.daily_agentic` block rather than on the shared `daily` tier, because the
+constrained analyst is this experiment's CONTROL and is at 100% coverage.
+Raising a shared parameter to fix the treatment arm would have silently changed
+the baseline — the confound the 09-04 symmetry ruling exists to prevent.
+
+**Pre-stated outcome measure:** agentic note coverage over the next 10 sessions.
+The prediction is that it returns to the constrained arm's level (≥ 80%), and
+that `invalid:truncated` does not appear. If coverage stays low, the cap was not
+the binding constraint and the next hypothesis is the preamble itself (a
+structured final-answer contract), not more budget.
+
+**Revert ID:** delete `tiers.daily_agentic` from `config/llm_settings.json`; the
+agentic path falls back to the governor's cap with no code change.
+
+**Cohort impact: NONE.** No new cohort, no stamp. `price_fed` from 2026-09-11
+stands, and the book-comparison common window remains 2026-09-11. A note that
+now completes where it previously truncated is the same arm answering the same
+question with the same inputs — the counterfactual is "no note at all", not "a
+different note".

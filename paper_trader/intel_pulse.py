@@ -294,7 +294,16 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                 governor=gov, model_id_requested=model_id,
                 prompt_version="daily_agentic/v2", projected_cost_usd=_PROJ_AGENTIC,
                 raw_dir=raw_dir, load_panel=load_panel,
-                max_tool_calls=AGENTIC_MAX_TOOL_CALLS, now_iso=now_iso)
+                max_tool_calls=AGENTIC_MAX_TOOL_CALLS, now_iso=now_iso,
+                # T-360: the agentic arm's OWN output cap. It shares the daily
+                # tier's model with the constrained arm but narrates its tool
+                # trace before the note, and that preamble grew until the 1500-
+                # token cap cut the JSON mid-value on three consecutive sessions.
+                # Read from `tiers.daily_agentic` so raising it CANNOT touch the
+                # control arm mid-experiment.
+                max_output_tokens=int(
+                    ((settings.get("tiers", {}) or {}).get("daily_agentic", {})
+                     or {}).get("max_output_tokens", 0)) or None)
             res.agentic = {"status": ar.status, "n_tool_calls": ar.n_tool_calls,
                            "firewall_rejections": ar.firewall_rejections}
             if ar.note is not None:

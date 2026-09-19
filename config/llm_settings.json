@@ -1,33 +1,37 @@
 {
-  "_doc": "T-292 analyst model settings. Pinned from the live Anthropic /v1/models listing on 2026-07-09 (efficient tier daily / stronger tier weekly, per the director). Model IDs are EXACT strings sent to the API; a drift is caught because provenance records model_id_requested vs model_id_served and validate_note re-checks. Prices are USD per MILLION tokens — best-known published values; the fail-closed $30/mo governor is the real budget guard (actual volume is <$2/mo at these tiers, so a price drift is immaterial to the cap). Reconcile against the billing console if precise accounting is ever needed.",
-  "api": {
-    "base_url": "https://api.anthropic.com",
-    "messages_path": "/v1/messages",
-    "anthropic_version": "2023-06-01",
-    "timeout_seconds": 60
+ "_doc": "T-292 analyst model settings. Pinned from the live Anthropic /v1/models listing on 2026-07-09 (efficient tier daily / stronger tier weekly, per the director). Model IDs are EXACT strings sent to the API; a drift is caught because provenance records model_id_requested vs model_id_served and validate_note re-checks. Prices are USD per MILLION tokens \u2014 best-known published values; the fail-closed $30/mo governor is the real budget guard (actual volume is <$2/mo at these tiers, so a price drift is immaterial to the cap). Reconcile against the billing console if precise accounting is ever needed.",
+ "api": {
+  "base_url": "https://api.anthropic.com",
+  "messages_path": "/v1/messages",
+  "anthropic_version": "2023-06-01",
+  "timeout_seconds": 60
+ },
+ "tiers": {
+  "daily": {
+   "model_id": "claude-haiku-4-5-20251001",
+   "max_output_tokens": 1500,
+   "price_per_mtok_input_usd": 1.0,
+   "price_per_mtok_output_usd": 5.0,
+   "price_per_mtok_cache_write_usd": 1.25,
+   "price_per_mtok_cache_read_usd": 0.1
   },
-  "tiers": {
-    "daily": {
-      "model_id": "claude-haiku-4-5-20251001",
-      "max_output_tokens": 1500,
-      "price_per_mtok_input_usd": 1.0,
-      "price_per_mtok_output_usd": 5.0,
-      "price_per_mtok_cache_write_usd": 1.25,
-      "price_per_mtok_cache_read_usd": 0.1
-    },
-    "weekly": {
-      "model_id": "claude-opus-4-8",
-      "max_output_tokens": 3000,
-      "price_per_mtok_input_usd": 15.0,
-      "price_per_mtok_output_usd": 75.0,
-      "price_per_mtok_cache_write_usd": 18.75,
-      "price_per_mtok_cache_read_usd": 1.5
-    }
+  "weekly": {
+   "model_id": "claude-opus-4-8",
+   "max_output_tokens": 3000,
+   "price_per_mtok_input_usd": 15.0,
+   "price_per_mtok_output_usd": 75.0,
+   "price_per_mtok_cache_write_usd": 18.75,
+   "price_per_mtok_cache_read_usd": 1.5
   },
-  "llm": {
-    "_doc": "T-331 item 5 — the OPERATOR CONTROL SURFACE, now on a real path. cost_governor.load_governor() reads THIS block and intel_pulse builds its shared governor from it, so these values actually bind the running machine (previously load_governor had ZERO callers and this block did not exist — the documented kill switch was unreachable). Set kill_switch true to stop ALL LLM spend (analyst + agentic + watchdog + event) at the next pulse; steps report skipped:kill_switch and the pulse continues (report-only steps never block trading).",
-    "monthly_budget_usd": 30.0,
-    "max_output_tokens": 1500,
-    "kill_switch": false
+  "daily_agentic": {
+   "_doc": "T-360. The AGENTIC arm's own output cap. It shares the daily tier's MODEL with the constrained arm but not its output budget: the constrained arm emits the note and nothing else, while the agentic arm narrates its tool trace first. Measured 2026-09-15\u219218, that preamble grew 880 \u2192 ~2700 chars and pushed the JSON past the 1500-token cap, truncating the note mid-value on 3 consecutive sessions (coverage 84.4% \u2192 33.3%). This cap is deliberately SEPARATE so the fix cannot touch the CONTROL arm mid-experiment. The monthly $30 fail-closed governor remains the real budget guard; observed cost is ~$0.05/note.",
+   "max_output_tokens": 3000
   }
+ },
+ "llm": {
+  "_doc": "T-331 item 5 \u2014 the OPERATOR CONTROL SURFACE, now on a real path. cost_governor.load_governor() reads THIS block and intel_pulse builds its shared governor from it, so these values actually bind the running machine (previously load_governor had ZERO callers and this block did not exist \u2014 the documented kill switch was unreachable). Set kill_switch true to stop ALL LLM spend (analyst + agentic + watchdog + event) at the next pulse; steps report skipped:kill_switch and the pulse continues (report-only steps never block trading).",
+  "monthly_budget_usd": 30.0,
+  "max_output_tokens": 1500,
+  "kill_switch": false
+ }
 }
