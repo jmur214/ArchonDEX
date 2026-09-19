@@ -94,7 +94,6 @@ RECONSTRUCTED_POINT_POLICY: Dict[str, Any] = {
                     "execution half is not evaluable in that sense"),
     "ruled": "2026-09-18 (T-352)",
 }
-=======
 
 def accrue_cash_adj(prev_total: float, idle_cash: float,
                     px_today, px_prev) -> "tuple[float, bool]":
