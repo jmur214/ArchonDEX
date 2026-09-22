@@ -97,8 +97,8 @@ and a current-truth surface that costs less than a page to keep current.
 |---|---|---|
 | 09-18 07:00 | director pass first scheduled firing, observe-only, one report | **OBSERVED** — ledger row `session=director_pass, trigger=scheduled_pass` at 12:00:07Z = 07:00:07 local (Δ 0 min vs the plist; the first schedule-class row whose label is self-evidencing after B's 4c94219 fix) |
 | 09-18 09:50 | account-2 third firing; tracker point #2 durable in S3 | **OBSERVED** — `paper_state_offense_sso/data/state/deploy_candidate_tracking.json` in S3 (08:52 local object time) holds points 2026-09-17 and 2026-09-18, both `canonical: true`. **"Accruing" holds.** |
-| 09-19 09:50 | account-2 fourth firing | _pending_ |
-| 09-20 | this review's verdict re-read against the three rows above | _pending_ |
+| 09-19 09:50 | account-2 fourth firing | **NO FIRING WAS SCHEDULED** — 09-19 was a SATURDAY and the cron is MON-FRI; the expectation itself was miscalendared (director, filling from the objects 09-22: an expected-artifact row must be checked against the calendar that generates the artifact, or its absence reads as a failure). The next scheduled firings, 09-21 and 09-22, both fired: the tracker in S3 holds FOUR points — 2026-09-17, -18, -21, -22 — all `canonical: true`. |
+| 09-20 | this review's verdict re-read against the three rows above | **VERDICT STANDS** (director, 2026-09-22, from the S3 objects per §6's own rule — objects, not outboxes): the tracker accrued on every scheduled trading day through and past the checkpoint window with zero missed points since durability landed. "Live (09-15) and accruing" is now a four-point fact. The pre-stated failure sentence does not apply. |
 
 The verdict in §1 stands unless the addendum shows the tracker not accruing in S3 on 09-18 or
 09-19 — in which case "accruing" is not met and the sentence applies.
