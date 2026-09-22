@@ -156,8 +156,14 @@ class SleeveTracker:
             # as no-data (accruing), NOT a spurious full-weight drift.
             if held_weights is not None:
                 hw = {k: float(v) for k, v in held_weights.items()}
-                te = round(sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
-                               for k in set(tw) | set(hw)), 4)
+                names = set(tw) | set(hw)
+                # A tracking error over NO positions is UNDEFINED, not perfect.
+                # Summing over an empty set yields 0.0, and gate (a) reads that
+                # as "tracked its targets exactly" — a vacuous zero wearing the
+                # look of a measurement. Seen on the live artifact: account-3's
+                # 2026-08-26 point carries te=0 with target_w={} and held_w={}.
+                te = (round(sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
+                                for k in names), 4) if names else None)
             else:
                 hw, te = {}, None
             pt["exec"] = {
