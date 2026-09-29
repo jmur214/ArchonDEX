@@ -38,6 +38,9 @@ LIVE_JOBS: Dict[str, str] = {
         "feed-health gate in paper_trader/altdata_archive.py",
     "com.archondex.janitor":
         "Phase-6 rung 0; its report is consumed by the janitor_ran_nightly clock",
+    "com.archondex.director-pass":
+        "Phase-6 rung 0 second half; its 07:00 report and the ops/approvals queue "
+        "entries it raises are consumed by the human answering the queue",
 }
 
 

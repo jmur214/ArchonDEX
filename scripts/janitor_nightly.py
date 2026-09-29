@@ -262,6 +262,51 @@ def write_report(checks: List[Check], guard_note: str, branch: Optional[str], as
     REPORT.write_text("\n".join(lines) + "\n")
 
 
+#: The schedule this janitor is wired to (launchd, 03:00 local). Used only to say
+#: how late a run was — never to decide anything.
+SCHEDULED_HOUR = 3
+
+
+def schedule_health(ledger: Path, now: Optional[datetime] = None) -> dict:
+    """Was this run on time, late, and how many nights have no row at all?
+
+    THE HOST IS A LAPTOP. `launchd` cannot run a job while the machine is asleep or
+    off, so a missing night is usually the HOST being unavailable rather than the
+    janitor failing — and the two need opposite responses. The record has never been
+    able to tell them apart: a night the laptop was shut has looked exactly like a
+    night the janitor broke, which makes every gap unreadable after the fact.
+
+    Measured on this host: 09-24/25/26 fired at 03:07, 03:07 and 03:14 — ON TIME,
+    within launchd's normal catch-up, but before Wi-Fi had associated. 09-27/28/29
+    produced no row and no log at all: the machine was down. Those are different
+    facts and now say so.
+    """
+    now = now or datetime.now()
+    out = {"fired_at": now.strftime("%H:%M"), "minutes_late": None, "nights_without_row": 0,
+           "last_row_as_of": None}
+    scheduled = now.replace(hour=SCHEDULED_HOUR, minute=0, second=0, microsecond=0)
+    if now >= scheduled:
+        out["minutes_late"] = int((now - scheduled).total_seconds() // 60)
+    if not ledger.exists():
+        return out
+    last = None
+    for line in ledger.read_text().splitlines():
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if row.get("session") == "janitor_nightly" and row.get("as_of"):
+            last = row["as_of"]
+    if last:
+        out["last_row_as_of"] = last
+        try:
+            gap = (now.date() - datetime.strptime(last, "%Y-%m-%d").date()).days
+            out["nights_without_row"] = max(0, gap - 1)
+        except Exception:
+            pass
+    return out
+
+
 def _env_snapshot() -> dict:
     """Cheap environment facts worth having on every row, not just bad ones."""
     import shutil
@@ -279,7 +324,8 @@ def _env_snapshot() -> dict:
 
 def append_ledger(as_of: str, trigger: str, checks: List[Check],
                   diff_summary: str, outcome: str,
-                  env_before: Optional[dict] = None) -> None:
+                  env_before: Optional[dict] = None,
+                  schedule: Optional[dict] = None) -> None:
     """The autonomy ledger — every autonomous action, so the stream can be SCORED and
     a bad class DEMOTED (symmetric, no ratchet)."""
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
@@ -294,6 +340,8 @@ def append_ledger(as_of: str, trigger: str, checks: List[Check],
         # a shrug; one number per row makes tomorrow's row able to confirm or refute it.
         "env": _env_snapshot(),
         "env_before": env_before,
+        # Host availability, so a gap in the record is readable after the fact.
+        "schedule": schedule,
         "detail": {c.name: c.detail for c in checks},
         "diff_summary": diff_summary, "outcome": outcome,
     }
@@ -365,6 +413,12 @@ def main() -> int:
     # runs have shown a stable 132-139s suite while free disk fell 9.89 -> 6.38 GB, so
     # the level is not obviously the driver; the DELTA is the untested half.
     env_before = _env_snapshot()
+    sched = schedule_health(LEDGER)
+    if sched["nights_without_row"]:
+        print(f"[JANITOR] {sched['nights_without_row']} night(s) since the last row "
+              f"({sched['last_row_as_of']}) produced nothing — on a laptop host that is "
+              f"usually the HOST being asleep or off, not a janitor failure. A night the "
+              f"janitor broke leaves a LOG; a night the host was down leaves neither.")
     checks = run_checks()
     failed = [c for c in checks if not c.ok]
     fixable = [c for c in failed if c.mechanical]
@@ -403,7 +457,8 @@ def main() -> int:
 
     write_report(checks, guard_note, branch if outcome == "merge_requested" else None, as_of)
     append_ledger(as_of, trigger=a.trigger, checks=checks,
-                  diff_summary=diff_summary, outcome=outcome, env_before=env_before)
+                  diff_summary=diff_summary, outcome=outcome, env_before=env_before,
+                  schedule=sched)
 
     # SURVIVAL, after the row is written so tonight's row is the thing that survives.
     # Never `allow_rewrite` on the scheduled path: a nightly job must not be able to
