@@ -28,9 +28,13 @@ def test_a_job_believed_scheduled_but_NOT_registered_is_MISSING():
 
 
 def test_both_directions_are_reported_together():
-    v = audit(["com.archondex.janitor", "com.archondex.t999"])
+    # Derived from LIVE_JOBS, not hardcoded: the registry grows (director-pass was
+    # added 2026-09-22), and a test that pins its membership fails for the wrong
+    # reason every time a real job is registered.
+    one_live = sorted(LIVE_JOBS)[0]
+    v = audit([one_live, "com.archondex.t999"])
     assert v.orphaned == ["com.archondex.t999"]
-    assert v.missing == ["com.archondex.altdata-archive"]
+    assert set(v.missing) == set(LIVE_JOBS) - {one_live}
     assert "ORPHANED" in v.report() and "MISSING" in v.report()
 
 

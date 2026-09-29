@@ -492,6 +492,16 @@ REGISTRY: List[Clock] = (
 # still be guarding something nothing reads yet; deleting it would lose a real guard, and
 # leaving it unannotated lets a reader assume a consumer exists. Say which, in the record.
 CLOCK_NOTES: Dict[str, str] = {
+    "janitor_ran_nightly": (
+        "THE HOST IS A LAPTOP, so a MISS here has two very different causes and the "
+        "clock alone cannot tell them apart. (1) The janitor ran and failed — there "
+        "will be a log for that date in data/logs/janitor/ saying so. (2) The machine "
+        "was asleep or off, so launchd never fired — NO row and NO log, which is not a "
+        "janitor defect and not fixable from inside the janitor. Check for the log "
+        "before treating a gap as a failure; the run's own `schedule.nights_without_row` "
+        "field states the gap it observed on the next run that does fire. Measured "
+        "2026-09-27..29: three nights with neither row nor log, host down."
+    ),
     "similarity_panel_refreshed": (
         "EXEMPT-WITH-REASON from the consumer requirement: this dataset currently has NO "
         "consumer — its intended one is the T-341 filing-change flag, pending the parser "

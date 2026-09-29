@@ -16,11 +16,20 @@ def create_mock_data(tickers, days=200):
     """Generates deterministic mock OHLCV data with a trend for testing."""
     data_map = {}
     dates = pd.date_range(end=datetime.now(), periods=days, freq="B")
-    
+    # LENGTH COMES FROM THE INDEX, never from `days`. With freq="B" and an `end` that
+    # falls on a weekend, pandas returns days-1 dates — so a price array built from
+    # `days` is one element too long and the DataFrame assignment raises
+    # "Length of values (200) does not match length of index (199)".
+    # This failed ONLY on Saturday and Sunday nights, which is why it read as flake:
+    # the 03:00 janitor caught it on 09-19 and 09-20 and nowhere else, and it passes
+    # again by Monday with nothing changed. Same class as the 2026-09-02 month-rollover
+    # fixture: a test whose fixture consults the real calendar.
+    n = len(dates)
+
     for t in tickers:
         # Create a trending series so momentum edge triggers
         np.random.seed(42) # Deterministic
-        price = 100 + np.cumsum(np.random.randn(days)) + np.linspace(0, 20, days) # Upward trend
+        price = 100 + np.cumsum(np.random.randn(n)) + np.linspace(0, 20, n) # Upward trend
         
         df = pd.DataFrame(index=dates)
         df["Open"] = price

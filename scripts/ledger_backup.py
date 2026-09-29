@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +43,16 @@ OK_FIRST = "FIRST_PUSH"
 OK_SAME = "ALREADY_CURRENT"
 OK_EXTEND = "APPEND_ONLY_EXTENSION"
 REFUSE = "REFUSED"
+DEFERRED = "DEFERRED"        # the network was not reachable — try again next run
+
+# The host is a LAPTOP. The 03:00 job fires on time (03:07, 03:07, 03:14 on
+# 09-24/25/26) but Wi-Fi has not associated yet, so the first S3 call fails with
+# "Could not connect to the endpoint". That is not a broken backup and must not be
+# reported as one: an alarm that fires every night the laptop wakes slowly is the
+# cry-wolf failure this program keeps closing. Retry briefly, then DEFER — the next
+# run's verify() catches a remote that is genuinely behind.
+NET_RETRIES = 3
+NET_BACKOFF_S = 20
 
 
 @dataclass
@@ -51,7 +62,9 @@ class PushVerdict:
 
     @property
     def ok(self) -> bool:
-        return self.status != REFUSE
+        """DEFERRED counts as ok: a transient network is not a backup failure.
+        The next run's verify() is what catches a remote that is really behind."""
+        return self.status not in (REFUSE,)
 
     @property
     def needs_push(self) -> bool:
@@ -133,9 +146,21 @@ def sync(local_path: Path, allow_rewrite: bool = False,
     if not local_path.exists():
         return PushVerdict(REFUSE, f"no local ledger at {local_path}")
     local = local_path.read_bytes()
-    remote, why = read_remote()
+    remote, why = None, ""
+    for attempt in range(1, NET_RETRIES + 1):
+        remote, why = read_remote()
+        if not (remote is None and why.startswith("unreachable")):
+            break
+        if attempt < NET_RETRIES:
+            time.sleep(NET_BACKOFF_S)
     if remote is None and why.startswith("unreachable"):
-        return PushVerdict(REFUSE, f"cannot read remote — {why}")
+        # DEFER, not FAIL. The record is not at risk from one missed push: the local
+        # file is intact and append-only, and the next run's verify() reports a remote
+        # that is genuinely behind. What IS at risk from a nightly false alarm is
+        # anyone still reading the alarms.
+        return PushVerdict(DEFERRED,
+                           f"network unreachable after {NET_RETRIES} attempts ({why}); "
+                           f"local record intact, next run will carry it")
 
     v = classify_push(local, remote)
     if not v.ok and not allow_rewrite:
