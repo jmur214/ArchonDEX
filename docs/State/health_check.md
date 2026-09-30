@@ -28,6 +28,10 @@ then LOW. Within each severity, list newest at the top.
 - Description: (1) `backtester/backtest_controller.py:158, 325, 647` sizes every position from a frozen `portfolio.capital` (initial capital + MV ≈ 2× true equity once deployed) — the mechanism behind the 1.7–2.3× gross attributed to held-position accumulation; (2) `orchestration/mode_controller.py:1338, 1397-1403` passes `significance_threshold=None` (Gate 4 forced FAIL) then overwrites `passed_all_gates` so Gates 1/5/6/7/8 never bind on promotion; (3) `engines/engine_d_discovery/significance.py:84` permutes the strategy's own returns — the null is a point mass (p=0.97 for a Sharpe-5.2 series); the May-2026 gates audit called this "mathematically correct"; (4) `core/measurement/mbl_gate.py:79-80` fails OPEN to N=1 without the registry and uses the 2·ln N bound (39% overstatement at N=260); (5) `lifecycle_manager.py:742-745` retires unless `ci_low` clears SPY−0.3 — a true-SR-0.6 daily edge is retired 33–53% of the time and needs ≈96,000 trades to survive; `:267-275` √252 on per-trade PnL regardless of frequency; `:958-960` paused→retired on the point estimate; (6) idle cash 0% and free negative cash in `portfolio_engine.py:90, 216-220, 353` vs DGS3MO on the sleeve harness and the scorecard robo (`combined_candidate_scorecard.py:244`); (7) Gate 6 subtracts RF from an attribution spread (`factor_decomposition.py:233`); (8) Gate 5/7 with-arms reuse the Universe-A signal cache (`discovery.py:1275, 1535, 1672`); (9) no held-out window in Discovery; `oos_lock` never consulted; (10) bare `std == 0` guards in `attribution.py:114` and `lifecycle_manager.py:272`; (11) `alpha_settings.prod.json` keys `news_sentiment_edge` vs EDGE_ID `news_sentiment_v2`; (12) `substrate_manifest.sha256` lacks `tr_reconciled`/VVIX/SKEW/Shiller/DFII10; (13) CLAUDE.md `[NN-SHARPE-CI]` says Politis-White; code is fixed moving-block n^(1/3) (`metrics_engine.py:923`); (14) Alpaca IRAs cannot hold crypto and are options Level 2 — the BTC leg's Roth vehicle is IBIT only.
 - Status: OPEN, propose-first. Repair briefs RR-1…RR-7 in `docs/Sources/alpha_frontier_program_2026_09_30.md` §3.1, ranked by verdicts touched. Verdicts that revert to UNTESTED under (1)+(6): every equity-book Sharpe/CAGR through `BacktestController` (26-yr 0.751/0.382 baseline, T-196, T-215, T-239, T-241, the T-255→T-272 equity-book rows, T-248). Verdicts that survive: the T-306-substrate sleeve/tilt/leverage family (T-311/312/315/314/318/320/333), T-296, T-279, T-172/178/220/221.
 - Recommended next step: USER/DIRECTOR-GATED. Dispatch RR-1, RR-2, RR-3, RR-7 in parallel (P0); do not quote any new equity-book number until RR-1 and RR-5 merge; run B-1 (raw-signal decile re-evaluation) as the first research brief — it does not touch the referee.
+- Anchor: `backtester/backtest_controller.py:325` contains `return self.portfolio.capital` — (1) RR-1
+- Anchor: `orchestration/mode_controller.py:1338` contains `significance_threshold=None` — (2) RR-2, Gate 4 forced FAIL
+- Anchor: `orchestration/mode_controller.py:1399` contains `result["passed_all_gates"] = (` — (2) RR-2, verdict overwrite
+- Anchor: `config/alpha_settings.prod.json:37` contains `"news_sentiment_edge"` — (11) RR-7
 
 ### [HIGH] Fresh-eyes program audit 2026-09-17 — the "cross-account" wash guard has no cross-account feed; main() god-function; governance surface points at the legacy layer; current-truth surface 52 days stale
 - Category: fail-closed drift / god-class / doc-currency (consolidated entry — one pointer, not eight trackers)
@@ -942,6 +946,22 @@ Findings appended by subagents follow one of two formats:
 
 When a finding is resolved, move the entry to the Resolved section 
 and add a `- Resolved: <YYYY-MM-DD>` line.
+
+**Anchors (HIGH rows; `doc_lint` check 10, since 2026-10-01):** a HIGH row
+quotes the line that WITNESSES its defect, one bullet per line:
+```
+- Anchor: `path/to/file.py:123` contains `text on that line while the defect exists` — optional note
+```
+Pick text that DISAPPEARS when the defect is fixed — distinctive, not
+generic (`return 1` is a poor witness; a docstring can repeat it). When
+no single line witnesses the defect, write `- Anchor: none — <why>`.
+`doc_lint` fails while an open HIGH row's anchored line no longer
+contains its text, and the failure names the fix: **close the row**
+(the defect is fixed), or **deliberately update the anchor** (the line
+only moved — the lint names where the same text now is, which is a
+lead to confirm, not proof). Matching is an exact substring of the one
+cited line and is never widened. HIGH rows first flagged on/after
+2026-10-01 without an anchor line WARN; older rows are grandfathered.
 ---
 
 ## Code-health scan 2026-05-06 — post-V/Q/A merge (code-health subagent)
