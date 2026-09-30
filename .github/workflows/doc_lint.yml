@@ -13,23 +13,17 @@
 # the repo-tracked docs. WARN-only runs exit 0; any FAIL exits non-zero.
 #
 # Runtime: <2s (stdlib-only — no pip install, no backtest).
+#
+# NO PATHS FILTER (since the HIGH-row anchor check, 2026-10-01): an anchor quotes a
+# CODE line, so the push that fixes a defect is usually code-only — a docs/** filter
+# would skip exactly the run that should turn red and name the row to close.
 
 name: Doc lint
 
 on:
   pull_request:
-    paths:
-      - "docs/**"
-      - "CLAUDE.md"
-      - "scripts/doc_lint.py"
-      - ".github/workflows/doc_lint.yml"
   push:
     branches: [main]
-    paths:
-      - "docs/**"
-      - "CLAUDE.md"
-      - "scripts/doc_lint.py"
-      - ".github/workflows/doc_lint.yml"
 
 jobs:
   doc-lint:
