@@ -1068,32 +1068,52 @@ class DiscoveryEngine:
         # are statistically incapable of clearing DSR at the configured
         # SR_target given the accumulated honest-N. Runs BEFORE any
         # expensive backtest fires; fail-fast saves ~30 min per cell.
+        #
+        # RR-3 (proposal, 2026-09-30): this block used to catch
+        # (ValueError, FileNotFoundError) and "log + proceed — better to run the
+        # gauntlet than to crash on a precondition check". With the registry absent
+        # (its normal state in every cloud container: data/observability is
+        # .dockerignore'd) that meant N=1 → MBL_min=0 → PASS, for every candidate.
+        # Now: an un-establishable honest N (HonestNUnavailableError) PROPAGATES —
+        # a harness failure, not a candidate verdict — and an unparseable window
+        # fails THIS candidate's Gate 0 instead of skipping it.
+        #
+        # One N per evaluation: an explicit `n_trials_for_dsr` is what Gate 0 AND
+        # Gate 8 both use. Before, Gate 0 judged against the registry count while
+        # Gate 8 judged against whatever the caller passed (production: the batch
+        # size) — two different trial counts inside one candidate's verdict.
+        n_trials_source = "explicit" if n_trials_for_dsr is not None else None
         if enable_mbl_gate and start_date and end_date:
             from core.measurement.mbl_gate import check_mbl_gate, years_from_window
             try:
                 t_years = years_from_window(start_date, end_date)
-                mbl_verdict = check_mbl_gate(
-                    t_years=t_years,
-                    sr_target=mbl_sr_target,
-                )
-                if not mbl_verdict["passed"]:
-                    return {
-                        "passed_all_gates": False,
-                        "gate_0_passed": False,
-                        "gate_0_reason": mbl_verdict["reason"],
-                        "gate_0_mbl_min": mbl_verdict["mbl_min"],
-                        "gate_0_n_effective": mbl_verdict["n_effective"],
-                        "gate_0_t_years": mbl_verdict["t_years"],
-                        "killed_by_gate": "gate_0_mbl",
-                    }
-            except (ValueError, FileNotFoundError) as exc:
-                # MBL infrastructure not usable (bad dates, missing
-                # registry). Log + proceed — better to run the gauntlet
-                # than to crash on a precondition check.
-                import logging
-                logging.getLogger("discovery").warning(
-                    "[gate_0_mbl] check skipped: %s", exc,
-                )
+            except ValueError as exc:
+                return {
+                    "passed_all_gates": False,
+                    "gate_0_passed": False,
+                    "gate_0_reason": f"unevaluable: bad window ({exc}) — an MBL check "
+                                     f"that cannot run is not a pass",
+                    "killed_by_gate": "gate_0_unevaluable",
+                }
+            mbl_verdict = check_mbl_gate(
+                t_years=t_years,
+                n_effective=n_trials_for_dsr,
+                sr_target=mbl_sr_target,
+            )
+            if n_trials_for_dsr is None:
+                n_trials_for_dsr = mbl_verdict["n_effective"]
+                n_trials_source = mbl_verdict["n_effective_source"]
+            if not mbl_verdict["passed"]:
+                return {
+                    "passed_all_gates": False,
+                    "gate_0_passed": False,
+                    "gate_0_reason": mbl_verdict["reason"],
+                    "gate_0_mbl_min": mbl_verdict["mbl_min"],
+                    "gate_0_n_effective": mbl_verdict["n_effective"],
+                    "gate_0_n_effective_source": mbl_verdict["n_effective_source"],
+                    "gate_0_t_years": mbl_verdict["t_years"],
+                    "killed_by_gate": "gate_0_mbl",
+                }
 
         _diag_t_start = _time.time()
         _diag_gate_seconds: Dict[str, float] = {}
@@ -1125,6 +1145,10 @@ class DiscoveryEngine:
             "gate_7_evaluated": False,
             "gate_8_passed": True,   # Default True = SKIPPED (n_trials_for_dsr=1)
             "gate_8_evaluated": False,
+            # RR-3: the trial count every multiple-testing decision in this verdict used,
+            # and where it came from — recorded with the decision (discovery_log.jsonl).
+            "n_trials_for_dsr": n_trials_for_dsr,
+            "n_trials_source": n_trials_source,
         }
 
         def _emit_diag() -> None:
@@ -1731,12 +1755,16 @@ class DiscoveryEngine:
             # benchmark set to E[max SR_i] under the null of N independent
             # trials. Default n_trials_for_dsr=1 disables (legacy behavior).
             if n_trials_for_dsr is None:
-                # honest project N (refreshed registry incl. ledger reconstruction)
-                try:
-                    from core.measurement.mbl_gate import compute_n_effective
-                    n_trials_for_dsr = compute_n_effective()
-                except Exception:
-                    n_trials_for_dsr = 1        # fail-safe: never block on a bad read
+                # RR-3: this read used to be wrapped in `except Exception: n = 1`,
+                # commented "fail-safe: never block on a bad read". In a measurement
+                # path that inverts what safe means: N=1 skipped Gate 8 entirely and
+                # its default reads gate_8_passed=True. Now the correlation-aware
+                # count FAILS CLOSED and the outer handler re-raises it.
+                from core.measurement.mbl_gate import compute_n_effective_correlated
+                n_trials_for_dsr = compute_n_effective_correlated()
+                n_trials_source = "registry_correlated"
+                result["n_trials_for_dsr"] = n_trials_for_dsr
+                result["n_trials_source"] = n_trials_source
             if n_trials_for_dsr > 1:
                 _g8_t0 = _time.time()
                 dsr_value: float = 0.0
@@ -1847,7 +1875,12 @@ class DiscoveryEngine:
         except Exception as e:
             # Programmer errors must propagate so they surface in CI / logs
             # instead of silently masking a candidate as "failed validation."
-            if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
+            # RR-3: so must an un-establishable honest N. It is a HARNESS failure;
+            # absorbed here it would mark every candidate in the cycle "failed" —
+            # "Discovery promotes nothing", a plausible number (the T-177 shape).
+            from core.measurement.mbl_gate import HonestNUnavailableError
+            if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError,
+                              HonestNUnavailableError)):
                 _diag_error = f"{type(e).__name__}: {e}"
                 _emit_diag()
                 raise

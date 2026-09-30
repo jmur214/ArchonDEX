@@ -114,7 +114,6 @@ def _emax_exact(n: int) -> float:
     return v
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.4 MBL upper bound")
 def test_mbl_min_uses_exact_expected_max_not_upper_bound():
     """Bailey-Borwein-López de Prado-Zhu (2014) MinBTL ∝ E[max_N]²; 2·ln(N) is
     the upper bound they quote for intuition. At N=260 the bound overstates
@@ -127,7 +126,6 @@ def test_mbl_min_uses_exact_expected_max_not_upper_bound():
     assert abs(got - exact_years) / exact_years < 0.05, f"compute_mbl_min={got:.2f}yr vs exact {exact_years:.2f}yr"
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.4 N_effective counts every run")
 def test_n_effective_is_not_a_raw_row_count():
     """`compute_n_effective` is `SELECT COUNT(*) FROM runs`: determinism reps,
     infra reruns, and ρ≈0.9 overlay A/Bs each count as an independent trial.
@@ -223,7 +221,6 @@ def test_portfolio_engine_has_cash_accrual_api():
 #        discovery.py:1740 `if n_trials_for_dsr > 1` → Gate 8 skipped.
 #        [NN-FAIL-CLOSED] violation in the measurement path.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-3 MBL gate fails open at N=1")
 def test_mbl_n_effective_fails_closed_when_registry_absent(tmp_path):
     from core.measurement.mbl_gate import compute_n_effective
 
