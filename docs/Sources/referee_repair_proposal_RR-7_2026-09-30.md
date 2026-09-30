@@ -230,3 +230,35 @@ The ETF's tracking error vs. spot is a real difference from the backtest, not a 
 
 ---
 
+## Deliverable 6 — "$0 short borrow" and the two branches
+
+**`backtester/borrow_rate_model.py:231-243`** — the position-notional helper **returns `0.0` on
+every failure path**: no price map, ticker missing, no `Close` column, empty slice, or *any*
+exception (`except Exception: return 0.0`). A missing price therefore produces a borrow cost computed
+on zero notional — **$0 borrow that looks like a real (cheap) number.** That is `[NN-FAIL-CLOSED]`'s
+defect exactly. Proposed: raise, or return `None` with the caller treating it as a failure; never `0.0`.
+(Practical impact is bounded while the book is long-only, which is why it is a record item and not an
+incident.)
+
+**The two branches are NOT lost — they are local-only and single-copy.**
+
+| branch | where | unpushed commits | tip |
+|---|---|---:|---|
+| `feature/factor-neutrality-sizing-t218` | local, `trading_machine-2` | **7** | `39779fc` 2026-06-19 |
+| `feature/no-borrow-cash-budget-t232` | local, `trading_machine-2` | **2** | `b582039` 2026-06-25 |
+
+Neither exists on `origin`. They are recoverable today and would be gone with one disk — the same
+exposure the autonomy ledger had before its survival unit. **Proposed (push is propose-first, so not
+done):** push both to `origin` under an `archive/` prefix so the work survives the machine.
+
+---
+
+## Summary for the reviewer
+| # | status | needs a ruling on |
+|---|---|---|
+| 1 | done on branch | the `config/*.prod.json` rail vs. the brief's named exception |
+| 2a–2h | proposal text | 2c (double error), 2e (sibling-number tell), 2g (the gap report's own tension), 2h (the AI-gate wording) |
+| 3 | reported | re-pin + cloud re-bake; DFII10 is ABSENT, not unpinned |
+| 4 | inventory + API | scope is ~44 files, not 3; "stationary" wrong in 4/5 |
+| 5 | proposal text | — (director-verified) |
+| 6 | reported | pushing the two local-only branches |
