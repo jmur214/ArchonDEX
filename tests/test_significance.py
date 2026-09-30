@@ -199,31 +199,83 @@ def test_mixed_signal_and_noise_recovers_signal_only():
 # ---------------------------------------------------------------------------
 
 
-def test_permutation_test_returns_low_p_for_real_alpha():
-    """A series with positive mean and low std (real alpha) should produce
-    a low p-value."""
-    rng = np.random.RandomState(42)
-    # 252 daily observations, ~30% annualized return, low vol.
-    returns = rng.normal(loc=0.30 / 252, scale=0.005, size=252)
-
-    res = monte_carlo_permutation_test(returns, n_permutations=500, random_state=1)
-    assert 0.0 <= res["p_value"] <= 1.0
-    # Permutation can't change Sharpe in a stationary i.i.d. setup the way
-    # it can with serial correlation, so the p-value here will be near
-    # 0.5 — the test is a smoke check that the API works, not a power test.
-    assert res["actual_sharpe"] > 0
+def _series_with_sr(sr_annual: float, n: int, seed: int) -> np.ndarray:
+    """An i.i.d. daily series whose REALISED annualised Sharpe is exactly sr_annual."""
+    rng = np.random.RandomState(seed)
+    r = rng.normal(0.0, 0.01, n)
+    return r - r.mean() + (sr_annual / np.sqrt(252)) * r.std()
 
 
-def test_permutation_test_returns_unit_p_for_no_signal():
-    """Returns near zero with high noise should produce p ~ 0.5 (no edge)."""
-    rng = np.random.RandomState(7)
-    returns = rng.normal(loc=0.0, scale=0.01, size=252)
+def test_permutation_null_has_POWER_sr3_rejects_under_BOTH_nulls():
+    """RR-2 deliverable 2. The old test here was named `returns_low_p_for_real_alpha`
+    but asserted only 0 <= p <= 1 — its NAME promised a power check its assertions
+    never made, which is how a null with zero power survived. This one makes it."""
+    n = 756
+    rng = np.random.RandomState(3)
+    asset = rng.normal(0.0, 0.01, n)
+    # a signal genuinely aligned with the asset return, tuned to ~SR 3
+    signal = np.sign(asset + rng.normal(0.0, 0.012, n))
+    strat = signal * asset
+    strat = strat - strat.mean() + (3.0 / np.sqrt(252)) * strat.std()
+    res = monte_carlo_permutation_test(strat, n_permutations=1000, random_state=1,
+                                       signal=signal, asset_returns=asset)
+    assert res["p_value_sign_flip"] < 0.01
+    assert res["p_value_signal_perm"] is not None and res["p_value_signal_perm"] < 0.01
+    assert res["p_value"] < 0.01          # the reported p is the MORE conservative one
 
-    res = monte_carlo_permutation_test(returns, n_permutations=300, random_state=1)
-    assert 0.0 <= res["p_value"] <= 1.0
-    # For zero-mean returns the actual Sharpe is itself a draw from the
-    # null distribution, so p should sit somewhere in the middle.
-    assert 0.05 < res["p_value"] < 0.95
+
+def test_permutation_null_sr0_sits_in_the_middle():
+    res = monte_carlo_permutation_test(_series_with_sr(0.0, 756, 11),
+                                       n_permutations=1000, random_state=1)
+    assert 0.3 <= res["p_value"] <= 0.7, res["p_value"]
+
+
+def test_permutation_null_has_nonzero_spread():
+    """The defect's signature was null_std ~ 1e-15. Any valid null has real spread."""
+    res = monte_carlo_permutation_test(_series_with_sr(0.6, 756, 0),
+                                       n_permutations=500, random_state=1)
+    assert res["null_std"] > 0.3
+
+
+def test_permutation_null_SIZE_is_near_nominal_under_H0():
+    """Power alone is not enough — a null that rejects everything also 'has power'.
+    Under H0 the rejection rate at alpha=0.05 must stay near 5%."""
+    rej = 0
+    trials = 120
+    for k in range(trials):
+        r = _series_with_sr(0.0, 504, 100 + k)
+        rej += monte_carlo_permutation_test(r, n_permutations=199,
+                                            random_state=k)["p_value"] < 0.05
+    rate = rej / trials
+    assert 0.0 <= rate <= 0.12, f"H0 rejection rate {rate:.3f} — the null is anti-conservative"
+
+
+def test_BLOCK_sign_flip_holds_size_on_AUTOCORRELATED_H0_where_iid_would_not():
+    """Why the brief specifies STATIONARY-BLOCK sign-flips (and [NN-SHARPE-CI] rules out
+    iid resampling): on a positively autocorrelated zero-mean series, an iid sign-flip
+    treats every day as independent, understates the null's spread, and over-rejects.
+    Blocks keep the dependence and keep the test honest."""
+    def ar1_h0(seed: int, n: int = 504, phi: float = 0.5) -> np.ndarray:
+        rng = np.random.RandomState(seed)
+        e = rng.normal(0.0, 0.01, n)
+        x = np.empty(n)
+        x[0] = e[0]
+        for t in range(1, n):
+            x[t] = phi * x[t - 1] + e[t]
+        return x - x.mean()            # true mean exactly 0: H0 holds
+
+    trials = 100
+    block_rej = sum(
+        monte_carlo_permutation_test(ar1_h0(500 + k), n_permutations=199,
+                                     random_state=k)["p_value"] < 0.05
+        for k in range(trials))
+    iid_rej = sum(
+        monte_carlo_permutation_test(ar1_h0(500 + k), n_permutations=199,
+                                     random_state=k, block_length=1)["p_value"] < 0.05
+        for k in range(trials))
+    assert block_rej / trials <= 0.12, f"block null over-rejects: {block_rej}/{trials}"
+    assert iid_rej >= block_rej, (
+        "iid sign-flip should reject at least as often as the block null on AR(1) data")
 
 
 def test_permutation_test_handles_too_few_observations():

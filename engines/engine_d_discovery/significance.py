@@ -25,82 +25,135 @@ import numpy as np
 logger = logging.getLogger("SIGNIFICANCE")
 
 
+def _sharpe(x: np.ndarray, annualization: float) -> float:
+    sd = x.std()
+    if sd is None or sd < 1e-12 or not np.isfinite(sd):     # [NN-FP-GUARDS]
+        return 0.0
+    return float(x.mean() / sd * annualization)
+
+
+def _stationary_block_signs(n: int, block_length: float,
+                            rng: np.random.RandomState) -> np.ndarray:
+    """One random sign per STATIONARY block (geometric block lengths, mean L).
+
+    Blocks are what keep the null honest on autocorrelated returns: an iid sign-flip
+    treats every day as independent, understates the null's spread, and so INFLATES
+    significance — the iid-resampling error `[NN-SHARPE-CI]` rules out."""
+    starts = rng.random_sample(n) < (1.0 / max(block_length, 1.0))
+    starts[0] = True
+    block_id = np.cumsum(starts) - 1
+    eps = rng.choice([-1.0, 1.0], size=int(block_id[-1]) + 1)
+    return eps[block_id]
+
+
+def _block_permute(x: np.ndarray, block_length: int,
+                   rng: np.random.RandomState) -> np.ndarray:
+    """Permute the ORDER of contiguous blocks, preserving within-block
+    autocorrelation of the signal while destroying its alignment to returns."""
+    n = len(x)
+    L = max(int(block_length), 1)
+    blocks = [x[i:i + L] for i in range(0, n, L)]
+    order = rng.permutation(len(blocks))
+    return np.concatenate([blocks[i] for i in order])[:n]
+
+
+def _perm_p(null: np.ndarray, actual: float) -> float:
+    """Unbiased permutation p-value (Phipson & Smyth 2010): (1 + k) / (1 + n).
+    A finite permutation test can never honestly report p = 0."""
+    return float((1 + np.sum(null >= actual)) / (1 + len(null)))
+
+
 def monte_carlo_permutation_test(
     strategy_returns: np.ndarray,
     n_permutations: int = 1000,
     annualization: float = np.sqrt(252),
     random_state: Optional[int] = 42,
+    signal: Optional[np.ndarray] = None,
+    asset_returns: Optional[np.ndarray] = None,
+    block_length: Optional[float] = None,
 ) -> dict:
-    """
-    Test whether the strategy's Sharpe ratio is statistically significant
-    by comparing it to a null distribution of shuffled returns.
+    """Gate-4 significance — a null distribution that CAN reject.
 
-    Parameters
-    ----------
-    strategy_returns : array-like
-        Daily returns of the strategy.
-    n_permutations : int
-        Number of random shuffles to build the null distribution.
-    annualization : float
-        Annualization factor (sqrt(252) for daily).
-    random_state : int or None
-        Random seed for reproducibility.
+    RR-2 (2026-09-30). The previous null permuted the strategy's OWN returns. Mean and
+    std are permutation-invariant, so every null Sharpe equalled the actual Sharpe
+    (null_std ~ 1e-15) and the p-value was floating-point noise: a Sharpe-5.2 series
+    scored p = 0.973. The earlier audit sentence "tests whether temporal ordering
+    matters for the Sharpe" WAS the defect — the Sharpe does not depend on ordering.
 
-    Returns
-    -------
-    dict with keys:
-        - p_value: float — probability of observing the actual Sharpe or better
-          under the null hypothesis (lower is better, < 0.05 is significant).
-        - actual_sharpe: float — the strategy's annualized Sharpe ratio.
-        - null_mean: float — mean Sharpe of the null distribution.
-        - null_std: float — std of the null distribution.
-        - percentile: float — percentile rank of actual Sharpe in null (0-100).
+    Two valid constructions, both preserving autocorrelation:
+
+    * SIGN-FLIP (always computable from `strategy_returns` alone): H0 is "the stream's
+      true mean is zero, and its distribution is symmetric". Each STATIONARY block
+      (geometric lengths, mean L = n^(1/3)) gets one random sign.
+    * SIGNAL-PERMUTATION (only when `signal` AND `asset_returns` are given): block-
+      permute the signal against the asset returns and recompute signal x returns.
+      Destroys the signal-return alignment while preserving both marginals. Valid ONLY
+      where the strategy IS signal x asset_returns — a single signal on one return
+      stream. It is NOT a valid null for a PORTFOLIO attribution (with - base), whose
+      relation to the candidate's signal runs through the whole allocator.
+
+    When both are computable, `p_value` is the LARGER of the two: a candidate must be
+    significant under every valid null we can build, not the friendlier one.
+
+    Returns the original keys (p_value, actual_sharpe, null_mean, null_std, percentile)
+    — so callers and `apply_bh_fdr` need no change — plus `null_construction`,
+    `p_value_sign_flip`, and `p_value_signal_perm` (None when not computable).
     """
     rng = np.random.RandomState(random_state)
     returns = np.asarray(strategy_returns, dtype=float)
     returns = returns[~np.isnan(returns)]
+    n = len(returns)
 
-    if len(returns) < 20:
+    if n < 20:
         logger.warning("[SIGNIFICANCE] Too few returns for permutation test.")
-        return {
-            "p_value": 1.0,
-            "actual_sharpe": 0.0,
-            "null_mean": 0.0,
-            "null_std": 0.0,
-            "percentile": 50.0,
-        }
+        return {"p_value": 1.0, "actual_sharpe": 0.0, "null_mean": 0.0,
+                "null_std": 0.0, "percentile": 50.0,
+                "null_construction": "insufficient_data",
+                "p_value_sign_flip": None, "p_value_signal_perm": None}
 
-    # Actual Sharpe
-    mean_r = returns.mean()
-    std_r = returns.std()
-    if std_r < 1e-12:
-        actual_sharpe = 0.0
-    else:
-        actual_sharpe = (mean_r / std_r) * annualization
+    L = float(block_length) if block_length else max(1.0, n ** (1.0 / 3.0))
+    actual_sharpe = _sharpe(returns, annualization)
 
-    # Build null distribution by shuffling returns
-    null_sharpes = np.zeros(n_permutations)
+    # ---- sign-flip null (always) ------------------------------------------------
+    sf_null = np.empty(n_permutations)
     for i in range(n_permutations):
-        shuffled = rng.permutation(returns)
-        s_mean = shuffled.mean()
-        s_std = shuffled.std()
-        if s_std < 1e-12:
-            null_sharpes[i] = 0.0
-        else:
-            null_sharpes[i] = (s_mean / s_std) * annualization
+        sf_null[i] = _sharpe(returns * _stationary_block_signs(n, L, rng), annualization)
+    p_sf = _perm_p(sf_null, actual_sharpe)
 
-    # p-value: fraction of null Sharpes >= actual Sharpe
-    p_value = float((null_sharpes >= actual_sharpe).mean())
-    percentile = float((null_sharpes < actual_sharpe).mean() * 100)
+    # ---- signal-permutation null (only when a signal x returns pair exists) --------
+    p_sp, sp_null = None, None
+    if signal is not None and asset_returns is not None:
+        sig = np.asarray(signal, dtype=float)
+        ast = np.asarray(asset_returns, dtype=float)
+        if len(sig) == len(ast) and len(sig) >= 20:
+            ok = ~(np.isnan(sig) | np.isnan(ast))
+            sig, ast = sig[ok], ast[ok]
+            actual_sp = _sharpe(sig * ast, annualization)
+            sp_null = np.empty(n_permutations)
+            for i in range(n_permutations):
+                sp_null[i] = _sharpe(_block_permute(sig, int(round(L)), rng) * ast,
+                                     annualization)
+            p_sp = _perm_p(sp_null, actual_sp)
+
+    # the reported p is the MORE CONSERVATIVE of the valid nulls
+    if p_sp is not None and p_sp >= p_sf:
+        primary, construction, p = sp_null, "signal_permutation(block)", p_sp
+    else:
+        primary, construction, p = sf_null, "sign_flip(stationary_block)", p_sf
+    if p_sp is not None:
+        construction = f"max(sign_flip, signal_permutation) -> {construction}"
 
     return {
-        "p_value": p_value,
+        "p_value": float(p),
         "actual_sharpe": float(actual_sharpe),
-        "null_mean": float(null_sharpes.mean()),
-        "null_std": float(null_sharpes.std()),
-        "percentile": percentile,
+        "null_mean": float(primary.mean()),
+        "null_std": float(primary.std()),
+        "percentile": float((primary < actual_sharpe).mean() * 100),
+        "null_construction": construction,
+        "p_value_sign_flip": float(p_sf),
+        "p_value_signal_perm": None if p_sp is None else float(p_sp),
+        "block_length": float(L),
     }
-
 
 def apply_bh_fdr(
     p_values: Sequence[float],
