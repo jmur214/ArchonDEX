@@ -160,3 +160,57 @@ does not apply; fetch first.** The silent `load_cached` is a latent hazard for i
 
 ---
 
+## Deliverable 4 — one bootstrap (inventory + proposed API)
+
+**The three the brief names**, verified at the cited lines:
+
+| where | shape | block length | pairing |
+|---|---|---|---|
+| `core/metrics_engine.py:864` `bootstrap_distribution` | single series | `max(5, round(n^(1/3)))` | none |
+| `scripts/deep_reverify_sleeve_t311.py:139` `paired` | two series | fixed **21** | **paired** |
+| `scripts/excess_of_cash_attribution_t333.py:54` `block_ci` | single series | fixed **21** | none |
+
+They disagree on block length and on pairing, so **the same data can receive different CIs
+depending on which script measured it** — a consistency defect for a referee, not a style issue.
+
+**[BEYOND BRIEF] "Three" undercounts.** A scan for block-resampling patterns matches **~44 files**
+under `core/`, `engines/` and `scripts/` (an upper bound; some matches are incidental — the true
+count needs a per-file read). One unification must account for all of them, not three.
+
+**[BEYOND BRIEF] The word "stationary" is wrong in 4 of the 5 places that use it** — including the
+project standard:
+
+| file | calls itself | draws geometric block lengths? |
+|---|---|---|
+| `core/metrics_engine.py` | stationary | **no** — fixed-length moving-block |
+| `scripts/excess_of_cash_attribution_t333.py` | stationary | **no** (my code) |
+| `scripts/third_stream_battery.py` | stationary | **no** (my code) |
+| `scripts/probe_spy_ci_low_kill_threshold.py` | stationary | **no** |
+| `scripts/crisis_replay_t118b.py` | stationary | **yes** |
+
+A stationary bootstrap (Politis-Romano 1994) draws geometric block lengths; fixed-length circular
+blocks are a moving-block bootstrap. Same defect class as 2f: documentation naming a method the code
+does not run. Two of the four are mine.
+
+**Proposed single API** (in `core/metrics_engine.py`, the canonical home):
+```python
+def block_bootstrap(
+    x: np.ndarray,                      # 1-D series, OR (n, k) for PAIRED series
+    stat: Callable[[np.ndarray], float],
+    *,
+    block: int | None = None,           # None -> max(5, round(n ** (1/3)))
+    scheme: Literal["moving", "circular", "stationary"] = "circular",
+    iters: int = 1000,
+    seed: int = 0,
+    conf: float = 0.95,
+) -> BootstrapResult:                   # point, ci_low, ci_high, block, scheme, n_valid
+```
+- **Pairing by construction:** a 2-D input resamples ROW-blocks, so paired statistics
+  (Δ-Sortino, Δ-wealth, correlations) never destroy the dependence they measure.
+- **The scheme is a named argument and is RECORDED in the result**, so a CI states how it was made
+  and the "stationary" mislabel becomes impossible rather than merely discouraged.
+- **Migration is RE-SCORE-labeled** where any historical verdict's CI moves by more than the width of
+  its own interval — never a new trial.
+
+---
+
