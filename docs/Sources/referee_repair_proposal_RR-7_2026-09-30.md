@@ -214,3 +214,19 @@ def block_bootstrap(
 
 ---
 
+## Deliverable 5 — record correction: IRAs and crypto (proposal only; `paper_trader/` untouched)
+
+**Director-verified 2026-09-30** (alpaca.markets/support, "can-ira-trade-crypto"): **Alpaca IRAs
+cannot hold crypto**, and **IRAs are options Level 2 only.** I have not independently re-verified.
+
+**Consequence for the record:** the BTC 5% leg (T-272; `paper_trader/btc_shadow.py`) is specified as
+a crypto position. In the Roth, the only executable vehicle is a **spot-bitcoin ETF** (IBIT; MSBT at
+0.14%). **Proposed text** for the spec and for any forward-validation note:
+> *"In the Roth IRA the leg is executable only as a spot-bitcoin ETF (IBIT, or MSBT at 0.14% ER);
+> Alpaca IRAs cannot hold crypto directly. Forward-validation must therefore track the ETF, including
+> its expense ratio and any NAV/basis tracking error vs. spot BTC — not spot BTC itself."*
+
+The ETF's tracking error vs. spot is a real difference from the backtest, not a formality.
+
+---
+
