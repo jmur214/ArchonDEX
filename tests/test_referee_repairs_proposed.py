@@ -307,10 +307,12 @@ def test_paused_retirement_gate_reads_ci_low_not_point():
 
 # --------------------------------------------------------------------------- #
 # NEW-8  `alpha_settings.prod.json` keys `news_sentiment_edge` but the edge's
-#        EDGE_ID is `news_sentiment_v2`, so its 0.5 weight is never applied
-#        (defaults to 1.0). Small, but it means the recorded weight is a lie.
+#        EDGE_ID is `news_sentiment_v2`, so the key matched no edge and the
+#        recorded 0.5 described nothing. (RR-7 correction: this edge is not in
+#        edges.yml and never loads in production, so no weight was being
+#        misapplied TODAY — the risk was forward: register it and the lookup
+#        would silently miss the key and use 1.0.) Fixed RR-7, 2026-09-30.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-8 edge-weight key mismatch")
 def test_prod_edge_weight_keys_match_edge_ids():
     import json
     from pathlib import Path
