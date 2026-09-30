@@ -79,10 +79,15 @@ Test: `tests/test_edge_weight_keys_rr7.py` (skips with a reason when `edges.yml`
 - **The two numbers disagree with the formula printed beside them.** The paragraph states
   `T ≥ 2·ln(N)/SR²`. At N=75, T=5 that gives **SR ≥ 1.31**, not 1.55; SR 1.55 corresponds to
   N≈405. At the live N=231: **SR ≥ 1.48**.
-- **Proposed:** `At the current honest N (231 as of 2026-09-30 — read it live from
-  compute_n_effective(), do not transcribe it), the 5-year substrate-honest window requires
-  SR ≥ ~1.5 to clear DSR under the upper-bound form above.` ⚠ RR-3 proposes the exact E[max] form;
-  if it lands, this sentence should quote its number instead.
+- **Replacement text: owned by RR-3, cross-referenced here rather than duplicated.** RR-3 reaches
+  the same contradiction independently (`docs/Sources/referee_repair_proposal_RR-3_2026-09-30.md:159-160`,
+  branch `fix/referee-rr3-honest-n`: *"Its own formula gives 1.31 at N=75; 1.55 corresponds to N≈406"*)
+  and proposes the `[NN-MBL]` wording at its §5.3 — the honest-N brief is the right owner, since its
+  exact-E[max] proposal changes the number again. RR-7's only addition: whatever the sentence
+  becomes, it should **point at `compute_n_effective()` rather than transcribe a value**, because a
+  hardcoded N is exactly how "~75" went stale.
+- **Three independent passes reached this** — both RR-7 executions and RR-3 — without seeing each
+  other.
 
 ### 2f. `CLAUDE.md` `[NN-SHARPE-CI]` lines 123-124
 - **Anchor:** `Block-bootstrap (Künsch 1989, default 1000 iter, auto block` / `length per Politis-White) is the project standard.`
@@ -121,6 +126,13 @@ Test: `tests/test_edge_weight_keys_rr7.py` (skips with a reason when `edges.yml`
 - **Why this does not weaken the gate:** it removes a claim the record no longer supports, and adds
   none. The prior stays LOW; the burden of proof stays on AI; the integration bar is untouched. The
   only thing that changes is that we stop citing a demoted verdict as settled.
+- **Why the prior stays LOW without T-196** — worth saying in the text, or the demotion will be read as
+  lowering it. The LOW prior is the default for *every* alpha claim, not a conclusion drawn from one
+  verdict; and new data modalities remain the better bet on general grounds — price is the most
+  heavily mined input in markets. T-196 was one supporting pillar, never the foundation. Stating the
+  ground explicitly closes the obvious misreading: *"demoted to untested"* is exactly the phrase a
+  motivated reader turns into *"so maybe it works"*, and **an unproven vocabulary is not a promising
+  one.**
 
 ---
 
@@ -128,6 +140,20 @@ Test: `tests/test_edge_weight_keys_rr7.py` (skips with a reason when `edges.yml`
 
 **Anchor:** `config/substrate_manifest.sha256` (14,120 lines). Entries found for the five named inputs:
 **tr_reconciled 0 · VVIX 0 · SKEW 0 · Shiller 0 · DFII10 0.** None is pinned.
+
+**The consequence first — sharper than the brief's "may lack the data".** Measured read-only on
+2026-09-30 with the generator's own `verify` and a full diff via its `build_manifest()`:
+**pinned 14,120 · on host 14,250 · MISSING 0 · EXTRA 130 · CHANGED 5.** `verify` requires an EXACT
+match (`gen_substrate_manifest.py:170`) and `scripts/build_backtest_image.sh` runs it before every
+build, so:
+- **the backtest image cannot currently be rebuilt at all** against the host substrate without
+  regenerating the manifest. Any existing backtest image predates `tr_reconciled` (07-02) and so the
+  08-26 HMM repoint too; Batch runs on it see the panel **blind pre-2020 again**, because
+  `macro_features._safe_load_price_csv` falls back to the shallow flat TLT when the deep copy is absent;
+- **the paper image — the live fleet — is unaffected**: `build_paper_image.sh` does not verify against
+  this manifest and `Dockerfile.paper` does not COPY `data/processed`;
+- **5 VIX-term files are CHANGED since pinning** (`VIX`, `VIX9D`, `VIX3M`, `VIX6M`, `_meta.json`), so a
+  backtest on the host today already reads a substrate that differs from the pinned one.
 
 **Diagnosis — for four of the five, the scope is fine and the pin is merely stale.**
 `scripts/gen_substrate_manifest.py:37` scans `SUBSTRATE_DIRS = ["data/processed", "data/raw",
@@ -142,9 +168,11 @@ commit in the same PR):
 python3 scripts/gen_substrate_manifest.py verify     # expect the new files to show as unpinned
 python3 scripts/gen_substrate_manifest.py generate   # then commit config/substrate_manifest.sha256
 ```
-⚠ **The cloud image may lack the 08-26 repoint data until it is re-baked**: it bakes `data/processed/`
-from the host at build time, and the repointed HMM panel depends on `data/processed/tr_reconciled/`
-— which no manifest entry currently guarantees is present. This is exactly B-7's blocker.
+**Two cautions for whoever re-pins:** `generate` pins *whatever is on the host* — including the 5
+changed VIX files and the 12 shallow flat ETF files the repoint routes around — so review the diff as
+a statement of canonicity rather than rubber-stamp it. And DFII10 still will not be pinned (below).
+This is B-7's blocker, and it is **harder** than the brief says: not "the image may lack the data" but
+"the image cannot be rebuilt until the manifest is".
 
 **[BEYOND BRIEF] DFII10 is not unpinned — it is ABSENT.** No DFII10 file exists anywhere under
 `data/` (the `dfii.us.txt` under stooq is an unrelated equity ticker). It is read by
@@ -199,7 +227,7 @@ def block_bootstrap(
     stat: Callable[[np.ndarray], float],
     *,
     block: int | None = None,           # None -> max(5, round(n ** (1/3)))
-    scheme: Literal["moving", "circular", "stationary"] = "circular",
+    scheme: Literal["moving", "circular", "stationary"],   # REQUIRED — no default
     iters: int = 1000,
     seed: int = 0,
     conf: float = 0.95,
@@ -207,10 +235,36 @@ def block_bootstrap(
 ```
 - **Pairing by construction:** a 2-D input resamples ROW-blocks, so paired statistics
   (Δ-Sortino, Δ-wealth, correlations) never destroy the dependence they measure.
-- **The scheme is a named argument and is RECORDED in the result**, so a CI states how it was made
-  and the "stationary" mislabel becomes impossible rather than merely discouraged.
-- **Migration is RE-SCORE-labeled** where any historical verdict's CI moves by more than the width of
-  its own interval — never a new trial.
+- **The scheme is a REQUIRED argument and is RECORDED in the result**, so a CI states how it was made
+  and the "stationary" mislabel becomes impossible rather than merely discouraged. *Reconciliation
+  note:* one draft defaulted `scheme="circular"`; a default lets a caller omit the method and receive
+  one silently — the exact path by which every mislabel in this section got in. Required, then.
+- **Migration pins, then labels.** Route each caller through the API with **its current scheme, block
+  and seed pinned**, so historical CIs reproduce bit-for-bit — that is a refactor. Harmonising schemes
+  is a *separate, later* decision, and there **any** caller whose CI moves is labeled RE-SCORE, never a
+  new trial. *Reconciliation note:* one draft labeled only moves larger than the interval's own width;
+  a tolerance lets small shifts go unlabeled, which is the silent-drift shape the referee exists to
+  prevent.
+
+**Classified from executable index lines, docstrings stripped** (the first pass read prose and
+repeated the mislabel — stripping docstrings is what gave the right answer):
+
+| implementation | scheme in code | note |
+|---|---|---|
+| `metrics_engine.py:864` | moving-block, non-circular (`starts ∈ [0, n−block]`) | the standard |
+| `industry_momentum_t213`, `vrp_edge_t174`, `tilt_decision_measure_t318_t320` | moving-block | t318/320 paired |
+| `crisis_replay_t118b.py:386` / `:414` | circular / **stationary** | both correctly named |
+| `per_edge_per_year_attribution.py:95` | **IID — deliberately** | unit is the TRADE; see below |
+| `probe_spy_ci_low_kill_threshold.py:73` | **delegates to `MetricsEngine.bootstrap_distribution`** | the pattern to follow |
+
+**The one IID implementation is a reasoned exception, not a `[NN-SHARPE-CI]` violation.** Its docstring
+states the unit is the trade, since trades within a regime are not a contiguous series;
+`[NN-SHARPE-CI]` forbids iid resampling of serially-correlated *returns*. Honest caveat: overlapping
+positions can correlate trade outcomes. **Among the implementations classified, no `[NN-SHARPE-CI]`
+violation was found** — checked before being claimed either way.
+
+**On the count:** "~44" is files matching a resampling *pattern* (an upper bound, as noted); about
+**20** distinct bootstrap *functions* were confirmed by name. Same scope, different units.
 
 ---
 
@@ -253,151 +307,27 @@ done):** push both to `origin` under an `archive/` prefix so the work survives t
 
 ---
 
+## How this document was produced — read before relying on it
+
+After a machine restart this conversation resumed in **two Claude Code sessions at once**, and both
+executed this brief in the same worktree (2026-09-30, 13:51–13:58). One instance's rewrite overwrote
+the other's Deliverable 2; the other then appended duplicate D3 and D4 sections — **one of those
+appends landed after the first instance had already posted a warning and stopped**, which was my
+error. Both stood down on a director ruling; this file is the owner's reconciliation, using the more
+complete draft as the base and folding in three items from the other. **Nothing was lost:** every
+version survives in branch history (`6faf9e5`, `d1d470c`, `20841ed` for the folded-in text).
+
+**The two executions reached the same five non-obvious findings independently** — the 0.887
+misattribution, the Politis-White misnaming, the `[NN-MBL]` sibling-number tell, DFII10 absent rather
+than unpinned, and the manifest stale since 06-18 — **which is decent evidence that they hold.** On
+the MBL finding a third pass (RR-3) agrees as well.
+
 ## Summary for the reviewer
 | # | status | needs a ruling on |
 |---|---|---|
 | 1 | done on branch | the `config/*.prod.json` rail vs. the brief's named exception |
 | 2a–2h | proposal text | 2c (double error), 2e (sibling-number tell), 2g (the gap report's own tension), 2h (the AI-gate wording) |
-| 3 | reported | re-pin + cloud re-bake; DFII10 is ABSENT, not unpinned |
-| 4 | inventory + API | scope is ~44 files, not 3; "stationary" wrong in 4/5 |
+| 3 | reported | re-pin — the backtest image **cannot be rebuilt** until it happens; DFII10 is ABSENT, not unpinned |
+| 4 | inventory + API | ~20 functions (~44 matching files), not 3; "stationary" wrong in 4/5; **no `[NN-SHARPE-CI]` violation found**; `scheme` required, migration pins then labels |
 | 5 | proposal text | — (director-verified) |
 | 6 | reported | pushing the two local-only branches |
----
-
-## §3 The substrate manifest — none of the five are pinned, and the manifest is stale by 3½ months
-
-**Measured, read-only** (`gen_substrate_manifest.py verify` plus a full diff via its own
-`build_manifest()`, 2026-09-30; nothing re-pinned, per the brief):
-
-| | count |
-|---|--:|
-| files pinned in `config/substrate_manifest.sha256` | 14,120 |
-| files on the host under `SUBSTRATE_DIRS` | 14,250 |
-| **MISSING** (pinned, gone) | **0** |
-| **EXTRA** (on host, never pinned) | **130** — 79 `stooq_us_daily`, **40 `tr_reconciled`**, 7 `raw/cboe`, SKEW ×2, VVIX, Shiller |
-| **CHANGED** (pinned, content differs) | **5** — `VIX`, `VIX9D`, `VIX3M`, `VIX6M`, `_meta.json` |
-
-**The five named substrates:**
-| substrate | status |
-|---|---|
-| `data/processed/tr_reconciled/*` | 40 files, **all unpinned** |
-| `VVIX` | unpinned |
-| `SKEW` | unpinned (2 files) |
-| Shiller (`shiller_ie_data.csv`) | unpinned |
-| **`DFII10`** | **absent from the host entirely** — a different gap, see below |
-
-**Why: the manifest is stale, not filtered.** Last regenerated **2026-06-18** (`ad03a97`, T-219);
-`tr_reconciled` was first built **2026-07-02** (T-256). `SUBSTRATE_DIRS` includes `data/processed`, and
-the generator's only filters are junk files and live governor state — nothing excludes these. It pins
-the 730 flat `data/processed/*_1d.csv` files **as they were on 06-18**, i.e. including the 12 shallow
-ETF files the 08-26 repoint routes *around*.
-
-### What this means for the cloud image — sharper than "may lack the data"
-`verify` requires an **exact** match (`expected == actual`, `gen_substrate_manifest.py:170`): EXTRA
-files FAIL it, and `scripts/build_backtest_image.sh` runs verify before every build. So:
-- **The backtest image cannot currently be rebuilt at all** against the host substrate without
-  regenerating the manifest. Any backtest image that exists predates `tr_reconciled` (07-02) and
-  therefore also predates the 08-26 HMM repoint, which reads from it. Batch campaigns run on that image
-  would see the HMM panel **blind pre-2020 again** — `macro_features._safe_load_price_csv` falls back to
-  the shallow flat TLT when the deeper copy is absent.
-- **The paper image — the live fleet — is unaffected:** `build_paper_image.sh` does not verify against
-  this manifest and `Dockerfile.paper` does not COPY `data/processed`. The HMM is report-only there
-  anyway (every consumer verified inert, 08-26).
-- **The 5 CHANGED VIX-term files** mean a backtest run on the host today already reads a substrate that
-  differs from the pinned one — without the image being involved at all.
-
-### DFII10 — absent, and silently so
-No DFII10 cache exists on the host (the one filename match, `data/raw/stooq/.../dfii.us.txt`, is an
-unrelated equity ticker). `engines/engine_a_alpha/edges/macro_real_rate_edge.py:35-39` states what
-happens: *"on a fresh clone the parquet file does not exist and the edge emits zeros for every ticker
-(abstains entirely). No crash."* That is a degrade-to-a-plausible-value shape: an edge that "ships as
-`active`" contributing nothing, with nothing announcing it. Out of RR-7's scope to change (Engine A),
-**but it should not be recorded as merely "unpinned"** — there is nothing on disk to pin.
-
-### Re-pin — the command, NOT run
-```bash
-python3 scripts/gen_substrate_manifest.py verify      # expect: FAIL, EXTRA 130, CHANGED 5
-python3 scripts/gen_substrate_manifest.py generate    # re-pin the CURRENT host state
-python3 scripts/gen_substrate_manifest.py verify      # expect: OK
-# commit config/substrate_manifest.sha256 in the same PR, then rebuild the backtest image
-```
-(`docs/Core/execution_manual.md:725-730`.) **Two cautions for whoever runs it:**
-1. `generate` pins *whatever is on the host*, **including the 5 changed VIX files and the 12 shallow
-   flat ETF files**. Review the diff rather than rubber-stamp it — a re-pin is a statement that this
-   substrate is canonical.
-2. DFII10 will still not be pinned, because it does not exist. Fetching it is a separate decision.
-
----
-
-## §4 "One bootstrap" — there are not three implementations, there are about twenty
-
-The brief names three. A repo-wide search finds **~20** distinct bootstrap functions across `core/` and
-`scripts/`. The count matters less than what a reviewer can safely assume about each one, so ten were
-classified **from their executable index-generation lines, with docstrings stripped** — because the
-first pass, which read prose, was wrong (see "two mislabels" below).
-
-| implementation | scheme (from code) | paired? | note |
-|---|---|---|---|
-| `core/metrics_engine.py:864` `bootstrap_distribution` | **moving-block, non-circular** — `starts ∈ [0, n−block]` | no | the project standard; block `max(5, round(n^(1/3)))` (:923) |
-| `scripts/excess_of_cash_attribution_t333.py:54` `block_ci` | **circular block** — `arange(s, s+block) % n` | no | **docstring says "stationary" — wrong** |
-| `scripts/third_stream_battery.py:117` `block_ci_pairs` | **circular block** | **yes** | **docstring says "stationary" — wrong** |
-| `scripts/crisis_replay_t118b.py:386` | circular block | no | correctly named |
-| `scripts/crisis_replay_t118b.py:414` | **stationary** (continue-or-restart) | yes (diff) | correctly named — the only true stationary one found |
-| `scripts/industry_momentum_t213.py:44`, `vrp_edge_t174.py:60`, `tilt_decision_measure_t318_t320.py:145` | moving-block, non-circular | t318/320 yes | |
-| `scripts/per_edge_per_year_attribution.py:95` `_bootstrap_mean_ci` | **IID — deliberately** | n/a | resampling unit is the TRADE; see below |
-| `scripts/probe_spy_ci_low_kill_threshold.py:73` | **delegates to `MetricsEngine.bootstrap_distribution`** | — | the pattern the rest should follow |
-| `deep_reverify_sleeve_t311.py:139` (named in the brief) | not matched by the search | — | the brief's line reference could not be confirmed; flagged, not guessed |
-
-Not yet classified: `demo_after_tax_t141`, `reprice_lps_auction_t157`, `discovery_diag_analytics`,
-`dbmf_kmlm_phase0_t110`, `managed_futures_*` (t108/t112), `spot_sleeve_closeout_t128`,
-`analyze_engine_e_hmm_ab`, `substrate_arms_analytics`, `validate_regime_signals_t087`. The four checked
-by line (t157, t110, t128, t087) are moving-block.
-
-### Two mislabels — both mine
-`excess_of_cash_attribution_t333.py:54` and `third_stream_battery.py:117` both describe themselves as
-a **stationary** block bootstrap. Both are **circular block**: fixed-length blocks with wraparound. A
-stationary bootstrap (Politis–Romano 1994) draws *geometric random* block lengths. **Same defect class
-as CLAUDE.md's "Politis-White" (§2.3)** — a method named in prose that the code never runs. I wrote both
-docstrings. My own first classifier pass for this section read that prose and reported them as
-"stationary"; only stripping docstrings and reading the index line gave the right answer.
-
-### The IID one is a reasoned exception, not a `[NN-SHARPE-CI]` violation
-`_bootstrap_mean_ci` resamples individual indices — iid. Its docstring gives the reason: the unit is the
-**trade**, and trades within a regime are not a contiguous time series. `[NN-SHARPE-CI]` forbids iid
-resampling *of serially-correlated returns*; this is a CI on mean per-trade PnL. Recorded as an
-exception, with one honest caveat: overlapping positions can correlate trade outcomes, so "independent"
-is an assumption, not a guarantee. **Among the ten classified, no `[NN-SHARPE-CI]` violation was found.**
-
-### The proposed single API (lives in `core/metrics_engine.py` — the referee, hence proposal only)
-```python
-@dataclass(frozen=True)
-class BootstrapResult:
-    point: float; ci_low: float; ci_high: float
-    n: int; block: int; scheme: str; n_iterations: int
-    n_degenerate: int          # resamples whose statistic was NaN — COUNTED, never silently dropped
-
-def block_bootstrap(
-    x, y=None, *,               # y given -> PAIRED: one index draw applied to both series
-    stat,                        # stat(x_res) or stat(x_res, y_res) -> float
-    scheme: Literal["moving", "circular", "stationary"],   # REQUIRED — no default
-    block: int | Literal["auto"] = "auto",                  # auto = max(5, round(n**(1/3))) — a RULE
-    iters: int = 1000, seed: int = 0, conf: float = 95.0,
-) -> BootstrapResult
-```
-Each property answers a defect found in this inventory:
-- **`scheme` is required and returned** — a result that carries its own method cannot be mislabeled by
-  a docstring, which is how both of my mislabels and "Politis-White" happened.
-- **`block="auto"` is documented as the n^(1/3) rule**, not as an adaptive selector.
-- **Pairing by construction** — passing `y` applies one index draw to both series, so the
-  correlation-destroying error (resampling two legs independently) cannot be written.
-- **`n_degenerate` is reported** — `block_ci_pairs` currently drops NaN resamples and continues; the
-  count is exactly what a reader needs to judge a CI built from fewer draws than advertised.
-
-### ⚠ Migration is a RE-SCORE risk, not a refactor
-The implementations genuinely differ — moving vs circular vs stationary, different blocks, different
-RNG streams. Routing them through one function **changes CI numbers** unless each caller pins the
-scheme, block and seed it uses today. Proposed rule: **migrate with each caller's current parameters
-pinned so historical CIs reproduce bit-for-bit; any caller whose numbers move is a RE-SCORE and is
-labeled RE-SCORE, never a new trial** (N_trials 0). Harmonising schemes on purpose is a separate,
-later decision.
-
