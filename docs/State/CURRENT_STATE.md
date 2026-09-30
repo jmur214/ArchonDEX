@@ -1,8 +1,10 @@
 # CURRENT_STATE — ArchonDEX
 
-**Last reconciled with source docs:** 2026-09-17 (content: the director's reconcile, `1efea7f`; FORM: restructured to one page by Agent R the same day under director ruling 6. The full narrative history — every prior reconcile block back to 2026-06 and the retired anchor/verdict tables — is preserved VERBATIM in `docs/Archive/state_history/CURRENT_STATE_full_history_to_2026_09_17.md`. This file says what is true NOW; `forward_plan.md` says why and where next; `TASK_LEDGER.md` carries the rows; `docs/Measurements/2026-09/` the point-in-time records.)
+**Last reconciled with source docs:** 2026-09-30 (the alpha-frontier review rulings; prior content: the director's 09-17 reconcile `1efea7f`; FORM: restructured to one page by Agent R the same day under director ruling 6. The full narrative history — every prior reconcile block back to 2026-06 and the retired anchor/verdict tables — is preserved VERBATIM in `docs/Archive/state_history/CURRENT_STATE_full_history_to_2026_09_17.md`. This file says what is true NOW; `forward_plan.md` says why and where next; `TASK_LEDGER.md` carries the rows; `docs/Measurements/2026-09/` the point-in-time records.)
 
-## Now (as of 2026-09-17)
+## Now (as of 2026-09-30)
+
+- **THE ALPHA-FRONTIER REVIEW (outside, 2026-09-30, branch merged):** two referee defects verified on main by the director — the backtester sizes from a frozen capital figure (N-1) and production Discovery overwrites the gauntlet verdict with Gate 4 forced-false (N-2). Every equity-book verdict demotes to UNTESTED (below). Dispatched: RR-1/2/3/7 in parallel (propose-only; the user rules on each merge), B-1 prereg-first. Honest prior ~25% that one satellite clears the wealth bar within 12 months. `docs/Sources/alpha_frontier_program_2026_09_30.md`.
 
 - **Fleet (3 paper accounts, AWS Batch, daily):** acct-1 `:35` trend sleeve (SPY/AGG/GLD {42,105,210}, gate-d accruing, 40 days) · acct-2 `:19` **deploy candidate — ACT 2 LIVE**: the ARRIVAL EVENT fired and HELD 09-15 (12 VOO / 5 MTUM / 1 SGOV, $9,978.42 of the $10k tier, 3 buys no sells, canonical; Rule-B contributions grow the cap ~$583/mo from Oct-11) · acct-3 `:7` ai_trader (price_fed cohort accruing). Deploys are SURGICAL per account (`scripts/redeploy_one_account.py`, revision-pinned, schedule↔jobdef pairing guard). Fleet-mirror slices built; the serving endpoint is at the USER'S gate.
 - **Act 1 (T-327 drill week, 09-03→09-10) CLOSED 6/6:** seven defects surfaced that no suite had caught; drills 2, 7, 9–17 carry forward; **drill 12 is BLOCKED, not latent** (see wash guard).
@@ -25,7 +27,7 @@
 - **Static leverage** (T-315): no arm CI-beats at any L; 1.25× significantly LOSES; −2% ERP haircut kills all.
 - **Gated leverage at depth** (T-312): paired Δwealth straddles on ~10 crises; the one "significant" window was 1929 alone.
 - **Bounded adaptation #1, vol-stress** (T-314): in-sample +0.143 Sortino → OOS +0.051, straddling; the frozen spec is the ceiling.
-- **In-house equity alpha** (T-196/215/239/241; the return-frontier sweep T-255→272): comprehensively H0 on the honest substrate — do not re-litigate.
+- **In-house equity alpha — DEMOTED to UNTESTED (2026-09-30, alpha-frontier review):** T-196/215/239/241 and the equity-book rows of the T-255→272 sweep were produced by `BacktestController` under a frozen-capital sizing defect (RR-1: sizing equity ≈ 2× true equity once deployed) and a Discovery harness whose Gate 4 was forced-false (RR-2). Per `[NN-SUPERSEDED]` they cannot be quoted as settled; they are RE-SCORED under the corrected referee, and B-1 (raw-signal decile re-evaluation, never run) is the decisive re-test. The T-306-substrate verdicts (sleeve, tilts, leverage, regime) SURVIVE — different harness, fair cash, paired CIs.
 - **Anonymized-historical eval for news text** (T-339/b): VOID ×2 (identity lives in what a company does); the forward record cannot be shortcut.
 
 ## In flight (max 5)
@@ -46,6 +48,7 @@
 - **Data budget: free-only** (user ruling); a blocked frozen prereg is the trigger to re-ask with a concrete case.
 - **Honest N_trials ~260+ effective;** MBL rises with N; every measurement pre-registered (`[NN-MBL]`); `ci_low`, never point (`[NN-SHARPE-CI]`).
 - **Canonical substrate = the multi-decade build (T-306);** every 2000-2026 verdict is re-verify-required per `[NN-SUBSTRATE-REVERIFY]`.
+- **Wrapper facts (any Roth IRA; broker undecided — 'Alpaca IRA' is the 2026-09-30 review's assumption):** no margin ⇒ no shorts, no futures; crypto only via spot ETF (IBIT-class); options conservatively Level 2 (covered calls / cash-secured puts / long options). This retires half the alpha map before evidence matters — routes needing shorts, futures, or premium-selling structures do not dispatch.
 - **Live-path / Engine B / new external services / referee changes are propose-first;** the referee (measurement stack, gates, firewalls) is never autonomously modifiable (`autonomous_development_prestatement.md`).
 
 ## Open (known, owned or dated)
