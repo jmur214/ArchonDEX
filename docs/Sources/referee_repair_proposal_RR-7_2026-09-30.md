@@ -124,3 +124,39 @@ Test: `tests/test_edge_weight_keys_rr7.py` (skips with a reason when `edges.yml`
 
 ---
 
+## Deliverable 3 — the substrate manifest (reported; NOT re-pinned)
+
+**Anchor:** `config/substrate_manifest.sha256` (14,120 lines). Entries found for the five named inputs:
+**tr_reconciled 0 · VVIX 0 · SKEW 0 · Shiller 0 · DFII10 0.** None is pinned.
+
+**Diagnosis — for four of the five, the scope is fine and the pin is merely stale.**
+`scripts/gen_substrate_manifest.py:37` scans `SUBSTRATE_DIRS = ["data/processed", "data/raw",
+"data/governor", "data/macro"]`; tr_reconciled lives under `data/processed/`, and VVIX, SKEW and
+Shiller under `data/macro/`. No exclude rule covers them. They are unpinned because **the manifest
+was last regenerated 2026-06-18** (`ad03a97`) — before tr_reconciled existed (T-256, 07-02) and
+before the 08-26 repoint.
+
+**Re-pin command** (per `docs/Core/execution_manual.md:726`; run on a machine holding the substrate,
+commit in the same PR):
+```bash
+python3 scripts/gen_substrate_manifest.py verify     # expect the new files to show as unpinned
+python3 scripts/gen_substrate_manifest.py generate   # then commit config/substrate_manifest.sha256
+```
+⚠ **The cloud image may lack the 08-26 repoint data until it is re-baked**: it bakes `data/processed/`
+from the host at build time, and the repointed HMM panel depends on `data/processed/tr_reconciled/`
+— which no manifest entry currently guarantees is present. This is exactly B-7's blocker.
+
+**[BEYOND BRIEF] DFII10 is not unpinned — it is ABSENT.** No DFII10 file exists anywhere under
+`data/` (the `dfii.us.txt` under stooq is an unrelated equity ticker). It is read by
+`engines/engine_a_alpha/edges/macro_real_rate_edge.py` via `MacroDataManager.load_cached`, whose cache
+dir is `data/macro` (`engines/data_manager/macro_data.py:52`) — and `load_cached`
+(`macro_data.py:221-226`) **returns an empty frame silently when the file is missing**: no warning,
+no raise. That is the always-empty-channel class.
+**Severity today: none live.** `macro_real_rate_v1` is `status: paused` in `edges.yml`, and
+`real_rate_level` is an **AUX** column the production 7-feature HMM does not use
+(`engines/engine_e_regime/macro_features.py:100-104`). But the edge's own docstring (line 6) claims
+*"DFII10 10y real rate now feeds Engine E's HMM regime classifier"* — which overstates it. **Re-pin
+does not apply; fetch first.** The silent `load_cached` is a latent hazard for its own unit.
+
+---
+
