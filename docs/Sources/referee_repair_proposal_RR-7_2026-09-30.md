@@ -155,6 +155,16 @@ build, so:
 - **5 VIX-term files are CHANGED since pinning** (`VIX`, `VIX9D`, `VIX3M`, `VIX6M`, `_meta.json`), so a
   backtest on the host today already reads a substrate that differs from the pinned one.
 
+**[BEYOND BRIEF] Don't reconstruct these counts from `verify`'s output — its footer misreports.**
+`gen_substrate_manifest.py:185-187` prints `… and {total - 60} more`, subtracting the *maximum* it
+could show (3 × 20), not what it did show. With 0/130/5 it prints 20 EXTRA + 5 CHANGED lines and then
+"… and 75 more" — **110 lines are actually hidden.** A reader summing the visible output gets ≈95
+EXTRA, not 130; this pass nearly did, and caught it only by recomputing via `build_manifest()`
+(numbers above re-confirmed that way, 2026-09-30). The gate itself is unaffected — `verify` still
+returns 1 — so this is a display defect, not a pass-through. **Proposed one-line fix (referee-adjacent,
+not made here):** compute `shown = min(20, len(missing)) + min(20, len(extra)) + min(20, len(changed))`
+and print `total - shown`, or simply print the three category totals.
+
 **Diagnosis — for four of the five, the scope is fine and the pin is merely stale.**
 `scripts/gen_substrate_manifest.py:37` scans `SUBSTRATE_DIRS = ["data/processed", "data/raw",
 "data/governor", "data/macro"]`; tr_reconciled lives under `data/processed/`, and VVIX, SKEW and
@@ -327,7 +337,7 @@ the MBL finding a third pass (RR-3) agrees as well.
 |---|---|---|
 | 1 | done on branch | the `config/*.prod.json` rail vs. the brief's named exception |
 | 2a–2h | proposal text | 2c (double error), 2e (sibling-number tell), 2g (the gap report's own tension), 2h (the AI-gate wording) |
-| 3 | reported | re-pin — the backtest image **cannot be rebuilt** until it happens; DFII10 is ABSENT, not unpinned |
+| 3 | reported | re-pin — the backtest image **cannot be rebuilt** until it happens; DFII10 is ABSENT, not unpinned; `verify`'s "… and N more" footer undercounts (75 shown vs 110 hidden) |
 | 4 | inventory + API | ~20 functions (~44 matching files), not 3; "stationary" wrong in 4/5; **no `[NN-SHARPE-CI]` violation found**; `scheme` required, migration pins then labels |
 | 5 | proposal text | — (director-verified) |
 | 6 | reported | pushing the two local-only branches |
