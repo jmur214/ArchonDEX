@@ -36,6 +36,7 @@ from typing import List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.janitor_guard import vet_branch                      # noqa: E402
+from scripts.doc_lint import ANCHOR_CHECK_NAME                  # noqa: E402
 from scripts.launchd_canon import audit_live                      # noqa: E402
 from scripts import ledger_backup                                 # noqa: E402
 
@@ -152,9 +153,15 @@ def check_suite() -> Check:
 def check_doc_lint() -> Check:
     r = _run([PY, "scripts/doc_lint.py"])
     fails = [l for l in (r.stdout or "").splitlines() if l.startswith("[FAIL")]
+    # Doc drift IS a mechanical class — except a broken HIGH-row anchor, which asks a
+    # JUDGMENT: was the defect fixed (close the row) or did its line move? Re-pointing
+    # it autonomously is the quiet matching-widening the anchor rule forbids, and
+    # closing a HIGH row is a verdict. Matched by the linter's own constant, so a
+    # rename cannot silently hand anchors back to the fixer.
+    anchor_broken = any(l.startswith(f"[FAIL] {ANCHOR_CHECK_NAME}") for l in fails)
     return Check("doc_lint", r.returncode == 0,
                  "; ".join(fails) if fails else "all doc-lint checks pass",
-                 mechanical=True)          # doc drift IS a mechanical class
+                 mechanical=not anchor_broken)
 
 
 def check_census() -> Check:
