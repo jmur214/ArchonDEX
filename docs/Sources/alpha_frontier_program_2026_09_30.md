@@ -354,9 +354,9 @@ passes a candidate whose true α is 0 in > 10% of 50 seeded noise candidates, ti
 4. One bootstrap: list the three implementations (`metrics_engine.py:864`, `deep_reverify_sleeve_t311.py:139`,
    `excess_of_cash_attribution_t333.py:54`) and propose the single paired-block API they should share.
 5. Record correction: Alpaca IRAs cannot hold crypto (search-verified 2026-09-30, alpaca.markets/support
-   "can-ira-trade-crypto") — the BTC 5% leg's spec () must state the
+   "can-ira-trade-crypto") — the BTC 5% leg's spec (`paper_trader/btc_shadow.py`) must state that the
    executable vehicle in the Roth is a spot ETF (IBIT; MSBT 0.14%); and IRAs are options Level 2 only.
-6.  "$0 short borrow" and the lost branches
+6. `borrow_rate_model.py:231-243` "$0 short borrow" and the lost branches
    (`feature/factor-neutrality-sizing-t218`, `feature/no-borrow-cash-budget-t232`) recorded in the proposal.
 
 **Acceptance.** Commits land on the branch; proposal doc lists each record change with its verifiable
@@ -717,14 +717,14 @@ if positive, ≤ 20 bps/yr — free, compounding, and small.
 ---
 
 ### B-9 — Multi-factor combination tilts at deployable weights (the missing power test)
-**subagent_type:** regime-analyst · **branch:**  · **est. wall-time:** 2 days · **N_trials:** +1 (one family; four pre-declared arms jointly reported, arm (i) is the decision arm) · **parallel group:** R1 · **overlaps:**  (extend, do not fork) · **blocked-on:** nothing
+**subagent_type:** regime-analyst · **branch:** `research/combo-tilts-b9` · **est. wall-time:** 2 days · **N_trials:** +1 (one family; four pre-declared arms jointly reported, arm (i) is the decision arm) · **parallel group:** R1 · **overlaps:** `scripts/tilt_decision_measure_t318_t320.py` (extend, do not fork) · **blocked-on:** nothing
 
 **Background.** T-318/T-320 tested single tilts (momentum CI-significant at 15–20%; quality and
 small-value straddle). A 20% single tilt with 2%/yr long-only alpha and 8% tracking error has t ≈ 1.3
 on 26 years — underpowered by construction. Two 20% tilts with ρ ≈ −0.3 (value × momentum, Asness-
 Moskowitz-Pedersen JF 2013) give α 0.8%/yr at TE 1.9% → t ≈ 2.2: same alpha per tilt-dollar, twice
-the power. Never run. Harness:  (blend, regret, rolling
-CI); legs  (); French factors  ().
+the power. Never run. Harness: `scripts/tilt_decision_measure_t318_t320.py:108-172` (blend, regret,
+rolling CI); legs `load_legs` (`:61`); French factors `ff_factor` (`:49`).
 
 **Deliverables.** Arms (FROZEN, no further weight search): (i) 60/20/20 VOO/MTUM/AVUV; (ii) 70/15/15;
 (iii) 80/20/0 (current deployment); (iv) 80/0/20. Pre-2013 MTUM = French big-high-momentum
@@ -740,28 +740,28 @@ measured one.
 **Pre-registration.** H1: arm (i) ci_low > 0. Refutation: arm (i) ci_low ≤ 0 ⇒ multi-factor closed,
 momentum stays at 15%. N +1. **Prior 25%.**
 
-**Commit.** .
+**Commit.** `feat(research): B-9 multi-factor combination tilts at deployable weights`.
 
 ---
 
 ### B-10 — Gold 10% permanent leg (one trial, then a forward twin)
-**subagent_type:** regime-analyst · **branch:**  · **est. wall-time:** 1 day · **N_trials:** +1 · **parallel group:** R2 · **overlaps:** T-306 substrate (read) · **blocked-on:** nothing
+**subagent_type:** regime-analyst · **branch:** `research/gold-leg-b10` · **est. wall-time:** 1 day · **N_trials:** +1 · **parallel group:** R2 · **overlaps:** T-306 substrate (read) · **blocked-on:** nothing
 
 **Background.** Stock-bond correlation +0.52 in 2022; WGC 2025: the risk-minimizing gold weight rises
 in positive-correlation regimes; Erb-Harvey (FAJ 2013; SSRN 5525138, 2025): long-run real return ≈ 0
 and post-ATH multi-year returns low — gold is at/near ATH in 2025–26. The sleeve already holds GLD
 inside a timing rule; a permanent 10% leg has never been scored on terminal wealth. Substrate:
- (1968+), IAUM 0.09% ER (splice LBMA → GLD → IAUM).
+`data/research/substrate_multidecade/gold_tr` (1968+), IAUM 0.09% ER (splice LBMA → GLD → IAUM).
 
 **Deliverables.** 90% core / 10% gold, monthly rebalance, 1971–2026 and 2000–2026; paired Δ log TW vs
 1× SPY ci_low; MDD both; the 2022 window. Then a forward twin (core without gold) on the existing
- shadow pattern, evaluability 2028-09-30.
+`paper_trader` shadow pattern (`dbmf_shadow.py`), evaluability 2028-09-30.
 
 **Pre-registration.** H1: ci_low > 0 on the full window AND MDD reduction ≥ 3 pp. Refutation: ci_low
 < 0 on the full window OR on 2000–2026 alone. N +1. **Prior 25%** — the hedge case is strong, the
 wealth case thin.
 
-**Commit.** .
+**Commit.** `feat(research): B-10 permanent gold leg — one trial + forward twin`.
 
 ---
 
