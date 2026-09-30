@@ -262,3 +262,68 @@ done):** push both to `origin` under an `archive/` prefix so the work survives t
 | 4 | inventory + API | scope is ~44 files, not 3; "stationary" wrong in 4/5 |
 | 5 | proposal text | — (director-verified) |
 | 6 | reported | pushing the two local-only branches |
+---
+
+## §3 The substrate manifest — none of the five are pinned, and the manifest is stale by 3½ months
+
+**Measured, read-only** (`gen_substrate_manifest.py verify` plus a full diff via its own
+`build_manifest()`, 2026-09-30; nothing re-pinned, per the brief):
+
+| | count |
+|---|--:|
+| files pinned in `config/substrate_manifest.sha256` | 14,120 |
+| files on the host under `SUBSTRATE_DIRS` | 14,250 |
+| **MISSING** (pinned, gone) | **0** |
+| **EXTRA** (on host, never pinned) | **130** — 79 `stooq_us_daily`, **40 `tr_reconciled`**, 7 `raw/cboe`, SKEW ×2, VVIX, Shiller |
+| **CHANGED** (pinned, content differs) | **5** — `VIX`, `VIX9D`, `VIX3M`, `VIX6M`, `_meta.json` |
+
+**The five named substrates:**
+| substrate | status |
+|---|---|
+| `data/processed/tr_reconciled/*` | 40 files, **all unpinned** |
+| `VVIX` | unpinned |
+| `SKEW` | unpinned (2 files) |
+| Shiller (`shiller_ie_data.csv`) | unpinned |
+| **`DFII10`** | **absent from the host entirely** — a different gap, see below |
+
+**Why: the manifest is stale, not filtered.** Last regenerated **2026-06-18** (`ad03a97`, T-219);
+`tr_reconciled` was first built **2026-07-02** (T-256). `SUBSTRATE_DIRS` includes `data/processed`, and
+the generator's only filters are junk files and live governor state — nothing excludes these. It pins
+the 730 flat `data/processed/*_1d.csv` files **as they were on 06-18**, i.e. including the 12 shallow
+ETF files the 08-26 repoint routes *around*.
+
+### What this means for the cloud image — sharper than "may lack the data"
+`verify` requires an **exact** match (`expected == actual`, `gen_substrate_manifest.py:170`): EXTRA
+files FAIL it, and `scripts/build_backtest_image.sh` runs verify before every build. So:
+- **The backtest image cannot currently be rebuilt at all** against the host substrate without
+  regenerating the manifest. Any backtest image that exists predates `tr_reconciled` (07-02) and
+  therefore also predates the 08-26 HMM repoint, which reads from it. Batch campaigns run on that image
+  would see the HMM panel **blind pre-2020 again** — `macro_features._safe_load_price_csv` falls back to
+  the shallow flat TLT when the deeper copy is absent.
+- **The paper image — the live fleet — is unaffected:** `build_paper_image.sh` does not verify against
+  this manifest and `Dockerfile.paper` does not COPY `data/processed`. The HMM is report-only there
+  anyway (every consumer verified inert, 08-26).
+- **The 5 CHANGED VIX-term files** mean a backtest run on the host today already reads a substrate that
+  differs from the pinned one — without the image being involved at all.
+
+### DFII10 — absent, and silently so
+No DFII10 cache exists on the host (the one filename match, `data/raw/stooq/.../dfii.us.txt`, is an
+unrelated equity ticker). `engines/engine_a_alpha/edges/macro_real_rate_edge.py:35-39` states what
+happens: *"on a fresh clone the parquet file does not exist and the edge emits zeros for every ticker
+(abstains entirely). No crash."* That is a degrade-to-a-plausible-value shape: an edge that "ships as
+`active`" contributing nothing, with nothing announcing it. Out of RR-7's scope to change (Engine A),
+**but it should not be recorded as merely "unpinned"** — there is nothing on disk to pin.
+
+### Re-pin — the command, NOT run
+```bash
+python3 scripts/gen_substrate_manifest.py verify      # expect: FAIL, EXTRA 130, CHANGED 5
+python3 scripts/gen_substrate_manifest.py generate    # re-pin the CURRENT host state
+python3 scripts/gen_substrate_manifest.py verify      # expect: OK
+# commit config/substrate_manifest.sha256 in the same PR, then rebuild the backtest image
+```
+(`docs/Core/execution_manual.md:725-730`.) **Two cautions for whoever runs it:**
+1. `generate` pins *whatever is on the host*, **including the 5 changed VIX files and the 12 shallow
+   flat ETF files**. Review the diff rather than rubber-stamp it — a re-pin is a statement that this
+   substrate is canonical.
+2. DFII10 will still not be pinned, because it does not exist. Fetching it is a separate decision.
+
