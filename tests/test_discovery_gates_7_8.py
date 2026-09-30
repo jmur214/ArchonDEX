@@ -31,6 +31,31 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+
+# RR-2 (2026-09-30): the REAL Gate-4 null, captured at import time — BEFORE any
+# monkeypatch runs — so the patched stand-in below can call it without recursing.
+from engines.engine_d_discovery.significance import (  # noqa: E402
+    monte_carlo_permutation_test as _REAL_GATE4_NULL,
+)
+
+
+def _real_gate4_on_alpha(values, n_permutations=500, **kw):
+    """Run the REAL Gate-4 null on a synthetic SR-3 alpha series.
+
+    Replaces `lambda ...: {"p_value": 0.001}`, which forced Gate 4 to pass unconditionally
+    and so HID that the real null had ZERO power for the entire period it was broken.
+
+    Precisely what this does and does NOT guarantee (verified by reverting the null):
+    it makes a test FAIL on a broken null ONLY IF that test asserts `gate_4_passed`. Tests
+    whose premise is "reach a later gate" do assert it. Tests where Gate 4's verdict is
+    irrelevant (error propagation) use this merely to avoid a stub — they are NOT a guard
+    on the null's power, and should not be coupled to it."""
+    import numpy as _np
+    rng = _np.random.RandomState(7)
+    r = rng.normal(0.0, 0.01, 756)
+    r = r - r.mean() + (3.0 / _np.sqrt(252)) * r.std()
+    return _REAL_GATE4_NULL(r, n_permutations=n_permutations, random_state=1)
+
 def _signalling_candidate():
     """T-347: a stub candidate that actually EMITS. A bare MagicMock returns a
     MagicMock from compute_signals, which carries no numeric signal — so the
@@ -149,7 +174,7 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
     )
     monkeypatch.setattr(
         "engines.engine_d_discovery.significance.monte_carlo_permutation_test",
-        lambda values, n_permutations=500: {"p_value": 0.001},
+        _real_gate4_on_alpha,
     )
     # Gate 6 (factor decomp) — happy path.
     from core.factor_decomposition import FactorDecomp

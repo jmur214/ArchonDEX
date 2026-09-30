@@ -38,6 +38,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
+# failed Gate 4 for every candidate). Same reader production Discovery uses.
+from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+
 WINDOW_START = "2024-01-01"
 WINDOW_END = "2024-03-31"  # 3 months — keeps cap=3 cross-check tractable
 N_TICKERS = 10
@@ -152,7 +156,7 @@ def main() -> int:
         t_c = time.time()
         result = disc_a.validate_candidate(
             spec, data_map,
-            significance_threshold=None,
+            significance_threshold=_discovery_significance_threshold(),
             start_date=WINDOW_START,
             end_date=WINDOW_END,
             gate1_contribution_threshold=0.10,
@@ -183,7 +187,7 @@ def main() -> int:
         t_c = time.time()
         result = disc_b.validate_candidate(
             spec, data_map,
-            significance_threshold=None,
+            significance_threshold=_discovery_significance_threshold(),
             start_date=WINDOW_START,
             end_date=WINDOW_END,
             gate1_contribution_threshold=0.10,

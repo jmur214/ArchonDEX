@@ -24,6 +24,10 @@ if os.environ.get("PYTHONHASHSEED") != "0":
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
+# failed Gate 4 for every candidate). Same reader production Discovery uses.
+from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+
 from engines.engine_d_discovery.discovery import DiscoveryEngine
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
 
@@ -103,7 +107,7 @@ def main() -> int:
             continue
         result = disc.validate_candidate(
             spec, data_map,
-            significance_threshold=None,
+            significance_threshold=_discovery_significance_threshold(),
             start_date=WINDOW_START, end_date=WINDOW_END,
             gate1_contribution_threshold=0.10,
         )

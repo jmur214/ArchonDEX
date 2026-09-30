@@ -13,6 +13,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engines.engine_d_discovery.discovery import DiscoveryEngine
 from engines.engine_d_discovery.discovery_logger import DiscoveryLogger
 from engines.engine_d_discovery.significance import apply_bh_fdr
+# RR-2: the ONE configured gauntlet thresholds — the same readers production Discovery uses.
+from orchestration.mode_controller import (  # noqa: E402
+    _discovery_significance_threshold, _discovery_gate2_threshold)
 from engines.engine_d_discovery.wfo import WalkForwardOptimizer
 from engines.data_manager.data_manager import DataManager
 
@@ -82,11 +85,14 @@ class AutonomousEvolution:
         for i, cand in enumerate(candidates):
             logger.info(f"--- Evaluating Candidate {i+1}/{len(candidates)}: {cand['edge_id']} ---")
 
-            # 2. VALIDATE (Fitness + Robustness). Pass `significance_threshold=None`
-            # so Gate 4 is deferred — we apply Benjamini-Hochberg FDR correction
-            # across the whole batch below instead of per-candidate p<0.05.
+            # 2. VALIDATE — the full gauntlet. RR-2: this used to pass
+            # significance_threshold=None ("defer Gate 4 to BH"), which failed Gate 4
+            # for every candidate; the batch step below then promoted on its own rule
+            # without ever reading the gauntlet's verdict.
             metrics = self.discovery.validate_candidate(
-                cand, self.data_map, significance_threshold=None,
+                cand, self.data_map,
+                significance_threshold=_discovery_significance_threshold(),
+                gate2_survival_threshold=_discovery_gate2_threshold(),
             )
             all_metrics.append(metrics)
 
@@ -102,13 +108,16 @@ class AutonomousEvolution:
             for i, m in enumerate(all_metrics):
                 m["adjusted_significance_p"] = bh["adjusted_p_values"][i]
                 m["bh_fdr_threshold"] = bh["threshold"]
-                m["significance_threshold"] = bh_alpha
-                # Re-apply Gate 4 with BH-corrected rejection.
-                m["passed_all_gates"] = (
-                    m.get("sharpe", 0.0) > 0
-                    and m.get("robustness_survival", 0.0) >= 0.7
-                    and bool(bh["reject_at_alpha"][i])
-                )
+                # RR-2: the SECOND copy of the verdict overwrite (the brief named only
+                # mode_controller's; this one uses `m`, so the text xfail never saw it).
+                # It rebuilt passed_all_gates from sharpe>0 AND survival>=0.7 AND
+                # BH-reject, and also stamped significance_threshold with bh_alpha,
+                # hiding the per-candidate threshold Gate 4 actually used. Now the
+                # gauntlet's verdict stands; BH may only DEMOTE a passer, never admit.
+                m["bh_reject"] = bool(bh["reject_at_alpha"][i])
+                if m.get("passed_all_gates") and not m["bh_reject"]:
+                    m["passed_all_gates"] = False
+                    m["bh_fdr_removed"] = True
 
         # ---- Pass 2: gating + WFO + promotion ----
         for i, cand in enumerate(candidates):
@@ -135,6 +144,7 @@ class AutonomousEvolution:
             # during a bull market where SPY sits at 1.5 DESTROY value vs passive holding.
             passed = True
             rejection_reason = ""
+            gate2_thr = _discovery_gate2_threshold()
 
             # Resolve eval window from the backtest data for benchmark lookup
             try:
@@ -156,12 +166,22 @@ class AutonomousEvolution:
             # AFTER accounting for the size of the batch we tested.
             sig_rejected = bh is not None and bool(bh["reject_at_alpha"][i])
 
-            if sharpe < bench_threshold:
+            # RR-2: the gauntlet's verdict is a PRECONDITION. This path used to promote
+            # straight to "active" on its own four checks without ever reading it —
+            # dropping Gates 1/5/6/7/8 — so the filters below are now ADDITIONAL
+            # strictness on top of the gauntlet, never a replacement for it.
+            if not metrics.get("passed_all_gates", False):
+                passed = False
+                rejection_reason = (
+                    "Removed by the BH-FDR post-filter after passing every gate"
+                    if metrics.get("bh_fdr_removed") else
+                    "Failed the gauntlet (validate_candidate's verdict)")
+            elif sharpe < bench_threshold:
                 passed = False
                 rejection_reason = f"Sharpe {sharpe:.2f} < benchmark_threshold {bench_threshold:.2f}"
             elif sortino < 0.8:
                 passed = False; rejection_reason = "Low Sortino"
-            elif survival < 0.4:
+            elif survival < gate2_thr:   # RR-2: was a third literal (0.4) for one gate
                 passed = False; rejection_reason = "Failed Robustness"
             elif not sig_rejected:
                 passed = False

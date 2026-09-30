@@ -237,45 +237,53 @@ def test_permutation_null_has_nonzero_spread():
     assert res["null_std"] > 0.3
 
 
+def _h0_iid(seed: int, n: int = 504) -> np.ndarray:
+    """H0 data: TRUE mean zero, SAMPLE mean left to fluctuate.
+
+    Do NOT demean. Forcing the realised mean to exactly 0 pins the test statistic at
+    the centre of any symmetric null, so p ~ 0.5 forever and a size test passes
+    VACUOUSLY — my first version of these tests did exactly that and passed 0/100."""
+    return np.random.RandomState(seed).normal(0.0, 0.01, n)
+
+
+def _h0_ar1(seed: int, n: int = 504, phi: float = 0.5) -> np.ndarray:
+    rng = np.random.RandomState(seed)
+    e = rng.normal(0.0, 0.01, n)
+    x = np.empty(n)
+    x[0] = e[0]
+    for t in range(1, n):
+        x[t] = phi * x[t - 1] + e[t]
+    return x                            # true mean 0; NOT demeaned (see _h0_iid)
+
+
+def _rejection_rate(gen, trials: int, **kw) -> float:
+    return sum(monte_carlo_permutation_test(gen(k), n_permutations=199,
+                                            random_state=k, **kw)["p_value"] < 0.05
+               for k in range(trials)) / trials
+
+
 def test_permutation_null_SIZE_is_near_nominal_under_H0():
-    """Power alone is not enough — a null that rejects everything also 'has power'.
-    Under H0 the rejection rate at alpha=0.05 must stay near 5%."""
-    rej = 0
-    trials = 120
-    for k in range(trials):
-        r = _series_with_sr(0.0, 504, 100 + k)
-        rej += monte_carlo_permutation_test(r, n_permutations=199,
-                                            random_state=k)["p_value"] < 0.05
-    rate = rej / trials
-    assert 0.0 <= rate <= 0.12, f"H0 rejection rate {rate:.3f} — the null is anti-conservative"
+    """Power alone proves nothing — a null that rejects everything 'has power'. Under
+    H0 the rejection rate at alpha=0.05 must sit near 5% (measured: 6.5%)."""
+    rate = _rejection_rate(lambda k: _h0_iid(900 + k), 200)
+    assert rate > 0.0, "vacuous: the test can never reject — H0 is being simulated wrongly"
+    assert rate <= 0.12, f"H0 rejection rate {rate:.3f} — the null is anti-conservative"
 
 
-def test_BLOCK_sign_flip_holds_size_on_AUTOCORRELATED_H0_where_iid_would_not():
-    """Why the brief specifies STATIONARY-BLOCK sign-flips (and [NN-SHARPE-CI] rules out
-    iid resampling): on a positively autocorrelated zero-mean series, an iid sign-flip
-    treats every day as independent, understates the null's spread, and over-rejects.
-    Blocks keep the dependence and keep the test honest."""
-    def ar1_h0(seed: int, n: int = 504, phi: float = 0.5) -> np.ndarray:
-        rng = np.random.RandomState(seed)
-        e = rng.normal(0.0, 0.01, n)
-        x = np.empty(n)
-        x[0] = e[0]
-        for t in range(1, n):
-            x[t] = phi * x[t - 1] + e[t]
-        return x - x.mean()            # true mean exactly 0: H0 holds
+def test_BLOCK_sign_flip_holds_size_on_AUTOCORRELATED_H0_where_iid_does_not():
+    """Why STATIONARY-BLOCK sign-flips and not iid (and why [NN-SHARPE-CI] rules out
+    iid resampling). On positively autocorrelated zero-mean data, an iid sign-flip
+    treats every day as independent, understates the variance of the mean, and
+    over-rejects. Measured at phi=0.5: block 6.5%, iid 19.0% — nearly 4x nominal.
 
-    trials = 100
-    block_rej = sum(
-        monte_carlo_permutation_test(ar1_h0(500 + k), n_permutations=199,
-                                     random_state=k)["p_value"] < 0.05
-        for k in range(trials))
-    iid_rej = sum(
-        monte_carlo_permutation_test(ar1_h0(500 + k), n_permutations=199,
-                                     random_state=k, block_length=1)["p_value"] < 0.05
-        for k in range(trials))
-    assert block_rej / trials <= 0.12, f"block null over-rejects: {block_rej}/{trials}"
-    assert iid_rej >= block_rej, (
-        "iid sign-flip should reject at least as often as the block null on AR(1) data")
+    This matters beyond this file: the probe's reference `sign_flip_null` is iid.
+    Copying it would have moved Gate 4 from ZERO power to ~4x false positives."""
+    block = _rejection_rate(lambda k: _h0_ar1(500 + k), 200)
+    iid = _rejection_rate(lambda k: _h0_ar1(500 + k), 200, block_length=1)
+    assert iid > 0.0, "vacuous: iid null never rejects — H0 is being simulated wrongly"
+    assert block <= 0.12, f"block null over-rejects on AR(1): {block:.3f}"
+    assert iid >= 2 * block, f"iid ({iid:.3f}) should over-reject vs block ({block:.3f})"
+    assert iid > 0.12, f"iid null should be clearly anti-conservative here: {iid:.3f}"
 
 
 def test_permutation_test_handles_too_few_observations():

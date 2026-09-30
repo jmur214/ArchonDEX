@@ -4,5 +4,9 @@
   "foundry_seed_fraction": 0.5,
   "_factor_gate_comment": "T-203 Phase-0 re-aim: the resolved goal is beat-the-Schwab-robo (risk-adjusted/tail/after-tax), NOT academic factor-orthogonal alpha. factor_gate_mode='report' DEMOTES Gate-6 (FF5+Mom factor-orthogonality) from a KILL gate to diagnostic-only — still computed + recorded (now with the T-203 HAC-corrected t-stat) but no longer kills a candidate. Set 'kill' to restore the old behaviour. robo_deploy_gate_enabled marks core.combined_candidate_scorecard.evaluate_deploy_readiness as the OFFLINE / director deploy-readiness gate (Roth primary, taxable diagnostic), run MANUALLY via scripts/run_combined_scorecard.py. It is NOT an autonomous discovery-cycle gate: this config key has ZERO python consumers (no validate_candidate or mode_controller --discover read), and evaluate_deploy_readiness is wired only into the offline scorecard script + its test — never into the autonomous --discover path. See capability_ledger robo_deploy_gate row (PHANTOM-as-described).",
   "factor_gate_mode": "report",
-  "robo_deploy_gate_enabled": true
+  "robo_deploy_gate_enabled": true,
+  "_significance_comment": "RR-2 (2026-09-30): Gate-4 threshold. Production passed significance_threshold=None, which validate_candidate mapped to gate_4_passed=False for EVERY candidate — Gate 4 could never pass, so T-196's H1 was structurally unreachable. One value, read by both production Discovery and the T-195 harness.",
+  "significance_threshold": 0.05,
+  "_gate2_comment": "RR-2: the ONE Gate-2 robustness-survival threshold. The Pass-2 overwrite used 0.7 while validate_candidate used 0.60 — two values for one gate. The overwrite is deleted; this is now the single source. VALUE UNCHANGED at 0.60. Pinned by a test so a change to a referee threshold is a reviewed diff, never a quiet config edit.",
+  "gate2_survival_threshold": 0.6
 }

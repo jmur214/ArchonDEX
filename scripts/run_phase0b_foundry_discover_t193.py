@@ -29,6 +29,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
+# failed Gate 4 for every candidate). Same reader production Discovery uses.
+from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+
 WINDOW_START = os.environ.get("PHASE0B_START", "2010-01-01")
 WINDOW_END = os.environ.get("PHASE0B_END", "2024-12-31")
 OUT = os.environ.get("PHASE0B_OUT", "/tmp/t193_phase0b_foundry.jsonl")
@@ -94,7 +98,7 @@ def main() -> int:
         t0 = time.time()
         try:
             r = eng.validate_candidate(
-                spec, data_map, significance_threshold=None,
+                spec, data_map, significance_threshold=_discovery_significance_threshold(),
                 cache=cache, start_date=val_start, end_date=val_end,
                 n_trials_for_dsr=n_trials,
             )

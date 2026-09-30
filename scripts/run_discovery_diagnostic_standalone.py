@@ -37,6 +37,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
+# failed Gate 4 for every candidate). Same reader production Discovery uses.
+from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+
 
 def _reexec_if_hashseed_unset() -> None:
     if os.environ.get("PYTHONHASHSEED") != "0":
@@ -165,7 +169,7 @@ def main() -> int:
         try:
             res = eng.validate_candidate(
                 cand, dm,
-                significance_threshold=None,
+                significance_threshold=_discovery_significance_threshold(),
                 diagnostic_log_path=str(jsonl_path),
             )
             if res.get("sharpe", 0.0) > 0 and res.get("robustness_survival", 0.0) >= 0.7:
