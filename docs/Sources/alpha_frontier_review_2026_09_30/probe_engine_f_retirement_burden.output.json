@@ -1,0 +1,168 @@
+{
+  "sims_per_cell": 30,
+  "benchmark_sharpe": 0.8,
+  "margin": 0.3,
+  "rows": [
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 50,
+      "n_trades": 100,
+      "years_of_record": 2.0,
+      "code_point_sharpe_mean": 0.158,
+      "code_ci_low_mean": -2.93,
+      "threshold": 0.5,
+      "retire_rate": 0.667
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 50,
+      "n_trades": 250,
+      "years_of_record": 5.0,
+      "code_point_sharpe_mean": 1.002,
+      "code_ci_low_mean": -0.964,
+      "threshold": 0.5,
+      "retire_rate": 0.4
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 50,
+      "n_trades": 500,
+      "years_of_record": 10.0,
+      "code_point_sharpe_mean": 0.755,
+      "code_ci_low_mean": -0.573,
+      "threshold": 0.5,
+      "retire_rate": 0.367
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 50,
+      "n_trades": 1000,
+      "years_of_record": 20.0,
+      "code_point_sharpe_mean": 0.62,
+      "code_ci_low_mean": -0.34,
+      "threshold": 0.5,
+      "retire_rate": 0.4
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 252,
+      "n_trades": 100,
+      "years_of_record": 0.4,
+      "code_point_sharpe_mean": 0.407,
+      "code_ci_low_mean": -2.536,
+      "threshold": 0.5,
+      "retire_rate": 0.4
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 252,
+      "n_trades": 250,
+      "years_of_record": 1.0,
+      "code_point_sharpe_mean": 0.501,
+      "code_ci_low_mean": -1.364,
+      "threshold": 0.5,
+      "retire_rate": 0.333
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 252,
+      "n_trades": 500,
+      "years_of_record": 2.0,
+      "code_point_sharpe_mean": 0.097,
+      "code_ci_low_mean": -1.302,
+      "threshold": 0.5,
+      "retire_rate": 0.433
+    },
+    {
+      "true_annual_sr": 0.3,
+      "trades_per_year": 252,
+      "n_trades": 1000,
+      "years_of_record": 4.0,
+      "code_point_sharpe_mean": 0.237,
+      "code_ci_low_mean": -0.724,
+      "threshold": 0.5,
+      "retire_rate": 0.6
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 50,
+      "n_trades": 100,
+      "years_of_record": 2.0,
+      "code_point_sharpe_mean": 1.417,
+      "code_ci_low_mean": -1.571,
+      "threshold": 0.5,
+      "retire_rate": 0.3
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 50,
+      "n_trades": 250,
+      "years_of_record": 5.0,
+      "code_point_sharpe_mean": 1.551,
+      "code_ci_low_mean": -0.406,
+      "threshold": 0.5,
+      "retire_rate": 0.267
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 50,
+      "n_trades": 500,
+      "years_of_record": 10.0,
+      "code_point_sharpe_mean": 1.206,
+      "code_ci_low_mean": -0.143,
+      "threshold": 0.5,
+      "retire_rate": 0.333
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 50,
+      "n_trades": 1000,
+      "years_of_record": 20.0,
+      "code_point_sharpe_mean": 1.434,
+      "code_ci_low_mean": 0.476,
+      "threshold": 0.5,
+      "retire_rate": 0.2
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 252,
+      "n_trades": 100,
+      "years_of_record": 0.4,
+      "code_point_sharpe_mean": 0.443,
+      "code_ci_low_mean": -2.424,
+      "threshold": 0.5,
+      "retire_rate": 0.533
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 252,
+      "n_trades": 250,
+      "years_of_record": 1.0,
+      "code_point_sharpe_mean": 0.624,
+      "code_ci_low_mean": -1.299,
+      "threshold": 0.5,
+      "retire_rate": 0.5
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 252,
+      "n_trades": 500,
+      "years_of_record": 2.0,
+      "code_point_sharpe_mean": 0.72,
+      "code_ci_low_mean": -0.622,
+      "threshold": 0.5,
+      "retire_rate": 0.467
+    },
+    {
+      "true_annual_sr": 0.6,
+      "trades_per_year": 252,
+      "n_trades": 1000,
+      "years_of_record": 4.0,
+      "code_point_sharpe_mean": 0.561,
+      "code_ci_low_mean": -0.414,
+      "threshold": 0.5,
+      "retire_rate": 0.333
+    }
+  ],
+  "note": "code_point_sharpe uses sqrt(252) on per-trade PnL regardless of frequency: for 50 trades/yr it INFLATES the point estimate ~2.2x; the ci_low is what the gate reads."
+}

@@ -1218,3 +1218,19 @@ SNS MessageId returned.
 **An alarm you cannot exercise is the defect.** Testing it used to require something
 to break first, so nobody ever did. Drill any channel you have just repaired — a
 fixed-but-never-fired alarm is half repaired.
+
+## Alpha-frontier review probes and proposed referee-repair tests (added 2026-09-30)
+
+Deterministic, seeded, no market data required (the container had none). Each probe prints JSON.
+
+```bash
+python scripts/probe_gate4_permutation_null.py            # Gate-4 null is a point mass; correct nulls shown
+python scripts/probe_mbl_n_effective.py                   # 2·ln N vs exact E[max]²; SR_req vs rho-bar
+python scripts/probe_spy_ci_low_kill_threshold.py         # ci_low<0.4 on a SPY-shaped 12yr series (calibrated)
+python scripts/probe_spy_ci_low_kill_threshold.py --csv data/processed/tr_reconciled/SPY_1d.csv   # real data when present
+python scripts/probe_engine_f_retirement_burden.py --sims 30   # ~5-10 min; false-retire rate of true-SR edges
+python -m pytest tests/test_referee_repairs_proposed.py -q      # 16 xfail(strict=True); an XPASS means a repair landed
+```
+
+Read `docs/Sources/alpha_frontier_review_2026_09_30/01_gap_report.md` before touching any of these;
+the referee is propose-first and the tests document defects, they do not fix them.
