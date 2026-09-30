@@ -327,3 +327,77 @@ python3 scripts/gen_substrate_manifest.py verify      # expect: OK
    substrate is canonical.
 2. DFII10 will still not be pinned, because it does not exist. Fetching it is a separate decision.
 
+---
+
+## §4 "One bootstrap" — there are not three implementations, there are about twenty
+
+The brief names three. A repo-wide search finds **~20** distinct bootstrap functions across `core/` and
+`scripts/`. The count matters less than what a reviewer can safely assume about each one, so ten were
+classified **from their executable index-generation lines, with docstrings stripped** — because the
+first pass, which read prose, was wrong (see "two mislabels" below).
+
+| implementation | scheme (from code) | paired? | note |
+|---|---|---|---|
+| `core/metrics_engine.py:864` `bootstrap_distribution` | **moving-block, non-circular** — `starts ∈ [0, n−block]` | no | the project standard; block `max(5, round(n^(1/3)))` (:923) |
+| `scripts/excess_of_cash_attribution_t333.py:54` `block_ci` | **circular block** — `arange(s, s+block) % n` | no | **docstring says "stationary" — wrong** |
+| `scripts/third_stream_battery.py:117` `block_ci_pairs` | **circular block** | **yes** | **docstring says "stationary" — wrong** |
+| `scripts/crisis_replay_t118b.py:386` | circular block | no | correctly named |
+| `scripts/crisis_replay_t118b.py:414` | **stationary** (continue-or-restart) | yes (diff) | correctly named — the only true stationary one found |
+| `scripts/industry_momentum_t213.py:44`, `vrp_edge_t174.py:60`, `tilt_decision_measure_t318_t320.py:145` | moving-block, non-circular | t318/320 yes | |
+| `scripts/per_edge_per_year_attribution.py:95` `_bootstrap_mean_ci` | **IID — deliberately** | n/a | resampling unit is the TRADE; see below |
+| `scripts/probe_spy_ci_low_kill_threshold.py:73` | **delegates to `MetricsEngine.bootstrap_distribution`** | — | the pattern the rest should follow |
+| `deep_reverify_sleeve_t311.py:139` (named in the brief) | not matched by the search | — | the brief's line reference could not be confirmed; flagged, not guessed |
+
+Not yet classified: `demo_after_tax_t141`, `reprice_lps_auction_t157`, `discovery_diag_analytics`,
+`dbmf_kmlm_phase0_t110`, `managed_futures_*` (t108/t112), `spot_sleeve_closeout_t128`,
+`analyze_engine_e_hmm_ab`, `substrate_arms_analytics`, `validate_regime_signals_t087`. The four checked
+by line (t157, t110, t128, t087) are moving-block.
+
+### Two mislabels — both mine
+`excess_of_cash_attribution_t333.py:54` and `third_stream_battery.py:117` both describe themselves as
+a **stationary** block bootstrap. Both are **circular block**: fixed-length blocks with wraparound. A
+stationary bootstrap (Politis–Romano 1994) draws *geometric random* block lengths. **Same defect class
+as CLAUDE.md's "Politis-White" (§2.3)** — a method named in prose that the code never runs. I wrote both
+docstrings. My own first classifier pass for this section read that prose and reported them as
+"stationary"; only stripping docstrings and reading the index line gave the right answer.
+
+### The IID one is a reasoned exception, not a `[NN-SHARPE-CI]` violation
+`_bootstrap_mean_ci` resamples individual indices — iid. Its docstring gives the reason: the unit is the
+**trade**, and trades within a regime are not a contiguous time series. `[NN-SHARPE-CI]` forbids iid
+resampling *of serially-correlated returns*; this is a CI on mean per-trade PnL. Recorded as an
+exception, with one honest caveat: overlapping positions can correlate trade outcomes, so "independent"
+is an assumption, not a guarantee. **Among the ten classified, no `[NN-SHARPE-CI]` violation was found.**
+
+### The proposed single API (lives in `core/metrics_engine.py` — the referee, hence proposal only)
+```python
+@dataclass(frozen=True)
+class BootstrapResult:
+    point: float; ci_low: float; ci_high: float
+    n: int; block: int; scheme: str; n_iterations: int
+    n_degenerate: int          # resamples whose statistic was NaN — COUNTED, never silently dropped
+
+def block_bootstrap(
+    x, y=None, *,               # y given -> PAIRED: one index draw applied to both series
+    stat,                        # stat(x_res) or stat(x_res, y_res) -> float
+    scheme: Literal["moving", "circular", "stationary"],   # REQUIRED — no default
+    block: int | Literal["auto"] = "auto",                  # auto = max(5, round(n**(1/3))) — a RULE
+    iters: int = 1000, seed: int = 0, conf: float = 95.0,
+) -> BootstrapResult
+```
+Each property answers a defect found in this inventory:
+- **`scheme` is required and returned** — a result that carries its own method cannot be mislabeled by
+  a docstring, which is how both of my mislabels and "Politis-White" happened.
+- **`block="auto"` is documented as the n^(1/3) rule**, not as an adaptive selector.
+- **Pairing by construction** — passing `y` applies one index draw to both series, so the
+  correlation-destroying error (resampling two legs independently) cannot be written.
+- **`n_degenerate` is reported** — `block_ci_pairs` currently drops NaN resamples and continues; the
+  count is exactly what a reader needs to judge a CI built from fewer draws than advertised.
+
+### ⚠ Migration is a RE-SCORE risk, not a refactor
+The implementations genuinely differ — moving vs circular vs stationary, different blocks, different
+RNG streams. Routing them through one function **changes CI numbers** unless each caller pins the
+scheme, block and seed it uses today. Proposed rule: **migrate with each caller's current parameters
+pinned so historical CIs reproduce bit-for-bit; any caller whose numbers move is a RE-SCORE and is
+labeled RE-SCORE, never a new trial** (N_trials 0). Harmonising schemes on purpose is a separate,
+later decision.
+
