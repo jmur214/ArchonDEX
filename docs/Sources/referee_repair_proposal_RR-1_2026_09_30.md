@@ -7,7 +7,7 @@ branch: fix/referee-rr1-sizing-capital
 type: REFEREE REPAIR PROPOSAL — propose-only. The referee is never autonomously modified.
 route: Agent R (independent review) → director → the USER rules on merge.
 n_trials: 0 — a correction, not a hypothesis. Every re-run below is labeled RE-SCORE.
-status: §1-3, §5, §6 COMPLETE. §4 RE-SCORE PENDING (cloud campaign, not yet run).
+status: §1-3, §5, §6 COMPLETE. §4 RE-SCORE RUNNING (local, launched 2026-09-30 19:55).
 ---
 
 # RR-1 — the backtester sized every position from a frozen capital figure
@@ -146,31 +146,112 @@ passing.
 
 ---
 
-## §4 — RE-SCORE — **PENDING (not yet run)**
+## §4 — RE-SCORE — **RUNNING** (launched 2026-09-30 19:55, local, ~20h)
 
-Nothing in this section is a result. The table exists so the cells are fixed before any
-number arrives.
+### Acceptance evidence — read this before any 26-year number
 
-| cell | config | before (bug) point / ci_low | after (fix) point / ci_low |
+**The harness would have faked a null result, and this is how it was ruled out.**
+`run_isolated.main()` re-execs itself: its first line (`:397`) is
+`_reexec_if_hashseed_unset()`, which calls `os.execv` unless `PYTHONHASHSEED=0` and four
+BLAS pins are already set. An exec *replaces* the process, so it discards everything done
+in-process — including the before arm's restored getter — and the new process loads the
+**fixed** controller from disk. Without the environment set, the before arm silently runs
+the after code, the two arms come out identical, and the RE-SCORE reports **"the fix changes
+nothing"**: a confident null manufactured by the harness, not the measurement.
+
+It surfaced when two calibration records vanished with no traceback — the driver's
+`finally` did not run, `atexit` did not run, and neither `os._exit` nor `sys.exit` was called,
+because the process had been replaced rather than exited. The driver now **refuses** (exit 4)
+unless the full environment is present, and the campaign exports it before Python starts.
+Refuse, not warn: this failure reads as a result.
+
+**Proven by execution inside a real `run_isolated` cell (Q1 2021):**
+
+| run | Sharpe | CAGR | trades canon md5 |
 |---|---|---|---|
-| 26-yr equity baseline | `158fe678` (the GOAL.md 0.751 / 0.382 anchor, T-140-fu3✓) | — | — |
-| T-196 foundry: `triple_witching` | T-196 harness, `run_isolated.py` | — | — |
-| T-196 foundry: `january` | T-196 harness | — | — |
-| T-196 foundry: `mom_12_1` | T-196 harness | — | — |
+| after #1 | 0.675 | 15.34% | `9930382f…` |
+| **before** | **0.646** | **15.42%** | **`8df37066…`** |
+| after #2 | 0.675 | 15.34% | `9930382f…` |
 
-**Why "before" is re-run, not copied.** The anchor was measured on 2026-06-14. The
-substrate has moved since (PIT universe, TR reconciliation, T-306). A paired comparison
-re-runs both arms on the current substrate, differing only by the fix; copying the June
-number would compare the fix plus four months of substrate drift.
+- **The arms differ** — distinct trade logs — so the before patch takes effect. Had the
+  re-exec fired, these rows would be identical.
+- **Determinism ×2 holds on both arms**: the two after runs are bitwise identical, and the
+  before canon `8df37066` reproduced on a separate run.
+- **The before arm is `main`**: a patched run reproduces `main`'s golden master
+  bit-for-bit (Sharpe `0.04946327837452345`, 171 trades, identical turnover and max position),
+  pinned in a slow test against constants.
 
-**Execution.** Eight cells (four configs × before/after), each a long backtest — above the
-CLAUDE.md threshold, so the campaign goes to AWS Batch via `scripts/submit_substrate_run.py`
-per `docs/Cloud/CLOUD_USAGE.md`, on the research queue (not the paper fleet).
+Determinism ×2 was run on this short cell, **not** on the 26-year cells — at ~4h per cell a
+full ×2 there was not affordable locally. That is stated here rather than implied for all.
 
-**On the anchor.** The 0.751 figure was later found survivorship-inflated (the honest base is
-≈0.1–0.3). The RE-SCORE of that cell measures **what the fix does to the historical
-anchor**. It does not rehabilitate 0.751 as a headline, and neither of its numbers should be
-quoted as one.
+### The cells
+
+| cell | harness | before (bug) point / ci_low | after (fix) point / ci_low | census | bootstrap n |
+|---|---|---|---|---|---|
+| 26-yr baseline (2000-01-01 → 2025-12-31) | `run_isolated` | *running* | *queued* | † | 500 ‡ |
+| T-196 `triple_witching` (2012 → 2024) | foundry harness | *queued* | *queued* | † | 500 ‡ |
+| T-196 `january` | foundry harness | *queued* | *queued* | † | 500 ‡ |
+| T-196 `mom_12_1` | foundry harness | *queued* | *queued* | † | 500 ‡ |
+
+† **Each cell runs under `CENSUS_EXPECTED_DORMANT=news_sentiment_edge`, and its verdict reads
+"CANONICAL under CENSUS_EXPECTED_DORMANT=news_sentiment_edge" or "NON-CANONICAL under …" —
+taken from the harness's own exit code.** The condition travels with the number. It is the
+census's own documented per-run switch (`core/census.py:25,93`), used for these eight cells
+only: not a standing exemption and not an allowlist edit, and both arms carry it identically.
+
+The justification is that the edge is **trade-inert**, shown from run `b3f03d85`
+(after-arm, calendar 2021):
+
+- `edge_signal_counts` contains `'news_sentiment_edge': 0` and **no `news_sentiment_v2`
+  entry at all** — the edge runs under neither name;
+- **0** rows of `trades.csv` attribute to it.
+
+The cause is defect N-10: `alpha_settings.json` weights `news_sentiment_edge`, but the only
+class declares `EDGE_ID = "news_sentiment_v2"`. Four other zero-signal edges
+(`growth_sales_v1`, `macro_real_rate_v1`, `value_deep_v1`, `value_trap_v1`) are already on the
+expected-dormant allowlist; this is a fifth, missing from it. **Correcting N-10 is not
+neutral** — it would turn the edge live at weight 0.5 and change trades — so N-10 stays
+untouched until all eight cells finish.
+
+‡ **The controller's bootstrap runs at 500 iterations**, overriding the 1,000 default in
+`MetricsEngine.bootstrap_distribution` (`backtest_controller.py:1176,1180`);
+`[NN-SHARPE-CI]` names 1,000 as the standard. This is precision, not bias, and both arms share
+it, so the pair stays valid. It is deliberately **not** changed here — that would confound
+the RE-SCORE — and has its own item, sequenced after this campaign and bundled with RR-5.
+
+**The T-196 cells measure RR-1's effect on the features' numbers only.** Their gauntlet
+pass/fail verdicts remain affected by RR-2 (Gate 4 forced false), which this branch does not
+fix. Read the numbers, not the verdicts.
+
+### Execution
+
+**Local and sequential — a recorded deviation from CLAUDE.md's cloud default.** The
+documented path builds two ~8 GB images; after the 2026-09-30 restart Docker was down and the
+disk was at 95% (11 GB free), and this host has broken a config restore by filling its disk
+before. The director ruled local. Both harnesses write this worktree's live governor files on
+entry, so cells run strictly one at a time. Each runs under `caffeinate -i`; the campaign
+stops on any non-zero exit and refuses to start a cell below 5 GB free. A cell writes about
+1.9 MB per simulated year, so the campaign itself is no disk risk.
+
+Driver: `scripts/rescore_rr1.py` · campaign: `scripts/run_rr1_rescore_campaign.sh` · records:
+`docs/Measurements/2026-09/rr1_rescore/`.
+
+### Why "before" is re-run, not copied
+
+The anchor was measured on 2026-06-14, and the substrate has moved since (PIT universe, TR
+reconciliation, T-306). Re-running both arms on today's substrate makes the pair differ only by
+the fix; copying the June number would compare the fix plus four months of drift.
+
+**The pair is the measurement.** Whether the local before arm reproduces the cloud canon
+`158fe678` is a *secondary* check, reported as a labeled side-finding. If it does not, that
+alone cannot separate substrate drift from a local-versus-cloud difference, and it does not
+affect the pair.
+
+### On the anchor
+
+The 0.751 figure was later found survivorship-inflated (the honest base is ≈0.1–0.3). The
+RE-SCORE of that cell measures **what the fix does to the historical anchor**. It does not
+rehabilitate 0.751 as a headline, and neither of its numbers should be quoted as one.
 
 ---
 
@@ -293,7 +374,20 @@ rewrites are propose-first), so the correct figure is recorded here, where revie
 Covered in §3: it is `slow`-marked and deselected by `pytest.ini`. A regression gate that does
 not run by default is a gate the program has been assuming rather than exercising.
 
-### 6.3 The RE-SCORE's direction is genuinely open
+### 6.3 `run_isolated`'s docstring is false
+
+It says the re-exec is *"called only from `__main__` so importing the module (e.g. from tests)
+does not trigger a re-exec."* The call is the first line of `main()`. Importing is safe;
+**calling** is not. That false sentence is how this proposal nearly ran both arms on the fixed
+code (§4). It is referee infrastructure, so it is not edited here; it goes to RR-7's
+record-correction list.
+
+### 6.4 The controller bootstraps at half the stated standard
+
+See §4 ‡. Every ci_low the controller has produced — the 0.751 / 0.382 anchor included — ran at
+500 iterations against the 1,000 that `[NN-SHARPE-CI]` specifies.
+
+### 6.5 The RE-SCORE's direction is genuinely open
 
 The fixture contradicts the brief's expectation (§3). Nothing here predicts the 26-year sign.
 
