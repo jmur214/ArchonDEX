@@ -10,7 +10,7 @@
 
 - **User ruling — referee merges delegated to the director** on R's independent APPROVE plus the director's own check ("whatever you think the right call is, double check, then proceed"). Recorded in memory and in each merge commit.
 - **RR-3 merged (`e1f51df`)** with all four rulings (merge; gate loosens locally/tightens in the cloud — earned; Option A now, B queued; `[NN-MBL]` text replaced in both copies) and R's F1 applied (anchors 1338→1352, 1399→1413). **RR-1 merged (`70837b2`)** with R's F1 (anchor closed), the seven verdicts closed, sub-item (15) added, 15-of-17 restated. **RR-2** waits on A's fixture (R's F2: RR-3 fails closed on RR-2's D5 tests without a registry under the temp root). **RR-7** D1 returned to B (the news edge is always-active at 0.5; the rename would double its weight; registry invisibility is the real defect).
-- **Verification under memory pressure:** the full merged-tree suite was stopped (8 GB RAM, 14 GB swap eating the campaign's disk floor) and replaced by targeted runs + the branch suites, stated as done in the merge messages. The janitor's 03:00 suite is the nightly record.
+- **Verification under memory pressure:** the full merged-tree suite was stopped (8 GB RAM, 14 GB swap eating the campaign's disk floor) and replaced by targeted runs + the branch suites, stated as done in the merge messages. The janitor's 03:00 suite is the nightly record. **Correction:** the RR-3 merged-tree suite had in fact completed — 3989 passed / 0 failed with the agentic file ignored, plus 6/6 for that file alone — the kill landed as it was finishing. Recorded in CURRENT_STATE; the merge message's figure is superseded.
 
 ## What was decided
 
