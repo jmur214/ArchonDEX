@@ -6,6 +6,12 @@
 - Processed A's and B's 09-30 deliveries (rulings on 10-01): RR-2 accepted as a proposal → R; B-1 prereg frozen with three rulings; RR-7 accepted → R; the doc-anchor lint's four questions answered.
 - Tonight (10-08): verified and MERGED `feature/doc-anchor-lint` (178a1d6; approval d998c65). Resumed C's RR-1 RE-SCORE §4 campaign in C's worktree (anchor26/after + three T-196 pairs). Confirmed Agent R alive as one resumed instance and released its four-review queue.
 
+## What was decided (later the same evening)
+
+- **User ruling — referee merges delegated to the director** on R's independent APPROVE plus the director's own check ("whatever you think the right call is, double check, then proceed"). Recorded in memory and in each merge commit.
+- **RR-3 merged (`e1f51df`)** with all four rulings (merge; gate loosens locally/tightens in the cloud — earned; Option A now, B queued; `[NN-MBL]` text replaced in both copies) and R's F1 applied (anchors 1338→1352, 1399→1413). **RR-1 merged (`70837b2`)** with R's F1 (anchor closed), the seven verdicts closed, sub-item (15) added, 15-of-17 restated. **RR-2** waits on A's fixture (R's F2: RR-3 fails closed on RR-2's D5 tests without a registry under the temp root). **RR-7** D1 returned to B (the news edge is always-active at 0.5; the rename would double its weight; registry invisibility is the real defect).
+- **Verification under memory pressure:** the full merged-tree suite was stopped (8 GB RAM, 14 GB swap eating the campaign's disk floor) and replaced by targeted runs + the branch suites, stated as done in the merge messages. The janitor's 03:00 suite is the nightly record.
+
 ## What was decided
 
 - **Lint merge:** the user's 09-29 word (condition: no negative effects) is met structurally — a failure names its fix, HIGH rows only, exact matching, the janitor treats a broken anchor as a judgment call. Verified on the branch before merge: 3970 passed / 0 failed, doc_lint green with the anchor check live, merge-tree clean. Rulings: lands BEFORE the RR branches; a new HIGH row with no anchor stays WARN until the backlog is anchored; the janitor anchor-line guard is approved as a build.
@@ -19,6 +25,12 @@
 - The before arm left `data/governor/edge_metrics.json` differing from main. It is output-only (`Governor._save_metrics`, "for dashboards"); nothing in the backtest path reads it, and `run_isolated` restores the governor dir from `_isolated_anchor` on entry. No taint on the after arm.
 - A full disk kills every local agent's shell (the harness cannot write its task-output file). The janitor's 03:00 run exited 1 and left no ledger row; the 07:00 pass wrote a clean row at 0.16 GB. Agent windows did not survive the week; only R's resumed conversation existed on 10-08.
 - Disk free jitters 15–20 GB day to day with nothing growing in the project trees; `vm_bundles` (10 GB, Claude desktop) is the remaining large reclaimable item.
+
+## What was learned (later)
+
+- **Swap eats the disk floor.** On an 8 GB Mac a 26-year backtest plus a full test suite swaps >14 GB; the VM volume shares the container's free space, so "free GB" falls ~1 GB per few minutes with nothing written. Before launching a campaign with a disk floor, check RAM and swap, and run nothing heavy beside it.
+- A test that drives a real subprocess can look hung under swap pressure (0% CPU, minutes per test) — and the first "hang" at test #156 was a genuine test-order interaction (passes standalone). Distinguish the two by `ps` children and sockets before killing.
+- The Gate-4 anchor text `significance_threshold=None` occurs twice in the controller (a comment at 1218 and the call at 1352): an anchor edit must pick the call site, never the first match.
 
 ## Pick up next time
 
