@@ -62,12 +62,14 @@ def test_gate8_default_now_resolves_to_honest_n():
     import inspect
     import numpy as np, pandas as pd
     from engines.engine_d_discovery.discovery import DiscoveryEngine  # noqa
-    from core.measurement.mbl_gate import compute_n_effective
+    # RR-3: Gate 8's None default now resolves to the CORRELATION-AWARE count, so that
+    # is the N this test must check bites (it does: DSR 0.78 < 0.95 at N_eff ≈ 37).
+    from core.measurement.mbl_gate import compute_n_effective_correlated as compute_n_effective
     from core.metrics_engine import MetricsEngine
 
     sig = inspect.signature(DiscoveryEngine.validate_candidate)
     assert sig.parameters["n_trials_for_dsr"].default is None, \
-        "default must be the None sentinel that resolves to compute_n_effective()"
+        "default must be the None sentinel that resolves to compute_n_effective_correlated()"
 
     n = compute_n_effective()
     att = pd.Series(np.random.default_rng(0).normal(0.0012, 0.010, 900))
