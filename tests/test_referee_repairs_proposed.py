@@ -177,7 +177,12 @@ def test_ci_low_kill_threshold_does_not_kill_spy_shaped_series():
 #        so sizing equity = initial_capital + market value ≈ 2× true equity
 #        once cash is deployed. backtest_controller.py:158, :325, :647.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-1 frozen portfolio.capital")
+# RR-1 repaired on branch fix/referee-rr1-sizing-capital: marker removed HERE ONLY (the
+# brief's rail). NOTE for review: this test is a UNIT MIMIC — it hand-copies the init lines
+# onto a __new__-built controller and never drives the real loop, so on its own it proves
+# the getter, not the integration. The integration evidence is
+# scripts/probe_rr1_sizing_equity.py, which runs the real golden pipeline: 251/251 bars
+# divergent before the fix, 0/251 after, and the divergence returns on reversion.
 def test_backtester_sizing_capital_tracks_deployed_cash():
     """`get_portfolio_capital()` must reflect cash actually available, not the
     initial capital set once at construction. This is the likely root cause of
