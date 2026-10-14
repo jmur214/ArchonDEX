@@ -121,6 +121,21 @@ def census_md5(summary: Optional[Path]) -> Optional[str]:
         return None
 
 
+def trial_key(eq: pd.Series) -> str:
+    """THE trial identity used to dedupe determinism reps: md5 of the daily equity series as CSV
+    (column `d` = the date as int64 nanoseconds, column `e` = equity ROUNDED TO THE CENT).
+
+    Single definition, shared by this script and `scripts/rr3b_population_pass.py` — R checked the
+    dedupe this produces, so it must not drift. Rounding to the cent absorbs cross-container
+    floating-point drift (T-057c) while any real difference of a cent or more yields a new key.
+    Locked by `tests/test_rr3_trial_key.py` (including a golden value). Known limit, per R's review
+    of 2026-10-13: 7 of 258 distinct keys are near-twins at ρ > 0.9999 — the key over-counts by ~3%,
+    in the conservative direction; noted, deliberately not fixed."""
+    return hashlib.md5(
+        pd.DataFrame({"d": eq.index.astype("int64"), "e": eq.round(2).values})
+        .to_csv(index=False).encode()).hexdigest()
+
+
 def daily_equity(snapshot: Path) -> Optional[pd.Series]:
     try:
         s = pd.read_csv(snapshot, usecols=["timestamp", "equity"])
@@ -292,9 +307,7 @@ def run(s3_mirror: Optional[Path], trade_logs: Path, registry: Path, out: Path) 
             excluded["flat equity (never traded)"] += 1
             continue
         series[rid] = r
-        keys[rid] = hashlib.md5(
-            pd.DataFrame({"d": eq.index.astype("int64"), "e": eq.round(2).values})
-            .to_csv(index=False).encode()).hexdigest()
+        keys[rid] = trial_key(eq)
     funnel["valid"] = len(series)
 
     # dedupe determinism reps

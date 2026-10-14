@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import hashlib
 import json
 import re
 import sqlite3
@@ -51,8 +50,7 @@ def trial_keys(runs: Dict[str, Dict]) -> Dict[str, Dict]:
         sd = r.std()
         if len(r) < rho.MIN_RETURNS or sd is None or sd < 1e-12 or not np.isfinite(sd):
             continue
-        key = hashlib.md5(pd.DataFrame({"d": eq.index.astype("int64"), "e": eq.round(2).values})
-                          .to_csv(index=False).encode()).hexdigest()
+        key = rho.trial_key(eq)
         out[rid] = {"trial_key": key, "campaign": meta["campaign"],
                     "source": "s3" if meta["campaign"].startswith("s3") else "local"}
     return out

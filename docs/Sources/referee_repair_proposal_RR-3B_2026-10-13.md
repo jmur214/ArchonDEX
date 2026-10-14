@@ -40,6 +40,8 @@ approached). The pass ran `nice -n 19` with OMP/OPENBLAS/MKL = 1 and `OMP_DYNAMI
 | ledger ↔ run overlap (rule pre-stated) | **none** — see §9.1 for why, which is not what the rule assumed |
 | ρ̄ | **0.6056** [0.574, 0.637] vs 0.6053 [0.571, 0.640] on 09-30 — unchanged to three decimals; **H1 still SUPPORTED** at every setting |
 | Option B N_raw | **489** if every ledger row is kept · **383** with no ledger-only rows (the §2D table decides between them) |
+| ⚠️ of which: 125 absent-evidence rows | **A PERMANENT 125-TRIAL TAX FOR LOST EVIDENCE.** These trials ran; their equity curves no longer exist anywhere, so they can never be deduplicated, correlated or verified — they count at raw, forever. **Do not "correct" this number:** removing them would loosen the gate on the strength of having lost the evidence. (Director's ruling on R's review, 2026-10-13.) |
+| dedupe precision (R's check) | **7 of the 258 distinct trial keys are near-twins at ρ > 0.9999** — the cents-rounded equity key separates runs that differ by a few cents, so it **over-counts by ~3%, in the conservative direction**. Noted, deliberately not fixed (`rr3_empirical_rho.trial_key`, now one shared definition, locked by `tests/test_rr3_trial_key.py`). |
 
 **N_eff — and the one choice that moves it most (§9.2):**
 
@@ -189,6 +191,11 @@ spec time). Peak RSS, bytes pulled and wall time are recorded in §0 beside the 
 - Mirror: `data/observability/rr3b_s3_mirror_2026-10-13/` — gitignored, durable, deliberately **not** `/tmp`
   (macOS purges it after three days; that is how the 09-30 mirror and C's logs vanished), and **not** under
   `data/trade_logs/` (the run scan would count the mirror as local runs).
+  **R1 (adopted 2026-10-13), PENDING:** hash the mirror and copy it to `s3://…/ops/observability/mirror_2026-10-13/`
+  with a sha256 manifest, so the first Option B build ingests a snapshot that cannot age out — S3 lifecycle and
+  versioning are both AccessDenied for this user, so retention is UNVERIFIABLE. **Held until B's 03:00 push proves IAM
+  write on the new prefix**, so one IAM lesson is learned once. Also: the 36 T-196 foundry records, pulled to
+  `data/observability/rr3b_foundry_t196_2026-10-13/` (147 KB) for §9.1's determinism check, belong in the same snapshot.
 - Output: `data/observability/rr3b_population_2026-10-13.json`. **Deliberately NOT named `n_effective_*.json`.**
   `mbl_gate.latest_n_effective_artifact()` selects the NEWEST file matching that pattern, so writing one would
   silently make tonight's measurement the live gate input on `main` — an unreviewed referee change. That is also a
@@ -220,14 +227,22 @@ come from, not on any outcome — no N, ρ̄ or count from tonight's pull has be
 The pre-stated overlap rule found **zero** overlaps, including T-196, though S3 has a `foundry-t196/` prefix. The
 reason: `validate_candidate` backtests through `run_backtest_pure`, which uses *"an in-memory cockpit logger, no CSV
 files written."* A Discovery candidate's evaluation leaves a result record, never a `portfolio_snapshots.csv`.
-`foundry-t196/` holds exactly **35 `t195_foundry_eval.jsonl` files — one per candidate, matching the ledger's 35.**
+`foundry-t196/` holds **36 `t195_foundry_eval.jsonl` records covering 35 distinct features** — matching the ledger's
+35 as distinct trials. *(Corrected 2026-10-13 on R's review: the first version of this section said "exactly 35 … one
+per candidate", which miscounted.)* The 36th is **`mom_12_1` evaluated twice** — once under `cand/mom_12_1/`, once under
+`probe/`, in separate cloud containers, ~6.5 hours each. **Every result field is bit-identical** to full float
+precision (baseline Sharpe 1.2616101336501855, with-candidate 0.8295524754684404, contribution −0.43205765818174513,
+the same gate vector; only wall time differs: 23,378 s vs 23,195 s). **A free determinism check on the foundry path:
+PASS.** One aside for RR-6, not acted on here: that record reads `g7: true, g8: true` for a candidate that failed Gate
+1 — skipped gates recorded as passes.
 
 So **the trials Gate 0/8 exist to count are invisible to the current registry and to §2A's evidence scan alike.**
 They survive only as ledger rows, as result records like these, and in `data/research/discovery_log.jsonl` (local,
 dormant since June, T-356 gap #4). Two consequences for the design:
 - **§2A needs a fourth evidence class:** *candidate-evaluation records*. They count in N_raw, have no curve, and are
-  listed separately from the ρ̄ population, as ledger rows are. T-196's 35 rows are therefore **corroborated by 35
-  S3 records**, not a bare ledger claim — the §2D table must keep them in Discovery's N.
+  listed separately from the ρ̄ population, as ledger rows are. T-196's 35 rows are therefore **corroborated by 36
+  S3 records of 35 distinct features**, not a bare ledger claim — the §2D table must keep them in Discovery's N. The
+  duplicate counts once: two bit-identical evaluations of one feature are one trial.
 - **Going forward, `validate_candidate` should persist each candidate's attribution stream.** It already holds it in
   memory (Gate 1 computes it). That one write is what lets candidate trials enter the measured-correlation population
   instead of sitting outside it permanently. It is a Discovery change, small, and belongs with the Option B build.
