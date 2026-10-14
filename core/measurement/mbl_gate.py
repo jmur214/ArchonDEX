@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -54,8 +55,9 @@ from core.metrics_engine import _EULER_GAMMA
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data/observability/run_registry.sqlite"
 DEFAULT_ARTIFACT_DIR = DEFAULT_DB_PATH.parent
-# RR-3 §9.3 (2026-10-13): the gate's ρ̄ input is PINNED by a committed pointer + sha256.
-DEFAULT_PIN_PATH = Path(__file__).resolve().parents[2] / "config/n_effective_pin.json"
+# RR-3 §9.3 (2026-10-13): BOTH honest-N inputs — the ρ̄ artifact and the run registry — are
+# PINNED by one committed pointer carrying each file's sha256.
+DEFAULT_PIN_PATH = Path(__file__).resolve().parents[2] / "config/honest_n_pin.json"
 
 # A correlation estimate may shrink N, never erase the correction (see module docstring).
 N_EFF_FLOOR = 2.0
@@ -156,7 +158,9 @@ def compute_n_effective(
             f"run registry absent at {db_path} — honest N cannot be established. "
             f"Pass an explicit trial count or supply the registry; never proceed at N=1.")
     import sqlite3
-    conn = sqlite3.connect(db_path)
+    # Read-only (RR-3 §9.3): the registry's bytes are pinned, so the gate must never be
+    # able to change them — not even a journal side effect of a read-write connection.
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         try:
             if since_iso:
@@ -184,44 +188,69 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def load_pin(pin_path: Optional[Path] = None) -> Dict:
+    """Read and validate the committed honest-N pin. FAILS CLOSED on absence or malformation."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    try:
+        pin = json.loads(pin_path.read_text())
+        for key in ("artifact", "registry"):
+            entry = pin[key]
+            if not (isinstance(entry, dict) and isinstance(entry["file"], str)
+                    and re.fullmatch(r"[0-9a-f]{64}", str(entry["sha256"]).lower())):
+                raise ValueError(f"{key!r} needs a file name and a 64-hex sha256")
+            if "/" in entry["file"] or "\\" in entry["file"]:
+                raise HonestNUnavailableError(
+                    f"honest-N pin {pin_path} names a path for {key!r}, not a file name: {entry['file']!r}")
+    except HonestNUnavailableError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise HonestNUnavailableError(
+            f"honest-N pin {pin_path} absent or malformed ({exc}) — the gate will not guess which "
+            f"inputs to trust") from exc
+    return pin
+
+
+def _verify_pinned(path: Path, entry: Dict, what: str, pin_path: Path) -> Path:
+    if path.name != entry["file"]:
+        raise HonestNUnavailableError(
+            f"the gate was given {what} {path.name!r} but the pin names {entry['file']!r} ({pin_path})")
+    if not path.exists():
+        raise HonestNUnavailableError(f"pinned {what} {path} is absent (pin: {pin_path}). Ship it, or re-pin by commit.")
+    got, want = sha256_file(path), str(entry["sha256"]).lower()
+    if got != want:
+        raise HonestNUnavailableError(
+            f"pinned {what} {path} does not match its pin: sha256 {got[:12]}… ≠ pinned {want[:12]}…. "
+            f"It changed after it was pinned; re-pin by commit, after review.")
+    return path
+
+
 def pinned_n_effective_artifact(
     pin_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
 ) -> Path:
-    """The ρ̄ artifact the gate is PINNED to, verified. FAILS CLOSED.
+    """The ρ̄ artifact the gate is PINNED to, hash-verified. FAILS CLOSED.
 
     RR-3 §9.3. This replaced `latest_n_effective_artifact()`, which took the NEWEST
-    `n_effective_*.json` by filename — so any re-run of `scripts/rr3_empirical_rho.py`, by
-    anyone, silently replaced the live gate's input with no review. The 2026-10-13 Option B
-    pass avoided that only by choosing a different output name; a filename convention is not
-    a control. Now the input is named by a COMMITTED pointer (`config/n_effective_pin.json`)
-    carrying the artifact's sha256: changing what the gate reads is a reviewed commit, and an
-    artifact edited in place after pinning is caught by its hash.
-
-    Raises `HonestNUnavailableError` if the pointer is absent or malformed, the pinned
-    artifact is absent, or its sha256 does not match. Re-pin with
-    `python -m core.measurement.mbl_gate --pin <artifact filename>` and commit the result."""
+    `n_effective_*.json` by filename — so any re-run of `scripts/rr3_empirical_rho.py`, by anyone,
+    silently replaced the live gate's input with no review. The 2026-10-13 Option B pass avoided
+    that only by choosing a different output name; a filename convention is not a control."""
     pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
     artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
-    try:
-        pin = json.loads(pin_path.read_text())
-        name, expected = str(pin["artifact"]), str(pin["sha256"]).lower()
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise HonestNUnavailableError(
-            f"n_effective pin {pin_path} absent or malformed ({exc}) — the gate will not guess which "
-            f"artifact to trust") from exc
-    if "/" in name or "\\" in name:
-        raise HonestNUnavailableError(f"n_effective pin {pin_path} names a path, not a file in the artifact dir: {name!r}")
-    art = artifact_dir / name
-    if not art.exists():
-        raise HonestNUnavailableError(
-            f"pinned n_effective artifact {art} is absent (pin: {pin_path}). Ship it, or re-pin by commit.")
-    got = sha256_file(art)
-    if got != expected:
-        raise HonestNUnavailableError(
-            f"pinned n_effective artifact {art} does not match its pin: sha256 {got[:12]}… ≠ pinned "
-            f"{expected[:12]}…. It changed after it was pinned; re-pin by commit, after review.")
-    return art
+    entry = load_pin(pin_path)["artifact"]
+    return _verify_pinned(artifact_dir / entry["file"], entry, "n_effective artifact", pin_path)
+
+
+def verify_pinned_registry(db_path: Optional[Path] = None, pin_path: Optional[Path] = None) -> Path:
+    """The run registry the gate is PINNED to, hash-verified. FAILS CLOSED.
+
+    R's addition to §9.3: pinning the registry as well closes T-356b's rebuild-after-loss case.
+    `rebuild()` upserts from whatever sits in local `data/trade_logs/` on the day, and the 125 run
+    rows' directories exist nowhere, so a registry rebuilt after loss would hand the gate a SMALLER
+    N without complaint. With the registry pinned, any rebuild, backfill or recreation changes its
+    bytes and the gate refuses until someone re-pins by a reviewed commit."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
+    return _verify_pinned(db_path, load_pin(pin_path)["registry"], "run registry", pin_path)
 
 
 def load_n_effective_artifact(
@@ -278,6 +307,11 @@ def compute_n_effective_correlated(
     choice of N_raw's population is flagged there for the user, not settled here."""
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
+    if artifact_path is None:
+        # Production path: BOTH inputs must match the committed pin, the registry checked before
+        # it is read. An explicit artifact_path (tools, tests) is a deliberate caller choice and
+        # bypasses the pin entirely, the way an explicit n_trials_for_dsr does.
+        verify_pinned_registry(db_path, pin_path)
     n_raw = compute_n_effective(db_path)
     gi = load_n_effective_artifact(artifact_path, artifact_dir, pin_path)["gate_inputs"]
     eq = n_eff_equicorrelated(n_raw, float(gi["rho_bar"]))
@@ -364,15 +398,21 @@ def years_from_window(start_date: str, end_date: str) -> float:
 
 # ----------------------------------------------------------------------------- pin CLI
 def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None,
-              pin_path: Optional[Path] = None, note: str = "") -> Dict:
-    """Pin the gate to `artifact_dir/artifact_name` by recording its sha256. Writes the pointer;
-    it takes effect for the referee only when COMMITTED — that commit is the review point."""
+              db_path: Optional[Path] = None, pin_path: Optional[Path] = None, note: str = "") -> Dict:
+    """Pin the gate to `artifact_dir/artifact_name` AND to the current run registry, recording each
+    file's sha256. Writes the pointer; it takes effect for the referee only when COMMITTED — that
+    commit is the review point. Refuses to pin an artifact or registry the gate could not read."""
     import datetime as _dt
     artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
+    db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
     pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
     art = artifact_dir / artifact_name
-    load_n_effective_artifact(path=art)            # refuse to pin something the gate couldn't read
-    pin = {"schema": "n_effective_pin/v1", "artifact": artifact_name, "sha256": sha256_file(art),
+    load_n_effective_artifact(path=art)
+    compute_n_effective(db_path)
+    pin = {"schema": "honest_n_pin/v1",
+           "artifact": {"file": artifact_name, "sha256": sha256_file(art)},
+           "registry": {"file": db_path.name, "sha256": sha256_file(db_path),
+                        "rows_at_pin": compute_n_effective(db_path)},
            "pinned_on": _dt.date.today().isoformat(), "note": note}
     pin_path.write_text(json.dumps(pin, indent=2) + "\n")
     return pin
@@ -380,22 +420,24 @@ def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None,
 
 def main(argv=None) -> int:
     import argparse
-    ap = argparse.ArgumentParser(description="Pin or verify the honest-N gate's ρ̄ artifact (RR-3 §9.3).")
+    ap = argparse.ArgumentParser(description="Pin or verify the honest-N gate's inputs: ρ̄ artifact + run registry (RR-3 §9.3).")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--pin", metavar="ARTIFACT_FILENAME", help="pin the gate to this file in the artifact dir")
-    g.add_argument("--verify", action="store_true", help="verify the committed pin against the artifact")
+    g.add_argument("--verify", action="store_true", help="verify the committed pin against both files")
     ap.add_argument("--note", default="", help="why this artifact (recorded in the pin)")
     a = ap.parse_args(argv)
     if a.pin:
         pin = write_pin(a.pin, note=a.note)
-        print(f"pinned {pin['artifact']} sha256={pin['sha256']} -> {DEFAULT_PIN_PATH} (commit it to take effect)")
+        print(f"pinned artifact {pin['artifact']['file']} + registry {pin['registry']['file']} "
+              f"({pin['registry']['rows_at_pin']} rows) -> {DEFAULT_PIN_PATH} (commit it to take effect)")
         return 0
     try:
         art = pinned_n_effective_artifact()
+        reg = verify_pinned_registry()
     except HonestNUnavailableError as exc:
         print(f"PIN INVALID: {exc}")
         return 3
-    print(f"PIN OK: {art.name} matches its pinned sha256")
+    print(f"PIN OK: {art.name} and {reg.name} both match their pinned sha256")
     return 0
 
 

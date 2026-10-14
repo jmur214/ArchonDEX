@@ -127,7 +127,8 @@ def test_correlated_n_fails_closed_on_missing_or_malformed_artifact(tmp_path):
         compute_n_effective_correlated(reg, artifact_dir=tmp_path, pin_path=pin)
     bad = tmp_path / "n_effective_2026-01-01.json"
     bad.write_text(json.dumps({"rho_bar": 0.5}))
-    pin.write_text(json.dumps({"artifact": bad.name, "sha256": mbl.sha256_file(bad)}))
+    pin.write_text(json.dumps({"artifact": {"file": bad.name, "sha256": mbl.sha256_file(bad)},
+                               "registry": {"file": reg.name, "sha256": mbl.sha256_file(reg)}}))
     with pytest.raises(HonestNUnavailableError, match="gate_inputs"):
         compute_n_effective_correlated(reg, artifact_dir=tmp_path, pin_path=pin)
 
@@ -244,8 +245,8 @@ def test_layer4_the_cycle_resolves_N_from_ITS_OWN_root(tmp_path):
     _registry(obs / "run_registry.sqlite", 50)
     art = _artifact(obs, rho=0.43, comp=0.16)
     (tmp_path / "config").mkdir()
-    pin = tmp_path / "config" / "n_effective_pin.json"
-    pin.write_text(json.dumps({"artifact": art.name, "sha256": mbl.sha256_file(art)}))
+    pin = tmp_path / "config" / "honest_n_pin.json"
+    mbl.write_pin(art.name, artifact_dir=obs, db_path=obs / "run_registry.sqlite", pin_path=pin)
     info = mbl.resolve_cycle_n_trials(10, db_path=obs / "run_registry.sqlite", artifact_dir=obs,
                                       pin_path=pin)
     assert info["source"] == "registry_correlated" and info["batch_len"] == 10

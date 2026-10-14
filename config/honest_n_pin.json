@@ -1,0 +1,14 @@
+{
+  "schema": "honest_n_pin/v1",
+  "artifact": {
+    "file": "n_effective_2026-09-30.json",
+    "sha256": "cef514049b4542d1d4a600a65cfe4bf8cc533276c937abb0edc57316ce03b308"
+  },
+  "registry": {
+    "file": "run_registry.sqlite",
+    "sha256": "b3df6a15e24c0e5e85955837d8a8b60a7694450bb2c6d9b1102bca05c7ba350c",
+    "rows_at_pin": 231
+  },
+  "pinned_on": "2026-10-13",
+  "note": "Both honest-N inputs as RR-3 merged on (e1f51df) and R reviewed: the 2026-09-30 executed-run universe artifact (1,322 runs -> 252 distinct; gate_inputs rho 0.4325 / ONC 0.1598) and the run registry (231 rows: 125 runs + 106 ledger). Pinned 2026-10-13 under RR-3 \u00a79.3 with R's addition (registry pinned too)."
+}
