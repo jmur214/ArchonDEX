@@ -289,9 +289,15 @@ def _honest_n_fixture(root, n_runs: int = 231, rho: float = 0.43, comp: float = 
     the temp root the two inputs RR-3 requires, in the exact shape of D's helpers
     (`tests/test_honest_n_rr3.py::_registry` / `::_artifact`): a `runs` table with rows,
     and an `n_effective_<date>.json` whose `gate_inputs` carry numeric rho_bar and
-    onc_compression. Returns the N_eff RR-3 will compute from them."""
+    onc_compression. Returns the N_eff RR-3 will compute from them.
+
+    RR-3 §9.3 (the pin, merged after this fixture): the cycle now verifies BOTH inputs against
+    `<root>/config/honest_n_pin.json`, so the temp root gets its own pin, written by the same
+    writer production uses, and the expected N is computed THROUGH that pin. Without it the
+    fixture's 231-row registry was checked against the REPO's pin and refused (sha mismatch)."""
     import json, sqlite3
     from core.measurement.mbl_gate import compute_n_effective_correlated
+    from scripts.honest_n_pin import write_pin
     obs = root / "data" / "observability"
     obs.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(obs / "run_registry.sqlite")
@@ -300,7 +306,11 @@ def _honest_n_fixture(root, n_runs: int = 231, rho: float = 0.43, comp: float = 
     c.commit(); c.close()
     (obs / "n_effective_2026-10-13.json").write_text(json.dumps(
         {"gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
-    return compute_n_effective_correlated(obs / "run_registry.sqlite", artifact_dir=obs)
+    pin = root / "config" / "honest_n_pin.json"
+    pin.parent.mkdir(parents=True, exist_ok=True)
+    write_pin("n_effective_2026-10-13.json", artifact_dir=obs, db_path=obs / "run_registry.sqlite",
+              pin_path=pin, note="test fixture")
+    return compute_n_effective_correlated(obs / "run_registry.sqlite", artifact_dir=obs, pin_path=pin)
 
 
 def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts, with_honest_n: bool = True):
