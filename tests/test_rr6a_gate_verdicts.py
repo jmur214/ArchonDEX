@@ -302,7 +302,8 @@ def test_gates_5_and_7_with_arms_never_replay_universe_A_signals(monkeypatch):
 # Gate 7 in production: the substrate-B build (the swallowed NameError)
 # --------------------------------------------------------------------------- #
 def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1", "SB2"],
-                 validate_raises=None, hunt_raises=None, seen=None, with_spy=True, regime_raises=None):
+                 validate_raises=None, hunt_raises=None, seen=None, with_spy=True, regime_raises=None,
+                 queued_raises=None):
     """The REAL `_run_discovery_cycle` with only upstream work stubbed (R's F2 pattern),
     plus a resolvable historical universe so the substrate-B build has data. `seen` is
     filled as the cycle runs, so a test can inspect it even when the cycle raises."""
@@ -324,9 +325,11 @@ def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1",
         return []
     monkeypatch.setattr(dmod.DiscoveryEngine, "hunt", _hunt)
     monkeypatch.setattr(dmod.DiscoveryEngine, "generate_candidates", lambda self, **kw: [])
-    monkeypatch.setattr(dmod.DiscoveryEngine, "get_queued_candidates",
-                        lambda self, status="candidate": [{"edge_id": "cand_0", "status": "candidate",
-                                                           "params": {}}])
+    def _queued(self, status="candidate"):
+        if queued_raises is not None:
+            raise queued_raises
+        return [{"edge_id": "cand_0", "status": "candidate", "params": {}}]
+    monkeypatch.setattr(dmod.DiscoveryEngine, "get_queued_candidates", _queued)
     monkeypatch.setattr(dmod.DiscoveryEngine, "save_candidates",
                         lambda self, cands: seen["saved"].extend((c["edge_id"], c["status"]) for c in cands))
 

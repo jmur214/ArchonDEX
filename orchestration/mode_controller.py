@@ -1223,6 +1223,7 @@ class ModeController:
             _diag_log_path = _os_diag.environ.get("DISCOVERY_DIAG_LOG") or None
             _diag_per_cand_timeout = int(_os_diag.environ.get("DISCOVERY_DIAG_TIMEOUT_SEC", "0"))
 
+            _stage = "load queue"     # R's note: a refused registry read is labelled by its own stage
             queued = discovery.get_queued_candidates(status="candidate")
             batch = queued[:_diag_batch_cap]
             print(f"[DISCOVERY] {len(queued)} candidates queued for validation ({len(batch)} this cycle).")

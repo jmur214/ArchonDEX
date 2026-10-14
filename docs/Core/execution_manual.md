@@ -1262,6 +1262,18 @@ Feature ids are checked against the registry, never typed from memory. An id tha
 nothing makes the foundry harness sweep zero features and print an "honest null" with exit 0
 (RR-1 §6.6). List the ids with `get_feature_registry().list_features()`.
 
+## Discovery's registry write — fail closed, atomic (added 2026-10-14)
+
+`DiscoveryEngine.save_candidates` / `get_queued_candidates` REFUSE (`RegistryUnreadableError`) when
+`data/governor/edges.yml` exists but is unparseable, empty, or not an edge registry. They never treat it as empty,
+and the file is left byte-untouched. An absent file is the only empty registry. Writes are atomic: the registry is
+serialised first, written to `.edges.yml.tmp-<pid>`, fsynced, then renamed over `edges.yml`. A failed attempt
+leaves that temp file behind as evidence.
+
+```bash
+python scripts/registry_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
+```
+
 ## Honest N — the gate's inputs (RR-3, added 2026-10-13)
 
 Discovery Gate 0/8 read two inputs, both FAIL CLOSED and both **PINNED** by the committed pointer
