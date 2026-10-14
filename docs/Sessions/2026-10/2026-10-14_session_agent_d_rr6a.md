@@ -1,4 +1,4 @@
-# Session Summary: 2026-10-14 (Agent D) — the push record, a pin-composition fix, the T-196 kill table, RR-6a
+# Session Summary: 2026-10-14 (Agent D) — the push record, a pin-composition fix, the T-196 kill table, RR-6a (+2 fixups), the edges.yml unit
 
 ## What was worked on
 
@@ -10,8 +10,15 @@
   - Of the 36 records, 34 name Gate 1 as the killer. Four of those are exact-zero contributions (blind or
     absorbed), so they are not verdicts.
   - `triple_witching_premium` failed no gate that rendered a verdict.
-- **RR-6a** (referee, propose-only): `c98211457f1c6ac432e7d6429d0d5a55f4ea78bc` on
-  `fix/referee-rr6a-gate-verdicts`, waiting for R's independent review.
+- **RR-6a** (referee, propose-only) on `fix/referee-rr6a-gate-verdicts`: `c982114` → fixup `413dcee` (the director's
+  rulings: (a) `run_evolution_cycle` passes the production window; (b) the per-candidate handler catches only the
+  diagnostic `TimeoutError`; (c) the cycle fails loudly with the stage named and a `cycle_failure` row) → fixup 2
+  `85508785b1e012ec8be1f0582307f4b102dfb0ca` (the regime step refuses instead of hunting context-free). 18 of 18
+  reversion cases bite; with R.
+- **The edges.yml unit** (`fix/engine-d-registry-write-fail-closed` @ `6e207904c3449b5936e40ace2c58549d6488c03d`).
+  An unreadable registry refuses and is left byte-untouched, and writes are atomic. With the old write, a dump
+  error left the registry at the empty-file sha. With R; it merges clean with RR-6a.
+- **News-panel tests** compare against the repo root (`8cd65ea`). The suite now passes from any worktree.
 
 ## What was decided
 
@@ -46,6 +53,14 @@
   candidate. Cloud availability is unverified.
 
 ## Pick up next time
+
+- **Hold until R reports** on RR-6a (`8550878`) and the edges.yml unit (`6e20790`). Then:
+  - apply R's notes as fixups and give the director the exact hashes;
+  - after both merge, run `scripts/sync_docs.py` once. The `engine_d_discovery/index.md` regeneration was
+    deliberately left out of both branches;
+  - build the **Engine F registry-write unit** from the outbox brief, after one ruling: does a failed save raise
+    out of the production backtest's post-run path, or route to the journal?
+  - **The constraint:** no Discovery promotion cycle until RR-6a AND the edges.yml fix are both on main.
 
 - When R's verdict on RR-6a (`c982114`) arrives: apply notes as pre-merge fixups and give the director the
   **exact** new hash.
