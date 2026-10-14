@@ -40,7 +40,8 @@ sys.path.insert(0, str(ROOT))
 
 # RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
 # failed Gate 4 for every candidate). Same reader production Discovery uses.
-from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+from engines.engine_d_discovery.thresholds import (  # noqa: E402  (R's F3: was orchestration.mode_controller)
+    discovery_significance_threshold as _discovery_significance_threshold)
 
 WINDOW_START = "2024-01-01"
 WINDOW_END = "2024-03-31"  # 3 months — keeps cap=3 cross-check tractable

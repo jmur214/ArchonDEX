@@ -21,6 +21,13 @@
 - **Backticks inside a double-quoted `git commit -m` are command substitution** — the RR-6 brief's merge message (75ad730) lost the word `timeframe` ("reads  at :1283"); the brief itself is correct. Long messages go through `-F`.
 - **The agents corrected the director three times in one night** (the sign, the first-artifact for the te fix, the RR-7 D1 premise). That is the system working.
 
+## What was learned (afternoon of 10-14)
+
+- **Verify a merge by `git log`, never by the absence of an error.** A heredoc-fed `git merge -F -` with redirections failed silently; the reconciliation note cited a file not yet on main for one commit. Long messages go through `-F <file>` written BEFORE the merge command; the merge is confirmed by `git merge-base --is-ancestor`.
+- **A failing assignment under `set -e` aborts before the commit** — a merge was left staged (no commit) once, and once a resolution script asserted and aborted before writing, so the merge commit carried conflict markers for one commit (fixed the next commit). Resolution scripts write first, assert never on regexes; commit only after `grep -c '<<<<<<<'` is 0.
+- **After EACH merge, run every test file that touches a changed module** — not only after the last. RR-2 then the pin broke RR-2's fixture (composition); caught only by the full-suite record D produced before the push.
+- **The main-tree suite hang is now three-for-three** (10-08 ×2, 10-14): state U, no sockets, at the first `_drive_pulse`. A worktree run of the same commit does not hang. B's finding stands; until fixed, the push record comes from a worktree run.
+
 ## Pick up next time
 
 - A's RR-2 suite → RR-2 merge → pin merge (1bae7eb) → one full suite on main → **push on the user's word** (ask stands, 10-14 07:15). After the push: B's 07:17 watch reports relay_gap's first row + the backup's first push; D uploads the mirror snapshot (R1); B's read-side-403-as-denied unit; E's bundled te-guard + loc unit, then the acct-3 redeploy with the user's confirmation; C's window-vs-book result and harness fix (→ R); D's RR-6a after RR-2; A's B-1 §11 step 0 + smoke, then the run.

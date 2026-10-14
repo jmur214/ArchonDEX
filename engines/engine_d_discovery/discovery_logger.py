@@ -85,6 +85,11 @@ class DiscoveryLogger:
             "universe_b_sharpe": result.get("universe_b_sharpe"),
             "universe_b_n_tickers": result.get("universe_b_n_tickers"),
             "passed_all_gates": result.get("passed_all_gates", False),
+            # RR-6a: the tri-state verdict per gate and why a candidate was refused.
+            # None means validate_candidate rendered no verdicts at all (it raised or
+            # timed out) — recorded as absent, never as a pass or a fail.
+            "gate_verdicts": result.get("gate_verdicts"),
+            "promotion_refusals": result.get("promotion_refusals"),
             "promoted": promoted,
         })
 
@@ -103,4 +108,15 @@ class DiscoveryLogger:
             "validated": n_validated,
             "promoted": n_promoted,
             "failed": n_failed,
+        })
+
+    def log_cycle_failure(self, stage: str, error: str, notes: Optional[List[str]] = None) -> None:
+        """RR-6a fixup (ruling (c)): a cycle that FAILED says so in the log, naming the stage
+        (and, for a validation, the candidate) — it no longer ends as one WARN line on stdout.
+        `notes` carries the exception's own notes (validate_candidate adds candidate + last gate)."""
+        self._write({
+            "event": "cycle_failure",
+            "stage": stage,
+            "error": error,
+            "notes": list(notes or []),
         })

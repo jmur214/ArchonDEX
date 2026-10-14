@@ -127,15 +127,28 @@ class TestRecordNews:
 # The ROOT fix — D's module runs in-repo (no agent-d hijack)
 # ===================================================================== #
 class TestRepoRelativeRoot:
+    # 2026-10-14: these compared against the literal 'trading_machine-agent-d', so they failed
+    # whenever the suite ran FROM that worktree (where the repo-relative path correctly contains
+    # it). The intent is "THIS repo, never a FOREIGN worktree" — so compare against this repo's
+    # own root, which holds in every worktree.
+    REPO = __import__("pathlib").Path(__file__).resolve().parents[1]
+
     def test_news_panel_root_is_this_repo_not_hardcoded(self):
         from intelligence import news_panel
         # PANEL_DIR must live under THIS repo, never a foreign absolute worktree
-        assert "trading_machine-agent-d" not in str(news_panel.PANEL_DIR)
-        assert news_panel.PANEL_DIR.parts[-3:] == ("data", "intel", "news_panel")
+        assert news_panel.PANEL_DIR == self.REPO / "data" / "intel" / "news_panel"
 
     def test_build_script_does_not_hijack_syspath(self):
         import sys
         import importlib
+        from collections import Counter
+        from pathlib import Path
         import scripts.build_news_panel_t289  # noqa: F401
-        importlib.reload(scripts.build_news_panel_t289)
-        assert not any("trading_machine-agent-d" in p for p in sys.path)
+        saved = list(sys.path)
+        try:
+            importlib.reload(scripts.build_news_panel_t289)
+            added = Counter(sys.path) - Counter(saved)       # what the script itself inserted
+        finally:
+            sys.path[:] = saved
+        foreign = [p for p in added if Path(p).resolve() != self.REPO]
+        assert not foreign, f"the build script put a foreign path on sys.path: {foreign}"

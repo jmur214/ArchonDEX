@@ -223,8 +223,11 @@ def _make_cand_spec():
 
 
 def test_gate_7_skipped_when_substrate_b_data_map_is_none(monkeypatch):
-    """Default behaviour: data_map_substrate_b=None → gate skipped, candidate
-    not blocked by substrate transfer (gate_7_passed=True, gate_7_evaluated=False)."""
+    """RR-6a: data_map_substrate_b=None → Gate 7 is NOT_EVALUATED, and a required gate
+    that rendered no verdict REFUSES. This test used to assert the defect itself —
+    gate_7_passed=True and passed_all_gates=True for a gate that never ran. (The
+    reversion-proof lock, with every other required gate PASSING, is
+    tests/test_rr6a_gate_verdicts.py.)"""
     data_map, idx = _make_synthetic_dfs()
     rets = pd.Series(0.001, index=idx[1:])
     _wire_validate_candidate_happy_path(
@@ -243,11 +246,13 @@ def test_gate_7_skipped_when_substrate_b_data_map_is_none(monkeypatch):
         candidate_default_weight=1.0,
         alpha_config={},
         n_trials_for_dsr=1,   # T-336(b): isolate Gate 7 from the new honest-N Gate 8
-        # data_map_substrate_b NOT provided → Gate 7 skipped
+        # data_map_substrate_b NOT provided → Gate 7 NOT_EVALUATED
     )
     assert result["gate_7_evaluated"] is False
-    assert result["gate_7_passed"] is True
-    assert result["passed_all_gates"] is True
+    assert result["gate_7_passed"] is False
+    assert result["gate_verdicts"]["gate_7"]["verdict"] == "not_evaluated"
+    assert any(r.startswith("gate_7: not_evaluated") for r in result["promotion_refusals"])
+    assert result["passed_all_gates"] is False
 
 
 def test_gate_7_fails_when_substrate_b_contribution_is_negative(monkeypatch):
@@ -345,8 +350,8 @@ def test_gate_7_passes_when_substrate_b_holds_within_drift(monkeypatch):
 
 
 def test_gate_8_skipped_when_n_trials_is_one(monkeypatch):
-    """Default n_trials_for_dsr=1 → no selection-bias correction needed.
-    Gate skipped (gate_8_evaluated=False, gate_8_passed=True)."""
+    """RR-6a: an explicit n_trials_for_dsr=1 applies no multiple-testing correction —
+    Gate 8 is NOT_EVALUATED, never a pass (it used to read gate_8_passed=True)."""
     data_map, idx = _make_synthetic_dfs()
     rets = pd.Series(0.001, index=idx[1:])
     _wire_validate_candidate_happy_path(
@@ -369,7 +374,10 @@ def test_gate_8_skipped_when_n_trials_is_one(monkeypatch):
         n_trials_for_dsr=1,
     )
     assert result["gate_8_evaluated"] is False
-    assert result["gate_8_passed"] is True
+    assert result["gate_8_passed"] is False
+    assert result["gate_verdicts"]["gate_8"]["verdict"] == "not_evaluated"
+    assert "n_trials_for_dsr=1" in result["gate_verdicts"]["gate_8"]["reason"]
+    assert result["passed_all_gates"] is False
 
 
 def test_gate_8_fails_under_multiple_testing_when_dsr_below_threshold(monkeypatch):
