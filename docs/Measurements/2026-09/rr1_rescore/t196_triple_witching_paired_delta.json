@@ -1,0 +1,61 @@
+{
+ "cell": "t196_triple_witching",
+ "kind": "feature",
+ "feature": "triple_witching_premium",
+ "n_days": 3269,
+ "gate": [
+  {
+   "series": "with_candidate_before",
+   "recomputed": 1.3355262791498719,
+   "recorded": 1.3355262791498783,
+   "ok": true
+  },
+  {
+   "series": "baseline_before",
+   "recomputed": 1.2442619693322,
+   "recorded": 1.244261969332206,
+   "ok": true
+  },
+  {
+   "series": "with_candidate_after",
+   "recomputed": 1.1127586810897487,
+   "recorded": 1.1127586810897534,
+   "ok": true
+  },
+  {
+   "series": "baseline_after",
+   "recomputed": 0.9207051379992146,
+   "recorded": 0.9207051379992217,
+   "ok": true
+  }
+ ],
+ "deltas": {
+  "d_with_candidate_sharpe": {
+   "point": -0.22276759806012314,
+   "ci95": [
+    -0.5645315421389294,
+    0.12570550976835312
+   ],
+   "share_le_0": 0.882
+  },
+  "d_baseline_sharpe": {
+   "point": -0.3235568313329853,
+   "ci95": [
+    -0.6962994015821954,
+    0.04413014891019558
+   ],
+   "share_le_0": 0.95
+  },
+  "d_contribution_sharpe": {
+   "point": 0.10078923327286216,
+   "ci95": [
+    -0.26749347151443126,
+    0.504978137992946
+   ],
+   "share_le_0": 0.306
+  }
+ },
+ "method": "paired moving-block bootstrap, block 19, 1000 iter, seed 0, same block starts for every series",
+ "n_trials": 0,
+ "prereg": "PAIRED_TEST_PREREG.md"
+}

@@ -1,0 +1,49 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "t196_january",
+ "arm": "after",
+ "kind": "feature",
+ "window": null,
+ "feature": "january_effect",
+ "branch_head": "12708e9",
+ "getter": "cash (RR-1 fix)",
+ "started": "2026-10-14T06:03:21",
+ "disk_free_gb_start": 12.6,
+ "census_expected_dormant": "news_sentiment_edge",
+ "status": "ok",
+ "rc": 0,
+ "why": null,
+ "harness_rows": [
+  {
+   "feature": "january_effect",
+   "ticker_independent": true,
+   "passed_all_gates": false,
+   "first_failed_gate": "gate_1",
+   "baseline_sharpe": 0.9207051379992217,
+   "with_candidate_sharpe": 0.9714950344514269,
+   "contribution_sharpe": 0.05078989645220522,
+   "attribution_sharpe": 0.26646073754643174,
+   "robustness_survival": 0.0,
+   "significance_p": 1.0,
+   "gates": {
+    "g1": false,
+    "g2": false,
+    "g3": null,
+    "g4": false,
+    "g5": false,
+    "g6": false,
+    "g7": true,
+    "g8": true
+   },
+   "wall_s": 7750.8,
+   "error": null
+  }
+ ],
+ "series_file": "t196_january_after.series.csv",
+ "series_capture": "treatment_effect_returns call #1 (with_candidate, baseline)",
+ "wall_min": 129.2,
+ "disk_free_gb_end": 12.8,
+ "census_canonical": true,
+ "census_condition": "candidate census PASSED (validate_candidate Gate-1 assert_census; the full-book census does not run on this path) under CENSUS_EXPECTED_DORMANT=news_sentiment_edge"
+}

@@ -7,7 +7,7 @@ branch: fix/referee-rr1-sizing-capital
 type: REFEREE REPAIR PROPOSAL — propose-only. The referee is never autonomously modified.
 route: Agent R (independent review) → director → the USER rules on merge.
 n_trials: 0 — a correction, not a hypothesis. Every re-run below is labeled RE-SCORE.
-status: MERGED (70837b2). §1-3, §5, §6 COMPLETE. §4 RE-SCORE — anchor pair COMPLETE (paired ΔSharpe +0.238, 95% CI [−0.058, +0.508] — direction favors the fix, not established); three T-196 feature pairs RUNNING (relaunched 2026-10-13). §4 is written on docs/rr1-section-4.
+status: MERGED (70837b2). §1-6 COMPLETE. §4 RE-SCORE COMPLETE 2026-10-14 (8/8 cells). Anchor paired ΔSharpe +0.238 [−0.058, +0.508]; the 2012–2024 baseline book −0.324 [−0.696, +0.044]. The sign is not one direction across books, and nothing is established at 95%. §4 is written on docs/rr1-section-4.
 ---
 
 # RR-1 — the backtester sized every position from a frozen capital figure
@@ -146,7 +146,7 @@ passing.
 
 ---
 
-## §4 — RE-SCORE — anchor pair **COMPLETE**; feature pairs **RUNNING**
+## §4 — RE-SCORE — **COMPLETE** (8/8 cells, 2026-10-14 12:35)
 
 ### Result — the 26-year anchor pair
 
@@ -196,6 +196,59 @@ and it does not affect the pair.
 
 Analysis: `scripts/rr1_paired_delta.py anchor` → `anchor26_paired_delta.json`.
 
+### Result — the three T-196 feature pairs (2012 → 2024)
+
+**No feature-pair difference is established at 95%. The baseline book moves the opposite way
+from the anchor.** All six cells ran on `12708e9` and finished `ok`, each with one error-free
+row and the candidate census PASSED. The baseline book is identical in every cell of an arm
+(1.2443 before, 0.9207 after), as it must be.
+
+| feature (registry id) | baseline Sharpe | with-candidate Sharpe | contribution | first failed gate |
+|---|---|---|---|---|
+| `triple_witching_premium` | 1.244 → 0.921 | 1.336 → 1.113 | +0.091 → **+0.192** | gate 1 → **gate 3** |
+| `january_effect` | 1.244 → 0.921 | 1.224 → 0.971 | −0.020 → +0.051 | gate 1 → gate 1 |
+| `mom_12_1` | 1.244 → 0.921 | 0.877 → 0.856 | −0.367 → −0.064 | gate 1 → gate 1 |
+
+The paired test is Part 2 of the pre-registration, written before any series existed. It uses
+the same block starts for all four series of a pair (block 19, 1,000 iterations, seed 0) over
+3,269 common days. **Sanity gate first:** all twelve series reproduce their recorded Sharpe to
+6 decimals.
+
+| pair | Δ with-candidate Sharpe | Δ contribution |
+|---|---|---|
+| `triple_witching_premium` | −0.223 [−0.565, +0.126] · 88.2% ≤ 0 | +0.101 [−0.267, +0.505] · 30.6% ≤ 0 |
+| `january_effect` | −0.253 [−0.669, +0.146] · 88.4% ≤ 0 | +0.071 [−0.251, +0.378] · 34.4% ≤ 0 |
+| `mom_12_1` | −0.021 [−0.321, +0.301] · 55.9% ≤ 0 | +0.302 [−0.182, +0.792] · 9.9% ≤ 0 |
+| **Δ baseline Sharpe** (the same book in all three) | **−0.324 [−0.696, +0.044]** · 95.0% ≤ 0 | |
+
+**What this says.**
+
+1. **The 2012–2024 baseline book moves DOWN under the fix**: −0.324, with the CI's upper end at
+   +0.044. That is the opposite sign to the 26-year anchor (+0.238), and, like the anchor, it is
+   not established at 95% (only just). **The direction of RR-1's effect on Sharpe is not one sign
+   across the two measured books.** The two differ in window (2000–2025 against 2012–2024) and in
+   harness: `run_isolated`'s book against `validate_candidate`'s baseline book, built by
+   `run_backtest_pure`. Whether the two are the same edge set was not checked here. These records
+   therefore cannot say whether the window or the book explains the disagreement, and no cause
+   is asserted.
+2. **All three contributions rise, but that is not three confirmations.** Δcontribution =
+   Δwith − Δbaseline, and the −0.324 baseline term is shared, so most of each rise is the
+   baseline falling. No contribution Δ is established.
+3. **RR-1 alone changes how far one feature gets.** `triple_witching_premium` clears Gate 1 and
+   robustness (survival 0.975) under the fix and dies at Gate 3, where it died at Gate 1 under the
+   bug. This is a fact about the gauntlet's path, not a verdict. Gate 4 remains RR-2-affected, and
+   these runs precede RR-3 (DSR at N_trials 1). It does show that the T-196 record is
+   sizing-sensitive in at least one case of three, consistent with its demotion to UNTESTED (§5).
+   It says nothing about the other 32 features.
+
+**Proposed, not run.** The anchor pair restricted to 2012-01-03 → 2024-12-31 would separate
+window from book in seconds, using the anchor's already-recorded series. It is motivated by this
+result, so it needs its own pre-registration before it is computed.
+
+Analysis: `scripts/rr1_paired_delta.py feature` → `<cell>_paired_delta.json`. The proof of
+hook inertness, the uncaptured proof record (row identical to the captured re-run, `wall_s`
+excepted), is in `inertness_proof/`.
+
 ### Acceptance evidence — read this before any 26-year number
 
 **The harness would have faked a null result, and this is how it was ruled out.**
@@ -237,9 +290,9 @@ full ×2 there was not affordable locally. That is stated here rather than impli
 | cell | harness | before (bug) point / ci_low | after (fix) point / ci_low | census | bootstrap n |
 |---|---|---|---|---|---|
 | 26-yr baseline (2000-01-01 → 2025-12-31) | `run_isolated` | 0.605 / 0.245 | 0.843 / 0.437 | † CANONICAL | 500 ‡ |
-| T-196 `triple_witching_premium` (2012 → 2024) | foundry harness | *running* | *queued* | † | — |
-| T-196 `january_effect` | foundry harness | *queued* | *queued* | † | — |
-| T-196 `mom_12_1` | foundry harness | *queued* | *queued* | † | — |
+| T-196 `triple_witching_premium` (2012 → 2024) | foundry harness | contrib +0.091 | contrib +0.192 | † PASSED | paired, 1,000 |
+| T-196 `january_effect` | foundry harness | contrib −0.020 | contrib +0.051 | † PASSED | paired, 1,000 |
+| T-196 `mom_12_1` | foundry harness | contrib −0.367 | contrib −0.064 | † PASSED | paired, 1,000 |
 
 The feature ids are the registry's own. This table first named two of them `triple_witching`
 and `january`, which select **nothing**; see *The feature cells' first attempt* below. The cell
@@ -308,7 +361,9 @@ The campaign ran in C's worktree (`trading_machine-agent-c`) throughout, but not
 | 10-08 19:28 → 22:23 | anchor26 / after | the director, as caretaker of C's campaign | `5c05b65` |
 | 10-08 22:23 | t196_triple_witching / before — **FAILED**, 0 features | the director | `5c05b65` |
 | 10-13 20:02 | the same cell re-run — **FAILED** identically, log now persistent | the director | `5c05b65` |
-| 10-13 20:08 → | proof cell with corrected ids, then the rest | C | `5c05b65`, then `12708e9` |
+| 10-13 20:08 → 22:22 | proof cell, corrected id, no capture: one error-free row | C | `5c05b65` |
+| 10-13 22:22 → 10-14 00:30 | the same cell WITH capture: row identical bit for bit, so the hook is inert | C | `12708e9` |
+| 10-14 00:30 → 12:35 | the remaining five feature cells: all `ok` | C | `12708e9` |
 
 **One code state throughout.** `0f54716` and `5c05b65` differ from each other only in docs. The
 feature cells after the proof run on `12708e9` (branch `rr1/rescore-series-capture`, off
@@ -500,6 +555,11 @@ The fixture contradicts the brief's expectation (§3). Nothing here predicts the
 fixture (ΔSharpe +0.238), but its paired 95% CI is [−0.058, +0.508] (§4). An early reading
 recorded the sign as simply "UP". That was a point-estimate claim, and it was withdrawn under
 `[NN-SHARPE-CI]`.
+
+**Update 2026-10-14 — and not one sign.** The T-196 cells' baseline book over 2012–2024 moves the
+other way: −0.324 [−0.696, +0.044] (§4). Neither direction is established on either book. The
+question this section posed now has a sharper form: does the window or the book explain the
+disagreement? §4 proposes the test that would separate them.
 
 ### 6.6 The foundry harness fails open on an unknown feature id
 
