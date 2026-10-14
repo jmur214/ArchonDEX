@@ -30,6 +30,13 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: USER/DIRECTOR-GATED. Dispatch RR-1, RR-2, RR-3, RR-7 in parallel (P0); do not quote any new equity-book number until RR-1 and RR-5 merge; run B-1 (raw-signal decile re-evaluation) as the first research brief — it does not touch the referee.
 - Anchor: `config/alpha_settings.prod.json:37` contains `"news_sentiment_edge"` — (11) RR-7
 
+### [MEDIUM] The foundry's calendar tables start in 2018 — three calendar features are BLIND for 2000–2017, and every earlier test of them on pre-2018 data was blind (A, B-1 pre-data census, 2026-10-14)
+- Engine: Engine A / foundry (`FOMC_DATES`, `US_MARKET_HOLIDAYS`)
+- First flagged: 2026-10-14, B-1's pre-data calendar census (A); first artifact: the harness smoke's `halt.json`
+- Description: both tables begin in 2018. Measured by execution on every trading day 2000–2025: `fomc_drift` and `pre_fomc_reduce` are a constant 0.0 on every day of 2000–2017; `pre_holiday` has 2 non-zero days in those 18 years — the third spelling of "missing" (zeros, not NaN, not absent) across 18 of 26 years. The other seven calendar features are defined throughout (`january_effect` counts Jan 1 as a trading day before 2018, so it flags 4 days instead of 5 — it still varies). Consequence for the record: the T-196 foundry records of these three features (2012–2024, six of thirteen years blind) belong to the blind/absorbed class in `docs/Measurements/2026-10/t196_foundry_per_gate_kill_table.md`, not to the Gate-1 verdicts.
+- Status: OPEN. B-1 ruling 2026-10-14: the three are EXCLUDED from B-1's calendar family as structurally ineligible over the frozen window (10 → 7, one window; §8 compared as written; UNTESTED by B-1). Extending the tables to 2000 is its own propose-first foundry unit, queued in the program.
+- Recommended next step: the foundry's census should treat a constant-zero feature over a year as BLIND, not as a measured zero (the T-346 class); the table extension unit when scheduled.
+
 ### [HIGH] Engine A's EdgeRegistry is a third edges.yml writer with the wipe shape — live at IMPORT in 29 edge modules (R, 2026-10-14, proven on planted files)
 - Engine: Engine A (`engines/engine_a_alpha/edge_registry.py`) — with Engine D's `save_candidates` (fixed, `6e20790` with R) and Engine F's `lifecycle_manager._save_registry` / `evolution_controller.save_edges` (non-atomic `open("w")` inside a swallowing except; own unit)
 - First flagged: 2026-10-14, `docs/Audit/registry_fail_closed_review_agent_r_2026_10_14.md` §F1 (R's review of D's registry unit)
