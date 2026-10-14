@@ -196,6 +196,44 @@ REGISTRY: Tuple[Record, ...] = (
         "Evaluator output, regenerable by re-running the evaluator against the same "
         "substrate. A measurement artifact, not a forward record.",
     ),
+    Record(
+        path="data/research/edge_results.parquet", venue="local", status=EXEMPT,
+        writer="engines/engine_f_governance/evaluator.py", reason=
+        "The parquet twin of edge_results.csv — the same evaluator output, regenerable by "
+        "re-running the evaluator. Surfaced only when T-356b taught the census to see "
+        "parquet writers; same class, same exemption.",
+    ),
+
+    # ---- T-356b (2026-10-13): the census's OWN blind spot -------------------------------
+    # The first sweep's patterns knew .jsonl/.json/.log/.csv/.md and four write idioms;
+    # they could not see `sqlite3.connect` or `.to_parquet`. So the run registry — since
+    # RR-3 the FAIL-CLOSED input to Discovery Gate 0 and Gate 8 — was never classified.
+    # Found by D while scoping RR-3's Option B, i.e. by the census's own author.
+    Record(
+        path="data/observability/run_registry.sqlite", venue="local", status=KNOWN_GAP,
+        writer="core/observability/run_registry.py",
+        owner="D (RR-3 Option B registry redesign); shipping with B (RR-3 F5 / RR-7 manifest)",
+        reason="T-356b finding (2026-10-13). THE HONEST-N REGISTRY — since RR-3 merged "
+               "(e1f51df) the fail-closed source of N_raw for Discovery Gate 0 and Gate 8 — "
+               "is gitignored, untracked, in no S3 sync, ONE copy on ONE machine: T-337's "
+               "single-copy class, like finding #1. Its loss is worse than an outage: the "
+               "gate would halt (fail-closed, correct), but `rebuild()` UPSERTS from whatever "
+               "sits in local data/trade_logs/ that day, and the 125 run rows' directories "
+               "no longer exist anywhere, so a rebuild after loss would produce a SMALLER N "
+               "and LOOSEN the gate with no alarm. The 106 ledger rows are reconstructable "
+               "(backfill_run_registry_t336.py is idempotent); the 125 run rows are not.",
+    ),
+    Record(
+        path="data/observability/n_effective_*.json", venue="local", status=KNOWN_GAP,
+        writer="scripts/rr3_empirical_rho.py",
+        owner="D (RR-3 Option B); shipping with B (RR-3 F5 / RR-7 manifest)",
+        reason="T-356b finding (2026-10-13). THE ρ̄ ARTIFACT — the gate's OTHER fail-closed "
+               "input (its `gate_inputs`) — is local and gitignored too. Unlike the registry "
+               "it is regenerable, but only from the run evidence: S3 + local trade_logs, and "
+               "the local half keeps changing, so a regeneration measures a different "
+               "universe. Written from scripts/, which the census does not sweep, so it is "
+               "carried here by hand like the janitor's records.",
+    ),
 
     # ---- the inverse defect: RESOLVED BY RETIREMENT (T-355, 2026-09-16) --------------
     Record(
@@ -220,9 +258,13 @@ REGISTRY: Tuple[Record, ...] = (
 # --------------------------------------------------------------------------------------
 # artifact/code-derived scanning (read-only; never writes, never guesses)
 # --------------------------------------------------------------------------------------
+# T-356b: `sqlite3.connect` / `.to_parquet` and the .sqlite/.db/.parquet extensions were
+# missing, which hid the run registry — the honest-N source — from this census.
 _WRITE_IDIOM = re.compile(
-    r'\.open\(\s*["\']a|open\([^)]*["\']a["\']|\.write_text\(|json\.dump\(|\.to_csv\(')
-_DATA_PATH = re.compile(r'["\'](data/[A-Za-z0-9_./-]+\.(?:jsonl|json|log|csv|md))["\']')
+    r'\.open\(\s*["\']a|open\([^)]*["\']a["\']|\.write_text\(|json\.dump\(|\.to_csv\(|'
+    r'sqlite3\.connect\(|\.to_parquet\(')
+_DATA_PATH = re.compile(
+    r'["\'](data/[A-Za-z0-9_./-]+\.(?:jsonl|json|log|csv|md|sqlite|db|parquet))["\']')
 
 # Venues whose code is swept. Research/one-shot scripts are deliberately out of scope:
 # their outputs are measurement artifacts, not accruing records, and sweeping them would

@@ -63,14 +63,58 @@ def test_the_findings_are_on_the_record_and_closures_are_EXPLICIT():
     consumer rather than adding a writer. This lock objected to that edit, which
     is the lock working: a gap may leave this set only by being resolved on the
     record, never by being deleted from it. The closed one is asserted BELOW, so
-    the count going 5 → 4 is a statement, not an omission."""
+    the count going 5 → 4 is a statement, not an omission.
+
+    T-356b (2026-10-13) ADDED two, the same way: the census could not see SQLite or
+    parquet writers, so the honest-N inputs RR-3 made fail-closed were never
+    classified. 4 → 6 is likewise a statement — see the T-356b tests below."""
     gaps = {r.path for r in open_gaps()}
     assert gaps == {
         "data/state/autonomy_ledger.jsonl",
         "data/governor/lifecycle_history.csv",
         "data/governor/feedback_history.log",
         "data/research/discovery_log.jsonl",
+        "data/observability/run_registry.sqlite",
+        "data/observability/n_effective_*.json",
     }, f"the recorded gap set changed: {sorted(gaps)}"
+
+
+def test_T356b_the_census_sees_sqlite_and_parquet_writers(tmp_path):
+    """THE BLIND SPOT, locked by execution: a module that opens a SQLite store or
+    writes parquet under data/ must be FOUND by the scan. Before T-356b neither was —
+    which is how the run registry, the fail-closed honest-N source, went unclassified.
+    Reverting either pattern makes this fail."""
+    import core.durability_census as dc
+
+    pkg = tmp_path / "core"
+    pkg.mkdir()
+    (pkg / "store.py").write_text(
+        'import sqlite3\nDB = "data/observability/some_registry.sqlite"\n'
+        'def put(r):\n    sqlite3.connect(DB).execute("INSERT INTO t VALUES (?)", (r,))\n')
+    (pkg / "panel.py").write_text(
+        'P = "data/research/some_panel.parquet"\n'
+        'def save(df):\n    df.to_parquet(P)\n')
+    for d in ("paper_trader", "engines", "intelligence"):
+        (tmp_path / d).mkdir()
+
+    found = dc.scan_writers(tmp_path)
+    assert "data/observability/some_registry.sqlite" in found, "census blind to SQLite writers"
+    assert "data/research/some_panel.parquet" in found, "census blind to parquet writers"
+    v = dc.assert_durability(tmp_path)
+    assert any("some_registry.sqlite" in f and "UNREGISTERED WRITER" in f for f in v.failures)
+
+
+def test_T356b_the_honest_N_inputs_are_classified_as_owned_gaps():
+    """Both fail-closed inputs to Gate 0/8 — the registry (N_raw) and the ρ̄ artifact
+    (gate_inputs) — are on the record, owned, and say what their loss would DO."""
+    from core.durability_census import REGISTRY
+
+    by_path = {r.path: r for r in REGISTRY}
+    reg = by_path["data/observability/run_registry.sqlite"]
+    art = by_path["data/observability/n_effective_*.json"]
+    for r in (reg, art):
+        assert r.status == KNOWN_GAP and r.owner.strip() and "T-356b" in r.reason
+    assert "LOOSEN" in reg.reason, "the registry entry must state that a rebuild after loss loosens the gate"
 
 
 def test_finding_5_is_CLOSED_by_retirement_and_says_so():
