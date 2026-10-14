@@ -129,12 +129,20 @@ After this change:
     *registry-only keys preserved*, and *type changes*;
   - `--check` writes nothing and exits non-zero on any of them;
   - `--registry PATH` (`run_per_edge_isolation`'s second call writes the ISOLATED registry, not the default).
-- **Not yet ruled — R §4.3, flagged:**
-  - Discovery's cycle failure (RR-6a) raises BEFORE `performance_summary.json` is written, while Engine F's
-    raises AFTER it, carrying `post_run_failure`. R suggests the Discovery failure use the same field (`stage:
-    "discovery"`), so one census rule covers both;
-  - "successful save" needs defining per path for the history rule: on the journal path the save IS the journal
-    append.
+- **Ruled 2026-10-14 — R §4.3, YES: one failure shape for both post-run paths.** Discovery's cycle failure
+  (RR-6a) used to raise BEFORE `performance_summary.json`. It now follows Engine F's shape:
+  - `run_backtest` holds the failure and writes `performance_summary.json` carrying `post_run_failure: {stage:
+    "discovery", error_type, message}`;
+  - `assert_census` marks the run NON-CANONICAL on that field;
+  - THEN the run re-raises.
+
+  One census rule covers both paths, and the run's own artifacts exist with the failure stated instead of
+  vanishing. This supersedes RR-6a's accepted consequence ("raises before `performance_summary.json`"), with a
+  dated line in the RR-6a proposal §2b. It is in scope here because it is the same hold-then-raise code in
+  `mode_controller.run_backtest`.
+
+  **"Successful save" is defined per path, for the history rule:** the registry write on the direct path; the
+  journal append on the journal path.
 
 ## Who relies on import-time persistence today
 
@@ -207,6 +215,9 @@ Also kept:
 - **Engine F:** a planted dump error leaves the bytes untouched and raises; no history row is appended after a
   failed save; `post_run_failure` lands in the summary and the census says NON-CANONICAL; `run_backtest` writes
   the summary, THEN raises.
+- **Discovery (R §4.3):** a cycle failure inside `run_backtest(discover=True)` writes
+  `performance_summary.json` with `post_run_failure.stage == "discovery"`, the census says NON-CANONICAL, THEN it
+  raises. Reverting to raise-before-summary → no summary file.
 
 ## Sequencing
 
@@ -215,5 +226,7 @@ main, and the no-promotion constraint is lifted for the local path. Two steps re
 1. **The USER's go-ahead** on this three-engine design;
 2. **The USER's decision** on the three never-registered edges (archive or register), which must come before the
    first sync against the real file.
+   R found all three REFUTED in the ledger (T-122/T-174, T-123/T-129, T-135), which makes archiving the honest
+   default.
 
 The build is then propose-first, with R reviewing and the director merging.
