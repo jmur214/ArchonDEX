@@ -85,6 +85,11 @@ class DiscoveryLogger:
             "universe_b_sharpe": result.get("universe_b_sharpe"),
             "universe_b_n_tickers": result.get("universe_b_n_tickers"),
             "passed_all_gates": result.get("passed_all_gates", False),
+            # RR-6a: the tri-state verdict per gate and why a candidate was refused.
+            # None means validate_candidate rendered no verdicts at all (it raised or
+            # timed out) — recorded as absent, never as a pass or a fail.
+            "gate_verdicts": result.get("gate_verdicts"),
+            "promotion_refusals": result.get("promotion_refusals"),
             "promoted": promoted,
         })
 

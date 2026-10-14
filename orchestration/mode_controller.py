@@ -1267,10 +1267,13 @@ class ModeController:
 
             # Gate 7 (substrate transfer): build a historical-S&P 500 data_map
             # ONCE per cycle so all candidates measure substrate transfer
-            # against the same out-of-static-universe benchmark. Skipped
-            # gracefully if the membership parquet is missing or the loader
-            # raises — Gate 7 then defaults to skipped (gate_7_passed = True)
-            # via the validate_candidate signature, preserving legacy behavior.
+            # against the same out-of-static-universe benchmark.
+            # RR-6a: this block read a bare `timeframe` that was never bound, and
+            # its catch-all turned the NameError into "gate skipped" on EVERY cycle;
+            # a skipped Gate 7 then defaulted to PASSED. Now it reads
+            # `self.timeframe`, may still degrade on DATA unavailability (Gate 7 is
+            # then NOT_EVALUATED, which a required gate turns into a refusal), and
+            # never absorbs a programmer error.
             cycle_data_map_substrate_b: Optional[Dict[str, pd.DataFrame]] = None
             try:
                 from engines.data_manager.universe_resolver import (
@@ -1285,7 +1288,7 @@ class ModeController:
                     _sb_start = self.cfg_bt.get("start_date")
                     _sb_end = self.cfg_bt.get("end_date")
                 _cache_root = self.root / "data"
-                _cached = discover_cached_tickers(_cache_root, timeframe=timeframe)
+                _cached = discover_cached_tickers(_cache_root, timeframe=self.timeframe)
                 _static = list(self.cfg_bt.get("tickers", []))
                 _sb_tickers, _sb_info = resolve_universe(
                     static_tickers=_static,
@@ -1302,7 +1305,7 @@ class ModeController:
                     _sb_only = [t for t in _sb_tickers if t not in set(_static)]
                     if _sb_only:
                         cycle_data_map_substrate_b = self.dm.ensure_data(
-                            _sb_only, _sb_start, _sb_end, timeframe=timeframe,
+                            _sb_only, _sb_start, _sb_end, timeframe=self.timeframe,
                         )
                         print(
                             f"[DISCOVERY] Gate 7 substrate-B loaded: "
@@ -1318,7 +1321,10 @@ class ModeController:
                         f"reason={_sb_info.get('fallback_reason')}); gate skipped."
                     )
             except Exception as _sb_err:
-                print(f"[DISCOVERY] Gate 7 substrate-B build failed; gate skipped: {_sb_err}")
+                if isinstance(_sb_err, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
+                    raise
+                print(f"[DISCOVERY] Gate 7 substrate-B build failed; Gate 7 NOT_EVALUATED: "
+                      f"{type(_sb_err).__name__}: {_sb_err}")
                 cycle_data_map_substrate_b = None
             print(f"[DISCOVERY] Gate 0/8 honest N_eff = {cycle_n_trials_for_dsr:.2f} "
                   f"({_n_info['source']}); batch size = {len(batch)} (the pre-RR-3 N)")
@@ -1598,28 +1604,11 @@ class CachedCSVLiveFeed:
                 continue
         return out
 
-def _discovery_significance_threshold() -> float:
-    """RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
-    Fail-closed: a missing or non-numeric key raises rather than defaulting silently —
-    a silent default is how None went unnoticed for every Discovery cycle ever run."""
-    import json as _json
-    from pathlib import Path as _Path
-    cfg = _json.loads((_Path(__file__).resolve().parents[1]
-                       / "config" / "discovery_settings.json").read_text())
-    v = cfg["significance_threshold"]
-    if not isinstance(v, (int, float)) or not (0.0 < float(v) < 1.0):
-        raise ValueError(f"discovery_settings.significance_threshold invalid: {v!r}")
-    return float(v)
-
-
-def _discovery_gate2_threshold() -> float:
-    """RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
-    overwrite vs 0.60 in validate_candidate). Fail-closed on a missing/invalid key."""
-    import json as _json
-    from pathlib import Path as _Path
-    cfg = _json.loads((_Path(__file__).resolve().parents[1]
-                       / "config" / "discovery_settings.json").read_text())
-    v = cfg["gate2_survival_threshold"]
-    if not isinstance(v, (int, float)) or not (0.0 < float(v) <= 1.0):
-        raise ValueError(f"discovery_settings.gate2_survival_threshold invalid: {v!r}")
-    return float(v)
+# R's F3 (RR-6a): the gauntlet's threshold readers (RR-2) live with Engine D now —
+# engines/engine_d_discovery/thresholds.py — so no engine-side script imports the
+# orchestrator to learn a Discovery threshold. The names stay bound here because the
+# cycle above calls them; every in-repo script imports from Engine D.
+from engines.engine_d_discovery.thresholds import (  # noqa: E402
+    discovery_gate2_threshold as _discovery_gate2_threshold,
+    discovery_significance_threshold as _discovery_significance_threshold,
+)

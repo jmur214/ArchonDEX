@@ -205,6 +205,7 @@ def regress_returns_on_factors(
     edge_name: str = "?",
     min_observations: int = DEFAULT_MIN_OBSERVATIONS,
     hac_lag: Optional[int] = None,
+    already_excess: bool = False,
 ) -> Optional[FactorDecomp]:
     """OLS regression of excess returns on factor columns, HAC-NW t-stats.
 
@@ -214,12 +215,17 @@ def regress_returns_on_factors(
     Convention: `returns` is interpreted as the edge's daily return
     (NOT excess). RF is subtracted internally to form the regression's
     excess-return target.
+
+    `already_excess=True` (RR-6a, Gate 6): `returns` is ALREADY an excess return —
+    a with-minus-baseline attribution SPREAD — so RF is not subtracted again.
+    Subtracting it shifted the spread's α by −RF (a factor-neutral +2.5%/yr
+    spread read ≈ −2.5%/yr at RF 5%). The RF column is then not required.
     """
     if factor_cols is None:
         factor_cols = [c for c in DEFAULT_FACTOR_COLS if c in factors.columns]
     if not factor_cols:
         raise ValueError("No factor columns available in `factors`")
-    if "RF" not in factors.columns:
+    if not already_excess and "RF" not in factors.columns:
         raise ValueError("`factors` must include a RF column (risk-free rate)")
 
     aligned = pd.concat(
@@ -230,7 +236,7 @@ def regress_returns_on_factors(
     if len(aligned) < min_observations:
         return None
 
-    excess = (aligned["edge"] - aligned["RF"]).values
+    excess = (aligned["edge"] if already_excess else aligned["edge"] - aligned["RF"]).values
     X = aligned[factor_cols].values
     X_design = np.hstack([np.ones((len(excess), 1)), X])
     coefs, _, _, _ = np.linalg.lstsq(X_design, excess, rcond=None)

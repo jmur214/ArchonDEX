@@ -31,7 +31,8 @@ sys.path.insert(0, str(ROOT))
 
 # RR-2: the ONE configured Gate-4 threshold (was significance_threshold=None, which
 # failed Gate 4 for every candidate). Same reader production Discovery uses.
-from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+from engines.engine_d_discovery.thresholds import (  # noqa: E402  (R's F3: was orchestration.mode_controller)
+    discovery_significance_threshold as _discovery_significance_threshold)
 
 WINDOW_START = os.environ.get("PHASE0B_START", "2010-01-01")
 WINDOW_END = os.environ.get("PHASE0B_END", "2024-12-31")
@@ -105,28 +106,11 @@ def main() -> int:
         except Exception as e:
             r = {"passed_all_gates": False, "error": repr(e)[:200]}
         dt = time.time() - t0
-        # determine first failed gate from the gate_N_passed flags (Gate-0 MBL
-        # only appears as gate_0_* / killed_by_gate when it FAILS; absent = passed)
-        first_fail = r.get("killed_by_gate")
-        if first_fail is None:
-            for g in range(1, 9):
-                ev = r.get(f"gate_{g}_evaluated", True)
-                if ev and not r.get(f"gate_{g}_passed", False):
-                    first_fail = f"gate_{g}"; break
-        rec = {
-            "feature": fid, "ticker_independent": spec["_ticker_independent"],
-            "passed_all_gates": bool(r.get("passed_all_gates", False)),
-            "first_failed_gate": first_fail,
-            "contribution_sharpe": r.get("contribution_sharpe"),
-            "attribution_sharpe": r.get("attribution_sharpe"),
-            "baseline_sharpe": r.get("baseline_sharpe"),
-            "with_candidate_sharpe": r.get("with_candidate_sharpe"),
-            "robustness_survival": r.get("robustness_survival"),
-            "significance_p": r.get("significance_p"),
-            "gate_6_passed": r.get("gate_6_passed"), "gate_8_passed": r.get("gate_8_passed"),
-            "gates": {f"g{g}": r.get(f"gate_{g}_passed") for g in range(1, 9)},
-            "wall_s": round(dt, 1), "error": r.get("error"),
-        }
+        # RR-6a: ONE attribution for both foundry harnesses — the killer is the first
+        # FAILED verdict, never a gate that rendered none (see foundry_record).
+        from scripts.run_foundry_eval_t195 import foundry_record
+        rec = foundry_record(fid, spec["_ticker_independent"], r, dt)
+        first_fail = rec["first_failed_gate"]
         results.append(rec)
         print(f"[P0B] [{i}/{len(specs)}] {fid:<34} ti={int(spec['_ticker_independent'])} "
               f"pass={rec['passed_all_gates']} died={first_fail} "
@@ -136,7 +120,9 @@ def main() -> int:
 
     passed = [r for r in results if r["passed_all_gates"]]
     from collections import Counter
-    died = Counter(str(r["killed_by_gate"]) for r in results)
+    # RR-6a: was r["killed_by_gate"] — a key the ROWS never carry, so a completed sweep
+    # raised KeyError on its own summary line.
+    died = Counter(str(r["first_failed_gate"]) for r in results)
     print(f"\n[P0B] === RESULT === {len(results)} foundry features swept | "
           f"{len(passed)} cleared the full gauntlet+DSR")
     print(f"[P0B] death distribution by gate: {dict(died)}")

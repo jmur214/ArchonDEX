@@ -235,8 +235,13 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         "Gate 6 must fail closed when factor decomposition raises a "
         "non-FileNotFoundError; pre-remediation it silently passed."
     )
-    assert result.get("factor_alpha_reason", "").startswith("failed:"), (
-        f"Reason should reflect failure, got {result.get('factor_alpha_reason')!r}"
+    # RR-6a: a regression that RAISED rendered no verdict — Gate 6 is NOT_EVALUATED with
+    # the error named, never a pass (pre-remediation) and never a FAIL blamed on the
+    # candidate (post-remediation). Either way it cannot silently pass.
+    assert result["gate_verdicts"]["gate_6"]["verdict"] == "not_evaluated"
+    assert "RuntimeError" in result["gate_verdicts"]["gate_6"]["reason"]
+    assert result.get("factor_alpha_reason", "").startswith("not evaluated:"), (
+        f"Reason should say the regression never produced a verdict, got {result.get('factor_alpha_reason')!r}"
     )
     assert result.get("passed_all_gates") is False
 

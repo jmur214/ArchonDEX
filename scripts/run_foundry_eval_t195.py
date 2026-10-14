@@ -35,7 +35,8 @@ sys.path.insert(0, str(ROOT))
 # Discovery uses. (A local reader defined AFTER the `__main__` guard raised NameError
 # at runtime — swallowed by the per-candidate try/except, it would have recorded every
 # candidate as an "error" row. Imported here, above main(), so it exists when called.)
-from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+from engines.engine_d_discovery.thresholds import (  # noqa: E402  (R's F3: was orchestration.mode_controller)
+    discovery_significance_threshold as _discovery_significance_threshold)
 
 WIN_START = os.environ.get("T195_START", "2012-01-01")
 WIN_END = os.environ.get("T195_END", "2024-12-31")
@@ -82,6 +83,30 @@ def select_features(all_features, only: list[str]) -> tuple[list, int, str]:
     if not feats:
         return [], 3, "zero features to sweep — a null over nothing is not a verdict"
     return feats, 0, ""
+
+
+def foundry_record(feature_id: str, ticker_independent: bool, r: dict, wall_s: float) -> dict:
+    """One sweep row from one `validate_candidate` result (or an `{"error": …}` row).
+
+    RR-6a: the killer is the first gate whose verdict is FAILED (`gate_verdicts`). The old
+    loop read `gate_{g}_evaluated` defaulting to True and `gate_{g}_passed` defaulting to
+    False, so Gate 3 — which has no pass criterion and no `_passed` key — was named the
+    killer of two T-196 candidates the forced Gate 4 had stopped. `gates` now carries the
+    tri-state verdict per gate, so a skipped Gate 7/8 no longer reads `true`."""
+    from engines.engine_d_discovery.gate_verdicts import first_failed_gate, verdict_strings
+    errored = "error" in r
+    return {"feature": feature_id, "ticker_independent": ticker_independent,
+            "passed_all_gates": False if errored else bool(r["passed_all_gates"]),
+            "first_failed_gate": None if errored else first_failed_gate(r),
+            "promotion_refusals": None if errored else r["promotion_refusals"],
+            "baseline_sharpe": r.get("baseline_sharpe"),
+            "with_candidate_sharpe": r.get("with_candidate_sharpe"),
+            "contribution_sharpe": r.get("contribution_sharpe"),
+            "attribution_sharpe": r.get("attribution_sharpe"),
+            "robustness_survival": r.get("robustness_survival"),
+            "significance_p": r.get("significance_p"),
+            "gates": None if errored else verdict_strings(r),
+            "wall_s": round(wall_s, 1), "error": r.get("error")}
 
 
 def main() -> int:
@@ -137,22 +162,8 @@ def main() -> int:
         except Exception as e:
             r = {"error": repr(e)[:200]}
         dt = time.time() - t0
-        ff = r.get("killed_by_gate")
-        if ff is None and "error" not in r:
-            for g in range(1, 9):
-                if r.get(f"gate_{g}_evaluated", True) and not r.get(f"gate_{g}_passed", False):
-                    ff = f"gate_{g}"; break
-        rec = {"feature": f.feature_id, "ticker_independent": ti,
-               "passed_all_gates": bool(r.get("passed_all_gates", False)),
-               "first_failed_gate": ff,
-               "baseline_sharpe": r.get("baseline_sharpe"),
-               "with_candidate_sharpe": r.get("with_candidate_sharpe"),
-               "contribution_sharpe": r.get("contribution_sharpe"),
-               "attribution_sharpe": r.get("attribution_sharpe"),
-               "robustness_survival": r.get("robustness_survival"),
-               "significance_p": r.get("significance_p"),
-               "gates": {f"g{g}": r.get(f"gate_{g}_passed") for g in range(1, 9)},
-               "wall_s": round(dt, 1), "error": r.get("error")}
+        rec = foundry_record(f.feature_id, ti, r, dt)
+        ff = rec["first_failed_gate"]
         results.append(rec)
         print(f"[T195] [{i}/{len(feats)}] {f.feature_id:<34} pass={rec['passed_all_gates']} "
               f"died={ff} baseline={rec['baseline_sharpe']} contrib={rec['contribution_sharpe']} {dt:.0f}s", flush=True)

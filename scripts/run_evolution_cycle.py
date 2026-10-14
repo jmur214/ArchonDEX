@@ -14,8 +14,9 @@ from engines.engine_d_discovery.discovery import DiscoveryEngine
 from engines.engine_d_discovery.discovery_logger import DiscoveryLogger
 from engines.engine_d_discovery.significance import apply_bh_fdr
 # RR-2: the ONE configured gauntlet thresholds — the same readers production Discovery uses.
-from orchestration.mode_controller import (  # noqa: E402
-    _discovery_significance_threshold, _discovery_gate2_threshold)
+from engines.engine_d_discovery.thresholds import (  # noqa: E402  (R's F3: was orchestration.mode_controller)
+    discovery_gate2_threshold as _discovery_gate2_threshold,
+    discovery_significance_threshold as _discovery_significance_threshold)
 from engines.engine_d_discovery.wfo import WalkForwardOptimizer
 from engines.data_manager.data_manager import DataManager
 
@@ -202,6 +203,7 @@ class AutonomousEvolution:
                 logger.info(f"   > REJECTED: {rejection_reason}")
                 # Update registry to 'failed' so we don't loop forever
                 cand["status"] = "failed"
+                cand["rejection_reason"] = rejection_reason
                 continue
                 
             logger.info("   > PASSED INITIAL VALIDATION. Proceeding to WFO...")
@@ -218,8 +220,14 @@ class AutonomousEvolution:
                 test_months=3
             )
             
+            # RR-6a (A §7.3, R's F6): both WFO rejections below used to `continue` with the
+            # status still "candidate", so the same candidate was re-queued — and re-run
+            # through the full gauntlet — on EVERY cycle, forever. It now leaves the queue
+            # with the reason recorded, exactly as a gauntlet rejection above does.
             if not wfo_res:
                 logger.info("   > WFO Failed (Insufficient Data?)")
+                cand["status"] = "failed"
+                cand["rejection_reason"] = "WFO returned no result (insufficient data?)"
                 continue
                 
             degradation = wfo_res.get("degradation", 0.0)
@@ -238,6 +246,8 @@ class AutonomousEvolution:
                 winners.append(cand)
             else:
                 logger.info("   > REJECTED: Poor OOS Consistency")
+                cand["status"] = "failed"
+                cand["rejection_reason"] = f"Poor OOS consistency: WFO degradation {degradation:.2f} <= 0.6"
                 
         # 4. PROMOTE
         if winners:

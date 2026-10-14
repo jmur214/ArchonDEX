@@ -251,10 +251,13 @@ def test_stream_sharpe_uses_tolerance_guard():
 #        alpha down by ~RF/yr — larger than the 2%/yr threshold in 2023–24.
 #        discovery.py:1582 passes `returns=attribution`; factor_decomposition.py:233.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-5 Gate 6 RF subtracted from a spread")
+# RR-6a: xfail marker removed. The fix is the spread convention (`already_excess=True`),
+# which Gate 6 now passes for its attribution stream; the default convention is CORRECT
+# for a raw return and is unchanged. The call-site lock — Gate 6 itself recovering +2.5%
+# through `validate_candidate` — is tests/test_rr6a_gate_verdicts.py.
 def test_gate6_alpha_of_a_factor_neutral_spread_is_not_shifted_by_rf():
     """A spread with true alpha +2.5%/yr and zero factor loadings, regressed
-    with RF = 5%/yr in the factor frame, must recover ≈ +2.5%/yr. The current
+    with RF = 5%/yr in the factor frame, must recover ≈ +2.5%/yr. The raw-return
     convention returns ≈ −2.5%/yr because RF is subtracted from a series that
     is already an excess-of-baseline spread."""
     from core.factor_decomposition import regress_returns_on_factors
@@ -269,9 +272,12 @@ def test_gate6_alpha_of_a_factor_neutral_spread_is_not_shifted_by_rf():
     factors["RF"] = 0.05 / 252
     true_alpha_daily = 0.025 / 252
     spread = pd.Series(true_alpha_daily + rng.normal(0, 0.002, n), index=idx)
-    dec = regress_returns_on_factors(spread, factors, edge_name="spread")
+    dec = regress_returns_on_factors(spread, factors, edge_name="spread", already_excess=True)
     assert dec is not None
     assert abs(dec.alpha_annualized - 0.025) < 0.015, f"alpha_annualized={dec.alpha_annualized:.4f}"
+    raw = regress_returns_on_factors(spread, factors, edge_name="spread")
+    assert abs(raw.alpha_annualized - (0.025 - 0.05)) < 0.015, (
+        "the raw-return convention must still subtract RF — only the spread convention changed")
 
 
 # --------------------------------------------------------------------------- #
@@ -351,9 +357,13 @@ def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts, with_honest_n: bool 
     monkeypatch.setattr(ur, "discover_cached_tickers", lambda *a, **kw: [])
     monkeypatch.setattr(ur, "resolve_universe", lambda **kw: ([], {"mode": "static"}))
 
+    # RR-6a: `timeframe` — production's `run_backtest` sets self.timeframe before the cycle
+    # runs. This fixture never had it and never needed it: the substrate-B block swallowed
+    # every exception (first the bare-`timeframe` NameError, then this AttributeError). It
+    # no longer absorbs programmer errors, so the fixture must be as complete as production.
     fake_self = SimpleNamespace(root=tmp_path, cfg_bt={"start_date": "2020-01-01",
                                                       "end_date": "2021-01-01",
-                                                      "tickers": []}, dm=None)
+                                                      "tickers": []}, dm=None, timeframe="1d")
     if with_honest_n:
         seen["expected_n"] = _honest_n_fixture(tmp_path)
     mcmod.ModeController._run_discovery_cycle(fake_self, {}, SimpleNamespace())
