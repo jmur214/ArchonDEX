@@ -318,6 +318,17 @@ Record wall time and peak RSS (`maximum resident set size`). Extrapolate to 312 
 projected peak RSS exceeds 2 GB or the runtime exceeds 8 h, STOP** and report — that is a
 sequencing decision for the director, not a reason to trim the panel.
 
+**BINDING (director ruling 2026-10-14, after full run A's HALT): the smoke covers each window's
+FIRST twelve months, never an arbitrary year.** A mid-window year cannot see a warm-up at the
+window start: the 2024 smoke above passed the SimFin edges that full run A then found blank for
+their first 12–15 months. One smoke per window start:
+```bash
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2000-12 --out data/research/b1/smoke_main/
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2021-07 --end 2022-06 --out data/research/b1/smoke_short/
+```
+The same rule binds the harness (Step 4) and the 2012 window (Step 6): smoke their first twelve
+months before the full run.
+
 **Step 3 — the panel (full window):**
 ```bash
 /usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2025-12 --out data/research/b1/
@@ -330,7 +341,8 @@ HALTS (`[NN-FAIL-CLOSED]`) and every value goes in the verdict:**
   equal the §4 inventory — any mismatch HALTS.
 - **Unusable signal-month = NaN OR None OR zero cross-sectional variance** (`std < 1e-12`,
   `[NN-FP-GUARDS]`) — all three spellings of missing (§3.4). HALT any signal unusable in > 10% of
-  its window's months. Short-window signals are checked over 2020-04 → 2025-12 only.
+  its window's months. Short-window signals are checked over 2020-04 → 2025-12 only
+  (**2021-07 → 2025-12 under the second amendment**). The census names the unusable months.
 - **Sparse flag** per §4.2 (modal share > 50% in the median month), recorded per signal.
 - **Engine A orientation check** (§2.2) before any return exists: native score vs declared
   literature direction — a mismatch HALTS and escalates; never flipped.
@@ -484,6 +496,40 @@ Made **before any return, IC or wealth number existed**, after the smoke's censu
    inventory; the verdict states the inventory change beside the comparison.
 4. **The 60 names lacking the exact month-end date → NaN forward return: reported, never
    filled.**
+
+## POST-FREEZE, PRE-DATA AMENDMENT (SECOND) — 2026-10-14: the short window opens at 2021-07 (director ruling; BINDING)
+Made **before any return, IC or wealth number existed**, after full run A's census HALT
+(§11.3; attempt 1's census is kept as written in `data/research/b1/full_a/`). §5.2's text is
+unchanged; this section governs where it differs.
+1. **The whole short-window family opens at 2021-07** and runs to 2025-12: 54 month-ends,
+   ≈ 4.5 years. 2021-07 is the first month-end at which every family member can form its inputs
+   for 30 or more names (`min_universe=30`). The start is set mechanically by input
+   availability; no return was consulted. It is one BH family on one window.
+2. **The diagnosis.** Full run A HALTED four SimFin edges (earnings yield, gross profitability,
+   ROIC 12 of 69 months; asset growth 15 of 69). For every edge, the unusable months were one
+   contiguous run at the window START, and none fell after 2021-06. The SimFin FREE panel's
+   first filings for the PIT universe arrive at publish 2020-07. The TTM edges need four
+   published quarters, so they become usable at 2021-04. Asset growth needs a year-ago balance
+   sheet, so it becomes usable at 2021-07. **The 2020-04 start came from the earnings calendar
+   of `earnings_proximity_5d` (§3.4), which the first amendment excluded. That date never
+   described SimFin coverage.**
+3. **Agent A's defect:** the smoke sat mid-window (2024) and could not see a warm-up at the
+   window start. The lesson now binds §11.1 Step 2: the smoke covers each window's first
+   twelve months, never an arbitrary year.
+4. **Rejected alternatives:** per-edge start dates, because members of one BH family on
+   different windows are not one family; excluding the four edges, because the window was at
+   fault, not the edges.
+5. **§5.2's "exploratory by construction" holds a fortiori. §8's predictions (including
+   "Short-window family: 0 clear") stay byte-identical, and N_trials stays at +4.**
+6. **Two properties go into the verdict as written in §11.3** (no action taken):
+   - The SimFin edges emit a basket-transition shape: 1.0 on entry, 0.3 while held, 0
+     otherwise. Arm L is the whole top-quintile basket, but Spearman IC also ranks entries
+     above held names.
+   - SimFin FREE filings thin out after publish 2025-Q2. Late-2025 fundamentals are up to two
+     quarters stale; this introduces no look-ahead.
+7. Applied in the same commit as this section: `SHORT_WINDOW_START = "2021-07"` in
+   `scripts/build_signal_panel_b1.py`. The rerun writes to `full_2a/` and `full_2b/`;
+   attempt 1 is untouched.
 
 ## Reproduce the pre-run findings
 ```bash

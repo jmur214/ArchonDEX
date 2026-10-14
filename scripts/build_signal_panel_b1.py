@@ -63,7 +63,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DISK_FLOOR_GB = 5.0            # rescore_rr1.MIN_FREE_GB; checked before EVERY write
 MIN_NAMES = 10                 # fewer finite values than this = an unusable signal-month
 UNUSABLE_HALT_SHARE = 0.10     # prereg §3.4: HALT a signal unusable in > 10% of its months
-SHORT_WINDOW_START = "2020-04"  # prereg §5.2
+# prereg §5.2 as amended 2026-10-14 (second amendment): the first month-end at which every
+# SimFin edge forms its inputs for >= 30 names. 2020-04 came from the excluded
+# earnings_proximity_5d's calendar and never described SimFin coverage.
+SHORT_WINDOW_START = "2021-07"
 
 # ---- the FROZEN inventory (prereg §4, §5.2). Order is the panel's column order. ----
 MAIN_FEATURES = ["mom_12_1", "mom_6_1", "reversal_1m", "dist_52w_high", "realized_vol_60d",
