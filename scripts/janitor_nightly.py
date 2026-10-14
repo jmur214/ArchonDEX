@@ -93,6 +93,12 @@ class Check:
     ok: bool
     detail: str
     mechanical: bool = False        # is this a class the janitor may fix?
+    warn: bool = False              # a STATEMENT worth reading, never a failure (ok stays True)
+
+    @property
+    def status(self) -> str:
+        """The one rendering of a check's state — report, ledger, and log all use it."""
+        return "FAIL" if not self.ok else ("WARN" if self.warn else "PASS")
 
 
 def _run(cmd: List[str], cwd: Path = ROOT, timeout: int = 3600) -> subprocess.CompletedProcess:
@@ -210,6 +216,49 @@ def check_launchd_canon() -> Check:
     return Check("launchd_canon", v.ok, v.report())
 
 
+def check_relay_gap() -> Check:
+    """WHICH TREE DO TONIGHT'S CHECKS CERTIFY? A statement, never a gate (2026-10-14).
+
+    The runner syncs to origin/main by design: it verifies the PUBLISHED truth. The
+    director merges into local main, and pushes wait for the user. On 2026-10-14 local
+    main was 65 commits ahead: the anchor lint had never run at night, every "suite
+    PASS" certified a tree older than four referee repairs and the observability backup,
+    and runner_canon read green throughout — because "runner == origin" was true.
+    This row states, every night, how far the merged tree is ahead of what was verified.
+    WARN when there is a gap; never FAIL — the fix is to publish, not to block the night.
+    `origin/main` is the remote-tracking ref as last fetched by the wrapper."""
+    def git(*args: str, cwd: Path = CANON) -> Optional[str]:
+        r = _run(["git", *args], cwd=cwd, timeout=60)
+        return r.stdout.strip() if r.returncode == 0 else None
+
+    ahead = git("rev-list", "--count", "origin/main..main")
+    behind = git("rev-list", "--count", "main..origin/main")
+    main_sha, origin_sha = git("rev-parse", "--short", "main"), git("rev-parse", "--short", "origin/main")
+    head = git("rev-parse", "--short", "HEAD", cwd=ROOT)       # the tree the checks ran in
+    if None in (ahead, behind, main_sha, origin_sha, head):
+        return Check("relay_gap", True, "UNKNOWN — could not compute local main vs origin/main; "
+                                        "which tree tonight's checks certify is unstated", warn=True)
+    # Derived from the runner's ACTUAL HEAD, never assumed: a refused sync leaves the
+    # runner on neither ref, and "covers origin" would then be a false sentence.
+    if head == origin_sha:
+        covers = f"tonight covers origin only (the runner is at {head})"
+    elif head == main_sha:
+        covers = f"tonight covers local main (the runner is at {head})"
+    else:
+        covers = f"tonight covers {head}, which is NEITHER origin/main nor local main"
+    if int(ahead) == 0 and int(behind) == 0:
+        same = head == main_sha
+        return Check("relay_gap", True, f"local main == origin/main ({main_sha}); {covers}",
+                     warn=not same)
+    parts = []
+    if int(ahead):
+        parts.append(f"local main {main_sha} is {ahead} commit(s) AHEAD of origin/main {origin_sha} "
+                     f"— those merges have NO nightly coverage until pushed")
+    if int(behind):
+        parts.append(f"origin/main {origin_sha} is {behind} commit(s) ahead of local main {main_sha}")
+    return Check("relay_gap", True, "; ".join(parts) + f"; {covers}", warn=True)
+
+
 def check_runner_canon() -> Check:
     """Is the janitor running CANONICAL code?
 
@@ -275,7 +324,7 @@ def survival_syncs(as_of: str) -> List[tuple]:
 
 
 def run_checks() -> List[Check]:
-    return [check_runner_canon(), check_worktree_canon(), check_launchd_canon(),
+    return [check_runner_canon(), check_relay_gap(), check_worktree_canon(), check_launchd_canon(),
             check_ledger_backup(), check_observability_backup(), check_doc_lint(),
             check_census(), check_suite()]
 
@@ -289,7 +338,7 @@ def write_report(checks: List[Check], guard_note: str, branch: Optional[str], as
              "written, the census alarms like any dead feed.", "",
              "| check | result | detail |", "|---|---|---|"]
     for c in checks:
-        lines.append(f"| {c.name} | {'PASS' if c.ok else 'FAIL'} | {c.detail} |")
+        lines.append(f"| {c.name} | {c.status} | {c.detail} |")
     lines += ["", f"**Fix phase:** {guard_note}", ""]
     if branch:
         lines.append(f"**Branch offered for merge:** `{branch}` — the janitor NEVER merges; "
@@ -368,7 +417,7 @@ def append_ledger(as_of: str, trigger: str, checks: List[Check],
     row = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "as_of": as_of, "session": "janitor_nightly", "rung": 0, "trigger": trigger,
-        "checks": {c.name: ("PASS" if c.ok else "FAIL") for c in checks},
+        "checks": {c.name: c.status for c in checks},
         # ENVIRONMENT, recorded every night whether or not anything failed. The
         # disk-pressure hypothesis for the 09-11..09-13 failures could not be tested
         # because nothing measured the disk at 03:00 — by the time a human looked,
@@ -391,7 +440,7 @@ def open_merge_request(branch: str, as_of: str, checks: List[Check], diff_summar
              f"Mechanical fixes only, vetted by the constitutional guard. {diff_summary}", "",
              "| check | result | detail |", "|---|---|---|"]
     for c in checks:
-        entry.append(f"| {c.name} | {'PASS' if c.ok else 'FAIL'} | {c.detail} |")
+        entry.append(f"| {c.name} | {c.status} | {c.detail} |")
     entry.append("\nThe janitor does not merge. Review and merge, or close with a reason.\n")
     with open(MERGE_REQUESTS, "a") as f:
         f.write("\n".join(entry))
@@ -505,7 +554,7 @@ def main() -> int:
         print(f"[JANITOR] {name} {v.status}: {v.detail}")
 
     print(f"[JANITOR] {as_of} outcome={outcome} "
-          f"checks={{{', '.join(f'{c.name}={"PASS" if c.ok else "FAIL"}' for c in checks)}}}")
+          f"checks={{{', '.join(f'{c.name}={c.status}' for c in checks)}}}")
     # A check failure is REPORTED, not a janitor crash: the report + ledger are the
     # artifact. Non-zero only when the janitor itself could not do its job.
     return 0
