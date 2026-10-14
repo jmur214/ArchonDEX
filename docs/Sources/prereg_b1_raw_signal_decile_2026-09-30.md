@@ -572,6 +572,41 @@ output.**
 - **Calendar finding (pre-data, measured on every trading day 2000–2025):** `FOMC_DATES` and
   `US_MARKET_HOLIDAYS` start in 2018. Director ruling (A) → the third amendment (below).
 
+**2026-10-14 15:17–15:20 — the third amendment, then the harness runs (steps 4–6).**
+- **The third amendment was committed (`cc8a24e`, 15:17:50) before the second harness smoke**
+  (`harness_smoke2/`, 15:18:11 by file time). The only earlier harness output is the first
+  smoke's `halt.json`, which holds no number.
+- **Re-smoke of each window's first twelve months** (`--smoke-months 12`, §11.1 Step 2,
+  binding): 13.5 s by `/usr/bin/time`, 501 MB. The output is labelled SMOKE and was read for
+  mechanics only.
+- **Harness runs**, at `cc8a24e` on a clean tree, with all gates passed outright. All used panel
+  `d9d449d17f8f102614b34079e8f1bd60`, seed 0, 1000 iterations and 6-month blocks:
+  - run 1 took 20.5 s and run 2 21.1 s (`meta.wall_seconds`). **DETERMINISM ×2: canonical md5
+    `5de36b89e0ade6eac008667e035d2d03` for both runs.** The two JSON files differ only in
+    `meta.wall_seconds`.
+  - The pre-named 2012 window (step 6): canonical md5 `bbf88ffc9f23bde015e03b5361b09dd4`,
+    17.0 s.
+  - **Harness census:** the IC was computed in 312/312 months for the main and sensitivity rows
+    and 54/54 for the short window. There were 0 Arm L fallback months and 0 missing LS months.
+    Oversized top legs (tie groups) were counted: `drawdown_60d` 56 months, `dist_52w_high` 19.
+    The calendar covered 6,519 days; the complete years 2001–2025 were judged, with 0 unusable
+    among the seven features.
+- **The verdict:** `docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`. It went through:
+  - the DRAFT at `7266caa`;
+  - R's first read, approved after diffing 1,190 table cells against the artifacts with 0
+    mismatches;
+  - the wording fixup `bfe8055`, re-checked by hash;
+  - the merge as FINAL at `27c47b8`.
+- **The result, in this pre-registration's own words:** **H1 NOT MET — nothing meets H1.** It is
+  a scoped refutation of the cross-sectional price vocabulary on the literature's construction.
+  It is conservative under an upward survivorship bias (§3.6), and it stands.
+- **UNTESTED by B-1:**
+  - macro timing (§3.1);
+  - `fomc_drift`, `pre_fomc_reduce` and `pre_holiday` (third amendment);
+  - `herding_v1` and `earnings_proximity_5d` (first amendment);
+  - `volume_anomaly_v1` (the pre-ruling).
+- **N_trials consumed: 4.** The numbers live in the verdict, not here.
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
