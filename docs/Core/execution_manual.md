@@ -1249,9 +1249,13 @@ caffeinate -i python scripts/rescore_rr1.py --arm before --cell baseline --start
 caffeinate -i python scripts/rescore_rr1.py --arm after --cell feature --feature mom_12_1 \
     --label t196_mom_12_1 --census-expected-dormant news_sentiment_edge   # --feature = the REGISTRY id, exactly
 bash scripts/run_rr1_rescore_campaign.sh          # all eight cells; stops on any non-zero exit
-# the pre-registered paired test (sanity gate first: exit 2 and no Δ if a series fails to reproduce)
+# the pre-registered paired test (sanity gate first: exit 2 and no Δ if a series fails to reproduce).
+# Without --out these PRINT ONLY, so a re-check never overwrites a record; --out writes the JSON.
 python scripts/rr1_paired_delta.py anchor --records docs/Measurements/2026-09/rr1_rescore --cell anchor26 --trade-logs data/trade_logs
-python scripts/rr1_paired_delta.py feature --records docs/Measurements/2026-09/rr1_rescore --cell t196_mom_12_1
+python scripts/rr1_paired_delta.py feature --records docs/Measurements/2026-09/rr1_rescore --cell t196_mom_12_1 \
+    --out docs/Measurements/2026-09/rr1_rescore/t196_mom_12_1_paired_delta.json
+# window vs book (pre-registered, WINDOW_VS_BOOK_PREREG.md): the anchor on the feature pairs' days
+python scripts/rr1_window_vs_book.py --records docs/Measurements/2026-09/rr1_rescore --trade-logs data/trade_logs
 ```
 
 Feature ids are checked against the registry, never typed from memory. An id that matches

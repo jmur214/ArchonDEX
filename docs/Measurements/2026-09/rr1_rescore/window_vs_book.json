@@ -1,0 +1,80 @@
+{
+ "n_days": 3269,
+ "window": [
+  "2012-01-04",
+  "2024-12-31"
+ ],
+ "gate": [
+  {
+   "series": "anchor before full window",
+   "recomputed": 0.6048278842096749,
+   "recorded": 0.6048278842096749,
+   "ok": true
+  },
+  {
+   "series": "anchor after full window",
+   "recomputed": 0.842725364641441,
+   "recorded": 0.842725364641441,
+   "ok": true
+  },
+  {
+   "series": "foundry before identical across cells",
+   "ok": true
+  },
+  {
+   "series": "foundry before baseline",
+   "recomputed": 1.2442619693322,
+   "recorded": 1.244261969332206,
+   "ok": true
+  },
+  {
+   "series": "foundry after identical across cells",
+   "ok": true
+  },
+  {
+   "series": "foundry after baseline",
+   "recomputed": 0.9207051379992146,
+   "recorded": 0.9207051379992217,
+   "ok": true
+  },
+  {
+   "series": "anchor covers the window",
+   "missing": {
+    "before": 0,
+    "after": 0
+   },
+   "ok": true
+  }
+ ],
+ "n_trials": 0,
+ "prereg": "WINDOW_VS_BOOK_PREREG.md",
+ "method": "moving-block bootstrap, same block starts for all four series, block 19, 1,000 iter, seed 0",
+ "deltas": {
+  "D_did": {
+   "point": 0.2559569425976811,
+   "ci95": [
+    -0.19200507953177381,
+    0.792977682562318
+   ],
+   "share_le_0": 0.111
+  },
+  "d_anchor_window": {
+   "point": -0.0675998887353042,
+   "ci95": [
+    -0.47321056403004064,
+    0.4221581528852397
+   ],
+   "share_le_0": 0.546
+  },
+  "d_foundry": {
+   "point": -0.3235568313329853,
+   "ci95": [
+    -0.6962994015821954,
+    0.04413014891019558
+   ],
+   "share_le_0": 0.95
+  }
+ },
+ "row": 3,
+ "reading": "The window is the likelier explanation: on 2012\u20132024 the anchor book moves the same way as the foundry book. Not established at 95%."
+}

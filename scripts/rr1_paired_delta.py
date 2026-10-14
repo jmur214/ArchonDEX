@@ -13,9 +13,9 @@ and core/metrics_engine.py.
 SANITY GATE FIRST: every series must reproduce its RECORDED Sharpe to 4 decimals, or the
 script exits 2 and prints no Δ — a series that is not the harness's own measures nothing.
 
-Usage:
+Usage (--out is the only way a file is written; omit it to re-check without touching records):
   python scripts/rr1_paired_delta.py anchor --records docs/Measurements/2026-09/rr1_rescore \
-      --cell anchor26 --trade-logs data/trade_logs
+      --cell anchor26 --trade-logs data/trade_logs --out /tmp/anchor26_paired_delta.json
   python scripts/rr1_paired_delta.py feature --records docs/Measurements/2026-09/rr1_rescore \
       --cell t196_mom_12_1
 """
@@ -141,21 +141,24 @@ def main() -> int:
     ap.add_argument("--records", required=True, type=Path)
     ap.add_argument("--cell", required=True)
     ap.add_argument("--trade-logs", type=Path, help="anchor only: the run_isolated trades dir")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="where to write the result JSON. Omitted = print only, write nothing: "
+                         "a re-check must never overwrite a record in --records by default.")
     a = ap.parse_args()
     res = (anchor(a.records, a.cell, a.trade_logs) if a.kind == "anchor"
            else feature(a.records, a.cell))
     res.update({"method": f"paired moving-block bootstrap, block {BLOCK}, {N_ITER} iter, "
                           f"seed {SEED}, same block starts for every series",
                 "n_trials": 0, "prereg": "PAIRED_TEST_PREREG.md"})
-    out = a.records / f"{a.cell}_paired_delta.json"
-    out.write_text(json.dumps(res, indent=1))
+    if a.out:
+        a.out.write_text(json.dumps(res, indent=1))
     if "deltas" not in res:
-        print(f"SANITY GATE FAILED — no Δ reported. Record: {out}")
+        print(f"SANITY GATE FAILED — no Δ reported.{f' Record: {a.out}' if a.out else ''}")
         return 2
     for k, d in res["deltas"].items():
         print(f"  {k:<26} {d['point']:+.3f}  95% CI [{d['ci95'][0]:+.3f}, {d['ci95'][1]:+.3f}]"
               f"  share Δ≤0 {d['share_le_0']:.3f}")
-    print(f"-> {out}")
+    print(f"-> {a.out}" if a.out else "(printed only; pass --out to write a record)")
     return 0
 
 

@@ -230,7 +230,8 @@ the same block starts for all four series of a pair (block 19, 1,000 iterations,
    harness: `run_isolated`'s book against `validate_candidate`'s baseline book, built by
    `run_backtest_pure`. Whether the two are the same edge set was not checked here. These records
    therefore cannot say whether the window or the book explains the disagreement, and no cause
-   is asserted.
+   is asserted. The pre-registered test below holds the window fixed: the window is the likelier
+   explanation, not established.
 2. **All three contributions rise, but that is not three confirmations.** Δcontribution =
    Δwith − Δbaseline, and the −0.324 baseline term is shared, so most of each rise is the
    baseline falling. No contribution Δ is established.
@@ -241,9 +242,35 @@ the same block starts for all four series of a pair (block 19, 1,000 iterations,
    sizing-sensitive in at least one case of three, consistent with its demotion to UNTESTED (§5).
    It says nothing about the other 32 features.
 
-**Proposed, not run.** The anchor pair restricted to 2012-01-03 → 2024-12-31 would separate
-window from book in seconds, using the anchor's already-recorded series. It is motivated by this
-result, so it needs its own pre-registration before it is computed.
+### Window vs book — the anchor pair on the feature pairs' days
+
+This test was motivated by the disagreement above. It was pre-registered and committed
+**before** it was computed (`WINDOW_VS_BOOK_PREREG.md`, `748cc4c`, director ruling 2026-10-14).
+It holds the window fixed: the anchor's recorded series restricted to the feature pairs' 3,269
+days, against the foundry baseline book on the same days. All four series share the same block
+starts (block 19, 1,000 iterations, seed 0). N_trials 0.
+
+**Gates, all passed.** Both anchor arms reproduce their recorded Sharpe to 6 decimals. The foundry
+baseline column is identical across the three cells in each arm and reproduces its recorded
+Sharpe. All 3,269 days are present in both anchor arms; none is missing.
+
+| statistic | point | 95% CI | resamples ≤ 0 |
+|---|---|---|---|
+| **D** = ΔSharpe_anchor(window) − ΔSharpe_foundry | **+0.256** | **[−0.192, +0.793]** | 11.1% |
+| ΔSharpe_anchor on the 3,269 days | −0.068 | [−0.473, +0.422] | 54.6% |
+| ΔSharpe_foundry (check: equals §4's −0.324) | −0.324 | [−0.696, +0.044] | 95.0% |
+
+**Reading: row 3 of the pre-registered order, applied mechanically.** D's CI includes 0, and
+the anchor's point on the window is ≤ 0. **The window is the likelier explanation:** on
+2012–2024 the anchor book no longer moves up under the fix. Its +0.238 over 26 years owes
+something to the years outside 2012–2024. Not established at 95%.
+
+**Observation, not a reading.** "Moves the same way" is weak here. The anchor's Δ on the window
+is close to zero, with 54.6% of resamples ≤ 0, not comparable to the foundry book's −0.324. The
+point gap D (+0.256) is not established either. Which years outside 2012–2024 carry the anchor's
+positive Δ, and why, was not measured; no mechanism is asserted.
+
+Analysis: `scripts/rr1_window_vs_book.py` → `window_vs_book.json`.
 
 Analysis: `scripts/rr1_paired_delta.py feature` → `<cell>_paired_delta.json`. The proof of
 hook inertness, the uncaptured proof record (row identical to the captured re-run, `wall_s`
@@ -559,7 +586,12 @@ recorded the sign as simply "UP". That was a point-estimate claim, and it was wi
 **Update 2026-10-14 — and not one sign.** The T-196 cells' baseline book over 2012–2024 moves the
 other way: −0.324 [−0.696, +0.044] (§4). Neither direction is established on either book. The
 question this section posed now has a sharper form: does the window or the book explain the
-disagreement? §4 proposes the test that would separate them.
+disagreement? §4 tests that directly.
+
+**Update 2026-10-14, later — the window, more likely than the book.** The pre-registered
+window-vs-book test (§4) puts the anchor book at −0.068 [−0.473, +0.422] on the foundry book's
+2012–2024 days. That is pre-registered row 3: the window is the likelier explanation, not
+established, with D = +0.256 [−0.192, +0.793].
 
 ### 6.6 The foundry harness fails open on an unknown feature id
 
