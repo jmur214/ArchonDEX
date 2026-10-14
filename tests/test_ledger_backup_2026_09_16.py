@@ -92,24 +92,63 @@ def test_the_nightly_path_can_never_pass_allow_rewrite(monkeypatch):
     assert "survival_syncs(as_of)" in inspect.getsource(jn.main), "main() must run the pushes"
 
 
-def test_a_DATED_key_is_written_alongside_the_canonical_one():
+class _Proc:
+    """A stand-in for subprocess.CompletedProcess as `_aws` returns it."""
+    def __init__(self, rc: int = 0, out: bytes = b"", err: bytes = b""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+def test_a_DATED_key_is_written_alongside_the_canonical_one(tmp_path, monkeypatch):
     """Bucket versioning could not be verified (s3:GetBucketVersioning is denied to
     this IAM user), so the design must not depend on it: a bad overwrite of the
-    canonical object cannot erase what previous days recorded."""
-    import inspect
+    canonical object cannot erase what previous days recorded.
+
+    EXECUTED (2026-10-13; was a getsource lock): sync() is driven and the destinations
+    it actually copies to are observed — on a first push and on an extension."""
     from scripts import ledger_backup as lb
-    src = inspect.getsource(lb.sync)
-    assert "KEY_CANON" in src and "KEY_DAILY_FMT" in src
     assert KEY_DAILY_FMT.format(date="2026-09-16") != KEY_CANON
+    ledger = tmp_path / "autonomy_ledger.jsonl"
+    remote = {"bytes": None}
+    copied = []
+
+    def fake_aws(args, **kw):
+        if args[-1] == "-":                                   # read_remote
+            return (_Proc(0, remote["bytes"]) if remote["bytes"] is not None
+                    else _Proc(1, err=b"An error occurred (404) when calling HeadObject: Not Found"))
+        copied.append(args[-1])                               # s3 cp <local> <dest>
+        return _Proc(0)
+
+    monkeypatch.setattr(lb, "_aws", fake_aws)
+    canon = f"s3://{lb.BUCKET}/{KEY_CANON}"
+    for date, content in (("2026-09-16", A), ("2026-09-17", A + B)):
+        ledger.write_bytes(content)
+        copied.clear()
+        v = lb.sync(ledger, as_of=date)
+        assert v.needs_push, v.detail
+        assert copied == [canon, f"s3://{lb.BUCKET}/{KEY_DAILY_FMT.format(date=date)}"]
+        remote["bytes"] = content
+    copied.clear()
+    assert lb.sync(ledger, as_of="2026-09-18").status == OK_SAME and copied == []
 
 
-def test_missing_and_unreachable_remotes_are_DIFFERENT_facts():
+@pytest.mark.parametrize("rc, err, expect", [
+    (1, b"fatal error: An error occurred (NoSuchKey) when calling the GetObject operation", "absent"),
+    (1, b"An error occurred (404) when calling the HeadObject operation: Not Found", "absent"),
+    (1, b"Could not connect to the endpoint URL: \"https://s3.amazonaws.com/\"", "unreachable"),
+    (127, b"aws CLI not found on PATH", "unreachable"),        # a missing CLI is NOT an empty remote
+])
+def test_missing_and_unreachable_remotes_are_DIFFERENT_facts(monkeypatch, rc, err, expect):
     """'The object is not there' and 'I could not look' license different actions;
-    collapsing them is how a backup reports success while writing nothing."""
-    import inspect
+    collapsing them is how a backup reports success while writing nothing.
+
+    EXECUTED (2026-10-13; was a getsource lock): read_remote is fed the CLI's real
+    failure shapes and its classification is observed."""
     from scripts import ledger_backup as lb
-    src = inspect.getsource(lb.read_remote)
-    assert "absent" in src and "unreachable" in src
+    monkeypatch.setattr(lb, "_aws", lambda args, **kw: _Proc(rc, err=err))
+    body, why = lb.read_remote()
+    assert body is None and why.split(":")[0] == expect, why
+    monkeypatch.setattr(lb, "_aws", lambda args, **kw: _Proc(0, out=A))
+    assert lb.read_remote() == (A, "ok")
 
 
 def test_the_janitor_verifies_at_the_START_so_a_failed_push_surfaces_within_24h():
@@ -121,26 +160,55 @@ def test_the_janitor_verifies_at_the_START_so_a_failed_push_surfaces_within_24h(
 
 # ---- the scheduled path's binary resolution ----------------------------------
 
-def test_the_aws_cli_is_resolved_ABSOLUTELY_never_by_bare_name():
+def test_the_aws_cli_is_resolved_ABSOLUTELY_never_by_bare_name(monkeypatch):
     """launchd runs with PATH=/usr/bin:/bin:/usr/sbin:/sbin and the CLI lives in
     /opt/homebrew/bin. A bare `aws` therefore works perfectly from an interactive
     shell and resolves to NOTHING at 03:00 — the backup would have reported failure
     every scheduled night while succeeding in every test. Same class as the
     2026-07-08 bare-`python` bug and the 2026-09-10 wrapper bootstrap: it fails only
-    on the path nobody watches."""
+    on the path nobody watches.
+
+    EXECUTED (2026-10-13; was a getsource lock): the argv `_aws` actually spawns is
+    observed, and resolution is driven under launchd's PATH."""
+    import shutil
+    import subprocess
     from scripts import ledger_backup as lb
     exe = lb._aws_binary()
     assert exe is None or Path(exe).is_absolute()
-    src = __import__("inspect").getsource(lb._aws)
-    assert '"aws"' not in src.split("_aws_binary")[-1], "no bare-name invocation may return"
+
+    spawned = []
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: spawned.append(argv) or _Proc(0))
+    monkeypatch.setattr(lb, "_aws_binary", lambda: "/opt/homebrew/bin/aws")
+    lb._aws(["s3", "ls"])
+    assert spawned[0][0] == "/opt/homebrew/bin/aws", "the resolved absolute path is what runs"
+    monkeypatch.undo()
+
+    # launchd's PATH: `which` finds nothing; only a fallback candidate exists.
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(lb.os.path, "exists", lambda p: p == "/usr/local/bin/aws")
+    monkeypatch.setattr(lb.os, "access", lambda p, mode: p == "/usr/local/bin/aws")
+    assert lb._aws_binary() == "/usr/local/bin/aws"
+    monkeypatch.setattr(lb.os.path, "exists", lambda p: False)
+    assert lb._aws_binary() is None, "nothing found -> None, never a bare 'aws'"
 
 
-def test_a_missing_aws_cli_is_a_LOUD_nonzero_not_a_silent_skip():
+def test_a_missing_aws_cli_is_a_LOUD_nonzero_not_a_silent_skip(monkeypatch):
     """`[NN-FAIL-CLOSED]`: if the CLI cannot be found, say so with a non-zero rc
-    rather than returning something that reads like an empty remote."""
+    rather than returning something that reads like an empty remote.
+
+    EXECUTED (2026-10-13; was a getsource lock): with no CLI, `_aws` is called and
+    nothing may be spawned; the result must be loud, and must not read as absent."""
+    import subprocess
     from scripts import ledger_backup as lb
-    src = __import__("inspect").getsource(lb._aws)
-    assert "127" in src and "not found" in src
+
+    def must_not_spawn(*a, **kw):
+        raise AssertionError("spawned a process with no CLI resolved")
+
+    monkeypatch.setattr(subprocess, "run", must_not_spawn)
+    monkeypatch.setattr(lb, "_aws_binary", lambda: None)
+    r = lb._aws(["s3", "ls"])
+    assert r.returncode == 127 and b"not found" in r.stderr
+    assert lb.read_remote()[1].startswith("unreachable"), "a missing CLI must never read as absent"
 
 
 def test_the_wrapper_resolves_aws_for_the_ALARM_path_too():
