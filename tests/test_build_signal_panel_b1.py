@@ -111,7 +111,7 @@ MONTHS = list(pd.date_range("2019-01-31", "2024-12-31", freq="ME"))
 def test_a_clean_panel_passes_the_census():
     cen, halts = b1.build_census(_synthetic_panel(MONTHS), [], b1.SIGNALS, b1.FAMILY)
     assert halts == [], halts
-    assert cen["family_counts"] == {"main": 15, "sensitivity": 5, "short_window": 7}
+    assert cen["family_counts"] == {"main": 14, "sensitivity": 5, "short_window": 6}
 
 
 def test_the_earnings_proximity_shape_HALTS_constant_zero_not_nan():
@@ -129,18 +129,43 @@ def test_a_market_wide_signal_in_the_panel_HALTS():
 
 
 def test_short_window_signals_are_judged_on_their_window_only():
-    """earnings_proximity_5d is constant before 2020-04 by construction; that must NOT halt."""
-    ov = {"earnings_proximity_5d": lambda m, n, rng:
+    """A SimFin edge is constant before 2020-04 (no fundamentals panel); that must NOT halt."""
+    ov = {"value_book_to_market_v1": lambda m, n, rng:
           np.zeros(n) if m < pd.Timestamp("2020-04-01") else rng.normal(size=n)}
     _, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
-    assert not any("earnings_proximity_5d" in h for h in halts), halts
+    assert not any("value_book_to_market_v1" in h for h in halts), halts
 
 
 def test_a_selection_edge_is_flagged_SPARSE_not_halted():
-    ov = {"herding_v1": lambda m, n, rng: (rng.rand(n) < 0.15).astype(float)}
+    ov = {"momentum_12_1_v1": lambda m, n, rng: (rng.rand(n) < 0.15).astype(float)}
     cen, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
-    assert cen["signals"]["herding_v1"]["sparse"] is True
-    assert not any("herding_v1" in h for h in halts)
+    assert cen["signals"]["momentum_12_1_v1"]["sparse"] is True
+    assert not any("momentum_12_1_v1" in h for h in halts)
+
+
+# ------------------------------------------------- the 2026-10-14 inventory amendment
+def test_signals_excluded_by_ruling_are_never_computed():
+    """herding_v1 and earnings_proximity_5d join pair_zscore_60d: structurally ineligible
+    for a month-end construction — not in the inventory at all, so never ranked."""
+    for s in ("herding_v1", "earnings_proximity_5d", "pair_zscore_60d"):
+        assert s not in b1.SIGNALS and s in b1.EXCLUDED_BY_RULING
+
+
+def test_volume_anomaly_tripping_the_bar_is_AUTO_EXCLUDED_and_recorded_not_halted():
+    """The pre-ruling: tripping 10% applies the same exclusion automatically — no decision
+    is made after seeing anything — and the family count accepts the reduced main family."""
+    ov = {"volume_anomaly_v1": lambda m, n, rng: np.zeros(n) if m.month % 3 else rng.normal(size=n)}
+    cen, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
+    assert halts == [], halts
+    assert "volume_anomaly_v1" in cen["auto_excluded_pre_ruled"]
+    assert cen["family_counts"]["main"] == 13
+
+
+def test_a_NON_pre_ruled_signal_tripping_the_bar_still_HALTS():
+    """The pre-ruling covers volume_anomaly_v1 only — it is not a general escape hatch."""
+    ov = {"overnight_intraday_v1": lambda m, n, rng: np.zeros(n) if m.month % 3 else rng.normal(size=n)}
+    _, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
+    assert any(h.startswith("overnight_intraday_v1") for h in halts), halts
 
 
 def test_family_count_drift_HALTS():
@@ -187,3 +212,12 @@ def test_canonical_md5_is_order_independent_and_value_sensitive():
     assert b1.canonical_md5(p) == b1.canonical_md5(p.sample(frac=1.0, random_state=3))
     q = p.copy(); q.iloc[0, 0] += 1e-6
     assert b1.canonical_md5(p) != b1.canonical_md5(q)
+
+
+def test_the_pre_ruling_also_covers_the_HERDING_shape_over_half_unusable():
+    """> 50% unusable fails the classification check first — the pre-ruling must still apply
+    (caught by the test above in the first implementation, which halted instead)."""
+    ov = {"volume_anomaly_v1": lambda m, n, rng: np.zeros(n) if m.month % 4 else rng.normal(size=n)}
+    cen, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
+    assert halts == [] and "volume_anomaly_v1" in cen["auto_excluded_pre_ruled"]
+    assert "NOT-CROSS-SECTIONAL" in cen["auto_excluded_pre_ruled"]["volume_anomaly_v1"]

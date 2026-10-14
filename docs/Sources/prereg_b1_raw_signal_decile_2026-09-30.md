@@ -399,6 +399,12 @@ file lacks the exact month-end date (NaN, ~1%) — reported in the verdict.
 **Status:** the two HALTs need a director ruling on the frozen inventory **before** the full
 run. They are pre-run findings: no return, IC or wealth number has been computed.
 
+**2026-10-14 — DIRECTOR RULING on the two HALTs (post-freeze, pre-data).** See the
+amendment section below. Builder updated at the next commit; 21 tests. Implementation note:
+the first cut applied the `volume_anomaly_v1` pre-ruling only on the 10% branch, so a
+herding-like signal (> 50% unusable, which fails the classification check first) would have
+HALTED instead. The test caught it; the pre-ruling now keys on the unusable share.
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
@@ -413,6 +419,23 @@ Frozen as amended. The load-bearing terms, quoted so they cannot drift:
    zero-variance month counts as unusable like NaN, for all three spellings of missing; one BH
    member per duplicated hypothesis, foundry canonical). The signs (§4) and predictions (§8) are
    unchanged from the 09-30 draft; nothing has been run.
+
+## POST-FREEZE, PRE-DATA INVENTORY AMENDMENT — 2026-10-14 (director ruling; BINDING)
+Made **before any return, IC or wealth number existed**, after the smoke's census HALT
+(§11.3). §4's text is unchanged; this section governs where it differs.
+1. **`herding_v1` and `earnings_proximity_5d` are EXCLUDED** as structurally ineligible for a
+   month-end construction — the `pair_zscore_60d` disposition, same reason: a daily event edge
+   is silent at month-end; it is not a weak signal, it is not a month-end signal. **Main family
+   15 → 14, short-window 7 → 6, N_trials unchanged at +4.** No month-aggregated herding
+   construction is invented: a construction the brief does not specify is a new hypothesis and
+   gets its own brief (the macro-timing reasoning).
+2. **`volume_anomaly_v1` is PRE-RULED:** if the full-window census trips the 10% unusable bar,
+   the same exclusion applies **automatically and is recorded as such** — no decision is made
+   after seeing anything.
+3. **§8's predictions stay byte-identical** and are compared as written against the reduced
+   inventory; the verdict states the inventory change beside the comparison.
+4. **The 60 names lacking the exact month-end date → NaN forward return: reported, never
+   filled.**
 
 ## Reproduce the pre-run findings
 ```bash

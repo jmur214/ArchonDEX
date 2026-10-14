@@ -70,14 +70,13 @@ MAIN_FEATURES = ["mom_12_1", "mom_6_1", "reversal_1m", "dist_52w_high", "realize
                  "beta_252d", "skew_60d", "high_minus_low_60d", "drawdown_60d",
                  "ma_cross_50_200", "moving_avg_distance_50d", "vol_regime_5_60"]
 MAIN_EDGES = {"overnight_intraday_v1": ("overnight_intraday_edge", "OvernightIntradayEdge"),
-              "volume_anomaly_v1": ("volume_anomaly_edge", "VolumeAnomalyEdge"),
-              "herding_v1": ("herding_edge", "HerdingEdge")}
+              "volume_anomaly_v1": ("volume_anomaly_edge", "VolumeAnomalyEdge")}
 SENSITIVITY_EDGES = {"momentum_12_1_v1": ("momentum_12_1_v1", "Momentum12_1Edge"),
                      "momentum_6_1_v1": ("momentum_6_1_v1", "Momentum6_1Edge"),
                      "short_term_reversal_v1": ("short_term_reversal_v1", "ShortTermReversalEdge"),
                      "low_vol_factor_v1": ("low_vol_factor_edge", "LowVolFactorEdge"),
                      "betting_against_beta_v1": ("betting_against_beta_edge", "BettingAgainstBetaEdge")}
-SHORT_FEATURES = ["earnings_proximity_5d"]
+SHORT_FEATURES: List[str] = []
 SHORT_EDGES = {"value_book_to_market_v1": ("value_book_to_market_edge", "ValueBookToMarketEdge"),
                "value_earnings_yield_v1": ("value_earnings_yield_edge", "ValueEarningsYieldEdge"),
                "quality_gross_profitability_v1": ("quality_gross_profitability_edge",
@@ -86,6 +85,19 @@ SHORT_EDGES = {"value_book_to_market_v1": ("value_book_to_market_edge", "ValueBo
                "accruals_inv_sloan_v1": ("accruals_inv_sloan_edge", "AccrualsInvSloanEdge"),
                "accruals_inv_asset_growth_v1": ("accruals_inv_asset_growth_edge",
                                                 "AccrualsInvAssetGrowthEdge")}
+# POST-FREEZE, PRE-DATA inventory amendment (director ruling 2026-10-14, made before any
+# return/IC/wealth existed). Excluded signals are NOT computed — the pair_zscore_60d
+# disposition: structurally ineligible for a month-end construction, not weak signals.
+EXCLUDED_BY_RULING = {
+    "pair_zscore_60d": "prereg §3.3 — defined for 10 hand-picked tickers only",
+    "herding_v1": "ruling 2026-10-14 — daily EVENT edge, all zeros at 8 of 12 smoke month-ends",
+    "earnings_proximity_5d": "ruling 2026-10-14 — all zeros at month-ends between earnings seasons",
+}
+# PRE-RULED (2026-10-14): if the full-window census trips the 10% unusable bar, the SAME
+# exclusion applies automatically and is recorded — no decision made after seeing anything.
+PRE_RULED_AUTO_EXCLUDE = {"volume_anomaly_v1"}
+EXPECTED_FAMILY_COUNTS = {"main": 14, "sensitivity": 5, "short_window": 6}
+
 FAMILY = {**{s: "main" for s in MAIN_FEATURES + list(MAIN_EDGES)},
           **{s: "sensitivity" for s in SENSITIVITY_EDGES},
           **{s: "short_window" for s in SHORT_FEATURES + list(SHORT_EDGES)}}
@@ -237,9 +249,14 @@ def modal_share(vals: np.ndarray) -> float:
 
 def build_census(panel: pd.DataFrame, coverage: List[dict], signals: List[str],
                  family: Dict[str, str], short_start: str = SHORT_WINDOW_START,
-                 orientation: Optional[Dict[str, dict]] = None) -> Tuple[dict, List[str]]:
+                 orientation: Optional[Dict[str, dict]] = None,
+                 pre_ruled: Iterable[str] = PRE_RULED_AUTO_EXCLUDE,
+                 expected_counts: Dict[str, int] = EXPECTED_FAMILY_COUNTS
+                 ) -> Tuple[dict, List[str]]:
     halts: List[str] = []
-    cen = {"coverage": coverage, "signals": {}}
+    auto_excluded: Dict[str, str] = {}
+    pre_ruled = set(pre_ruled)
+    cen = {"coverage": coverage, "signals": {}, "excluded_by_ruling": EXCLUDED_BY_RULING}
     cov = pd.DataFrame(coverage)
     if len(cov):
         cen["coverage_share_months_below_80pct"] = float((cov["coverage_pct"] < 80.0).mean())
@@ -262,7 +279,14 @@ def build_census(panel: pd.DataFrame, coverage: List[dict], signals: List[str],
                              "unusable_share": round(unusable_share, 4),
                              "measured": measured, "sparse": sparse,
                              "median_modal_share": round(float(np.median(shares)), 4)}
-        if measured != "CROSS-SECTIONAL":
+        if s in pre_ruled and unusable_share > UNUSABLE_HALT_SHARE:
+            # The pre-ruling keys on the unusable SHARE, whichever check would fire first:
+            # a herding-like signal (> 50% unusable) also fails the classification check,
+            # and that is exactly the case the ruling was written for.
+            auto_excluded[s] = (f"unusable in {unusable_share:.1%} of its months "
+                                f"(measured {measured}) — EXCLUDED under the 2026-10-14 "
+                                f"pre-ruling, not halted")
+        elif measured != "CROSS-SECTIONAL":
             halts.append(f"{s}: measured {measured} but the frozen §4 inventory declares it "
                          f"cross-sectional")
         elif unusable_share > UNUSABLE_HALT_SHARE:
@@ -278,13 +302,19 @@ def build_census(panel: pd.DataFrame, coverage: List[dict], signals: List[str],
     # never pass silently: a check that ran on nothing is listed by name
     cen["orientation_untestable"] = sorted(e for e, o in (orientation or {}).items()
                                            if o.get("ok") is None)
-    fam = {}
+    cen["auto_excluded_pre_ruled"] = auto_excluded
+    fam: Dict[str, int] = {}
     for s in signals:
-        fam[family[s]] = fam.get(family[s], 0) + 1
+        if s not in auto_excluded:
+            fam[family[s]] = fam.get(family[s], 0) + 1
+    expected = dict(expected_counts)
+    for s in auto_excluded:
+        expected[family[s]] -= 1
     cen["family_counts"] = fam
-    if fam.get("main") != 15 or fam.get("sensitivity") != 5 or fam.get("short_window") != 7:
-        halts.append(f"family counts {fam} != frozen inventory (main 15, sensitivity 5, "
-                     f"short-window 7)")
+    if fam != expected:
+        halts.append(f"family counts {fam} != the amended inventory {expected} "
+                     f"(2026-10-14: main 14, sensitivity 5, short-window 6, less any "
+                     f"pre-ruled auto-exclusion)")
     cen["halt_reasons"] = halts
     return cen, halts
 
@@ -421,6 +451,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "engine_a_note": ("Engine A edges emit SELECTIONS (1/0, ±1, vol-targeted "
                                   "weights), not raw scores; tested under the frozen §4.2 "
                                   "sparse rule")})
+    dropped = list(cen["auto_excluded_pre_ruled"])
+    if dropped:
+        panel = panel.drop(columns=dropped)
+        print(f"[B1-PANEL] pre-ruled auto-exclusion applied (recorded): {dropped}")
     digest = canonical_md5(panel)
     cen["panel_canonical_md5"] = digest
     out.mkdir(parents=True, exist_ok=True)
