@@ -21,6 +21,7 @@ from engines.engine_a_alpha.edges.earnings_vol_edge import EarningsVolEdge
 
 # Research Modules
 from core.census import assert_census
+from engines.engine_d_discovery import gate_verdicts as gv
 from engines.engine_d_discovery.gate1_signal_cache import (
     CandidateSignalCensus,
     DiscoveryCandidateCensusError,
@@ -39,6 +40,14 @@ _T052_TARGET_FEATURE_IDS: Tuple[str, ...] = (
     "anfci_z_60d",
     "faber_multi_asset_trend_above_10mo_sma",
 )
+
+
+class RegimeContextUnavailable(RuntimeError):
+    """RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
+
+    The cycle's regime step used to swallow every exception — and a missing SPY — and run
+    the hunt with `regime_meta=None`: a context-free hunt is a different experiment under
+    the same label. There is no labelled 'no regime context' mode, so the cycle refuses."""
 
 
 class DiscoveryEngine:
@@ -955,7 +964,10 @@ class DiscoveryEngine:
         cache: Optional[Any] = None,
         gate1_contribution_threshold: float = 0.10,
         gate2_survival_threshold: float = 0.60,
-        gate3_consistency_threshold: float = 0.40,
+        # RR-6a: `gate3_consistency_threshold` is GONE. It was declared and never compared —
+        # a caller passing 0.9 changed nothing, a false statement in the interface. Gate 3 is
+        # RECORDED, not a promotion condition; passing the old keyword now raises TypeError.
+        # Whether Gate 3 should bind is RR-6b's question, not a default.
         candidate_default_weight: float = 1.0,
         alpha_config: Optional[Dict[str, Any]] = None,
         risk_settings: Optional[Dict[str, Any]] = None,
@@ -1033,11 +1045,21 @@ class DiscoveryEngine:
         - Gate 1: Sharpe(with_candidate) - Sharpe(baseline) > threshold.
         - Gate 2: PBO survival on bootstrap of attribution stream.
         - Gate 3: WFO consistency = mean rolling-window Sharpe / overall
-                  Sharpe of the attribution stream.
+                  Sharpe of the attribution stream. RECORDED ONLY — no pass
+                  criterion, so its verdict is always NOT_EVALUATED.
         - Gate 4: Permutation-null p-value on attribution stream.
         - Gate 5: Universe-B production-equivalent contribution > 0.
         - Gate 6: FF5+Mom regression on attribution stream — t > 2 AND
                   α annualized > 2%.
+        - Gate 7: substrate-B transfer; Gate 8: DSR at the honest N.
+
+        Verdicts (RR-6a)
+        ----------------
+        `result["gate_verdicts"]` holds PASSED | FAILED | NOT_EVALUATED(reason) for
+        every gate 0–8 (see `gate_verdicts.py`). `passed_all_gates` is True iff every
+        gate in `config/discovery_settings.json` `required_gates` is PASSED; a required
+        gate that rendered no verdict REFUSES, and `promotion_refusals` says which and
+        why. No gate defaults to a pass, and none that did not run is ever blamed.
 
         Threshold rationale — see `docs/Measurements/2026-05/gauntlet_architectural_fix_2026_05.md`
         for calibration.
@@ -1091,19 +1113,40 @@ class DiscoveryEngine:
         # Gate 8 both use. Before, Gate 0 judged against the registry count while
         # Gate 8 judged against whatever the caller passed (production: the batch
         # size) — two different trial counts inside one candidate's verdict.
+        # RR-6a: one tri-state verdict per gate, and the required set, established BEFORE any
+        # work — a bad `required_gates` config fails here, not after an hour of backtests.
+        from engines.engine_d_discovery.thresholds import required_gates
+        required = required_gates()
+        verdicts = gv.new_verdicts()
+
+        def _seal(res: Dict[str, Any]) -> Dict[str, Any]:
+            """The ONE place the verdict becomes a decision: the verdicts, their derived
+            legacy flags, and passed_all_gates = every required gate PASSED."""
+            passed, refusals = gv.promotion_decision(verdicts, required)
+            res["gate_verdicts"] = verdicts
+            res.update(gv.legacy_flags(verdicts))
+            res["passed_all_gates"] = passed
+            res["promotion_refusals"] = refusals
+            res["required_gates"] = list(required)
+            return res
+
         n_trials_source = "explicit" if n_trials_for_dsr is not None else None
-        if enable_mbl_gate and start_date and end_date:
+        if not enable_mbl_gate:
+            gv.not_evaluated(verdicts, "gate_0", "enable_mbl_gate=False (legacy bitwise cross-check bypass)")
+        elif not (start_date and end_date):
+            gv.not_evaluated(verdicts, "gate_0", "no validation window passed — MinBTL cannot be checked")
+        else:
             from core.measurement.mbl_gate import check_mbl_gate, years_from_window
             try:
                 t_years = years_from_window(start_date, end_date)
             except ValueError as exc:
-                return {
-                    "passed_all_gates": False,
-                    "gate_0_passed": False,
+                gv.not_evaluated(verdicts, "gate_0", f"bad window ({exc}) — an MBL check that cannot run is not a pass")
+                gv.not_reached(verdicts, "gate_0", "the validation window is unparseable")
+                return _seal({
                     "gate_0_reason": f"unevaluable: bad window ({exc}) — an MBL check "
                                      f"that cannot run is not a pass",
                     "killed_by_gate": "gate_0_unevaluable",
-                }
+                })
             mbl_verdict = check_mbl_gate(
                 t_years=t_years,
                 n_effective=n_trials_for_dsr,
@@ -1112,17 +1155,17 @@ class DiscoveryEngine:
             if n_trials_for_dsr is None:
                 n_trials_for_dsr = mbl_verdict["n_effective"]
                 n_trials_source = mbl_verdict["n_effective_source"]
+            gv.render(verdicts, "gate_0", bool(mbl_verdict["passed"]), mbl_verdict["reason"])
             if not mbl_verdict["passed"]:
-                return {
-                    "passed_all_gates": False,
-                    "gate_0_passed": False,
+                gv.not_reached(verdicts, "gate_0", "the window is shorter than MinBTL")
+                return _seal({
                     "gate_0_reason": mbl_verdict["reason"],
                     "gate_0_mbl_min": mbl_verdict["mbl_min"],
                     "gate_0_n_effective": mbl_verdict["n_effective"],
                     "gate_0_n_effective_source": mbl_verdict["n_effective_source"],
                     "gate_0_t_years": mbl_verdict["t_years"],
                     "killed_by_gate": "gate_0_mbl",
-                }
+                })
 
         _diag_t_start = _time.time()
         _diag_gate_seconds: Dict[str, float] = {}
@@ -1143,17 +1186,9 @@ class DiscoveryEngine:
             "robustness_survival": 0.0,
             "wfo_degradation": 0.0,
             "significance_p": 1.0,
-            "passed_all_gates": False,
-            "gate_1_passed": False,
-            "gate_2_passed": False,
-            "gate_3_evaluated": False,
-            "gate_4_passed": False,
-            "gate_5_passed": False,
-            "gate_6_passed": False,
-            "gate_7_passed": True,   # Default True = SKIPPED (no substrate B provided)
-            "gate_7_evaluated": False,
-            "gate_8_passed": True,   # Default True = SKIPPED (n_trials_for_dsr=1)
-            "gate_8_evaluated": False,
+            # RR-6a: no gate flags here. They were two-valued DEFAULTS — Gate 7/8 started
+            # True ("SKIPPED"), so a gate that never ran read as a pass. `_seal` writes the
+            # verdicts and the flags derived from them at every exit.
             # RR-3: the trial count every multiple-testing decision in this verdict used,
             # and where it came from — recorded with the decision (discovery_log.jsonl).
             "n_trials_for_dsr": n_trials_for_dsr,
@@ -1164,24 +1199,9 @@ class DiscoveryEngine:
             if not diagnostic_log_path:
                 return
             try:
-                # Compute first-failed-gate. Gate 3 is metric-only (not in
-                # final pass-check), so it is excluded from kill-attribution.
-                gate_pass_order = [
-                    ("gate_1", bool(result.get("gate_1_passed", False))),
-                    ("gate_2", bool(result.get("gate_2_passed", False))),
-                    ("gate_4", bool(result.get("gate_4_passed", False))),
-                    ("gate_5", bool(result.get("gate_5_passed", False))),
-                    ("gate_6", bool(result.get("gate_6_passed", False))),
-                    # Gate 7 / Gate 8 default-passed when skipped; appear
-                    # in kill-attribution only when actually evaluated.
-                    ("gate_7", bool(result.get("gate_7_passed", True))),
-                    ("gate_8", bool(result.get("gate_8_passed", True))),
-                ]
-                first_failed = None
-                for name, passed in gate_pass_order:
-                    if not passed:
-                        first_failed = name
-                        break
+                # RR-6a: the killer is the first gate whose verdict is FAILED. A gate that
+                # rendered no verdict (Gate 3 always; Gate 7/8 when skipped) is never named.
+                first_failed = gv.first_failed_gate(result)
                 params = candidate_spec.get("params", {}) or {}
                 gene_count = 0
                 gene_types: List[str] = []
@@ -1219,19 +1239,22 @@ class DiscoveryEngine:
                         "factor_alpha_tstat": float(result.get("factor_alpha_tstat", 0.0) or 0.0),
                         "factor_alpha_reason": str(result.get("factor_alpha_reason", "")),
                     },
+                    # Legacy shape, values DERIVED from the verdicts (never a default).
                     "gate_passed": {
-                        "gate_1": bool(result.get("gate_1_passed", False)),
-                        "gate_2": bool(result.get("gate_2_passed", False)),
-                        "gate_3_evaluated": bool(result.get("gate_3_evaluated", False)),
-                        "gate_4": bool(result.get("gate_4_passed", False)),
-                        "gate_5": bool(result.get("gate_5_passed", False)),
-                        "gate_6": bool(result.get("gate_6_passed", False)),
-                        "gate_7": bool(result.get("gate_7_passed", True)),
-                        "gate_7_evaluated": bool(result.get("gate_7_evaluated", False)),
-                        "gate_8": bool(result.get("gate_8_passed", True)),
-                        "gate_8_evaluated": bool(result.get("gate_8_evaluated", False)),
+                        "gate_1": result["gate_1_passed"],
+                        "gate_2": result["gate_2_passed"],
+                        "gate_3_evaluated": result["gate_3_evaluated"],
+                        "gate_4": result["gate_4_passed"],
+                        "gate_5": result["gate_5_passed"],
+                        "gate_6": result["gate_6_passed"],
+                        "gate_7": result["gate_7_passed"],
+                        "gate_7_evaluated": result["gate_7_evaluated"],
+                        "gate_8": result["gate_8_passed"],
+                        "gate_8_evaluated": result["gate_8_evaluated"],
                     },
-                    "passed_all_gates": bool(result.get("passed_all_gates", False)),
+                    "gate_verdicts": result["gate_verdicts"],
+                    "promotion_refusals": result["promotion_refusals"],
+                    "passed_all_gates": result["passed_all_gates"],
                 }
                 import json as _json
                 from pathlib import Path as _Path
@@ -1242,6 +1265,12 @@ class DiscoveryEngine:
             except Exception as _emit_err:
                 print(f"[DISCOVERY-DIAG] emit failed: {_emit_err}")
 
+        def _finish() -> Dict[str, Any]:
+            """Every exit: seal the verdicts into the result, emit the diagnostic row, return."""
+            _seal(result)
+            _emit_diag()
+            return result
+
         try:
             # ---------------------------------------------------------------
             # Setup: build production-equivalent baseline + with-candidate
@@ -1250,8 +1279,8 @@ class DiscoveryEngine:
             # ---------------------------------------------------------------
             if not data_map:
                 _diag_error = "empty_data_map"
-                _emit_diag()
-                return result
+                gv.not_reached(verdicts, "setup", "empty data_map")
+                return _finish()
 
             cand_id = candidate_spec["edge_id"]
             first_ticker = list(data_map.keys())[0]
@@ -1442,21 +1471,24 @@ class DiscoveryEngine:
             # This replaces the legacy benchmark-relative standalone gate
             # which kills 30/30 candidates that have positive ensemble
             # contribution (Audit doc discovery_diagnostic_2026_05.md).
-            result["gate_1_passed"] = bool(contribution > gate1_contribution_threshold)
+            gate1_ok = bool(contribution > gate1_contribution_threshold)
+            gv.render(verdicts, "gate_1", gate1_ok,
+                      f"contribution {contribution:+.3f} {'>' if gate1_ok else '<='} {gate1_contribution_threshold}")
             result["benchmark_threshold"] = float(gate1_contribution_threshold)
-            if not result["gate_1_passed"]:
+            if not gate1_ok:
                 print(
                     f"[DISCOVERY] {cand_id} failed Gate 1 "
                     f"(contribution={contribution:+.3f} <= {gate1_contribution_threshold})"
                 )
                 _stamp("gate_1", _g1_t0)
-                _emit_diag()
-                return result
+                gv.not_reached(verdicts, "gate_1", "the candidate failed gate_1")
+                return _finish()
             _stamp("gate_1", _g1_t0)
 
             # ---- Gate 2: PBO survival on attribution stream ----
             _g2_t0 = _time.time()
             survival_rate = 0.0
+            g2_error: Optional[str] = None
             try:
                 tester = RobustnessTester()
                 pbo = tester.calculate_pbo_returns_stream(
@@ -1470,9 +1502,14 @@ class DiscoveryEngine:
                     raise
                 print(f"[Gate 2] {type(e).__name__}: {e}")
                 survival_rate = 0.0
+                g2_error = f"{type(e).__name__}: {e}"
 
             result["robustness_survival"] = float(survival_rate)
-            result["gate_2_passed"] = bool(survival_rate >= gate2_survival_threshold)
+            if g2_error is not None:
+                gv.not_evaluated(verdicts, "gate_2", f"PBO could not run — {g2_error}")
+            else:
+                gv.render(verdicts, "gate_2", survival_rate >= gate2_survival_threshold,
+                          f"survival {survival_rate:.3f} vs {gate2_survival_threshold}")
             _stamp("gate_2", _g2_t0)
 
             # ---- Gate 3: WFO consistency on attribution stream ----
@@ -1481,8 +1518,9 @@ class DiscoveryEngine:
             # stream (the architectural fix means the candidate's
             # contribution is the right substrate, not its standalone
             # parameters). Computes mean rolling-63d Sharpe and divides
-            # by overall Sharpe — > threshold means contribution is
-            # temporally stable.
+            # by overall Sharpe. RR-6a: RECORDED, never compared — Gate 3 has no
+            # pass criterion, so its verdict is NOT_EVALUATED and it can never be
+            # named as a killer (two T-196 records were blamed on it).
             _g3_t0 = _time.time()
             wfo_consistency = 0.0
             try:
@@ -1505,12 +1543,16 @@ class DiscoveryEngine:
                 print(f"[Gate 3] {type(e).__name__}: {e}")
 
             result["wfo_degradation"] = float(wfo_consistency)
-            result["gate_3_evaluated"] = bool(wfo_consistency != 0.0)
+            gv.not_evaluated(verdicts, "gate_3", (
+                f"recorded only — no pass criterion (RR-6b decides whether Gate 3 binds); "
+                + (f"consistency {wfo_consistency:.3f}" if wfo_consistency != 0.0 else
+                   "consistency not computed (attribution < 126 bars, or its Sharpe <= 0)")))
             _stamp("gate_3", _g3_t0)
 
             # ---- Gate 4: Permutation significance on attribution stream ----
             _g4_t0 = _time.time()
             sig_p = 1.0
+            g4_error: Optional[str] = None
             try:
                 from engines.engine_d_discovery.significance import (
                     monte_carlo_permutation_test,
@@ -1524,23 +1566,40 @@ class DiscoveryEngine:
                     raise
                 print(f"[Gate 4] {type(e).__name__}: {e}")
                 sig_p = 1.0
+                g4_error = f"{type(e).__name__}: {e}"
 
             result["significance_p"] = float(sig_p)
             # RR-2: the threshold is always a number here — validate_candidate
             # raises on None at entry, so there is no "skip" mode left to fail.
-            result["gate_4_passed"] = bool(sig_p < significance_threshold)
+            if g4_error is not None:
+                gv.not_evaluated(verdicts, "gate_4", f"permutation test could not run — {g4_error}")
+            else:
+                gv.render(verdicts, "gate_4", sig_p < significance_threshold,
+                          f"p {sig_p:.4f} vs {significance_threshold}")
             _stamp("gate_4", _g4_t0)
+
+            # RR-6a — the with-arm on any OTHER data_map is built from the UNWRAPPED
+            # baseline edges. The Gate-1 signal cache keys on the bar timestamp alone
+            # (`CachedEdgeWrapper._key_for(now)`), so a wrapped baseline edge run on
+            # Universe B or substrate B replayed its Universe-A signal on every shared
+            # date: the with-arm carried Universe A's baseline while the baseline arm
+            # (unwrapped) carried B's, and the "contribution" measured the cache, not
+            # the candidate. Gates 5 and 7 use this dict; Gate 1 keeps its cache.
+            alt_with_edges = dict(baseline_edges)
+            alt_with_edges[cand_id] = cand_edge
 
             # ---- Gate 5: Universe-B production-equivalent transfer ----
             _g5_t0 = _time.time()
             universe_b_sharpe: float = float("nan")
             universe_b_n_tickers: int = 0
             universe_b_contribution: float = float("nan")
+            g5_not_evaluated: Optional[str] = None
             try:
                 dm_b = self._load_universe_b(prod_tickers=set(data_map.keys()))
                 universe_b_n_tickers = len(dm_b)
                 if not dm_b:
                     print(f"[DISCOVERY] Gate 5 skipped: no universe-B tickers available")
+                    g5_not_evaluated = "no universe-B tickers available"
                 else:
                     # Production-equivalent ensemble on Universe-B too.
                     # Run baseline + with-candidate; contribution = diff.
@@ -1562,7 +1621,7 @@ class DiscoveryEngine:
                         **ub_run_kwargs,
                     )
                     ub_with = run_backtest_pure(
-                        edges=with_edges,
+                        edges=alt_with_edges,
                         edge_weights=with_weights,
                         **ub_run_kwargs,
                     )
@@ -1581,27 +1640,32 @@ class DiscoveryEngine:
                 print(f"[Gate 5] {type(e).__name__}: {e}")
                 universe_b_sharpe = float("nan")
                 universe_b_contribution = float("nan")
+                g5_not_evaluated = f"universe-B run failed — {type(e).__name__}: {e}"
 
             result["universe_b_sharpe"] = universe_b_sharpe
             result["universe_b_contribution"] = universe_b_contribution
             result["universe_b_n_tickers"] = universe_b_n_tickers
-            # NaN means we couldn't measure — fail closed. Previously NaN
-            # short-circuited to pass, which let any gate-5 setup error
-            # silently green-light a candidate.
-            result["gate_5_passed"] = bool(
-                not math.isnan(universe_b_sharpe) and universe_b_sharpe > 0
-            )
+            # NaN means we couldn't measure. Previously NaN short-circuited to pass;
+            # then it was recorded as a FAIL — blaming a gate that rendered nothing.
+            # RR-6a: it is NOT_EVALUATED, which a required gate turns into a refusal.
+            if g5_not_evaluated is None and math.isnan(universe_b_sharpe):
+                g5_not_evaluated = "universe-B attribution Sharpe is NaN"
+            if g5_not_evaluated is not None:
+                gv.not_evaluated(verdicts, "gate_5", g5_not_evaluated)
+            else:
+                gv.render(verdicts, "gate_5", universe_b_sharpe > 0,
+                          f"universe-B attribution Sharpe {universe_b_sharpe:+.3f} on {universe_b_n_tickers} tickers")
             _stamp("gate_5", _g5_t0)
 
             # ---- Gate 6: FF5+Mom factor decomposition on attribution stream ----
             _g6_t0 = _time.time()
-            # Fail-closed default: a candidate that cannot prove non-trivial
-            # alpha vs FF5+Mom should not pass on the absence of evidence.
-            # FileNotFoundError (missing factor cache) is the one preserved
-            # skip-pass case — no factor data available at all is an
-            # operational state, not an attribute of the candidate.
+            # Fail-closed: a candidate that cannot prove non-trivial alpha vs FF5+Mom
+            # does not pass on the absence of evidence. RR-6a: nor does a candidate
+            # whose regression never ran — a missing factor cache and too little
+            # overlap used to read as a PASS ("skipped"); they are NOT_EVALUATED now.
             factor_alpha_passed = False
             factor_alpha_reason = "failed: not run"
+            g6_not_evaluated: Optional[str] = None
             try:
                 from core.factor_decomposition import (
                     load_factor_data,
@@ -1609,30 +1673,40 @@ class DiscoveryEngine:
                     gate_factor_alpha,
                 )
                 factors = load_factor_data(auto_download=False)
+                # RR-6a (Gate 6 RF): the attribution stream is with − baseline, a
+                # SPREAD — already an excess return. Subtracting RF from it again
+                # shifted α by −RF (a +2.5%/yr spread read −2.5% at RF 5%).
                 decomp = regress_returns_on_factors(
                     returns=attribution,
                     factors=factors,
                     edge_name=cand_id,
+                    already_excess=True,
                 )
-                factor_alpha_passed, factor_alpha_reason = gate_factor_alpha(decomp)
-                if decomp is not None:
+                if decomp is None:
+                    g6_not_evaluated = "too little attribution/factor overlap to regress"
+                    factor_alpha_reason = f"not evaluated: {g6_not_evaluated}"
+                else:
+                    factor_alpha_passed, factor_alpha_reason = gate_factor_alpha(decomp)
                     result["factor_alpha_annualized"] = decomp.alpha_annualized
                     result["factor_alpha_tstat"] = decomp.alpha_tstat
                     result["factor_r_squared"] = decomp.r_squared
             except FileNotFoundError as e:
-                factor_alpha_passed = True
-                factor_alpha_reason = "skipped: factor cache missing"
-                print(f"[DISCOVERY] Gate 6 skipped: {e}")
+                g6_not_evaluated = f"factor cache missing ({e})"
+                factor_alpha_reason = "not evaluated: factor cache missing"
+                print(f"[DISCOVERY] Gate 6 not evaluated: {e}")
             except Exception as e:
                 if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
                     raise
-                factor_alpha_passed = False
-                factor_alpha_reason = f"failed: {type(e).__name__}"
+                g6_not_evaluated = f"factor regression failed — {type(e).__name__}: {e}"
+                factor_alpha_reason = f"not evaluated: {type(e).__name__}"
                 print(f"[Gate 6] {type(e).__name__}: {e}")
 
             result["factor_alpha_passed"] = factor_alpha_passed
             result["factor_alpha_reason"] = factor_alpha_reason
-            result["gate_6_passed"] = bool(factor_alpha_passed)
+            if g6_not_evaluated is not None:
+                gv.not_evaluated(verdicts, "gate_6", g6_not_evaluated)
+            else:
+                gv.render(verdicts, "gate_6", factor_alpha_passed, factor_alpha_reason)
             _stamp("gate_6", _g6_t0)
             # T-203 Phase-0 re-aim: Gate-6 (factor-orthogonality) is DIAGNOSTIC-
             # ONLY by default (factor_gate_mode='report') — the resolved goal is
@@ -1640,20 +1714,11 @@ class DiscoveryEngine:
             # still computed + recorded (now with the HAC-corrected t-stat) but
             # does not KILL unless mode=='kill'. The deploy-readiness check is the
             # robo scorecard gate (core.combined_candidate_scorecard).
-            _fgm = "report"
-            try:
-                import json as _json
-                from pathlib import Path as _Path
-                if hasattr(self, "cfg") and isinstance(self.cfg, dict) and "factor_gate_mode" in self.cfg:
-                    _fgm = str(self.cfg.get("factor_gate_mode", "report"))
-                else:
-                    _cfgp = _Path(__file__).resolve().parents[2] / "config" / "discovery_settings.json"
-                    if _cfgp.exists():
-                        _fgm = str(_json.loads(_cfgp.read_text()).get("factor_gate_mode", "report"))
-            except Exception:
-                _fgm = "report"
+            # RR-6a: whether Gate 6 binds is whether it is in `required_gates`, which
+            # `thresholds.required_gates` has already checked against factor_gate_mode
+            # in the same file — the two can no longer disagree.
+            _fgm = "kill" if "gate_6" in required else "report"
             result["factor_gate_mode"] = _fgm
-            factor_alpha_passed_for_gate = factor_alpha_passed if _fgm == "kill" else True
             if not factor_alpha_passed:
                 _tag = "failed Gate 6 (KILL)" if _fgm == "kill" else "Gate 6 report-only (diagnostic, not killed)"
                 print(f"[DISCOVERY] {cand_id} {_tag} ({factor_alpha_reason})")
@@ -1672,14 +1737,20 @@ class DiscoveryEngine:
             #   > gate7_max_substrate_drift → FAIL (substrate-conditional
             #   alpha; survives one substrate but not the other).
             #
-            # Default skipped (data_map_substrate_b=None) so existing
-            # measurement reproducibility is preserved.
-            if data_map_substrate_b is not None and len(data_map_substrate_b) > 0:
+            # RR-6a: without a substrate-B data_map the gate is NOT_EVALUATED — it
+            # used to default to PASSED, and production never built substrate B (a
+            # swallowed NameError), so every production candidate got a free Gate 7.
+            if data_map_substrate_b is None or len(data_map_substrate_b) == 0:
+                gv.not_evaluated(verdicts, "gate_7", "no substrate-B data_map provided")
+                result["gate_7_reason"] = "not evaluated: no substrate-B data_map provided"
+            else:
                 _g7_t0 = _time.time()
                 substrate_b_contribution: float = float("nan")
                 substrate_b_sharpe: float = float("nan")
                 substrate_b_drift: float = float("nan")
                 gate_7_reason = "not run"
+                g7_not_evaluated: Optional[str] = None
+                gate_7_passed = False
                 try:
                     sb_start = list(data_map_substrate_b.values())[0].index[0].isoformat()
                     sb_end = list(data_map_substrate_b.values())[0].index[-1].isoformat()
@@ -1699,7 +1770,7 @@ class DiscoveryEngine:
                         **sb_run_kwargs,
                     )
                     sb_with = run_backtest_pure(
-                        edges=with_edges,
+                        edges=alt_with_edges,
                         edge_weights=with_weights,
                         **sb_run_kwargs,
                     )
@@ -1715,10 +1786,10 @@ class DiscoveryEngine:
                         contribution - substrate_b_contribution
                     )
                     # Two failure conditions: negative on substrate B, OR
-                    # too much drift between substrates
+                    # too much drift between substrates. A NaN is unmeasured, not failed.
                     if math.isnan(substrate_b_sharpe):
-                        gate_7_passed = False
-                        gate_7_reason = "failed: NaN substrate-B sharpe"
+                        g7_not_evaluated = "substrate-B attribution Sharpe is NaN"
+                        gate_7_reason = f"not evaluated: {g7_not_evaluated}"
                     elif substrate_b_contribution < 0:
                         gate_7_passed = False
                         gate_7_reason = (
@@ -1739,18 +1810,20 @@ class DiscoveryEngine:
                 except Exception as e:
                     if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
                         raise
-                    gate_7_passed = False
-                    gate_7_reason = f"failed: {type(e).__name__}: {e}"
+                    g7_not_evaluated = f"substrate-B run failed — {type(e).__name__}: {e}"
+                    gate_7_reason = f"not evaluated: {type(e).__name__}: {e}"
                     print(f"[Gate 7] {type(e).__name__}: {e}")
-                result["gate_7_passed"] = bool(gate_7_passed)
-                result["gate_7_evaluated"] = True
+                if g7_not_evaluated is not None:
+                    gv.not_evaluated(verdicts, "gate_7", g7_not_evaluated)
+                else:
+                    gv.render(verdicts, "gate_7", gate_7_passed, gate_7_reason)
                 result["gate_7_reason"] = gate_7_reason
                 result["substrate_b_sharpe"] = substrate_b_sharpe
                 result["substrate_b_contribution"] = substrate_b_contribution
                 result["substrate_b_drift"] = substrate_b_drift
                 _stamp("gate_7", _g7_t0)
                 if not gate_7_passed:
-                    print(f"[DISCOVERY] {cand_id} failed Gate 7 ({gate_7_reason})")
+                    print(f"[DISCOVERY] {cand_id} did not pass Gate 7 ({gate_7_reason})")
 
             # ---- Gate 8: DSR multiple-testing correction ----
             # Added 2026-05-09 evening per outside-reviewer recommendation.
@@ -1771,10 +1844,18 @@ class DiscoveryEngine:
                 n_trials_source = "registry_correlated"
                 result["n_trials_for_dsr"] = n_trials_for_dsr
                 result["n_trials_source"] = n_trials_source
-            if n_trials_for_dsr > 1:
+            if n_trials_for_dsr <= 1:
+                # RR-6a: an explicit N ≤ 1 applies no multiple-testing correction. That
+                # is NOT a pass — it used to default to gate_8_passed=True.
+                gv.not_evaluated(verdicts, "gate_8",
+                                 f"n_trials_for_dsr={n_trials_for_dsr}: no multiple-testing correction applied")
+                result["gate_8_reason"] = f"not evaluated: n_trials_for_dsr={n_trials_for_dsr}"
+            else:
                 _g8_t0 = _time.time()
                 dsr_value: float = 0.0
                 gate_8_reason = "not run"
+                g8_not_evaluated: Optional[str] = None
+                gate_8_passed = False
                 try:
                     from core.metrics_engine import MetricsEngine
                     if attribution is not None and len(attribution) >= 4:
@@ -1791,60 +1872,44 @@ class DiscoveryEngine:
                                 f"(n_trials={n_trials_for_dsr})"
                             )
                     else:
-                        gate_8_passed = False
-                        gate_8_reason = "failed: attribution stream too short for DSR"
+                        g8_not_evaluated = "attribution stream too short for DSR"
+                        gate_8_reason = f"not evaluated: {g8_not_evaluated}"
                 except Exception as e:
                     if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
                         raise
-                    gate_8_passed = False
-                    gate_8_reason = f"failed: {type(e).__name__}: {e}"
+                    g8_not_evaluated = f"DSR could not run — {type(e).__name__}: {e}"
+                    gate_8_reason = f"not evaluated: {type(e).__name__}: {e}"
                     print(f"[Gate 8] {type(e).__name__}: {e}")
-                result["gate_8_passed"] = bool(gate_8_passed)
-                result["gate_8_evaluated"] = True
+                if g8_not_evaluated is not None:
+                    gv.not_evaluated(verdicts, "gate_8", g8_not_evaluated)
+                else:
+                    gv.render(verdicts, "gate_8", gate_8_passed, gate_8_reason)
                 result["gate_8_reason"] = gate_8_reason
                 result["dsr_value"] = dsr_value
                 result["n_trials_for_dsr"] = n_trials_for_dsr
                 _stamp("gate_8", _g8_t0)
                 if not gate_8_passed:
-                    print(f"[DISCOVERY] {cand_id} failed Gate 8 ({gate_8_reason})")
+                    print(f"[DISCOVERY] {cand_id} did not pass Gate 8 ({gate_8_reason})")
 
             # ---- Final pass check ----
-            # Fail-closed: a NaN universe-B reading means the gate could not be
-            # evaluated, which is not evidence of a pass. (The threshold can no
-            # longer be None — RR-2 raises on it at validate_candidate's entry.)
-            sig_passed = sig_p < significance_threshold
-            sig_threshold_for_log = significance_threshold
-
-            universe_b_passed = (
-                not math.isnan(universe_b_sharpe) and universe_b_sharpe > 0
-            )
-
-            # Gate 7 (substrate-transfer) and Gate 8 (DSR) default to
-            # passed=True when not evaluated (skipped path), so multiplying
-            # them into the final-pass check is safe even when disabled.
-            passed = (
-                contribution > gate1_contribution_threshold
-                and survival_rate >= gate2_survival_threshold
-                and sig_passed
-                and universe_b_passed
-                and factor_alpha_passed_for_gate  # T-203: report-only unless factor_gate_mode=='kill'
-                and bool(result.get("gate_7_passed", True))
-                and bool(result.get("gate_8_passed", True))
-            )
-            result["passed_all_gates"] = passed
-            result["significance_threshold"] = sig_threshold_for_log
+            # RR-6a: the decision is the verdicts — every REQUIRED gate PASSED
+            # (`_seal`). It used to be rebuilt here from raw metrics, with Gate 7/8
+            # read as `result.get("gate_7_passed", True)`: a skipped gate passed.
+            result["significance_threshold"] = significance_threshold
+            _seal(result)
+            passed = result["passed_all_gates"]
 
             b_sharpe_str = (
                 "skipped" if math.isnan(universe_b_sharpe)
                 else f"{universe_b_sharpe:.2f}"
             )
             g7_str = (
-                "skipped" if not result.get("gate_7_evaluated", False)
-                else f"drift={result.get('substrate_b_drift', float('nan')):.2f}"
+                "not evaluated" if not result["gate_7_evaluated"]
+                else f"drift={result['substrate_b_drift']:.2f}"
             )
             g8_str = (
-                "skipped" if not result.get("gate_8_evaluated", False)
-                else f"DSR={result.get('dsr_value', 0.0):.2f}"
+                "not evaluated" if not result["gate_8_evaluated"]
+                else f"DSR={result['dsr_value']:.2f}"
             )
             gate_summary = (
                 f"contrib={contribution:+.3f}, "
@@ -1860,7 +1925,8 @@ class DiscoveryEngine:
             if passed:
                 print(f"[DISCOVERY] {cand_id} PASSED all gates: {gate_summary}")
             else:
-                print(f"[DISCOVERY] {cand_id} FAILED gates: {gate_summary}")
+                print(f"[DISCOVERY] {cand_id} did not pass: {'; '.join(result['promotion_refusals'])} "
+                      f"| {gate_summary}")
 
             # Composite fitness score: weight the contribution Sharpe lift
             # heavily (production-relevant). Survival + WFO consistency are
@@ -1871,8 +1937,7 @@ class DiscoveryEngine:
                 + 0.2 * float(max(0.0, min(1.0, wfo_consistency)))
             )
 
-            _emit_diag()
-            return result
+            return _finish()
 
         except Exception as e:
             # Programmer errors must propagate so they surface in CI / logs
@@ -1880,16 +1945,23 @@ class DiscoveryEngine:
             # RR-3: so must an un-establishable honest N. It is a HARNESS failure;
             # absorbed here it would mark every candidate in the cycle "failed" —
             # "Discovery promotes nothing", a plausible number (the T-177 shape).
+            # RR-6a: every gate the run never reached says why — e.g. a census
+            # refusal leaves Gate 1 NOT_EVALUATED, never a Gate-1 FAIL.
             from core.measurement.mbl_gate import HonestNUnavailableError
+            gv.not_reached(verdicts, _diag_gates_run[-1] if _diag_gates_run else "setup",
+                           f"{type(e).__name__}: {e}")
+            _diag_error = f"{type(e).__name__}: {e}"
             if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError,
                               HonestNUnavailableError)):
-                _diag_error = f"{type(e).__name__}: {e}"
+                _seal(result)
                 _emit_diag()
+                # RR-6a fixup (ruling (c)): the error that fails the cycle names WHICH
+                # candidate and WHICH gate, so the cycle's failure record can say so.
+                e.add_note(f"[validate_candidate] candidate={candidate_spec.get('edge_id', '?')} "
+                           f"last_gate_completed={_diag_gates_run[-1] if _diag_gates_run else 'none (setup)'}")
                 raise
             print(f"[validate_candidate] {type(e).__name__}: {e}")
-            _diag_error = f"{type(e).__name__}: {e}"
-            _emit_diag()
-            return result
+            return _finish()
 
 if __name__ == "__main__":
     # Test run

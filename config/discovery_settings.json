@@ -8,5 +8,7 @@
   "_significance_comment": "RR-2 (2026-09-30): Gate-4 threshold. Production passed significance_threshold=None, which validate_candidate mapped to gate_4_passed=False for EVERY candidate — Gate 4 could never pass, so T-196's H1 was structurally unreachable. One value, read by both production Discovery and the T-195 harness.",
   "significance_threshold": 0.05,
   "_gate2_comment": "RR-2: the ONE Gate-2 robustness-survival threshold. The Pass-2 overwrite used 0.7 while validate_candidate used 0.60 — two values for one gate. The overwrite is deleted; this is now the single source. VALUE UNCHANGED at 0.60. Pinned by a test so a change to a referee threshold is a reviewed diff, never a quiet config edit.",
-  "gate2_survival_threshold": 0.6
+  "gate2_survival_threshold": 0.6,
+  "_required_gates_comment": "RR-6a (2026-10-14): the gates whose verdict must be PASSED for a candidate to pass the gauntlet. Every gate now renders PASSED | FAILED | NOT_EVALUATED(reason); a REQUIRED gate that rendered no verdict REFUSES (fail closed) — before RR-6a a skipped Gate 7/8 defaulted to a pass. gate_3 is absent because it has no pass criterion (recorded only; RR-6b decides whether it binds). gate_6 is absent because factor_gate_mode='report' — engines/engine_d_discovery/thresholds.py refuses a file where the two disagree. Pinned by a test so a change here is a reviewed diff.",
+  "required_gates": ["gate_0", "gate_1", "gate_2", "gate_4", "gate_5", "gate_7", "gate_8"]
 }

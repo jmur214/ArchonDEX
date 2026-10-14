@@ -79,34 +79,10 @@ from analytics.edge_feedback import update_edge_weights_from_latest_trades
 # Modes / Interfaces
 # =============================================================================
 
-def discovery_validation_window(
-    data_map: Dict[str, "pd.DataFrame"], months_env: Optional[str] = None
-) -> Tuple[Optional[str], Optional[str]]:
-    """The window `validate_candidate` (and therefore MBL Gate-0 / DSR) runs on.
-
-    T-2026-06-17-197 FIX, extracted here 2026-08-27 so it is DIRECTLY testable:
-    the default must be the FULL data extent, never a trailing sub-window. The
-    original bug computed Gate-0 on a 24-month quick-filter (T_years=2.0 vs an
-    MBL minimum ~9.66yr at N~125), so EVERY candidate died at Gate-0 before any
-    alpha gate ran and the discovery cycle structurally could not promote
-    anything (T-193/T-195 root cause).
-
-    A regression here is SILENT — the cycle still runs, still logs, and simply
-    never promotes — which is why it gets a pinned test rather than the
-    byte-identical-canon argument it previously relied on.
-
-    `months_env` (the DISCOVERY_VALIDATION_MONTHS env var) remains an explicit
-    opt-in for the cheap pre-screen; Gate-0 will then correctly fail unless that
-    shorter window itself clears MBL.
-    """
-    first = next(iter(data_map.keys()), None)
-    if first is None or data_map[first].empty:
-        return None, None
-    idx = data_map[first].index
-    end = idx[-1].isoformat()
-    if months_env:
-        return (idx[-1] - pd.DateOffset(months=int(months_env))).isoformat(), end
-    return idx[0].isoformat(), end          # full MBL-clearing extent
+# RR-6a fixup (the director's ruling (a)): the validation-window helper moved to Engine D so
+# scripts/run_evolution_cycle.py can use the SAME window without importing the orchestrator.
+# Re-exported here: the cycle below and tests/test_t195_deferred_fixes_closed_2026_08_27.py use it.
+from engines.engine_d_discovery.thresholds import discovery_validation_window  # noqa: E402,F401
 
 
 class Mode(str, Enum):
@@ -1172,6 +1148,10 @@ class ModeController:
         Post-backtest discovery cycle (Engine D).
         Hunts for new edge candidates, validates them, promotes winners.
         """
+        # RR-6a fixup (ruling (c)): where the cycle is, so a failure says which stage — and,
+        # in validation, which candidate — instead of ending as one WARN line.
+        _stage = "honest-N resolution"
+        disc_logger = None
         try:
             # RR-3 (proposal): resolve the honest trial count FIRST — before hunting,
             # and before save_candidates() writes edges.yml. If N cannot be
@@ -1190,16 +1170,24 @@ class ModeController:
             print("\n[DISCOVERY] Starting post-backtest discovery cycle...")
 
             # Step 1: REGIME -- get current regime context from Engine E
-            regime_meta = None
-            try:
-                spy_df = data_map.get("SPY")
-                if spy_df is not None and not spy_df.empty:
-                    regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
-                    print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
-            except Exception as re_err:
-                print(f"[DISCOVERY] Regime detection skipped: {re_err}")
+            # RR-6a fixup (the director's ruling on §5.6, same as (b)): this step swallowed
+            # EVERY exception — and a missing SPY — as "Regime detection skipped" and ran the
+            # hunt with regime_meta=None: a context-free hunt is a different experiment under
+            # the same label. The expected unavailability (no SPY bars, no context returned)
+            # REFUSES the cycle with the stage named; anything Engine E raises propagates.
+            from engines.engine_d_discovery.discovery import RegimeContextUnavailable
+            _stage = "regime context"
+            spy_df = data_map.get("SPY")
+            if spy_df is None or spy_df.empty:
+                raise RegimeContextUnavailable(
+                    "no SPY bars in the cycle's data_map — the hunt would run without regime context")
+            regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
+            if not regime_meta:
+                raise RegimeContextUnavailable(f"Engine E returned no regime context ({regime_meta!r})")
+            print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
 
             # Step 2: HUNT -- TreeScanner with expanded features + regime context
+            _stage = "hunt"
             hunt_candidates = discovery.hunt(
                 data_map,
                 regime_meta=regime_meta,
@@ -1207,10 +1195,12 @@ class ModeController:
             print(f"[DISCOVERY] Hunt found {len(hunt_candidates)} rule-based candidates.")
 
             # Step 3: EVOLVE -- GA cycle + template mutations
+            _stage = "generate candidates"
             mutation_candidates = discovery.generate_candidates(n_mutations=3)
             print(f"[DISCOVERY] Generated {len(mutation_candidates)} mutation/GA candidates.")
 
             all_candidates = hunt_candidates + mutation_candidates
+            _stage = "save new candidates"
             if all_candidates:
                 discovery.save_candidates(all_candidates)
 
@@ -1267,10 +1257,14 @@ class ModeController:
 
             # Gate 7 (substrate transfer): build a historical-S&P 500 data_map
             # ONCE per cycle so all candidates measure substrate transfer
-            # against the same out-of-static-universe benchmark. Skipped
-            # gracefully if the membership parquet is missing or the loader
-            # raises — Gate 7 then defaults to skipped (gate_7_passed = True)
-            # via the validate_candidate signature, preserving legacy behavior.
+            # against the same out-of-static-universe benchmark.
+            # RR-6a: this block read a bare `timeframe` that was never bound, and
+            # its catch-all turned the NameError into "gate skipped" on EVERY cycle;
+            # a skipped Gate 7 then defaulted to PASSED. Now it reads
+            # `self.timeframe`, may still degrade on DATA unavailability (Gate 7 is
+            # then NOT_EVALUATED, which a required gate turns into a refusal), and
+            # never absorbs a programmer error.
+            _stage = "substrate-B build (Gate 7)"
             cycle_data_map_substrate_b: Optional[Dict[str, pd.DataFrame]] = None
             try:
                 from engines.data_manager.universe_resolver import (
@@ -1285,7 +1279,7 @@ class ModeController:
                     _sb_start = self.cfg_bt.get("start_date")
                     _sb_end = self.cfg_bt.get("end_date")
                 _cache_root = self.root / "data"
-                _cached = discover_cached_tickers(_cache_root, timeframe=timeframe)
+                _cached = discover_cached_tickers(_cache_root, timeframe=self.timeframe)
                 _static = list(self.cfg_bt.get("tickers", []))
                 _sb_tickers, _sb_info = resolve_universe(
                     static_tickers=_static,
@@ -1302,7 +1296,7 @@ class ModeController:
                     _sb_only = [t for t in _sb_tickers if t not in set(_static)]
                     if _sb_only:
                         cycle_data_map_substrate_b = self.dm.ensure_data(
-                            _sb_only, _sb_start, _sb_end, timeframe=timeframe,
+                            _sb_only, _sb_start, _sb_end, timeframe=self.timeframe,
                         )
                         print(
                             f"[DISCOVERY] Gate 7 substrate-B loaded: "
@@ -1318,12 +1312,18 @@ class ModeController:
                         f"reason={_sb_info.get('fallback_reason')}); gate skipped."
                     )
             except Exception as _sb_err:
-                print(f"[DISCOVERY] Gate 7 substrate-B build failed; gate skipped: {_sb_err}")
+                if isinstance(_sb_err, (TypeError, AttributeError, NameError, AssertionError, ImportError)):
+                    raise
+                print(f"[DISCOVERY] Gate 7 substrate-B build failed; Gate 7 NOT_EVALUATED: "
+                      f"{type(_sb_err).__name__}: {_sb_err}")
                 cycle_data_map_substrate_b = None
             print(f"[DISCOVERY] Gate 0/8 honest N_eff = {cycle_n_trials_for_dsr:.2f} "
                   f"({_n_info['source']}); batch size = {len(batch)} (the pre-RR-3 N)")
+            from engines.engine_d_discovery import gate_verdicts as _gv
+            from engines.engine_d_discovery.thresholds import required_gates as _required_gates
             for cand in batch:
                 cand_id = cand.get("edge_id", "unknown")
+                _stage = f"validate {cand_id}"
                 print(f"[DISCOVERY] Validating {cand_id}...")
                 _t_cand_start = time.time()
                 _timed_out = False
@@ -1366,12 +1366,14 @@ class ModeController:
                         n_trials_for_dsr=cycle_n_trials_for_dsr,
                     )
                 except TimeoutError as toe:
+                    # RR-6a fixup (ruling (b)): the ONE typed, EXPECTED failure this loop
+                    # handles — the diagnostic per-candidate wall-time alarm. The gauntlet
+                    # never judged the candidate, so every gate is NOT_EVALUATED and it is
+                    # refused, with the reason recorded (never a fabricated FAIL).
                     _timed_out = True
                     print(f"[DISCOVERY] TIMEOUT for {cand_id} after {_diag_per_cand_timeout}s: {toe}")
-                    result = {
-                        "sharpe": 0.0, "significance_p": 1.0, "passed_all_gates": False,
-                        "robustness_survival": 0.0, "fitness_score": 0.0,
-                    }
+                    result = _gv.refused_result(
+                        f"timeout: validate_candidate exceeded {_diag_per_cand_timeout}s", _required_gates())
                     if _diag_log_path:
                         # Best-effort timeout record so the audit doc shows it.
                         try:
@@ -1394,10 +1396,14 @@ class ModeController:
                                 }) + "\n")
                         except Exception as _to_emit_err:
                             print(f"[DISCOVERY-DIAG] timeout-emit failed: {_to_emit_err}")
-                except Exception as ve:
-                    print(f"[DISCOVERY] Validation error for {cand_id}: {ve}")
-                    result = {"sharpe": 0.0, "significance_p": 1.0, "passed_all_gates": False,
-                              "robustness_survival": 0.0, "fitness_score": 0.0}
+                # RR-6a fixup (ruling (b)): NO catch-all here any more. It used to turn ANY
+                # exception — including the NameError/TypeError/AttributeError that
+                # validate_candidate deliberately re-raises — into a candidate recorded
+                # "failed": a NameError inside the gauntlet would have failed EVERY
+                # candidate, a plausible "Discovery promotes nothing" (the T-177 shape).
+                # validate_candidate already turns the expected per-candidate failures
+                # (census refusals, data errors) into NOT_EVALUATED verdicts itself;
+                # anything that escapes it is a harness defect and fails the cycle below.
                 finally:
                     if _diag_per_cand_timeout > 0:
                         import signal as _signal
@@ -1409,6 +1415,7 @@ class ModeController:
                 all_results.append(result)
 
             # Pass 2: BH-FDR batch correction on Gate 4 p-values
+            _stage = "BH-FDR post-filter"
             raw_p_values = [r.get("significance_p", 1.0) for r in all_results]
             bh = apply_bh_fdr(raw_p_values, alpha=0.05) if raw_p_values else None
             if bh is not None:
@@ -1439,6 +1446,7 @@ class ModeController:
             failed = 0
             for cand, result in zip(batch, all_results):
                 cand_id = cand.get("edge_id", "unknown")
+                _stage = f"write-back {cand_id}"
                 if "params" not in cand:
                     cand["params"] = {}
                 cand["params"]["validation_sharpe"] = result.get("sharpe", 0.0)
@@ -1462,6 +1470,7 @@ class ModeController:
                 disc_logger.log_validation(cand_id, result, promoted=result.get("passed_all_gates", False))
                 discovery.save_candidates([cand])
 
+            _stage = "cycle summary"
             disc_logger.log_cycle_summary(
                 n_hunt_candidates=len(hunt_candidates),
                 n_mutation_candidates=len(mutation_candidates),
@@ -1471,16 +1480,20 @@ class ModeController:
             )
             print(f"[DISCOVERY] Cycle complete: {promoted} promoted, {failed} failed.")
         except Exception as e:
-            # RR-3: an un-establishable honest N is re-raised, not WARNed. This is the
-            # FOURTH layer that would have absorbed it (after mbl_gate's `return 1`,
-            # Gate 0's "log + proceed", and validate_candidate's per-candidate
-            # handler): swallowed here, a missing registry ends as one WARN line and a
-            # cycle that "found nothing" — a null result nobody could tell from a
-            # real one. Every other exception keeps this handler's existing behaviour.
-            from core.measurement.mbl_gate import HonestNUnavailableError
-            if isinstance(e, HonestNUnavailableError):
-                raise
-            print(f"[DISCOVERY][WARN] Discovery cycle failed: {e}")
+            # RR-3 re-raised an un-establishable honest N here instead of WARNing — the
+            # FOURTH layer that would have absorbed it. RR-6a fixup (ruling (c)) extends
+            # that to EVERY failure: a cycle that ends as one WARN line is a cycle that
+            # "found nothing", a null nobody can tell from a real one. The cycle now fails
+            # LOUDLY — it says which stage (and, in validation, which candidate; the
+            # exception's notes name the last gate validate_candidate completed), records
+            # a `cycle_failure` row in discovery_log.jsonl, and re-raises.
+            notes = list(getattr(e, "__notes__", []) or [])
+            print(f"[DISCOVERY][FAIL] Discovery cycle FAILED at stage {_stage!r}: "
+                  f"{type(e).__name__}: {e}" + "".join(f"\n    {n}" for n in notes))
+            if disc_logger is not None:
+                disc_logger.log_cycle_failure(stage=_stage, error=f"{type(e).__name__}: {e}", notes=notes)
+            e.add_note(f"[_run_discovery_cycle] failed at stage {_stage!r}")
+            raise
 
     def run_paper(self, fill_bar_delay: int = 1, sleep_seconds: float = 0.0) -> List[dict]:
         """
@@ -1598,28 +1611,11 @@ class CachedCSVLiveFeed:
                 continue
         return out
 
-def _discovery_significance_threshold() -> float:
-    """RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
-    Fail-closed: a missing or non-numeric key raises rather than defaulting silently —
-    a silent default is how None went unnoticed for every Discovery cycle ever run."""
-    import json as _json
-    from pathlib import Path as _Path
-    cfg = _json.loads((_Path(__file__).resolve().parents[1]
-                       / "config" / "discovery_settings.json").read_text())
-    v = cfg["significance_threshold"]
-    if not isinstance(v, (int, float)) or not (0.0 < float(v) < 1.0):
-        raise ValueError(f"discovery_settings.significance_threshold invalid: {v!r}")
-    return float(v)
-
-
-def _discovery_gate2_threshold() -> float:
-    """RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
-    overwrite vs 0.60 in validate_candidate). Fail-closed on a missing/invalid key."""
-    import json as _json
-    from pathlib import Path as _Path
-    cfg = _json.loads((_Path(__file__).resolve().parents[1]
-                       / "config" / "discovery_settings.json").read_text())
-    v = cfg["gate2_survival_threshold"]
-    if not isinstance(v, (int, float)) or not (0.0 < float(v) <= 1.0):
-        raise ValueError(f"discovery_settings.gate2_survival_threshold invalid: {v!r}")
-    return float(v)
+# R's F3 (RR-6a): the gauntlet's threshold readers (RR-2) live with Engine D now —
+# engines/engine_d_discovery/thresholds.py — so no engine-side script imports the
+# orchestrator to learn a Discovery threshold. The names stay bound here because the
+# cycle above calls them; every in-repo script imports from Engine D.
+from engines.engine_d_discovery.thresholds import (  # noqa: E402
+    discovery_gate2_threshold as _discovery_gate2_threshold,
+    discovery_significance_threshold as _discovery_significance_threshold,
+)

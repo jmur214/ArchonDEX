@@ -1282,3 +1282,26 @@ unpinned — a rebuild after loss would have handed it a smaller N with no alarm
 reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; the referee module
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
+
+## Gate verdicts — PASSED | FAILED | NOT_EVALUATED (RR-6a, added 2026-10-14)
+
+Every `validate_candidate` result carries `gate_verdicts` (gates 0–8, each `{"verdict", "reason"}`) and
+`promotion_refusals`. `passed_all_gates` is True only when every gate in `config/discovery_settings.json`
+`required_gates` is PASSED; a required gate that never ran REFUSES and the refusal names it. Gate 3 is recorded
+only. Gate 6 binds only when `factor_gate_mode` is `kill`, and then it must be listed in `required_gates`;
+`engines/engine_d_discovery/thresholds.py` refuses a file where the two disagree. Read a killer with
+`gate_verdicts.first_failed_gate(result)`. Never read `result.get("gate_N_passed", <default>)`.
+
+A Discovery cycle that hits an error now **fails**: `run_backtest(discover=True)` raises, after printing
+`[DISCOVERY][FAIL] … at stage '<stage>'` and appending an `event: cycle_failure` row (stage, error, notes) to
+`data/research/discovery_log.jsonl`. It no longer ends as one WARN line. The only per-candidate failure
+it absorbs is the diagnostic wall-time alarm (`DISCOVERY_DIAG_TIMEOUT_SEC`), which refuses that candidate
+with every gate NOT_EVALUATED. A cycle with no regime context (no SPY bars in its data map) REFUSES
+with `RegimeContextUnavailable`, at stage `regime context`; it never hunts context-free.
+
+```bash
+# R's F4: Gate 4's sign-flip null SIZE on skewed zero-mean streams (pre-registered in the script's docstring).
+# Without --out it PRINTS ONLY; ~1 min, synthetic, N_trials 0.
+python -m scripts.rr6a_gate4_size_skewed
+python -m scripts.rr6a_gate4_size_skewed --out docs/Measurements/2026-10/rr6a_f4_gate4_size_skewed.json
+```

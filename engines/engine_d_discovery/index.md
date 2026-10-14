@@ -41,6 +41,7 @@
 - **Function `cumulative_gate_margin()`**: Compute the spec's Option-B objective: sum of (metric - threshold)/
 
 ### `discovery.py`
+- **Class `RegimeContextUnavailable`**: RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
 - **Class `DiscoveryEngine`**: Engine D (Discovery): The Evolutionary Lab.
   - `def __init__()`
   - `def clear_gate1_signal_cache()`: Drop all cached baseline-edge wrappers. Call between cycles
@@ -58,6 +59,7 @@
   - `def log_ga_generation()`
   - `def log_validation()`
   - `def log_cycle_summary()`
+  - `def log_cycle_failure()`: RR-6a fixup (ruling (c)): a cycle that FAILED says so in the log, naming the stage
 
 ### `feature_engineering.py`
 - **Class `FeatureEngineer`**: Tier 1 Research Feature Factory.
@@ -85,7 +87,27 @@
   - `def stats()`
   - `def eval_error_report()`: {edge_id: {errors, calls, rate, last_error}} for every wrapped edge
   - `def assert_baseline_healthy()`: FAIL LOUD if any wrapped baseline edge crashed on a SYSTEMATIC fraction
+- **Class `CandidateSignalCensus`**: T-2026-08-26-347 — a COUNTING-ONLY proxy over the Gate-1 candidate edge.
+  - `def __init__()`
+  - `def edge_id()`
+  - `def calls()`: Times a signal method was invoked at all (0 => never even called).
+  - `def nonzero_calls()`: Invocations that returned at least one finite non-zero score.
+  - `def errors()`
+  - `def last_error()`
+- **Class `DiscoveryCandidateCensusError`**: Raised when the Gate-1 CANDIDATE fails its census (T-2026-08-26-347).
 - **Class `DiscoveryBaselineError`**: Raised when the discovery validation baseline is structurally degenerate
+
+### `gate_verdicts.py`
+**Module Docstring:** RR-6a — one tri-state verdict per gauntlet gate: PASSED | FAILED | NOT_EVALUATED(reason).
+- **Function `new_verdicts()`**: Every gate NOT_EVALUATED — the truthful state before any gate has run.
+- **Function `render()`**: Record a PASSED/FAILED verdict for a gate that actually ran.
+- **Function `not_evaluated()`**: Record that a gate rendered no verdict, and why.
+- **Function `not_reached()`**: Mark every gate still at its initial 'not reached' state with the reason the run stopped.
+- **Function `promotion_decision()`**: (passed, refusals). Passed iff every required gate is PASSED. A refusal names each required
+- **Function `first_failed_gate()`**: The first gate, in gauntlet order, whose verdict is FAILED; None if none failed.
+- **Function `legacy_flags()`**: `gate_N_passed` / `gate_N_evaluated` for EVERY gate, derived from the verdicts.
+- **Function `verdict_strings()`**: {'g0': 'passed', 'g3': 'not_evaluated', …} — the compact form harness records carry.
+- **Function `refused_result()`**: A complete, sealed result for a candidate the gauntlet never got to judge (the
 
 ### `genetic_algorithm.py`
 **Module Docstring:** Genetic Algorithm engine for CompositeEdge genome evolution.
@@ -111,7 +133,7 @@
 
 ### `significance.py`
 **Module Docstring:** Statistical significance testing for edge discovery validation.
-- **Function `monte_carlo_permutation_test()`**: Test whether the strategy's Sharpe ratio is statistically significant
+- **Function `monte_carlo_permutation_test()`**: Gate-4 significance — a null distribution that CAN reject.
 - **Function `apply_bh_fdr()`**: Benjamini-Hochberg false-discovery-rate correction for a batch of p-values.
 - **Function `minimum_track_record_length()`**: Minimum Track Record Length (MinTRL) per Bailey & Lopez de Prado (2012).
 
@@ -132,6 +154,13 @@
   - `def __init__()`
   - `def generate_price_history()`: Generates OHLCV Data.
   - `def generate_fundamentals()`: Generates consistent P/E, P/S data for the simulated price.
+
+### `thresholds.py`
+**Module Docstring:** The gauntlet's configuration — thresholds, required gates, validation window — fail-closed.
+- **Function `discovery_significance_threshold()`**: RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
+- **Function `discovery_gate2_threshold()`**: RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
+- **Function `required_gates()`**: RR-6a: the gates whose verdict must be PASSED for a candidate to pass the gauntlet.
+- **Function `discovery_validation_window()`**: The window `validate_candidate` (and therefore MBL Gate-0 / DSR) runs on.
 
 ### `tree_scanner.py`
 - **Class `DecisionTreeScanner`**: Tier 2 Research: The Hunter.
