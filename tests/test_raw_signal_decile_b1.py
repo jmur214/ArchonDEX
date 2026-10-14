@@ -191,6 +191,21 @@ def test_select_legs_deciles_and_the_sparse_legs():
     assert h.select_legs(few, sparse=True)[0] is None
 
 
+def test_a_TIE_at_the_top_is_never_split_or_dropped_the_drawdown_at_high_shape():
+    """drawdown_60d = 0 for every name at its 60-day high. 25 of 100 tie there: under
+    average ranks their rank is 88 < 90 and the top decile would be EMPTY (Arm L silently
+    the EW sleeve). The whole most-favorable group is the leg."""
+    vals = np.r_[np.zeros(25), -np.linspace(0.01, 0.30, 75)]
+    s = pd.Series(vals, index=[f"T{i}" for i in range(100)])
+    top, bot = h.select_legs(s, sparse=False)
+    assert top is not None and len(top) == 25
+    assert set(top) == {f"T{i}" for i in range(25)}
+    assert len(bot) == 10
+    ties_low = pd.Series(np.r_[np.full(30, -1.0), np.linspace(0, 1, 70)],
+                         index=[f"T{i}" for i in range(100)])
+    assert len(h.select_legs(ties_low, sparse=False)[1]) == 30   # bottom tie kept whole
+
+
 # ------------------------------------------------------------------ costs + bootstrap
 def test_leg_costs_are_10bps_round_trip_on_DRIFTED_weights():
     f1 = pd.Series({"A": 0.10, "B": -0.10, "C": 0.0})

@@ -395,9 +395,16 @@ option exists, it is the one taken.
    cases, no price after it.
 3. **Unusable month** (the builder's rule: < 10 finite values or std < 1e-12): the IC is skipped
    and counted, and Arm L takes the EW-universe return, also counted.
-4. **Deciles:** average rank of sign × value; top = rank > 0.9 n, bottom = rank ≤ 0.1 n. A leg
-   with < 10 names takes §4.2's fallback: the EW universe for Arm L (counted), and a missing LS
-   month (counted). §4.2's 10-name floor applies to every leg.
+4. **Deciles:** ranks of sign × value; top = rank(max) > 0.9 n, bottom = rank(min) ≤ 0.1 n. A
+   tie group is never split and never dropped. A leg with < 10 names takes §4.2's fallback: the
+   EW universe for Arm L (counted), and a missing LS month (counted). §4.2's 10-name floor
+   applies to every leg. Months where a tie made the top leg exceed 15% of names are counted
+   (`L_n_oversized_top_months`).
+   *Revised 2026-10-14, still before any harness output:* the first cut used average ranks.
+   `drawdown_60d` (and `dist_52w_high`) tie at exactly 0 for every name at its high, which is
+   the most favorable value. Under average ranks a tie group above 20% of names sinks below
+   0.9 n, which empties the top decile and silently turns Arm L into the EW sleeve. The smoke
+   panel already shows 67 of 492 names tied at 0.
 5. **Sparse signals (§4.2, per the census flag):** "strictly favorable" means sign × value > 0,
    the edge's native long side. The LS bottom is the lowest tie group.
 6. **Costs:** each leg is equal-weight. The previous weights drift with realized returns before

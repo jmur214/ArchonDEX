@@ -133,17 +133,20 @@ def spearman(a: np.ndarray, b: np.ndarray) -> float:
 # ============================================================ portfolios
 def select_legs(signed: pd.Series, sparse: bool) -> Tuple[Optional[pd.Index], Optional[pd.Index]]:
     """(top, bottom) names for one month from the SIGNED values of the eligible names.
-    Non-sparse: deciles by average rank (top: rank > 0.9 n; bottom: rank <= 0.1 n).
+    Non-sparse: deciles that never SPLIT or DROP a tie group — top = rank(max) > 0.9 n,
+    bottom = rank(min) <= 0.1 n. Names at a structural extreme (drawdown_60d = 0 at a 60-day
+    high) are equally most-favorable: under average ranks a tie group above 20% of names
+    would sink below 0.9 n and empty the top decile, silently turning Arm L into the EW
+    sleeve. An oversized leg is counted by the caller.
     Sparse (§4.2): top = names strictly favorable (signed > 0, the native long side);
     bottom = the lowest tie group. A leg with < MIN_NAMES names is None (counted)."""
     if sparse:
         top = signed.index[signed.to_numpy() > 0]
         bottom = signed.index[np.isclose(signed.to_numpy(), signed.min(), rtol=0, atol=1e-12)]
     else:
-        r = signed.rank(method="average").to_numpy()
         n = len(signed)
-        top = signed.index[r > 0.9 * n]
-        bottom = signed.index[r <= 0.1 * n]
+        top = signed.index[signed.rank(method="max").to_numpy() > 0.9 * n]
+        bottom = signed.index[signed.rank(method="min").to_numpy() <= 0.1 * n]
     return (top if len(top) >= MIN_NAMES else None,
             bottom if len(bottom) >= MIN_NAMES else None)
 
@@ -215,7 +218,7 @@ def evaluate_signal(sig: str, sparse: bool, frames: List[pd.DataFrame],
     sign = SIGN[sig]
     n = len(frames)
     ics, top_legs, bot_legs = [], [], []
-    n_ic_skipped = n_l_fallback = n_ls_missing = 0
+    n_ic_skipped = n_l_fallback = n_ls_missing = n_l_oversized = 0
     for k, fr in enumerate(frames):
         elig = fr[[sig, FWD]].dropna()
         signed = sign * elig[sig]
@@ -227,6 +230,8 @@ def evaluate_signal(sig: str, sparse: bool, frames: List[pd.DataFrame],
         n_ic_skipped += int(not np.isfinite(ic))
         if top is None:                                   # §4.2: EW-universe, COUNTED
             n_l_fallback += 1
+        elif not sparse and len(top) > 0.15 * len(elig):  # a tie group made the decile > 15%
+            n_l_oversized += 1
         n_ls_missing += int(top is None or bot is None)
         ics.append(ic)
         top_legs.append(top if top is not None else ew_legs[k])
@@ -248,7 +253,7 @@ def evaluate_signal(sig: str, sparse: bool, frames: List[pd.DataFrame],
            "L_ann_mean": float(np.mean(l_net) * 12), "L_maxdd": max_drawdown(l_net),
            "L_turnover_ann_oneway": float(L["turnover"].mean() / 2.0 * 12),
            "L_cost_drag_bps_yr": float(L["cost"].mean() * 12 * 1e4),
-           "L_n_fallback_months": n_l_fallback,
+           "L_n_fallback_months": n_l_fallback, "L_n_oversized_top_months": n_l_oversized,
            "L_sharpe": boot(n, lambda i: ME.sharpe_ratio(pd.Series(l_net[i]), periods=12),
                             seed, iters, block),
            "L_sortino": boot(n, lambda i: ME.sortino_ratio(pd.Series(l_net[i]), periods=12),
