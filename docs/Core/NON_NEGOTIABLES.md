@@ -143,10 +143,13 @@ decisions that govern real-money exposure.
 window must satisfy `T_years ≥ 2 · ln(N_effective) / SR_target²` to have any
 chance of clearing DSR. Honest N counts every distinct backtest configuration
 ever run on the same data substrate, including aggregator-iteration trials (each
-MetaLearner variant, each HRP slice, each Discovery cycle adds to N_trials). At
-~75 accumulated N_trials, the 5-year substrate-honest window requires SR ≥ 1.55
-to clear DSR — the corrected 0.598 baseline cannot clear it regardless of
-measurement discipline. **The 5-year window is exploratory; no measurement on it
+MetaLearner variant, each HRP slice, each Discovery cycle adds to N_trials). MinBTL uses the exact form `E[max_N]² / SR²` (`2·ln N` is its upper bound, kept
+only for comparison). Honest N is correlation-aware and FAILS CLOSED:
+`compute_n_effective_correlated()` — the run registry's count (231 at
+2026-09-30) adjusted by the measured trial correlation (ρ̄ 0.46–0.61; the gate
+reads the conservative bound) to N_eff ≈ 37. At that N_eff a 5-year window needs
+SR ≥ 0.97, 12 years ≥ 0.62, 26 years ≥ 0.42. An N that cannot be established
+halts the measurement; it is never 1. **The 5-year window is exploratory; no measurement on it
 may be quoted as deployment evidence until the multi-decade extension lands.**
 Pre-register every future measurement (hypothesis + threshold + N_trials_consumed)
 BEFORE running.

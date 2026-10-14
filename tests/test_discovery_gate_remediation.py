@@ -215,6 +215,13 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
+        # RR-3: an explicit, REALISTIC N keeps this hermetic. It used to read the local
+        # registry. NOTE what holds the final `passed_all_gates is False` below: NOT Gate
+        # 6 (report-only — "diagnostic, not killed") but Gate 8, which kills this
+        # candidate's degenerate constant-return attribution stream (Sharpe ~7e16, the
+        # unguarded-std defect in xfail NEW-4). At N=1 Gate 8 is skipped and the
+        # candidate PASSES ALL GATES. Recorded in the RR-3 proposal for RR-2/NEW-4.
+        n_trials_for_dsr=37,
     )
 
     # RR-2: this test's premise is "significance must succeed so we actually reach

@@ -27,6 +27,12 @@ Checks (T-093 dispatch acceptance):
      scripts in repo, execution_manual is unlikely to cover all on
      first install). Promote to FAIL when coverage gap is closed.
 
+  8-9. Numbered non-negotiable refs; T-339 closure receipts (see each check).
+
+  10. Open HIGH rows in docs/State/health_check.md: every `- Anchor:` line's
+      cited file line still contains its quoted text. FAIL names the exact fix
+      (close the row, or deliberately update the anchor). See the check.
+
 Usage:
 
     python scripts/doc_lint.py               # run all checks
@@ -459,6 +465,191 @@ def check_closure_receipts() -> CheckResult:
                        f"(historical rows grandfathered — see closure_manifest_t339)")
 
 
+# ---------------------------------------------------------------------
+# Check 10 — open HIGH rows in health_check.md: their code anchors still hold
+# ---------------------------------------------------------------------
+#
+# THE DEFECT THIS PREVENTS (T-195's class, recurred 2026-09-18): two HIGH rows
+# ("production loads the legacy HMM", "HMM blind pre-2020") stayed OPEN for three
+# weeks after the code fixing them merged on 08-26 — a fresh-eyes audit re-raised
+# them and a dispatch was spent on merged work. Closing a row depended on whoever
+# fixed the code remembering the doc. An anchor makes the record state its own
+# staleness: a HIGH row quotes the line that WITNESSES its defect, and when that
+# line stops saying it, this check fails until a human decides which it was.
+#
+# DESIGN CONSTRAINTS (user approval 2026-09-29 — "no friction without an exit"):
+#   * the failure states EXACTLY how to resolve — close the row, or deliberately
+#     update the quoted anchor — and names the new line when the text merely moved;
+#   * open HIGH rows only (the load-bearing ones), in `## Active Issues` only;
+#   * matching is an exact substring of the ONE cited line — never fuzzy, never a
+#     window. A moved line costs a one-line deliberate edit; if that friction shows
+#     up in practice, it is a finding to bring back, not a reason to widen matching.
+# A broken anchor is a JUDGMENT (fixed? moved?), never a mechanical fix — the
+# janitor marks it non-mechanical by this name (janitor_nightly.check_doc_lint).
+
+ANCHOR_CHECK_NAME = "Open HIGH rows' code anchors still hold"
+# Rows first flagged on/after this date WARN when they carry no anchor line.
+# Older open rows are grandfathered (reported as a count, never warned).
+ANCHOR_ACTIVATION = "2026-10-01"
+HEALTH_CHECK = REPO / "docs" / "State" / "health_check.md"
+
+_ENTRY_HEAD_RE = re.compile(r"^### \[(?P<tag>[^\]]*)\](?P<title>.*)$")
+# A row is closed when its header says so, in capitals. PARTIALLY RESOLVED is open.
+_CLOSED_RE = re.compile(r"(?<!PARTIALLY )\b(RESOLVED|SUPERSEDED|CLOSED|HISTORICAL)\b")
+_ANCHOR_LINE_RE = re.compile(r"^- Anchor:")
+_ANCHOR_RE = re.compile(
+    r"^- Anchor: `(?P<path>[^`]+?):(?P<line>\d+)` contains `(?P<expect>.+)`"
+    r"(?:\s+(?:—|--)\s+[^`]*)?\s*$"      # optional note, e.g. " — (1) RR-1"
+)
+_ANCHOR_NONE_RE = re.compile(r"^- Anchor: none\s+(—|--|-)\s+\S")
+_ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+ANCHOR_FORMAT = "- Anchor: `path/to/file.py:123` contains `the text that witnesses the defect`"
+# The same text elsewhere is NOT evidence of a move. Drilled 2026-09-30: on the RR-3
+# branch a seeded `return 1` anchor "moved" to a docstring saying the defect was FIXED.
+_NOT_PROOF = "a match can be a comment or a docstring — the same text is not proof of a move"
+
+
+@dataclass
+class _HighRow:
+    line: int                 # 1-based line of the `### [HIGH…]` header
+    title: str
+    first_flagged: str        # ISO date, or "" when the row carries none
+    anchors: List[tuple]      # (health_check line, raw anchor line)
+
+
+def _open_high_rows(text: str) -> List[_HighRow]:
+    """Open HIGH entries inside `## Active Issues`, with their `- Anchor:` lines."""
+    rows: List[_HighRow] = []
+    in_active = False
+    cur: _HighRow | None = None
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.startswith("## "):
+            in_active = line.strip() == "## Active Issues"
+            cur = None
+            continue
+        if not in_active:
+            continue
+        if line.startswith("### "):
+            cur = None
+            m = _ENTRY_HEAD_RE.match(line)
+            if m and m.group("tag").startswith("HIGH") and not _CLOSED_RE.search(line):
+                # Header date: the tag's, else the latest in the title — e.g. a title
+                # ending "(2026-08-26)" that also quotes a data date like 2020-05-08.
+                # A `- First flagged:` line, when present, overrides both.
+                dates = (_ISO_DATE_RE.findall(m.group("tag"))
+                         or _ISO_DATE_RE.findall(m.group("title")))
+                cur = _HighRow(i, m.group("title").strip(), max(dates) if dates else "", [])
+                rows.append(cur)
+            continue
+        if cur is None:
+            continue
+        if line.startswith("- First flagged:"):
+            d = _ISO_DATE_RE.search(line)
+            if d:
+                cur.first_flagged = d.group(0)
+        elif _ANCHOR_LINE_RE.match(line):
+            cur.anchors.append((i, line))
+    return rows
+
+
+def _anchor_problem(row: _HighRow, hc_line: int, raw: str) -> List[str]:
+    """[] if the anchor holds; otherwise the detail lines, ending in the exact fix."""
+    where = f"health_check.md:{row.line} \"{row.title[:70]}\""
+    if _ANCHOR_NONE_RE.match(raw):
+        return []
+    m = _ANCHOR_RE.match(raw)
+    if not m:
+        return [f"{where}",
+                f"  health_check.md:{hc_line} is not a readable anchor: {raw.strip()[:100]}",
+                f"  RESOLVE: rewrite it as  {ANCHOR_FORMAT}",
+                f"           or, when no single line witnesses the defect:  "
+                f"- Anchor: none — <why>"]
+    rel, n, expect = m.group("path"), int(m.group("line")), m.group("expect")
+    root = REPO.resolve()        # compare resolved to resolved: a symlinked root
+    target = (root / rel).resolve()  # (macOS /var -> /private/var) must not read as absent
+    close_fix = ("  (a) the defect is FIXED -> close the row: retitle it "
+                 "`### [HIGH → RESOLVED <date>] …`, add `- Resolved: <date> (<commit>)`, "
+                 "and move it under `## Resolved`. If the row tracks several defects and "
+                 f"only this one is fixed, delete health_check.md:{hc_line} and mark that "
+                 "item fixed in the row's text instead.")
+    if root not in target.parents or not target.is_file():
+        return [f"{where}",
+                f"  anchor (health_check.md:{hc_line}): `{rel}` does not exist",
+                "  RESOLVE — pick ONE, deliberately:",
+                close_fix,
+                f"  (b) the file was RENAMED -> change the path on health_check.md:{hc_line}."]
+    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    if 1 <= n <= len(lines) and expect in lines[n - 1]:
+        return []
+    now = lines[n - 1].strip()[:100] if 1 <= n <= len(lines) else f"(file has {len(lines)} lines)"
+    hits = [j for j, ln in enumerate(lines, 1) if expect in ln]
+    if len(hits) == 1:
+        moved = (f"  (b) IF the line only MOVED (defect still present): the same text is at "
+                 f"`{rel}:{hits[0]}` (only there) — confirm that line still witnesses the "
+                 f"defect ({_NOT_PROOF}), then change `:{n}` to `:{hits[0]}` on "
+                 f"health_check.md:{hc_line}.")
+    elif hits:
+        shown = ", ".join(str(j) for j in hits[:8]) + (" …" if len(hits) > 8 else "")
+        moved = (f"  (b) IF the line only MOVED (defect still present): the same text is at "
+                 f"lines {shown} of `{rel}` — confirm which ONE still witnesses the defect "
+                 f"({_NOT_PROOF}), then re-point health_check.md:{hc_line} to it.")
+    else:
+        moved = (f"  (b) not available: the text appears nowhere in `{rel}` now — the code "
+                 "changed, so (a) applies. If the defect is NOT fixed but its code changed "
+                 f"form, re-quote health_check.md:{hc_line} to the new witnessing line.")
+    return [f"{where}",
+            f"  anchor (health_check.md:{hc_line}): `{rel}:{n}` should contain `{expect}`",
+            f"  line {n} now reads: `{now}`",
+            "  RESOLVE — pick ONE, deliberately:",
+            close_fix,
+            moved]
+
+
+def check_high_row_anchors(path: Path | None = None) -> CheckResult:
+    """Every `- Anchor:` on an open HIGH row still matches its cited line."""
+    name = ANCHOR_CHECK_NAME
+    hc = path or HEALTH_CHECK
+    if not hc.exists():
+        return CheckResult(name, "FAIL", f"missing {hc.name} — the anchors cannot be checked")
+    rows = _open_high_rows(hc.read_text())
+    broken: List[str] = []
+    n_broken = n_anchors = 0
+    unanchored_new: List[str] = []
+    n_grandfathered = 0
+    for row in rows:
+        if not row.anchors:
+            # An undated row cannot prove it predates activation: treat it as new.
+            if not row.first_flagged or row.first_flagged >= ANCHOR_ACTIVATION:
+                unanchored_new.append(
+                    f"health_check.md:{row.line} \"{row.title[:70]}\" has no anchor. "
+                    f"ADD:  {ANCHOR_FORMAT}  (a line that stays true while the defect "
+                    f"exists), or  - Anchor: none — <why no single line witnesses it>")
+            else:
+                n_grandfathered += 1
+            continue
+        for hc_line, raw in row.anchors:
+            n_anchors += 1
+            problem = _anchor_problem(row, hc_line, raw)
+            if problem:
+                n_broken += 1
+                broken.extend(problem)
+    if broken:
+        return CheckResult(
+            name, "FAIL",
+            f"{n_broken} anchor(s) on open HIGH rows no longer hold — each needs the row "
+            f"closed or the anchor deliberately updated (exact fix below)",
+            broken + unanchored_new)
+    if unanchored_new:
+        return CheckResult(
+            name, "WARN",
+            f"{len(unanchored_new)} HIGH row(s) flagged on/after {ANCHOR_ACTIVATION} "
+            f"carry no anchor", unanchored_new)
+    return CheckResult(
+        name, "PASS",
+        f"{n_anchors} anchor(s) on {len(rows)} open HIGH row(s) hold; "
+        f"{n_grandfathered} pre-{ANCHOR_ACTIVATION} row(s) unanchored (grandfathered)")
+
+
 CHECKS = [
     check_memory_size,
     check_current_state_freshness,
@@ -469,6 +660,7 @@ CHECKS = [
     check_scripts_in_execution_manual,
     check_no_numbered_nonneg_refs,
     check_closure_receipts,
+    check_high_row_anchors,
 ]
 
 

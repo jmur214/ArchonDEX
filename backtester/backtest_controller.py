@@ -153,9 +153,9 @@ class BacktestController:
         self.portfolio = PortfolioEngine(initial_capital, policy_cfg=portfolio_cfg)
         # Store initial capital for later use
         self.initial_capital = float(initial_capital)
-        # Ensure portfolio capital and cash are set to initial_capital if <= 0
-        if float(getattr(self.portfolio, "capital", 0.0)) <= 0.0:
-            self.portfolio.capital = self.initial_capital
+        # Ensure portfolio cash is set to initial_capital if <= 0. (RR-1: a dynamic
+        # `portfolio.capital` was also set here and never updated — the frozen sizing
+        # basis. Removed; sizing reads cash + MV.)
         if hasattr(self.portfolio, "cash") and float(getattr(self.portfolio, "cash", 0.0)) <= 0.0:
             self.portfolio.cash = self.initial_capital
         # Defensive attach of portfolio to logger (reset first to avoid stale refs)
@@ -316,17 +316,25 @@ class BacktestController:
             pass
 
     def get_portfolio_capital(self):
+        """The CASH component of true equity. Sizing equity = this + sum(MV).
+
+        RR-1 (alpha-frontier review, 2026-09-30): this used to return
+        `self.portfolio.capital` — an attribute the controller set ONCE to the seed
+        capital and nothing ever updated (PortfolioEngine moves only `.cash` on fills).
+        So sizing equity was SEED + MV, not cash + MV: after the first fill the book
+        sized from up to 2.5x its real equity, bought on credit, and ran NEGATIVE cash
+        that was never charged interest — free leverage in every equity-book backtest.
+
+        The old docstring said it "falls back to cash if capital is missing". Cash was
+        always the intended answer; the attribute was set unconditionally at init, so the
+        fallback could never fire. It is now the only path.
+
+        No silent default: reading `.cash` directly means a missing attribute RAISES
+        rather than sizing from 0.0 ([NN-FAIL-CLOSED] — a degraded sizing basis must
+        not become a plausible-looking number). The name is kept for its call sites;
+        what it returns is cash.
         """
-        Returns portfolio capital, falling back to cash if capital attribute is missing.
-        """
-        # Debug logging import inline to avoid circular import
-        from debug_config import is_debug_enabled
-        try:
-            return self.portfolio.capital
-        except AttributeError:
-            if is_debug_enabled("BACKTEST_CONTROLLER"):
-                print("[BACKTEST_CONTROLLER][DEBUG] PortfolioEngine has no 'capital' attribute; falling back to 'cash'.")
-            return getattr(self.portfolio, "cash", 0.0)
+        return float(self.portfolio.cash)
 
     # ----------------------- side normalization map ---------------------- #
     SIDE_MAP = {
@@ -1431,9 +1439,8 @@ class BacktestController:
         # Always write an initial snapshot even if there's only one bar
         t0 = ts_vec[0]
         first_prices = {t: float(self.data_map[t].iloc[0]["Close"]) for t in self.data_map if not self.data_map[t].empty}
-        # Ensure portfolio capital and cash are set to initial_capital if <= 0 before first snapshot
-        if float(getattr(self.portfolio, "capital", 0.0)) <= 0.0:
-            self.portfolio.capital = self.initial_capital
+        # Ensure portfolio cash is set to initial_capital if <= 0 before first snapshot
+        # (RR-1: the frozen `portfolio.capital` write that stood here is removed.)
         if hasattr(self.portfolio, "cash") and float(getattr(self.portfolio, "cash", 0.0)) <= 0.0:
             self.portfolio.cash = self.initial_capital
         snap0 = self.portfolio.snapshot(t0, first_prices)

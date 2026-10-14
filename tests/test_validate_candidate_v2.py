@@ -207,6 +207,11 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
         start_date="2024-01-01",
         end_date="2024-06-30",
         gate1_contribution_threshold=0.0,
+        # RR-3: an explicit, realistic N keeps this hermetic. It used to rely on the
+        # local registry being present; with it absent, N silently became 1 and a
+        # 6-month window PASSED Gate 0. Any N in the measured range (N_eff ≈ 33-40
+        # conservative, 231 raw) refuses a 6-month window.
+        n_trials_for_dsr=37,
     )
     assert gate0_result.get("gate_0_passed") is False, (
         "Gate-0 MBL must short-circuit a 6-month window (CLAUDE.md `[NN-MBL]`); "
@@ -225,6 +230,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
         end_date="2024-06-30",
         gate1_contribution_threshold=0.0,  # require positive lift, not strict
         enable_mbl_gate=False,  # documented bypass: testing gates 1-6, not Gate-0
+        n_trials_for_dsr=1,     # RR-3: and Gate 8 — explicit, so no registry is read
     )
 
     # The contribution should be measurable (non-NaN) and the gate should

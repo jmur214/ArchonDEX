@@ -1173,6 +1173,15 @@ class ModeController:
         Hunts for new edge candidates, validates them, promotes winners.
         """
         try:
+            # RR-3 (proposal): resolve the honest trial count FIRST — before hunting,
+            # and before save_candidates() writes edges.yml. If N cannot be
+            # established the cycle must halt before any side effect or expensive work,
+            # not discover this after the hunt. FAILS CLOSED (re-raised below).
+            from core.measurement.mbl_gate import resolve_cycle_n_trials
+            _obs = self.root / "data" / "observability"
+            _n_info = resolve_cycle_n_trials(
+                0, db_path=_obs / "run_registry.sqlite", artifact_dir=_obs)
+
             from engines.engine_d_discovery.discovery import DiscoveryEngine
             from engines.engine_d_discovery.discovery_logger import DiscoveryLogger
 
@@ -1247,10 +1256,14 @@ class ModeController:
             # both gates are dead code in production.
             #
             # Gate 8 (DSR): the multiple-testing correction applies only when
-            # n_trials_for_dsr > 1. The natural choice is the size of the
-            # validation batch — every candidate evaluated this cycle is one
-            # trial in the same multiple-comparison family.
-            cycle_n_trials_for_dsr = max(1, len(batch))
+            # n_trials_for_dsr > 1. RR-3: this used to be `max(1, len(batch))` —
+            # "every candidate evaluated this cycle is one trial in the same
+            # family". True within the cycle, but [NN-MBL]'s honest N counts every
+            # configuration ever run on the substrate, so the batch size dropped
+            # every PRIOR cycle, and a one-candidate batch disabled Gate 8 outright.
+            # Now the correlation-aware registry count, passed explicitly so Gate 0
+            # and Gate 8 judge each candidate against the SAME N.
+            cycle_n_trials_for_dsr = _n_info["n_trials"]
 
             # Gate 7 (substrate transfer): build a historical-S&P 500 data_map
             # ONCE per cycle so all candidates measure substrate transfer
@@ -1307,7 +1320,8 @@ class ModeController:
             except Exception as _sb_err:
                 print(f"[DISCOVERY] Gate 7 substrate-B build failed; gate skipped: {_sb_err}")
                 cycle_data_map_substrate_b = None
-            print(f"[DISCOVERY] Gate 8 DSR n_trials = {cycle_n_trials_for_dsr}")
+            print(f"[DISCOVERY] Gate 0/8 honest N_eff = {cycle_n_trials_for_dsr:.2f} "
+                  f"({_n_info['source']}); batch size = {len(batch)} (the pre-RR-3 N)")
             for cand in batch:
                 cand_id = cand.get("edge_id", "unknown")
                 print(f"[DISCOVERY] Validating {cand_id}...")
@@ -1457,6 +1471,15 @@ class ModeController:
             )
             print(f"[DISCOVERY] Cycle complete: {promoted} promoted, {failed} failed.")
         except Exception as e:
+            # RR-3: an un-establishable honest N is re-raised, not WARNed. This is the
+            # FOURTH layer that would have absorbed it (after mbl_gate's `return 1`,
+            # Gate 0's "log + proceed", and validate_candidate's per-candidate
+            # handler): swallowed here, a missing registry ends as one WARN line and a
+            # cycle that "found nothing" — a null result nobody could tell from a
+            # real one. Every other exception keeps this handler's existing behaviour.
+            from core.measurement.mbl_gate import HonestNUnavailableError
+            if isinstance(e, HonestNUnavailableError):
+                raise
             print(f"[DISCOVERY][WARN] Discovery cycle failed: {e}")
 
     def run_paper(self, fill_bar_delay: int = 1, sleep_seconds: float = 0.0) -> List[dict]:

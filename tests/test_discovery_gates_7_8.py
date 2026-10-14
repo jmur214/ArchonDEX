@@ -271,6 +271,7 @@ def test_gate_7_fails_when_substrate_b_contribution_is_negative(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
+        n_trials_for_dsr=1,   # RR-3: explicit N keeps this Gate-7 test hermetic (Gate 8 no longer defaults to N=1)
     )
     assert result["gate_7_evaluated"] is True
     assert result["gate_7_passed"] is False
@@ -301,6 +302,7 @@ def test_gate_7_fails_when_substrate_drift_exceeds_threshold(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
+        n_trials_for_dsr=1,   # RR-3: explicit N keeps this Gate-7 test hermetic (Gate 8 no longer defaults to N=1)
     )
     assert result["gate_7_evaluated"] is True
     assert result["gate_7_passed"] is False
@@ -330,6 +332,7 @@ def test_gate_7_passes_when_substrate_b_holds_within_drift(monkeypatch):
         gate2_survival_threshold=0.0,
         candidate_default_weight=1.0,
         alpha_config={},
+        n_trials_for_dsr=1,   # RR-3: explicit N keeps this Gate-7 test hermetic (Gate 8 no longer defaults to N=1)
     )
     assert result["gate_7_evaluated"] is True
     assert result["gate_7_passed"] is True

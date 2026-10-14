@@ -114,7 +114,6 @@ def _emax_exact(n: int) -> float:
     return v
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.4 MBL upper bound")
 def test_mbl_min_uses_exact_expected_max_not_upper_bound():
     """Bailey-Borwein-López de Prado-Zhu (2014) MinBTL ∝ E[max_N]²; 2·ln(N) is
     the upper bound they quote for intuition. At N=260 the bound overstates
@@ -127,7 +126,6 @@ def test_mbl_min_uses_exact_expected_max_not_upper_bound():
     assert abs(got - exact_years) / exact_years < 0.05, f"compute_mbl_min={got:.2f}yr vs exact {exact_years:.2f}yr"
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.4 N_effective counts every run")
 def test_n_effective_is_not_a_raw_row_count():
     """`compute_n_effective` is `SELECT COUNT(*) FROM runs`: determinism reps,
     infra reruns, and ρ≈0.9 overlay A/Bs each count as an independent trial.
@@ -179,7 +177,12 @@ def test_ci_low_kill_threshold_does_not_kill_spy_shaped_series():
 #        so sizing equity = initial_capital + market value ≈ 2× true equity
 #        once cash is deployed. backtest_controller.py:158, :325, :647.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-1 frozen portfolio.capital")
+# RR-1 repaired on branch fix/referee-rr1-sizing-capital: marker removed HERE ONLY (the
+# brief's rail). NOTE for review: this test is a UNIT MIMIC — it hand-copies the init lines
+# onto a __new__-built controller and never drives the real loop, so on its own it proves
+# the getter, not the integration. The integration evidence is
+# scripts/probe_rr1_sizing_equity.py, which runs the real golden pipeline: 251/251 bars
+# divergent before the fix, 0/251 after, and the divergence returns on reversion.
 def test_backtester_sizing_capital_tracks_deployed_cash():
     """`get_portfolio_capital()` must reflect cash actually available, not the
     initial capital set once at construction. This is the likely root cause of
@@ -223,7 +226,6 @@ def test_portfolio_engine_has_cash_accrual_api():
 #        discovery.py:1740 `if n_trials_for_dsr > 1` → Gate 8 skipped.
 #        [NN-FAIL-CLOSED] violation in the measurement path.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-3 MBL gate fails open at N=1")
 def test_mbl_n_effective_fails_closed_when_registry_absent(tmp_path):
     from core.measurement.mbl_gate import compute_n_effective
 
@@ -281,11 +283,34 @@ def test_gate6_alpha_of_a_factor_neutral_spread_is_not_shifted_by_rf():
 #        NOTE: this is a call-site defect; the honest test is an execution test
 #        (repair brief RR-2 converts it). A text assertion documents it until then.
 # --------------------------------------------------------------------------- #
-def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts):
+def _honest_n_fixture(root, n_runs: int = 231, rho: float = 0.43, comp: float = 0.16):
+    """R's F2 (2026-10-08): RR-3 resolves honest N FIRST in `_run_discovery_cycle` and
+    FAILS CLOSED, so a cycle driven from a bare temp root halts before Pass 3. This gives
+    the temp root the two inputs RR-3 requires, in the exact shape of D's helpers
+    (`tests/test_honest_n_rr3.py::_registry` / `::_artifact`): a `runs` table with rows,
+    and an `n_effective_<date>.json` whose `gate_inputs` carry numeric rho_bar and
+    onc_compression. Returns the N_eff RR-3 will compute from them."""
+    import json, sqlite3
+    from core.measurement.mbl_gate import compute_n_effective_correlated
+    obs = root / "data" / "observability"
+    obs.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(obs / "run_registry.sqlite")
+    c.execute("CREATE TABLE runs (run_id TEXT PRIMARY KEY, snapshot_at TEXT)")
+    c.executemany("INSERT INTO runs VALUES (?, ?)", [(f"r{i}", "2026-01-01") for i in range(n_runs)])
+    c.commit(); c.close()
+    (obs / "n_effective_2026-10-13.json").write_text(json.dumps(
+        {"gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
+    return compute_n_effective_correlated(obs / "run_registry.sqlite", artifact_dir=obs)
+
+
+def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts, with_honest_n: bool = True):
     """Drive the REAL `_run_discovery_cycle` — the real BH-FDR batch step and the real
     Pass-3 promotion write — with only the upstream work stubbed. Returns the statuses
     the cycle wrote back. Runs on a TEMP root: the cycle writes to
-    data/governor/edges.yml, which this branch must never touch."""
+    data/governor/edges.yml, which this branch must never touch.
+
+    Returns (statuses, seen) where `seen` records the honest N each gauntlet call
+    received — so a test can prove RR-3's N actually flows into RR-2's gauntlet."""
     from types import SimpleNamespace
     import orchestration.mode_controller as mcmod
     from engines.engine_d_discovery import discovery as dmod
@@ -304,8 +329,12 @@ def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts):
                         lambda self, cands: written.extend(
                             (c.get("edge_id"), c.get("status")) for c in cands))
     it = iter(verdicts)
-    monkeypatch.setattr(dmod.DiscoveryEngine, "validate_candidate",
-                        lambda self, cand, *a, **kw: dict(next(it)))
+    seen = {"n_trials_for_dsr": [], "expected_n": None}
+
+    def _validate(self, cand, *a, **kw):
+        seen["n_trials_for_dsr"].append(kw.get("n_trials_for_dsr"))
+        return dict(next(it))
+    monkeypatch.setattr(dmod.DiscoveryEngine, "validate_candidate", _validate)
     monkeypatch.setattr(
         "engines.engine_d_discovery.discovery_logger.DiscoveryLogger.__init__",
         lambda self, **kw: None)
@@ -315,8 +344,10 @@ def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts):
     fake_self = SimpleNamespace(root=tmp_path, cfg_bt={"start_date": "2020-01-01",
                                                       "end_date": "2021-01-01",
                                                       "tickers": []}, dm=None)
+    if with_honest_n:
+        seen["expected_n"] = _honest_n_fixture(tmp_path)
     mcmod.ModeController._run_discovery_cycle(fake_self, {}, SimpleNamespace())
-    return dict(written)
+    return dict(written), seen
 
 
 def test_production_discovery_does_not_overwrite_gauntlet_verdict(monkeypatch, tmp_path):
@@ -337,7 +368,7 @@ def test_production_discovery_does_not_overwrite_gauntlet_verdict(monkeypatch, t
     failed_but_plausible = {"passed_all_gates": False, "sharpe": 1.0,
                             "robustness_survival": 0.9, "significance_p": 0.001,
                             "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
-    statuses = _drive_discovery_cycle(monkeypatch, tmp_path, [failed_but_plausible] * 3)
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [failed_but_plausible] * 3)
     assert statuses, "the cycle wrote nothing back — the test did not reach Pass 3"
     promoted = [k for k, v in statuses.items() if v == "active"]
     assert not promoted, (f"candidates that FAILED the gauntlet were promoted: {promoted} "
@@ -353,7 +384,7 @@ def test_bh_fdr_can_REMOVE_a_passer_but_never_ADD_one(monkeypatch, tmp_path):
                      "significance_p": 0.9, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
     failer_low_p = {"passed_all_gates": False, "sharpe": 1.2, "robustness_survival": 0.9,
                     "significance_p": 0.0001, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
-    statuses = _drive_discovery_cycle(monkeypatch, tmp_path, [passer_high_p, failer_low_p])
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [passer_high_p, failer_low_p])
     assert statuses["cand_0"] == "failed", "BH-FDR should remove a passer that fails FDR"
     assert statuses["cand_1"] == "failed", "BH-FDR must never promote a gate failure"
 
@@ -363,7 +394,7 @@ def test_a_clean_passer_that_survives_FDR_IS_promoted(monkeypatch, tmp_path):
     cycle that simply cannot promote anything, which is the defect we are fixing."""
     clean = {"passed_all_gates": True, "sharpe": 1.5, "robustness_survival": 0.9,
              "significance_p": 0.0001, "fitness_score": 1.0, "wfo_oos_sharpe": 1.0}
-    statuses = _drive_discovery_cycle(monkeypatch, tmp_path, [clean])
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [clean])
     assert statuses["cand_0"] == "active"
 
 
@@ -396,3 +427,27 @@ def test_prod_edge_weight_keys_match_edge_ids():
     cfg = json.loads(Path("config/alpha_settings.prod.json").read_text())
     keys = set(cfg.get("edge_weights", {}).keys())
     assert NewsSentimentEdge.EDGE_ID in keys, f"{NewsSentimentEdge.EDGE_ID} not in edge_weights; found {sorted(k for k in keys if 'news' in k)}"
+
+
+def test_RR2_and_RR3_COMPOSE_the_honest_N_reaches_the_authoritative_gauntlet(monkeypatch, tmp_path):
+    """R's F2, as a positive claim rather than a workaround: on the merged tree, the
+    honest N that RR-3 resolves from the registry is the N every gauntlet call receives
+    (Gates 0 and 8 gate on it), and RR-2's verdict then binds. Neither repair hides the
+    other."""
+    clean = {"passed_all_gates": True, "sharpe": 1.5, "robustness_survival": 0.9,
+             "significance_p": 0.0001, "fitness_score": 1.0, "wfo_oos_sharpe": 1.0}
+    statuses, seen = _drive_discovery_cycle(monkeypatch, tmp_path, [clean, dict(clean)])
+    assert seen["expected_n"] is not None and seen["expected_n"] > 1
+    assert seen["n_trials_for_dsr"] == [seen["expected_n"]] * 2, seen
+    assert statuses == {"cand_0": "active", "cand_1": "active"}
+
+
+def test_a_missing_registry_HALTS_the_cycle_it_never_reads_as_promoted_nothing(monkeypatch, tmp_path):
+    """The vacuous-pass trap from the other side. Without honest N the cycle must RAISE
+    before any registry write — not WARN and report a cycle that 'found nothing', which
+    would satisfy every 'nothing was promoted' assertion for the wrong reason."""
+    from core.measurement.mbl_gate import HonestNUnavailableError
+    plausible = {"passed_all_gates": False, "sharpe": 1.0, "robustness_survival": 0.9,
+                 "significance_p": 0.001, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
+    with pytest.raises(HonestNUnavailableError):
+        _drive_discovery_cycle(monkeypatch, tmp_path, [plausible], with_honest_n=False)
