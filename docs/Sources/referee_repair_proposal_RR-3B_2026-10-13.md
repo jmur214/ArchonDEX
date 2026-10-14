@@ -18,6 +18,12 @@ registry (231 rows); the correlation adjustment (ρ̄, ONC compression) comes fr
 equity curves survive. Not one run is in both. They agree within ~10% today (N_eff 36.9 vs 40.3) — **luck, not
 design** (RR-3 proposal §5.2; R's F3). The merge chose Option A (keep the registry) and queued this.
 
+**Sequencing — director ruling, 2026-10-13: Option B is on the CLOUD'S CRITICAL PATH, not a refinement.** Cloud
+`--discover` stays halted (RR-3's fail-closed N; F5) **until Option B's rebuilt registry exists**, because `[NN-MBL]`
+counts every configuration run on the substrate — **cloud runs included** — and today's registry can never contain
+one (§1.1). Shipping Option A's registry into the image would end the halt by feeding the cloud a count that
+structurally omits its own runs.
+
 ## 1. Why the sets are disjoint — the mechanism, verified 2026-10-13
 
 This is not drift that a rebuild would cure. It is how the registry is built.
