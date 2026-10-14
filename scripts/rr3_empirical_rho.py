@@ -24,11 +24,16 @@ Method (each choice stated so it can be challenged):
     (`[NN-FP-GUARDS]`); a census `trades_canon_md5` equal to the empty-file md5 excludes
     the run as zero-trade. Every exclusion is COUNTED by reason.
   * Dedupe of determinism reps BEFORE counting: the brief names `trades_canon_md5`, but
-    only 21 of 894 surviving summaries carry one (the census postdates most runs), and
-    fetching 16.6 GB of trade files to recompute it buys nothing for this question — two
-    runs with identical trades have identical equity. So the key is the md5 of the daily
-    equity series rounded to cents (absorbing cross-container FP-order drift, T-057c),
-    cross-checked against census md5 wherever both exist.
+    few runs carry one (the census postdates most of them). On 2026-09-30, counted over
+    two different populations: 21 of the 894 S3 performance summaries, and 67 across
+    S3 + local together — 67 is the figure the artifact records
+    (`census_md5_crosscheck.runs_with_census_md5`), so the local tree held the other 46.
+    The local count is not fixed: `data/trade_logs/` keeps growing, so a re-run will
+    report its own number. Fetching 16.6 GB of trade files to recompute the md5 buys
+    nothing for this question — two runs with identical trades have identical equity. So
+    the key is the md5 of the daily equity series rounded to cents (absorbing
+    cross-container FP-order drift, T-057c), cross-checked against census md5 wherever
+    both exist (0 conflicts on 2026-09-30).
   * ρ̄: mean pairwise Pearson correlation of daily returns over pairs with >=
     MIN_OVERLAP overlapping days (primary 252; 120 and 60 reported as sensitivity).
     CI by bootstrap over RUNS (self-pairs from resampling excluded). Also reported
