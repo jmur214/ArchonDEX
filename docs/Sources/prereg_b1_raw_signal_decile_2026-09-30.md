@@ -281,6 +281,94 @@ RE-SCORE campaign reports 8/8; one heavy job at a time on the 8 GB host) → pan
 (standalone harness, never through `BacktestController`) → results + verdict appended here,
 predictions in §8 compared line by line → outbox.
 
+### 11.1 LAUNCH CHECKLIST — operational addendum, 2026-10-13 (post-freeze; alters NO frozen term)
+Written so the run is a copy-paste, not a judgment. **The two harness scripts do not exist yet** —
+building them is the run's first step — so the CLI below is their **SPEC**: the build implements
+exactly these flags, adds both commands to `docs/Core/execution_manual.md` (`[NN-NO-GUESS-CLI]`),
+and records any deviation in the verdict. Run from the **agent-a worktree**.
+
+**Step 0 — gates (every one must pass, else STOP and report):**
+- [ ] The director's word received: C's RE-SCORE campaign reports 8/8.
+- [ ] **One heavy job at a time (8 GB host):** `pgrep -fl "rescore_rr1|run_isolated|submit_substrate|pytest"` prints nothing.
+- [ ] **Disk ≥ 5.0 GB free** (`rescore_rr1.MIN_FREE_GB`), checked at start **and again before every
+      write** — the campaign checks only at cell start, and a mid-run ENOSPC is the 09-30 class.
+- [ ] **Swap ≥ 1 GB free** (`sysctl vm.swapusage`); otherwise wait — swap growth on this host comes
+      out of the same disk.
+- [ ] Tree clean on `research/raw-signal-decile-b1`; frozen text intact: §4 and §8 section hashes
+      `ba6cc7bff764` / `cb9f4c3e185b` (the 09-30 values; verify with the command in
+      §11.2).
+- [ ] **Code provenance:** the harness prints the resolved `__file__` of itself,
+      `core.feature_foundry` and `engines.data_manager.membership`; all must sit under the agent-a
+      worktree. Note `data/processed/` and `data/research/` are **symlinks into the main repo** — the
+      census records their resolved real paths.
+
+**Step 1 — env pins (exactly `run_isolated`'s set; export BEFORE python starts):**
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+```
+Both scripts assert these at import and **REFUSE (exit non-zero) if any differs. They never
+re-exec** — a re-exec discards in-process state, the class that once ran both arms of a paired
+test on the same code.
+
+**Step 2 — smoke, to measure before committing hours:**
+```bash
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2024-01 --end 2024-12 --out data/research/b1/smoke/
+```
+Record wall time and peak RSS (`maximum resident set size`). Extrapolate to 312 months. **If the
+projected peak RSS exceeds 2 GB or the runtime exceeds 8 h, STOP** and report — that is a
+sequencing decision for the director, not a reason to trim the panel.
+
+**Step 3 — the panel (full window):**
+```bash
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2025-12 --out data/research/b1/
+```
+Writes `signal_panel_<md5>.parquet` and `census_<md5>.json`. **The census, asserted — any failure
+HALTS (`[NN-FAIL-CLOSED]`) and every value goes in the verdict:**
+- **Coverage per month, every month** (not samples): `n_pit_members`, `n_with_price`,
+  `coverage_pct` — the §3.6 table at full resolution, plus the share of the window below 80%.
+- **Classification by MEASURED cross-sectional variance**, never the declared flag (§3.2); it must
+  equal the §4 inventory — any mismatch HALTS.
+- **Unusable signal-month = NaN OR None OR zero cross-sectional variance** (`std < 1e-12`,
+  `[NN-FP-GUARDS]`) — all three spellings of missing (§3.4). HALT any signal unusable in > 10% of
+  its window's months. Short-window signals are checked over 2020-04 → 2025-12 only.
+- **Sparse flag** per §4.2 (modal share > 50% in the median month), recorded per signal.
+- **Engine A orientation check** (§2.2) before any return exists: native score vs declared
+  literature direction — a mismatch HALTS and escalates; never flipped.
+- **Input manifest:** resolved real paths of `data/processed/` and the membership file, and the md5
+  of the sorted `(file, size, mtime)` list — the substrate the run actually read.
+- **Family counts:** main 15 (+5 definition-sensitivity rows), short-window 7, calendar 10.
+
+**Step 4 — the harness, run 1:**
+```bash
+python -m scripts.raw_signal_decile_b1 --panel data/research/b1/signal_panel_<md5>.parquet \
+  --out data/research/b1/run1/ --seed 0 --boot-iter 1000 --boot-block-months 6
+```
+One row per signal: IC, Newey-West t (6 lags), BH-adjusted p within its family; Arm L and LS
+Sharpe/Sortino with paired-bootstrap `ci_low`; 25%-satellite Δ log wealth `ci_low` **vs 100% SPY
+AND vs the EW-universe sleeve** (H1 as ruled); turnover, cost drag (bps/yr), MaxDD. Calendar
+(daily dummy regression) and short-window families in their own tables.
+
+**Step 5 — determinism ×2:** rerun Step 4 with `--out data/research/b1/run2/`. Compare a
+**canonical** md5 — rows sorted by signal, floats rounded to 12 significant digits, serialized as
+JSON — between run1 and run2: **must be bit-identical**. (Parquet bytes are not compared; writer
+metadata is not the measurement.) Record the panel md5 beside it.
+
+**Step 6 — the one pre-named sensitivity window (§7):** Step 4 with `--start 2012-01`, reported
+beside the headline, never instead of it.
+
+**Step 7 — the verdict:** `docs/Audit/b1_raw_signal_decile_verdict_<date>.md`, YAML frontmatter
+(`task_id, title, date, author, outcome, status, reproduce`) per the program's rails; the full
+results table inline (the data under `data/` is gitignored); the §4/§8 section-hash check stated;
+§8's predictions compared line by line; **N_trials +4** recorded.
+
+### 11.2 Verify the frozen text before launch
+```bash
+F=docs/Sources/prereg_b1_raw_signal_decile_2026-09-30.md
+for sec in "## 4. Signal inventory" "## 8. Predictions"; do
+  awk -v h="$sec" 'index($0,h)==1{f=1} f&&/^## /&&index($0,h)!=1{exit} f' "$F" | shasum -a 256 | cut -c1-12
+done   # expect ba6cc7bff764 then cb9f4c3e185b
+```
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
