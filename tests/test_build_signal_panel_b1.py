@@ -129,11 +129,23 @@ def test_a_market_wide_signal_in_the_panel_HALTS():
 
 
 def test_short_window_signals_are_judged_on_their_window_only():
-    """A SimFin edge is constant before 2020-04 (no fundamentals panel); that must NOT halt."""
+    """A SimFin edge has no input before the short window opens; that must NOT halt."""
     ov = {"value_book_to_market_v1": lambda m, n, rng:
           np.zeros(n) if m < pd.Timestamp("2020-04-01") else rng.normal(size=n)}
     _, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
     assert not any("value_book_to_market_v1" in h for h in halts), halts
+
+
+def test_the_census_NAMES_the_unusable_months_so_a_HALT_says_where():
+    """A warm-up at the window start (the 2026-10-14 full run: TTM edges blank 2020-04 →
+    2021-03) must be readable from the census itself, not from a second diagnostic pass."""
+    blank = set(MONTHS[16:28])                              # 2020-05 → 2021-04, inside the window
+    ov = {"quality_roic_v1": lambda m, n, rng: np.zeros(n) if m in blank else rng.normal(size=n)}
+    cen, halts = b1.build_census(_synthetic_panel(MONTHS, overrides=ov), [], b1.SIGNALS, b1.FAMILY)
+    row = cen["signals"]["quality_roic_v1"]
+    assert row["unusable_months"] == [str(m.date()) for m in sorted(blank)]
+    assert cen["signals"]["value_book_to_market_v1"]["unusable_months"] == []
+    assert any(h.startswith("quality_roic_v1") for h in halts), halts
 
 
 def test_a_selection_edge_is_flagged_SPARSE_not_halted():

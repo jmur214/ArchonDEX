@@ -275,8 +275,12 @@ def build_census(panel: pd.DataFrame, coverage: List[dict], signals: List[str],
         unusable_share = 1.0 - float(np.mean(usable))
         measured = "CROSS-SECTIONAL" if np.mean(usable) >= 0.5 else "NOT-CROSS-SECTIONAL"
         sparse = bool(np.median(shares) > 0.5)
+        # the months by name, so a HALT says WHERE (a contiguous run at a window start is a
+        # warm-up, scattered months are missingness) without a second diagnostic pass
         cen["signals"][s] = {"family": family.get(s), "months": len(months),
                              "unusable_share": round(unusable_share, 4),
+                             "unusable_months": [str(pd.Timestamp(m).date())
+                                                 for m, ok in zip(months, usable) if not ok],
                              "measured": measured, "sparse": sparse,
                              "median_modal_share": round(float(np.median(shares)), 4)}
         if s in pre_ruled and unusable_share > UNUSABLE_HALT_SHARE:

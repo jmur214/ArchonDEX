@@ -405,6 +405,54 @@ the first cut applied the `volume_anomaly_v1` pre-ruling only on the 10% branch,
 herding-like signal (> 50% unusable, which fails the classification check first) would have
 HALTED instead. The test caught it; the pre-ruling now keys on the unusable share.
 
+**2026-10-14 14:16–14:33 — step 3, full run A (2000-01 → 2025-12) at `e595ae5`.** All five gates
+**PASSED OUTRIGHT** at 14:16:55: G1 the director's GO after D's suite; G2 disk 10.60 GB; G3 swap
+1,094 MB free; G4 clean tree at `e595ae5`; G5 §4 `ba6cc7bff764`, §8 `cb9f4c3e185b`. The watchdog
+targeted the child (the fix above). **Measured:** 312 month-ends, 109,366 rows, 963 s wall, **peak
+RSS 972 MB**, 693 tickers cached. Inside the stop rule.
+
+**Census:**
+- `volume_anomaly_v1` unusable in **29.8%** of 312 months → the **pre-ruled exclusion APPLIED
+  AUTOMATICALLY** and is recorded in `auto_excluded_pre_ruled`; main family 14 → 13.
+- Every other main and sensitivity signal: **0.0% unusable**, all CROSS-SECTIONAL. Orientation
+  **5/5 pass** (+0.555, +0.520, −0.605, −0.446, −0.829), none untestable. Coverage 52.7% (2000-01)
+  → 99.4% (2025-12); 49.0% of months below 80% (the §3.6 asymmetry, as pre-stated). Forward
+  returns: 108,886 full, 112 delisting proxies, 361 with no price at the month-end (NaN, reported,
+  never filled), 7 with no price after.
+- **HALT — no panel written:** four short-window SimFin edges over the 10% bar:
+  `value_earnings_yield_v1`, `quality_gross_profitability_v1` and `quality_roic_v1` 12 of 69 months
+  (17.4%), `accruals_inv_asset_growth_v1` 15 of 69 (21.7%). `value_book_to_market_v1` and
+  `accruals_inv_sloan_v1` 3 of 69 (4.3%, under the bar). Run B (determinism) did not start.
+
+**Diagnosis** (read-only; the builder's own functions; no return computed; 95 s, 260 MB): for
+every edge the unusable months are **one contiguous run at the window START**, and none falls after
+2021-06. The SimFin FREE panel's first filings for the PIT universe arrive at publish 2020-07: 0
+names with any filing at the 2020-04 and 2020-05 month-ends, 1 at 2020-06, 143 at 2020-07, 295+
+from 2020-08. Below 30 scored names the edges abstain to all-0.0 (`min_universe=30`). The
+latest-value edges (B/M, Sloan) need one filing, so they are usable from 2020-07. The TTM edges
+need four published quarters, so they are usable from 2021-04 (129 names with four filings).
+Asset growth needs a year-ago balance sheet, so it is usable from 2021-07. From 2021-07 on, every
+month has ≥ 322 names with four filings. **The window's 2020-04 start never described SimFin
+coverage.** §3.4 anchored it to the earnings calendar for `earnings_proximity_5d`, which the
+amendment then excluded.
+
+**My defect:** the smoke year (2024) sat mid-window and could not see a warm-up at the window
+start. The smoke's "SimFin fundamentals edges have data and are usable" was true of 2024 only.
+A smoke must include each family's first months. The census also gave a share without naming
+the months, which is why this diagnosis needed a separate script. It now names them
+(`unusable_months`; the lock fails on the prior builder with `KeyError`).
+
+**Known properties for the verdict (no action taken):** (1) The SimFin edges emit a stateful
+basket transition: 1.0 on entry, 0.3 while held, 0 otherwise. Under §4.2, Arm L is therefore the
+whole top-quintile basket (both values are favorable). Spearman IC, however, ranks new entrants
+above held members, so the IC partly measures entry versus holding, not only the factor level.
+The state starts empty, so a family's first window month emits the whole basket as entries.
+(2) SimFin FREE filings thin out after publish 2025-Q2. For the 2025-07 → 2025-12 month-ends,
+filings run up to two quarters older than a live investor's: PIT-safe, but less informative.
+
+**Status:** the short window (§5.2, 2020-04 → 2025-12) needs a director ruling before the re-run.
+This is a pre-data finding: no return, IC or wealth number has been computed.
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
