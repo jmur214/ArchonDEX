@@ -77,7 +77,15 @@ SIGN.update({s: +1 for s in panel_mod.SHORT_EDGES})
 CALENDAR = ["fomc_drift", "pre_fomc_reduce", "pre_holiday", "sell_in_may_halloween",
             "january_effect", "triple_witching_premium", "tax_loss_season",
             "month_of_year_dummy", "weekday_dummy", "days_to_quarter_end"]
-CALENDAR_EXCLUDED_BY_RULING: Dict[str, str] = {}
+# THIRD post-freeze, pre-data amendment (director ruling 2026-10-14): the foundry's FOMC and
+# holiday tables start in 2018, so these are constant 0.0 for 2000–2017 — structurally
+# ineligible over the frozen window (the herding/earnings disposition). UNTESTED by B-1.
+CALENDAR_EXCLUDED_BY_RULING: Dict[str, str] = {
+    "fomc_drift": "ruling 2026-10-14 — FOMC_DATES starts 2018; constant 0.0 for 2000–2017",
+    "pre_fomc_reduce": "ruling 2026-10-14 — FOMC_DATES starts 2018; constant 0.0 for 2000–2017",
+    "pre_holiday": "ruling 2026-10-14 — US_MARKET_HOLIDAYS starts 2018; 2 non-zero days in 2000–2017",
+}
+EXPECTED_CALENDAR_COUNT = 7
 CALENDAR_UNUSABLE_HALT_SHARE = 0.10      # a constant feature-year is unusable (§3.4, daily form)
 
 
@@ -303,24 +311,39 @@ def calendar_values(days: pd.DatetimeIndex, features: List[str]) -> pd.DataFrame
     return pd.DataFrame(out, index=days)
 
 
-def calendar_census(vals: pd.DataFrame) -> Tuple[dict, List[str]]:
+def calendar_census(vals: pd.DataFrame, trading_days: Optional[pd.DatetimeIndex] = None,
+                    require_judged: bool = True) -> Tuple[dict, List[str]]:
     """A feature-YEAR is unusable when the feature is NaN or takes ONE value on every trading
     day of that year (the daily form of §3.4's three spellings of missing). HALT a feature
-    unusable in > 10% of its years."""
+    unusable in > 10% of its JUDGED years.
+
+    Only COMPLETE calendar years are judged (every trading day of the year in the window):
+    inside a partial year a month-based dummy is legitimately constant — the first harness
+    smoke flagged month_of_year_dummy on a one-month 2001. A census that can judge NO year
+    must not pass silently: it HALTS unless `require_judged` is off (the smoke)."""
     cen, halts = {}, []
+    years = sorted(int(y) for y in vals.index.year.unique())
+    if trading_days is None:
+        judged = years
+    else:
+        td = pd.DatetimeIndex(trading_days)
+        judged = [y for y in years
+                  if set(td[td.year == y]) <= set(vals.index[vals.index.year == y])]
+    if not judged and require_judged:
+        halts.append(f"calendar census: no complete year in the window {years} — nothing judged")
     for fid in vals.columns:
         bad = []
-        for y, s in vals[fid].groupby(vals.index.year):
-            v = s.dropna().to_numpy()
+        for y in judged:
+            v = vals.loc[vals.index.year == y, fid].dropna().to_numpy()
             if len(v) == 0 or np.std(v) < 1e-12:
-                bad.append(int(y))
-        years = vals.index.year.unique()
-        share = len(bad) / max(1, len(years))
-        cen[fid] = {"n_years": int(len(years)), "unusable_years": bad,
-                    "unusable_share": round(share, 4)}
-        if share > CALENDAR_UNUSABLE_HALT_SHARE:
-            halts.append(f"calendar {fid}: constant/NaN in {len(bad)} of {len(years)} years "
-                         f"({share:.1%} > 10%): {bad[0]}–{bad[-1]}")
+                bad.append(y)
+        share = len(bad) / len(judged) if judged else float("nan")
+        cen[fid] = {"judged_years": judged, "not_judged_partial_years":
+                    [y for y in years if y not in judged],
+                    "unusable_years": bad, "unusable_share": round(share, 4) if judged else None}
+        if judged and share > CALENDAR_UNUSABLE_HALT_SHARE:
+            halts.append(f"calendar {fid}: constant/NaN in {len(bad)} of {len(judged)} complete "
+                         f"years ({share:.1%} > 10%): {bad[0]}–{bad[-1]}")
     return cen, halts
 
 
@@ -350,7 +373,13 @@ def evaluate_calendar(vals: pd.DataFrame, ew: pd.Series) -> List[dict]:
     for fid in vals.columns:
         d = pd.concat([vals[fid], y], axis=1, keys=["x", "y"]).dropna()
         lags = nw_auto_lags(len(d))
-        b, t, p = nw_slope(d["y"].to_numpy(), d["x"].to_numpy(), lags)
+        x = d["x"].to_numpy()
+        if len(d) < MIN_NAMES or np.std(x) < 1e-12:       # [NN-FP-GUARDS] a constant regressor
+            rows.append({"signal": fid, "family": "calendar", "sign": +1, "n_days": int(len(d)),
+                         "nw_lags": lags, "slope": float("nan"), "t_nw": float("nan"),
+                         "p": float("nan"), "note": "feature constant over the window — no test"})
+            continue
+        b, t, p = nw_slope(d["y"].to_numpy(), x, lags)
         rows.append({"signal": fid, "family": "calendar", "sign": +1, "n_days": int(len(d)),
                      "nw_lags": lags, "slope": b, "t_nw": t, "p": p})
     return rows
@@ -467,12 +496,15 @@ def run(panel: pd.DataFrame, census: dict, start: str, seed: int, iters: int, bl
     cal_rows, cal_census = [], {}
     if with_calendar:
         feats = [f for f in CALENDAR if f not in CALENDAR_EXCLUDED_BY_RULING]
+        if len(feats) != EXPECTED_CALENDAR_COUNT:
+            halts.append(f"calendar family {len(feats)} != the amended {EXPECTED_CALENDAR_COUNT}")
+            return {}, halts
         first = min(panel.index.get_level_values("month_end"))
         days = spy_df.loc[max(first, pd.Timestamp(windows["main"] + "-01")):end].index
         if smoke_months:
             days = days[days <= days[0] + pd.DateOffset(months=smoke_months)]
         vals = calendar_values(days, feats)
-        cal_census, ch = calendar_census(vals)
+        cal_census, ch = calendar_census(vals, spy_df.index, require_judged=not smoke_months)
         halts += ch
         if not ch:
             tickers = sorted(panel.index.get_level_values("ticker").unique())
@@ -487,8 +519,8 @@ def run(panel: pd.DataFrame, census: dict, start: str, seed: int, iters: int, bl
             adj, rej = bh_adjust([r["p"] for r in cal_rows])
             for r, a, j in zip(cal_rows, adj, rej):
                 r["p_bh"], r["bh_reject"] = a, j
-                r["clears"] = bool(j and r["t_nw"] > 0)
-                r["wrong_sign_reject"] = bool(j and not r["t_nw"] > 0)
+                r["clears"] = bool(j and np.isfinite(r["t_nw"]) and r["t_nw"] > 0)
+                r["wrong_sign_reject"] = bool(j and np.isfinite(r["t_nw"]) and r["t_nw"] <= 0)
             families["calendar"] = {"m": len(cal_rows),
                                     "n_clear": sum(r["clears"] for r in cal_rows)}
     h1 = {"met": any(r.get("meets_h1") for r in rows),

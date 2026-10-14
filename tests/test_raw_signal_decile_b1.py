@@ -285,6 +285,36 @@ def test_the_FOMC_table_shape_HALTS_the_calendar_census():
     assert not any("january_effect" in x for x in halts)
 
 
+def test_the_calendar_census_judges_COMPLETE_years_only_partial_ones_never_halt():
+    """The first harness smoke (2000-01-31 → 2001-01-31) flagged month_of_year_dummy on its
+    one-month 2001: a month dummy is constant inside one month. Partial years are not judged;
+    the FOMC shape still HALTS on the complete ones."""
+    td = pd.bdate_range("2000-01-03", "2026-01-30")
+    days = td[(td >= "2000-01-31") & (td <= "2025-12-31")]
+    month = days.month.astype(float).to_numpy()
+    fomc = np.where((days.year >= 2018) & (days.day == 15), 1.0, 0.0)
+    cen, halts = h.calendar_census(pd.DataFrame({"month_of_year_dummy": month,
+                                                 "fomc_drift": fomc}, index=days), td)
+    assert cen["fomc_drift"]["judged_years"] == list(range(2001, 2026))
+    assert cen["fomc_drift"]["not_judged_partial_years"] == [2000]
+    assert cen["fomc_drift"]["unusable_years"] == list(range(2001, 2018))
+    assert not any("month_of_year_dummy" in x for x in halts), halts
+    assert any(x.startswith("calendar fomc_drift") for x in halts), halts
+    smoke = days[days <= "2001-01-31"]
+    sv = pd.DataFrame({"month_of_year_dummy": smoke.month.astype(float).to_numpy()}, index=smoke)
+    _, sh = h.calendar_census(sv, td)
+    assert any("no complete year" in x for x in sh), sh            # never a silent pass
+    _, sh2 = h.calendar_census(sv, td, require_judged=False)
+    assert sh2 == []                                                # the smoke proceeds
+
+
+def test_a_constant_calendar_regressor_is_reported_never_regressed():
+    days = pd.bdate_range("2010-01-01", "2011-12-31")
+    ew = pd.Series(np.random.RandomState(0).normal(0, 0.01, len(days)), index=days)
+    rows = h.evaluate_calendar(pd.DataFrame({"fomc_drift": 0.0}, index=days), ew)
+    assert np.isnan(rows[0]["t_nw"]) and "constant" in rows[0]["note"]
+
+
 def test_ew_daily_uses_the_last_month_end_BEFORE_the_day_and_needs_both_closes():
     days = pd.bdate_range("2020-01-27", "2020-02-07")
     mes = [pd.Timestamp("2020-01-31")]
@@ -307,3 +337,22 @@ def test_calendar_regression_reads_the_NEXT_day_return_on_todays_flag():
     ew[np.roll(flag, 1) == 1] += 0.01                         # the day AFTER the flag pays
     rows = h.evaluate_calendar(pd.DataFrame({"fomc_drift": flag}, index=days), ew)
     assert rows[0]["t_nw"] > 5 and rows[0]["nw_lags"] == h.nw_auto_lags(rows[0]["n_days"])
+
+
+def test_the_three_table_blind_calendar_features_are_EXCLUDED_and_never_computed(
+        monkeypatch, tmp_path):
+    """Third amendment: FOMC_DATES / US_MARKET_HOLIDAYS start 2018. Driving the real run(),
+    the excluded features never reach calendar_values — not tested, not even reported."""
+    class Seen(Exception):
+        pass
+
+    def spy_on(days, feats):
+        raise Seen(list(feats))
+    monkeypatch.setattr(h, "calendar_values", spy_on)
+    assert set(h.CALENDAR_EXCLUDED_BY_RULING) == {"fomc_drift", "pre_fomc_reduce", "pre_holiday"}
+    root, spy = _spy_root(tmp_path)
+    panel = _panel(spy, cols=PLANT)
+    with pytest.raises(Seen) as e:
+        h.run(panel, _census(panel), "2000-01", 0, 50, 6, root, with_calendar=True)
+    feats = e.value.args[0]
+    assert len(feats) == 7 and not set(feats) & set(h.CALENDAR_EXCLUDED_BY_RULING)

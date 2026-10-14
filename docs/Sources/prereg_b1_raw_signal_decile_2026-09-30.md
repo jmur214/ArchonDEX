@@ -431,8 +431,14 @@ option exists, it is the one taken.
     (Newey-West 1994); two-sided p. Clears = BH within the calendar family AND slope > 0. The
     window runs from the first panel month-end (2000-01-31) to 2025-12-31.
 12. **Calendar census (the daily form of §3.4):** a feature-year is unusable when the feature is
-    NaN or takes one value on every trading day of that year. HALT when > 10% of years are
-    unusable.
+    NaN or takes one value on every trading day of that year. HALT when > 10% of the **complete**
+    years are unusable. Partial edge years are listed as not judged. A census that can judge no
+    year HALTS; only the labelled smoke may proceed. A feature constant over the whole window is
+    reported, never regressed.
+    *Revised 2026-10-14, still before any harness output:* the first cut judged every year. The
+    first harness smoke (2000-01-31 → 2001-01-31) then flagged `month_of_year_dummy`,
+    `tax_loss_season` and others on its one-month 2001, because a month dummy is constant
+    inside a single month. That smoke's `halt.json` is the evidence.
 13. **Determinism:** canonical md5 over the rows, calendar, benchmarks, families and h1. Rows are
     sorted by (family, signal), floats are cut to 12 significant digits, and the JSON uses
     `sort_keys`.
@@ -534,6 +540,38 @@ filings run up to two quarters older than a live investor's: PIT-safe, but less 
 **Status:** the short window (§5.2, 2020-04 → 2025-12) needs a director ruling before the re-run.
 This is a pre-data finding: no return, IC or wealth number has been computed.
 
+**2026-10-14 — director ruling (A) on the short window → the second amendment (below).**
+
+**2026-10-14 14:45–15:14 — attempt 2: smokes + full panel ×2.** Gates passed outright at 14:45:45
+(disk 10.58 GB, swap 1,083 MB, clean at `dc8eeb5`, §4/§8 hashes intact). Interpreter pinned:
+the project venv (Python 3.14.4, numpy 2.4.3, pandas 3.0.1, pyarrow 23.0.1).
+- **First-twelve-months smokes (§11.1 Step 2, binding):** 2000-01 → 2000-12 took 19 s at
+  504 MB; 2021-07 → 2022-06 took 63 s at 779 MB. Both censuses were clean, and all six SimFin
+  edges were 0.0% unusable.
+- **Full runs:** `full_2a` at `dc8eeb5` took 809 s at 1.02 GB peak RSS; `full_2b` at `6c6200a`
+  took 772 s at 954 MB. `scripts/build_signal_panel_b1.py`, `core/` and `engines/` are
+  byte-identical between the two commits.
+- **DETERMINISM ×2: canonical md5 `d9d449d17f8f102614b34079e8f1bd60` for both.** Each parquet
+  recomputes it from its content, and the two censuses differ only in `wall_seconds`.
+- **Census: no HALT.** Families: main 13, sensitivity 5, short window 6. `volume_anomaly_v1` is
+  auto-excluded under the pre-ruling (29.8%, 93 months named). Every other signal is 0.0%
+  unusable; the SimFin edges cover 54 months each at 0.0%. Orientation 5/5. 109,366 rows over
+  312 month-ends; 49.0% of months are below 80% coverage. Forward returns: 108,886 full, 112
+  proxies, 361 + 7 NaN, reported and never filled.
+
+**2026-10-14 — harness built (`bae38e5`, `21094f6`, `6c6200a`); two defects caught BEFORE any
+output.**
+1. **The tie split.** The first decile rule used average ranks. `drawdown_60d` ties at 0 for
+   every name at its high, and a tie above 20% of names sank below 0.9 n, which EMPTIED the top
+   decile and silently turned Arm L into the EW sleeve. The fix: ties are never split (§11.4
+   item 4), and the lock fails on the old rule.
+2. **The census on partial years.** The first harness smoke (12 months, 8.9 s, 302 MB, exit 2,
+   `halt.json` only, no numbers) correctly HALTED `fomc_drift`, `pre_fomc_reduce` and
+   `pre_holiday`. It also falsely flagged month-based dummies on its one-month 2001. The fix:
+   only complete years are judged (§11.4 item 12).
+- **Calendar finding (pre-data, measured on every trading day 2000–2025):** `FOMC_DATES` and
+  `US_MARKET_HOLIDAYS` start in 2018. Director ruling (A) → the third amendment (below).
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
@@ -599,6 +637,28 @@ unchanged; this section governs where it differs.
 7. Applied in the same commit as this section: `SHORT_WINDOW_START = "2021-07"` in
    `scripts/build_signal_panel_b1.py`. The rerun writes to `full_2a/` and `full_2b/`;
    attempt 1 is untouched.
+
+## POST-FREEZE, PRE-DATA AMENDMENT (THIRD) — 2026-10-14: three calendar features excluded (director ruling; BINDING)
+Made **before any return, IC or wealth number existed** (the only harness output is the smoke's
+`halt.json`). §5.3's text is unchanged; this section governs where it differs.
+1. **`fomc_drift`, `pre_fomc_reduce` and `pre_holiday` are EXCLUDED** as structurally
+   ineligible over the frozen window. The foundry's `FOMC_DATES` and `US_MARKET_HOLIDAYS` tables
+   begin in 2018, so the first two are a constant 0.0 on every trading day of 2000–2017, and
+   `pre_holiday` has 2 non-zero days in those 18 years. This is the herding/earnings
+   disposition, set by input availability: mechanical, and decided pre-data.
+2. **The calendar family goes 10 → 7 on ONE window** (2000-01-31 → 2025-12-31). §8's "Calendar
+   family: 0 clear" is compared as written. **N_trials stays +4.**
+3. **The three are UNTESTED by B-1.** That sentence stands so B-1's calendar result can never
+   grow to cover them. Any earlier pre-2018 test of these three features was blind, including
+   their T-196 records. The director records that finding in `health_check`.
+4. **Rejected:** running the whole family on 2018–2025, because seven fully defined features do
+   not lose 18 years for three blind ones. **Queued separately:** extending the tables to 2000
+   is a foundry change, made propose-first and reviewed in its own unit; it is not part of B-1.
+5. **A verdict property:** before 2018 `january_effect` counts Jan 1 as a trading day, so it
+   flags 4 trading days instead of 5. It still varies.
+6. Applied in the same commit as this section: `CALENDAR_EXCLUDED_BY_RULING` and
+   `EXPECTED_CALENDAR_COUNT = 7` in `scripts/raw_signal_decile_b1.py`. A test drives the real
+   `run()` and asserts that the three never reach `calendar_values`.
 
 ## Reproduce the pre-run findings
 ```bash
