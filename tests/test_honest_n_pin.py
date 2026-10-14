@@ -23,8 +23,8 @@ from core.measurement.mbl_gate import (
     pinned_n_effective_artifact,
     sha256_file,
     verify_pinned_registry,
-    write_pin,
 )
+from scripts.honest_n_pin import PinExistsError, main as pin_main, write_pin
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,7 +105,7 @@ def test_a_backfill_after_pinning_is_refused_until_re_pinned(pinned):
     c = sqlite3.connect(reg); c.execute("INSERT INTO runs VALUES ('new')"); c.commit(); c.close()
     with pytest.raises(HonestNUnavailableError, match="run registry"):
         _gate(d, reg, pin)
-    write_pin(art.name, artifact_dir=d, db_path=reg, pin_path=pin)         # the reviewed re-pin
+    write_pin(art.name, artifact_dir=d, db_path=reg, pin_path=pin, replace=True)   # the reviewed re-pin
     assert _gate(d, reg, pin) == _expected(232)
 
 
@@ -185,10 +185,10 @@ def test_the_verify_command_checks_BOTH_files(pinned, monkeypatch, capsys):
     monkeypatch.setattr(mbl, "DEFAULT_ARTIFACT_DIR", d)
     monkeypatch.setattr(mbl, "DEFAULT_DB_PATH", reg)
     monkeypatch.setattr(mbl, "DEFAULT_PIN_PATH", pin)
-    assert mbl.main(["--verify"]) == 0
+    assert pin_main(["--verify"]) == 0
     import sqlite3
     c = sqlite3.connect(reg); c.execute("INSERT INTO runs VALUES ('x')"); c.commit(); c.close()
-    assert mbl.main(["--verify"]) == 3
+    assert pin_main(["--verify"]) == 3
     assert "run registry" in capsys.readouterr().out
 
 
@@ -209,3 +209,35 @@ def test_the_committed_pin_is_well_formed():
     for k in ("artifact", "registry"):
         assert re.fullmatch(r"[0-9a-f]{64}", pin[k]["sha256"])
     assert "latest_n_effective_artifact" not in dir(mbl), "the newest-wins selector is back"
+
+
+# ----------------------------------------------------------------------------- R's pre-merge note
+def test_the_referee_module_has_no_writer():
+    """The referee only reads and verifies; the writer lives in scripts/honest_n_pin.py."""
+    assert not hasattr(mbl, "write_pin") and not hasattr(mbl, "main")
+
+
+def test_an_existing_pin_is_NEVER_silently_overwritten(pinned):
+    """Replacing a pin changes what Gate 0/8 compute N from, so it must be deliberate. Without
+    replace=True the existing pin is refused AND left byte-for-byte unchanged."""
+    d, reg, art, pin = pinned
+    before = pin.read_bytes()
+    other = _artifact(d, "n_effective_2026-10-13.json", rho=0.30, comp=0.30)
+    with pytest.raises(PinExistsError, match="refusing to overwrite"):
+        write_pin(other.name, artifact_dir=d, db_path=reg, pin_path=pin)
+    assert pin.read_bytes() == before
+    write_pin(other.name, artifact_dir=d, db_path=reg, pin_path=pin, replace=True)
+    assert json.loads(pin.read_text())["artifact"]["file"] == other.name
+
+
+def test_the_pin_command_refuses_without_replace(pinned, monkeypatch, capsys):
+    d, reg, _, pin = pinned
+    monkeypatch.setattr(mbl, "DEFAULT_ARTIFACT_DIR", d)
+    monkeypatch.setattr(mbl, "DEFAULT_DB_PATH", reg)
+    monkeypatch.setattr(mbl, "DEFAULT_PIN_PATH", pin)
+    before = pin.read_bytes()
+    other = _artifact(d, "n_effective_2026-10-13.json", rho=0.30, comp=0.30)
+    assert pin_main(["--pin", other.name]) == 4
+    assert "REFUSED" in capsys.readouterr().err and pin.read_bytes() == before
+    assert pin_main(["--pin", other.name, "--replace"]) == 0
+    assert json.loads(pin.read_text())["artifact"]["file"] == other.name
