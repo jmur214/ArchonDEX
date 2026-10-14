@@ -381,6 +381,68 @@ for sec in "## 4. Signal inventory" "## 8. Predictions"; do
 done   # expect ba6cc7bff764 then cb9f4c3e185b
 ```
 
+### 11.4 Harness implementation decisions — recorded 2026-10-14 BEFORE any harness output (operational; alters NO frozen term)
+The frozen text leaves these choices open. Each is fixed here, before the harness has read the
+panel, and committed with the harness (`scripts/raw_signal_decile_b1.py`). Where a conservative
+option exists, it is the one taken.
+1. **The IC test is two-sided.** It uses the Newey-West t of the monthly Spearman IC (sign × raw
+   value against next-month return; Bartlett kernel, 6 lags, statsmodels HAC). **Clears IC = BH
+   rejects within its family AND t > 0 in the declared direction.** A rejection in the wrong
+   direction is reported as not clearing (§2.1). A one-sided test would halve every p.
+2. **Eligible names in a month:** finite signal AND finite forward return. A NaN forward return
+   removes the name from that month; the count is reported and the value is never filled. A NaN
+   arises when a name has no price at the month-end, which is known at formation, or, in 7
+   cases, no price after it.
+3. **Unusable month** (the builder's rule: < 10 finite values or std < 1e-12): the IC is skipped
+   and counted, and Arm L takes the EW-universe return, also counted.
+4. **Deciles:** average rank of sign × value; top = rank > 0.9 n, bottom = rank ≤ 0.1 n. A leg
+   with < 10 names takes §4.2's fallback: the EW universe for Arm L (counted), and a missing LS
+   month (counted). §4.2's 10-name floor applies to every leg.
+5. **Sparse signals (§4.2, per the census flag):** "strictly favorable" means sign × value > 0,
+   the edge's native long side. The LS bottom is the lowest tie group.
+6. **Costs:** each leg is equal-weight. The previous weights drift with realized returns before
+   each trade, and cost = 5 bps × Σ|w − w_drifted|, so a full round trip costs 10 bps. The first
+   month trades from cash. For LS, both legs are costed, plus 50 bps/yr borrow (/12 per month) on
+   the short notional. The 75/25 satellite rebalance is costless on both sides of every
+   comparison, so the treatment is identical.
+7. **EW-universe sleeve:** all eligible names, under the same cost rule. It is both the §3.7
+   benchmark and the §4.2 fallback.
+8. **Bootstrap:** `MetricsEngine.bootstrap_distribution` (Künsch moving block, no wrap) on the
+   MONTH INDICES: 1000 iterations, 6-month blocks, seed 0, 95% two-sided percentile, so
+   `ci_low` is the 2.5th percentile. One seed per window means every metric and every signal in
+   a window is paired on the same resampled months. LS (diagnostic only) is bootstrapped on its
+   own computable months.
+9. **Wealth:** Δ log terminal wealth = Σ log(1 + .75·SPY + .25·L) − Σ log(1 + SPY), and the same
+   against (.75·SPY + .25·EW). **H1 is judged on the main family only** (2000–2025). The short
+   window can only nominate (§5.2). Sensitivity rows never enter a BH count or H1.
+10. **SPY:** `data/processed` SPY closes at the same month-ends. They are dividend-adjusted like
+    the deciles, so both legs are total return (the census substrate note). A SPY month that is
+    not full HALTS.
+11. **Calendar (§5.3):** regress the EW-universe return from day t to t+1 on the feature value at
+    t. The day-t EW universe is the panel's names at the last month-end strictly before t that
+    have closes on t−1 and t, with at least 10 names. Newey-West lags floor(4(T/100)^(2/9))
+    (Newey-West 1994); two-sided p. Clears = BH within the calendar family AND slope > 0. The
+    window runs from the first panel month-end (2000-01-31) to 2025-12-31.
+12. **Calendar census (the daily form of §3.4):** a feature-year is unusable when the feature is
+    NaN or takes one value on every trading day of that year. HALT when > 10% of years are
+    unusable.
+13. **Determinism:** canonical md5 over the rows, calendar, benchmarks, families and h1. Rows are
+    sorted by (family, signal), floats are cut to 12 significant digits, and the JSON uses
+    `sort_keys`.
+14. **Minimum window: 24 months, else HALT.** `--smoke-months N` (the binding
+    first-twelve-months smoke) relaxes the floor to N and writes `smoke_*.json` labelled "SMOKE —
+    NOT A MEASUREMENT".
+15. **N_trials +4** is recorded in the results and in the verdict. The harness writes nothing to
+    the run registry, which is referee infrastructure; recording it there is the director's call.
+
+**Known before any output (a pre-data finding, at the director's gate):** the foundry's
+`FOMC_DATES` and `US_MARKET_HOLIDAYS` tables both start in 2018. As a result:
+- `fomc_drift` and `pre_fomc_reduce` are a constant 0.0 on every trading day of 2000–2017.
+- `pre_holiday` has 2 non-zero days in those 18 years.
+- The calendar census HALTS all three as written.
+- `january_effect` counts Jan 1 as a trading day before 2018, so it flags 4 trading days
+  instead of 5. It still varies, so this is a property for the verdict, not a HALT.
+
 ### 11.3 Run log (operational; alters NO frozen term)
 
 **2026-10-14 14:11 — step 0 + step 2 (the smoke).** Builder `scripts/build_signal_panel_b1.py`

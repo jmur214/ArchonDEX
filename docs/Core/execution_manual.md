@@ -1304,6 +1304,26 @@ python -m pytest tests/test_build_signal_panel_b1.py -q
 
 Writes `census_<md5>.json` always, and `signal_panel_<md5>.parquet` **only if the census
 passes**. Exit codes: 0 ok · 2 census HALT · 3 env pins wrong · 4 disk below 5 GB (checked
-before every write) · 5 cwd or code provenance outside this worktree. The harness
-(`scripts.raw_signal_decile_b1`, §11.1 step 4) is not built yet; its entry lands here when
-it is.
+before every write) · 5 cwd or code provenance outside this worktree.
+
+### B-1 harness — IC, Arms L/LS, wealth leg, calendar (added 2026-10-14)
+`scripts.raw_signal_decile_b1` (§11.1 steps 4–6; the open choices fixed in §11.4). It reads a
+panel only if the content md5 matches the filename AND the census beside it passed. Same env
+pins, same refusals.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+P=data/research/b1/full_2a/signal_panel_<md5>.parquet
+# smoke — each window's FIRST twelve months; writes smoke_12m_<md5>.json, never a measurement
+/usr/bin/time -l python -m scripts.raw_signal_decile_b1 --panel $P --out data/research/b1/harness_smoke/ --smoke-months 12
+# step 4 + step 5 (determinism: the two canonical md5s must match)
+python -m scripts.raw_signal_decile_b1 --panel $P --out data/research/b1/run1/ --seed 0 --boot-iter 1000 --boot-block-months 6
+python -m scripts.raw_signal_decile_b1 --panel $P --out data/research/b1/run2/ --seed 0 --boot-iter 1000 --boot-block-months 6
+# step 6 — the one pre-named sensitivity window (reported beside the headline, never instead)
+python -m scripts.raw_signal_decile_b1 --panel $P --out data/research/b1/run_2012/ --start 2012-01
+python -m pytest tests/test_raw_signal_decile_b1.py -q
+```
+
+Writes `results_<md5>.json` (the canonical md5 is in the name and in `meta`) or, on a HALT,
+`halt.json` with the reasons. Exit codes match the builder's. `--no-calendar` skips the daily
+calendar family (tests only; a measured run includes it).
