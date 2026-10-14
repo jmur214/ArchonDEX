@@ -27,12 +27,14 @@ bad overwrite of the canonical object cannot erase what previous days recorded.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 BUCKET = os.getenv("ARCHONDEX_RESULTS_BUCKET", "archondex-results-407539788432")
 PROFILE = os.getenv("AWS_PROFILE", "archondex")
@@ -140,19 +142,26 @@ def read_remote(key: str = KEY_CANON) -> Tuple[Optional[bytes], str]:
     return None, f"unreachable: {err.strip().splitlines()[-1][:120] if err.strip() else 'unknown'}"
 
 
+def _read_remote_retrying(key: str) -> Tuple[Optional[bytes], str]:
+    """read_remote with the laptop's wake-time retry: an unreachable network is retried
+    NET_RETRIES times before the caller DEFERS (never collapsed into 'absent')."""
+    remote, why = None, ""
+    for attempt in range(1, NET_RETRIES + 1):
+        remote, why = read_remote(key)
+        if not (remote is None and why.startswith("unreachable")):
+            break
+        if attempt < NET_RETRIES:
+            time.sleep(NET_BACKOFF_S)
+    return remote, why
+
+
 def sync(local_path: Path, allow_rewrite: bool = False,
          as_of: Optional[str] = None) -> PushVerdict:
     """Guarded push of the ledger to the canonical key AND a dated key."""
     if not local_path.exists():
         return PushVerdict(REFUSE, f"no local ledger at {local_path}")
     local = local_path.read_bytes()
-    remote, why = None, ""
-    for attempt in range(1, NET_RETRIES + 1):
-        remote, why = read_remote()
-        if not (remote is None and why.startswith("unreachable")):
-            break
-        if attempt < NET_RETRIES:
-            time.sleep(NET_BACKOFF_S)
+    remote, why = _read_remote_retrying(KEY_CANON)
     if remote is None and why.startswith("unreachable"):
         # DEFER, not FAIL. The record is not at risk from one missed push: the local
         # file is intact and append-only, and the next run's verify() reports a remote
@@ -196,3 +205,229 @@ def verify(local_path: Path) -> PushVerdict:
         return PushVerdict(OK_EXTEND, f"remote is behind by "
                                       f"{_rows(local) - _rows(remote)} row(s) — tonight's sync will carry it")
     return v
+
+
+# ── data/observability: RR-3's fail-closed honest-N inputs (T-356b, 2026-10-13) ───────
+#
+# The same single-copy exposure as the ledger, in a different shape. Since RR-3 these
+# files ARE Discovery's N: the run registry (N_raw) and the dated ρ̄ artifact
+# (`gate_inputs`). Both are gitignored, one copy on one machine.
+#
+# THE REGISTRY IS JUDGED ON WHAT THE GATE COUNTS, NOT ON BYTES. It is SQLite, and every
+# rebuild rewrites the file, so the ledger's byte-extension rule cannot apply. The rule
+# is on the set of `run_id`s: a local registry that lacks ANY run the remote holds is
+# REFUSED. That is precisely the rebuild-after-loss D's census names — `rebuild()`
+# re-reads whatever sits in local trade_logs that day, and 125 run rows' directories
+# exist nowhere, so the rebuilt N is SMALLER and the gate LOOSER, with no alarm. The
+# backup must not be the thing that publishes that smaller N over the good copy.
+#
+# THE ρ̄ ARTIFACTS ARE IMMUTABLE BY NAME. `n_effective_<date>.json` is a dated
+# measurement: a first copy is pushed, an identical one is current, a CHANGED one is
+# REFUSED (regenerate under a new date, or review and allow the rewrite).
+#
+# The registry is pushed as a CONSISTENT SNAPSHOT (SQLite's backup API, source opened
+# read-only), never the live file: a copy taken mid-write would be a torn database.
+
+OBS_PREFIX = "ops/observability"
+OBS_REGISTRY = "run_registry.sqlite"
+KEY_REGISTRY = f"{OBS_PREFIX}/{OBS_REGISTRY}"
+KEY_REGISTRY_DAILY_FMT = f"{OBS_PREFIX}/daily/run_registry_{{date}}.sqlite"
+KEY_ARTIFACT_FMT = f"{OBS_PREFIX}/{{name}}"
+ARTIFACT_GLOB = "n_effective_*.json"
+
+
+def classify_registry(local_ids: Set[str], remote_ids: Optional[Set[str]],
+                      same_content: bool) -> PushVerdict:
+    """Is pushing the local registry over the remote one safe for the gate's N?
+
+    Pure and total, like classify_push: the rule that protects N is tested without S3.
+    """
+    if not local_ids:
+        return PushVerdict(REFUSE, "local run registry has NO rows — refusing to publish an empty N")
+    if remote_ids is None:
+        return PushVerdict(OK_FIRST, f"no remote yet — first push of {len(local_ids)} run(s)")
+    if same_content:
+        return PushVerdict(OK_SAME, f"remote registry already current ({len(local_ids)} runs)")
+    lost = remote_ids - local_ids
+    if lost:
+        return PushVerdict(
+            REFUSE,
+            f"local registry LACKS {len(lost)} run(s) the remote holds ({len(local_ids)} local "
+            f"vs {len(remote_ids)} remote) — a rebuild after loss hands the gate a SMALLER N; "
+            f"pushing would overwrite the only copy of those rows")
+    added = len(local_ids - remote_ids)
+    if added:
+        return PushVerdict(OK_EXTEND, f"registry extended: {len(remote_ids)} -> {len(local_ids)} runs")
+    return PushVerdict(OK_EXTEND, f"registry rewritten with the same {len(local_ids)} runs "
+                                  f"(row values changed; N unchanged)")
+
+
+def classify_artifact(name: str, local: bytes, remote: Optional[bytes]) -> PushVerdict:
+    """A dated ρ̄ artifact: pushed once, then immutable by name."""
+    if local == b"":
+        return PushVerdict(REFUSE, f"{name} is EMPTY locally — refusing to publish it")
+    if remote is None:
+        return PushVerdict(OK_FIRST, f"{name}: first push")
+    if local == remote:
+        return PushVerdict(OK_SAME, f"{name}: remote current")
+    return PushVerdict(REFUSE, f"{name} CHANGED since it was backed up — a dated ρ̄ artifact is "
+                               f"immutable by name; regenerate under a NEW date, or review and "
+                               f"allow the rewrite explicitly")
+
+
+def _registry_ids(db: Path) -> Set[str]:
+    """run_ids, read through a READ-ONLY connection: the backup never writes the gate's input."""
+    con = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        return {r[0] for r in con.execute("SELECT run_id FROM runs")}
+    finally:
+        con.close()
+
+
+def _content_digest(db: Path) -> str:
+    """sha256 of the database's SQL dump. Compared instead of file bytes, so a SQLite
+    library upgrade (different page layout, same rows) is not mistaken for a change."""
+    import hashlib
+    con = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        return hashlib.sha256("\n".join(con.iterdump()).encode()).hexdigest()
+    finally:
+        con.close()
+
+
+def _read_blob(blob: bytes) -> Optional[Tuple[Set[str], str]]:
+    """(run_ids, content digest) of a registry held as bytes (the remote copy), or None
+    if it is unreadable as SQLite."""
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "remote.sqlite"
+        f.write_bytes(blob)
+        try:
+            return _registry_ids(f), _content_digest(f)
+        except sqlite3.DatabaseError:
+            return None
+
+
+def _snapshot(db: Path, dest: Path) -> None:
+    """A consistent copy of a possibly-live SQLite file (backup API; source read-only)."""
+    src = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
+    dst = sqlite3.connect(str(dest))
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+
+
+def _combine(verdicts: List[PushVerdict]) -> PushVerdict:
+    """One verdict for the janitor row: any REFUSE refuses; then any DEFERRED defers."""
+    detail = "; ".join(v.detail for v in verdicts)
+    statuses = [v.status for v in verdicts]
+    for status in (REFUSE, DEFERRED, OK_FIRST, OK_EXTEND):
+        if status in statuses:
+            return PushVerdict(status, detail)
+    return PushVerdict(OK_SAME, detail)
+
+
+def _put(local: Path, key: str) -> Optional[str]:
+    r = _aws(["s3", "cp", str(local), f"s3://{BUCKET}/{key}"])
+    if r.returncode != 0:
+        return f"push to {key} FAILED: {(r.stderr or b'').decode(errors='replace')[:160]}"
+    return None
+
+
+def _sync_registry(db: Path, allow_rewrite: bool, as_of: Optional[str]) -> PushVerdict:
+    if not db.exists():
+        return PushVerdict(REFUSE, f"no local run registry at {db} — any remote copy is now the only one")
+    remote, why = _read_remote_retrying(KEY_REGISTRY)
+    if remote is None and why.startswith("unreachable"):
+        return PushVerdict(DEFERRED, f"registry: network unreachable ({why}); next run will carry it")
+    with tempfile.TemporaryDirectory() as d:
+        snap = Path(d) / OBS_REGISTRY
+        _snapshot(db, snap)
+        remote_ids, remote_digest = None, None
+        if remote is not None:
+            parsed = _read_blob(remote)
+            if parsed is None:
+                return PushVerdict(REFUSE, "remote registry copy is unreadable as SQLite — "
+                                           "not overwriting it without review")
+            remote_ids, remote_digest = parsed
+        v = classify_registry(_registry_ids(snap), remote_ids,
+                              same_content=(_content_digest(snap) == remote_digest))
+        if not v.ok and not allow_rewrite:
+            return v
+        if not v.ok:
+            v = PushVerdict(OK_EXTEND, f"REWRITE ALLOWED explicitly: {v.detail}")
+        if v.status == OK_SAME:
+            return v
+        date = as_of or datetime.now().strftime("%Y-%m-%d")
+        for key in (KEY_REGISTRY, KEY_REGISTRY_DAILY_FMT.format(date=date)):
+            err = _put(snap, key)
+            if err:
+                return PushVerdict(REFUSE, err)
+        return v
+
+
+def _sync_artifact(path: Path, allow_rewrite: bool) -> PushVerdict:
+    key = KEY_ARTIFACT_FMT.format(name=path.name)
+    remote, why = _read_remote_retrying(key)
+    if remote is None and why.startswith("unreachable"):
+        return PushVerdict(DEFERRED, f"{path.name}: network unreachable ({why})")
+    v = classify_artifact(path.name, path.read_bytes(), remote)
+    if not v.ok and not allow_rewrite:
+        return v
+    if not v.ok:
+        v = PushVerdict(OK_EXTEND, f"REWRITE ALLOWED explicitly: {v.detail}")
+    if v.status == OK_SAME:
+        return v
+    err = _put(path, key)
+    return PushVerdict(REFUSE, err) if err else v
+
+
+def sync_observability(obs_dir: Path, allow_rewrite: bool = False,
+                       as_of: Optional[str] = None) -> PushVerdict:
+    """Guarded push of the honest-N inputs. Never `allow_rewrite` on the nightly path."""
+    verdicts = [_sync_registry(obs_dir / OBS_REGISTRY, allow_rewrite, as_of)]
+    artifacts = sorted(obs_dir.glob(ARTIFACT_GLOB))
+    if not artifacts:
+        verdicts.append(PushVerdict(REFUSE, f"no {ARTIFACT_GLOB} in {obs_dir} — the gate's ρ̄ "
+                                            f"input is missing locally"))
+    verdicts += [_sync_artifact(p, allow_rewrite) for p in artifacts]
+    return _combine(verdicts)
+
+
+def verify_observability(obs_dir: Path) -> PushVerdict:
+    """Start-of-run check: does a readable remote copy of each honest-N input exist and
+    hold everything local does? Absent remote = single-copy = NOT ok (as for the ledger)."""
+    db = obs_dir / OBS_REGISTRY
+    verdicts: List[PushVerdict] = []
+    if not db.exists():
+        verdicts.append(PushVerdict(REFUSE, f"no local run registry at {db}"))
+    else:
+        remote, why = read_remote(KEY_REGISTRY)
+        if remote is None:
+            verdicts.append(PushVerdict(REFUSE, f"no readable remote registry ({why}) — single copy"))
+        else:
+            parsed = _read_blob(remote)
+            if parsed is None:
+                verdicts.append(PushVerdict(REFUSE, "remote registry copy unreadable as SQLite"))
+            else:
+                remote_ids = parsed[0]
+                local_ids = _registry_ids(db)
+                lost = remote_ids - local_ids
+                if lost:
+                    verdicts.append(PushVerdict(REFUSE, f"local registry LACKS {len(lost)} run(s) "
+                                                        f"the remote holds — N would shrink"))
+                elif local_ids - remote_ids:
+                    verdicts.append(PushVerdict(OK_EXTEND, f"remote registry behind by "
+                                                           f"{len(local_ids - remote_ids)} run(s)"))
+                else:
+                    verdicts.append(PushVerdict(OK_SAME, f"remote registry holds all {len(local_ids)} runs"))
+    for p in sorted(obs_dir.glob(ARTIFACT_GLOB)):
+        remote, why = read_remote(KEY_ARTIFACT_FMT.format(name=p.name))
+        if remote is None:
+            verdicts.append(PushVerdict(REFUSE, f"{p.name}: no readable remote copy ({why}) — single copy"))
+        elif remote != p.read_bytes():
+            verdicts.append(PushVerdict(REFUSE, f"{p.name}: local differs from its remote copy"))
+        else:
+            verdicts.append(PushVerdict(OK_SAME, f"{p.name}: remote current"))
+    return _combine(verdicts)

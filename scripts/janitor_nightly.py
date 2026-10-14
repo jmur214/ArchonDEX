@@ -73,6 +73,8 @@ def _canonical_root() -> Path:
 CANON = _canonical_root()
 REPORT = CANON / "data/state/janitor_report.md"
 LEDGER = CANON / "data/state/autonomy_ledger.jsonl"
+# RR-3's fail-closed honest-N inputs (T-356b): single-copy like the ledger, same survival.
+OBS_DIR = CANON / "data/observability"
 MERGE_REQUESTS = ROOT / "data/coordination/janitor_merge_requests.md"
 # THE INTERPRETER. Never a bare `python` (launchd has no PATH), and never a
 # hardcoded ROOT/.venv either: worktrees do not each carry a venv, and this module
@@ -246,9 +248,36 @@ def check_ledger_backup() -> Check:
     return Check("ledger_backup", v.ok, v.detail)
 
 
+def check_observability_backup() -> Check:
+    """Last night's push of the honest-N inputs (run registry + ρ̄ artifacts): is each
+    readable remotely, and does the remote hold every run local does? Red while they
+    are single-copy — which is the truth until the first push lands."""
+    try:
+        v = ledger_backup.verify_observability(OBS_DIR)
+    except Exception as exc:   # a corrupt local registry must be REPORTED, not end the night
+        return Check("observability_backup", False, f"verify raised {type(exc).__name__}: {exc}")
+    return Check("observability_backup", v.ok, v.detail)
+
+
+def survival_syncs(as_of: str) -> List[tuple]:
+    """The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
+    job may extend history, never overwrite it."""
+    jobs = (("ledger_sync", lambda: ledger_backup.sync(LEDGER, as_of=as_of)),
+            ("observability_sync", lambda: ledger_backup.sync_observability(OBS_DIR, as_of=as_of)))
+    out = []
+    for name, job in jobs:
+        try:
+            v = job()
+        except Exception as exc:   # one record's failure must not cost the other its push
+            v = ledger_backup.PushVerdict(ledger_backup.REFUSE, f"raised {type(exc).__name__}: {exc}")
+        out.append((name, v))
+    return out
+
+
 def run_checks() -> List[Check]:
     return [check_runner_canon(), check_worktree_canon(), check_launchd_canon(),
-            check_ledger_backup(), check_doc_lint(), check_census(), check_suite()]
+            check_ledger_backup(), check_observability_backup(), check_doc_lint(),
+            check_census(), check_suite()]
 
 
 # ── the record ─────────────────────────────────────────────────────────────────
@@ -472,8 +501,8 @@ def main() -> int:
     # overwrite history, only extend it. Reported, never fatal — losing the backup is
     # serious, but a janitor that dies on an S3 hiccup stops producing the record it
     # is protecting.
-    v = ledger_backup.sync(LEDGER, as_of=as_of)
-    print(f"[JANITOR] ledger_sync {v.status}: {v.detail}")
+    for name, v in survival_syncs(as_of):
+        print(f"[JANITOR] {name} {v.status}: {v.detail}")
 
     print(f"[JANITOR] {as_of} outcome={outcome} "
           f"checks={{{', '.join(f'{c.name}={"PASS" if c.ok else "FAIL"}' for c in checks)}}}")
