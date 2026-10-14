@@ -67,3 +67,29 @@ error or crash mid-write truncates the registry, and the caller is never told. T
 wipe it: both return early on an empty load. LifecycleManager is ACTIVE in production, with
 `lifecycle_enabled=true` and `lifecycle_readonly=false`. Engine F is outside this unit; the shared fix would be
 one atomic registry writer that both engines use.
+
+## Review fixup (R's APPROVE of 6e20790, three notes applied before merge)
+
+- **Permissions are kept across the atomic replace.** The temp file was created with the umask default, so a
+  `600` registry became `644` after one save. Now `os.chmod(tmp, S_IMODE(registry.stat().st_mode))` runs when
+  the registry exists.
+- **A refused first read is labelled by its own stage.** The cycle sets `_stage = "load queue"` before
+  `get_queued_candidates`. It used to fail under the previous stage's label, `save new candidates`.
+- **R's F2.** `_load_fitness_from_registry` read the registry inside `except Exception: pass`, so an unreadable
+  registry seeded the GA with no fitness history, silently. It now reads through `_read_registry`.
+
+Each has a lock, and `scripts/registry_fail_closed_reversion_proof.py` now runs 7 of 7 cases:
+- the reverted chmod leaves the file at `0o644`, where the lock expects `0o600`;
+- the reverted fitness read does not raise;
+- the reverted stage reads `'save new candidates'`.
+
+The branch was brought up to date with main first (RR-6a, `f38d875`), because `_stage` lives in RR-6a's cycle.
+
+## Limits stated, not fixed here (R)
+
+- **A symlinked registry FILE is replaced by a regular file**, because `os.replace` swaps the link itself. No
+  symlinked `edges.yml` exists anywhere in practice: `data/governor/` is per-worktree, and the image bakes a copy.
+- **The temp-file "evidence" is not durable** (F4). A failed attempt's `.edges.yml.tmp-<pid>` is overwritten by
+  the next save from the same process id.
+- **The directory is not fsynced after the rename** (F6). After a power loss, the rename itself may not be
+  durable. The file contents are fsynced, so a surviving rename is never partial.

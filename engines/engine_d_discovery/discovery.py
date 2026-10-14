@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import random
+import stat
 import yaml
 import pandas as pd
 import logging
@@ -447,13 +448,9 @@ class DiscoveryEngine:
         Uses the 'sharpe' field stored during validation.
         """
         fitnesses = {}
-        all_edges = []
-        if self.registry_path.exists():
-            try:
-                data = yaml.safe_load(self.registry_path.read_text()) or {}
-                all_edges = data.get("edges", [])
-            except Exception:
-                pass
+        # R's F2: this read was `except Exception: pass` — an unreadable registry seeded the GA
+        # with NO fitness history, silently. It reads through the fail-closed reader now.
+        all_edges = self._read_registry()["edges"]
 
         for edge in all_edges:
             eid = edge.get("edge_id", "")
@@ -776,6 +773,10 @@ class DiscoveryEngine:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
+        if self.registry_path.exists():
+            # R's note: keep the registry's permissions across the replace (a 600 file was
+            # becoming 644 — the temp file's umask default — after a single save).
+            os.chmod(tmp, stat.S_IMODE(self.registry_path.stat().st_mode))
         os.replace(tmp, self.registry_path)
 
     def get_queued_candidates(self, status: str = "candidate") -> List[Dict[str, Any]]:

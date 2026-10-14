@@ -123,3 +123,38 @@ def test_the_legacy_list_root_is_still_read(tmp_path):
     reg = tmp_path / "edges.yml"
     reg.write_text(yaml.dump(GOOD["edges"], sort_keys=False))
     assert [e["edge_id"] for e in _engine(reg).get_queued_candidates("candidate")] == ["cand_old"]
+
+
+# --------------------------------------------------------------------------- #
+# R's three notes on the review (fixup)
+# --------------------------------------------------------------------------- #
+def test_the_atomic_replace_keeps_the_registrys_permissions(tmp_path):
+    """The temp file is created with the umask default, so a 600 registry became 644 after
+    one save. Revert the chmod → 0o644 (under the usual 022 umask)."""
+    import os
+    import stat
+    reg = tmp_path / "edges.yml"
+    reg.write_text(yaml.dump(GOOD, sort_keys=False))
+    os.chmod(reg, 0o600)
+    _engine(reg).save_candidates([NEW])
+    assert stat.S_IMODE(reg.stat().st_mode) == 0o600
+
+
+def test_the_GA_fitness_seed_refuses_an_unreadable_registry(tmp_path):
+    """R's F2: `_load_fitness_from_registry` swallowed a read failure (`except: pass`) and
+    seeded the GA with no fitness history. Revert → returns {} silently."""
+    reg = tmp_path / "edges.yml"
+    reg.write_text("edges:\n  - {edge_id: x\n")
+    with pytest.raises(RegistryUnreadableError):
+        _engine(reg)._load_fitness_from_registry()
+
+
+def test_a_refused_queue_read_is_labelled_by_its_own_stage(monkeypatch, tmp_path):
+    """R's note: the cycle's first registry READ (the queue) failed under the label of the
+    previous stage, 'save new candidates'. Revert → that label."""
+    from tests.test_rr6a_gate_verdicts import _drive_cycle
+    seen = {}
+    with pytest.raises(RegistryUnreadableError):
+        _drive_cycle(monkeypatch, tmp_path, seen=seen,
+                     queued_raises=RegistryUnreadableError("edges.yml is not parseable YAML"))
+    assert seen["failures"][0][0] == "load queue"
