@@ -1,0 +1,129 @@
+{
+  "alpha": 0.05,
+  "M": 400,
+  "n_permutations": 500,
+  "cells": [
+    {
+      "n": 756,
+      "generator": "normal",
+      "rejections": 18,
+      "M": 400,
+      "size": 0.045,
+      "ci95": [
+        0.0287,
+        0.07
+      ],
+      "seconds": 3.9
+    },
+    {
+      "n": 756,
+      "generator": "lognorm_R",
+      "rejections": 14,
+      "M": 400,
+      "size": 0.035,
+      "ci95": [
+        0.021,
+        0.0579
+      ],
+      "seconds": 4.2
+    },
+    {
+      "n": 756,
+      "generator": "lognorm_L",
+      "rejections": 40,
+      "M": 400,
+      "size": 0.1,
+      "ci95": [
+        0.0743,
+        0.1333
+      ],
+      "seconds": 4.5
+    },
+    {
+      "n": 756,
+      "generator": "garch_N",
+      "rejections": 15,
+      "M": 400,
+      "size": 0.0375,
+      "ci95": [
+        0.0229,
+        0.0609
+      ],
+      "seconds": 5.9
+    },
+    {
+      "n": 756,
+      "generator": "garch_L",
+      "rejections": 45,
+      "M": 400,
+      "size": 0.1125,
+      "ci95": [
+        0.0851,
+        0.1472
+      ],
+      "seconds": 7.1
+    },
+    {
+      "n": 3269,
+      "generator": "normal",
+      "rejections": 19,
+      "M": 400,
+      "size": 0.0475,
+      "ci95": [
+        0.0306,
+        0.073
+      ],
+      "seconds": 7.0
+    },
+    {
+      "n": 3269,
+      "generator": "lognorm_R",
+      "rejections": 12,
+      "M": 400,
+      "size": 0.03,
+      "ci95": [
+        0.0172,
+        0.0517
+      ],
+      "seconds": 6.9
+    },
+    {
+      "n": 3269,
+      "generator": "lognorm_L",
+      "rejections": 28,
+      "M": 400,
+      "size": 0.07,
+      "ci95": [
+        0.0489,
+        0.0993
+      ],
+      "seconds": 7.0
+    },
+    {
+      "n": 3269,
+      "generator": "garch_N",
+      "rejections": 26,
+      "M": 400,
+      "size": 0.065,
+      "ci95": [
+        0.0447,
+        0.0935
+      ],
+      "seconds": 7.2
+    },
+    {
+      "n": 3269,
+      "generator": "garch_L",
+      "rejections": 31,
+      "M": 400,
+      "size": 0.0775,
+      "ci95": [
+        0.0551,
+        0.1079
+      ],
+      "seconds": 7.5
+    }
+  ],
+  "reading": "2 SIZE DRIFTS \u2014 over-rejection on: lognorm_L@756, garch_L@756, garch_L@3269",
+  "n_trials_consumed": 0
+}
