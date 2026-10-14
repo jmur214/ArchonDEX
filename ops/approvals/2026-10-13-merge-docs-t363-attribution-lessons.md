@@ -1,6 +1,6 @@
 ---
 id: merge-docs-t363-attribution-lessons
-status: pending
+status: approved
 kind: merge
 asked_by: agent_e
 asked_on: 2026-10-13
