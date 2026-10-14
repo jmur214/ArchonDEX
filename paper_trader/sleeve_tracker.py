@@ -157,13 +157,31 @@ class SleeveTracker:
             if held_weights is not None:
                 hw = {k: float(v) for k, v in held_weights.items()}
                 names = set(tw) | set(hw)
-                # A tracking error over NO positions is UNDEFINED, not perfect.
-                # Summing over an empty set yields 0.0, and gate (a) reads that
-                # as "tracked its targets exactly" — a vacuous zero wearing the
-                # look of a measurement. Seen on the live artifact: account-3's
-                # 2026-08-26 point carries te=0 with target_w={} and held_w={}.
-                te = (round(sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
-                                for k in names), 4) if names else None)
+                # A tracking error over NOTHING is UNDEFINED, not perfect. Two
+                # ways to have nothing, and T-361 only closed the first:
+                #
+                #   (a) NO NAMES — sum over an empty set is 0.0
+                #       (acct-3 2026-08-26: te=0, target_w={}, held_w={});
+                #   (b) NAMES, ALL ZERO — sum of |0.0-0.0| is also 0.0
+                #       (acct-3 2026-09-04 / 09-23 / 10-08 / 10-13:
+                #        te=0.0 with held_w={'SPY': 0.0} and target_w the same).
+                #
+                # Gate (a) reads either as "tracked its targets exactly" on a
+                # day the account targeted nothing and held nothing. Case (b) is
+                # the COMMON one — 4 of acct-3's 5 vacuous days — so closing
+                # only (a) left the larger half of the class reporting a
+                # measurement it never made.
+                #
+                # A real 0.0 over real NON-ZERO weights is a true measurement
+                # (acct-3 09-09 / 10-02 / 10-05 / 10-06) and must keep
+                # computing: the distinction is "nothing to track" vs "tracked
+                # it exactly", never "the number happens to be zero".
+                nothing_tracked = not names or not any(
+                    abs(tw.get(k, 0.0)) > 0.0 or abs(hw.get(k, 0.0)) > 0.0
+                    for k in names)
+                te = (None if nothing_tracked else
+                      round(sum(abs(hw.get(k, 0.0) - tw.get(k, 0.0))
+                                for k in names), 4))
             else:
                 hw, te = {}, None
             pt["exec"] = {
