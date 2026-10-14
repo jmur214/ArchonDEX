@@ -11,7 +11,7 @@ reproduce: "§12 below; the panel md5 d9d449d17f8f102614b34079e8f1bd60 and the r
 # B-1 — VERDICT: on the literature's construction, the cross-sectional price vocabulary clears nothing
 
 Pre-registration: `docs/Sources/prereg_b1_raw_signal_decile_2026-09-30.md`, FROZEN 2026-10-13
-(`469fa69`), with three post-freeze, pre-data amendments (§3 below). Branch
+(`469fa69` on the branch; `2af10ad` the director's merge to main, identical text), with three post-freeze, pre-data amendments (§3 below). Branch
 `research/raw-signal-decile-b1`. The harness's open choices were fixed in prereg §11.4 and
 committed (`bae38e5`, revised `6c6200a` / `cc8a24e`) before the harness produced any output.
 **N_trials +4.**
@@ -50,11 +50,11 @@ inventory change lives in the amendment sections, never in §4 itself.
 
 | artifact | identity | where / how |
 |---|---|---|
-| panel (attempt 2), run A | canonical md5 **`d9d449d17f8f102614b34079e8f1bd60`** | `full_2a/`, builder at `dc8eeb5`, 809 s, peak RSS 1.02 GB |
-| panel (attempt 2), run B | **the same md5** | `full_2b/`, at `6c6200a` (builder, `core/`, `engines/` byte-identical), 772 s, 954 MB. The two censuses differ only in `wall_seconds` |
-| harness run 1 | canonical md5 **`5de36b89e0ade6eac008667e035d2d03`** | `run1/`, at `cc8a24e`, 22 s, 524 MB |
-| harness run 2 | **the same md5** | `run2/`, 23 s, 496 MB. The JSON files differ only in `meta.wall_seconds` |
-| 2012 window | `bbf88ffc9f23bde015e03b5361b09dd4` | `run_2012/`, 19 s, 488 MB |
+| panel (attempt 2), run A | canonical md5 **`d9d449d17f8f102614b34079e8f1bd60`** | `full_2a/`, builder at `dc8eeb5`, 807.8 s (census `wall_seconds`; 809 s by `/usr/bin/time`, incl. start-up), peak RSS 1.02 GB |
+| panel (attempt 2), run B | **the same md5** | `full_2b/`, at `6c6200a` (builder, `core/`, `engines/` byte-identical), 770.7 s (772 s by `/usr/bin/time`), 954 MB. The two censuses differ only in `wall_seconds` |
+| harness run 1 | canonical md5 **`5de36b89e0ade6eac008667e035d2d03`** | `run1/`, at `cc8a24e`, 20.5 s (`meta.wall_seconds`; 22 s by `/usr/bin/time`, incl. start-up), 524 MB |
+| harness run 2 | **the same md5** | `run2/`, 21.1 s (23 s by `/usr/bin/time`), 496 MB. The JSON files differ only in `meta.wall_seconds` |
+| 2012 window | `bbf88ffc9f23bde015e03b5361b09dd4` | `run_2012/`, 17.0 s (19 s by `/usr/bin/time`), 488 MB |
 | attempt 1 (kept as the first attempt) | census `f47aa0d6f705…`, **HALT**, no panel | `full_a/`, at `e595ae5`: four SimFin edges blank at the old window start |
 
 - **Gates passed outright at every launch**, with no waiver: one heavy job, disk ≥ 5 GB, swap
@@ -111,10 +111,11 @@ inventory change lives in the amendment sections, never in §4 itself.
 | short window | "**Short-window family:** 0 clear." | **0 of 6** | **HIT** |
 
 **Score: 2 of 5.** Both hits are predictions that nothing would clear; every prediction that
-something would clear failed. The low-risk pair have the family's best risk-adjusted Arm L:
-Sharpe 0.92 [0.56, 1.34] and 0.85 [0.49, 1.34], against SPY's 0.60 [0.17, 1.06]. That fits the
-flat-SML reading of the low-risk anomaly (the same return at lower risk), but neither ranks next
-month's return, which is what the IC tests.
+something would clear failed. The low-risk pair's Arm L Sharpes, 0.92 [0.56, 1.34] and 0.85
+[0.49, 1.34], are among the family's best (the 0.92 is tied with `high_minus_low_60d`). Neither
+signal ranks next month's return, which is what the IC tests, and both ICs ran against their
+declared sign. Comparing those Sharpes with SPY's 0.60 [0.17, 1.06] carries the EW tilt that
+the wealth ruling closed: the EW sleeve's Sharpe is not in the record.
 
 ## 5. The pre-named outcomes (§6, verbatim) — and which apply
 
