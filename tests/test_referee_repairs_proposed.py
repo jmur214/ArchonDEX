@@ -306,13 +306,21 @@ def test_paused_retirement_gate_reads_ci_low_not_point():
 
 
 # --------------------------------------------------------------------------- #
-# NEW-8  `alpha_settings.prod.json` keys `news_sentiment_edge` but the edge's
-#        EDGE_ID is `news_sentiment_v2`, so the key matched no edge and the
-#        recorded 0.5 described nothing. (RR-7 correction: this edge is not in
-#        edges.yml and never loads in production, so no weight was being
-#        misapplied TODAY — the risk was forward: register it and the lookup
-#        would silently miss the key and use 1.0.) Fixed RR-7, 2026-09-30.
+# NEW-8  The always-active news edge is keyed by a name that is neither its
+#        EDGE_ID nor registered. `alpha_engine.py:350` registers it in EVERY
+#        backtest under the dict key `news_sentiment_edge`; its class EDGE_ID is
+#        `news_sentiment_v2`; `edges.yml` holds neither. The config key matches
+#        the dict key, so the 0.5 IS applied today (`signal_processor.py:657`)
+#        — the original "defaults to 1.0" premise was wrong. The defect is
+#        REGISTRY INVISIBILITY: Engine F can never pause or retire the edge, and
+#        every census reports it under a name the registry does not know.
+#        Renaming the config key ALONE would break the match and run the edge at
+#        the 1.0 default wherever it fires. Fix = one propose-first Engine-A unit
+#        (key by EDGE_ID + rename the config key + register in edges.yml,
+#        together). Description corrected by Agent R's RR-7 review, 2026-10-08.
 # --------------------------------------------------------------------------- #
+@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-8 the always-active news edge "
+                   "is keyed by a name that is neither its EDGE_ID nor registered")
 def test_prod_edge_weight_keys_match_edge_ids():
     import json
     from pathlib import Path

@@ -34,7 +34,7 @@
     "momentum_edge_v1": 1.5,
     "rsi_bounce_v1": 0.0,
     "bollinger_reversion_v1": 0.0,
-    "news_sentiment_v2": 0.5,
+    "news_sentiment_edge": 0.5,
     "value_trap_v1": 0.5,
     "value_deep_v1": 0.5,
     "growth_sales_v1": 0.5,

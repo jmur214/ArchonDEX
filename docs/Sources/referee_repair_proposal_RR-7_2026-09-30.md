@@ -15,30 +15,51 @@ what the brief asserted; none is acted on without review.
 
 ---
 
-## Deliverable 1 — edge-weight key (DONE on the branch, commit 1/6)
+## Deliverable 1 — edge-weight key (RETURNED by review; config change REVERTED; now proposal text)
 
-`config/alpha_settings.prod.json:37` `"news_sentiment_edge": 0.5` → `"news_sentiment_v2": 0.5`,
-the EDGE_ID at `engines/engine_a_alpha/edges/news_sentiment_edge.py:32`. Targeted xfail
-`test_prod_edge_weight_keys_match_edge_ids` now passes; the other 15 xfails untouched.
+**Status.** The 09-30 commit renamed `config/alpha_settings.prod.json:37` to the class EDGE_ID.
+Agent R's review (`docs/Audit/rr7_review_agent_r_2026_10_08.md` on `review/agent-r-rr7`, F1)
+returned it, and the branch now reverts it: the file is byte-identical to `99153df` again, and the
+NEW-8 xfail is restored. The rename was **not** behaviour-neutral, and the defect is in the engine,
+not the config.
 
-**⚠ Rail conflict, for an explicit ruling.** The common hard constraints forbid touching
-`config/*.prod.json`; the brief scopes this key as its one exception. Verified before editing
-that the change is **behavior-neutral in production**: `news_sentiment` appears in
-`data/governor/edges.yml` **zero** times, and `orchestration/mode_controller.py` loads edges only
-via `registry.get_all_specs()`. The edge never loads, so no weight is consulted under either key.
+**What the engine does (R's trace, re-confirmed on this branch by executing the engine):**
+`alpha_engine.py:350` registers the news edge **always-active** in every backtest, under the dict key
+`news_sentiment_edge`. The weight lookup is keyed by that dict name
+(`signal_processor.py:657`, `edge_weights.get(edge_name, 1.0)`), so **today's config key matches and
+the 0.5 is applied**. The class `EDGE_ID` (`news_sentiment_v2`) is used only on signal rows; no
+`edges.yml` entry exists under either name. This pass checked only `mode_controller`'s registry path
+and missed the engine's own registration — that is how it concluded the edge "never loads".
 
-**The xfail's own comment was inaccurate** and is corrected on the branch (intent kept, false
-sentence not reproduced): it said the 0.5 "is never applied (defaults to 1.0)". Nothing is
-misapplied today; the risk is **forward** — register the edge and `edge_weights.get(edge_name, 1.0)`
-(`engines/engine_a_alpha/signal_processor.py:657`) silently misses the key.
+Consequences:
+- a lone config rename breaks the match, and the edge runs at the **1.0 default — double its
+  weight** — wherever it fires. It fires nowhere on historical windows (no news history before
+  2026-07), which is the only sense in which the canons did not move. The neutrality was
+  window-conditional, and forward windows are the ones that matter;
+- the real defect is **registry invisibility**: dict key ≠ `EDGE_ID` ≠ any `edges.yml` entry, so
+  Engine F can never pause or retire this edge, and every census reports it under a name the
+  registry does not know.
 
-**[BEYOND BRIEF] The generic test's definition had to be widened.** Auditing all 25 keys first
-surfaced `growth_sales_v1` and `value_deep_v1` as apparent mismatches. Both are **parametrised
-instances** of the generic `fundamental_ratio` module — their identity lives only in the
-registry. A check against class `EDGE_ID`s alone falsely flags them; a check against the registry
-alone falsely flags `news_sentiment_v2` (declared, unregistered). **Only the union is correct.**
-After the fix: zero invalid keys — the brief's one named mismatch was the only real one.
-Test: `tests/test_edge_weight_keys_rr7.py` (skips with a reason when `edges.yml` is absent).
+**Proposed fix (for the user's gate; NOT before C's eight RE-SCORE cells finish).** One
+propose-first Engine-A unit that does three things together, so the same weight follows the same
+edge and the change is neutral by construction: key the edge by its `EDGE_ID` at
+`alpha_engine.py:350`; rename the config key to match; register `news_sentiment_v2` in `edges.yml`
+(carrying its 0.5 and its expected-dormant census entry). The 09-30 two-option ruling (delete the key
+/ activate as a trial) rested on the same false premise — the key is neither orphaned nor dormant by
+config — and is withdrawn with it.
+
+**Tests on the branch.**
+- `test_prod_edge_weight_keys_match_edge_ids` stays `xfail(strict)`, with its description corrected
+  to the registry-invisibility defect. It is a text-level check (keys ⊂ class EDGE_IDs), so a lone
+  rename would XPASS it — which is why it does not stand alone.
+- `tests/test_edge_weight_keys_rr7.py`, re-based on execution: every prod key must be a name the
+  engine looks weights up by — registry `edge_id`s (read with the engine's own `EdgeRegistry`) ∪ the
+  names `AlphaEngine` registers itself (asked by constructing it). Passes on today's config.
+  **Reversion-proven:** re-applying the lone rename fails it (and flips NEW-8 to XPASS), so the two
+  tests together are green only for the full three-part fix.
+- **[BEYOND BRIEF], kept:** `growth_sales_v1` and `value_deep_v1` are parametrised instances of the
+  generic `fundamental_ratio` module — their identity lives only in the registry, so any check
+  against class attributes would flag them falsely. The test pins that both are registry edges.
 
 ---
 
@@ -335,7 +356,7 @@ the MBL finding a third pass (RR-3) agrees as well.
 ## Summary for the reviewer
 | # | status | needs a ruling on |
 |---|---|---|
-| 1 | done on branch | the `config/*.prod.json` rail vs. the brief's named exception |
+| 1 | returned → reverted; proposal | ONE Engine-A unit (key by `EDGE_ID` + rename + register), after C's cells |
 | 2a–2h | proposal text | 2c (double error), 2e (sibling-number tell), 2g (the gap report's own tension), 2h (the AI-gate wording) |
 | 3 | reported | re-pin — the backtest image **cannot be rebuilt** until it happens; DFII10 is ABSENT, not unpinned; `verify`'s "… and N more" footer undercounts (75 shown vs 110 hidden) |
 | 4 | inventory + API | ~20 functions (~44 matching files), not 3; "stationary" wrong in 4/5; **no `[NN-SHARPE-CI]` violation found**; `scheme` required, migration pins then labels |
