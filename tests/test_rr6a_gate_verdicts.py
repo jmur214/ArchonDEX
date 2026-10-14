@@ -301,32 +301,45 @@ def test_gates_5_and_7_with_arms_never_replay_universe_A_signals(monkeypatch):
 # --------------------------------------------------------------------------- #
 # Gate 7 in production: the substrate-B build (the swallowed NameError)
 # --------------------------------------------------------------------------- #
-def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers):
+def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1", "SB2"],
+                 validate_raises=None, hunt_raises=None, seen=None):
     """The REAL `_run_discovery_cycle` with only upstream work stubbed (R's F2 pattern),
-    plus a resolvable historical universe so the substrate-B build has data."""
+    plus a resolvable historical universe so the substrate-B build has data. `seen` is
+    filled as the cycle runs, so a test can inspect it even when the cycle raises."""
     import orchestration.mode_controller as mcmod
     from engines.engine_d_discovery import discovery as dmod
     from engines.engine_d_discovery import discovery_logger as dlog
     from engines.data_manager import universe_resolver as ur
     from tests.test_referee_repairs_proposed import _honest_n_fixture
 
-    seen = {"substrate_b": [], "timeframes": [], "saved": []}
+    seen = seen if seen is not None else {}
+    seen.update({"substrate_b": [], "timeframes": [], "saved": [], "logged": [], "failures": []})
     monkeypatch.setattr(dmod.DiscoveryEngine, "__init__", lambda self, **kw: None)
-    monkeypatch.setattr(dmod.DiscoveryEngine, "hunt", lambda self, *a, **kw: [])
+
+    def _hunt(self, *a, **kw):
+        if hunt_raises is not None:
+            raise hunt_raises
+        return []
+    monkeypatch.setattr(dmod.DiscoveryEngine, "hunt", _hunt)
     monkeypatch.setattr(dmod.DiscoveryEngine, "generate_candidates", lambda self, **kw: [])
     monkeypatch.setattr(dmod.DiscoveryEngine, "get_queued_candidates",
                         lambda self, status="candidate": [{"edge_id": "cand_0", "status": "candidate",
                                                            "params": {}}])
     monkeypatch.setattr(dmod.DiscoveryEngine, "save_candidates",
-                        lambda self, cands: seen["saved"].extend(c["edge_id"] for c in cands))
+                        lambda self, cands: seen["saved"].extend((c["edge_id"], c["status"]) for c in cands))
 
     def _validate(self, cand, *a, **kw):
         seen["substrate_b"].append(kw.get("data_map_substrate_b"))
+        if validate_raises is not None:
+            raise validate_raises
         return {"passed_all_gates": False, "sharpe": 0.0, "significance_p": 1.0}
     monkeypatch.setattr(dmod.DiscoveryEngine, "validate_candidate", _validate)
     monkeypatch.setattr(dlog.DiscoveryLogger, "__init__", lambda self, **kw: None)
-    monkeypatch.setattr(dlog.DiscoveryLogger, "log_validation", lambda self, *a, **kw: None)
+    monkeypatch.setattr(dlog.DiscoveryLogger, "log_validation",
+                        lambda self, cid, result, promoted: seen["logged"].append((cid, result)))
     monkeypatch.setattr(dlog.DiscoveryLogger, "log_cycle_summary", lambda self, *a, **kw: None)
+    monkeypatch.setattr(dlog.DiscoveryLogger, "log_cycle_failure",
+                        lambda self, stage, error, notes=None: seen["failures"].append((stage, error)))
 
     def _cached(cache_dir, timeframe="1d", **kw):
         seen["timeframes"].append(timeframe)
@@ -352,9 +365,9 @@ def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers):
 
 
 def test_the_cycle_BUILDS_substrate_B_and_hands_it_to_the_gauntlet(monkeypatch, tmp_path):
-    """Revert to the bare `timeframe` → NameError in the build → no substrate B (before
-    RR-6a: swallowed as 'gate skipped' and Gate 7 passed; now the cycle stops)."""
-    seen = _drive_cycle(monkeypatch, tmp_path, cached_tickers=lambda: ["AAA", "SB1", "SB2"])
+    """Revert to the bare `timeframe` → NameError in the build (before RR-6a: swallowed as
+    'gate skipped' and Gate 7 passed; now the cycle FAILS on it — ruling (c))."""
+    seen = _drive_cycle(monkeypatch, tmp_path)
     assert len(seen["substrate_b"]) == 1, seen
     assert seen["substrate_b"][0] is not None and set(seen["substrate_b"][0]) == {"SB1", "SB2"}
     assert seen["timeframes"] == ["1d", "1d"], "self.timeframe reaches both the cache scan and ensure_data"
@@ -362,13 +375,112 @@ def test_the_cycle_BUILDS_substrate_B_and_hands_it_to_the_gauntlet(monkeypatch, 
 
 def test_a_programmer_error_in_the_substrate_B_build_is_never_a_skipped_gate(monkeypatch, tmp_path):
     """The block may degrade on DATA unavailability; it may never absorb a NameError.
-    Revert the catch-all → the NameError reads as 'gate skipped' and the candidate is
-    validated with no substrate B (pre-RR-6a: a free Gate 7)."""
+    Revert the catch-all → the NameError reads as 'gate skipped', nothing raises, and the
+    candidate is validated with no substrate B (pre-RR-6a: a free Gate 7)."""
     def _broken():
         raise NameError("name 'timeframe' is not defined")
-    seen = _drive_cycle(monkeypatch, tmp_path, cached_tickers=_broken)
+    seen = {}
+    with pytest.raises(NameError):
+        _drive_cycle(monkeypatch, tmp_path, cached_tickers=_broken, seen=seen)
     assert seen["substrate_b"] == [], "a candidate was validated after a programmer error in the build"
     assert seen["saved"] == []
+    assert seen["failures"] and seen["failures"][0][0] == "substrate-B build (Gate 7)"
+
+
+# --------------------------------------------------------------------------- #
+# RR-6a fixup — the director's rulings (b) and (c): the cycle's handlers
+# --------------------------------------------------------------------------- #
+def test_a_programmer_error_inside_validation_FAILS_the_cycle_never_a_failed_candidate(monkeypatch, tmp_path):
+    """Ruling (b). The per-candidate handler caught EVERYTHING and recorded the candidate
+    'failed' — so a NameError inside the gauntlet would fail every candidate, a plausible
+    'promotes nothing'. Revert the catch-all → no raise, and cand_0 is written 'failed'."""
+    seen = {}
+    with pytest.raises(NameError) as ei:
+        _drive_cycle(monkeypatch, tmp_path, validate_raises=NameError("name 'x' is not defined"), seen=seen)
+    assert seen["saved"] == [], f"a programmer error was recorded as a candidate verdict: {seen['saved']}"
+    assert seen["failures"] == [("validate cand_0", "NameError: name 'x' is not defined")]
+    assert "[_run_discovery_cycle] failed at stage 'validate cand_0'" in getattr(ei.value, "__notes__", [])
+
+
+def test_the_diagnostic_TIMEOUT_is_the_one_expected_class_and_renders_NOT_EVALUATED(monkeypatch, tmp_path):
+    """Positive control for ruling (b): the typed, expected failure is still handled — the
+    candidate is refused with every gate NOT_EVALUATED and the reason, and the cycle goes on.
+    (It used to record a bare dict with no verdicts at all.)"""
+    seen = _drive_cycle(monkeypatch, tmp_path, validate_raises=TimeoutError("validate_candidate exceeded 5s"))
+    assert seen["saved"] == [("cand_0", "failed")]
+    (cid, result), = seen["logged"]
+    assert result["passed_all_gates"] is False
+    assert {v["verdict"] for v in result["gate_verdicts"].values()} == {gv.NOT_EVALUATED}
+    assert all("timeout" in r for r in result["promotion_refusals"])
+
+
+def test_a_failure_outside_validation_FAILS_the_cycle_loudly_and_is_logged(monkeypatch, tmp_path):
+    """Ruling (c). The outer handler re-raised only HonestNUnavailableError; anything else
+    ended the cycle as one WARN line — a cycle that 'found nothing'. Revert → no raise."""
+    seen = {}
+    with pytest.raises(RuntimeError, match="feature store unreadable"):
+        _drive_cycle(monkeypatch, tmp_path, hunt_raises=RuntimeError("feature store unreadable"), seen=seen)
+    assert seen["failures"] == [("hunt", "RuntimeError: feature store unreadable")]
+    assert seen["substrate_b"] == [] and seen["saved"] == []
+
+
+def test_validate_candidate_names_the_candidate_and_last_gate_on_a_programmer_error(monkeypatch):
+    """Ruling (c), the 'which gate' half: an error re-raised out of the gauntlet carries
+    the candidate and the last gate it completed. Revert the note → absent."""
+    def _pbo_broken(self, *a, **kw):
+        raise NameError("name 'pbo' is not defined")
+    data_map, idx = g78._make_synthetic_dfs()
+    base, with_ = _strong_streams(idx)
+    g78._wire_validate_candidate_happy_path(
+        monkeypatch,
+        results_a={"with_sharpe": 1.5, "baseline_sharpe": 1.0,
+                   "daily_returns_with": with_, "daily_returns_baseline": base},
+        results_b={"with_sharpe": 1.4, "baseline_sharpe": 1.0,
+                   "daily_returns_with": with_, "daily_returns_baseline": base})
+    monkeypatch.setattr(
+        "engines.engine_d_discovery.robustness.RobustnessTester.calculate_pbo_returns_stream", _pbo_broken)
+    with pytest.raises(NameError) as ei:
+        g78._make_disc().validate_candidate(g78._make_cand_spec(), data_map,
+                                            significance_threshold=0.05, alpha_config={}, n_trials_for_dsr=2)
+    assert "[validate_candidate] candidate=candidate_v0 last_gate_completed=gate_1" in getattr(
+        ei.value, "__notes__", [])
+
+
+def test_run_evolution_cycle_validates_on_the_production_window(monkeypatch):
+    """Ruling (a). This dashboard-reachable path passed NO window, so Gate 0 never ran — and
+    under RR-6a it would be NOT_EVALUATED and refuse every candidate: a silently dead path.
+    It must hand the gauntlet the same full-extent window production Discovery uses.
+    Revert → start_date/end_date are absent."""
+    run_evo = pytest.importorskip("scripts.run_evolution_cycle")
+    import core.benchmark as bm
+    from tests.test_evolution_cycle_verdict_rr2 import _Log
+
+    seen_kw = []
+
+    class _Disc:
+        def get_queued_candidates(self, status="candidate"):
+            return [{"edge_id": "cand_0", "status": "candidate", "params": {}}]
+
+        def generate_candidates(self, **kw):
+            return []
+
+        def validate_candidate(self, cand, data_map, **kw):
+            seen_kw.append(kw)
+            return {"passed_all_gates": False}
+
+        def save_candidates(self, cands):
+            pass
+
+    monkeypatch.setattr(bm, "compute_benchmark_metrics",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
+    evo = object.__new__(run_evo.AutonomousEvolution)
+    evo.discovery, evo.discovery_logger, evo.wfo = _Disc(), _Log(), None
+    idx = pd.bdate_range("2012-01-02", periods=3269)
+    evo.data_map = {"SPY": pd.DataFrame({"Close": range(len(idx))}, index=idx)}
+    evo._promote_winners = lambda winners: None
+    evo.run_cycle()
+    (kw,) = seen_kw
+    assert (kw.get("start_date"), kw.get("end_date")) == (idx[0].isoformat(), idx[-1].isoformat())
 
 
 def test_a_DATA_failure_in_the_substrate_B_build_degrades_to_no_substrate_B(monkeypatch, tmp_path):

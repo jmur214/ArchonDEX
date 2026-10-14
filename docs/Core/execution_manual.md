@@ -1292,6 +1292,12 @@ only. Gate 6 binds only when `factor_gate_mode` is `kill`, and then it must be l
 `engines/engine_d_discovery/thresholds.py` refuses a file where the two disagree. Read a killer with
 `gate_verdicts.first_failed_gate(result)`. Never read `result.get("gate_N_passed", <default>)`.
 
+A Discovery cycle that hits an error now **fails**: `run_backtest(discover=True)` raises, after printing
+`[DISCOVERY][FAIL] … at stage '<stage>'` and appending an `event: cycle_failure` row (stage, error, notes) to
+`data/research/discovery_log.jsonl`. It no longer ends as one WARN line. The only per-candidate failure
+it absorbs is the diagnostic wall-time alarm (`DISCOVERY_DIAG_TIMEOUT_SEC`), which refuses that candidate
+with every gate NOT_EVALUATED.
+
 ```bash
 # R's F4: Gate 4's sign-flip null SIZE on skewed zero-mean streams (pre-registered in the script's docstring).
 # Without --out it PRINTS ONLY; ~1 min, synthetic, N_trials 0.

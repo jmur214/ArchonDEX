@@ -108,3 +108,15 @@ def legacy_flags(verdicts: Mapping[str, Mapping[str, str]]) -> Dict[str, bool]:
 def verdict_strings(result: Mapping[str, Any]) -> Dict[str, str]:
     """{'g0': 'passed', 'g3': 'not_evaluated', …} — the compact form harness records carry."""
     return {f"g{g[5:]}": v["verdict"] for g, v in result["gate_verdicts"].items()}
+
+
+def refused_result(reason: str, required: Iterable[str]) -> Dict[str, Any]:
+    """A complete, sealed result for a candidate the gauntlet never got to judge (the
+    diagnostic per-candidate timeout): every gate NOT_EVALUATED with `reason`, refused.
+    Same keys as `validate_candidate`'s own exits, so no consumer meets a missing field."""
+    required = tuple(required)
+    verdicts = new_verdicts(f"not reached: {reason}")
+    passed, refusals = promotion_decision(verdicts, required)
+    return {"sharpe": 0.0, "significance_p": 1.0, "robustness_survival": 0.0, "fitness_score": 0.0,
+            "gate_verdicts": verdicts, **legacy_flags(verdicts), "passed_all_gates": passed,
+            "promotion_refusals": refusals, "required_gates": list(required)}

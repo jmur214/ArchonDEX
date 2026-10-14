@@ -58,6 +58,7 @@
   - `def log_ga_generation()`
   - `def log_validation()`
   - `def log_cycle_summary()`
+  - `def log_cycle_failure()`: RR-6a fixup (ruling (c)): a cycle that FAILED says so in the log, naming the stage
 
 ### `feature_engineering.py`
 - **Class `FeatureEngineer`**: Tier 1 Research Feature Factory.
@@ -105,6 +106,7 @@
 - **Function `first_failed_gate()`**: The first gate, in gauntlet order, whose verdict is FAILED; None if none failed.
 - **Function `legacy_flags()`**: `gate_N_passed` / `gate_N_evaluated` for EVERY gate, derived from the verdicts.
 - **Function `verdict_strings()`**: {'g0': 'passed', 'g3': 'not_evaluated', …} — the compact form harness records carry.
+- **Function `refused_result()`**: A complete, sealed result for a candidate the gauntlet never got to judge (the
 
 ### `genetic_algorithm.py`
 **Module Docstring:** Genetic Algorithm engine for CompositeEdge genome evolution.
@@ -153,10 +155,11 @@
   - `def generate_fundamentals()`: Generates consistent P/E, P/S data for the simulated price.
 
 ### `thresholds.py`
-**Module Docstring:** The gauntlet's configured thresholds and required gates — read from ONE file, fail-closed.
+**Module Docstring:** The gauntlet's configuration — thresholds, required gates, validation window — fail-closed.
 - **Function `discovery_significance_threshold()`**: RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
 - **Function `discovery_gate2_threshold()`**: RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
 - **Function `required_gates()`**: RR-6a: the gates whose verdict must be PASSED for a candidate to pass the gauntlet.
+- **Function `discovery_validation_window()`**: The window `validate_candidate` (and therefore MBL Gate-0 / DSR) runs on.
 
 ### `tree_scanner.py`
 - **Class `DecisionTreeScanner`**: Tier 2 Research: The Hunter.

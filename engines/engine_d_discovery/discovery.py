@@ -1947,6 +1947,10 @@ class DiscoveryEngine:
                               HonestNUnavailableError)):
                 _seal(result)
                 _emit_diag()
+                # RR-6a fixup (ruling (c)): the error that fails the cycle names WHICH
+                # candidate and WHICH gate, so the cycle's failure record can say so.
+                e.add_note(f"[validate_candidate] candidate={candidate_spec.get('edge_id', '?')} "
+                           f"last_gate_completed={_diag_gates_run[-1] if _diag_gates_run else 'none (setup)'}")
                 raise
             print(f"[validate_candidate] {type(e).__name__}: {e}")
             return _finish()

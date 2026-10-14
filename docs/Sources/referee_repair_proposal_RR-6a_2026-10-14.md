@@ -117,6 +117,27 @@ bitten vacuously. It now drives the stubbed passer, so a restored parameter make
 
 **Files affected:** 146 passed, 8 xfailed. The ninth xfail (NEW-5) now passes.
 
+## 2b. Fixup — the director's rulings (a), (b), (c), 2026-10-14
+
+One commit on top of `c982114`. R re-checks that diff alone. Each item has a lock, and each lock is proven by
+reversion: cases 14–17 in `scripts/rr6a_reversion_proof.py`. All 17 cases fail for the right reason.
+
+| # | ruling | the change | lock fails, reverted, with |
+|---|---|---|---|
+| 14 | **(a)** `run_evolution_cycle` validates on a window | It passes `discovery_validation_window(self.data_map)`, the same full-extent window production uses. The helper moved from `mode_controller` to `engines/engine_d_discovery/thresholds.py` (re-exported), so the script does not import the orchestrator. Without a window, this dashboard-reachable path was silently dead: Gate 0 NOT_EVALUATED, every candidate refused. | `(None, None) == ('2012-01-02…', …)` |
+| 15 | **(b)** the per-candidate handler catches only the expected class | Only `TimeoutError` (the diagnostic wall-time alarm) is caught, and it renders a fully sealed refusal: every gate NOT_EVALUATED with the reason (`gate_verdicts.refused_result`). The catch-all is gone. `validate_candidate` already turns expected per-candidate failures (census refusals, data errors) into NOT_EVALUATED verdicts itself, so anything that escapes it is a harness defect and fails the cycle. | `DID NOT RAISE <class 'NameError'>`: the candidate was written `failed` |
+| 16 | **(c)** the cycle fails loudly | The outer handler re-raises **every** exception. It prints `[DISCOVERY][FAIL] … at stage '<stage>'`, writes a `cycle_failure` row to `discovery_log.jsonl` (`DiscoveryLogger.log_cycle_failure`: stage, error, notes), and adds a stage note to the exception. The stages are: honest-N resolution, regime context, hunt, generate, save, substrate-B build, `validate <id>`, BH-FDR, `write-back <id>`, summary. | `DID NOT RAISE <class 'RuntimeError'>` |
+| 17 | **(c)** "which candidate and which gate" | An error `validate_candidate` re-raises carries the note `[validate_candidate] candidate=<id> last_gate_completed=<gate>`. The cycle's failure row records the notes. | the note is absent |
+
+A positive control proves the expected class is still handled: a `TimeoutError` refuses the candidate (`failed`,
+every gate NOT_EVALUATED) and the cycle carries on. Lock 2 (a programmer error in the substrate-B build) now also
+asserts that the cycle **raises** and logs stage `substrate-B build (Gate 7)`.
+
+Consequence, accepted with the ruling: a failed cycle raises out of `run_backtest(discover=True)` before
+`performance_summary.json` is written for that run. RR-3's honest-N halt already behaves this way.
+
+**All 50 test files touching a changed module:** 681 passed / 1 skipped / 3 deselected / 11 xfailed / 0 failed.
+
 ## 3. R's F4 — Gate 4's size on skewed streams (measurement, pre-registered)
 
 The pre-registration is the docstring of `scripts/rr6a_gate4_size_skewed.py`, committed at `d15846b` before the
@@ -144,9 +165,10 @@ and the BH-FDR post-filter all stand behind it. But a gate's stated size should 
   runtime cost. Whether the cloud image has those 728 cached tickers is unverified. If it doesn't, Gate 7 is
   NOT_EVALUATED in cloud and **every cloud candidate is refused**. That is fail-closed, and also a capacity
   fact.
-- **`run_evolution_cycle` can no longer promote.** It passes no validation window, so Gate 0 is NOT_EVALUATED
-  and refuses. It has never been MinBTL-checked. The fix is one line, passing `discovery_validation_window` as
-  production does. That is a ruling, not done here.
+- **`run_evolution_cycle` now validates on the production window** (ruling (a), §2b). Before this it had never
+  been MinBTL-checked.
+- **A Discovery cycle that fails now raises** (ruling (c), §2b). A scheduled `--discover` run that hits a defect
+  exits non-zero instead of logging WARN and reporting "nothing found".
 - **The T-195 harness** still passes `n_trials_for_dsr = len(feats)`. A single-feature sweep therefore gets
   N = 1, Gate 8 is NOT_EVALUATED, and the candidate is refused. That is correct fail-closed behaviour, but the
   harness should take the honest N (RR-3), which is a follow-up.
@@ -155,21 +177,20 @@ and the BH-FDR post-filter all stand behind it. But a gate's stated size should 
 
 ## 5. Seen, NOT changed — for R and the director
 
-1. **The per-candidate handler in `_run_discovery_cycle` absorbs every exception.** That includes the
-   programmer errors `validate_candidate` deliberately re-raises, and it records the candidate as `failed`. A
-   `NameError` inside the gauntlet would therefore mark every candidate failed: the T-177 "promotes nothing"
-   shape. This needs a liveness ruling first, because one bad candidate spec would then halt the cycle.
-2. **The cycle's outer handler still WARNs on a programmer error** (it re-raises only `HonestNUnavailableError`).
-   After this change, a broken substrate-B build therefore ends the cycle before any candidate is validated.
-   That is never a free pass, but it shows as a WARN line rather than a crash. One line would make it re-raise
-   too; it is left as a ruling, because it also skips `performance_summary.json` for that run.
+Items 1 and 2 of the first draft (the per-candidate handler and the outer handler) were ruled INTO RR-6a; see §2b.
+
 3. **`DiscoveryEngine.save_candidates` fails open destructively.** If `edges.yml` fails to parse, it falls back
    to `{"edges": []}` and rewrites the registry with only the candidates being saved, **wiping every existing
-   edge**. That belongs to its own unit.
+   edge**. Ruled to be **its own unit, next, propose-first**. The no-promotion constraint is **extended**: no
+   Discovery promotion cycle until RR-6a AND this fix are both on main.
 4. **`scripts/sync_docs.py` drift** in three indexes is unrelated to RR-6a and not committed:
    `engines/engine_b_risk/index.md` (outside my rails), `orchestration/index.md` and `scripts/index.md`.
+   Ruled: it gets its own docs commit from whoever owns Engine B's index.
 5. **`gate_factor_alpha(None)` still returns `(True, "skipped")`** for its other callers. `validate_candidate`
    no longer reaches it with `None`.
+6. **The regime-context step's catch-all** (`_run_discovery_cycle` Step 1) still absorbs every exception,
+   including programmer errors, and prints "Regime detection skipped". The hunt then runs without regime
+   context. This is outside the three rulings, so it is listed here for one.
 
 ## 6. Records, health_check, charter
 

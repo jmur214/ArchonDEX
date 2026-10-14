@@ -83,6 +83,30 @@ CASES = [
      [('                cand["status"] = "failed"\n                cand["rejection_reason"] = "WFO returned no result (insufficient data?)"\n', ""),
       ('                cand["status"] = "failed"\n                cand["rejection_reason"] = f"Poor OOS consistency', '                cand["rejection_reason"] = f"Poor OOS consistency')],
      [T + "test_a_WFO_rejection_leaves_the_queue_with_its_reason"]),
+    # ---- the fixup: the director's rulings (a), (b), (c) ----
+    ("(a) run_evolution_cycle passes no window again", E,
+     [("                start_date=val_start,\n                end_date=val_end,\n", "")],
+     [T + "test_run_evolution_cycle_validates_on_the_production_window"]),
+    ("(b) the per-candidate catch-all restored", M,
+     [("                # anything that escapes it is a harness defect and fails the cycle below.\n                finally:",
+       "                # anything that escapes it is a harness defect and fails the cycle below.\n"
+       "                except Exception as ve:\n"
+       "                    print(f\"[DISCOVERY] Validation error for {cand_id}: {ve}\")\n"
+       "                    result = {\"sharpe\": 0.0, \"significance_p\": 1.0, \"passed_all_gates\": False,\n"
+       "                              \"robustness_survival\": 0.0, \"fitness_score\": 0.0}\n"
+       "                finally:")],
+     [T + "test_a_programmer_error_inside_validation_FAILS_the_cycle_never_a_failed_candidate"]),
+    ("(c) the outer handler re-raises only HonestNUnavailableError again", M,
+     [("            e.add_note(f\"[_run_discovery_cycle] failed at stage {_stage!r}\")\n            raise\n",
+       "            e.add_note(f\"[_run_discovery_cycle] failed at stage {_stage!r}\")\n"
+       "            from core.measurement.mbl_gate import HonestNUnavailableError\n"
+       "            if isinstance(e, HonestNUnavailableError):\n"
+       "                raise\n")],
+     [T + "test_a_failure_outside_validation_FAILS_the_cycle_loudly_and_is_logged"]),
+    ("(c) validate_candidate's candidate/last-gate note removed", D,
+     [("                e.add_note(f\"[validate_candidate] candidate={candidate_spec.get('edge_id', '?')} \"\n"
+       "                           f\"last_gate_completed={_diag_gates_run[-1] if _diag_gates_run else 'none (setup)'}\")\n", "")],
+     [T + "test_validate_candidate_names_the_candidate_and_last_gate_on_a_programmer_error"]),
 ]
 
 env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")

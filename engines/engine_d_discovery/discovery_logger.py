@@ -109,3 +109,14 @@ class DiscoveryLogger:
             "promoted": n_promoted,
             "failed": n_failed,
         })
+
+    def log_cycle_failure(self, stage: str, error: str, notes: Optional[List[str]] = None) -> None:
+        """RR-6a fixup (ruling (c)): a cycle that FAILED says so in the log, naming the stage
+        (and, for a validation, the candidate) — it no longer ends as one WARN line on stdout.
+        `notes` carries the exception's own notes (validate_candidate adds candidate + last gate)."""
+        self._write({
+            "event": "cycle_failure",
+            "stage": stage,
+            "error": error,
+            "notes": list(notes or []),
+        })

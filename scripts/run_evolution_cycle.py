@@ -16,7 +16,8 @@ from engines.engine_d_discovery.significance import apply_bh_fdr
 # RR-2: the ONE configured gauntlet thresholds — the same readers production Discovery uses.
 from engines.engine_d_discovery.thresholds import (  # noqa: E402  (R's F3: was orchestration.mode_controller)
     discovery_gate2_threshold as _discovery_gate2_threshold,
-    discovery_significance_threshold as _discovery_significance_threshold)
+    discovery_significance_threshold as _discovery_significance_threshold,
+    discovery_validation_window)
 from engines.engine_d_discovery.wfo import WalkForwardOptimizer
 from engines.data_manager.data_manager import DataManager
 
@@ -81,6 +82,12 @@ class AutonomousEvolution:
         
         winners = []
 
+        # RR-6a fixup (ruling (a)): validate on the SAME window production Discovery uses —
+        # the full data extent. This path passed no window, so MBL Gate 0 was never checked
+        # here; under RR-6a an unchecked Gate 0 is NOT_EVALUATED and refuses, which would
+        # have left this dashboard-reachable path silently unable to promote anything.
+        val_start, val_end = discovery_validation_window(self.data_map, None)
+
         # ---- Pass 1: collect raw metrics (defer Gate 4 to BH-FDR pass) ----
         all_metrics: list = []
         for i, cand in enumerate(candidates):
@@ -94,6 +101,8 @@ class AutonomousEvolution:
                 cand, self.data_map,
                 significance_threshold=_discovery_significance_threshold(),
                 gate2_survival_threshold=_discovery_gate2_threshold(),
+                start_date=val_start,
+                end_date=val_end,
             )
             all_metrics.append(metrics)
 
