@@ -1048,6 +1048,15 @@ class DiscoveryEngine:
         is fingerprinted and reused across candidates in the same Discovery
         cycle. N candidates → N+1 backtests instead of 2N.
         """
+        # RR-2: a None threshold used to mean "skip Gate 4" — and a skipped gate cannot
+        # pass, so it silently failed EVERY candidate (production passed None, making
+        # T-196's H1 structurally unreachable). Fail LOUD instead: an un-runnable gate is
+        # a configuration error to fix, never a verdict to record.
+        if significance_threshold is None:
+            raise ValueError(
+                "validate_candidate: significance_threshold is None — Gate 4 cannot be "
+                "evaluated. Pass the configured value (config/discovery_settings.json "
+                "`significance_threshold`); None is no longer a silent fail.")
         import numpy as np
         import time as _time
         import math
@@ -1517,12 +1526,9 @@ class DiscoveryEngine:
                 sig_p = 1.0
 
             result["significance_p"] = float(sig_p)
-            # None threshold means "skip" — but skip cannot pass; failing
-            # closed is the correct default for an un-runnable gate.
-            if significance_threshold is None:
-                result["gate_4_passed"] = False
-            else:
-                result["gate_4_passed"] = bool(sig_p < significance_threshold)
+            # RR-2: the threshold is always a number here — validate_candidate
+            # raises on None at entry, so there is no "skip" mode left to fail.
+            result["gate_4_passed"] = bool(sig_p < significance_threshold)
             _stamp("gate_4", _g4_t0)
 
             # ---- Gate 5: Universe-B production-equivalent transfer ----
@@ -1803,15 +1809,11 @@ class DiscoveryEngine:
                     print(f"[DISCOVERY] {cand_id} failed Gate 8 ({gate_8_reason})")
 
             # ---- Final pass check ----
-            # Fail-closed: a None threshold or NaN universe-B reading both
-            # mean the gate could not be evaluated, which is not the same
-            # as evidence of a pass.
-            if significance_threshold is None:
-                sig_passed = False
-                sig_threshold_for_log = float("nan")
-            else:
-                sig_passed = sig_p < significance_threshold
-                sig_threshold_for_log = significance_threshold
+            # Fail-closed: a NaN universe-B reading means the gate could not be
+            # evaluated, which is not evidence of a pass. (The threshold can no
+            # longer be None — RR-2 raises on it at validate_candidate's entry.)
+            sig_passed = sig_p < significance_threshold
+            sig_threshold_for_log = significance_threshold
 
             universe_b_passed = (
                 not math.isnan(universe_b_sharpe) and universe_b_sharpe > 0

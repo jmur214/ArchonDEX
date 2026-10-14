@@ -1214,10 +1214,15 @@ class ModeController:
             if all_candidates:
                 discovery.save_candidates(all_candidates)
 
-            # Step 4: VALIDATE — 4-gate pipeline with BH-FDR batch correction.
-            # Pass significance_threshold=None so Gate 4 is deferred; we collect
-            # all candidates' p-values, apply Benjamini-Hochberg FDR correction
-            # across the batch, then re-evaluate passed_all_gates.
+            # Step 4: VALIDATE — the full gauntlet per candidate, then BH-FDR across
+            # the batch. RR-2 (2026-09-30) corrected how the two compose. The INTENT is
+            # unchanged and sound: control the false-discovery rate across a cycle's
+            # candidates. The old mechanism "deferred" Gate 4 by passing no threshold —
+            # which FAILED it inside validate_candidate for every candidate — and then
+            # REBUILT passed_all_gates from three conditions, silently dropping Gates
+            # 1/5/6/7/8. Now each candidate runs the real Gate 4 against the configured
+            # threshold, validate_candidate's verdict is AUTHORITATIVE, and BH-FDR is a
+            # POST-FILTER that can only REMOVE candidates that already passed everything.
             from engines.engine_d_discovery.significance import apply_bh_fdr
 
             # Diagnostic harness override — env var DISCOVERY_DIAG_BATCH lets
@@ -1349,7 +1354,10 @@ class ModeController:
                 _val_start, _val_end = discovery_validation_window(data_map, _val_months_env)
                 try:
                     result = discovery.validate_candidate(
-                        cand, data_map, significance_threshold=None,
+                        cand, data_map,
+                        # RR-2: was None -> Gate 4 forced-false for every candidate
+                        significance_threshold=_discovery_significance_threshold(),
+                        gate2_survival_threshold=_discovery_gate2_threshold(),
                         diagnostic_log_path=_diag_log_path,
                         cache=cycle_cache,
                         start_date=_val_start,
@@ -1408,13 +1416,23 @@ class ModeController:
                     f"[DISCOVERY] BH-FDR over {bh['n_tests']} candidates: "
                     f"{bh['n_rejected']} rejected, threshold={bh['threshold']:.4f}"
                 )
+                # RR-2: validate_candidate's verdict is AUTHORITATIVE. The old code here
+                # OVERWROTE passed_all_gates with `sharpe>0 AND robustness>=0.7 AND
+                # BH-reject` — dropping Gates 1/5/6/7/8 from promotion entirely, and using
+                # 0.7 where validate_candidate uses 0.60. BH-FDR is now a POST-FILTER: it
+                # may only REMOVE a candidate that already passed every gate; it can never
+                # promote one that failed a gate. The count it removes is logged, so the
+                # multiple-testing correction is visible rather than silent.
+                bh_removed = 0
                 for i, result in enumerate(all_results):
                     result["adjusted_significance_p"] = bh["adjusted_p_values"][i]
-                    result["passed_all_gates"] = (
-                        result.get("sharpe", 0.0) > 0
-                        and result.get("robustness_survival", 0.0) >= 0.7
-                        and bool(bh["reject_at_alpha"][i])
-                    )
+                    result["bh_reject"] = bool(bh["reject_at_alpha"][i])
+                    if result.get("passed_all_gates") and not result["bh_reject"]:
+                        result["passed_all_gates"] = False
+                        result["bh_fdr_removed"] = True
+                        bh_removed += 1
+                print(f"[DISCOVERY] BH-FDR post-filter removed {bh_removed} candidate(s) "
+                      f"that had passed every gate but not the batch FDR correction")
 
             # Pass 3: write status + fitness metrics back to registry
             promoted = 0
@@ -1579,3 +1597,29 @@ class CachedCSVLiveFeed:
             except Exception:
                 continue
         return out
+
+def _discovery_significance_threshold() -> float:
+    """RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
+    Fail-closed: a missing or non-numeric key raises rather than defaulting silently —
+    a silent default is how None went unnoticed for every Discovery cycle ever run."""
+    import json as _json
+    from pathlib import Path as _Path
+    cfg = _json.loads((_Path(__file__).resolve().parents[1]
+                       / "config" / "discovery_settings.json").read_text())
+    v = cfg["significance_threshold"]
+    if not isinstance(v, (int, float)) or not (0.0 < float(v) < 1.0):
+        raise ValueError(f"discovery_settings.significance_threshold invalid: {v!r}")
+    return float(v)
+
+
+def _discovery_gate2_threshold() -> float:
+    """RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
+    overwrite vs 0.60 in validate_candidate). Fail-closed on a missing/invalid key."""
+    import json as _json
+    from pathlib import Path as _Path
+    cfg = _json.loads((_Path(__file__).resolve().parents[1]
+                       / "config" / "discovery_settings.json").read_text())
+    v = cfg["gate2_survival_threshold"]
+    if not isinstance(v, (int, float)) or not (0.0 < float(v) <= 1.0):
+        raise ValueError(f"discovery_settings.gate2_survival_threshold invalid: {v!r}")
+    return float(v)

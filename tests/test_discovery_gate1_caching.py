@@ -318,7 +318,7 @@ def test_gate1_cache_invariance(synthetic_data_map, monkeypatch):
     for cand in candidates:
         r = disc.validate_candidate(
             cand, synthetic_data_map,
-            significance_threshold=None,
+            significance_threshold=0.05,
             use_signal_cache=False,
         )
         uncached_results.append(r["contribution_sharpe"])
@@ -332,7 +332,7 @@ def test_gate1_cache_invariance(synthetic_data_map, monkeypatch):
     for cand in candidates:
         r = disc.validate_candidate(
             cand, synthetic_data_map,
-            significance_threshold=None,
+            significance_threshold=0.05,
             use_signal_cache=True,
         )
         cached_results.append(r["contribution_sharpe"])
@@ -360,7 +360,7 @@ def test_gate1_cache_invalidates_on_window_change(synthetic_data_map, monkeypatc
     # mechanism, not Gate-0 — bypass via the documented escape hatch.
     disc.validate_candidate(
         cand, synthetic_data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         start_date=str(idx[0].date()),
         end_date=str(idx[100].date()),
         use_signal_cache=True,
@@ -371,7 +371,7 @@ def test_gate1_cache_invalidates_on_window_change(synthetic_data_map, monkeypatc
 
     disc.validate_candidate(
         cand, synthetic_data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         start_date=str(idx[0].date()),
         end_date=str(idx[150].date()),
         use_signal_cache=True,
@@ -392,7 +392,7 @@ def test_gate1_cache_invalidates_on_universe_change(synthetic_data_map, monkeypa
     cand = {"edge_id": "cand_x", "module": "test", "class": "CountingEdge"}
     disc.validate_candidate(
         cand, synthetic_data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         use_signal_cache=True,
     )
     fp_a = disc._get_gate1_signal_cache()._fingerprint
@@ -405,7 +405,7 @@ def test_gate1_cache_invalidates_on_universe_change(synthetic_data_map, monkeypa
 
     disc.validate_candidate(
         cand, synthetic_data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         use_signal_cache=True,
     )
     fp_b = disc._get_gate1_signal_cache()._fingerprint
@@ -433,7 +433,7 @@ def test_gate1_uncached_path_still_works(synthetic_data_map, monkeypatch):
     cand = {"edge_id": "cand_x", "module": "test", "class": "CountingEdge"}
     r = disc.validate_candidate(
         cand, synthetic_data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         use_signal_cache=False,
     )
     assert "contribution_sharpe" in r

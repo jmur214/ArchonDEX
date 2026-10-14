@@ -31,6 +31,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# RR-2: the ONE configured Gate-4 threshold, read by the same function production
+# Discovery uses. (A local reader defined AFTER the `__main__` guard raised NameError
+# at runtime — swallowed by the per-candidate try/except, it would have recorded every
+# candidate as an "error" row. Imported here, above main(), so it exists when called.)
+from orchestration.mode_controller import _discovery_significance_threshold  # noqa: E402
+
 WIN_START = os.environ.get("T195_START", "2012-01-01")
 WIN_END = os.environ.get("T195_END", "2024-12-31")
 OUT = os.environ.get("T195_OUT", "/tmp/t195_foundry_eval.jsonl")
@@ -101,7 +107,9 @@ def main() -> int:
         t0 = time.time()
         try:
             r = eng.validate_candidate(
-                spec, data_map, significance_threshold=None, cache=cache,
+                spec, data_map,
+                significance_threshold=_discovery_significance_threshold(),  # RR-2: was None
+                cache=cache,
                 start_date=vs, end_date=ve, n_trials_for_dsr=n_trials,
                 use_signal_cache=False,  # FIX 2b
             )

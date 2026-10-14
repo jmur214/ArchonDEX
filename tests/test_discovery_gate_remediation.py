@@ -39,6 +39,31 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 
 
+
+# RR-2 (2026-09-30): the REAL Gate-4 null, captured at import time — BEFORE any
+# monkeypatch runs — so the patched stand-in below can call it without recursing.
+from engines.engine_d_discovery.significance import (  # noqa: E402
+    monte_carlo_permutation_test as _REAL_GATE4_NULL,
+)
+
+
+def _real_gate4_on_alpha(values, n_permutations=500, **kw):
+    """Run the REAL Gate-4 null on a synthetic SR-3 alpha series.
+
+    Replaces `lambda ...: {"p_value": 0.001}`, which forced Gate 4 to pass unconditionally
+    and so HID that the real null had ZERO power for the entire period it was broken.
+
+    Precisely what this does and does NOT guarantee (verified by reverting the null):
+    it makes a test FAIL on a broken null ONLY IF that test asserts `gate_4_passed`. Tests
+    whose premise is "reach a later gate" do assert it. Tests where Gate 4's verdict is
+    irrelevant (error propagation) use this merely to avoid a stub — they are NOT a guard
+    on the null's power, and should not be coupled to it."""
+    import numpy as _np
+    rng = _np.random.RandomState(7)
+    r = rng.normal(0.0, 0.01, 756)
+    r = r - r.mean() + (3.0 / _np.sqrt(252)) * r.std()
+    return _REAL_GATE4_NULL(r, n_permutations=n_permutations, random_state=1)
+
 def _signalling_candidate():
     """T-347: a stub candidate that actually EMITS. A bare MagicMock returns a
     MagicMock from compute_signals, which carries no numeric signal — so the
@@ -52,13 +77,6 @@ def _signalling_candidate():
 def _gate_5_decision(universe_b_sharpe: float) -> bool:
     """Gate 5 final decision rule (post-remediation, fail-closed on NaN)."""
     return bool(not math.isnan(universe_b_sharpe) and universe_b_sharpe > 0)
-
-
-def _gate_4_decision(sig_p: float, significance_threshold) -> bool:
-    """Gate 4 final decision rule (post-remediation, None → fail)."""
-    if significance_threshold is None:
-        return False
-    return bool(sig_p < significance_threshold)
 
 
 def test_gate_5_fails_on_nan_universe_b_sharpe():
@@ -163,7 +181,7 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
     )
     monkeypatch.setattr(
         "engines.engine_d_discovery.significance.monte_carlo_permutation_test",
-        lambda values, n_permutations=500: {"p_value": 0.001},
+        _real_gate4_on_alpha,
     )
 
     # The injected fault: factor regression raises a non-FileNotFoundError.
@@ -206,6 +224,13 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         n_trials_for_dsr=37,
     )
 
+    # RR-2: this test's premise is "significance must succeed so we actually reach
+    # Gate 6". ASSERT it. With the old forced-pass patch it was never checked, and on a
+    # broken (zero-power) null `passed_all_gates is False` below was satisfied by GATE 4
+    # failing, not by Gate 6 — the test passed for the wrong reason.
+    assert result.get("gate_4_passed") is True, (
+        "precondition: Gate 4 must pass on real alpha so this test reaches Gate 6 — "
+        "if this fails, the Gate-4 null has lost its power")
     assert result.get("gate_6_passed") is False, (
         "Gate 6 must fail closed when factor decomposition raises a "
         "non-FileNotFoundError; pre-remediation it silently passed."
@@ -216,20 +241,20 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
     assert result.get("passed_all_gates") is False
 
 
-def test_gate_4_fails_on_none_significance_threshold():
-    """``significance_threshold=None`` is a "skip" signal from the caller;
-    a skipped gate cannot pass.
+def test_validate_candidate_REFUSES_a_none_significance_threshold():
+    """RR-2 — an EXECUTION test of the real guard.
 
-    Pre-remediation: ``sig_passed = True`` when the threshold was None,
-    which let candidates skip Gate 4 entirely whenever the orchestrator
-    deferred significance to a batched BH-FDR pass.
+    The test this replaces asserted against `_gate_4_decision`, a copy of the rule
+    written INSIDE this file. It certified the copy, never discovery.py: it would have
+    passed no matter what the gate did, and it was still green on the day the rule it
+    described stopped existing. None was a "skip" mode that failed Gate 4 for every
+    candidate; it is now a caller bug, and validate_candidate raises on it.
     """
-    assert _gate_4_decision(0.001, None) is False
-    assert _gate_4_decision(0.5, None) is False
-    # Sanity: when the threshold is provided, the rule is the usual
-    # ``p < alpha`` test.
-    assert _gate_4_decision(0.01, 0.05) is True
-    assert _gate_4_decision(0.5, 0.05) is False
+    from engines.engine_d_discovery.discovery import DiscoveryEngine
+
+    eng = object.__new__(DiscoveryEngine)          # the guard fires before any I/O
+    with pytest.raises(ValueError, match="significance_threshold is None"):
+        eng.validate_candidate({"edge_id": "x"}, {}, significance_threshold=None)
 
 
 def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
@@ -358,7 +383,7 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
     # Restore Gate 4 to a passing stub.
     monkeypatch.setattr(
         "engines.engine_d_discovery.significance.monte_carlo_permutation_test",
-        lambda values, n_permutations=500: {"p_value": 0.001},
+        _real_gate4_on_alpha,
     )
 
     # ---- Gate 5: NameError raised inside _load_universe_b must propagate ----

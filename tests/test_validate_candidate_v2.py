@@ -203,7 +203,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
     # --- Default path: Gate-0 MBL must REFUSE this sub-MBL window -------
     gate0_result = disc.validate_candidate(
         spec, data_map,
-        significance_threshold=None,
+        significance_threshold=0.05,
         start_date="2024-01-01",
         end_date="2024-06-30",
         gate1_contribution_threshold=0.0,
@@ -225,7 +225,7 @@ def test_falsifiable_spec_volume_anomaly_and_herding_pass_gate1(candidate_id, re
     # --- Escape hatch: exercise the original gauntlet-correctness spec --
     result = disc.validate_candidate(
         spec, data_map,
-        significance_threshold=None,  # defer to BH-FDR-style batch
+        significance_threshold=0.05,  # RR-2: None now raises (a skipped Gate 4 cannot pass)
         start_date="2024-01-01",
         end_date="2024-06-30",
         gate1_contribution_threshold=0.0,  # require positive lift, not strict

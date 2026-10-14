@@ -24,7 +24,7 @@ XFAIL_REASON = "proposed referee repair — see docs/Sources/alpha_frontier_revi
 # --------------------------------------------------------------------------- #
 # 1A.1  Gate 4 permutation null is degenerate (significance.py:84)
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.1 Gate-4 null")
+# RR-2: xfail marker removed — fixed on fix/referee-rr2-discovery-verdict
 def test_gate4_permutation_null_has_nonzero_spread():
     """A permutation of the strategy's OWN returns leaves mean/std invariant,
     so every null Sharpe == actual Sharpe and null_std ~ 1e-16. A correct null
@@ -38,7 +38,7 @@ def test_gate4_permutation_null_has_nonzero_spread():
     assert res["null_std"] > 0.05, f"degenerate null: null_std={res['null_std']:.3e}"
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " §1A.1 Gate-4 power")
+# RR-2: xfail marker removed — fixed on fix/referee-rr2-discovery-verdict
 def test_gate4_rejects_a_sharpe_5_series():
     """A Sharpe-5 series must get p < 0.01 under any valid null. The production
     test returned p=0.973 for SR 5.2 in the probe (rounding noise, not a test)."""
@@ -283,14 +283,119 @@ def test_gate6_alpha_of_a_factor_neutral_spread_is_not_shifted_by_rf():
 #        NOTE: this is a call-site defect; the honest test is an execution test
 #        (repair brief RR-2 converts it). A text assertion documents it until then.
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=XFAIL_REASON + " NEW-6 Pass-2 overwrites the gauntlet verdict")
-def test_production_discovery_does_not_overwrite_gauntlet_verdict():
-    import inspect
-    import orchestration.mode_controller as mc
+def _honest_n_fixture(root, n_runs: int = 231, rho: float = 0.43, comp: float = 0.16):
+    """R's F2 (2026-10-08): RR-3 resolves honest N FIRST in `_run_discovery_cycle` and
+    FAILS CLOSED, so a cycle driven from a bare temp root halts before Pass 3. This gives
+    the temp root the two inputs RR-3 requires, in the exact shape of D's helpers
+    (`tests/test_honest_n_rr3.py::_registry` / `::_artifact`): a `runs` table with rows,
+    and an `n_effective_<date>.json` whose `gate_inputs` carry numeric rho_bar and
+    onc_compression. Returns the N_eff RR-3 will compute from them."""
+    import json, sqlite3
+    from core.measurement.mbl_gate import compute_n_effective_correlated
+    obs = root / "data" / "observability"
+    obs.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(obs / "run_registry.sqlite")
+    c.execute("CREATE TABLE runs (run_id TEXT PRIMARY KEY, snapshot_at TEXT)")
+    c.executemany("INSERT INTO runs VALUES (?, ?)", [(f"r{i}", "2026-01-01") for i in range(n_runs)])
+    c.commit(); c.close()
+    (obs / "n_effective_2026-10-13.json").write_text(json.dumps(
+        {"gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
+    return compute_n_effective_correlated(obs / "run_registry.sqlite", artifact_dir=obs)
 
-    src = inspect.getsource(mc)
-    assert "significance_threshold=None" not in src, "production passes significance_threshold=None"
-    assert 'result["passed_all_gates"] = (' not in src, "Pass 2 overwrites validate_candidate's verdict"
+
+def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts, with_honest_n: bool = True):
+    """Drive the REAL `_run_discovery_cycle` — the real BH-FDR batch step and the real
+    Pass-3 promotion write — with only the upstream work stubbed. Returns the statuses
+    the cycle wrote back. Runs on a TEMP root: the cycle writes to
+    data/governor/edges.yml, which this branch must never touch.
+
+    Returns (statuses, seen) where `seen` records the honest N each gauntlet call
+    received — so a test can prove RR-3's N actually flows into RR-2's gauntlet."""
+    from types import SimpleNamespace
+    import orchestration.mode_controller as mcmod
+    from engines.engine_d_discovery import discovery as dmod
+    from engines.data_manager import universe_resolver as ur
+
+    queued = [{"edge_id": f"cand_{i}", "status": "candidate", "params": {}}
+              for i in range(len(verdicts))]
+    written = []
+
+    monkeypatch.setattr(dmod.DiscoveryEngine, "__init__", lambda self, **kw: None)
+    monkeypatch.setattr(dmod.DiscoveryEngine, "hunt", lambda self, *a, **kw: [])
+    monkeypatch.setattr(dmod.DiscoveryEngine, "generate_candidates", lambda self, **kw: [])
+    monkeypatch.setattr(dmod.DiscoveryEngine, "get_queued_candidates",
+                        lambda self, status="candidate": [dict(c) for c in queued])
+    monkeypatch.setattr(dmod.DiscoveryEngine, "save_candidates",
+                        lambda self, cands: written.extend(
+                            (c.get("edge_id"), c.get("status")) for c in cands))
+    it = iter(verdicts)
+    seen = {"n_trials_for_dsr": [], "expected_n": None}
+
+    def _validate(self, cand, *a, **kw):
+        seen["n_trials_for_dsr"].append(kw.get("n_trials_for_dsr"))
+        return dict(next(it))
+    monkeypatch.setattr(dmod.DiscoveryEngine, "validate_candidate", _validate)
+    monkeypatch.setattr(
+        "engines.engine_d_discovery.discovery_logger.DiscoveryLogger.__init__",
+        lambda self, **kw: None)
+    monkeypatch.setattr(ur, "discover_cached_tickers", lambda *a, **kw: [])
+    monkeypatch.setattr(ur, "resolve_universe", lambda **kw: ([], {"mode": "static"}))
+
+    fake_self = SimpleNamespace(root=tmp_path, cfg_bt={"start_date": "2020-01-01",
+                                                      "end_date": "2021-01-01",
+                                                      "tickers": []}, dm=None)
+    if with_honest_n:
+        seen["expected_n"] = _honest_n_fixture(tmp_path)
+    mcmod.ModeController._run_discovery_cycle(fake_self, {}, SimpleNamespace())
+    return dict(written), seen
+
+
+def test_production_discovery_does_not_overwrite_gauntlet_verdict(monkeypatch, tmp_path):
+    """RR-2 deliverable 5 — an EXECUTION test, replacing a TEXT test.
+
+    The old version asserted `'result["passed_all_gates"] = (' not in src`. That can be
+    satisfied by rewriting the line as `result.update(passed_all_gates=...)` while the
+    overwrite keeps happening, and it could be FAILED by a mere comment. A text assertion
+    certifies what the source SAYS, never what the cycle DOES.
+
+    THE STUB IS ADVERSARIAL ON PURPOSE. Each candidate FAILED the gauntlet, but carries
+    sharpe=1.0, robustness_survival=0.9 and significance_p=0.001 — exactly the three
+    things the deleted overwrite (`sharpe>0 AND survival>=0.7 AND BH-reject`) checked.
+    Without the low p the old code would ALSO promote nothing (BH never rejects p=1.0)
+    and this test would pass VACUOUSLY on the buggy code. With it, the old code promotes
+    every candidate; the fixed code promotes none.
+    """
+    failed_but_plausible = {"passed_all_gates": False, "sharpe": 1.0,
+                            "robustness_survival": 0.9, "significance_p": 0.001,
+                            "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [failed_but_plausible] * 3)
+    assert statuses, "the cycle wrote nothing back — the test did not reach Pass 3"
+    promoted = [k for k, v in statuses.items() if v == "active"]
+    assert not promoted, (f"candidates that FAILED the gauntlet were promoted: {promoted} "
+                          "— the batch step is overwriting validate_candidate's verdict")
+    assert all(v == "failed" for v in statuses.values())
+
+
+def test_bh_fdr_can_REMOVE_a_passer_but_never_ADD_one(monkeypatch, tmp_path):
+    """The post-filter's two directions. A candidate that passed every gate but whose p
+    does not survive the batch correction is removed; a candidate that failed a gate is
+    never rescued by a low p."""
+    passer_high_p = {"passed_all_gates": True, "sharpe": 1.2, "robustness_survival": 0.9,
+                     "significance_p": 0.9, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
+    failer_low_p = {"passed_all_gates": False, "sharpe": 1.2, "robustness_survival": 0.9,
+                    "significance_p": 0.0001, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [passer_high_p, failer_low_p])
+    assert statuses["cand_0"] == "failed", "BH-FDR should remove a passer that fails FDR"
+    assert statuses["cand_1"] == "failed", "BH-FDR must never promote a gate failure"
+
+
+def test_a_clean_passer_that_survives_FDR_IS_promoted(monkeypatch, tmp_path):
+    """The positive control — without it, 'nothing promotes' would also be satisfied by a
+    cycle that simply cannot promote anything, which is the defect we are fixing."""
+    clean = {"passed_all_gates": True, "sharpe": 1.5, "robustness_survival": 0.9,
+             "significance_p": 0.0001, "fitness_score": 1.0, "wfo_oos_sharpe": 1.0}
+    statuses, _ = _drive_discovery_cycle(monkeypatch, tmp_path, [clean])
+    assert statuses["cand_0"] == "active"
 
 
 # --------------------------------------------------------------------------- #
@@ -332,3 +437,27 @@ def test_prod_edge_weight_keys_match_edge_ids():
     cfg = json.loads(Path("config/alpha_settings.prod.json").read_text())
     keys = set(cfg.get("edge_weights", {}).keys())
     assert NewsSentimentEdge.EDGE_ID in keys, f"{NewsSentimentEdge.EDGE_ID} not in edge_weights; found {sorted(k for k in keys if 'news' in k)}"
+
+
+def test_RR2_and_RR3_COMPOSE_the_honest_N_reaches_the_authoritative_gauntlet(monkeypatch, tmp_path):
+    """R's F2, as a positive claim rather than a workaround: on the merged tree, the
+    honest N that RR-3 resolves from the registry is the N every gauntlet call receives
+    (Gates 0 and 8 gate on it), and RR-2's verdict then binds. Neither repair hides the
+    other."""
+    clean = {"passed_all_gates": True, "sharpe": 1.5, "robustness_survival": 0.9,
+             "significance_p": 0.0001, "fitness_score": 1.0, "wfo_oos_sharpe": 1.0}
+    statuses, seen = _drive_discovery_cycle(monkeypatch, tmp_path, [clean, dict(clean)])
+    assert seen["expected_n"] is not None and seen["expected_n"] > 1
+    assert seen["n_trials_for_dsr"] == [seen["expected_n"]] * 2, seen
+    assert statuses == {"cand_0": "active", "cand_1": "active"}
+
+
+def test_a_missing_registry_HALTS_the_cycle_it_never_reads_as_promoted_nothing(monkeypatch, tmp_path):
+    """The vacuous-pass trap from the other side. Without honest N the cycle must RAISE
+    before any registry write — not WARN and report a cycle that 'found nothing', which
+    would satisfy every 'nothing was promoted' assertion for the wrong reason."""
+    from core.measurement.mbl_gate import HonestNUnavailableError
+    plausible = {"passed_all_gates": False, "sharpe": 1.0, "robustness_survival": 0.9,
+                 "significance_p": 0.001, "fitness_score": 0.0, "wfo_oos_sharpe": 0.0}
+    with pytest.raises(HonestNUnavailableError):
+        _drive_discovery_cycle(monkeypatch, tmp_path, [plausible], with_honest_n=False)
