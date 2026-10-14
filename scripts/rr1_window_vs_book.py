@@ -7,9 +7,9 @@ series resampled with the same block starts. Pre-registration (rules, gates, and
 of every outcome, fixed before computing):
 docs/Measurements/2026-09/rr1_rescore/WINDOW_VS_BOOK_PREREG.md.
 
-Usage:
+Usage (--out is the only way a file is written; omit it to re-check without touching records):
   python scripts/rr1_window_vs_book.py --records docs/Measurements/2026-09/rr1_rescore \
-      --trade-logs data/trade_logs
+      --trade-logs data/trade_logs [--out PATH]
 """
 from __future__ import annotations
 
@@ -66,6 +66,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--records", required=True, type=Path)
     ap.add_argument("--trade-logs", required=True, type=Path)
+    ap.add_argument("--out", type=Path, default=None,
+                    help="where to write the result JSON. Omitted = print only, write nothing.")
     a = ap.parse_args()
 
     arec = {arm: json.loads((a.records / f"anchor26_{arm}.json").read_text()) for arm in ARMS}
@@ -101,9 +103,10 @@ def main() -> int:
         for k, d in res["deltas"].items():
             print(f"  {k:<16} {d['point']:+.3f}  95% CI [{d['ci95'][0]:+.3f}, {d['ci95'][1]:+.3f}]"
                   f"  share Δ≤0 {d['share_le_0']:.3f}")
-    out = a.records / "window_vs_book.json"
-    out.write_text(json.dumps(res, indent=1))
-    print(f"  row {res['row']}: {res['reading']}\n-> {out}")
+    if a.out:
+        a.out.write_text(json.dumps(res, indent=1))
+    print(f"  row {res['row']}: {res['reading']}\n"
+          + (f"-> {a.out}" if a.out else "(printed only; pass --out to write a record)"))
     return 2 if res["row"] == 1 else 0
 
 
