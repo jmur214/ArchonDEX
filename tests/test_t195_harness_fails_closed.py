@@ -8,10 +8,12 @@ exited 0. The RR-1 RE-SCORE asked for `triple_witching` (the id is
 The refusals are driven through the real entrypoint, `main()`; a refused run must not
 restore the governor (it writes live files) or write an output row.
 
-The fixture stubs the data and engine entry points so that NO code path, fixed or
-regressed, can reach the network or the data cache. The first reversion run, against
-the unfixed harness, fell through to `DataManager` and began fetching from yfinance; in
-an agent worktree `data/processed` is a symlink into main's tree, the shared price cache.
+DO NOT REMOVE OR "SIMPLIFY" THE FIXTURE'S STUBS. In every agent worktree `data/processed`
+is a symlink into main's tree, so a test that falls through to `DataManager` can write
+into EVERY agent's price cache. The stubs make the network and the cache unreachable on
+every code path, fixed or regressed. This is not hypothetical: the first reversion run,
+without them, fell through on the unfixed harness and began fetching from yfinance
+(killed after ~5 min, with nothing in the shared cache changed).
 """
 from __future__ import annotations
 
