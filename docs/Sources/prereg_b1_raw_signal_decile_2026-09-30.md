@@ -4,7 +4,7 @@ title: Pre-registration — raw-signal decile re-evaluation of the foundry featu
 date: 2026-09-30
 worker: Agent A (prereg); the RUN is staffed separately (likely C after RR-1)
 branch: research/raw-signal-decile-b1
-status: FROZEN 2026-10-13 (director-acknowledged; rulings issued 2026-10-01) — NOTHING RUN. The run waits for the director's word (C's campaign 8/8). N_trials +4 at run.
+status: FROZEN 2026-10-13 (director-acknowledged; rulings issued 2026-10-01) — RUN COMPLETE 2026-10-14 (three post-freeze PRE-DATA amendments, each proven by file time; §4/§8 byte-identical at the run) — VERDICT: H1 NOT MET; nothing meets H1 (docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md, R-approved). N_trials consumed: 4.
 ---
 
 # B-1 — does the price vocabulary have anything, tested the way the literature tests it?
@@ -318,6 +318,17 @@ Record wall time and peak RSS (`maximum resident set size`). Extrapolate to 312 
 projected peak RSS exceeds 2 GB or the runtime exceeds 8 h, STOP** and report — that is a
 sequencing decision for the director, not a reason to trim the panel.
 
+**BINDING (director ruling 2026-10-14, after full run A's HALT): the smoke covers each window's
+FIRST twelve months, never an arbitrary year.** A mid-window year cannot see a warm-up at the
+window start: the 2024 smoke above passed the SimFin edges that full run A then found blank for
+their first 12–15 months. One smoke per window start:
+```bash
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2000-12 --out data/research/b1/smoke_main/
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2021-07 --end 2022-06 --out data/research/b1/smoke_short/
+```
+The same rule binds the harness (Step 4) and the 2012 window (Step 6): smoke their first twelve
+months before the full run.
+
 **Step 3 — the panel (full window):**
 ```bash
 /usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2025-12 --out data/research/b1/
@@ -330,7 +341,8 @@ HALTS (`[NN-FAIL-CLOSED]`) and every value goes in the verdict:**
   equal the §4 inventory — any mismatch HALTS.
 - **Unusable signal-month = NaN OR None OR zero cross-sectional variance** (`std < 1e-12`,
   `[NN-FP-GUARDS]`) — all three spellings of missing (§3.4). HALT any signal unusable in > 10% of
-  its window's months. Short-window signals are checked over 2020-04 → 2025-12 only.
+  its window's months. Short-window signals are checked over 2020-04 → 2025-12 only
+  (**2021-07 → 2025-12 under the second amendment**). The census names the unusable months.
 - **Sparse flag** per §4.2 (modal share > 50% in the median month), recorded per signal.
 - **Engine A orientation check** (§2.2) before any return exists: native score vs declared
   literature direction — a mismatch HALTS and escalates; never flipped.
@@ -369,6 +381,197 @@ for sec in "## 4. Signal inventory" "## 8. Predictions"; do
 done   # expect ba6cc7bff764 then cb9f4c3e185b
 ```
 
+### 11.4 Harness implementation decisions — recorded 2026-10-14 BEFORE any harness output (operational; alters NO frozen term)
+The frozen text leaves these choices open. Each is fixed here, before the harness has read the
+panel, and committed with the harness (`scripts/raw_signal_decile_b1.py`). Where a conservative
+option exists, it is the one taken.
+1. **The IC test is two-sided.** It uses the Newey-West t of the monthly Spearman IC (sign × raw
+   value against next-month return; Bartlett kernel, 6 lags, statsmodels HAC). **Clears IC = BH
+   rejects within its family AND t > 0 in the declared direction.** A rejection in the wrong
+   direction is reported as not clearing (§2.1). A one-sided test would halve every p.
+2. **Eligible names in a month:** finite signal AND finite forward return. A NaN forward return
+   removes the name from that month; the count is reported and the value is never filled. A NaN
+   arises when a name has no price at the month-end, which is known at formation, or, in 7
+   cases, no price after it.
+3. **Unusable month** (the builder's rule: < 10 finite values or std < 1e-12): the IC is skipped
+   and counted, and Arm L takes the EW-universe return, also counted.
+4. **Deciles:** ranks of sign × value; top = rank(max) > 0.9 n, bottom = rank(min) ≤ 0.1 n. A
+   tie group is never split and never dropped. A leg with < 10 names takes §4.2's fallback: the
+   EW universe for Arm L (counted), and a missing LS month (counted). §4.2's 10-name floor
+   applies to every leg. Months where a tie made the top leg exceed 15% of names are counted
+   (`L_n_oversized_top_months`).
+   *Revised 2026-10-14, still before any harness output:* the first cut used average ranks.
+   `drawdown_60d` (and `dist_52w_high`) tie at exactly 0 for every name at its high, which is
+   the most favorable value. Under average ranks a tie group above 20% of names sinks below
+   0.9 n, which empties the top decile and silently turns Arm L into the EW sleeve. The smoke
+   panel already shows 67 of 492 names tied at 0.
+5. **Sparse signals (§4.2, per the census flag):** "strictly favorable" means sign × value > 0,
+   the edge's native long side. The LS bottom is the lowest tie group.
+6. **Costs:** each leg is equal-weight. The previous weights drift with realized returns before
+   each trade, and cost = 5 bps × Σ|w − w_drifted|, so a full round trip costs 10 bps. The first
+   month trades from cash. For LS, both legs are costed, plus 50 bps/yr borrow (/12 per month) on
+   the short notional. The 75/25 satellite rebalance is costless on both sides of every
+   comparison, so the treatment is identical.
+7. **EW-universe sleeve:** all eligible names, under the same cost rule. It is both the §3.7
+   benchmark and the §4.2 fallback.
+8. **Bootstrap:** `MetricsEngine.bootstrap_distribution` (Künsch moving block, no wrap) on the
+   MONTH INDICES: 1000 iterations, 6-month blocks, seed 0, 95% two-sided percentile, so
+   `ci_low` is the 2.5th percentile. One seed per window means every metric and every signal in
+   a window is paired on the same resampled months. LS (diagnostic only) is bootstrapped on its
+   own computable months.
+9. **Wealth:** Δ log terminal wealth = Σ log(1 + .75·SPY + .25·L) − Σ log(1 + SPY), and the same
+   against (.75·SPY + .25·EW). **H1 is judged on the main family only** (2000–2025). The short
+   window can only nominate (§5.2). Sensitivity rows never enter a BH count or H1.
+10. **SPY:** `data/processed` SPY closes at the same month-ends. They are dividend-adjusted like
+    the deciles, so both legs are total return (the census substrate note). A SPY month that is
+    not full HALTS.
+11. **Calendar (§5.3):** regress the EW-universe return from day t to t+1 on the feature value at
+    t. The day-t EW universe is the panel's names at the last month-end strictly before t that
+    have closes on t−1 and t, with at least 10 names. Newey-West lags floor(4(T/100)^(2/9))
+    (Newey-West 1994); two-sided p. Clears = BH within the calendar family AND slope > 0. The
+    window runs from the first panel month-end (2000-01-31) to 2025-12-31.
+12. **Calendar census (the daily form of §3.4):** a feature-year is unusable when the feature is
+    NaN or takes one value on every trading day of that year. HALT when > 10% of the **complete**
+    years are unusable. Partial edge years are listed as not judged. A census that can judge no
+    year HALTS; only the labelled smoke may proceed. A feature constant over the whole window is
+    reported, never regressed.
+    *Revised 2026-10-14, still before any harness output:* the first cut judged every year. The
+    first harness smoke (2000-01-31 → 2001-01-31) then flagged `month_of_year_dummy`,
+    `tax_loss_season` and others on its one-month 2001, because a month dummy is constant
+    inside a single month. That smoke's `halt.json` is the evidence.
+13. **Determinism:** canonical md5 over the rows, calendar, benchmarks, families and h1. Rows are
+    sorted by (family, signal), floats are cut to 12 significant digits, and the JSON uses
+    `sort_keys`.
+14. **Minimum window: 24 months, else HALT.** `--smoke-months N` (the binding
+    first-twelve-months smoke) relaxes the floor to N and writes `smoke_*.json` labelled "SMOKE —
+    NOT A MEASUREMENT".
+15. **N_trials +4** is recorded in the results and in the verdict. The harness writes nothing to
+    the run registry, which is referee infrastructure; recording it there is the director's call.
+
+**Known before any output (a pre-data finding, at the director's gate):** the foundry's
+`FOMC_DATES` and `US_MARKET_HOLIDAYS` tables both start in 2018. As a result:
+- `fomc_drift` and `pre_fomc_reduce` are a constant 0.0 on every trading day of 2000–2017.
+- `pre_holiday` has 2 non-zero days in those 18 years.
+- The calendar census HALTS all three as written.
+- `january_effect` counts Jan 1 as a trading day before 2018, so it flags 4 trading days
+  instead of 5. It still varies, so this is a property for the verdict, not a HALT.
+
+### 11.3 Run log (operational; alters NO frozen term)
+
+**2026-10-14 14:11 — step 0 + step 2 (the smoke).** Builder `scripts/build_signal_panel_b1.py`
+at `37e8734` (17 tests). All five gates **PASSED OUTRIGHT** at launch (G3 swap 1,253 MB free;
+an earlier 14:04 reading of 975 MB had recovered), so **no waiver was used.** A watchdog was
+armed voluntarily and was **defective**: `pgrep -f` matched the `/usr/bin/time` wrapper (its argv
+contains the same command), so it read RSS 0 and would have killed the wrapper, not Python.
+It was not needed. For any future run, target the child: `pgrep -P "$(pgrep -f '^/usr/bin/time -l python -m scripts.build_signal_panel_b1')"`.
+
+**Measured (2024-01 → 2024-12, 12 month-ends):** 75 s wall, **peak RSS 900 MB** (peak footprint
+1.33 GB), 0 swaps. Projection to 312 months: **~30–40 min, peak RSS ~1.1 GB** (the price cache
+is capped by the 730 existing files, 516 used here; the panel itself is ~30 MB). **Inside the stop
+rule** (≤ 2 GB, ≤ 8 h).
+
+**Census: HALT — no panel written** (fail-closed, before any return or IC exists):
+1. `herding_v1` — unusable in **8 of 12** months (median modal share 1.0). It is a daily EVENT
+   edge (fires on herding days); sampled at month-end it is all zeros most months. Structurally
+   invisible to a month-end construction — the `pair_zscore_60d` class.
+2. `earnings_proximity_5d` — unusable in **4 of 12** months: the month-ends between earnings
+   seasons have no name within 5 business days of a report.
+3. *At risk, not halted:* `volume_anomaly_v1` unusable in 1 of 12 months (8.3% vs the 10% bar).
+
+**Passing evidence:** all five §2.2 orientation checks fire and pass (Spearman +0.63, +0.56,
+−0.63, −0.56, −0.81 in the declared directions); coverage 98.6%; SimFin fundamentals edges
+have data and are usable. Forward returns: 5,885 full, 23 delisting proxies, 60 names whose
+file lacks the exact month-end date (NaN, ~1%) — reported in the verdict.
+
+**Status:** the two HALTs need a director ruling on the frozen inventory **before** the full
+run. They are pre-run findings: no return, IC or wealth number has been computed.
+
+**2026-10-14 — DIRECTOR RULING on the two HALTs (post-freeze, pre-data).** See the
+amendment section below. Builder updated at the next commit; 21 tests. Implementation note:
+the first cut applied the `volume_anomaly_v1` pre-ruling only on the 10% branch, so a
+herding-like signal (> 50% unusable, which fails the classification check first) would have
+HALTED instead. The test caught it; the pre-ruling now keys on the unusable share.
+
+**2026-10-14 14:16–14:33 — step 3, full run A (2000-01 → 2025-12) at `e595ae5`.** All five gates
+**PASSED OUTRIGHT** at 14:16:55: G1 the director's GO after D's suite; G2 disk 10.60 GB; G3 swap
+1,094 MB free; G4 clean tree at `e595ae5`; G5 §4 `ba6cc7bff764`, §8 `cb9f4c3e185b`. The watchdog
+targeted the child (the fix above). **Measured:** 312 month-ends, 109,366 rows, 963 s wall, **peak
+RSS 972 MB**, 693 tickers cached. Inside the stop rule.
+
+**Census:**
+- `volume_anomaly_v1` unusable in **29.8%** of 312 months → the **pre-ruled exclusion APPLIED
+  AUTOMATICALLY** and is recorded in `auto_excluded_pre_ruled`; main family 14 → 13.
+- Every other main and sensitivity signal: **0.0% unusable**, all CROSS-SECTIONAL. Orientation
+  **5/5 pass** (+0.555, +0.520, −0.605, −0.446, −0.829), none untestable. Coverage 52.7% (2000-01)
+  → 99.4% (2025-12); 49.0% of months below 80% (the §3.6 asymmetry, as pre-stated). Forward
+  returns: 108,886 full, 112 delisting proxies, 361 with no price at the month-end (NaN, reported,
+  never filled), 7 with no price after.
+- **HALT — no panel written:** four short-window SimFin edges over the 10% bar:
+  `value_earnings_yield_v1`, `quality_gross_profitability_v1` and `quality_roic_v1` 12 of 69 months
+  (17.4%), `accruals_inv_asset_growth_v1` 15 of 69 (21.7%). `value_book_to_market_v1` and
+  `accruals_inv_sloan_v1` 3 of 69 (4.3%, under the bar). Run B (determinism) did not start.
+
+**Diagnosis** (read-only; the builder's own functions; no return computed; 95 s, 260 MB): for
+every edge the unusable months are **one contiguous run at the window START**, and none falls after
+2021-06. The SimFin FREE panel's first filings for the PIT universe arrive at publish 2020-07: 0
+names with any filing at the 2020-04 and 2020-05 month-ends, 1 at 2020-06, 143 at 2020-07, 295+
+from 2020-08. Below 30 scored names the edges abstain to all-0.0 (`min_universe=30`). The
+latest-value edges (B/M, Sloan) need one filing, so they are usable from 2020-07. The TTM edges
+need four published quarters, so they are usable from 2021-04 (129 names with four filings).
+Asset growth needs a year-ago balance sheet, so it is usable from 2021-07. From 2021-07 on, every
+month has ≥ 322 names with four filings. **The window's 2020-04 start never described SimFin
+coverage.** §3.4 anchored it to the earnings calendar for `earnings_proximity_5d`, which the
+amendment then excluded.
+
+**My defect:** the smoke year (2024) sat mid-window and could not see a warm-up at the window
+start. The smoke's "SimFin fundamentals edges have data and are usable" was true of 2024 only.
+A smoke must include each family's first months. The census also gave a share without naming
+the months, which is why this diagnosis needed a separate script. It now names them
+(`unusable_months`; the lock fails on the prior builder with `KeyError`).
+
+**Known properties for the verdict (no action taken):** (1) The SimFin edges emit a stateful
+basket transition: 1.0 on entry, 0.3 while held, 0 otherwise. Under §4.2, Arm L is therefore the
+whole top-quintile basket (both values are favorable). Spearman IC, however, ranks new entrants
+above held members, so the IC partly measures entry versus holding, not only the factor level.
+The state starts empty, so a family's first window month emits the whole basket as entries.
+(2) SimFin FREE filings thin out after publish 2025-Q2. For the 2025-07 → 2025-12 month-ends,
+filings run up to two quarters older than a live investor's: PIT-safe, but less informative.
+
+**Status:** the short window (§5.2, 2020-04 → 2025-12) needs a director ruling before the re-run.
+This is a pre-data finding: no return, IC or wealth number has been computed.
+
+**2026-10-14 — director ruling (A) on the short window → the second amendment (below).**
+
+**2026-10-14 14:45–15:14 — attempt 2: smokes + full panel ×2.** Gates passed outright at 14:45:45
+(disk 10.58 GB, swap 1,083 MB, clean at `dc8eeb5`, §4/§8 hashes intact). Interpreter pinned:
+the project venv (Python 3.14.4, numpy 2.4.3, pandas 3.0.1, pyarrow 23.0.1).
+- **First-twelve-months smokes (§11.1 Step 2, binding):** 2000-01 → 2000-12 took 19 s at
+  504 MB; 2021-07 → 2022-06 took 63 s at 779 MB. Both censuses were clean, and all six SimFin
+  edges were 0.0% unusable.
+- **Full runs:** `full_2a` at `dc8eeb5` took 809 s at 1.02 GB peak RSS; `full_2b` at `6c6200a`
+  took 772 s at 954 MB. `scripts/build_signal_panel_b1.py`, `core/` and `engines/` are
+  byte-identical between the two commits.
+- **DETERMINISM ×2: canonical md5 `d9d449d17f8f102614b34079e8f1bd60` for both.** Each parquet
+  recomputes it from its content, and the two censuses differ only in `wall_seconds`.
+- **Census: no HALT.** Families: main 13, sensitivity 5, short window 6. `volume_anomaly_v1` is
+  auto-excluded under the pre-ruling (29.8%, 93 months named). Every other signal is 0.0%
+  unusable; the SimFin edges cover 54 months each at 0.0%. Orientation 5/5. 109,366 rows over
+  312 month-ends; 49.0% of months are below 80% coverage. Forward returns: 108,886 full, 112
+  proxies, 361 + 7 NaN, reported and never filled.
+
+**2026-10-14 — harness built (`bae38e5`, `21094f6`, `6c6200a`); two defects caught BEFORE any
+output.**
+1. **The tie split.** The first decile rule used average ranks. `drawdown_60d` ties at 0 for
+   every name at its high, and a tie above 20% of names sank below 0.9 n, which EMPTIED the top
+   decile and silently turned Arm L into the EW sleeve. The fix: ties are never split (§11.4
+   item 4), and the lock fails on the old rule.
+2. **The census on partial years.** The first harness smoke (12 months, 8.9 s, 302 MB, exit 2,
+   `halt.json` only, no numbers) correctly HALTED `fomc_drift`, `pre_fomc_reduce` and
+   `pre_holiday`. It also falsely flagged month-based dummies on its one-month 2001. The fix:
+   only complete years are judged (§11.4 item 12).
+- **Calendar finding (pre-data, measured on every trading day 2000–2025):** `FOMC_DATES` and
+  `US_MARKET_HOLIDAYS` start in 2018. Director ruling (A) → the third amendment (below).
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
@@ -383,6 +586,79 @@ Frozen as amended. The load-bearing terms, quoted so they cannot drift:
    zero-variance month counts as unusable like NaN, for all three spellings of missing; one BH
    member per duplicated hypothesis, foundry canonical). The signs (§4) and predictions (§8) are
    unchanged from the 09-30 draft; nothing has been run.
+
+## POST-FREEZE, PRE-DATA INVENTORY AMENDMENT — 2026-10-14 (director ruling; BINDING)
+Made **before any return, IC or wealth number existed**, after the smoke's census HALT
+(§11.3). §4's text is unchanged; this section governs where it differs.
+1. **`herding_v1` and `earnings_proximity_5d` are EXCLUDED** as structurally ineligible for a
+   month-end construction — the `pair_zscore_60d` disposition, same reason: a daily event edge
+   is silent at month-end; it is not a weak signal, it is not a month-end signal. **Main family
+   15 → 14, short-window 7 → 6, N_trials unchanged at +4.** No month-aggregated herding
+   construction is invented: a construction the brief does not specify is a new hypothesis and
+   gets its own brief (the macro-timing reasoning).
+2. **`volume_anomaly_v1` is PRE-RULED:** if the full-window census trips the 10% unusable bar,
+   the same exclusion applies **automatically and is recorded as such** — no decision is made
+   after seeing anything.
+3. **§8's predictions stay byte-identical** and are compared as written against the reduced
+   inventory; the verdict states the inventory change beside the comparison.
+4. **The 60 names lacking the exact month-end date → NaN forward return: reported, never
+   filled.**
+
+## POST-FREEZE, PRE-DATA AMENDMENT (SECOND) — 2026-10-14: the short window opens at 2021-07 (director ruling; BINDING)
+Made **before any return, IC or wealth number existed**, after full run A's census HALT
+(§11.3; attempt 1's census is kept as written in `data/research/b1/full_a/`). §5.2's text is
+unchanged; this section governs where it differs.
+1. **The whole short-window family opens at 2021-07** and runs to 2025-12: 54 month-ends,
+   ≈ 4.5 years. 2021-07 is the first month-end at which every family member can form its inputs
+   for 30 or more names (`min_universe=30`). The start is set mechanically by input
+   availability; no return was consulted. It is one BH family on one window.
+2. **The diagnosis.** Full run A HALTED four SimFin edges (earnings yield, gross profitability,
+   ROIC 12 of 69 months; asset growth 15 of 69). For every edge, the unusable months were one
+   contiguous run at the window START, and none fell after 2021-06. The SimFin FREE panel's
+   first filings for the PIT universe arrive at publish 2020-07. The TTM edges need four
+   published quarters, so they become usable at 2021-04. Asset growth needs a year-ago balance
+   sheet, so it becomes usable at 2021-07. **The 2020-04 start came from the earnings calendar
+   of `earnings_proximity_5d` (§3.4), which the first amendment excluded. That date never
+   described SimFin coverage.**
+3. **Agent A's defect:** the smoke sat mid-window (2024) and could not see a warm-up at the
+   window start. The lesson now binds §11.1 Step 2: the smoke covers each window's first
+   twelve months, never an arbitrary year.
+4. **Rejected alternatives:** per-edge start dates, because members of one BH family on
+   different windows are not one family; excluding the four edges, because the window was at
+   fault, not the edges.
+5. **§5.2's "exploratory by construction" holds a fortiori. §8's predictions (including
+   "Short-window family: 0 clear") stay byte-identical, and N_trials stays at +4.**
+6. **Two properties go into the verdict as written in §11.3** (no action taken):
+   - The SimFin edges emit a basket-transition shape: 1.0 on entry, 0.3 while held, 0
+     otherwise. Arm L is the whole top-quintile basket, but Spearman IC also ranks entries
+     above held names.
+   - SimFin FREE filings thin out after publish 2025-Q2. Late-2025 fundamentals are up to two
+     quarters stale; this introduces no look-ahead.
+7. Applied in the same commit as this section: `SHORT_WINDOW_START = "2021-07"` in
+   `scripts/build_signal_panel_b1.py`. The rerun writes to `full_2a/` and `full_2b/`;
+   attempt 1 is untouched.
+
+## POST-FREEZE, PRE-DATA AMENDMENT (THIRD) — 2026-10-14: three calendar features excluded (director ruling; BINDING)
+Made **before any return, IC or wealth number existed** (the only harness output is the smoke's
+`halt.json`). §5.3's text is unchanged; this section governs where it differs.
+1. **`fomc_drift`, `pre_fomc_reduce` and `pre_holiday` are EXCLUDED** as structurally
+   ineligible over the frozen window. The foundry's `FOMC_DATES` and `US_MARKET_HOLIDAYS` tables
+   begin in 2018, so the first two are a constant 0.0 on every trading day of 2000–2017, and
+   `pre_holiday` has 2 non-zero days in those 18 years. This is the herding/earnings
+   disposition, set by input availability: mechanical, and decided pre-data.
+2. **The calendar family goes 10 → 7 on ONE window** (2000-01-31 → 2025-12-31). §8's "Calendar
+   family: 0 clear" is compared as written. **N_trials stays +4.**
+3. **The three are UNTESTED by B-1.** That sentence stands so B-1's calendar result can never
+   grow to cover them. Any earlier pre-2018 test of these three features was blind, including
+   their T-196 records. The director records that finding in `health_check`.
+4. **Rejected:** running the whole family on 2018–2025, because seven fully defined features do
+   not lose 18 years for three blind ones. **Queued separately:** extending the tables to 2000
+   is a foundry change, made propose-first and reviewed in its own unit; it is not part of B-1.
+5. **A verdict property:** before 2018 `january_effect` counts Jan 1 as a trading day, so it
+   flags 4 trading days instead of 5. It still varies.
+6. Applied in the same commit as this section: `CALENDAR_EXCLUDED_BY_RULING` and
+   `EXPECTED_CALENDAR_COUNT = 7` in `scripts/raw_signal_decile_b1.py`. A test drives the real
+   `run()` and asserts that the three never reach `calendar_values`.
 
 ## Reproduce the pre-run findings
 ```bash
