@@ -42,6 +42,14 @@ _T052_TARGET_FEATURE_IDS: Tuple[str, ...] = (
 )
 
 
+class RegimeContextUnavailable(RuntimeError):
+    """RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
+
+    The cycle's regime step used to swallow every exception — and a missing SPY — and run
+    the hunt with `regime_meta=None`: a context-free hunt is a different experiment under
+    the same label. There is no labelled 'no regime context' mode, so the cycle refuses."""
+
+
 class DiscoveryEngine:
     """
     Engine D (Discovery): The Evolutionary Lab.

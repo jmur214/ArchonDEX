@@ -302,7 +302,7 @@ def test_gates_5_and_7_with_arms_never_replay_universe_A_signals(monkeypatch):
 # Gate 7 in production: the substrate-B build (the swallowed NameError)
 # --------------------------------------------------------------------------- #
 def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1", "SB2"],
-                 validate_raises=None, hunt_raises=None, seen=None):
+                 validate_raises=None, hunt_raises=None, seen=None, with_spy=True, regime_raises=None):
     """The REAL `_run_discovery_cycle` with only upstream work stubbed (R's F2 pattern),
     plus a resolvable historical universe so the substrate-B build has data. `seen` is
     filled as the cycle runs, so a test can inspect it even when the cycle raises."""
@@ -313,10 +313,12 @@ def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1",
     from tests.test_referee_repairs_proposed import _honest_n_fixture
 
     seen = seen if seen is not None else {}
-    seen.update({"substrate_b": [], "timeframes": [], "saved": [], "logged": [], "failures": []})
+    seen.update({"substrate_b": [], "timeframes": [], "saved": [], "logged": [], "failures": [],
+                 "hunted": False})
     monkeypatch.setattr(dmod.DiscoveryEngine, "__init__", lambda self, **kw: None)
 
     def _hunt(self, *a, **kw):
+        seen["hunted"] = True
         if hunt_raises is not None:
             raise hunt_raises
         return []
@@ -359,8 +361,14 @@ def _drive_cycle(monkeypatch, tmp_path, *, cached_tickers=lambda: ["AAA", "SB1",
                                 cfg_bt={"start_date": "2024-01-02", "end_date": "2024-03-08",
                                         "tickers": ["AAA"]},
                                 dm=SimpleNamespace(ensure_data=_ensure_data))
+    def _detect(benchmark_df, data_map=None):
+        if regime_raises is not None:
+            raise regime_raises
+        return {"regime_summary": "fixture"}
+
     _honest_n_fixture(tmp_path)
-    mcmod.ModeController._run_discovery_cycle(fake_self, {"AAA": df}, SimpleNamespace())
+    data_map = {"AAA": df, **({"SPY": df} if with_spy else {})}
+    mcmod.ModeController._run_discovery_cycle(fake_self, data_map, SimpleNamespace(detect_regime=_detect))
     return seen
 
 
@@ -422,6 +430,28 @@ def test_a_failure_outside_validation_FAILS_the_cycle_loudly_and_is_logged(monke
         _drive_cycle(monkeypatch, tmp_path, hunt_raises=RuntimeError("feature store unreadable"), seen=seen)
     assert seen["failures"] == [("hunt", "RuntimeError: feature store unreadable")]
     assert seen["substrate_b"] == [] and seen["saved"] == []
+
+
+def test_no_regime_context_REFUSES_the_cycle_it_never_hunts_context_free(monkeypatch, tmp_path):
+    """The director's ruling on §5.6. With no SPY the regime step used to leave
+    regime_meta=None and run the hunt anyway — a different experiment under the same
+    label. Revert → the hunt runs and nothing raises."""
+    from engines.engine_d_discovery.discovery import RegimeContextUnavailable
+    seen = {}
+    with pytest.raises(RegimeContextUnavailable, match="no SPY bars"):
+        _drive_cycle(monkeypatch, tmp_path, with_spy=False, seen=seen)
+    assert seen["hunted"] is False
+    assert seen["failures"][0][0] == "regime context"
+
+
+def test_an_engine_E_error_in_the_regime_step_propagates_never_skipped(monkeypatch, tmp_path):
+    """Same ruling: only the typed unavailability refuses; anything Engine E raises propagates.
+    Revert the catch-all → "Regime detection skipped" and a context-free hunt."""
+    seen = {}
+    with pytest.raises(NameError):
+        _drive_cycle(monkeypatch, tmp_path, regime_raises=NameError("name 'vix' is not defined"), seen=seen)
+    assert seen["hunted"] is False
+    assert seen["failures"] == [("regime context", "NameError: name 'vix' is not defined")]
 
 
 def test_validate_candidate_names_the_candidate_and_last_gate_on_a_programmer_error(monkeypatch):

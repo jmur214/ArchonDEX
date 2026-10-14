@@ -1170,15 +1170,21 @@ class ModeController:
             print("\n[DISCOVERY] Starting post-backtest discovery cycle...")
 
             # Step 1: REGIME -- get current regime context from Engine E
+            # RR-6a fixup (the director's ruling on §5.6, same as (b)): this step swallowed
+            # EVERY exception — and a missing SPY — as "Regime detection skipped" and ran the
+            # hunt with regime_meta=None: a context-free hunt is a different experiment under
+            # the same label. The expected unavailability (no SPY bars, no context returned)
+            # REFUSES the cycle with the stage named; anything Engine E raises propagates.
+            from engines.engine_d_discovery.discovery import RegimeContextUnavailable
             _stage = "regime context"
-            regime_meta = None
-            try:
-                spy_df = data_map.get("SPY")
-                if spy_df is not None and not spy_df.empty:
-                    regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
-                    print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
-            except Exception as re_err:
-                print(f"[DISCOVERY] Regime detection skipped: {re_err}")
+            spy_df = data_map.get("SPY")
+            if spy_df is None or spy_df.empty:
+                raise RegimeContextUnavailable(
+                    "no SPY bars in the cycle's data_map — the hunt would run without regime context")
+            regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
+            if not regime_meta:
+                raise RegimeContextUnavailable(f"Engine E returned no regime context ({regime_meta!r})")
+            print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
 
             # Step 2: HUNT -- TreeScanner with expanded features + regime context
             _stage = "hunt"

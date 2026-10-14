@@ -138,6 +138,19 @@ Consequence, accepted with the ruling: a failed cycle raises out of `run_backtes
 
 **All 50 test files touching a changed module:** 681 passed / 1 skipped / 3 deselected / 11 xfailed / 0 failed.
 
+**Second fixup — the ruling on §5.6 (the regime step), same as (b).** The step swallowed every exception, and a
+missing SPY, as "Regime detection skipped", then ran the hunt with `regime_meta=None`. A context-free hunt is a
+different experiment under the same label, and no labelled "no regime context" mode exists. Now:
+- the expected unavailability (no SPY bars, or Engine E returning no context) raises
+  `RegimeContextUnavailable`, so the cycle REFUSES with stage `regime context`;
+- anything Engine E raises propagates.
+
+It is locked by two tests (no SPY: refuses and never hunts; an Engine E `NameError`: propagates and never
+hunts). Case 18 of the proof restores the old block, and both tests fail with `DID NOT RAISE`. The two cycle
+fixtures now supply SPY and an Engine-E stand-in. They passed with an empty `data_map` only because the step
+swallowed it. All 50 touching files: **683 passed / 1 skipped / 3 deselected / 11 xfailed / 0 failed**; 18 of 18
+reversion cases bite.
+
 ## 3. R's F4 — Gate 4's size on skewed streams (measurement, pre-registered)
 
 The pre-registration is the docstring of `scripts/rr6a_gate4_size_skewed.py`, committed at `d15846b` before the
@@ -188,9 +201,7 @@ Items 1 and 2 of the first draft (the per-candidate handler and the outer handle
    Ruled: it gets its own docs commit from whoever owns Engine B's index.
 5. **`gate_factor_alpha(None)` still returns `(True, "skipped")`** for its other callers. `validate_candidate`
    no longer reaches it with `None`.
-6. **The regime-context step's catch-all** (`_run_discovery_cycle` Step 1) still absorbs every exception,
-   including programmer errors, and prints "Regime detection skipped". The hunt then runs without regime
-   context. This is outside the three rulings, so it is listed here for one.
+6. ~~The regime-context step's catch-all~~: **ruled INTO RR-6a** as the second fixup (§2b).
 
 ## 6. Records, health_check, charter
 

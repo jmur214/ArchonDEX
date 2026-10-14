@@ -366,7 +366,12 @@ def _drive_discovery_cycle(monkeypatch, tmp_path, verdicts, with_honest_n: bool 
                                                       "tickers": []}, dm=None, timeframe="1d")
     if with_honest_n:
         seen["expected_n"] = _honest_n_fixture(tmp_path)
-    mcmod.ModeController._run_discovery_cycle(fake_self, {}, SimpleNamespace())
+    # RR-6a fixup: the cycle now REFUSES without regime context (a context-free hunt is a
+    # different experiment), so the fixture supplies SPY and an Engine-E stand-in — the
+    # empty data_map and bare namespace passed only because the regime step swallowed both.
+    spy = pd.DataFrame({"Close": [100.0, 101.0]}, index=pd.bdate_range("2020-01-02", periods=2))
+    regime = SimpleNamespace(detect_regime=lambda df, data_map=None: {"regime_summary": "fixture"})
+    mcmod.ModeController._run_discovery_cycle(fake_self, {"SPY": spy}, regime)
     return dict(written), seen
 
 

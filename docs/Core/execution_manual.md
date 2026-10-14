@@ -1296,7 +1296,8 @@ A Discovery cycle that hits an error now **fails**: `run_backtest(discover=True)
 `[DISCOVERY][FAIL] … at stage '<stage>'` and appending an `event: cycle_failure` row (stage, error, notes) to
 `data/research/discovery_log.jsonl`. It no longer ends as one WARN line. The only per-candidate failure
 it absorbs is the diagnostic wall-time alarm (`DISCOVERY_DIAG_TIMEOUT_SEC`), which refuses that candidate
-with every gate NOT_EVALUATED.
+with every gate NOT_EVALUATED. A cycle with no regime context (no SPY bars in its data map) REFUSES
+with `RegimeContextUnavailable`, at stage `regime context`; it never hunts context-free.
 
 ```bash
 # R's F4: Gate 4's sign-flip null SIZE on skewed zero-mean streams (pre-registered in the script's docstring).

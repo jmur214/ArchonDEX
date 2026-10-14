@@ -41,6 +41,7 @@
 - **Function `cumulative_gate_margin()`**: Compute the spec's Option-B objective: sum of (metric - threshold)/
 
 ### `discovery.py`
+- **Class `RegimeContextUnavailable`**: RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
 - **Class `DiscoveryEngine`**: Engine D (Discovery): The Evolutionary Lab.
   - `def __init__()`
   - `def clear_gate1_signal_cache()`: Drop all cached baseline-edge wrappers. Call between cycles

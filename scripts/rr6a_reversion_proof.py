@@ -107,6 +107,30 @@ CASES = [
      [("                e.add_note(f\"[validate_candidate] candidate={candidate_spec.get('edge_id', '?')} \"\n"
        "                           f\"last_gate_completed={_diag_gates_run[-1] if _diag_gates_run else 'none (setup)'}\")\n", "")],
      [T + "test_validate_candidate_names_the_candidate_and_last_gate_on_a_programmer_error"]),
+    # ---- the second fixup: the ruling on §5.6 (the regime step) ----
+    ("regime step: the catch-all and the SPY-optional context restored", M,
+     [("""            from engines.engine_d_discovery.discovery import RegimeContextUnavailable
+            _stage = "regime context"
+            spy_df = data_map.get("SPY")
+            if spy_df is None or spy_df.empty:
+                raise RegimeContextUnavailable(
+                    "no SPY bars in the cycle's data_map — the hunt would run without regime context")
+            regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
+            if not regime_meta:
+                raise RegimeContextUnavailable(f"Engine E returned no regime context ({regime_meta!r})")
+            print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
+""", """            _stage = "regime context"
+            regime_meta = None
+            try:
+                spy_df = data_map.get("SPY")
+                if spy_df is not None and not spy_df.empty:
+                    regime_meta = regime_detector.detect_regime(spy_df, data_map=data_map)
+                    print(f"[DISCOVERY] Regime context: {regime_meta.get('regime_summary', regime_meta)}")
+            except Exception as re_err:
+                print(f"[DISCOVERY] Regime detection skipped: {re_err}")
+""")],
+     [T + "test_no_regime_context_REFUSES_the_cycle_it_never_hunts_context_free",
+      T + "test_an_engine_E_error_in_the_regime_step_propagates_never_skipped"]),
 ]
 
 env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")
