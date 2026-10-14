@@ -65,12 +65,37 @@ def _ti(feat) -> bool:
         return False
 
 
+def select_features(all_features, only: list[str]) -> tuple[list, int, str]:
+    """Tier-A/B features, limited to `only` when given. FAILS CLOSED (RR-1 §6.6).
+
+    An id that matched nothing used to shrink the sweep silently, and a sweep of zero
+    features printed "H0 — honest null" and exited 0: a refutation that never ran
+    (the RR-1 RE-SCORE asked for `triple_witching`; the id is `triple_witching_premium`).
+    Returns (features, exit_code, reason); exit_code 0 means sweep.
+    """
+    feats = [f for f in all_features if f.tier in ("A", "B")]
+    if only:
+        unknown = sorted(set(only) - {f.feature_id for f in feats})
+        if unknown:
+            return [], 2, f"T195_FEATURES names id(s) that are not tier-A/B features: {unknown}"
+        feats = [f for f in feats if f.feature_id in only]
+    if not feats:
+        return [], 3, "zero features to sweep — a null over nothing is not a verdict"
+    return feats, 0, ""
+
+
 def main() -> int:
     import core.feature_foundry.features  # noqa: F401
     from core.feature_foundry import get_feature_registry
     from engines.engine_d_discovery.discovery import DiscoveryEngine
     from engines.data_manager.data_manager import DataManager
     from orchestration.run_backtest_pure import PureBacktestCache
+
+    # Selection first: a refused run must not touch the governor or load data.
+    feats, code, why = select_features(get_feature_registry().list_features(), ONLY)
+    if code:
+        print(f"[T195] REFUSING (exit {code}): {why}")
+        return code
 
     restore_clean_governor()
     cfg = json.loads((ROOT / "config" / "backtest_settings.json").read_text())
@@ -84,10 +109,6 @@ def main() -> int:
     vs, ve = first.index[0].isoformat(), first.index[-1].isoformat()
     print(f"[T195] data_map {len(data_map)} tickers | window {vs[:10]}..{ve[:10]} ({len(first)} bars) | signal_cache=OFF clean-governor")
 
-    reg = get_feature_registry()
-    feats = [f for f in reg.list_features() if f.tier in ("A", "B")]
-    if ONLY:
-        feats = [f for f in feats if f.feature_id in ONLY]
     print(f"[T195] sweeping {len(feats)} tier-A/B features")
 
     eng = DiscoveryEngine()
