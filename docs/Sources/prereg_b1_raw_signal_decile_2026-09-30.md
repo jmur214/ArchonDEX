@@ -369,6 +369,36 @@ for sec in "## 4. Signal inventory" "## 8. Predictions"; do
 done   # expect ba6cc7bff764 then cb9f4c3e185b
 ```
 
+### 11.3 Run log (operational; alters NO frozen term)
+
+**2026-10-14 14:11 — step 0 + step 2 (the smoke).** Builder `scripts/build_signal_panel_b1.py`
+at `37e8734` (17 tests). All five gates **PASSED OUTRIGHT** at launch (G3 swap 1,253 MB free;
+an earlier 14:04 reading of 975 MB had recovered), so **no waiver was used.** A watchdog was
+armed voluntarily and was **defective**: `pgrep -f` matched the `/usr/bin/time` wrapper (its argv
+contains the same command), so it read RSS 0 and would have killed the wrapper, not Python.
+It was not needed. For any future run, target the child: `pgrep -P "$(pgrep -f '^/usr/bin/time -l python -m scripts.build_signal_panel_b1')"`.
+
+**Measured (2024-01 → 2024-12, 12 month-ends):** 75 s wall, **peak RSS 900 MB** (peak footprint
+1.33 GB), 0 swaps. Projection to 312 months: **~30–40 min, peak RSS ~1.1 GB** (the price cache
+is capped by the 730 existing files, 516 used here; the panel itself is ~30 MB). **Inside the stop
+rule** (≤ 2 GB, ≤ 8 h).
+
+**Census: HALT — no panel written** (fail-closed, before any return or IC exists):
+1. `herding_v1` — unusable in **8 of 12** months (median modal share 1.0). It is a daily EVENT
+   edge (fires on herding days); sampled at month-end it is all zeros most months. Structurally
+   invisible to a month-end construction — the `pair_zscore_60d` class.
+2. `earnings_proximity_5d` — unusable in **4 of 12** months: the month-ends between earnings
+   seasons have no name within 5 business days of a report.
+3. *At risk, not halted:* `volume_anomaly_v1` unusable in 1 of 12 months (8.3% vs the 10% bar).
+
+**Passing evidence:** all five §2.2 orientation checks fire and pass (Spearman +0.63, +0.56,
+−0.63, −0.56, −0.81 in the declared directions); coverage 98.6%; SimFin fundamentals edges
+have data and are usable. Forward returns: 5,885 full, 23 delisting proxies, 60 names whose
+file lacks the exact month-end date (NaN, ~1%) — reported in the verdict.
+
+**Status:** the two HALTs need a director ruling on the frozen inventory **before** the full
+run. They are pre-run findings: no return, IC or wealth number has been computed.
+
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:
 1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
