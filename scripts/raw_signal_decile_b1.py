@@ -473,6 +473,9 @@ def run(panel: pd.DataFrame, census: dict, start: str, seed: int, iters: int, bl
             tickers = sorted(panel.index.get_level_values("ticker").unique())
             closes = pd.DataFrame({t: df["Close"] for t in tickers
                                    if (df := panel_mod.load_ohlcv(t, price_root)) is not None})
+            # On SPY's trading calendar BEFORE differencing: one file's stray off-calendar row
+            # would otherwise make the next day's return NaN for every other name.
+            closes = closes.reindex(spy_df.index)
             closes = closes.loc[(closes.index >= days[0]) & (closes.index <= end)]
             ew_d = ew_daily(panel, closes).reindex(days)
             cal_rows = evaluate_calendar(vals, ew_d)
