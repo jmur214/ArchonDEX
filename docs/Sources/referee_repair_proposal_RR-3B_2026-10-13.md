@@ -268,7 +268,25 @@ Per the pre-data amendment in §8, executed runs form one substrate family by co
 >10% disagreement criteria had nothing to bind on. The substrate question now sits entirely in the 26-task ledger
 table (§2D) and in §9.1's candidate records.
 
+### 9.6 Which registry file is live — confirmed (director's question; B answered it read-only at `3404ac1`)
+**`run_registry.sqlite` is the only file any reader names**, and I confirmed each anchor independently on `main`:
+`core/measurement/mbl_gate.py:55` (`DEFAULT_DB_PATH = … "data/observability/run_registry.sqlite"`),
+`orchestration/mode_controller.py:1183` (`db_path=_obs / "run_registry.sqlite"`), and
+`core/observability/run_registry.py:26` (`DEFAULT_DB_PATH = Path("data/observability/run_registry.sqlite")`).
+
+**`run_registry.db` is an inert leftover:** 0 bytes, created and last modified 2026-05-08 20:34 — the day the registry
+was first built — and referenced by **no code, now or in history** (`git log -S` finds only my own RR-3 docstring,
+which cites it as an example of a real 0-byte file). What created it is not recoverable from the record; a
+`sqlite3.connect()` on a mistyped name creates exactly such a file. Since RR-3 it reads as **unavailable**, never
+N=1, so it cannot feed the gate. **B's copy selects `.sqlite` by exact name, so it protects the live file.**
+Per the director it is archived to `Archive/` in the 9.3 branch, not before.
+
+One residual worth carrying into the build: `run_registry.py:26`'s default is **cwd-relative**. From a worktree whose
+`data/` is a real directory rather than the usual symlink, `rebuild()` would write a *second* `.sqlite` that B's copy
+never sees — the split-in-two class the janitor's ledger already hit. §7's deliverable 1 makes that default absolute.
+
 ---
-**PROPOSAL — propose-only, not pushed, not merged.** N_trials 0. Rulings needed: §2D (the ledger table), §9.2 (credit
-for curve-less trials), §9.3 (pin the live artifact). The build follows RR-6 unless R's read of these numbers changes
-that.
+**PROPOSAL — propose-only, not pushed, not merged.** N_trials 0. Rulings given 2026-10-13 (post-data): **9.1 YES**
+(fourth evidence class, no credit; attribution-stream persistence in the build), **9.2 NO BORROWED CREDIT** (N_eff
+267.5 is the honest number until those trials have curves), **9.3 APPROVED NOW** as its own branch. Still open: §2D
+(the ledger table). The build follows RR-6 unless R's read of these numbers changes that.
