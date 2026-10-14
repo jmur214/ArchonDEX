@@ -162,4 +162,36 @@ def validate_note(payload: dict) -> "tuple[Optional[AnalystNote], Optional[str]]
     try:
         return AnalystNote.model_validate(payload), None
     except Exception as e:   # noqa: BLE001 — any validation error → no note
-        return None, str(e).splitlines()[0][:300]
+        return None, _describe_validation_error(e)
+
+
+def _describe_validation_error(e: Exception) -> str:
+    """A rejection reason that NAMES THE FIELD.
+
+    The old form was ``str(e).splitlines()[0]``, and for pydantic that first
+    line is only the COUNT — "1 validation error for AnalystNote". The line
+    naming the offending field is the NEXT one, so it was discarded. The agentic
+    arm rejected notes on 2026-10-05 and 2026-10-09 and the record could not say
+    which field was wrong; by the time anyone looked, the Batch logs had aged
+    out and the answer was gone for good.
+
+    That is the T-360 lesson one layer down: typing a failure is only useful if
+    the name SELECTS THE FIX, and "a validation error occurred" selects nothing.
+
+    Must never raise — a diagnostic that throws would turn a rejected note into
+    a crashed pulse, so every lookup here is defensive and falls back to the
+    old string.
+    """
+    first_line = str(e).splitlines()[0] if str(e) else type(e).__name__
+    try:
+        errs = e.errors()                      # pydantic ValidationError
+        if errs:
+            first = errs[0]
+            loc = ".".join(str(x) for x in (first.get("loc") or ())) or "<root>"
+            msg = str(first.get("msg", "")).strip()
+            n = len(errs)
+            more = f" (+{n - 1} more)" if n > 1 else ""
+            return f"{first_line} [{loc}: {msg}]{more}"[:300]
+    except Exception:                          # noqa: BLE001 — not pydantic, or
+        pass                                   # an unexpected errors() shape
+    return first_line[:300]
