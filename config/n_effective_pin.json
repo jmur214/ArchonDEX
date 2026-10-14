@@ -1,0 +1,7 @@
+{
+  "schema": "n_effective_pin/v1",
+  "artifact": "n_effective_2026-09-30.json",
+  "sha256": "cef514049b4542d1d4a600a65cfe4bf8cc533276c937abb0edc57316ce03b308",
+  "pinned_on": "2026-10-13",
+  "note": "The artifact RR-3 merged on (e1f51df) and R reviewed: the 2026-09-30 executed-run universe, 1,322 runs -> 252 distinct; gate_inputs rho 0.4325 / ONC 0.1598. Pinned 2026-10-13 under RR-3 \u00a79.3."
+}

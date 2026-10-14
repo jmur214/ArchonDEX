@@ -119,12 +119,17 @@ def test_layer1_absent_empty_and_zero_byte_registries_all_raise(tmp_path):
 
 
 def test_correlated_n_fails_closed_on_missing_or_malformed_artifact(tmp_path):
+    """RR-3 §9.3: the artifact is now selected by a PIN, so 'missing' means a missing pin or a
+    missing pinned file — and a malformed artifact still fails even when correctly pinned."""
     reg = _registry(tmp_path / "r.sqlite", 100)
-    with pytest.raises(HonestNUnavailableError, match="no n_effective"):
-        compute_n_effective_correlated(reg, artifact_dir=tmp_path)
-    (tmp_path / "n_effective_2026-01-01.json").write_text(json.dumps({"rho_bar": 0.5}))
+    pin = tmp_path / "pin.json"
+    with pytest.raises(HonestNUnavailableError, match="pin"):
+        compute_n_effective_correlated(reg, artifact_dir=tmp_path, pin_path=pin)
+    bad = tmp_path / "n_effective_2026-01-01.json"
+    bad.write_text(json.dumps({"rho_bar": 0.5}))
+    pin.write_text(json.dumps({"artifact": bad.name, "sha256": mbl.sha256_file(bad)}))
     with pytest.raises(HonestNUnavailableError, match="gate_inputs"):
-        compute_n_effective_correlated(reg, artifact_dir=tmp_path)
+        compute_n_effective_correlated(reg, artifact_dir=tmp_path, pin_path=pin)
 
 
 def test_conservative_method_takes_the_larger_estimate(tmp_path):
@@ -237,8 +242,12 @@ def test_layer4_the_cycle_resolves_N_from_ITS_OWN_root(tmp_path):
     pointed at another tree cannot silently gate on this tree's registry."""
     obs = tmp_path / "data" / "observability"; obs.mkdir(parents=True)
     _registry(obs / "run_registry.sqlite", 50)
-    _artifact(obs, rho=0.43, comp=0.16)
-    info = mbl.resolve_cycle_n_trials(10, db_path=obs / "run_registry.sqlite", artifact_dir=obs)
+    art = _artifact(obs, rho=0.43, comp=0.16)
+    (tmp_path / "config").mkdir()
+    pin = tmp_path / "config" / "n_effective_pin.json"
+    pin.write_text(json.dumps({"artifact": art.name, "sha256": mbl.sha256_file(art)}))
+    info = mbl.resolve_cycle_n_trials(10, db_path=obs / "run_registry.sqlite", artifact_dir=obs,
+                                      pin_path=pin)
     assert info["source"] == "registry_correlated" and info["batch_len"] == 10
     assert info["n_trials"] == max(n_eff_equicorrelated(50, 0.43), 50 * 0.16)
 

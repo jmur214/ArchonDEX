@@ -135,7 +135,8 @@ def test_compute_n_effective_fails_closed_when_db_missing(tmp_path):
 
 def test_compute_n_effective_fails_closed_on_empty_or_unreadable_registry(tmp_path):
     """The same door by other routes: an empty `runs` table (was `max(1, 0)`), and a
-    0-byte file (a real one sits beside the registry: data/observability/run_registry.db)."""
+    0-byte file (a real one sat beside the registry until 2026-10-13 — `run_registry.db`, named by no
+    code; archived under RR-3 §9.3 to Archive/data_observability/)."""
     import sqlite3
     from core.measurement.mbl_gate import HonestNUnavailableError
     empty = tmp_path / "empty.sqlite"

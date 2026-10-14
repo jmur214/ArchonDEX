@@ -1234,3 +1234,20 @@ python -m pytest tests/test_referee_repairs_proposed.py -q      # 16 xfail(stric
 
 Read `docs/Sources/alpha_frontier_review_2026_09_30/01_gap_report.md` before touching any of these;
 the referee is propose-first and the tests document defects, they do not fix them.
+
+## Honest N — the gate's inputs (RR-3, added 2026-10-13)
+
+Discovery Gate 0/8 read two inputs, both FAIL CLOSED: the run registry (`data/observability/run_registry.sqlite`)
+and the ρ̄ artifact **named by the committed pin** `config/n_effective_pin.json` (artifact filename + sha256).
+
+```bash
+python -m scripts.n_effective_pin --verify                 # PIN OK / PIN INVALID (exit 3) — does the pinned artifact match?
+python -m scripts.rr3_empirical_rho --s3-mirror <dir>      # measure ρ̄ / ONC over S3 + local runs -> data/observability/n_effective_<today>.json
+python -m scripts.n_effective_pin --pin n_effective_<date>.json --note "why"   # re-pin; takes effect only when COMMITTED
+```
+
+**A re-run of `rr3_empirical_rho` no longer changes the gate.** It writes a new `n_effective_<today>.json`, but the
+gate reads only the pinned file, hash-verified (before 2026-10-13 it took the newest by filename, so any re-run
+silently replaced the live input). Changing the gate's input = `--pin` + a reviewed commit of the pointer. Use the
+`scripts.` entrypoint, not `python -m core.measurement.mbl_gate`: the latter works but triggers a runpy warning
+because `core.measurement` imports the module first.

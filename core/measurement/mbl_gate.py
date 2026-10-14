@@ -54,6 +54,8 @@ from core.metrics_engine import _EULER_GAMMA
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data/observability/run_registry.sqlite"
 DEFAULT_ARTIFACT_DIR = DEFAULT_DB_PATH.parent
+# RR-3 §9.3 (2026-10-13): the gate's ρ̄ input is PINNED by a committed pointer + sha256.
+DEFAULT_PIN_PATH = Path(__file__).resolve().parents[2] / "config/n_effective_pin.json"
 
 # A correlation estimate may shrink N, never erase the correction (see module docstring).
 N_EFF_FLOOR = 2.0
@@ -173,19 +175,64 @@ def compute_n_effective(
     return n
 
 
-def latest_n_effective_artifact(artifact_dir: Optional[Path] = None) -> Path:
-    """The newest `n_effective_<YYYY-MM-DD>.json`. Raises if none exists."""
+def sha256_file(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def pinned_n_effective_artifact(
+    pin_path: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
+) -> Path:
+    """The ρ̄ artifact the gate is PINNED to, verified. FAILS CLOSED.
+
+    RR-3 §9.3. This replaced `latest_n_effective_artifact()`, which took the NEWEST
+    `n_effective_*.json` by filename — so any re-run of `scripts/rr3_empirical_rho.py`, by
+    anyone, silently replaced the live gate's input with no review. The 2026-10-13 Option B
+    pass avoided that only by choosing a different output name; a filename convention is not
+    a control. Now the input is named by a COMMITTED pointer (`config/n_effective_pin.json`)
+    carrying the artifact's sha256: changing what the gate reads is a reviewed commit, and an
+    artifact edited in place after pinning is caught by its hash.
+
+    Raises `HonestNUnavailableError` if the pointer is absent or malformed, the pinned
+    artifact is absent, or its sha256 does not match. Re-pin with
+    `python -m core.measurement.mbl_gate --pin <artifact filename>` and commit the result."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
     artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
-    found = sorted(artifact_dir.glob("n_effective_*.json"))
-    if not found:
+    try:
+        pin = json.loads(pin_path.read_text())
+        name, expected = str(pin["artifact"]), str(pin["sha256"]).lower()
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         raise HonestNUnavailableError(
-            f"no n_effective_*.json in {artifact_dir} — run `python -m scripts.rr3_empirical_rho` "
-            f"to measure trial correlation before gating on it.")
-    return found[-1]
+            f"n_effective pin {pin_path} absent or malformed ({exc}) — the gate will not guess which "
+            f"artifact to trust") from exc
+    if "/" in name or "\\" in name:
+        raise HonestNUnavailableError(f"n_effective pin {pin_path} names a path, not a file in the artifact dir: {name!r}")
+    art = artifact_dir / name
+    if not art.exists():
+        raise HonestNUnavailableError(
+            f"pinned n_effective artifact {art} is absent (pin: {pin_path}). Ship it, or re-pin by commit.")
+    got = sha256_file(art)
+    if got != expected:
+        raise HonestNUnavailableError(
+            f"pinned n_effective artifact {art} does not match its pin: sha256 {got[:12]}… ≠ pinned "
+            f"{expected[:12]}…. It changed after it was pinned; re-pin by commit, after review.")
+    return art
 
 
-def load_n_effective_artifact(path: Optional[Path] = None, artifact_dir: Optional[Path] = None) -> Dict:
-    p = Path(path) if path else latest_n_effective_artifact(artifact_dir)
+def load_n_effective_artifact(
+    path: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
+) -> Dict:
+    """Load and validate a ρ̄ artifact. With no explicit `path` — every production call — it is
+    the PINNED artifact, hash-verified. An explicit `path` is a deliberate choice by the caller
+    (tools, tests), the way an explicit `n_trials_for_dsr` is."""
+    p = Path(path) if path else pinned_n_effective_artifact(pin_path, artifact_dir)
     try:
         art = json.loads(p.read_text())
     except (OSError, ValueError) as exc:
@@ -205,8 +252,10 @@ def compute_n_effective_correlated(
     method: str = "conservative",
     artifact_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
 ) -> float:
-    """Correlation-aware N_eff. FAILS CLOSED (registry OR artifact missing → raise).
+    """Correlation-aware N_eff. FAILS CLOSED (registry, pin, or pinned artifact missing or
+    mismatched → raise).
 
     method="conservative" (default): the LARGER of the two below. On the 2026-09-30
                        measurement the estimators disagree (equicorrelated ~33, ONC ~21
@@ -230,7 +279,7 @@ def compute_n_effective_correlated(
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
     n_raw = compute_n_effective(db_path)
-    gi = load_n_effective_artifact(artifact_path, artifact_dir)["gate_inputs"]
+    gi = load_n_effective_artifact(artifact_path, artifact_dir, pin_path)["gate_inputs"]
     eq = n_eff_equicorrelated(n_raw, float(gi["rho_bar"]))
     onc = max(N_EFF_FLOOR, min(float(n_raw), n_raw * float(gi["onc_compression"])))
     if method == "equicorr":
@@ -244,6 +293,7 @@ def resolve_cycle_n_trials(
     batch_len: int,
     db_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
 ) -> Dict:
     """The trial count a Discovery cycle gates Gate 0 and Gate 8 on. FAILS CLOSED.
 
@@ -252,7 +302,7 @@ def resolve_cycle_n_trials(
     batch size under-counted by every prior cycle — and when the batch held one
     candidate, it disabled Gate 8 outright. `batch_len` is carried for the log only,
     so the pre-RR-3 figure stays visible beside the one now used."""
-    n = compute_n_effective_correlated(db_path, artifact_dir=artifact_dir)
+    n = compute_n_effective_correlated(db_path, artifact_dir=artifact_dir, pin_path=pin_path)
     return {"n_trials": n, "source": "registry_correlated", "batch_len": int(batch_len)}
 
 
@@ -310,3 +360,44 @@ def years_from_window(start_date: str, end_date: str) -> float:
     s = datetime.fromisoformat(start_date)
     e = datetime.fromisoformat(end_date)
     return (e - s).days / 365.25
+
+
+# ----------------------------------------------------------------------------- pin CLI
+def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None,
+              pin_path: Optional[Path] = None, note: str = "") -> Dict:
+    """Pin the gate to `artifact_dir/artifact_name` by recording its sha256. Writes the pointer;
+    it takes effect for the referee only when COMMITTED — that commit is the review point."""
+    import datetime as _dt
+    artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    art = artifact_dir / artifact_name
+    load_n_effective_artifact(path=art)            # refuse to pin something the gate couldn't read
+    pin = {"schema": "n_effective_pin/v1", "artifact": artifact_name, "sha256": sha256_file(art),
+           "pinned_on": _dt.date.today().isoformat(), "note": note}
+    pin_path.write_text(json.dumps(pin, indent=2) + "\n")
+    return pin
+
+
+def main(argv=None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="Pin or verify the honest-N gate's ρ̄ artifact (RR-3 §9.3).")
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--pin", metavar="ARTIFACT_FILENAME", help="pin the gate to this file in the artifact dir")
+    g.add_argument("--verify", action="store_true", help="verify the committed pin against the artifact")
+    ap.add_argument("--note", default="", help="why this artifact (recorded in the pin)")
+    a = ap.parse_args(argv)
+    if a.pin:
+        pin = write_pin(a.pin, note=a.note)
+        print(f"pinned {pin['artifact']} sha256={pin['sha256']} -> {DEFAULT_PIN_PATH} (commit it to take effect)")
+        return 0
+    try:
+        art = pinned_n_effective_artifact()
+    except HonestNUnavailableError as exc:
+        print(f"PIN INVALID: {exc}")
+        return 3
+    print(f"PIN OK: {art.name} matches its pinned sha256")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
