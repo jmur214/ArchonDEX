@@ -362,3 +362,34 @@ the MBL finding a third pass (RR-3) agrees as well.
 | 4 | inventory + API | ~20 functions (~44 matching files), not 3; "stationary" wrong in 4/5; **no `[NN-SHARPE-CI]` violation found**; `scheme` required, migration pins then labels |
 | 5 | proposal text | — (director-verified) |
 | 6 | reported | pushing the two local-only branches |
+
+---
+
+## Addendum (2026-10-13): two record items from C's RE-SCORE work, added after the RR-7 merge
+
+These arrived on 09-30, after this document was reconciled. They were kept out of the reviewed text
+so that nothing unreviewed would ride in on Agent R's approval, and are added here by director
+ruling (option a). Proposal text only, like the rest; no code is edited.
+
+**7. `scripts/run_isolated.py:85-86`: the docstring says the opposite of what the code does.**
+It says the hashseed/BLAS re-exec is *"Called only from `__main__` so importing the module (e.g. from
+tests) does not trigger a re-exec."* In the code, the re-exec is the **first line of `main()`**
+(`:397`, `_reexec_if_hashseed_unset()`), and `__main__` (`:557`) only calls `main()`.
+- **Importing is safe.** Calling `main()` from anywhere replaces the process via `os.execv` (`:91`)
+  unless the hashseed and BLAS pins are already set.
+- **Any in-process patch is discarded.** The re-exec'd process loads the on-disk code.
+- **Consequence:** an in-process A/B harness that patches the controller and calls `main()` runs the
+  on-disk code in **both** arms and reports "no change". This nearly produced a false null in C's
+  RR-1 RE-SCORE.
+- **Proposed docstring:** "Called as the first line of `main()`. Importing the module is safe;
+  CALLING `main()` re-execs the process via `os.execv` unless `PYTHONHASHSEED=0` and the BLAS pins are
+  already set, which DISCARDS any in-process patch. Harnesses must set the env before calling, and
+  prove the arms differ."
+- The stronger remedy, a guard that **refuses** rather than warns, belongs to the RE-SCORE harness
+  owner, not to this record item.
+
+**8. Bootstrap iterations: 500 in the controller vs `[NN-SHARPE-CI]`'s 1,000.** This is **already
+recorded** as sub-item **(15)** on the alpha-frontier HIGH row in `docs/State/health_check.md` (owner
+RR-5, added with the RR-1 merge). `backtest_controller.py:1176,1180` pass `n_iterations=500`. It is
+noted here only so this document's list is complete; (15) is the record of it, and the code change
+is bundled with RR-5 after C's RE-SCORE.
