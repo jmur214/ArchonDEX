@@ -1293,8 +1293,10 @@ pins **before** python starts. A mismatch is refused (exit 3) and never re-exec'
 
 ```bash
 export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
-# §11.1 step 2 — the smoke (one year; measure wall time + peak RSS before the full run)
-/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2024-01 --end 2024-12 --out data/research/b1/smoke/
+# §11.1 step 2 — the smoke covers each window's FIRST twelve months, never an arbitrary year
+# (a mid-window year cannot see a warm-up; the 2024 smoke missed the SimFin edges' blank start)
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2000-12 --out data/research/b1/smoke_main/
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2021-07 --end 2022-06 --out data/research/b1/smoke_short/
 # §11.1 step 3 — the full panel (only on the director's word, with G3 passing outright)
 /usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2025-12 --out data/research/b1/
 python -m pytest tests/test_build_signal_panel_b1.py -q
