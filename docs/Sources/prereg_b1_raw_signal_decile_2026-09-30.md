@@ -4,7 +4,7 @@ title: Pre-registration — raw-signal decile re-evaluation of the foundry featu
 date: 2026-09-30
 worker: Agent A (prereg); the RUN is staffed separately (likely C after RR-1)
 branch: research/raw-signal-decile-b1
-status: DRAFT — awaiting director FREEZE before any run. Nothing has been run. N_trials per §9.
+status: FROZEN 2026-10-13 (director-acknowledged; rulings issued 2026-10-01) — NOTHING RUN. The run waits for the director's word (C's campaign 8/8). N_trials +4 at run.
 ---
 
 # B-1 — does the price vocabulary have anything, tested the way the literature tests it?
@@ -19,9 +19,13 @@ literature uses. B-1 does that.
 **H1 (brief, verbatim):** at least one non-calendar signal has BH-adjusted IC p < 0.05 **AND**
 25%-satellite Δ log wealth `ci_low > 0` on 2000–2025.
 
+**H1 AS RULED (2026-10-01, binding):** at least one non-calendar, cross-sectional signal has
+BH-adjusted IC p < 0.05 **AND** 25%-satellite Δ log wealth `ci_low > 0` against **BOTH** 100% SPY
+**and** the 25% equal-weight-universe sleeve (§3.7). Beating SPY alone does NOT meet H1.
+
 **Refutation (brief):** zero signals meet both ⇒ "exhausted price vocabulary" is confirmed on the
-construction the literature uses. **§3 narrows what that sentence can honestly claim** — read it
-before the freeze.
+construction the literature uses. **As ruled, that claim covers CROSS-SECTIONAL price signals only;
+macro timing is UNTESTED by B-1** (§3.1).
 
 B-1 runs in a **standalone harness** (the T-249 / T-311 / T-318 pattern), not through
 `BacktestController`, so it is not blocked on RR-1.
@@ -62,7 +66,9 @@ variance. The brief's "≈45-signal" family does not exist as specified.
   time-series construction (predict next-month market return), which the brief does not specify.
   **Consequence stated now so it cannot be forgotten later: B-1's refutation covers
   cross-sectional price signals only. Macro timing is untested by B-1.**
-  *Director decision:* add a macro-timing family here (+1 N_trial) or leave it to its own brief.
+  **RULED 2026-10-01: LEFT OUT — its own brief later.** A timing construction invented inside B-1
+  would muddy the decisive test. The sentence above stands verbatim and is carried into
+  CURRENT_STATE, so B-1's H0 cannot quietly regrow to cover macro timing.
   Four of the eleven (`anfci_z_60d`, `hy_oas_change_20d`, `hyg_lqd_spread`, `cot_commercial_net_long`)
   have no local data today and would HALT any panel regardless.
 
@@ -137,8 +143,14 @@ one — carries the equal-weight premium over SPY, so "Δ log wealth vs 100% SPY
 the EW tilt. **Proposed diagnostic (does not change H1):** also report Δ log wealth of the same
 25% satellite against a 25% **equal-weight-universe** sleeve (all eligible names, same rebalance).
 A signal that clears against SPY but not against the EW universe is labeled **"EW tilt, not
-signal"**. *Director decision:* keep H1's wealth leg against SPY as briefed, or require it to clear
-both.
+signal"**. **RULED 2026-10-01: the wealth leg must clear BOTH** — against SPY and against the
+EW-universe sleeve. A signal that beats SPY only is "EW tilt, not signal" and does **NOT** meet H1:
+the EW premium is purchasable (RSP) at zero research cost, and the hypothesis is about the signal.
+
+*A consequence worth stating (not part of the ruling):* both legs of the EW-relative comparison draw
+from the **same** survivor-biased universe, so it largely differences out survivorship's LEVEL bias
+(§3.6). It does not remove the part where the signal itself predicts survival (momentum winners and
+low-vol names are likelier to survive), so §3.6's asymmetric reading still binds.
 
 ## 4. Signal inventory — declared signs on the RAW computed value
 
@@ -212,8 +224,8 @@ regression dependence (Benjamini-Yekutieli 2001), so plain BH is valid here.
 
 | Outcome | What it means | What it does NOT mean |
 |---|---|---|
-| **H1 met** by a non-calendar signal | Cleared **on a survivor-biased substrate** (§3.6). Goes to survivorship-complete re-verification and RR-6 Gate 1′. | Not evidence yet. Not deployable. |
-| **H1 met, but not against the EW universe** (§3.7) | "EW tilt, not signal." Reported as such. | Not a signal discovery. |
+| **H1 met** (vs BOTH benchmarks) by a non-calendar signal | Cleared **on a survivor-biased substrate** (§3.6). Goes to survivorship-complete re-verification and RR-6 Gate 1′. | Not evidence yet. Not deployable. |
+| **Clears vs SPY but NOT vs the EW universe** (§3.7) | "EW tilt, not signal." **Does NOT meet H1** (ruling 2). Reported as such. | Not a signal discovery. |
 | **IC clears BH, wealth leg fails** | A real ranking signal that does not pay as a long-only satellite at this weight (the expected shape for low-risk signals — §8). | Not a refutation of the anomaly; not a deployable satellite. |
 | **Nothing meets H1** | **Refutation, scoped:** the cross-sectional price vocabulary, on the literature's construction, clears nothing even with survivorship bias helping it. Conservative, and it stands. | **Not** a verdict on macro timing (§3.1), fundamentals over a long window (§5.2), or calendar effects beyond §5.3. |
 | **A signal clears with the WRONG sign** | Reported as not clearing, with the opposite-sign statistic shown. | Never flipped (§2.1). |
@@ -244,24 +256,45 @@ beside the headline, never substituted for it.
 
 ## 9. Honest prior + N_trials
 
-- **P(H1 met on this substrate) ≈ 18%** — close to the brief's 20%; the upward survivorship bias
-  makes clearing *easier*.
+- **P(H1 met on this substrate) ≈ 18%** under the brief's SPY-only wealth leg — close to the
+  brief's 20%; the upward survivorship bias makes clearing *easier*.
+- **Under H1 AS RULED (both benchmarks): ≈ 12%.** Restated before any data, because the
+  hypothesis changed, not because anything was seen. The extra requirement mostly removes cases
+  that were the EW tilt rather than the signal, so the probability of a *real* finding is unchanged.
 - **P(an H1 survivor holds on survivorship-complete data) ≈ 45%**, so **≈ 8% that B-1 finds
   something real** — consistent with the brief's 8% for a non-momentum survivor.
 - **N_trials:** the brief counts **+2** (Arm L family; Arm LS family). Honest-N counts every
   separately reported family whose best member could be quoted: **+4** (main L, main LS, short-
-  window, calendar), **+5** if the director adds macro timing (§3.1). *Director decision at freeze.*
+  window, calendar). **RULED 2026-10-01: +4** — count what could be quoted. (Macro timing is out,
+  so the +5 case does not arise.)
 
 ## 10. Scope exclusions (stated so they cannot creep in)
-- No macro-timing construction unless added at freeze (§3.1).
+- No macro-timing construction (ruled out 2026-10-01; its own brief later).
 - No machine-learned combination of signals (that is B-4's frozen-GBM brief).
 - No quintile/tercile or weighting-scheme variants; no window other than §7's two.
 - No re-selection of signals, signs or windows after the run.
 - No deployment, and no long-short anything in a Roth.
 
 ## 11. Sequence
-Draft → **director FREEZE (rules on §3.1, §3.4, §3.5, §3.7, §9)** → run (staffed separately) →
-results + verdict appended here, predictions in §8 compared line by line → outbox.
+Draft (09-30) → rulings (10-01) → **FROZEN 2026-10-13** → **WAIT for the director's word** (C's
+RE-SCORE campaign reports 8/8; one heavy job at a time on the 8 GB host) → panel build → run
+(standalone harness, never through `BacktestController`) → results + verdict appended here,
+predictions in §8 compared line by line → outbox.
+
+## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
+Frozen as amended. The load-bearing terms, quoted so they cannot drift:
+1. **Macro timing is OUT.** B-1's refutation covers **cross-sectional price signals only**; macro
+   timing is **UNTESTED by B-1** and gets its own brief.
+2. **The wealth leg must clear BOTH** 100% SPY **and** the EW-universe sleeve. Beating SPY alone is
+   "EW tilt, not signal" and does not meet H1.
+3. **N_trials +4** at run (main L, main LS, short-window, calendar).
+4. **Survivorship (§3.6), endorsed as written:** a null STANDS; a survivor is NOT evidence until
+   re-verified on survivorship-complete data — and a survivor becomes the concrete case for
+   re-asking the free-data ruling.
+5. §3.2–§3.5 stand **as drafted** (classify by measured variance; `pair_zscore_60d` excluded; a
+   zero-variance month counts as unusable like NaN, for all three spellings of missing; one BH
+   member per duplicated hypothesis, foundry canonical). The signs (§4) and predictions (§8) are
+   unchanged from the 09-30 draft; nothing has been run.
 
 ## Reproduce the pre-run findings
 ```bash
