@@ -34,10 +34,19 @@ After this change:
   cloud image ships its own copy, so cloud runs are unaffected.
 - **The live cloud paper fleet is not affected.** `scripts/run_paper_cloud_day.py`, `paper_trader/` and
   `live_trader/` never write edges.yml, and a lock proves that none of them imports an edge module.
-- **Your decision before the first sync: three edges have never been in the registry.** Their modules
-  (`betting_against_beta_v1`, `overnight_intraday_v1`, `volatility_risk_premium_v1`, from the T-122/T-123
-  experiments) declare themselves "candidate". The first sync would add them, and Discovery would then queue 23
-  candidates instead of 20. **Archive or register?** The director recommends archiving.
+- **Your decision before the first sync: three edges have never been in the registry.** Their modules declare
+  themselves "candidate". The first sync would add them, and Discovery would then queue 23 candidates instead of
+  20. **Archive or register?** Recommended: archive. The ledger already closed all three experiments as REFUTED
+  (`docs/State/TASK_LEDGER.md`):
+  - `volatility_risk_premium_v1` — T-122: factor-α −0.21%, t −0.36. T-174: "fails the pre-registered ci_low>0
+    gate in every overlay form".
+  - `betting_against_beta_v1` — T-123: factor-α −0.77%, "statistically ZERO", first logged "MISS but
+    INCONCLUSIVE". T-129, the 26-year re-test: "REFERENDUM CONFIRMED THE MISS".
+  - `overnight_intraday_v1` — T-135: "FIRST strict-gate α ever measured — and unharvestable". T-157's re-price
+    kept the harvest verdict at NO.
+
+  Registering them would queue three refuted experiments under a status their own ledger rows closed four
+  months ago.
 
 ## The defect, verified on the code
 
@@ -226,7 +235,7 @@ main, and the no-promotion constraint is lifted for the local path. Two steps re
 1. **The USER's go-ahead** on this three-engine design;
 2. **The USER's decision** on the three never-registered edges (archive or register), which must come before the
    first sync against the real file.
-   R found all three REFUTED in the ledger (T-122/T-174, T-123/T-129, T-135), which makes archiving the honest
-   default.
+   All three are REFUTED in the ledger (VRP: T-122, T-174; BAB: T-123, T-129; overnight/intraday: T-135, harvest
+   NO upheld by T-157), which makes archiving the honest default.
 
 The build is then propose-first, with R reviewing and the director merging.
