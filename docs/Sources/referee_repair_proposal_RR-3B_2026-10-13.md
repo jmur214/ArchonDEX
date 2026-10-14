@@ -147,10 +147,43 @@ CIs, not DSR-gated, and their scripts touch nothing Option B changes. Option B c
 7. Tests driving the real entrypoints and proven by reversion — in particular, a mismatched population must
    **raise**, and an artifact disappearing must **not** lower N.
 
-## 8. The data pass — why the numbers are pending
-It needs the S3 snapshots and summaries (~666 MB; the 09-30 mirror did not survive the full-disk week) and a pass
-over ~1,300 runs. Tonight the Mac is running C's RR-1 cells on 8 GB, so it waits for a quiet night. Nothing in §2–§7
-depends on the numbers; §3 and §4 are written before them on purpose.
+## 8. The data pass — specification, PRE-REGISTERED 2026-10-13 before the pull
+
+Authorised by the director the same evening (one minute of wall time under 1 GB does not compete with C's
+single-threaded cell). Written and committed **before** a byte is pulled.
+
+**Conditions.** `nice -n 19`; the single-thread pins C's cells use (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS` = 1; `OMP_DYNAMIC=FALSE`); free disk checked before the pull, **abort below 8 GB** (12 GB at
+spec time). Peak RSS, bytes pulled and wall time are recorded in §0 beside the numbers.
+
+**Where it goes.**
+- Mirror: `data/observability/rr3b_s3_mirror_2026-10-13/` — gitignored, durable, deliberately **not** `/tmp`
+  (macOS purges it after three days; that is how the 09-30 mirror and C's logs vanished), and **not** under
+  `data/trade_logs/` (the run scan would count the mirror as local runs).
+- Output: `data/observability/rr3b_population_2026-10-13.json`. **Deliberately NOT named `n_effective_*.json`.**
+  `mbl_gate.latest_n_effective_artifact()` selects the NEWEST file matching that pattern, so writing one would
+  silently make tonight's measurement the live gate input on `main` — an unreviewed referee change. That is also a
+  finding (§9).
+
+**What it measures.**
+1. The executed universe today: discovered / valid / distinct `trial_key`s, split by S3 vs local and by S3 campaign.
+2. The current registry's 125 run rows: how many have evidence anywhere now (expected 0).
+3. **Ledger ↔ run overlap.** For each of the 26 ledger tasks, `k_ledger` (rows) against the distinct `trial_key`s in
+   S3 campaigns carrying that task's token (e.g. `foundry-t196` ↔ T-196's 35 rows). **Pre-stated rule:** where a
+   task appears in both, Option B counts **max(k_ledger, k_runs)** — never the sum (double counting) and never the
+   min (loosening by switching provenance).
+4. **Option B's N_raw**, assembled as: distinct executed `trial_key`s + the 125 absent-evidence rows + ledger rows
+   not covered by item 3 — reported **with and without** the T-306-substrate ledger rows (the §2D ruling question).
+5. ρ̄ and N_eff over the executed population, by `scripts/rr3_empirical_rho.run()`, with RR-3's conservative gate
+   inputs, written to the output above — compared with the 09-30 artifact.
+
+**Pre-data amendment to §2C/§3 (stated before the pull, and why).** Every run carrying a
+`portfolio_snapshots.csv` is a **harness** run — `run_isolated`/`BacktestController` writes that file; the research
+scripts behind the T-306-substrate verdicts do not. So executed runs form **one substrate family by construction**,
+not by inference, and this proposal does **not** propose a finer per-window split among them. §3's inference criteria
+therefore have nothing to bind on for executed runs; they remain in force for any future finer split. The substrate
+question reduces to the **26 ledger tasks**, which get the audit-cited table (§2D). This rests on where the files
+come from, not on any outcome — no N, ρ̄ or count from tonight's pull has been seen.
 
 ---
 **DESIGN DRAFT — propose-only, not pushed, not merged.** N_trials 0.
