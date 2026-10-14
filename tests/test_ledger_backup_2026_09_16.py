@@ -69,17 +69,27 @@ def test_a_reordering_is_not_mistaken_for_an_append():
 
 # ---- properties of the scheme ------------------------------------------------
 
-def test_the_nightly_path_can_never_pass_allow_rewrite():
-    """A scheduled job must be able to EXTEND history and never to overwrite it."""
+def test_the_nightly_path_can_never_pass_allow_rewrite(monkeypatch):
+    """A scheduled job must be able to EXTEND history and never to overwrite it.
+
+    Driven by EXECUTION (2026-10-13): the first form grepped `main()`'s source for the
+    call, so moving the call into `survival_syncs` broke a lock that had certified
+    only where the text sat. Now the nightly entry point is run against recording
+    stubs, and every survival push must arrive with allow_rewrite False."""
     import inspect
     from scripts import janitor_nightly as jn
-    src = inspect.getsource(jn.main)
-    assert "ledger_backup.sync(LEDGER, as_of=as_of)" in src
-    # Strip comments: the code EXPLAINS why it never allows a rewrite, and a naive
-    # grep flags the explanation as the offence. (Second time this bit me; the rule
-    # is check the CALL, never the prose.)
-    code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
-    assert "allow_rewrite" not in code
+    from scripts import ledger_backup as lb
+    seen = []
+
+    def rec(path, allow_rewrite=False, as_of=None):
+        seen.append(allow_rewrite)
+        return lb.PushVerdict(lb.OK_SAME, "stub")
+
+    monkeypatch.setattr(lb, "sync", rec)
+    monkeypatch.setattr(lb, "sync_observability", rec)
+    jn.survival_syncs("2026-10-13")
+    assert seen == [False, False], "every nightly survival push must forbid a rewrite"
+    assert "survival_syncs(as_of)" in inspect.getsource(jn.main), "main() must run the pushes"
 
 
 def test_a_DATED_key_is_written_alongside_the_canonical_one():
