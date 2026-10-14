@@ -136,6 +136,13 @@ asserts that the cycle **raises** and logs stage `substrate-B build (Gate 7)`.
 Consequence, accepted with the ruling: a failed cycle raises out of `run_backtest(discover=True)` before
 `performance_summary.json` is written for that run. RR-3's honest-N halt already behaves this way.
 
+**Superseded 2026-10-14 (director's ruling on R §4.3, in the edges.yml single-writer unit):** a failed Discovery
+cycle no longer raises BEFORE the summary. `run_backtest` holds the failure, writes `performance_summary.json`
+carrying `post_run_failure: {stage: "discovery", error_type, message}`, `assert_census` marks the run
+NON-CANONICAL on that field, and THEN it re-raises. This is the same hold-then-raise shape, and the same census
+rule, as an Engine-F registry-save failure. See `docs/Sources/edge_registry_single_writer_brief_2026-10-14.md`.
+Not yet built.
+
 **All 50 test files touching a changed module:** 681 passed / 1 skipped / 3 deselected / 11 xfailed / 0 failed.
 
 **Second fixup — the ruling on §5.6 (the regime step), same as (b).** The step swallowed every exception, and a
