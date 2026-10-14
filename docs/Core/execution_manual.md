@@ -1282,3 +1282,26 @@ unpinned — a rebuild after loss would have handed it a smaller N with no alarm
 reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; the referee module
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
+
+## B-1 raw-signal decile panel (added 2026-10-14)
+
+The month-end signal panel for the FROZEN B-1 pre-registration
+(`docs/Sources/prereg_b1_raw_signal_decile_2026-09-30.md` §11.1). A standalone harness: it never
+runs through `BacktestController`. Run it **from the worktree root**: the foundry reads
+`data/processed` relative to the cwd, and the script refuses (exit 5) anywhere else. Export the
+pins **before** python starts. A mismatch is refused (exit 3) and never re-exec'd.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+# §11.1 step 2 — the smoke (one year; measure wall time + peak RSS before the full run)
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2024-01 --end 2024-12 --out data/research/b1/smoke/
+# §11.1 step 3 — the full panel (only on the director's word, with G3 passing outright)
+/usr/bin/time -l python -m scripts.build_signal_panel_b1 --start 2000-01 --end 2025-12 --out data/research/b1/
+python -m pytest tests/test_build_signal_panel_b1.py -q
+```
+
+Writes `census_<md5>.json` always, and `signal_panel_<md5>.parquet` **only if the census
+passes**. Exit codes: 0 ok · 2 census HALT · 3 env pins wrong · 4 disk below 5 GB (checked
+before every write) · 5 cwd or code provenance outside this worktree. The harness
+(`scripts.raw_signal_decile_b1`, §11.1 step 4) is not built yet; its entry lands here when
+it is.
