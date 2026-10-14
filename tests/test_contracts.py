@@ -434,6 +434,12 @@ PRODUCER_SUMMARY_METRICS_EXTRA_KEYS: Set[str] = {"Trades"}
 KNOWN_DOWNSTREAM_AUGMENT_KEYS: Set[str] = {
     "timestamp",   # mode_controller.run_backtest:1097
     "run_id",      # tested separately (added by harnesses)
+    # Added to the same stats dict by BacktestController AFTER the cockpit/metrics
+    # summary: the block-bootstrap CI ([NN-SHARPE-CI], MetricsEngine) and the execution
+    # census ([NN-CENSUS], _build_census). Read back from performance_summary.json by
+    # scripts/rescore_rr1.py, the RR-1 RE-SCORE driver.
+    "bootstrap_distribution",  # backtester/backtest_controller.py:1182
+    "census",                  # backtester/backtest_controller.py:1197
 }
 
 
