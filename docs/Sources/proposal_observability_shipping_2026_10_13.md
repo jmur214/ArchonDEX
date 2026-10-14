@@ -4,6 +4,19 @@
 `Dockerfile.backtest`, `.dockerignore` and the manifest are untouched. **N_trials: 0.**
 **Asked by:** inbox 2026-10-08 ("propose the shipping path with the manifest work").
 
+## Rulings (director, 2026-10-13). These supersede §6's questions.
+
+1. **Mechanics: Option A.** Bake the files and pin them, in the same re-bake as the substrate re-pin
+   and the verifier-footer fix.
+2. **Manifest: a separate observability manifest.** Yes.
+3. **Which runs count toward N_raw: already ruled, by `[NN-MBL]`.** Honest N counts every distinct
+   configuration ever run on the same substrate, **cloud runs included**. So the 08-05 local-only
+   registry cannot ship. What ships is a registry rebuilt to that rule: **D's queued Option B**,
+   rebuilt from the executed universe, per substrate. The user is told this ruling and can override it.
+4. **Sequence:** C's cells finish, then D's Option B, then this bake. Until then cloud `--discover`
+   stays **halted, failing closed**. That costs nothing, because no promotion cycle may run before
+   RR-6.
+
 ## 1. The halt, verified on `main`
 
 - **The cycle resolves N first and fails closed** (`orchestration/mode_controller.py:1176-1183`).
@@ -67,7 +80,7 @@ exists to prevent. **The halt should be lifted by a dated, reviewed N, not by a 
 - **Not recommended.** It needs a referee code change: an override in `_run_discovery_cycle`, the very
   knob RR-3 removed. An operator-typed N is `max(1, len(batch))` in a new form.
 
-## 4. Prerequisite under any option: which runs count toward N_raw
+## 4. Prerequisite under any option: which runs count toward N_raw (RULED; see Rulings, item 3)
 
 This is RR-3 §3.1's open question, and it belongs to the user. One option is to rebuild the registry
 over a local mirror of the S3 results, so cloud runs count. The other is a ruling that the local-only
