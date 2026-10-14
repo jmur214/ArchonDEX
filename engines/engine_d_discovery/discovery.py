@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import random
 import yaml
 import pandas as pd
@@ -27,6 +28,12 @@ from engines.engine_d_discovery.gate1_signal_cache import (
 )
 from engines.engine_d_discovery.tree_scanner import DecisionTreeScanner
 from engines.engine_d_discovery.feature_engineering import FeatureEngineer
+
+
+class RegistryUnreadableError(RuntimeError):
+    """edges.yml exists but cannot be read as an edge registry. Discovery REFUSES — it never
+    rewrites a registry it could not read (that is how a parse failure wiped every edge)."""
+
 
 # T-2026-05-12-052 targeted seed list — one Gen-0 single-gene long
 # candidate per new regime-ensemble feature. Without this, the
@@ -724,41 +731,65 @@ class DiscoveryEngine:
 
         return gene
 
+    def _read_registry(self) -> Dict[str, Any]:
+        """The registry as a dict holding an `edges` list. An ABSENT file is an empty
+        registry; a file that EXISTS but is unparseable, empty, or not an edge registry
+        RAISES `RegistryUnreadableError` — it is never treated as empty.
+
+        Treating it as empty is how `save_candidates` used to wipe edges.yml: a read
+        failure fell back to `{"edges": []}` and the write-back then replaced every edge
+        in the sole edge-status authority with the handful of candidates being saved."""
+        if not self.registry_path.exists():
+            return {"edges": []}
+        try:
+            data = yaml.safe_load(self.registry_path.read_text())
+        except yaml.YAMLError as exc:
+            raise RegistryUnreadableError(
+                f"{self.registry_path} is not parseable YAML ({exc}); refusing — the file is untouched"
+            ) from exc
+        if isinstance(data, list):              # legacy format: a bare edge list at the root
+            data = {"edges": data}
+        if not isinstance(data, dict) or not isinstance(data.get("edges"), list):
+            raise RegistryUnreadableError(
+                f"{self.registry_path} exists but holds no edge registry "
+                f"(root {type(data).__name__}{'' if not isinstance(data, dict) else ', keys ' + str(sorted(data))}); "
+                f"refusing — the file is untouched")
+        return data
+
+    def _write_registry(self, registry: Dict[str, Any]) -> None:
+        """ATOMIC write: serialise first, write a sibling temp file, fsync, then rename over
+        edges.yml. The old `open("w")` truncated the registry BEFORE yaml.dump ran, so a dump
+        error or a crash mid-write left it empty or partial. A failed attempt leaves the temp
+        file in place as evidence and never touches edges.yml."""
+        text = yaml.dump(registry, sort_keys=False)
+        tmp = self.registry_path.with_name(f".{self.registry_path.name}.tmp-{os.getpid()}")
+        with tmp.open("w") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.registry_path)
+
     def get_queued_candidates(self, status: str = "candidate") -> List[Dict[str, Any]]:
         """
         Retrieve candidates from registry that are ready for validation.
+        An unreadable registry RAISES (it used to return [] — a cycle that silently
+        found "nothing queued").
         """
-        if not self.registry_path.exists():
-            return []
-            
-        try:
-            data = yaml.safe_load(self.registry_path.read_text())
-            edges = data.get("edges", [])
-            return [e for e in edges if e.get("status") == status]
-        except Exception as e:
-            print(f"[DISCOVERY] Error reading registry: {e}")
-            return []
+        return [e for e in self._read_registry()["edges"] if e.get("status") == status]
 
     def save_candidates(self, candidates: List[Dict[str, Any]]) -> None:
         """
         Append candidates to the active edges.yml (or a separate staging registry).
         For now, we append to edges.yml but with status='candidate'.
+
+        Fail-closed: refuses (RegistryUnreadableError) on a registry it cannot read, and
+        writes atomically — edges.yml is the sole edge-status authority.
         """
-        if not self.registry_path.exists():
-            existing = {"edges": []}
-        else:
-            try:
-                existing = yaml.safe_load(self.registry_path.read_text()) or {"edges": []}
-                # Handle legacy format where root might be missing or list
-                if isinstance(existing, list):
-                    existing = {"edges": existing}
-            except Exception as e:
-                print(f"[DISCOVERY] Error reading registry: {e}")
-                existing = {"edges": []}
+        existing = self._read_registry()
 
         # Deduplicate by ID
-        current_map = {e.get("edge_id"): e for e in existing.get("edges", [])}
-        
+        current_map = {e.get("edge_id"): e for e in existing["edges"]}
+
         new_count = 0
         update_count = 0
         for cand in candidates:
@@ -768,12 +799,10 @@ class DiscoveryEngine:
             else:
                 update_count += 1
             current_map[cid] = cand
-        
-        # Write back
-        final_list = list(current_map.values())
-        with self.registry_path.open("w") as f:
-            yaml.dump({"edges": final_list}, f, sort_keys=False)
-            
+
+        # Write back. Other top-level keys, if any, are kept (they used to be dropped).
+        self._write_registry({**existing, "edges": list(current_map.values())})
+
         print(f"[DISCOVERY] Registry saved. New: {new_count}, Updated: {update_count}. Path: {self.registry_path}")
 
     def _load_universe_b(
