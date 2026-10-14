@@ -78,12 +78,43 @@ def test_an_unreachable_network_DEFERS_rather_than_FAILS():
     assert PushVerdict(REFUSE, "x").ok is False
 
 
-def test_the_backup_retries_before_deferring():
-    import inspect
+class _OK:
+    returncode = 0
+    stdout = b""
+    stderr = b""
+
+
+def test_the_backup_retries_before_deferring(tmp_path, monkeypatch):
+    """Driven by EXECUTION (2026-10-13). The first form asserted that `sync()`'s SOURCE
+    contained 'NET_RETRIES' and 'time.sleep'; it broke when the retry loop moved into a
+    helper while the behaviour survived — a text lock certifies only that we said it.
+    Now the network is made to fail and the attempts, the backoff, and the verdict are
+    observed."""
     from scripts import ledger_backup as lb
-    src = inspect.getsource(lb.sync)
-    assert "NET_RETRIES" in src and "time.sleep" in src
     assert lb.NET_RETRIES >= 2
+    ledger = tmp_path / "autonomy_ledger.jsonl"
+    ledger.write_bytes(b'{"ts":"1"}\n')
+    reads, sleeps, pushes = [], [], []
+
+    def unreachable(key=lb.KEY_CANON):
+        reads.append(key)
+        return None, "unreachable: Could not connect to the endpoint URL"
+
+    monkeypatch.setattr(lb, "read_remote", unreachable)
+    monkeypatch.setattr(lb.time, "sleep", sleeps.append)
+    monkeypatch.setattr(lb, "_aws", lambda args, **kw: pushes.append(args) or _OK())
+
+    v = lb.sync(ledger, as_of="2026-10-14")
+    assert len(reads) == lb.NET_RETRIES, "every attempt must actually be made"
+    assert sleeps == [lb.NET_BACKOFF_S] * (lb.NET_RETRIES - 1), "backoff between attempts"
+    assert v.status == DEFERRED and v.ok, v.detail
+    assert "absent" not in v.detail and pushes == [], "unreachable is never treated as absent"
+
+    # The contrast: an ABSENT object is a fact, not a hiccup — no retries, first push.
+    reads.clear(); sleeps.clear()
+    monkeypatch.setattr(lb, "read_remote", lambda key=lb.KEY_CANON: (reads.append(key), (None, "absent"))[1])
+    v = lb.sync(ledger, as_of="2026-10-14")
+    assert len(reads) == 1 and sleeps == [] and v.status == lb.OK_FIRST and len(pushes) == 2
 
 
 def test_a_REAL_refusal_is_still_a_failure():
