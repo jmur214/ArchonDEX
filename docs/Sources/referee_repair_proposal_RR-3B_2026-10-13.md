@@ -5,7 +5,7 @@ date: 2026-10-13
 author: Agent D
 branch: proposal/rr3-option-b-registry (NOT pushed, NOT merged)
 type: REFEREE REPAIR PROPOSAL — DESIGN DRAFT. Propose-only; R reviews, then the director decides.
-status: DESIGN COMPLETE, NUMBERS PENDING. The data pass needs ~666 MB from S3 and a quiet Mac (see §8).
+status: DESIGN + NUMBERS IN (data pass run 2026-10-13 under §8's pre-registered spec). For R's review.
 n_trials: 0
 ---
 
@@ -23,6 +23,35 @@ design** (RR-3 proposal §5.2; R's F3). The merge chose Option A (keep the regis
 counts every configuration run on the substrate — **cloud runs included** — and today's registry can never contain
 one (§1.1). Shipping Option A's registry into the image would end the halt by feeding the cloud a count that
 structurally omits its own runs.
+
+### The numbers (data pass, 2026-10-13 — spec pre-registered in §8 at `17ec6db`, before the pull)
+
+**Cost, as the director required it recorded:** **682,393,600 bytes** pulled from S3 in 127 s (2,053 snapshot files,
+895 summaries) into `data/observability/rr3b_s3_mirror_2026-10-13/`; free disk 12 → 11 GB (floor 8, never
+approached). The pass ran `nice -n 19` with OMP/OPENBLAS/MKL = 1 and `OMP_DYNAMIC=FALSE`: **124 s wall, peak RSS
+172.5 MB** (`/usr/bin/time -l`). Outputs: `data/observability/rr3b_population_2026-10-13.json` and
+`rr3b_rho_2026-10-13.json` — neither named `n_effective_*`; the live gate still reads `n_effective_2026-09-30.json`
+(verified after the run, N_eff 36.92).
+
+| | |
+|---|---|
+| executed universe | **1,343** runs → **920** valid → **258** distinct trials (229 from S3, 30 local, 1 in both) across 42 campaigns; 09-30 was 1,322 / 912 / 252 — the growth is C's RR-1 cells |
+| the registry's 125 run rows | evidence found anywhere now: **0** (re-confirmed; R confirmed the same independently) |
+| ledger ↔ run overlap (rule pre-stated) | **none** — see §9.1 for why, which is not what the rule assumed |
+| ρ̄ | **0.6056** [0.574, 0.637] vs 0.6053 [0.571, 0.640] on 09-30 — unchanged to three decimals; **H1 still SUPPORTED** at every setting |
+| Option B N_raw | **489** if every ledger row is kept · **383** with no ledger-only rows (the §2D table decides between them) |
+
+**N_eff — and the one choice that moves it most (§9.2):**
+
+| treatment | N_eff | MinBTL @ SR=1 | SR_req 12y | SR_req 26y |
+|---|---|---|---|---|
+| Option A (merged), tonight's gate inputs | 33.2 | 4.47 y | 0.611 | 0.415 |
+| Option B, correlation credit applied to all 489 | 69.1 | 5.75 y | 0.692 | 0.470 |
+| **Option B, credit only where correlation is MEASURED** (258 curve-bearing → 36.5, + 231 curve-less at raw) | **267.5** | **8.18 y** | **0.825** | **0.561** |
+| same, without ledger-only rows | 161.5 | 7.26 y | 0.778 | 0.528 |
+
+**Option B TIGHTENS the gate on every treatment** — §4's direction is now known. Admitting the 229 cloud trials does
+it. The live Option A on main understates N by at least half, and by about 8× under the measured-credit treatment.
 
 ## 1. Why the sets are disjoint — the mechanism, verified 2026-10-13
 
@@ -185,5 +214,61 @@ therefore have nothing to bind on for executed runs; they remain in force for an
 question reduces to the **26 ledger tasks**, which get the audit-cited table (§2D). This rests on where the files
 come from, not on any outcome — no N, ρ̄ or count from tonight's pull has been seen.
 
+## 9. POST-DATA findings — labelled as such; none of them is a pre-registered result
+
+### 9.1 Discovery's own candidate trials leave no equity curve — so no curve-based registry can count them
+The pre-stated overlap rule found **zero** overlaps, including T-196, though S3 has a `foundry-t196/` prefix. The
+reason: `validate_candidate` backtests through `run_backtest_pure`, which uses *"an in-memory cockpit logger, no CSV
+files written."* A Discovery candidate's evaluation leaves a result record, never a `portfolio_snapshots.csv`.
+`foundry-t196/` holds exactly **35 `t195_foundry_eval.jsonl` files — one per candidate, matching the ledger's 35.**
+
+So **the trials Gate 0/8 exist to count are invisible to the current registry and to §2A's evidence scan alike.**
+They survive only as ledger rows, as result records like these, and in `data/research/discovery_log.jsonl` (local,
+dormant since June, T-356 gap #4). Two consequences for the design:
+- **§2A needs a fourth evidence class:** *candidate-evaluation records*. They count in N_raw, have no curve, and are
+  listed separately from the ρ̄ population, as ledger rows are. T-196's 35 rows are therefore **corroborated by 35
+  S3 records**, not a bare ledger claim — the §2D table must keep them in Discovery's N.
+- **Going forward, `validate_candidate` should persist each candidate's attribution stream.** It already holds it in
+  memory (Gate 1 computes it). That one write is what lets candidate trials enter the measured-correlation population
+  instead of sitting outside it permanently. It is a Discovery change, small, and belongs with the Option B build.
+
+### 9.2 Correlation credit must not be borrowed by trials outside the population it was measured on
+§0's table shows the choice that moves N_eff most. The merged RR-3 method — and the first table this pass printed —
+applies the measured compression to **all** of N_raw. But ρ̄ and the ONC compression are measured on the 258
+curve-bearing trials only. The other 231 (125 absent-evidence rows, 106 ledger rows) are outside that population.
+Crediting them with its correlation is **R's F3 again, in miniature**: an adjustment borrowed from a set that
+excludes them.
+
+- **The conservative treatment gives curve-less trials no credit:** N_eff = N_eff(curve-bearing) + N_raw(curve-less)
+  = 36.5 + 231 = **267.5**. That is conservative because combining groups additively is what independent groups would
+  give, and any correlation between or within them can only lower the true N_eff.
+- **The cost is real.** MinBTL at SR=1 goes from 4.47 years (Option A) to 8.18. The 26-year window then needs SR ≥
+  0.56 instead of 0.42.
+- **It is not mine to choose.** It is the largest single lever in honest N, and it is a ruling. The evidence that
+  would narrow it — the curve-less trials' own correlation — is **unmeasurable from what we keep** for legacy trials.
+  For future ones, §9.1's attribution-stream persistence removes the question.
+
+This point was found after the data, but it runs in the **tightening** direction. It cannot be fitting toward a pass.
+
+### 9.3 The live gate takes whichever `n_effective_*.json` is newest — on main, today
+`mbl_gate.latest_n_effective_artifact()` sorts by filename and takes the last. **Any re-run of
+`scripts/rr3_empirical_rho.py`, by anyone, silently replaces the live gate's input on main**, with no review. This
+pass avoided it only by deliberately not using that name (§8). Under Option B, §2E's hash lock catches a population
+change; under Option A, which is live, nothing does. **Recommend pinning now, independent of Option B** — for example
+a committed pointer naming the artifact and its sha256, which the gate verifies, failing closed on a mismatch. Small,
+referee-side, R's to review.
+
+### 9.4 The ONC compression is a noisy estimator
+Its conservative bound (ci_high) moved **0.160 → 0.141** between 09-30 and tonight, on 2.4% more trials. The
+equicorrelated estimate moved far less, and the conservative `max()` of the two is what absorbs that noise — today the
+two land within 3% of each other (36.5 vs ~35.5 for the 258). Worth knowing before anyone quotes an ONC number alone.
+
+### 9.5 §3's pre-registered criteria: applied, not binding
+Per the pre-data amendment in §8, executed runs form one substrate family by construction, so the >25% unresolved and
+>10% disagreement criteria had nothing to bind on. The substrate question now sits entirely in the 26-task ledger
+table (§2D) and in §9.1's candidate records.
+
 ---
-**DESIGN DRAFT — propose-only, not pushed, not merged.** N_trials 0.
+**PROPOSAL — propose-only, not pushed, not merged.** N_trials 0. Rulings needed: §2D (the ledger table), §9.2 (credit
+for curve-less trials), §9.3 (pin the live artifact). The build follows RR-6 unless R's read of these numbers changes
+that.
