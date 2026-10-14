@@ -1,0 +1,53 @@
+{
+ "cell": "anchor26",
+ "kind": "baseline",
+ "n_days": 6538,
+ "gate": [
+  {
+   "series": "before sharpe",
+   "recomputed": 0.6048278842096749,
+   "recorded": 0.6048278842096749,
+   "ok": true
+  },
+  {
+   "series": "after sharpe",
+   "recomputed": 0.842725364641441,
+   "recorded": 0.842725364641441,
+   "ok": true
+  },
+  {
+   "series": "before sortino",
+   "recomputed": 0.7964829262006942,
+   "recorded": 0.7964829262006942,
+   "ok": true
+  },
+  {
+   "series": "after sortino",
+   "recomputed": 1.138964118524009,
+   "recorded": 1.138964118524009,
+   "ok": true
+  }
+ ],
+ "deltas": {
+  "d_sharpe": {
+   "point": 0.23789748043176606,
+   "ci95": [
+    -0.05751205897517523,
+    0.5081429599207882
+   ],
+   "share_le_0": 0.061
+  },
+  "d_sortino": {
+   "point": 0.34248119232331475,
+   "ci95": [
+    -0.062169671278666426,
+    0.7225285407805419
+   ],
+   "share_le_0": 0.054
+  }
+ },
+ "sortino_note": null,
+ "method": "paired moving-block bootstrap, block 19, 1000 iter, seed 0, same block starts for every series",
+ "n_trials": 0,
+ "prereg": "PAIRED_TEST_PREREG.md"
+}

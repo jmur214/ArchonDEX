@@ -1,0 +1,10 @@
+[T195] data_map 109 tickers | window 2012-01-03..2024-12-31 (3270 bars) | signal_cache=OFF clean-governor
+[T195] sweeping 0 tier-A/B features
+
+[T195] === RESULT === 0 features | baseline NON-zero on 0/0 (harness-fix check: should be all) | 0 cleared the gauntlet+DSR
+[T195] died-at: {}
+[T195] N_trials (DSR): 0
+[T195] VERDICT: H0 — explored, nothing cleared (honest null)
+[T195] jsonl: /Users/jacksonmurphy/Dev/trading_machine-agent-c/docs/Measurements/2026-09/rr1_rescore/t196_triple_witching_before.jsonl
+[RESCORE] t196_triple_witching/before: FAILED — sharpe None ci_low None (0.1 min, 13.7 GB free) -> /Users/jacksonmurphy/Dev/trading_machine-agent-c/docs/Measurements/2026-09/rr1_rescore/t196_triple_witching_before.json
+exit=1

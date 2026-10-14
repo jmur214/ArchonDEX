@@ -7,7 +7,7 @@ branch: fix/referee-rr1-sizing-capital
 type: REFEREE REPAIR PROPOSAL — propose-only. The referee is never autonomously modified.
 route: Agent R (independent review) → director → the USER rules on merge.
 n_trials: 0 — a correction, not a hypothesis. Every re-run below is labeled RE-SCORE.
-status: §1-3, §5, §6 COMPLETE. §4 RE-SCORE RUNNING (local, launched 2026-09-30 19:55).
+status: MERGED (70837b2). §1-3, §5, §6 COMPLETE. §4 RE-SCORE — anchor pair COMPLETE (paired ΔSharpe +0.238, 95% CI [−0.058, +0.508] — direction favors the fix, not established); three T-196 feature pairs RUNNING (relaunched 2026-10-13). §4 is written on docs/rr1-section-4.
 ---
 
 # RR-1 — the backtester sized every position from a frozen capital figure
@@ -146,7 +146,55 @@ passing.
 
 ---
 
-## §4 — RE-SCORE — **RUNNING** (launched 2026-09-30 19:55, local, ~20h)
+## §4 — RE-SCORE — anchor pair **COMPLETE**; feature pairs **RUNNING**
+
+### Result — the 26-year anchor pair
+
+**The fix moves every number in the right direction, but the paired test does not establish the
+direction.** The two arms differ only by RR-1. Both are canonical, and both ran on
+code-identical commits (see *Provenance* below).
+
+| | before (bug) | after (fix) | Δ |
+|---|---|---|---|
+| Sharpe — point [CI] | 0.605 [0.245, 1.018] | 0.843 [0.437, 1.227] | +0.238 |
+| Sortino — point (ci_low) | 0.796 (0.321) | 1.139 (0.571) | +0.342 |
+| CAGR | 6.27% | 9.18% | +2.91pp |
+| Max drawdown | −45.73% | −33.83% | 11.90pp shallower |
+| days with negative cash | 9.3% | 7.2% | |
+| trades canon md5 | `92f6a52e…` | `f72672f4…` | arms differ |
+| census | CANONICAL † | CANONICAL † | |
+| bootstrap | block 19, n 500 ‡ | block 19, n 500 ‡ | |
+| run · commit · started | `4e963bf3` · `0f54716` · 09-30 19:55 | `0a36df9a` · `5c05b65` · 10-08 19:28 | |
+
+**The paired test** was pre-registered before it was computed
+(`docs/Measurements/2026-09/rr1_rescore/PAIRED_TEST_PREREG.md`, N_trials 0). It is a moving-block
+bootstrap with the **same** resampled block starts applied to both arms: block 19, 1,000
+iterations, seed 0. The two per-arm CIs overlap, and overlapping CIs say nothing about the
+difference; only a paired resample does. **Sanity gate first:** each arm's recomputed Sharpe
+and Sortino reproduce the recorded values to 6 decimals, so these are the controller's own
+series.
+
+| statistic | point | 95% CI | resamples with Δ ≤ 0 |
+|---|---|---|---|
+| ΔSharpe (after − before) | **+0.238** | **[−0.058, +0.508]** | 6.1% |
+| ΔSortino | +0.342 | [−0.062, +0.723] | 5.4% |
+
+**What this says.** On this book, over 26 years, the point estimates favor the fix on Sharpe,
+Sortino, CAGR and drawdown together. That agrees in sign with the 2021 fixture (§3) and runs
+**against** the brief's expectation that free leverage had flattered the numbers. Under
+`[NN-SHARPE-CI]` the direction is **not established**: both CIs include zero.
+
+**What it does not say.** It is one cell. It does not rehabilitate 0.751 or quote either arm
+as a headline (*On the anchor*). It does not convert any §5 verdict back from UNTESTED. And it
+does not explain the mechanism: why correct sizing raised a 26-year Sharpe was not decomposed
+here, and no cause is asserted.
+
+**Secondary check: the June cloud anchor.** The local before arm does **not** reproduce
+`158fe678` (0.751 / ci_low 0.382 / CAGR 7.3% / MDD −33% on 2026-06-14). As stated under *Why
+"before" is re-run*, this cannot separate substrate drift from a local-versus-cloud difference,
+and it does not affect the pair.
+
+Analysis: `scripts/rr1_paired_delta.py anchor` → `anchor26_paired_delta.json`.
 
 ### Acceptance evidence — read this before any 26-year number
 
@@ -188,14 +236,25 @@ full ×2 there was not affordable locally. That is stated here rather than impli
 
 | cell | harness | before (bug) point / ci_low | after (fix) point / ci_low | census | bootstrap n |
 |---|---|---|---|---|---|
-| 26-yr baseline (2000-01-01 → 2025-12-31) | `run_isolated` | *running* | *queued* | † | 500 ‡ |
-| T-196 `triple_witching` (2012 → 2024) | foundry harness | *queued* | *queued* | † | 500 ‡ |
-| T-196 `january` | foundry harness | *queued* | *queued* | † | 500 ‡ |
-| T-196 `mom_12_1` | foundry harness | *queued* | *queued* | † | 500 ‡ |
+| 26-yr baseline (2000-01-01 → 2025-12-31) | `run_isolated` | 0.605 / 0.245 | 0.843 / 0.437 | † CANONICAL | 500 ‡ |
+| T-196 `triple_witching_premium` (2012 → 2024) | foundry harness | *running* | *queued* | † | — |
+| T-196 `january_effect` | foundry harness | *queued* | *queued* | † | — |
+| T-196 `mom_12_1` | foundry harness | *queued* | *queued* | † | — |
 
-† **Each cell runs under `CENSUS_EXPECTED_DORMANT=news_sentiment_edge`, and its verdict reads
-"CANONICAL under CENSUS_EXPECTED_DORMANT=news_sentiment_edge" or "NON-CANONICAL under …" —
-taken from the harness's own exit code.** The condition travels with the number. It is the
+The feature ids are the registry's own. This table first named two of them `triple_witching`
+and `january`, which select **nothing**; see *The feature cells' first attempt* below. The cell
+labels (`t196_triple_witching`, `t196_january`) keep the short names so records stay findable.
+The foundry harness reports point Sharpes only, with no per-arm CI. Each feature pair gets the
+same pre-registered paired test as the anchor (Part 2 of the pre-registration).
+
+† **Each cell runs under `CENSUS_EXPECTED_DORMANT=news_sentiment_edge`.** For the baseline
+cell, the verdict reads "CANONICAL under CENSUS_EXPECTED_DORMANT=news_sentiment_edge" or
+"NON-CANONICAL under …", taken from `run_isolated`'s own exit code. **For feature cells, the
+exit code is not a verdict.** The foundry harness returns 0 unconditionally. What runs on that
+path is `validate_candidate`'s Gate-1 *candidate* census, whose failure raises and lands as a
+row error. A feature record therefore reads "candidate census PASSED (validate_candidate
+Gate-1 assert_census …)" only when every row is error-free; the full-book census does not run
+there. The condition travels with the number. It is the
 census's own documented per-run switch (`core/census.py:25,93`), used for these eight cells
 only: not a standing exemption and not an allowlist edit, and both arms carry it identically.
 
@@ -234,7 +293,53 @@ stops on any non-zero exit and refuses to start a cell below 5 GB free. A cell w
 1.9 MB per simulated year, so the campaign itself is no disk risk.
 
 Driver: `scripts/rescore_rr1.py` · campaign: `scripts/run_rr1_rescore_campaign.sh` · records:
-`docs/Measurements/2026-09/rr1_rescore/`.
+`docs/Measurements/2026-09/rr1_rescore/` · logs: `data/logs/rr1_rescore/` in C's worktree. The
+campaign was first logged under `/tmp/rr1_rescore_logs/`, which macOS purges after three days;
+that path is stale.
+
+### Provenance — who ran what, on which code
+
+The campaign ran in C's worktree (`trading_machine-agent-c`) throughout, but not always under C:
+
+| when | cell | run by | commit |
+|---|---|---|---|
+| 09-30 19:55 → 22:34 | anchor26 / before | C | `0f54716` |
+| 09-30 → 10-08 | *stopped* — the host disk filled (iOS Simulator runtimes); no agent window existed for the week | — | — |
+| 10-08 19:28 → 22:23 | anchor26 / after | the director, as caretaker of C's campaign | `5c05b65` |
+| 10-08 22:23 | t196_triple_witching / before — **FAILED**, 0 features | the director | `5c05b65` |
+| 10-13 20:02 | the same cell re-run — **FAILED** identically, log now persistent | the director | `5c05b65` |
+| 10-13 20:08 → | proof cell with corrected ids, then the rest | C | `5c05b65`, then `12708e9` |
+
+**One code state throughout.** `0f54716` and `5c05b65` differ from each other only in docs. The
+feature cells after the proof run on `12708e9` (branch `rr1/rescore-series-capture`, off
+`5c05b65`), whose diff is `scripts/rescore_rr1.py` alone: capture plus record-labelling (below).
+On `main`, that file arrives as `130f2fa`, a byte-identical cherry-pick.
+It is **proven inert by execution**: the captured re-run's scalar row must equal the uncaptured
+proof row bit for bit, or the campaign stops. The runs import C's tree, not `main`. The driver
+puts its own repo first on `sys.path`, and the shared venv has no editable install. RR-3's
+merged changes (`mbl_gate`, `discovery`, `mode_controller`) are deliberately **not** in these
+runs, so the eight cells share one code state.
+
+### The feature cells' first attempt — a manufactured null, refused
+
+The first feature cell asked the foundry harness for `triple_witching`. No registry feature
+has that id (`triple_witching_premium` does), and the harness's filter selects by exact id, so
+it swept **zero** features. It then printed `VERDICT: H0 — explored, nothing cleared (honest
+null)` and exited 0. **A confident null over nothing.** The driver refused it only because it
+required at least one harness row. The `CANONICAL` stamp on that record is itself a defect
+(§6.7). Both failed records and the 10-13 log are kept, unedited, as the example
+(`docs/Measurements/2026-09/rr1_rescore/failed_first_attempt/`).
+
+Two driver changes, made before any feature result existed (`12708e9`):
+
+- **Series capture.** The harness records only scalars. Its backtests run in memory and
+  leave no run directory. Without the daily series, the paired test cannot run. The driver now
+  wraps the gauntlet's first `treatment_effect_returns` call (`discovery.py:1377`), which is
+  exactly (with-candidate, baseline). It saves both to `<cell>_<arm>.series.csv` and returns the
+  original's result unchanged.
+- **A feature cell is `ok` only** with rows > 0, every row error-free, and a series captured.
+  The driver refuses to start if the cell's jsonl already exists, because the harness
+  *appends*, and a re-run would silently double the rows.
 
 ### Why "before" is re-run, not copied
 
@@ -390,6 +495,30 @@ See §4 ‡. Every ci_low the controller has produced — the 0.751 / 0.382 anch
 ### 6.5 The RE-SCORE's direction is genuinely open
 
 The fixture contradicts the brief's expectation (§3). Nothing here predicts the 26-year sign.
+
+**Update 2026-10-13 — still open at 95%.** The 26-year anchor's point estimate agrees with the
+fixture (ΔSharpe +0.238), but its paired 95% CI is [−0.058, +0.508] (§4). An early reading
+recorded the sign as simply "UP". That was a point-estimate claim, and it was withdrawn under
+`[NN-SHARPE-CI]`.
+
+### 6.6 The foundry harness fails open on an unknown feature id
+
+`scripts/run_foundry_eval_t195.py` filters the registry by `T195_FEATURES`. An id that matches
+nothing yields a zero-feature sweep, an "honest null" verdict and exit 0 (§4, *first attempt*).
+Any consumer that trusts the exit code or the verdict line reads a refutation that never ran.
+**Approved fix, after this campaign:** an unknown id exits 2, naming it; a zero-feature sweep
+exits 3; plus a test. It goes on its own branch off `main`, so the campaign keeps one code
+state. It is recorded as HIGH sub-item (18) on the alpha-frontier row, owned by C, with R
+reviewing before merge.
+
+### 6.7 The RE-SCORE driver labelled feature cells by an exit code that is always 0
+
+My defect, in my own driver. The record's census label came from the harness's exit code,
+which `run_isolated` sets meaningfully and the foundry harness never does. So a zero-row record
+read `CANONICAL`. Worse, `validate_candidate`'s candidate census raises on failure, and the
+harness catches every exception into `row["error"]`, so a census-failed candidate would also
+have read `ok` and `CANONICAL`. Fixed in `12708e9` before any feature result existed. The two
+FAILED records keep their wrong labels as archived examples; they are not corrected in place.
 
 ---
 

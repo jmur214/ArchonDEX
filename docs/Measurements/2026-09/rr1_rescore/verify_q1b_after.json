@@ -1,0 +1,26 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "verify_q1b",
+ "arm": "after",
+ "kind": "baseline",
+ "window": [
+  "2021-01-01",
+  "2021-03-31"
+ ],
+ "feature": null,
+ "branch_head": "3bcbfa8",
+ "getter": "cash (RR-1 fix)",
+ "started": "2026-09-30T19:48:17",
+ "disk_free_gb_start": 11.1,
+ "census_expected_dormant": "news_sentiment_edge",
+ "census_condition": "canonical under CENSUS_EXPECTED_DORMANT=news_sentiment_edge",
+ "status": "FAILED",
+ "rc": 2,
+ "new_run_dirs": [
+  "72e41bed-a83e-4971-90bc-64acc2b35ee0",
+  "eeda0f4c-c1b4-4423-8f60-3d923f15f4ce"
+ ],
+ "wall_min": 2.2,
+ "disk_free_gb_end": 10.9
+}
