@@ -1043,3 +1043,65 @@ a copy in prod is how the classes diverge. E caught it in the same pass
 as the ignition rather than letting a broken report-only watchdog run
 silently — and correctly declined a 4th live-schedule touch for a
 report-only fix at session depth.
+
+## 2026-10-13 — Verify a deploy by something the new code emits that the old code could not (T-363)
+
+The deploy record claims; the artifact proves. Account-1's `:38` bump shipped
+2026-09-29, and fourteen days later the question "did it actually fire on :38?"
+could not be answered from the deploy record at all: AWS Batch retains only
+about five job summaries, so the job list reached back to 10-07 and no further.
+The first firing was 09-30.
+
+Two candidate markers in the surviving 09-30 CloudWatch log were useless, and
+usefully so: the `LOT-RECORDER` line and the `MIRROR` line both appear in :38's
+output, but both had shipped in EARLIER revisions, so their presence was
+consistent with the old image. A marker only distinguishes if the previous
+version could not have produced it.
+
+What settled it was a field the new code writes and the old code does not.
+T-360 added the provider's real `stop_reason` to the agentic raw archive:
+
+    agentic_raw_2026-09-29.json   stop_reason key ABSENT      (ran on :37)
+    agentic_raw_2026-09-30.json   stop_reason = end_turn      (ran on :38)
+
+That is attribution rather than inference, and it survives log retention,
+because it lives in the durable artifact instead of the ephemeral job record.
+The practice: when shipping a change, notice whether it writes anything the
+previous build could not — and if it does not, consider adding one deliberate
+marker, because the alternative is attributing a deploy from a record that ages
+out in a week. The same read closed a separate question from the full-disk
+week: 10-01 and 10-02 have no log streams but DO have raw archives, so the
+fleet ran those days and the missing streams are retention, not missed firings.
+
+The fix being verified worked: truncation went 3-of-7 to 0-of-10 and note
+coverage 25% to 80%, with post-fix responses reaching 6227 characters where the
+old cap had cut everything near 5000. The pre-stated bar was >= 80% and the
+result was 80.0% — reported as 80.0%, at the boundary, rather than rounded into
+a win.
+
+## 2026-10-13 — I wrote a check that could not fail, three weeks after writing the memory about exactly that (T-363)
+
+That sentence is the lesson, and it is recorded in those words on purpose.
+
+On 09-29 the T-362 report stated that a failed session's note "parses cleanly
+and passes `validate_note` when I run it today", and filed the session
+UNEXPLAINED on that basis. The validation half was vacuous: `validate_note`
+returns a `(note, err)` tuple and never raises, so the `try/except` wrapped
+around it would have printed PASSES for any input whatsoever — including
+garbage. The replication also omitted the `provenance` and `usage` injection
+the production path performs before validating, so it was not reproducing the
+real path either. When both faults were corrected, the harness then rejected a
+session that HAD written a note, proving the reconstruction still unfaithful —
+so its output is not quoted either.
+
+The UNEXPLAINED verdict on 2026-09-21 STANDS; the stated reason for it is
+withdrawn. The likely class is the schema-validation failure later observed on
+10-05 and 10-09, but that session's log has aged out, so it remains a class and
+not a determination.
+
+The general rule, which is the sibling of "a documentation test certifies that
+we said it, never that it is true" (2026-09-17): BEFORE TRUSTING A LOCAL
+REPRODUCTION OF A PRODUCTION FAILURE, RUN IT AGAINST A KNOWN-BAD INPUT AND
+CONFIRM IT CAN FAIL. A harness that cannot fail is not evidence, and it is most
+dangerous when it agrees with you. Check the callee's contract too — a function
+that returns an error rather than raising turns a `try/except` into decoration.
