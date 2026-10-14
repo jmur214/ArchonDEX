@@ -1257,3 +1257,24 @@ python scripts/rr1_paired_delta.py feature --records docs/Measurements/2026-09/r
 Feature ids are checked against the registry, never typed from memory. An id that matches
 nothing makes the foundry harness sweep zero features and print an "honest null" with exit 0
 (RR-1 §6.6). List the ids with `get_feature_registry().list_features()`.
+
+## Honest N — the gate's inputs (RR-3, added 2026-10-13)
+
+Discovery Gate 0/8 read two inputs, both FAIL CLOSED and both **PINNED** by the committed pointer
+`config/honest_n_pin.json` (file name + sha256 for each): the run registry (`data/observability/run_registry.sqlite`)
+and the ρ̄ artifact (`data/observability/n_effective_<date>.json`).
+
+```bash
+python -m scripts.honest_n_pin --verify                    # PIN OK / PIN INVALID (exit 3) — do BOTH files match the pin?
+python -m scripts.rr3_empirical_rho --s3-mirror <dir>      # measure ρ̄ / ONC over S3 + local runs -> data/observability/n_effective_<today>.json
+python -m scripts.rr3b_population_pass --s3-mirror <dir>   # Option B population numbers -> data/observability/rr3b_population_<today>.json (never n_effective_*)
+python -m scripts.honest_n_pin --pin n_effective_<date>.json --note "why" --replace   # re-pin BOTH files; refuses without --replace if a pin exists; takes effect only when COMMITTED
+```
+
+**Neither a re-run of `rr3_empirical_rho` nor a registry rebuild or backfill changes the gate.** A new artifact is
+ignored until pinned; a registry whose bytes changed (rebuilt, backfilled, recreated after loss) makes the gate
+REFUSE until re-pinned. Before 2026-10-13 the gate took the newest artifact by filename and read the registry
+unpinned — a rebuild after loss would have handed it a smaller N with no alarm. Changing either input = `--pin` + a
+reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; the referee module
+`core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
+bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.

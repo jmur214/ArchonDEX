@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -54,6 +55,9 @@ from core.metrics_engine import _EULER_GAMMA
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data/observability/run_registry.sqlite"
 DEFAULT_ARTIFACT_DIR = DEFAULT_DB_PATH.parent
+# RR-3 §9.3 (2026-10-13): BOTH honest-N inputs — the ρ̄ artifact and the run registry — are
+# PINNED by one committed pointer carrying each file's sha256.
+DEFAULT_PIN_PATH = Path(__file__).resolve().parents[2] / "config/honest_n_pin.json"
 
 # A correlation estimate may shrink N, never erase the correction (see module docstring).
 N_EFF_FLOOR = 2.0
@@ -154,7 +158,9 @@ def compute_n_effective(
             f"run registry absent at {db_path} — honest N cannot be established. "
             f"Pass an explicit trial count or supply the registry; never proceed at N=1.")
     import sqlite3
-    conn = sqlite3.connect(db_path)
+    # Read-only (RR-3 §9.3): the registry's bytes are pinned, so the gate must never be
+    # able to change them — not even a journal side effect of a read-write connection.
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         try:
             if since_iso:
@@ -173,19 +179,89 @@ def compute_n_effective(
     return n
 
 
-def latest_n_effective_artifact(artifact_dir: Optional[Path] = None) -> Path:
-    """The newest `n_effective_<YYYY-MM-DD>.json`. Raises if none exists."""
-    artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
-    found = sorted(artifact_dir.glob("n_effective_*.json"))
-    if not found:
+def sha256_file(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_pin(pin_path: Optional[Path] = None) -> Dict:
+    """Read and validate the committed honest-N pin. FAILS CLOSED on absence or malformation."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    try:
+        pin = json.loads(pin_path.read_text())
+        for key in ("artifact", "registry"):
+            entry = pin[key]
+            if not (isinstance(entry, dict) and isinstance(entry["file"], str)
+                    and re.fullmatch(r"[0-9a-f]{64}", str(entry["sha256"]).lower())):
+                raise ValueError(f"{key!r} needs a file name and a 64-hex sha256")
+            if "/" in entry["file"] or "\\" in entry["file"]:
+                raise HonestNUnavailableError(
+                    f"honest-N pin {pin_path} names a path for {key!r}, not a file name: {entry['file']!r}")
+    except HonestNUnavailableError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         raise HonestNUnavailableError(
-            f"no n_effective_*.json in {artifact_dir} — run `python -m scripts.rr3_empirical_rho` "
-            f"to measure trial correlation before gating on it.")
-    return found[-1]
+            f"honest-N pin {pin_path} absent or malformed ({exc}) — the gate will not guess which "
+            f"inputs to trust") from exc
+    return pin
 
 
-def load_n_effective_artifact(path: Optional[Path] = None, artifact_dir: Optional[Path] = None) -> Dict:
-    p = Path(path) if path else latest_n_effective_artifact(artifact_dir)
+def _verify_pinned(path: Path, entry: Dict, what: str, pin_path: Path) -> Path:
+    if path.name != entry["file"]:
+        raise HonestNUnavailableError(
+            f"the gate was given {what} {path.name!r} but the pin names {entry['file']!r} ({pin_path})")
+    if not path.exists():
+        raise HonestNUnavailableError(f"pinned {what} {path} is absent (pin: {pin_path}). Ship it, or re-pin by commit.")
+    got, want = sha256_file(path), str(entry["sha256"]).lower()
+    if got != want:
+        raise HonestNUnavailableError(
+            f"pinned {what} {path} does not match its pin: sha256 {got[:12]}… ≠ pinned {want[:12]}…. "
+            f"It changed after it was pinned; re-pin by commit, after review.")
+    return path
+
+
+def pinned_n_effective_artifact(
+    pin_path: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
+) -> Path:
+    """The ρ̄ artifact the gate is PINNED to, hash-verified. FAILS CLOSED.
+
+    RR-3 §9.3. This replaced `latest_n_effective_artifact()`, which took the NEWEST
+    `n_effective_*.json` by filename — so any re-run of `scripts/rr3_empirical_rho.py`, by anyone,
+    silently replaced the live gate's input with no review. The 2026-10-13 Option B pass avoided
+    that only by choosing a different output name; a filename convention is not a control."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    artifact_dir = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
+    entry = load_pin(pin_path)["artifact"]
+    return _verify_pinned(artifact_dir / entry["file"], entry, "n_effective artifact", pin_path)
+
+
+def verify_pinned_registry(db_path: Optional[Path] = None, pin_path: Optional[Path] = None) -> Path:
+    """The run registry the gate is PINNED to, hash-verified. FAILS CLOSED.
+
+    R's addition to §9.3: pinning the registry as well closes T-356b's rebuild-after-loss case.
+    `rebuild()` upserts from whatever sits in local `data/trade_logs/` on the day, and the 125 run
+    rows' directories exist nowhere, so a registry rebuilt after loss would hand the gate a SMALLER
+    N without complaint. With the registry pinned, any rebuild, backfill or recreation changes its
+    bytes and the gate refuses until someone re-pins by a reviewed commit."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
+    return _verify_pinned(db_path, load_pin(pin_path)["registry"], "run registry", pin_path)
+
+
+def load_n_effective_artifact(
+    path: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
+) -> Dict:
+    """Load and validate a ρ̄ artifact. With no explicit `path` — every production call — it is
+    the PINNED artifact, hash-verified. An explicit `path` is a deliberate choice by the caller
+    (tools, tests), the way an explicit `n_trials_for_dsr` is."""
+    p = Path(path) if path else pinned_n_effective_artifact(pin_path, artifact_dir)
     try:
         art = json.loads(p.read_text())
     except (OSError, ValueError) as exc:
@@ -205,8 +281,10 @@ def compute_n_effective_correlated(
     method: str = "conservative",
     artifact_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
 ) -> float:
-    """Correlation-aware N_eff. FAILS CLOSED (registry OR artifact missing → raise).
+    """Correlation-aware N_eff. FAILS CLOSED (registry, pin, or pinned artifact missing or
+    mismatched → raise).
 
     method="conservative" (default): the LARGER of the two below. On the 2026-09-30
                        measurement the estimators disagree (equicorrelated ~33, ONC ~21
@@ -229,8 +307,13 @@ def compute_n_effective_correlated(
     choice of N_raw's population is flagged there for the user, not settled here."""
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
+    if artifact_path is None:
+        # Production path: BOTH inputs must match the committed pin, the registry checked before
+        # it is read. An explicit artifact_path (tools, tests) is a deliberate caller choice and
+        # bypasses the pin entirely, the way an explicit n_trials_for_dsr does.
+        verify_pinned_registry(db_path, pin_path)
     n_raw = compute_n_effective(db_path)
-    gi = load_n_effective_artifact(artifact_path, artifact_dir)["gate_inputs"]
+    gi = load_n_effective_artifact(artifact_path, artifact_dir, pin_path)["gate_inputs"]
     eq = n_eff_equicorrelated(n_raw, float(gi["rho_bar"]))
     onc = max(N_EFF_FLOOR, min(float(n_raw), n_raw * float(gi["onc_compression"])))
     if method == "equicorr":
@@ -244,6 +327,7 @@ def resolve_cycle_n_trials(
     batch_len: int,
     db_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
 ) -> Dict:
     """The trial count a Discovery cycle gates Gate 0 and Gate 8 on. FAILS CLOSED.
 
@@ -252,7 +336,7 @@ def resolve_cycle_n_trials(
     batch size under-counted by every prior cycle — and when the batch held one
     candidate, it disabled Gate 8 outright. `batch_len` is carried for the log only,
     so the pre-RR-3 figure stays visible beside the one now used."""
-    n = compute_n_effective_correlated(db_path, artifact_dir=artifact_dir)
+    n = compute_n_effective_correlated(db_path, artifact_dir=artifact_dir, pin_path=pin_path)
     return {"n_trials": n, "source": "registry_correlated", "batch_len": int(batch_len)}
 
 

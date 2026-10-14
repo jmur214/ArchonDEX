@@ -1180,7 +1180,7 @@ class ModeController:
             from core.measurement.mbl_gate import resolve_cycle_n_trials
             _obs = self.root / "data" / "observability"
             _n_info = resolve_cycle_n_trials(
-                0, db_path=_obs / "run_registry.sqlite", artifact_dir=_obs)
+                0, db_path=_obs / "run_registry.sqlite", artifact_dir=_obs, pin_path=self.root / "config" / "honest_n_pin.json")
 
             from engines.engine_d_discovery.discovery import DiscoveryEngine
             from engines.engine_d_discovery.discovery_logger import DiscoveryLogger
