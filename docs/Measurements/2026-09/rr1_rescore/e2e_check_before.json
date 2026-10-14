@@ -1,0 +1,42 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "e2e_check",
+ "arm": "before",
+ "kind": "baseline",
+ "window": [
+  "2021-01-01",
+  "2021-03-31"
+ ],
+ "feature": null,
+ "branch_head": "3bcbfa8",
+ "getter": "seed capital (main semantics, proven \u2261 main golden)",
+ "started": "2026-09-30T19:51:46",
+ "disk_free_gb_start": 10.8,
+ "census_expected_dormant": "news_sentiment_edge",
+ "census_condition": "canonical under CENSUS_EXPECTED_DORMANT=news_sentiment_edge",
+ "status": "ok-NONCANONICAL",
+ "rc": 2,
+ "run_id": "d7aca166-3767-4cda-9393-1a6f5611360b",
+ "partial_run_dirs": [
+  "57cc8215-1a55-4c97-90db-08aef0c8d298"
+ ],
+ "census_canonical": null,
+ "census_edges_blind": [
+  "accruals_inv_asset_growth_v1",
+  "news_sentiment_edge",
+  "value_earnings_yield_v1"
+ ],
+ "trades_canon_md5": "8df3706667cd7570b2537a27a0d26eac",
+ "sharpe": 0.6455973696822709,
+ "sharpe_ci_low": -2.6317592790804545,
+ "sharpe_ci_high": 2.927199735890675,
+ "sortino": 1.1426701369452252,
+ "sortino_ci_low": -4.141722843140424,
+ "block_length": 5,
+ "n_iterations": 500,
+ "cagr_pct": 15.42,
+ "mdd_pct": -9.22,
+ "wall_min": 2.2,
+ "disk_free_gb_end": 11.0
+}

@@ -1,0 +1,49 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "t196_mom_12_1",
+ "arm": "before",
+ "kind": "feature",
+ "window": null,
+ "feature": "mom_12_1",
+ "branch_head": "12708e9",
+ "getter": "seed capital (main semantics, proven \u2261 main golden)",
+ "started": "2026-10-14T08:12:36",
+ "disk_free_gb_start": 12.8,
+ "census_expected_dormant": "news_sentiment_edge",
+ "status": "ok",
+ "rc": 0,
+ "why": null,
+ "harness_rows": [
+  {
+   "feature": "mom_12_1",
+   "ticker_independent": false,
+   "passed_all_gates": false,
+   "first_failed_gate": "gate_1",
+   "baseline_sharpe": 1.244261969332206,
+   "with_candidate_sharpe": 0.8774254486373473,
+   "contribution_sharpe": -0.3668365206948586,
+   "attribution_sharpe": -0.19805330624290857,
+   "robustness_survival": 0.0,
+   "significance_p": 1.0,
+   "gates": {
+    "g1": false,
+    "g2": false,
+    "g3": null,
+    "g4": false,
+    "g5": false,
+    "g6": false,
+    "g7": true,
+    "g8": true
+   },
+   "wall_s": 7850.5,
+   "error": null
+  }
+ ],
+ "series_file": "t196_mom_12_1_before.series.csv",
+ "series_capture": "treatment_effect_returns call #1 (with_candidate, baseline)",
+ "wall_min": 130.9,
+ "disk_free_gb_end": 12.7,
+ "census_canonical": true,
+ "census_condition": "candidate census PASSED (validate_candidate Gate-1 assert_census; the full-book census does not run on this path) under CENSUS_EXPECTED_DORMANT=news_sentiment_edge"
+}

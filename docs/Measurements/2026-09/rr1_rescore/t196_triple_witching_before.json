@@ -1,0 +1,49 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "t196_triple_witching",
+ "arm": "before",
+ "kind": "feature",
+ "window": null,
+ "feature": "triple_witching_premium",
+ "branch_head": "12708e9",
+ "getter": "seed capital (main semantics, proven \u2261 main golden)",
+ "started": "2026-10-13T22:22:28",
+ "disk_free_gb_start": 11.9,
+ "census_expected_dormant": "news_sentiment_edge",
+ "status": "ok",
+ "rc": 0,
+ "why": null,
+ "harness_rows": [
+  {
+   "feature": "triple_witching_premium",
+   "ticker_independent": true,
+   "passed_all_gates": false,
+   "first_failed_gate": "gate_1",
+   "baseline_sharpe": 1.244261969332206,
+   "with_candidate_sharpe": 1.3355262791498783,
+   "contribution_sharpe": 0.09126430981767242,
+   "attribution_sharpe": 0.12262641036250604,
+   "robustness_survival": 0.0,
+   "significance_p": 1.0,
+   "gates": {
+    "g1": false,
+    "g2": false,
+    "g3": null,
+    "g4": false,
+    "g5": false,
+    "g6": false,
+    "g7": true,
+    "g8": true
+   },
+   "wall_s": 7686.0,
+   "error": null
+  }
+ ],
+ "series_file": "t196_triple_witching_before.series.csv",
+ "series_capture": "treatment_effect_returns call #1 (with_candidate, baseline)",
+ "wall_min": 128.1,
+ "disk_free_gb_end": 11.7,
+ "census_canonical": true,
+ "census_condition": "candidate census PASSED (validate_candidate Gate-1 assert_census; the full-book census does not run on this path) under CENSUS_EXPECTED_DORMANT=news_sentiment_edge"
+}

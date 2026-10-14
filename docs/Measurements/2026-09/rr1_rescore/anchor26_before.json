@@ -1,0 +1,38 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "anchor26",
+ "arm": "before",
+ "kind": "baseline",
+ "window": [
+  "2000-01-01",
+  "2025-12-31"
+ ],
+ "feature": null,
+ "branch_head": "0f54716",
+ "getter": "seed capital (main semantics, proven \u2261 main golden)",
+ "started": "2026-09-30T19:55:22",
+ "disk_free_gb_start": 10.9,
+ "census_expected_dormant": "news_sentiment_edge",
+ "status": "ok",
+ "rc": 0,
+ "run_id": "4e963bf3-e236-4ce0-90f1-7cf88d72e162",
+ "partial_run_dirs": [
+  "ba31ccfb-9042-45bc-bce8-b0418cbe7973"
+ ],
+ "census_canonical": true,
+ "census_edges_blind_raw_pre_allowlist": [],
+ "trades_canon_md5": "92f6a52e66e27a84d737db8eb09c24cb",
+ "sharpe": 0.6048278842096749,
+ "sharpe_ci_low": 0.2446338030510726,
+ "sharpe_ci_high": 1.017608148176321,
+ "sortino": 0.7964829262006942,
+ "sortino_ci_low": 0.3206375596399364,
+ "block_length": 19,
+ "n_iterations": 500,
+ "cagr_pct": 6.27,
+ "mdd_pct": -45.73,
+ "wall_min": 159.0,
+ "disk_free_gb_end": 8.9,
+ "census_condition": "CANONICAL under CENSUS_EXPECTED_DORMANT=news_sentiment_edge"
+}

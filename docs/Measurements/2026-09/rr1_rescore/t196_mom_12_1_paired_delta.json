@@ -1,0 +1,61 @@
+{
+ "cell": "t196_mom_12_1",
+ "kind": "feature",
+ "feature": "mom_12_1",
+ "n_days": 3269,
+ "gate": [
+  {
+   "series": "with_candidate_before",
+   "recomputed": 0.8774254486373411,
+   "recorded": 0.8774254486373473,
+   "ok": true
+  },
+  {
+   "series": "baseline_before",
+   "recomputed": 1.2442619693322,
+   "recorded": 1.244261969332206,
+   "ok": true
+  },
+  {
+   "series": "with_candidate_after",
+   "recomputed": 0.8562771867758887,
+   "recorded": 0.8562771867758954,
+   "ok": true
+  },
+  {
+   "series": "baseline_after",
+   "recomputed": 0.9207051379992146,
+   "recorded": 0.9207051379992217,
+   "ok": true
+  }
+ ],
+ "deltas": {
+  "d_with_candidate_sharpe": {
+   "point": -0.021148261861452355,
+   "ci95": [
+    -0.32087811791316484,
+    0.3011861244266914
+   ],
+   "share_le_0": 0.559
+  },
+  "d_baseline_sharpe": {
+   "point": -0.3235568313329853,
+   "ci95": [
+    -0.6962994015821954,
+    0.04413014891019558
+   ],
+   "share_le_0": 0.95
+  },
+  "d_contribution_sharpe": {
+   "point": 0.30240856947153294,
+   "ci95": [
+    -0.18240377470502298,
+    0.7921091376499185
+   ],
+   "share_le_0": 0.099
+  }
+ },
+ "method": "paired moving-block bootstrap, block 19, 1000 iter, seed 0, same block starts for every series",
+ "n_trials": 0,
+ "prereg": "PAIRED_TEST_PREREG.md"
+}

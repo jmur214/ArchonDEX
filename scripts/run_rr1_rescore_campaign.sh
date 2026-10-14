@@ -26,8 +26,8 @@ export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS
 # label | kind | extra args
 CELLS=(
   "anchor26|baseline|--start 2000-01-01 --end 2025-12-31"
-  "t196_triple_witching|feature|--feature triple_witching"
-  "t196_january|feature|--feature january"
+  "t196_triple_witching|feature|--feature triple_witching_premium"
+  "t196_january|feature|--feature january_effect"
   "t196_mom_12_1|feature|--feature mom_12_1"
 )
 

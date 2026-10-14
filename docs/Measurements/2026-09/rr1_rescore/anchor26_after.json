@@ -1,0 +1,38 @@
+{
+ "rescore": "RR-1",
+ "label": "RE-SCORE (not a new trial; N_trials 0)",
+ "cell": "anchor26",
+ "arm": "after",
+ "kind": "baseline",
+ "window": [
+  "2000-01-01",
+  "2025-12-31"
+ ],
+ "feature": null,
+ "branch_head": "5c05b65",
+ "getter": "cash (RR-1 fix)",
+ "started": "2026-10-08T19:28:53",
+ "disk_free_gb_start": 15.8,
+ "census_expected_dormant": "news_sentiment_edge",
+ "status": "ok",
+ "rc": 0,
+ "run_id": "0a36df9a-4286-4a39-83d8-50dda278e66b",
+ "partial_run_dirs": [
+  "9c49bd7c-b753-4fe6-8890-c9ba282bf2ac"
+ ],
+ "census_canonical": true,
+ "census_edges_blind_raw_pre_allowlist": [],
+ "trades_canon_md5": "f72672f42f7050221e035361205903be",
+ "sharpe": 0.842725364641441,
+ "sharpe_ci_low": 0.43738712811316743,
+ "sharpe_ci_high": 1.2269006024144054,
+ "sortino": 1.138964118524009,
+ "sortino_ci_low": 0.5707717800233406,
+ "block_length": 19,
+ "n_iterations": 500,
+ "cagr_pct": 9.18,
+ "mdd_pct": -33.83,
+ "wall_min": 174.7,
+ "disk_free_gb_end": 15.2,
+ "census_condition": "CANONICAL under CENSUS_EXPECTED_DORMANT=news_sentiment_edge"
+}

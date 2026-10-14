@@ -121,17 +121,56 @@ def _baseline(start: str, end: str) -> dict:
 def _feature(name: str, out: Path) -> dict:
     """The T-196 foundry harness on ONE feature. Its gate verdicts remain RR-2-affected
     on this branch (Gate 4 forced-false is not fixed here) — read the NUMBERS, not the
-    pass/fail."""
+    pass/fail.
+
+    SERIES CAPTURE. The harness records only scalars, and validate_candidate's backtests
+    run in memory — no run dir. The paired test needs the two daily series, so the FIRST
+    `treatment_effect_returns` call of the gauntlet (discovery.py: with_candidate vs
+    baseline) is wrapped: both inputs saved, the original's result returned unchanged.
+    validate_candidate imports the function at call time, so the module patch takes.
+    Inertness is proven by EXECUTION, not by this comment: a captured cell's scalar row
+    must equal an uncaptured run's bit-for-bit."""
+    import pandas as pd
+    import engines.engine_d_discovery.attribution as attr
+    series = out.with_suffix(".series.csv")
+    # The harness APPENDS to its jsonl: a re-run onto an old file silently doubles the rows.
+    stale = [p.name for p in (out, series) if p.exists()]
+    if stale:
+        return {"status": "FAILED", "rc": None,
+                "why": f"refusing to start: {stale} already exist (the harness appends)"}
     os.environ["T195_FEATURES"] = name
     os.environ["T195_OUT"] = str(out)
+    captured: list = []
+    original = attr.treatment_effect_returns
+
+    def _capture(with_candidate, baseline):
+        if not captured:
+            captured.append((pd.Series(with_candidate).copy(), pd.Series(baseline).copy()))
+        return original(with_candidate, baseline)
+
+    attr.treatment_effect_returns = _capture
     import runpy
     try:
         runpy.run_path(str(REPO / "scripts" / "run_foundry_eval_t195.py"), run_name="__main__")
         rc = 0
     except SystemExit as e:
         rc = int(e.code or 0)
+    finally:
+        attr.treatment_effect_returns = original
     rows = [json.loads(l) for l in out.read_text().splitlines() if l.strip()] if out.exists() else []
-    return {"status": "ok" if rows else "FAILED", "rc": rc, "harness_rows": rows}
+    if captured:
+        pd.concat({"with_candidate": captured[0][0], "baseline": captured[0][1]}, axis=1) \
+            .to_csv(series, index_label="date")
+    # The harness catches EVERY exception into row["error"] and still returns 0 — including
+    # validate_candidate's candidate-census failure. Rows alone are not success.
+    errors = [r.get("error") for r in rows if r.get("error")]
+    why = ("the harness swept 0 features" if not rows else
+           f"harness row error(s): {errors}" if errors else
+           "no series captured — treatment_effect_returns was never called" if not captured
+           else None)
+    return {"status": "FAILED" if why else "ok", "rc": rc, "why": why, "harness_rows": rows,
+            "series_file": series.name if captured else None,
+            "series_capture": "treatment_effect_returns call #1 (with_candidate, baseline)"}
 
 
 def main() -> int:
@@ -208,11 +247,23 @@ def main() -> int:
         rc = rec.get("rc")
         setting = (f"CENSUS_EXPECTED_DORMANT={a.census_expected_dormant}"
                    if a.census_expected_dormant else "no per-run allowlist")
-        rec["census_canonical"] = (rc == 0) if rc in (0, 2) else None
-        rec["census_condition"] = (
-            f"CANONICAL under {setting}" if rc == 0 else
-            f"NON-CANONICAL under {setting} — not quotable ([NN-CENSUS])" if rc == 2 else
-            f"UNKNOWN (rc={rc}) — the cell did not reach a census verdict")
+        if a.cell == "feature":
+            # The foundry harness returns 0 unconditionally, so its rc is NOT a census verdict
+            # (an rc-labelled zero-row record once read "CANONICAL"). What does run on this path
+            # is validate_candidate's Gate-1 CANDIDATE census — a failure raises, and the
+            # harness files it as a row error. The full-book census does not run here.
+            passed = rec.get("status") == "ok"
+            rec["census_canonical"] = passed
+            rec["census_condition"] = (
+                f"candidate census PASSED (validate_candidate Gate-1 assert_census; the "
+                f"full-book census does not run on this path) under {setting}" if passed else
+                f"candidate census FAILED or not reached — {rec.get('why')}")
+        else:
+            rec["census_canonical"] = (rc == 0) if rc in (0, 2) else None
+            rec["census_condition"] = (
+                f"CANONICAL under {setting}" if rc == 0 else
+                f"NON-CANONICAL under {setting} — not quotable ([NN-CENSUS])" if rc == 2 else
+                f"UNKNOWN (rc={rc}) — the cell did not reach a census verdict")
         out.write_text(json.dumps(rec, indent=1, default=str))
     print(f"[RESCORE] {a.label}/{a.arm}: {rec.get('status')} — "
           f"sharpe {rec.get('sharpe')} ci_low {rec.get('sharpe_ci_low')} "

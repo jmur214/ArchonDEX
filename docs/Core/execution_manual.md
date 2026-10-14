@@ -1234,3 +1234,26 @@ python -m pytest tests/test_referee_repairs_proposed.py -q      # 16 xfail(stric
 
 Read `docs/Sources/alpha_frontier_review_2026_09_30/01_gap_report.md` before touching any of these;
 the referee is propose-first and the tests document defects, they do not fix them.
+
+## RR-1 RE-SCORE — the before/after campaign and its paired test (added 2026-10-13)
+
+One cell, one arm, one record; N_trials 0. Run cells **sequentially** (both harnesses write
+the worktree's live governor files) and **always** with the re-exec environment exported
+first. Without it the driver refuses (exit 4), because `run_isolated` would `os.execv` and
+silently run the fixed code in both arms.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+caffeinate -i python scripts/rescore_rr1.py --arm before --cell baseline --start 2000-01-01 --end 2025-12-31 \
+    --label anchor26 --census-expected-dormant news_sentiment_edge
+caffeinate -i python scripts/rescore_rr1.py --arm after --cell feature --feature mom_12_1 \
+    --label t196_mom_12_1 --census-expected-dormant news_sentiment_edge   # --feature = the REGISTRY id, exactly
+bash scripts/run_rr1_rescore_campaign.sh          # all eight cells; stops on any non-zero exit
+# the pre-registered paired test (sanity gate first: exit 2 and no Δ if a series fails to reproduce)
+python scripts/rr1_paired_delta.py anchor --records docs/Measurements/2026-09/rr1_rescore --cell anchor26 --trade-logs data/trade_logs
+python scripts/rr1_paired_delta.py feature --records docs/Measurements/2026-09/rr1_rescore --cell t196_mom_12_1
+```
+
+Feature ids are checked against the registry, never typed from memory. An id that matches
+nothing makes the foundry harness sweep zero features and print an "honest null" with exit 0
+(RR-1 §6.6). List the ids with `get_feature_registry().list_features()`.
