@@ -81,6 +81,42 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: D's unit after the registry build; required BEFORE any cloud campaign runs on the cutover substrate.
 - Anchor: `scripts/submit_arms_campaign.py:268` contains `has_external_anchor` — the presence check that never reads the anchor's sha256
 
+### [MEDIUM] 33 LIVE names' canonical files END before the canonical window end (2025-12-31) — and 28 of them end within 5 % of their own all-time high, mid-rally (median trailing-12-month return +90 %): the period's momentum winners are missing their late bars in every canonical window (B, 2026-10-15, the level-rail read)
+- Engine: data substrate — `data/processed/<T>_1d.*`; universe admission `engines/data_manager/universe_resolver.py` `discover_cached_tickers`
+- First flagged: 2026-10-15 (KLAC and APH surfaced in the last-bar level identity; the count measured across all 730 files)
+- Status: OPEN, owner B. Severity MEDIUM as ruled. **B proposes HIGH:** the missing bars sit inside
+  every canonical window and fall on exactly the names a momentum signal ranks highest, so the bias is
+  directional, not noise. The director rules.
+- Description: of the 730 cache files, 652 are LIVE (the provider serves them through 2026-10-14).
+  **33 of those 652 have a canonical file that ENDS before 2025-12-31**, by end date:
+  SMCI 2023-05-02, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06, FIX 2024-02-22,
+  PLTR 2025-01-15, VRT 2025-04-04, EME 2025-04-08, AVGO 2025-04-23, NRG 2025-04-23, ANET 2025-04-30,
+  CVNA 2025-05-07, HOOD 2025-05-09, GE 2025-05-14, PWR 2025-06-10, JBL 2025-06-13, IBKR 2025-06-24,
+  APH 2025-08-01, STX 2025-09-04, CIEN 2025-09-30, KLAC 2025-10-10, ATI 2025-10-22, CAH 2025-10-23,
+  WDC 2025-10-28, LITE 2025-11-04, TRGP 2025-11-05, PH 2025-11-24, COHR 2025-11-25, TPR 2025-12-02,
+  MCK 2025-12-09, MU 2025-12-17; and NFX 2019-02-13, a reused ticker whose file is the old Newfield,
+  ending at its acquisition, so not this class. A further 23 live files end between 2025-12-31 and
+  the common April end (LRCX, SII, SNDK, FTI, CASY, GLW, DELL, MPC, CAT, RL, TER, TMC, …); they affect
+  to-date runs only.
+  **The signature, measured:** 28 of the 33 end within 5 % of the file's all-time high. The median
+  last close is 1.12× its trailing 60-day median, and the median trailing-12-month return at the end
+  is +90 %. The exceptions are NFX (reused), CIEN and ATI (their all-time highs are decades old), SMCI
+  (0.90) and LITE (0.94). None has a provider split near its end date (NVDA's 10:1 is a month later).
+  All 12 examined are `merge_case: both`.
+  **Hypothesis, NOT yet shown:** the T-167 bad-tick band (a rolling median that rejects an uptrend's
+  bars and never re-admits them) was applied when these files were WRITTEN. The T-167 loader fix
+  cannot restore bars a writer never saved — the same shape as the ÷10 baked at the T-082b merge.
+  **Consequence:** inside every canonical window ending 2025-12-31, these names stop early, so a run
+  reads them as "stopped trading". That biases against momentum, B-1's momentum deciles included;
+  the magnitude is unmeasured. The cutover's write pass already wrote them through 2026-10-14, so the
+  effect lives in every verdict measured on TODAY's canonical cache.
+- Recommended next step: (1) test the hypothesis: replay the pre-T-167 band over a provider series
+  (NVDA) and see whether it stops at 2024-05-10. (2) The `stale_files` census key (ruled; a
+  propose-first unit after the identity rail, both producers, the two-producer lock), so no run reads
+  "stopped trading" silently. (3) The size of the bias on the momentum verdicts is a measurement for
+  their owners.
+- Anchor: `engines/data_manager/universe_resolver.py:302` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (the line moves to :333 when the ticker-exclusion unit 4c57d4c merges)
+
 ### [MEDIUM] The canonical AGG file is SPLIT-ONLY (the backfill_t052 trio; EFA and VNQ likewise) — T-247/T-257/T-262/T-278 measured AGG without its dividends, ~3 %/yr understated; T-257/T-278 carry a trigger via the advisor tier table (B, 2026-10-15, cutover proposal §5.1)
 - Engine: data substrate / research verdicts — `data/processed/{AGG,EFA,VNQ}_1d.*`, written by `scripts/backfill_t052_macro_data.py`
 - First flagged: 2026-10-15 (B's write pass: the three files read DIFFERENT_CONVENTION; the cutover proposal's §5.1 glob found the readers)
