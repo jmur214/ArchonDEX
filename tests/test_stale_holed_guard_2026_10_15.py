@@ -241,21 +241,41 @@ def test_the_SHIPPED_declarations_load_and_name_the_first_set():
 
 # ---------------------------------------------------------------- formation coverage --------------
 
-def test_formation_coverage_counts_rows_FORMED_on_the_date_not_files_on_disk():
-    """A member with a file but no bar on the formation date is UNCOVERED (B-1's coverage_pct
-    counted the file)."""
+def test_formation_coverage_counts_rows_FORMED_over_every_MEMBER_never_files_on_disk():
+    """The denominator is every MEMBER on the date, from the intervals — never the names with a file
+    (R, 2026-10-15). A member with NO file is not formed (A's §14.3 defect, in the form the first
+    build had: the formation loop took its members from the data map, so NOF vanished from the
+    denominator); a member whose file has no bar on the date is not formed (B-1's coverage_pct);
+    a name that left before the date is not a member; SPY, outside the membership, is not one."""
     fdate = DAYS[60]
-    iv = _intervals([(t, "2010-01-04", None) for t in ("AAA", "BBB", "CCC", "DDD")])
-    m = _clean_map({"DDD": _frame(DAYS[DAYS > fdate])})        # DDD's file starts after the date
+    iv = _intervals([(t, "2010-01-04", None) for t in ("AAA", "BBB", "CCC", "DDD", "NOF")]
+                    + [("EXT", "2010-01-04", str(DAYS[10].date()))])
+    m = _clean_map({"DDD": _frame(DAYS[DAYS > fdate]),        # a file, but no bar on the date
+                    "EXT": _frame(DAYS[:5])})                  # exited before the date
     rec = stale_files_record(m, START, END, intervals=iv, declared={}, formation_dates=[fdate])
     fc = rec["formation_coverage"]
-    assert fc["rule"] == "rows FORMED on the formation date"
-    # five members on the date (SPY is outside the membership: required throughout); DDD formed no row
-    assert fc["dates"] == 1 and fc["min"] == pytest.approx(4 / 5) and fc["dates_below_0_80"] == 0
-    m["CCC"] = _frame(DAYS[DAYS > fdate])
-    fc2 = stale_files_record(m, START, END, intervals=iv, declared={},
+    assert fc["rule"].startswith("rows FORMED on the formation date") and fc["member_set"] == "pit intervals"
+    # members on the date: AAA BBB CCC DDD NOF — formed: AAA BBB CCC
+    assert fc["dates"] == 1 and fc["min"] == pytest.approx(3 / 5) and fc["dates_below_0_80"] == 1
+    # the denominator does not move with which files sit in the map
+    m2 = {t: f for t, f in m.items() if t != "CCC"}
+    fc2 = stale_files_record(m2, START, END, intervals=iv, declared={},
                              formation_dates=[fdate])["formation_coverage"]
-    assert fc2["min"] == pytest.approx(3 / 5) and fc2["dates_below_0_80"] == 1
+    assert fc2["min"] == pytest.approx(2 / 5)
+
+
+def test_formation_coverage_under_a_static_universe_uses_the_STATIC_LIST():
+    fdate = DAYS[60]
+    m = _clean_map({"DDD": _frame(DAYS[DAYS > fdate])})
+    fc = stale_files_record(m, START, END, universe=["SPY", "AAA", "BBB", "DDD", "NOF"], declared={},
+                            formation_dates=[fdate])["formation_coverage"]
+    assert fc["member_set"] == "static list" and fc["min"] == pytest.approx(3 / 5)
+
+
+def test_formation_coverage_with_NO_member_set_says_so_never_counts_the_maps_names():
+    fc = stale_files_record(_clean_map(), START, END, declared={})["formation_coverage"]
+    assert fc["member_set"] is None and fc["dates"] == 0 and fc["min"] is None
+    assert "file presence" in fc["unmeasured"]
 
 
 # ---------------------------------------------------------------- both producers ------------------
@@ -295,13 +315,47 @@ def test_the_backtest_producer_writes_the_record_over_the_run_window(tmp_path):
     ctrl._census_n_resolved = len(ctrl.data_map)
     ctrl._census_regime_total_bars, ctrl._census_regime_unknown_bars = 40, 3
     ctrl._membership_intervals = None
+    ctrl._census_universe = sorted(ctrl.data_map) + ["NOF"]      # a static name with NO file
     ctrl._census_window = (START, END)
     p = tmp_path / "trades.csv"
     pd.DataFrame({"ticker": ["SPY"], "pnl": [1.0]}).to_csv(p, index=False)
     census = ctrl._build_census(str(p))
     assert census["stale_files"]["window"] == [START, END] and census["stale_files"]["n_stale"] == 1
+    fc = census["stale_files"]["formation_coverage"]
+    assert fc["member_set"] == "static list" and fc["min"] < 1.0      # NOF counted, and not formed
     ctrl._census_window = None                       # a run() that never recorded its window
     assert "error" in ctrl._build_census(str(p))["stale_files"]
+
+
+def _call_keywords(path: str, func: str, callee: str) -> set:
+    """Keyword names of every call to `callee` inside function `func` (AST, never text)."""
+    import ast
+    from pathlib import Path
+    tree = ast.parse(Path(path).read_text())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == func)
+    kws = set()
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Call):
+            name = getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+            if name == callee:
+                kws |= {k.arg for k in n.keywords}
+    return kws
+
+
+def test_the_STATIC_LIST_reaches_both_producers_from_the_orchestrator():
+    """The member set must be handed over where the runs are built: run_backtest gives the
+    controller `census_universe` (and its intervals), and the Discovery cycle gives
+    validate_candidate the same pair — or a static run's formation coverage is unmeasured."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    mc = str(root / "orchestration" / "mode_controller.py")
+    assert {"census_universe", "membership_intervals"} <= _call_keywords(mc, "run_backtest",
+                                                                         "BacktestController")
+    assert {"census_universe", "membership_intervals"} <= _call_keywords(mc, "_run_discovery_cycle",
+                                                                         "validate_candidate")
+    disc = str(root / "engines" / "engine_d_discovery" / "discovery.py")
+    assert {"universe", "membership_intervals"} <= _call_keywords(disc, "validate_candidate",
+                                                                  "candidate_census_block")
 
 
 # ---------------------------------------------------------------- the admission, real entrypoint --

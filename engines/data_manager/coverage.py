@@ -133,15 +133,62 @@ def _longest_run(missing: List[pd.Timestamp], cal: pd.DatetimeIndex) -> int:
     return longest
 
 
+def formation_coverage(pre: Dict[str, tuple], cal: pd.DatetimeIndex, *,
+                       intervals: Optional[pd.DataFrame], universe: Optional[Iterable[str]],
+                       formation_dates: Optional[Iterable] = None) -> dict:
+    """Rows FORMED on each formation date over EVERY member on that date — never over the names that
+    happen to have a file (R, 2026-10-15: a denominator taken from the data map drops a member with
+    NO file, A's §14.3 file-presence defect in a new form, and the number then moves with whichever
+    files sit in the map). The member set: under PIT, every interval covering the date; under a
+    static universe, the static list. A member with no file, or no bar on the date, is NOT formed.
+    With neither a membership nor a static list there is no member set, and the record says so
+    rather than falling back to the data map's own names."""
+    rule = "rows FORMED on the formation date, over every member on the date"
+    fdates = (pd.DatetimeIndex(pd.to_datetime(list(formation_dates))) if formation_dates is not None
+              else pd.DatetimeIndex(pd.Series(cal, index=cal).groupby(cal.to_period("M")).max().values))
+    if intervals is not None:
+        member_set = "pit intervals"
+        t_arr = intervals["ticker"].to_numpy()
+        s_arr = pd.to_datetime(intervals["start"]).to_numpy()
+        e_arr = pd.to_datetime(intervals["end"]).to_numpy()
+
+        def members_on(d: pd.Timestamp) -> set:
+            dv = np.datetime64(d)
+            return set(t_arr[(s_arr <= dv) & (np.isnat(e_arr) | (e_arr >= dv))])
+    elif universe is not None:
+        member_set = "static list"
+        static = set(universe)
+
+        def members_on(d: pd.Timestamp) -> set:
+            return static
+    else:
+        return {"rule": rule, "member_set": None, "dates": 0, "min": None, "median": None,
+                "dates_below_0_80": None,
+                "unmeasured": "no membership and no static list — counting the data map's own names "
+                              "would count file presence"}
+    shares = []
+    for d in fdates:
+        members = members_on(d)
+        if members:
+            formed = sum(1 for t in members if t in pre and d in pre[t][1])
+            shares.append(formed / len(members))
+    return {"rule": rule, "member_set": member_set, "dates": len(shares),
+            "min": float(min(shares)) if shares else None,
+            "median": float(np.median(shares)) if shares else None,
+            "dates_below_0_80": int(sum(1 for x in shares if x < FORMATION_FLOOR))}
+
+
 def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
                        intervals: Optional[pd.DataFrame] = None,
+                       universe: Optional[Iterable[str]] = None,
                        declared: Optional[Dict[str, dict]] = None,
                        formation_dates: Optional[Iterable] = None) -> dict:
     """The `stale_files` census block. Per name: first/last bar, the REQUIRED end (the earlier of
     the window end and the member's exit), `ends_before_required` (stale), missing trading days
     inside the required spans (holes) and how many of them no declaration covers, the longest run,
     and the declared facets. Plus the calendar's proof against SPY and `formation_coverage` — rows
-    FORMED on each formation date, never a file on disk."""
+    FORMED on each formation date over every MEMBER on the date (`intervals` under PIT; `universe`,
+    the static list, otherwise), never a file on disk."""
     start, end = pd.Timestamp(start), pd.Timestamp(end)
     declared = load_data_gaps() if declared is None else declared
     cal = majority_calendar(data_map, start, end)
@@ -196,19 +243,8 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
         spy_missing = [str(d.date()) for d in cal if sidx.min() <= d <= sidx.max() and d not in spy]
         cal_missing = [str(d.date()) for d in sorted(spy)
                        if start <= d <= end and d not in cal_set]
-    fdates = (pd.DatetimeIndex(pd.to_datetime(list(formation_dates))) if formation_dates is not None
-              else pd.DatetimeIndex(pd.Series(cal, index=cal).groupby(cal.to_period("M")).max().values))
-    shares = []
-    for d in fdates:
-        members = [t for t, (_i, _p, (spans, _r, _x)) in pre.items()
-                   if any(lo <= d <= hi for lo, hi in spans)]
-        if members:
-            formed = sum(1 for t in members if d in pre[t][1])
-            shares.append(formed / len(members))
-    cov = {"rule": "rows FORMED on the formation date", "dates": len(shares),
-           "min": float(min(shares)) if shares else None,
-           "median": float(np.median(shares)) if shares else None,
-           "dates_below_0_80": int(sum(1 for x in shares if x < FORMATION_FLOOR))}
+    cov = formation_coverage(pre, cal, intervals=intervals, universe=universe,
+                             formation_dates=formation_dates)
     return {"window": [str(start.date()), str(end.date())],
             "calendar": {"source": "majority of active names", "trading_days": len(cal),
                          "checked_against": checked_against,

@@ -884,7 +884,9 @@ class ModeController:
         from core.census import coverage_defects
         from core.measured import halt_or_degrade
         from engines.data_manager.coverage import stale_files_record
-        _cov = stale_files_record(data_map, start, end, intervals=_membership_intervals)
+        _census_universe = None if use_historical_universe else list(tickers)
+        _cov = stale_files_record(data_map, start, end, intervals=_membership_intervals,
+                                  universe=_census_universe)
         _defects = coverage_defects(_cov)
         if _defects:
             _msg = " | ".join(_defects)
@@ -1039,6 +1041,7 @@ class ModeController:
             regime_detector=regime_detector,
             portfolio_cfg=self.portfolio_cfg,
             membership_intervals=_membership_intervals,
+            census_universe=_census_universe,
         )
 
         history = controller.run(start, end)
@@ -1401,6 +1404,8 @@ class ModeController:
                         cache=cycle_cache,
                         start_date=_val_start,
                         membership_intervals=_disc_intervals,
+                        census_universe=(None if _disc_intervals is not None
+                                         else (list(getattr(self, "tickers", None) or []) or None)),
                         end_date=_val_end,
                         data_map_substrate_b=cycle_data_map_substrate_b,
                         n_trials_for_dsr=cycle_n_trials_for_dsr,

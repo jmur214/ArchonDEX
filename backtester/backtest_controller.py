@@ -107,11 +107,15 @@ class BacktestController:
         regime_detector=None,
         pit_membership_mask: Optional[pd.DataFrame] = None,
         membership_intervals: Optional[pd.DataFrame] = None,
+        census_universe: Optional[List[str]] = None,
     ):
         # The stale/holed-files guard (2026-10-15): PIT membership INTERVALS (ticker, start, end)
         # for the census's per-name END test — a member is required to the earlier of the window end
         # and its exit. None = a static universe: every name live to the window end (R's ruling).
         self._membership_intervals: Optional[pd.DataFrame] = membership_intervals
+        # The static list (a static universe's member set for formation coverage — every member on
+        # the date, never the names that happen to have a file; R, 2026-10-15). None under PIT.
+        self._census_universe: Optional[List[str]] = census_universe
         self._census_window: Optional[tuple] = None
         # T-2026-06-11-154: optional point-in-time universe mask
         # (date x ticker bool). None (default) = behavior unchanged. When
@@ -1444,7 +1448,8 @@ class BacktestController:
             if _window is None:
                 raise RuntimeError("no run window recorded — coverage not measured")
             census["stale_files"] = stale_files_record(
-                self.data_map, *_window, intervals=getattr(self, "_membership_intervals", None))
+                self.data_map, *_window, intervals=getattr(self, "_membership_intervals", None),
+                universe=getattr(self, "_census_universe", None))
         except Exception as e:
             census["stale_files"] = {"error": repr(e)}
         # The LEVEL rail's declarations (2026-10-15): substrate files whose CURRENT version was

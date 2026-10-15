@@ -61,7 +61,8 @@ class RegimeContextUnavailable(RuntimeError):
 def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
                            data_map: Optional[Dict[str, pd.DataFrame]] = None,
                            window: Optional[tuple] = None,
-                           membership_intervals: Optional[pd.DataFrame] = None) -> dict:
+                           membership_intervals: Optional[pd.DataFrame] = None,
+                           universe: Optional[List[str]] = None) -> dict:
     """The Gate-1 candidate's census block, routed through the SAME `assert_census` the
     measurement path uses. It carries the SAME provenance fields the measurement path's census
     writes — a census provenance field exists only when BOTH producers write it (Agent R found
@@ -108,7 +109,8 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         from engines.data_manager.coverage import stale_files_record
         if data_map is None or window is None:
             raise RuntimeError("no data_map/window given — coverage not measured")
-        block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals)
+        block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals,
+                                                  universe=universe)
     except Exception as e:   # recorded, never omitted
         block["stale_files"] = {"error": repr(e)}
     return block
@@ -1075,6 +1077,8 @@ class DiscoveryEngine:
         # The stale/holed-files guard (2026-10-15): PIT membership intervals for the candidate
         # census's per-name END test. None = a static universe (every name live to the window end).
         membership_intervals: Optional[pd.DataFrame] = None,
+        # The static list, a static universe's member set for formation coverage (None under PIT).
+        census_universe: Optional[List[str]] = None,
         # ---- Multiple-testing-corrected gate (Gate 8 / DSR) ----
         # When n_trials_for_dsr > 1, the candidate's attribution Sharpe is
         # checked against the expected-max-of-N-trials null. This protects
@@ -1485,7 +1489,8 @@ class DiscoveryEngine:
             n_trades_with = 0 if _tl is None else int(len(_tl))
             _census_block = candidate_census_block(
                 cand_id, cand_census, n_trades_with, data_map=data_map,
-                window=(start_date, end_date), membership_intervals=membership_intervals)
+                window=(start_date, end_date), membership_intervals=membership_intervals,
+                universe=census_universe)
             _cv = assert_census(
                 {"census": _census_block,
                  # A Gate-1 contribution run is not a headline measurement; the

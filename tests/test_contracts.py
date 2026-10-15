@@ -1615,7 +1615,11 @@ def _assigned_from(fn_node, key: str, producer: str) -> bool:
 def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     """A provenance field exists only when BOTH producers write it. The measurement path: each key
     assigned FROM its source-of-truth function in `_build_census` (AST). The candidate census:
-    its builder EXECUTED, and each key present."""
+    its builder EXECUTED on clean inputs, each key present AND not an error record.
+
+    (R, 2026-10-15: the builder's except branch writes `{"error": …}`, so "present" alone passed
+    with a key's success-path assignment removed — stale_files' builder needs a data_map and a
+    window, and called without them it errored and still counted. A key must be PRODUCED.)"""
     import ast
     tree = ast.parse((REPO / "backtester" / "backtest_controller.py").read_text())
     build = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_build_census")
@@ -1623,7 +1627,15 @@ def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     assert not missing, f"_build_census does not write these from their source of truth: {missing}"
     from engines.engine_d_discovery.discovery import candidate_census_block
 
+    import pandas as pd
+
     class _C:
         nonzero_calls, errors = 1, 0
-    block = candidate_census_block("cand_v1", _C(), n_trades=10)
+    idx = pd.bdate_range("2025-01-02", periods=20)
+    clean_map = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA", "BBB")}
+    block = candidate_census_block("cand_v1", _C(), n_trades=10, data_map=clean_map,
+                                   window=(str(idx[0].date()), str(idx[-1].date())))
     assert not (set(CENSUS_PROVENANCE_KEYS) - set(block)), sorted(set(CENSUS_PROVENANCE_KEYS) - set(block))
+    errored = {k: block[k] for k in CENSUS_PROVENANCE_KEYS
+               if isinstance(block[k], dict) and "error" in block[k]}
+    assert not errored, f"candidate_census_block did not PRODUCE these (error records): {errored}"
