@@ -152,3 +152,33 @@ def test_load_membership_APPLIES_the_declared_clip():
     fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "load_membership")
     called = {getattr(c.func, "id", getattr(c.func, "attr", "")) for c in ast.walk(fn) if isinstance(c, ast.Call)}
     assert "clip_membership" in called
+
+
+
+def test_a_candidate_validated_where_DAL_was_loaded_carries_the_exclusion_record(dm):
+    """Agent R's check (c): the exclusion was APPLIED to a candidate's data but its census did not
+    RECORD it. A candidate block built in a process that loaded DAL must carry dal_pre2007_excluded."""
+    from engines.engine_d_discovery.discovery import candidate_census_block
+    _stitched_dal(dm)
+    dm.load_cached("DAL", "1d")
+
+    class _C:
+        nonzero_calls, errors = 3, 0
+    block = candidate_census_block("cand_v1", _C(), n_trades=12)
+    rec = block["data_exclusions"]["dal_pre2007_excluded"]
+    assert rec["n_bars_withheld"] > 0 and "stitched identity" in rec["reason"]
+
+
+def test_the_foundrys_direct_reader_applies_the_declaration(tmp_path):
+    """O-1: every foundry feature reads data/processed through LocalOHLCV, bypassing DataManager.
+    The declaration must be ONE read gate, not a property of today's universes."""
+    from core.feature_foundry.sources import local_ohlcv as lo
+    pre = pd.bdate_range("2000-01-03", "2007-05-02")
+    post = pd.bdate_range("2007-05-03", "2008-12-31")
+    df = pd.concat([_bars(pre, 5000.0), _bars(post, 17.0)]).rename_axis("Date").reset_index()
+    root = tmp_path / "processed"
+    root.mkdir()
+    df.to_csv(root / "DAL_1d.csv", index=False)
+    got = lo.LocalOHLCV(data_root=root)._read_one(root / "DAL_1d.csv")
+    assert pd.to_datetime(got["date"]).min() >= pd.Timestamp("2007-05-03")
+    assert float(got["close"].max()) < 1000

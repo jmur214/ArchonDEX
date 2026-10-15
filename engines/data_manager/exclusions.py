@@ -12,6 +12,11 @@ declaration — acknowledged, never silent:
   * it FAILS CLOSED if the declaration and the data disagree (a bar that survives the exclusion
     still carries the corruption signature) — then the declaration is wrong, and nothing is served.
 
+No discontinuity at the cutoff: the corrupt block ENDS earlier — the raw bars just before
+2007-05-03 already sit near 16.9, not at the 5,000 level. The cutoff is the new listing date BY
+DECLARATION, and the 1,000 signature (`max_close_after`) is the guard, so a reader should not expect
+a price jump at the cutoff. (Agent R's O-4.)
+
 Interim by ruling: at the substrate cutover, DAL becomes DAL_OLD + DAL if a delisted-capable
 total-return source exists; otherwise this exclusion stands permanently, with its reason.
 """

@@ -50,6 +50,7 @@
   - `def get_queued_candidates()`: Retrieve candidates from registry that are ready for validation.
   - `def save_candidates()`: Append candidates to the active edges.yml (or a separate staging registry).
   - `def validate_candidate()`: Production-equivalent multi-gate validation (architectural-fix v2).
+- **Function `candidate_census_block()`**: The Gate-1 candidate's census block, routed through the SAME `assert_census` the
 
 ### `discovery_logger.py`
 **Module Docstring:** Discovery activity logger.

@@ -39,6 +39,17 @@ yield-correlated bias, not noise.
 
 **No per-share fees exist.** Commissions and spreads are in basis points, so they are level-free.
 
+## Direct readers of `data/processed/` and the DAL declaration (Agent R's O-1)
+
+The declaration is ONE read gate, not a property of today's universes.
+
+| reader | how it reads | status |
+|---|---|---|
+| `DataManager.load_cached` / `ensure_data` | the loader | **gated** (truncate on the raw read, check on the served frame) |
+| `core/feature_foundry/sources/local_ohlcv.py` (`_read_one`, `close_series`) | every foundry feature reads the CSVs directly, bypassing DataManager | **gated** (fixup commit), with a lock |
+| `core/benchmark.py:103-104` | benchmark ETFs only (`tr_reconciled/` preferred, flat file as fallback) | **safe by construction today**: never reads DAL. Its comment at `:134` calls the flat `data/processed/` "PRICE-ONLY", which item (d)'s R-5 measurement shows is false (the flat cache is dividend back-adjusted); recorded, not edited here |
+| `scripts/build_signal_panel_b1.py:159` | direct `read_csv`, masked per month-end by PIT membership | **safe by construction today**: DAL is in the PIT file only from 2013-09-11 |
+
 ## Not in the scan's scope, named
 
 - **Research scripts in `scripts/`** read `data/processed/` directly and may compute dollar volume
