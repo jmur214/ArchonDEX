@@ -25,7 +25,19 @@ under `/Users/jacksonmurphy/Dev/_substrate_candidates/`:
   re-measured on yfinance), `measure_2026-10-15_retry.jsonl` and `retry_2026-10-15.log` (the serial
   retry of every error row, with yfinance's own stated reason per symbol kept unfiltered);
 - **an independent current status:** Alpaca's asset endpoint, read-only, for every file yfinance
-  could not fetch (`asset_status_2026-10-15.json` in the agent's scratchpad, quoted in §2).
+  could not fetch (`asset_status_2026-10-15.json` in the agent's scratchpad, quoted in §2);
+- **how §3 was enumerated:** a READ-ONLY subagent read the code and classified about 40 candidate
+  files. Agent B verified every weight-bearing claim BY HAND:
+  - the paper path's reads and bakes;
+  - the T-306 SPY reads;
+  - the RR-1 constants;
+  - the manifest counts and verify;
+  - the submit gate;
+  - the workflow's S3 prefix;
+  - the canon anchors;
+  - the four tests that turned out not to be pins.
+
+  The rest are cited path:line from the subagent's read.
 
 ---
 
@@ -180,8 +192,9 @@ at run time**, **bakes at build**, **fixed-number test**, **CI workflow**, **can
   hard-coded, not env-driven. By the build script those files are not in the image, so the fallback
   returns None. But the comments at `run_paper_cloud_day.py:638-640` and `:1250-1253` call them
   "baked". The two artifacts disagree. **Unverified: needs the image listing**, the container's
-  actual file list, which is the same audit already waiting on the user. Either way the read is
-  report-only: no order, no size, no risk input depends on it.
+  actual file list. This question **joins the image-audit job's questions** (director, 2026-10-15),
+  the audit already waiting on the user. Either way the read is report-only: no order, no size, no
+  risk input depends on it.
 - **The container's environment:** `Dockerfile.paper:58-59` sets only `PYTHONUNBUFFERED` and
   `AWS_DEFAULT_REGION`. The Batch job definition's environment is **unverified locally**: it needs the
   job definition, part of the same audit.
@@ -198,9 +211,9 @@ resolutions change at the next image build.
 | artifact | kind | what is pinned | why the cutover moves it | re-pin |
 |---|---|---|---|---|
 | `tests/test_golden_master.py` | fixed-number test | the backtester's golden summary | its fixture reads the processed closes | regenerate the golden in the cutover commit |
-| `tests/test_rescore_rr1_driver.py:25-28` (also `scripts/rescore_rr1.py:10`) | fixed-number test | `PRE_RR1_GOLDEN`: Sharpe 0.04946…, 171 trades, turnover 4,047,969.47, max position 47,956.64 | computed on the processed closes through the golden master's pipeline; no input-hash guard, so a data change reads as a code change | re-run the test body on the new substrate and re-pin, or retire the lock (RR-1 is merged) — a ruling |
+| `tests/test_rescore_rr1_driver.py:25-28` (also `scripts/rescore_rr1.py:10`) | fixed-number test | `PRE_RR1_GOLDEN`: Sharpe 0.04946…, 171 trades, turnover 4,047,969.47, max position 47,956.64 | computed on the processed closes through the golden master's pipeline; no input-hash guard, so a data change reads as a code change | **RETIRE at cutover** (director's ruling, 2026-10-15). Its purpose, proving the before arm reproduced main as of 09-30 bit for bit, was served and is recorded. After the cutover the data it pins no longer exists, and a lock that cannot be satisfied is retired, not loosened. The reason goes in the test and in RR-1's §4; the record keeps the number |
 | `engines/data_manager/exclusions.py:29-39` (+ `tests/test_price_levels_item_d_2026_10_15.py:114-123`) | declared constant | DAL cutoff 2007-05-03; `max_close_after` 1000 | DAL's treatment is the user's §2b (ii) decision; the check fails closed on a mismatch | re-declare with the ruling |
-| the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), so a stale anchor passes silently | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
+| the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), so a stale anchor passes silently: a referee fail-open, a HIGH row, D's unit (ruled 2026-10-15). D's design has the gate check a nightly verify STAMP by digest and refuse while it is stale or absent; the nightly full verify that writes the stamp is Agent B's janitor unit | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
 | B-1: panel `d9d449d17f8f`; results `5de36b89e0ad…`; 2012 window `bbf88ffc9f23…` (`docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`) | canon | "must reproduce" md5s | built from the processed closes (R's lock 7: the panel must move VISIBLY) | the verdict doc's §12 commands |
 | `config/substrate_manifest.sha256` | manifest | sha256 of 14,120 substrate files (2,049 under `data/processed/`) | every rewritten file | `scripts/gen_substrate_manifest.py generate` in the cutover commit. **See the note below: it already fails verify today** |
 | the content-addressed S3 substrate prefix = md5 of the manifest (`.github/workflows/build_backtest_image.yml:112-117`); the image label (`scripts/build_backtest_image.sh:127,161,168`) | CI workflow | the substrate snapshot the backtest image is built from | a new manifest gives a new md5, and that prefix will not exist yet | a manual `aws s3 sync` to `substrate/<md5>/data` (no script), then `workflow_dispatch`. The workflow's `data/processed/**` trigger never fires, because `data/` is untracked |
@@ -217,14 +230,26 @@ resolutions change at the next image build.
 - `ohlc_features_t150`.
 - `_merge_meta.json`, which nothing reads.
 
-**The manifest already fails verify, before any cutover.**
-`python scripts/gen_substrate_manifest.py verify` exits 1 on 2026-10-15. Measured file by file
-against the committed manifest (ad03a97, 2026-06-18): **every one of the 2,049 `data/processed`
-files it lists is byte-identical today**. The failure is 5 CHANGED files under `data/macro/`
-(VIX9D, `_meta.json`, …) and files added since June that the manifest never listed (macro SKEW,
-VVIX and Shiller data; 4 fundamentals parquets; `stooq_us_daily/`; `tr_reconciled/`). The paper
-image bakes `tr_reconciled/`, and it is **not pinned**. The re-pin on cutover day is therefore also
-the first re-pin since June, and it must say so.
+**The manifest already fails verify, before any cutover: the known B-7 blocker.** This was first
+recorded on 2026-09-30 in RR-7 Deliverable 3 (`docs/Sources/referee_repair_proposal_RR-7_2026-09-30.md`):
+pinned 14,120, host 14,250, MISSING 0, EXTRA 130, CHANGED 5; the backtest image cannot be rebuilt
+until the manifest is re-pinned; the verify footer hides lines.
+
+Re-measured 2026-10-15 with the generator's own `build_manifest()`: **MISSING 0, EXTRA 134, CHANGED
+5**. Every one of the 2,049 pinned `data/processed` files is byte-identical today.
+- **The 5 CHANGED** (VIX, VIX3M, VIX6M, VIX9D, `_meta.json`) were all written in one minute,
+  2026-07-02 03:09, by `scripts/fetch_vix_term_structure.py` (the T-256 and T-274 day). Against the
+  June versions held in the content-addressed S3 snapshot (whose sha256 match the manifest), the run
+  was a **pure extension**: every June row is present and bit-identical (1,339 common rows, max |Δ|
+  0.0), and history was extended both ways. `_meta.json` gained a VVIX key. **A legitimate refresh;
+  no wrong reason.**
+- **The +4 EXTRA since 09-30** are fundamentals parquets cached by `DataManager`
+  (`data_manager.py:167`) during the B-1 run on 2026-10-14. That is a runtime cache writing INTO the
+  manifest's scope, so the re-pin must decide whether to exclude the pattern or pin it.
+
+The paper image bakes `tr_reconciled/`, and it is **not pinned**. That goes on the image re-bake
+checklist (`docs/Sources/proposal_observability_shipping_2026_10_13.md` §5), beside the Gate-7
+cache. **The re-pin lands WITH the cutover** (director, 2026-10-15): one re-pin since June, not two.
 
 ### 3.3 Checked: NOT a pin the cutover moves
 
