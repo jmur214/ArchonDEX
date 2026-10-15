@@ -125,6 +125,25 @@ then LOW. Within each severity, list newest at the top.
   the canonical cache, **114 files have three or more missing trading days inside their own post-seam
   span**, many with hundreds: SEDG 613, ANF 443, FICO 392, AXON 330, VRT 287, and the 2020–21 peaks
   (MTCH, SE, XYZ, ETSY, ENPH, PENN)… Some of the 114 have other causes (BBBY, CPWR, reused tickers).
+  **The interior holes are the band too (replayed 2026-10-15, R's cases):** FICO (threshold 1,434.06;
+  392 holes), AXON (454.41; 330) and SEDG (245.16; 613): the replayed date sets EQUAL the saved
+  files' exactly, as NVDA's, PLTR's and GE's do. ANF (447) and VRT (287): every saved bar is in the
+  replay, plus 18 and 1 boundary bars within 0.02–1.89 % below the threshold (the writer filtered
+  Alpaca's closes; the replay used yfinance's). So the write-time band accounts for interior holes and
+  terminal ends alike. R's measure of runs of five or more missing business days (78 of 724 files
+  since 2018, 7,865 days, concentrated in 2021/2024/2025) finds the whole-week holes; single-day misses
+  need the per-day count.
+  **Three scope facts (R, 2026-10-15):**
+  - (1) The EXACT damaged population needs the provider series. The threshold was 3 × the FETCHED
+    series' median, which the saved file no longer holds, because dropping the high bars lowered its
+    median. The provider-free proxies are the end date and the missing-day count, which the guard's
+    `stale_files` key carries.
+  - (2) The per-day count is the general measure; the end date and the bar-every-week rule are its
+    special cases.
+  - (3) **Every Alpaca-era measurement carries the defect, one way or the other.** Before T-167
+    (bd68438, 2026-06-13) every file was LOADED through the same global-median × 3 band. After it, the
+    files themselves are the ones written through that band on 2026-04-25. So no verdict from that era
+    is cited as free of it.
   **What the cutover fixes, from the copy:** the 32 stale live names (NFX aside) are written through
   2026-10-14, each last bar EQUAL to the provider's close (identity 1.000000). Of the 114 holed
   files, the pass WROTE 81, and ALL 81 have every hole filled. The other 33 stay holed: BBBY, PSKY
@@ -147,7 +166,7 @@ then LOW. Within each severity, list newest at the top.
   file silently. Both producers write the key, under the two-producer lock. (2) The 33 unfixable holed files need a declared
   treatment at cutover. (3) Sizing the bias on the momentum verdicts is a measurement for their
   owners.
-- Anchor: `engines/data_manager/universe_resolver.py:333` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (the line moves to :333 when the ticker-exclusion unit 4c57d4c merges)
+- Anchor: `engines/data_manager/universe_resolver.py:333` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (moved from :302 when the ticker-exclusion unit 4c57d4c merged at 0435de7; re-pointed deliberately under the lint's exit (b): :333 is the same code, not a comment, and still the witness)
 
 ### [MEDIUM] The canonical AGG file is SPLIT-ONLY (the backfill_t052 trio; EFA and VNQ likewise) — T-247/T-257/T-262/T-278 measured AGG without its dividends, ~3 %/yr understated; T-257/T-278 carry a trigger via the advisor tier table (B, 2026-10-15, cutover proposal §5.1)
 - Engine: data substrate / research verdicts — `data/processed/{AGG,EFA,VNQ}_1d.*`, written by `scripts/backfill_t052_macro_data.py`

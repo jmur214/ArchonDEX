@@ -38,6 +38,8 @@ def test_the_declaration_is_the_four_scale_defect_names():
         assert spec["declared_ratio"] == 10.0 and "÷10" in spec["reason"]
     assert ex.DECLARED_TICKER_EXCLUSIONS["AZO"]["reason"] == "scale defect ÷10 baked at the T-082b merge"
     assert "no PIT interval" in ex.DECLARED_TICKER_EXCLUSIONS["SLE"]["reason"]
+    assert ex.DECLARED_TICKER_EXCLUSIONS["SLE"]["kind"] == "reused_ticker"
+    assert ex.DECLARED_TICKER_EXCLUSIONS["SLE"]["liftable"] is False
 
 
 def test_a_declared_ticker_is_removed_at_RESOLUTION_on_the_static_path(tmp_path):
@@ -130,7 +132,20 @@ def test_clip_membership_drops_EVERY_interval_of_a_ticker_kind_name():
 
 # ── the lift at re-pin #2 is exact ──────────────────────────────────────────────
 
-@pytest.mark.parametrize("ticker", DECLARED)
+LIFTABLE = [t for t in DECLARED if ex.DECLARED_TICKER_EXCLUSIONS[t].get("liftable", True)]
+
+
+def test_SLE_a_reused_ticker_is_NEVER_lifted_even_by_an_exact_x10_write():
+    """Class (i): the write pass wrote SLE RESCALED 10.0 because the cached file IS the reused entity
+    (R's level-rail read). A planted ×10 write — exactly the declared restoration — must NOT lift it:
+    it would be the wrong company at the right level."""
+    cache_close = ex.DECLARED_TICKER_EXCLUSIONS["SLE"]["evidence"]["cache_close"]
+    assert not ex.lift_verified("SLE", cache_close * 10.0)
+    assert not ex.lift_verified("SLE", cache_close)
+    assert LIFTABLE == ["AZO", "MTD", "NVR"], "the three merge-defect files remain liftable"
+
+
+@pytest.mark.parametrize("ticker", LIFTABLE)
 def test_the_lift_is_verified_ONLY_at_the_declared_ratio(ticker):
     cache_close = ex.DECLARED_TICKER_EXCLUSIONS[ticker]["evidence"]["cache_close"]
     assert ex.lift_verified(ticker, cache_close * 10.0)

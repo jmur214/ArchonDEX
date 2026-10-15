@@ -62,8 +62,15 @@ DECLARED_TICKER_EXCLUSIONS: Dict[str, dict] = {
     # exactly 0.1000 of its true print (cache 0.376 vs 3.76 on 2026-04-24). SLE is also a REUSED
     # ticker (Sara Lee left the index; the cached file from 2019-02-26 is the reused entity) and has
     # NO PIT interval — but a static or cache-wide universe can reach it, so it is withheld too.
+    # RE-KINDED (director, 2026-10-15, on R's level-rail read): SLE is class (i), a REUSED TICKER,
+    # and is NEVER lifted. The write pass wrote it RESCALED 10.0 because the cached file IS the
+    # reused entity, so a ×10 write would restore Super League's level under Sara Lee's symbol, not
+    # Sara Lee. `liftable: False` makes `lift_verified` refuse it by construction; the ÷10 evidence
+    # stays on record.
     "SLE": {"census_key": "scale_defect_div10",
-            "reason": "scale defect ÷10, no PIT interval; reachable by a static or cache-wide universe",
+            "kind": "reused_ticker", "liftable": False,
+            "reason": ("reused ticker (class i): the cached file is the reused entity, and ÷10; "
+                       "no PIT interval; reachable by a static or cache-wide universe; never lifted"),
             "declared_ratio": 10.0,
             "evidence": {"date": "2026-04-24", "cache_close": 0.3759999990463257}},
 }
@@ -169,8 +176,11 @@ def withhold_declared_tickers(tickers, *, where: str) -> list:
 def lift_verified(ticker: str, written_close_at_evidence_date: float) -> bool:
     """The re-pin #2 lift lock: a ticker-kind declaration may be lifted only when the WRITTEN level
     at the evidence date equals the declared cache level × the declared ratio (the defect undone,
-    exactly). Anything else — still ÷10, or a different factor — keeps the exclusion."""
+    exactly). Anything else — still ÷10, or a different factor — keeps the exclusion. A declaration
+    marked `liftable: False` (a reused ticker, class (i)) is NEVER lifted, whatever was written."""
     spec = DECLARED_TICKER_EXCLUSIONS[ticker]
+    if not spec.get("liftable", True):
+        return False
     expected = spec["evidence"]["cache_close"] * spec["declared_ratio"]
     return abs(float(written_close_at_evidence_date) / expected - 1.0) <= LIFT_TOLERANCE
 
@@ -186,6 +196,8 @@ def ticker_exclusions_applied() -> Dict[str, dict]:
         spec = DECLARED_TICKER_EXCLUSIONS[t]
         entry = out.setdefault(spec["census_key"], {"tickers": {}})
         entry["tickers"][t] = {"reason": spec["reason"], "declared_ratio": spec["declared_ratio"],
+                               "kind": spec.get("kind", "scale_defect"),
+                               "liftable": spec.get("liftable", True),
                                "evidence": dict(spec["evidence"]),
                                "withheld_at": sorted(_TICKERS_APPLIED.get(t, set())),
                                "membership_intervals_dropped": _TICKER_MEMBERSHIP_APPLIED.get(t, 0)}
