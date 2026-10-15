@@ -4,7 +4,7 @@ title: "B-1 raw-signal decile re-evaluation — VERDICT"
 date: 2026-10-14
 author: Agent A
 outcome: "H1 NOT MET — 0 of 13 main signals clear the IC bar and none meets the wealth leg against both benchmarks; short window 0 of 6; calendar 0 of 7. Scoped refutation (§6 'Nothing meets H1')."
-status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only. Dated note 2026-10-15 (§13): post-hoc exposure check of the two value signals, no change to the verdict; N_trials 4 → 6. Dated note 2026-10-15 (§14): 33 live names' files end early — counts only, a weaker null, H1 NOT MET stands; no trial consumed.
+status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only. Dated note 2026-10-15 (§13): post-hoc exposure check of the two value signals, no change to the verdict; N_trials 4 → 6. Dated note 2026-10-15 (§14, extended §14.1–§14.3): 33 live names' files end early, plus write-time HOLES across the cache; §3.6's 'bias runs up' is NOT safe for 2024–25; the census coverage figures are overstated — counts only, a weaker null, H1 NOT MET stands; no trial consumed.
 reproduce: "§12 below; the panel md5 d9d449d17f8f102614b34079e8f1bd60 and the results md5 5de36b89e0ade6eac008667e035d2d03 must reproduce"
 ---
 
@@ -651,3 +651,114 @@ here turns a non-clear into a clear.
 - B's measurement in `docs/State/health_check.md` (main `54be0a9`).
 
 Nothing was written under `data/`.
+
+### 14.1 Extension (2026-10-15) — R's measurement: for 2024–25 the bias runs DOWN against SPY
+
+R measured this in the same panel (\`b1_exposure_rescore_read_agent_r_2026_10_15.md\`):
+- NVDA's forward return is non-null in 3 of 12 months of 2024 and 0 of 12 of 2025.
+- SMCI's is non-null in 0 of 22 member months.
+- AVGO's is non-null in 1 of 12 in 2025, and PLTR's in 0 of 12 in 2025.
+- Their SIGNALS stay non-null through 2025-12, computed on a frozen history.
+
+The harness's \`forward_return\` treats a file's END as an EXIT at the last cached close. That is
+right for a delisting, but here it AMPLIFIES staleness. **These 2024–25 winners left every long leg
+and the EW sleeve at their last cached close, while SPY kept them.**
+- **Consequence:** over the last ~20 months, the wealth legs against SPY are biased DOWN.
+- **§3.6's clause that the bias runs UP and the null is conservative is NOT safe for 2024–25.**
+  This is a cache fact (file times), not a method fact.
+- The IC is unaffected: a NaN forward return drops the row.
+- H1 NOT MET stands.
+- The ruled cutover re-run resolves it, since every written file extends to 2026-10-14.
+
+### 14.2 Extension (2026-10-15) — HOLES: the write-time band, counted across the whole panel
+
+**The mechanism, now SHOWN by B (replay):** before T-167, the writer dropped, individually, every
+bar at or above 3× the GLOBAL median of the fetched frame, before saving
+(\`bd68438^:527-529\`). NVDA's, PLTR's and GE's saved date sets equal the replay's exactly; AAPL's
+control has zero rejections. So the damage is not only early ends: wherever a price ran above
+the threshold and came back, the band punched HOLES. B counts 114 files missing three or more
+trading days inside their post-seam span.
+
+**The rule B-1 used to form a close** (\`scripts/build_signal_panel_b1.py::forward_return\`):
+- **The formation close** must be a bar EXACTLY on the month-end, with no lookback. A missing
+  month-end bar gives a NaN forward return, and the harness drops the row.
+- **The exit close** is the last bar in (month-end, next month-end]. A missing NEXT month-end
+  bar does not lose the month: the return forms short, exiting at the last earlier bar in that
+  month (a "truncated exit"). Only a month with no bar at all loses the return.
+- A **mid-month** hole changes no return, since returns use the endpoints only. It does change
+  every feature computed on the daily series (the trailing returns, volatility, drawdown and
+  moving averages).
+
+**Counted for every PIT member at every month-end of the window**, from the membership table
+(\`members_on\` semantics) and the 730 files B-1 read. The classes reconcile EXACTLY with the run's
+census \`forward_return_how\`:
+- full: 108,886 = 108,886.
+- hole at the month-end 178 + after the file end 183 = 361, the census's "no price at
+  month-end".
+- no bar in the next month: 7 = 7.
+- truncated exit: 112 = 112.
+
+| | whole window (2000-01 → 2025-12) | short window (2021-07 → 2025-12) |
+|---|--:|--:|
+| **member-month-ends LOST** (no bar at the month-end, inside or after the file, or no bar in the following month) | **368** | **331** |
+| — of which a hole at the month-end inside the file's span | 178 | 142 |
+| — of which after the file's end | 183 | 183 |
+| — of which no bar in the following month | 7 | 6 |
+| names affected | **66** | **57** |
+| fraction of panel rows (109,366) / of all PIT member-month-ends (155,900) | 0.34% / 0.24% | — |
+| truncated exits (the next month-end bar missing; the return forms short) | 112 | 87 |
+| formed rows with ≥ 1 missing trading day in the month just ended (inside the file's span) | 481 of 109,005 | 102 |
+
+**Against R's hole rule** (a run of ≥ 5 consecutive missing business days, i.e. no bar in a
+business week): **159 of the 178 month-end holes sit inside such a run**, 135 of the 142 in the
+short window; the other 19 are isolated missing days. R's file-level measure, for scale: since
+2018, 78 of 724 canonical files carry at least one such run, 7,865 business days in all, and 43
+of those files belong to current PIT members (SEDG 117 holes, ANF 85, FICO 79, AXON 67, VRT 57;
+PLTR is missing four whole weeks of 2024-12, MCK four of 2025-11). The count above uses the
+harness's own exact-month-end rule, because that is what the run lost; the two rules agree on
+159 of 178.
+
+**Top 20 names by member-month-ends lost** (whole window | short window):
+SMCI 22|22 (all after the end) · NVDA 21|21 (1 hole + 20 after) · VST 20|20 (after) · FICO 19|19
+(holes) · ANET 18|18 (9 holes, 1 empty month, 8 after) · SEDG 16|16 (holes) · HWM 15|15 · AXON
+14|14 (holes) · PLTR 13|13 · AVGO 12|12 (3 holes + 9 after) · ETSY 10|5 (holes) · NRG 10|10 · TRGP
+10|10 (8 holes + 2 after) · GE 9|8 · ENPH 8|8 (holes) · DXC 7|0 (holes) · JBL 7|7 · NKTR 7|0 · PWR
+7|7 · PYPL 7|3 (holes).
+
+Three of the 183 after-end months fall outside B's 33: CTXS, TWTR and IPG. Their files end days
+before their index exits, which are genuine take-private or acquisition exits, not this fault.
+
+**The caveat, widened, as fact:** the momentum and reversal rows, and the trend rows, were
+measured on a panel missing the run-up bars of the period's biggest movers, the 2020–21 bubble
+names (SEDG, ENPH, ETSY, PYPL …) included. That is a directional loss against momentum's top
+decile, and its magnitude is unmeasurable on this cache. **H1 NOT MET stands as recorded: a
+weaker null, not a flipped one.** The post-cutover re-run is the test.
+
+### 14.3 Extension (2026-10-15) — the census COVERAGE figures are overstated (Agent A's census defect)
+
+The run's census column \`coverage_pct\` counted a PIT member as covered when a price FILE existed.
+**14,977 member-month-ends fall BEFORE their file's first bar**, so they never reach the panel.
+Measured as the panel rows actually formed:
+
+| | census (file exists) | panel rows formed |
+|---|--:|--:|
+| 2000-01 | 52.7% | **38.4%** |
+| 2006-06 / 2012-06 / 2018-06 / 2024-06 | 65.8 / 79.7 / 91.7 / 98.8% | **52.3 / 68.5 / 82.8 / 98.8%** |
+| months below 80% (of 312) | 153 | **207** |
+| last month below 80% | 2012-09 | **2017-03** |
+| member-weighted | 79.8% | **70.2%** (69.9% evaluable) |
+
+Three consequences:
+- **This corrects the coverage figures quoted in §3 and in the H1 summary**: "49.0% of months
+  under 80%" and "52.7% in 2000-01". The census did what §11.1's checklist specified (a count of
+  members with a price file), so the defect is the LABEL "coverage" on a file-existence count. It
+  is mine.
+- **The pre-named 2012 window's premise does not hold on the rows actually formed.** §7 placed it
+  "where coverage exceeds 80%", but panel coverage stays below 80% until 2017-03. The window is
+  frozen (prereg §2.4) and stays as run. Its premise is corrected here, and **the 2012 result stays a
+  sensitivity row, never a headline.**
+- These missing early histories are a different class from the delisted names of §3.6, and their
+  direction is not measured. The §3.6 survivorship reading is not extended to them.
+
+**No trial is consumed by §14.1–§14.3: counts only, no computation on returns.** N_trials stays 6.
+Read-only inputs: the panel, the membership table, the census, and the 730 files B-1 read.
