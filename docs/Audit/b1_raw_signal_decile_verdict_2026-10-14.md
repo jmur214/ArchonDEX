@@ -374,6 +374,9 @@ Coverage exceeds 80% for this whole window. **0 of 13 main signals clear; 0 of 7
 8. **Costs:** main-family Arm L costs between 15 bps/yr (`beta_252d`) and ≈ 105 bps/yr
    (`vol_regime_5_60`, `reversal_1m`); the short-window edges cost 8–31 bps/yr. The 75/25 satellite rebalance is costless on both sides of every comparison.
 
+> **Record qualification, 2026-10-15 (director, from R's cache-guard design read `docs/Audit/price_cache_convention_guard_design_read_agent_r_2026_10_15.md` §3.4):** "total return on both legs" is exact only AFTER each file's merge seam (2018-01-02 for most names, 2020-04-09 for 108); pre-seam history is price-only plus T-082b's smooth constant-yield drip (`apply_dividend_strip`, `exp(a + b·t)`), approximately total return in level. Both legs, both benchmarks and the EW sleeve read the same files, and within-month ex-date timing is second-order for a monthly construction, so the outcome is unaffected. No number in this document changes.
+
+
 ## 9. Honest N and minimum backtest length
 
 - **N_trials +4 consumed** (main L, main LS, short window, calendar), as ruled 2026-10-01.
