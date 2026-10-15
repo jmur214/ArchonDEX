@@ -479,6 +479,12 @@ labels carrying both reasons.
    span, 5 convention, BK) stop six months before the rest, a ragged end that any to-date run reads
    as "stopped trading". The canonical windows end 2025-12-31 and are unaffected; this step runs the
    classes before cutover day.
+   **The write log quotes the five LEGACY-W residuals (ruled 2026-10-15; the rail proposal §8):**
+   CAT +0.0019, ZTS +0.0043, LOW +0.0048, PG +0.0075 and CVS +0.0087 are quoted beside the pass's
+   own values. A provider history revision since the record is then a visible diff, and a material
+   one is a LEVEL IDENTITY refusal, never a silent pass. *(Note, same day: "the DECLARED
+   level-ratio band" above was superseded by the level rail, the last-bar identity merged at
+   dad8786; see the rail proposal.)*
 3. Re-qualification runs per §5.
 4. Cutover day: the copy replaces the canonical substrate in one step; every §3 pin is re-pinned
    together; the guard switches on at every writer in the §4 inventory of the guard proposal, all at

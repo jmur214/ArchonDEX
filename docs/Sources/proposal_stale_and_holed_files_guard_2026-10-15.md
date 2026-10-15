@@ -89,3 +89,60 @@ membership, declared)`, so the two producers cannot drift. `_build_census` assig
 2. **"Live" under a static universe:** every name is live unless declared (proposed).
 3. **`n_resolved` / `n_in_panel` keep their frame meaning** (invariant 2's shrink check) and gain
    their bar-based companion here; they are not redefined.
+
+## 6. As built (B, 2026-10-15): what changed from §1–§4, and what it reads
+
+**Built** on `feature/stale-holed-guard` (0b706aa: the guard at 6309cb3 plus two fixture commits; on
+the rail with its split-window fix); with R for a build review. Differences from the proposal, each forced by a measurement:
+
+- **The calendar is proven, not assumed.** §1 named "the SPY bar dates" as the calendar. SPY's own
+  file is canonical and can be wrong, so the calendar is instead the majority of the names active
+  each day, PROVEN against SPY in both directions:
+  - a majority day SPY lacks inside its own span means SPY is holed;
+  - a day SPY traded that the majority lacks means the calendar is holed. That is a mass hole the
+    per-name count cannot see. On the real cache, 244 of 248 active files lack 1999-11-16, a day
+    SPY has.
+  A run with no SPY has an unverified calendar, which fails. SPY's own early END is SPY's stale
+  entry, never a calendar hole: the real cache's SPY ends 04-17 while 481 files run to 04-24.
+- **The END test is R's correction:** per name, against the earlier of the window end and the
+  member's last exit inside the window, with a 5-trading-day slack.
+- **Declarations are facets, and each excuses exactly what it declares** (R's sentence: ends at
+  delisting vs holed inside). `holed_inside.runs` excuse the missing days inside those runs only.
+  `ends_at_delisting.last_bar` excuses an early end only when the file's last bar IS that date.
+  Neither excuses the other, and a malformed declaration file raises. JNPR is why the second facet
+  exists: last print 2025-07-01, the index's recorded exit 07-09, six trading days. It is declared,
+  never absorbed by widening the slack.
+- **One reader for the gate and the admission:** `core.census.coverage_defects`. In a measured run
+  the admission is a MeasurementHalt (`halt_or_degrade`), never a silent drop.
+- **The first declaration set is 45 files, not 33.** §2 counted the holed files the cutover cannot
+  fill at three or more missing days inside the post-seam span. At tolerance 0 over each file's
+  full span, the set of files NO provider can fill is 45:
+  - 32 delisted;
+  - 10 files lying entirely after their PIT name's exit (later entities on the symbol);
+  - the 3 class (i) names.
+  That is 1,298 holes in 395 runs; 19 of the 45 also carry `ends_at_delisting`. All were built
+  mechanically from the guard's own count on the post-write copy.
+
+**What it reads.** PIT, over the canonical window 2000-01-03 → 2025-12-31, with the shipped
+declarations:
+
+| substrate | stale | holed | calendar |
+|---|---|---|---|
+| the real cache today | 27 | 246 | proven |
+| the post-write copy | **0** | **6** single days | proven |
+
+The six on the copy:
+- FISV (2025-11-12) is a provider gap in a written file;
+- JPM, KDP, TDC, WMT and WU are §2b span refusals awaiting the user's class decision.
+Over 2018 → 2025 only FISV remains. These are the residual misses the first green run enumerates
+(R's answer 1); none is declared here.
+
+**Formation coverage reads the same on both substrates:** a minimum of 0.66, a median of 0.83, and
+134 of 312 month-ends below 0.80. Members whose files START late (the survivorship gap) form no row.
+The cutover does not move it. It is recorded, not gated (§1).
+
+**One rule beyond §1–§4:** a run with no SPY has an UNVERIFIED calendar, and the gate fails it.
+It caught 19 Discovery test fixtures whose synthetic data_maps carried only AAA, so Gate 1
+refused every candidate before the gate under test ran. The fixtures were fixed additively, with
+SPY on the same calendar as production always carries it; the rule was not relaxed. With R as
+question 1 of the build review.
