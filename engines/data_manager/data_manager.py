@@ -41,6 +41,25 @@ from alpaca.data.timeframe import TimeFrame
 import yfinance as yf
 
 
+class CacheUnreadableError(RuntimeError):
+    """A cache file could not be read. It was QUARANTINED (renamed), never deleted."""
+
+    def __init__(self, ticker: str, path: Path, error: Exception, quarantined_to: Path):
+        self.ticker, self.path, self.quarantined_to = ticker, Path(path), Path(quarantined_to)
+        super().__init__(
+            f"[DATA_MANAGER] {ticker}: cache file {path} is unreadable ({error!r}) — quarantined "
+            f"to {quarantined_to}, NOT deleted. Inspect it, then restore or re-fetch deliberately.")
+
+
+def _quarantine(path: Path) -> Path:
+    """Move an unreadable cache file aside with a timestamped sibling name; the bytes survive."""
+    from datetime import datetime, timezone
+    path = Path(path)
+    dest = path.with_name(f"{path.name}.unreadable-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}")
+    path.rename(dest)
+    return dest
+
+
 class DataManager:
     def __init__(self, cache_dir: str = "data/processed", api_key=None, secret_key=None, base_url=None):
         self.cache_dir = Path(cache_dir)
@@ -621,39 +640,29 @@ class DataManager:
         return self.cache_dir / "parquet" / f"{ticker}_{timeframe}.parquet"
 
     def load_cached(self, ticker: str, timeframe: str) -> pd.DataFrame | None:
-        # Try Parquet first, then fallback to CSV
+        """Parquet first, then CSV. A cache file that cannot be READ is quarantined and refused —
+        never deleted (ruling, 2026-10-15): it is renamed to a sibling `.unreadable-<UTC ts>` and
+        CacheUnreadableError names the path, the error and where the bytes went. The old behaviour
+        unlinked it — a reader silently destroying substrate. Only the READ is guarded: an error
+        in normalization is a code bug and propagates as itself, never quarantining a good file."""
         pq_path = self.parquet_cache_path(ticker, timeframe)
         if pq_path.exists():
             try:
-                df = pd.read_parquet(pq_path)
-                df = self._normalize_df(df, ticker=ticker)
-                if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                    print(f"[DATA_MANAGER][INFO] Loaded Parquet cache for {ticker} ({timeframe})")
-                return df
+                raw = pd.read_parquet(pq_path)
             except Exception as e:
-                if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                    print(f"[DATA_MANAGER][WARN] Failed to load Parquet cache for {ticker}: {e}. Attempting CSV fallback.")
-                # Optionally, remove corrupted file
-                try:
-                    pq_path.unlink()
-                except Exception:
-                    pass
-        # CSV fallback
+                raise CacheUnreadableError(ticker, pq_path, e, _quarantine(pq_path)) from e
+            df = self._normalize_df(raw, ticker=ticker)
+            if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
+                print(f"[DATA_MANAGER][INFO] Loaded Parquet cache for {ticker} ({timeframe})")
+            return df
         path = self.cache_path(ticker, timeframe)
         if not path.exists():
             return None
         try:
-            df = pd.read_csv(path)
-            df = self._normalize_df(df, ticker=ticker)
-            return df
+            raw = pd.read_csv(path)
         except Exception as e:
-            if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                print(f"[DATA_MANAGER][WARN] Failed to load CSV cache for {ticker}: {e}")
-            try:
-                path.unlink()
-            except Exception:
-                pass
-            return None
+            raise CacheUnreadableError(ticker, path, e, _quarantine(path)) from e
+        return self._normalize_df(raw, ticker=ticker)
 
     def save_cache(self, ticker: str, timeframe: str, df: pd.DataFrame) -> None:
         # Save both Parquet and CSV for compatibility (Parquet preferred)
