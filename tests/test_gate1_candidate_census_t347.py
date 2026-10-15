@@ -47,7 +47,9 @@ def _census_block(cand_id, census, n_trades):
     with assert_census, not a private copy of it. (2026-10-15: this used to be a hand-written copy;
     it drifted the day the candidate census gained `census_kind`, which is exactly what a copy does.)"""
     from engines.engine_d_discovery.discovery import candidate_census_block
-    return {"census": candidate_census_block(cand_id, census, n_trades=n_trades),
+    one_bar = {"SPY": pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2025-12-31"]))}
+    return {"census": candidate_census_block(cand_id, census, n_trades=n_trades, data_map=one_bar,
+                                             window=("2025-12-31", "2025-12-31")),
             "bootstrap_ci_skip_reason": "gate1_contribution_run"}
 
 

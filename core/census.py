@@ -22,7 +22,11 @@ the audit's invariants fail:
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
-     level_declarations record
+     level_declarations / stale_files record
+  9. stale_files: any UNDECLARED live name that ends before its required end (the earlier of the
+     window end and its exit) or is holed inside its required spans, or a reference calendar that
+     is holed or unverified — `coverage_defects`, shared with the measured-run admission
+     (BARS, never file presence — the stale/holed-files guard, 2026-10-15)
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
@@ -73,6 +77,36 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def coverage_defects(sf: Dict[str, Any]) -> List[str]:
+    """Invariant 9's reading of a `stale_files` record — the ONE reader the census gate and the
+    measured-run admission (orchestration/mode_controller.py) share, so the two cannot disagree on
+    what fails. [] means clean. A calendar that was never checked is a failure, not a pass: hole
+    counts against an unproven calendar are not a measurement."""
+    out: List[str] = []
+    if sf.get("n_stale"):
+        bad = sorted(t for t, v in (sf.get("names") or {}).items()
+                     if v.get("ends_before_required") and not v.get("end_declared_as_delisting"))
+        out.append(f"stale_files: {sf['n_stale']} undeclared name(s) END before their required end "
+                   f"(the earlier of the window end and the exit) — read as 'stopped trading', the "
+                   f"write-time band class: {', '.join(bad[:10])}")
+    if sf.get("n_holed"):
+        bad = sorted(t for t, v in (sf.get("names") or {}).items() if v.get("undeclared_missing_days"))
+        out.append(f"stale_files: {sf['n_holed']} name(s) HOLED inside their required spans beyond "
+                   f"their declarations: {', '.join(bad[:10])}")
+    cal = sf.get("calendar") or {}
+    if not cal.get("checked_against"):
+        out.append("stale_files: the reference calendar is UNVERIFIED — no SPY in the run's data to "
+                   "prove it against")
+    if cal.get("spy_missing_days"):
+        out.append(f"stale_files: SPY is holed — it lacks {len(cal['spy_missing_days'])} majority "
+                   f"trading day(s) inside its own span")
+    if cal.get("calendar_missing_days"):
+        out.append(f"stale_files: the reference calendar is holed — the majority of names lack "
+                   f"{len(cal['calendar_missing_days'])} day(s) SPY traded: "
+                   f"{', '.join(cal['calendar_missing_days'][:5])}")
+    return out
+
+
 def assert_census(
     summary: Dict[str, Any],
     *,
@@ -104,10 +138,14 @@ def assert_census(
     for k in sorted(census):
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
-    for key in ("data_exclusions", "ticker_exclusions", "level_declarations"):
+    for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
+    # 9 — the stale/holed-files guard: counts BARS, never file presence (2026-10-15)
+    sf = census.get("stale_files")
+    if isinstance(sf, dict) and "error" not in sf:
+        failures.extend(coverage_defects(sf))
 
     dormant = set(expected_dormant or set()) | _env_set("CENSUS_EXPECTED_DORMANT")
     panel_allow = panel_allowlist if panel_allowlist is not None else _env_int("CENSUS_PANEL_ALLOWLIST", 0)

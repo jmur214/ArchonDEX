@@ -198,7 +198,8 @@ def test_gate_6_recovers_a_spreads_alpha_without_subtracting_RF(monkeypatch):
     monkeypatch.setattr("core.factor_decomposition.load_factor_data",
                         lambda auto_download=False: factors)
     r = g78._make_disc().validate_candidate(
-        g78._make_cand_spec(), {"AAA": df}, significance_threshold=0.05, alpha_config={},
+        # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
+        g78._make_cand_spec(), {"AAA": df, "SPY": df}, significance_threshold=0.05, alpha_config={},
         n_trials_for_dsr=2)
     assert r["gate_verdicts"]["gate_6"]["verdict"] in (gv.PASSED, gv.FAILED), "precondition: Gate 6 ran"
     assert abs(r["factor_alpha_annualized"] - 0.025) < 0.015, r["factor_alpha_annualized"]
@@ -287,7 +288,8 @@ def test_gates_5_and_7_with_arms_never_replay_universe_A_signals(monkeypatch):
     monkeypatch.setattr("core.factor_decomposition.load_factor_data", _no_factors)
 
     r = g78._make_disc().validate_candidate(
-        g78._make_cand_spec(), {"AAA": df}, significance_threshold=0.05, alpha_config={},
+        # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
+        g78._make_cand_spec(), {"AAA": df, "SPY": df}, significance_threshold=0.05, alpha_config={},
         n_trials_for_dsr=1, data_map_substrate_b={"SUBB": df})   # use_signal_cache defaults True
 
     assert r["gate_verdicts"]["gate_5"]["verdict"] != gv.NOT_EVALUATED, "precondition: Gate 5 ran"
