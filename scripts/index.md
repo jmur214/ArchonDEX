@@ -43,6 +43,18 @@
 **Module Docstring:** scripts/accumulation_model_t283c.py
 - **Function `main()`**: No docstring
 
+### `adaptation_rule_t314.py`
+**Module Docstring:** T-314 (#1) — the bounded regime-conditional adaptation RULE, on the deep substrate.
+- **Function `frozen_exposure()`**: The deployed ensemble exposure: mean binary long/flat over SPEEDS, lagged.
+- **Function `stress_signal()`**: CAUSAL vol-stress s[t] ∈ [0,1] (T-273 lag discipline): 60d realized vol vs its
+- **Function `sleeve_at()`**: Sleeve returns with exposure scaled by the bounded adaptation rule.
+- **Function `main()`**: No docstring
+
+### `aggressive_tilt_adversary_probe_t320.py`
+**Module Docstring:** T-320 aggressive-tilt ADVERSARY probe (reproduces the measured priors; scope only, 0 N_trials).
+- **Function `ff_monthly()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `analyze_13f_crowding_t145.py`
 **Module Docstring:** scripts/analyze_13f_crowding_t145.py
 - **Function `load_prices()`**: No docstring
@@ -138,15 +150,62 @@
 - **Function `book_correlation()`**: Correlation of VRP return to the existing 6-active-edge book + to the
 - **Function `main()`**: No docstring
 
+### `anon_historical_eval_t339.py`
+**Module Docstring:** scripts/anon_historical_eval_t339.py — RUN the frozen T-339 evaluation.
+- **Function `price()`**: No docstring
+- **Function `sample_questions()`**: §2: 24 months from 2015-01..2023-12 (2024+ RESERVED), <=20/month, N=300.
+- **Function `anonymize()`**: §2: entity -> per-question random token; absolute dates REMOVED (relative only);
+- **Function `make_spec()`**: Resolver spec on the NORMALIZED series (§3). Deterministic per index — no sweep.
+- **Function `resolve()`**: Real outcome from real prices (internal, never shown to the model).
+- **Function `parse_json()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `anon_historical_eval_t339b.py`
+**Module Docstring:** scripts/anon_historical_eval_t339b.py — RUN the frozen T-339b evaluation (ATTEMPT 2).
+- **Function `price()`**: No docstring
+- **Function `sample_questions()`**: §2: 24 months from 2015-01..2023-12 (2024+ RESERVED), <=20/month, N=300.
+- **Function `company_of()`**: SEC ticker->company title, for the exact-match pass alongside NER (§A.1).
+- **Function `anonymize()`**: T-339b §A: NER + exact-name + date scrubbing, then MANDATORY verification.
+- **Function `make_spec()`**: Resolver spec on the NORMALIZED series (§3). Deterministic per index — no sweep.
+- **Function `resolve()`**: Real outcome from real prices (internal, never shown to the model).
+- **Function `parse_json()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `anon_historical_score_t339.py`
+**Module Docstring:** scripts/anon_historical_score_t339.py — score the frozen T-339 run.
+- **Function `murphy()`**: BS = reliability - resolution + uncertainty (Murphy 1973).
+- **Function `skill()`**: Block-bootstrap CI on the per-question Brier DIFFERENTIAL, gimmes excluded.
+- **Function `main()`**: No docstring
+
+### `anon_historical_score_t339b.py`
+**Module Docstring:** scripts/anon_historical_score_t339.py — score the frozen T-339 run.
+- **Function `murphy()`**: BS = reliability - resolution + uncertainty (Murphy 1973).
+- **Function `skill()`**: Block-bootstrap CI on the per-question Brier DIFFERENTIAL, gimmes excluded.
+- **Function `main()`**: No docstring
+
+### `approvals_queue.py`
+**Module Docstring:** The approvals queue — Phase-6 rung 0, the gate the ferry does NOT retire.
+- **Class `Approval`**: No docstring
+  - `def is_open()`
+- **Function `slugify()`**: No docstring
+- **Function `render()`**: The on-disk form. Evidence is REQUIRED and rendered as its own block: an
+- **Function `parse()`**: Read an entry. Returns None if it is not a well-formed approval file — a
+- **Function `load_all()`**: No docstring
+- **Function `open_items()`**: No docstring
+- **Function `already_asked()`**: Has this exact decision been raised before, in ANY state?
+
 ### `archive_altdata_t136.py`
 **Module Docstring:** scripts/archive_altdata_t136.py
 - **Function `pull_gpr()`**: No docstring
 - **Function `pull_epu()`**: No docstring
-- **Function `pull_gdelt_timelines()`**: No docstring
 - **Function `snapshot_polymarket()`**: No docstring
 - **Function `snapshot_kalshi()`**: No docstring
 - **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
 - **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
+- **Function `snapshot_cef()`**: Daily CEF panel: NAV, price, DISCOUNT (+52wk avg, z-scores), distribution rate.
+- **Function `pull_form4_index()`**: EDGAR Form 4 (insider transactions) DAILY-INDEX archive.
+- **Function `pull_usaspending()`**: USASpending.gov federal contract awards (free, structured, underexplored).
+- **Function `pull_credit_spread_oas()`**: Deep ICE BofA OAS history: recover from Wayback (once), then append the live
 - **Function `main()`**: No docstring
 
 ### `archive_positioning_t136.py`
@@ -163,6 +222,16 @@
 - **Function `portfolio_sweep()`**: No docstring
 - **Function `per_name_sweep()`**: No docstring
 - **Function `main()`**: No docstring
+
+### `asymmetric_damping_t298.py`
+**Module Docstring:** T-298 — asymmetric damping: damp re-entry (B=2/3), NEVER damp de-risking. Frozen; no sweep.
+- **Function `spy_close()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `asym()`**: FROZEN: de-risking always executes; re-entry only when target - held > band.
+- **Function `arm()`**: No docstring
+- **Function `stats()`**: No docstring
+- **Function `paired()`**: No docstring
+- **Function `first_below()`**: No docstring
 
 ### `asymmetric_exits_gauntlet_t269.py`
 **Module Docstring:** scripts/asymmetric_exits_gauntlet_t269.py
@@ -187,6 +256,13 @@
 
 ### `backfill_decision_diary.py`
 **Module Docstring:** One-shot backfill of decision diary with this week's load-bearing decisions.
+- **Function `main()`**: No docstring
+
+### `backfill_run_registry_t336.py`
+**Module Docstring:** T-336 Part 1(a) — refresh the run registry that feeds compute_n_effective.
+- **Function `parse_ledger()`**: -> (rows, total_increment, zero_rows). One entry per task row that records N.
+- **Function `ensure_source_column()`**: No docstring
+- **Function `backfill()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `backfill_t052_macro_data.py`
@@ -262,6 +338,19 @@
 - **Function `wikipedia_cross_check()`**: Second source: Wikipedia current constituents vs the panel TODAY.
 - **Function `main()`**: No docstring
 
+### `build_multidecade_substrate_t306.py`
+**Module Docstring:** T-2026-07-10-306 D-A — the multi-decade substrate (2-asset equity+bond core).
+- **Function `fred_dgs10()`**: No docstring
+- **Function `ff_factors_daily()`**: Fama-French 3-factor daily (Mkt-RF, RF), 1926+. Daily % returns.
+- **Function `spy_tr_ret()`**: No docstring
+- **Function `agg_tr_ret()`**: No docstring
+- **Function `lbma_gold()`**: LBMA daily gold AM fix, USD (v[0]), 1968+. Off-FRED, free, refreshable.
+- **Function `gold_gcf()`**: No docstring
+- **Function `build_bond()`**: No docstring
+- **Function `build_equity()`**: Spliced daily equity TR RETURN then a TR index. FF broad-market before the
+- **Function `build_gold()`**: Spliced daily gold TR return + index. LBMA fix before the gcf splice date,
+- **Function `main()`**: No docstring
+
 ### `build_news_panel_t289.py`
 **Module Docstring:** T-289b — resumable PIT news-panel backfill. Writes data/intel/news_panel/news_YYYYMM.parquet per month,
 - **Function `full_universe()`**: No docstring
@@ -280,9 +369,31 @@
 ### `build_rate_path_history_t295.py`
 **Module Docstring:** scripts/build_rate_path_history_t295.py
 - **Function `build_frontcont_path()`**: ZQ=F front-continuous → implied_effr = 100 − price. Validated vs FRED
-- **Function `build_meeting_probs()`**: For every FOMC meeting with an available Yahoo contract (active window
+- **Function `build_meeting_probs()`**: FedWatch TWO-OUTCOME implied 25bp-move prob per FOMC meeting, computed
 - **Function `ingest_minneapolis()`**: Minneapolis Fed Market-Based Probabilities (option-implied MPDs). The
 - **Function `ingest_atlanta()`**: Atlanta Fed Market Probability Tracker — BEST-EFFORT (the task: if the
+- **Function `main()`**: No docstring
+
+### `build_signal_panel_b1.py`
+**Module Docstring:** scripts/build_signal_panel_b1.py — B-1 month-end signal panel + census.
+- **Function `env_pin_violations()`**: No docstring
+- **Function `disk_free_gb()`**: No docstring
+- **Function `assert_disk_floor()`**: No docstring
+- **Function `provenance()`**: Resolved file of each module that does real work. All must sit under ROOT — a run
+- **Function `provenance_violations()`**: No docstring
+- **Function `month_ends()`**: The LAST trading day of each calendar month in [start, end] (YYYY-MM).
+- **Function `load_ohlcv()`**: No docstring
+- **Function `pit_slice()`**: THE point-in-time boundary — the ONLY way any signal sees prices. Rows strictly
+- **Function `forward_return()`**: Close(next month-end) / Close(month-end) - 1. If the series ends inside the next
+- **Function `foundry_values()`**: No docstring
+- **Function `make_edges()`**: No docstring
+- **Function `edge_values()`**: No docstring
+- **Function `month_usable()`**: None, NaN and a constant (incl. the foundry's 0.0 fallback) are all 'missing'.
+- **Function `modal_share()`**: No docstring
+- **Function `build_census()`**: No docstring
+- **Function `orientation_check()`**: Pooled Spearman of an edge's native score vs its foundry reference, over every
+- **Function `input_manifest()`**: No docstring
+- **Function `canonical_md5()`**: Identity of CONTENT, not of parquet bytes (writer metadata is not the measurement).
 - **Function `main()`**: No docstring
 
 ### `c1_concentration_gauntlet_t241.py`
@@ -343,9 +454,21 @@
 - **Function `monthly()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `census_fail_closed_reversion_proof.py`
+**Module Docstring:** Census fail-closed unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
 ### `ci_coverage_audit_t257.py`
 **Module Docstring:** scripts/ci_coverage_audit_t257.py
 - **Function `simulate_garch_t()`**: GARCH(1,1) with standardized Student-t innovations.
+- **Function `main()`**: No docstring
+
+### `closure_manifest_t339.py`
+**Module Docstring:** T-339 — the CLOSURE MANIFEST: make closure-grade artifacts un-deletable.
+- **Function `parse_ledger()`**: No docstring
+- **Function `resolve_receipts()`**: Locate the receipt set for one closure. Presence is checked, never assumed.
+- **Function `build_manifest()`**: No docstring
+- **Function `archive()`**: Push each surviving receipt set to closures/<TASK>/ — immutable, task-keyed.
+- **Function `verify()`**: INTEGRATION BAR: restore one receipt set from S3 and prove it reads back.
 - **Function `main()`**: No docstring
 
 ### `cloud_pipeline_smoke.py`
@@ -382,6 +505,13 @@
 **Module Docstring:** scripts/conditional_voltarget_gauntlet_t252.py
 - **Function `main()`**: No docstring
 
+### `contribution_rule_t299.py`
+**Module Docstring:** T-2026-07-09-299 — the contribution-vs-gate rule (FROZEN pre-reg run).
+- **Function `arm()`**: Net daily return of holding exposure e (verbatim T-298). At e=0 -> RF.
+- **Function `accumulate_rule_a()`**: No docstring
+- **Function `run_config()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `crisis_replay_t118b.py`
 **Module Docstring:** T-143 — Crisis-replay harness implementing the LOCKED T-118b
 - **Class `Episode`**: No docstring
@@ -407,6 +537,28 @@
 - **Function `block_bootstrap_ci()`**: No docstring
 - **Function `analyze()`**: No docstring
 - **Function `verdict_for()`**: Map ETF result to PROCEED-INTEGRATE / MIXED / DEAD.
+- **Function `main()`**: No docstring
+
+### `deep_reverify_sleeve_t311.py`
+**Module Docstring:** T-2026-07-27-311 — DEEP re-verify the trend sleeve on the T-306 multi-decade substrate.
+- **Function `load_substrate()`**: TR index per leg + the daily cash rate, aligned onto the EQUITY calendar
+- **Function `ensemble_pos()`**: Mean of binary long/flat signals across the FROZEN speeds, lagged 1 day
+- **Function `sleeve_returns()`**: EW long/flat sleeve; flat leg earns the short rate; ER when long; txn on flips.
+- **Function `robo_returns()`**: Monthly-rebal; legs net of ER; _cash earns cash_rate; 1.5bps rebal cost.
+- **Function `buyhold_equity()`**: No docstring
+- **Function `maxdd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `sortino()`**: No docstring
+- **Function `sharpe()`**: No docstring
+- **Function `ci_low_sortino()`**: No docstring
+- **Function `paired()`**: Paired block-bootstrap of sleeve − baseline: ΔSortino, Δwealth, ΔMaxDD.
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `deep_reverify_speeds_t260.py`
+**Module Docstring:** T-260-deep — DEEP re-verify of the multi-speed ensemble selection (T-306 substrate).
+- **Function `sleeve()`**: EW long/flat sleeve at the given speed set — T-255 fair conventions.
+- **Function `run()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `defensive_tilt_screens_t205.py`
@@ -435,6 +587,28 @@
 **Module Docstring:** T-151 demonstration — safe-f / CAR25 on a real book, per account.
 - **Function `main()`**: No docstring
 
+### `diff_live_paper_infra.py`
+**Module Docstring:** Diff the CHECKED-IN paper-fleet templates against the LIVE AWS resources.
+- **Function `aws()`**: No docstring
+- **Function `check_job_role()`**: No docstring
+- **Function `check_exec_role()`**: The exec-role policy is legitimately a SUPERSET of what any one script
+- **Function `check_schedules()`**: No docstring
+- **Function `check_scheduler_submit_policy()`**: Every EXISTING schedule's target jobdef must be covered by the scheduler
+- **Function `check_alarm_suppression()`**: T-327 ruling (2026-08-28): a disabled alarm must SAY WHY. Dormant accounts'
+- **Function `main()`**: No docstring
+
+### `director_pass.py`
+**Module Docstring:** The scheduled director pass — Phase-6 rung 0, second half.
+- **Class `MergeCandidate`**: No docstring
+  - `def ident()`
+- **Function `collect_merge_candidates()`**: Branches that are ahead of origin/main — the machine-checkable fact.
+- **Function `prepare_merge_approvals()`**: Raise one approval per merge candidate. NEVER merges; never re-asks.
+- **Function `withdraw_stale()`**: Withdraw open merge approvals whose branch is no longer ahead of origin/main.
+- **Function `dispatch_allowed()`**: A finding that persists must not be re-dispatched every night — that is how
+- **Function `append_ledger()`**: Append one pass row.
+- **Function `write_report()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `discovery_diag_analytics.py`
 **Module Docstring:** scripts/discovery_diag_analytics.py
 - **Function `load_jsonl()`**: No docstring
@@ -447,14 +621,25 @@
 - **Function `summarize()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `discovery_generate_candidates.py`
+**Module Docstring:** Generate Discovery candidates only (no validation) and save them.
+- **Function `main()`**: No docstring
+
 ### `dividend_reconcile_t287.py`
 **Module Docstring:** scripts/dividend_reconcile_t287.py
 - **Function `robo_clean()`**: 60/40-style robo, NO dividend double-count — processed SPY is already TR.
 - **Function `main()`**: No docstring
 
+### `dividend_strip_audit_t337.py`
+**Module Docstring:** T-337 — the dividend-strip audit (FROZEN pre-reg; N_trials += 1).
+- **Function `load_trades()`**: Arm-1 trades from the run_ids the decomposition itself uses (same substrate).
+- **Function `tr_residual_rates()`**: Per-ticker annualized panel-vs-TR residual + the COVERAGE CENSUS (Ruling 1).
+- **Function `main()`**: No docstring
+
 ### `doc_lint.py`
 **Module Docstring:** doc_lint — anti-rot guard for the documentation system.
 - **Class `CheckResult`**: No docstring
+- **Class `_HighRow`**: No docstring
 - **Function `check_memory_size()`**: No docstring
 - **Function `check_current_state_freshness()`**: No docstring
 - **Function `check_memory_supersession_markers()`**: No docstring
@@ -463,6 +648,8 @@
 - **Function `check_task_ledger_columns()`**: No docstring
 - **Function `check_scripts_in_execution_manual()`**: No docstring
 - **Function `check_no_numbered_nonneg_refs()`**: No docstring
+- **Function `check_closure_receipts()`**: T-339: a MEASURED closure must have a locatable receipt set.
+- **Function `check_high_row_anchors()`**: Every `- Anchor:` on an open HIGH row still matches its cited line.
 - **Function `main()`**: No docstring
 
 ### `edge_compression_t117.py`
@@ -497,6 +684,12 @@
 - **Function `ddwin()`**: No docstring
 - **Function `cagrwin()`**: No docstring
 - **Function `paired()`**: No docstring
+
+### `excess_of_cash_attribution_t333.py`
+**Module Docstring:** T-333 — the EXCESS-OF-CASH attribution: is the sleeve's regime dependency an identity?
+- **Function `block_ci()`**: Stationary block-bootstrap CI (the [NN-SHARPE-CI] standard).
+- **Function `ann()`**: No docstring
+- **Function `main()`**: No docstring
 
 ### `factor_decomp_book_t206.py`
 **Module Docstring:** T-206 Task 1 diagnostic — book-level factor decomposition (HAC).
@@ -650,6 +843,12 @@
 ### `harvest_data.py`
 - **Function `harvest()`**: Run a simulation to collect (Features, Label) pairs for ML training.
 
+### `honest_n_pin.py`
+**Module Docstring:** Pin or verify the honest-N gate's two inputs — the ρ̄ artifact and the run registry (RR-3 §9.3).
+- **Class `PinExistsError`**: A pin already exists and `replace` was not requested.
+- **Function `write_pin()`**: Pin the gate to `artifact_dir/artifact_name` AND the current run registry, recording each file's
+- **Function `main()`**: No docstring
+
 ### `income_leg_screener_t261.py`
 **Module Docstring:** T-261 income-leg SCREENER ($0, screening only — NO gauntlet, NO N_trials consumed).
 - **Function `tr_close()`**: No docstring
@@ -705,6 +904,11 @@
 - **Function `fit_gbm()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `intl_stream_corr_probe_t313.py`
+**Module Docstring:** T-313 international-stream data-reality probe (reproduces the crisis-correlation finding).
+- **Function `ff_market()`**: Ken French regional market total return (Mkt-RF + RF), monthly.
+- **Function `main()`**: No docstring
+
 ### `intraday_probe_t270.py`
 **Module Docstring:** scripts/intraday_probe_t270.py — the ONE intraday probe (FROZEN pre-reg T-270).
 - **Function `fetch_daily()`**: No docstring
@@ -714,6 +918,38 @@
 - **Function `robo()`**: No docstring
 - **Function `realized()`**: Frozen frictions: active day → 0.5·(gross−cost) + 0.5·cash; flat day → cash.
 - **Function `stats()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `janitor_guard.py`
+**Module Docstring:** The janitor's constitutional guard — Phase-6 rung 0.
+- **Class `GuardVerdict`**: No docstring
+  - `def report()`
+- **Function `classify()`**: Vet a list of repo-relative changed paths against the constitution.
+- **Function `changed_paths()`**: Files the working branch changes relative to `base` (committed + working tree).
+- **Function `vet_branch()`**: No docstring
+
+### `janitor_nightly.py`
+**Module Docstring:** The nightly janitor — Phase-6 rung 0 (autonomous development pilot).
+- **Class `Check`**: No docstring
+  - `def status()`: The one rendering of a check's state — report, ledger, and log all use it.
+- **Function `forensic_lines()`**: The FAILED/ERROR names from a pytest run, in order.
+- **Function `check_suite()`**: Run the fast tier; on FAILURE, persist WHICH tests failed.
+- **Function `check_doc_lint()`**: No docstring
+- **Function `check_index_drift()`**: The sync_docs index drift: index.md auto-generated sections that no longer match the code's
+- **Function `check_census()`**: Read-only census review. The census is the referee — the janitor READS it and
+- **Function `check_worktree_canon()`**: Worktree hygiene: is this worktree clean — apart from what this run wrote —
+- **Function `check_launchd_canon()`**: Registered launchd jobs must map to LIVE tasks, or carry an exemption.
+- **Function `check_relay_gap()`**: WHICH TREE DO TONIGHT'S CHECKS CERTIFY? A statement, never a gate (2026-10-14).
+- **Function `check_runner_canon()`**: Is the janitor running CANONICAL code?
+- **Function `check_ledger_backup()`**: Does a readable REMOTE copy of the authority record exist, and is it current?
+- **Function `check_observability_backup()`**: Last night's push of the honest-N inputs (run registry + ρ̄ artifacts): is each
+- **Function `survival_syncs()`**: The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
+- **Function `run_checks()`**: No docstring
+- **Function `write_report()`**: No docstring
+- **Function `schedule_health()`**: Was this run on time, late, and how many nights have no row at all?
+- **Function `append_ledger()`**: The autonomy ledger — every autonomous action, so the stream can be SCORED and
+- **Function `open_merge_request()`**: No docstring
+- **Function `run_fix_phase()`**: Invoke the headless session. Returns its stdout tail (for the record).
 - **Function `main()`**: No docstring
 
 ### `journal_apply.py`
@@ -728,6 +964,28 @@
 ### `land_held_position_t201.py`
 **Module Docstring:** T-201 — land a REAL held position the cloud loop can explain.
 - **Function `main()`**: No docstring
+
+### `launchd_canon.py`
+**Module Docstring:** Launchd canon — registered jobs must map to LIVE tasks, or carry an exemption.
+- **Class `LaunchdVerdict`**: No docstring
+  - `def report()`
+- **Function `audit()`**: No docstring
+- **Function `registered_jobs()`**: Labels launchd currently has registered for this user.
+- **Function `audit_live()`**: No docstring
+
+### `ledger_backup.py`
+**Module Docstring:** Survival for the autonomy ledger — Phase-6 rung 0.
+- **Class `PushVerdict`**: No docstring
+  - `def ok()`: DEFERRED counts as ok: a transient network is not a backup failure.
+  - `def needs_push()`
+- **Function `classify_push()`**: Is pushing `local` over `remote` an APPEND, or a loss of history?
+- **Function `read_remote()`**: Remote object bytes, or (None, why). A MISSING object and an UNREACHABLE
+- **Function `sync()`**: Guarded push of the ledger to the canonical key AND a dated key.
+- **Function `verify()`**: Is the remote copy current with local? Run at the START of a session so a
+- **Function `classify_registry()`**: Is pushing the local registry over the remote one safe for the gate's N?
+- **Function `classify_artifact()`**: A dated ρ̄ artifact: pushed once, then immutable by name.
+- **Function `sync_observability()`**: Guarded push of the honest-N inputs. Never `allow_rewrite` on the nightly path.
+- **Function `verify_observability()`**: Start-of-run check: does a readable remote copy of each honest-N input exist and
 
 ### `lifecycle_factor_alpha_reeval_t043.py`
 **Module Docstring:** scripts/lifecycle_factor_alpha_reeval_t043.py
@@ -875,8 +1133,24 @@
 - **Function `load_hist()`**: No docstring
 - **Function `run_a1()`**: No docstring
 - **Function `run_a2()`**: No docstring
+- **Function `report_f3()`**: F3: delisted-vs-survivor news coverage + differential decay near delisting (a1/a3 samples).
 - **Function `run_a3()`**: No docstring
 - **Function `run_b1()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `offense_campaign_t312_t315.py`
+**Module Docstring:** T-312 + T-315 — the offense campaign (ONE family, jointly reported), FROZEN terms.
+- **Function `lev_daily()`**: Daily-reset L-x LETF (the honest SSO mechanic): L*gross - (L-1)*(cash+spread) - ER.
+- **Function `static_arm()`**: Held FOREVER: no gate, no turnover except the annual rebalance (0.51bps on that only).
+- **Function `glide_arm()`**: Age-glide: hold L0, then de-lever linearly to 1x over the FINAL taper_yrs.
+- **Function `gated_t298()`**: T-298: e = min(2*ensemble,2); damp re-entry (band 2/3 on e2), NEVER damp de-risking.
+- **Function `eqc()`**: No docstring
+- **Function `wealth()`**: No docstring
+- **Function `paired_dw()`**: No docstring
+- **Function `win_stats()`**: No docstring
+- **Function `years_to_recover()`**: From the post-crisis trough, how long to regain the prior peak (the 'what's left to compound' test).
+- **Function `report()`**: No docstring
+- **Function `erp_haircut()`**: Forward-ERP sensitivity: subtract a constant annualized haircut from the equity return.
 - **Function `main()`**: No docstring
 
 ### `offleg_ab_t259.py`
@@ -997,9 +1271,74 @@
 - **Function `cancellation_replay()`**: Offline S-vs-0.5S replays on captured real inputs, both modes.
 - **Function `main()`**: No docstring
 
+### `probe_engine_f_retirement_burden.py`
+**Module Docstring:** probe_engine_f_retirement_burden.py — simulate the Engine F retirement gate's
+- **Function `gate2_gate3_retire()`**: Verbatim logic of _check_retirement_gates Gates 2-3 (Gate 1 min-trades assumed met).
+- **Function `main()`**: No docstring
+
+### `probe_gate4_permutation_null.py`
+**Module Docstring:** probe_gate4_permutation_null.py — deterministic probe of the Engine D Gate 4
+- **Function `make_series()`**: Return (signal, asset_returns) such that strategy = signal * asset_returns
+- **Function `correct_null_signal_permutation()`**: Permute the SIGNAL against the returns. Preserves marginals; destroys alignment.
+- **Function `sign_flip_null()`**: Sign-flip null around zero mean (valid H0: E[r]=0, symmetric).
+- **Function `main()`**: No docstring
+
+### `probe_mbl_n_effective.py`
+**Module Docstring:** probe_mbl_n_effective.py — data-free arithmetic on the MBL / DSR bar.
+- **Function `emax_approx()`**: No docstring
+- **Function `emax_exact()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `probe_news_depth_t289.py`
 **Module Docstring:** T-289a — Alpaca News (Benzinga) depth/survivorship/breadth PROBE. Gates the whole news lane.
 - **Function `fetch()`**: No docstring
+
+### `probe_rr1_sizing_equity.py`
+**Module Docstring:** RR-1 probe — does the backtester SIZE from a different equity than it REPORTS?
+- **Class `_P`**: No docstring
+
+### `probe_spy_ci_low_kill_threshold.py`
+**Module Docstring:** probe_spy_ci_low_kill_threshold.py — does the project's own `ci_low < 0.4` kill
+- **Function `analytic_lower_bound()`**: No docstring
+- **Function `simulate_spy_like()`**: No docstring
+- **Function `bootstrap_ci()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `provision_paper_fleet.py`
+**Module Docstring:** T-288 — provision the paper FLEET accounts 2 & 3 (offense_sso, sleeve_btc).
+- **Function `aws()`**: No docstring
+- **Function `secret_arn()`**: No docstring
+- **Function `role_arn()`**: No docstring
+- **Function `extend_exec_secret_policy()`**: Grant the exec role GetSecretValue on the account-1 secret + the new ones —
+- **Function `extend_scheduler_submit_policy()`**: Grant the SCHEDULER role batch:SubmitJob on every fleet jobdef — as a UNION
+- **Function `register_jobdef()`**: No docstring
+- **Function `create_schedule()`**: No docstring
+- **Function `create_alarms()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `raw_signal_decile_b1.py`
+**Module Docstring:** scripts/raw_signal_decile_b1.py — B-1 raw-signal decile harness (IC, Arms L/LS, wealth leg).
+- **Function `nw_mean_t()`**: Mean, Newey-West (Bartlett) t and two-sided p of a series' mean — OLS on a constant
+- **Function `nw_slope()`**: Slope, Newey-West t and two-sided p of y on [1, x].
+- **Function `nw_auto_lags()`**: Newey-West (1994) rule of thumb: floor(4 (T/100)^(2/9)).
+- **Function `bh_adjust()`**: Benjamini-Hochberg within one family; NaN p-values never reject and are not counted
+- **Function `spearman()`**: Pearson on average ranks (ties averaged — §4.2: IC is Spearman on the tied values).
+- **Function `select_legs()`**: (top, bottom) names for one month from the SIGNED values of the eligible names.
+- **Function `leg_series()`**: Gross return, turnover (sum |w - w_drifted|) and cost of an equal-weight leg rebalanced
+- **Function `max_drawdown()`**: No docstring
+- **Function `boot()`**: The project-standard moving-block bootstrap on the MONTH INDICES: the same seed and
+- **Function `dlogw()`**: Δ log terminal wealth of (75% SPY + 25% arm) vs 100% SPY, or vs (75% SPY + 25% bench).
+- **Function `window_frames()`**: No docstring
+- **Function `evaluate_signal()`**: No docstring
+- **Function `classify()`**: Clears IC = BH rejects AND the statistic is in the declared direction (§2.1).
+- **Function `calendar_values()`**: No docstring
+- **Function `calendar_census()`**: A feature-YEAR is unusable when the feature is NaN or takes ONE value on every trading
+- **Function `ew_daily()`**: Equal-weight daily return of the PIT universe: on day t, the names in the panel at the
+- **Function `evaluate_calendar()`**: Daily dummy regression: EW return from t to t+1 on the feature value at t (the
+- **Function `canonical_results_md5()`**: Rows sorted by (family, signal); floats to 12 significant digits; JSON sort_keys.
+- **Function `load_panel_checked()`**: The panel must be the content its name claims and its census must have passed.
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
 
 ### `reconcile_stooq_tr_t256.py`
 **Module Docstring:** T-2026-07-02-256 Part 2 — TR reconciliation of the Stooq-ingested ETFs.
@@ -1008,6 +1347,21 @@
 - **Function `compute_atr_prevclose()`**: No docstring
 - **Function `ann_ret()`**: No docstring
 - **Function `reconcile()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `redeploy_one_account.py`
+**Module Docstring:** Redeploy ONE paper account to a new image, touching nothing else.
+- **Function `aws()`**: No docstring
+- **Function `live_jobdef()`**: No docstring
+- **Function `clone_with_image()`**: No docstring
+- **Function `assert_image_only()`**: The clone must differ from LIVE in the image and in NOTHING else.
+- **Function `repoint()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `refresh_similarity_panel_t341b.py`
+**Module Docstring:** T-341b — the similarity-panel REFRESH job + its receipt.
+- **Function `panel_stats()`**: No docstring
+- **Function `refresh()`**: Run the T-237 similarity stage, then write the receipt REGARDLESS of whether
 - **Function `main()`**: No docstring
 
 ### `regen_spy_full_history_t167.py`
@@ -1036,6 +1390,9 @@
 **Module Docstring:** T-178 — dynamic MF-sleeve SIZER A/B vs always-on 20% (Step 2).
 - **Function `main()`**: No docstring
 
+### `registry_fail_closed_reversion_proof.py`
+**Module Docstring:** edges.yml fail-closed unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
 ### `reprice_lps_auction_t157.py`
 **Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED
 - **Function `cost_per_day_decimal()`**: All channels in decimal daily return units (of capital).
@@ -1044,6 +1401,16 @@
 - **Function `sharpe()`**: No docstring
 - **Function `block_bootstrap_ann_ci()`**: No docstring
 - **Function `account_views()`**: Roth (pre-tax) and taxable-IL (annual-netting approximation).
+- **Function `main()`**: No docstring
+
+### `rescore_b1_ey_exposure.py`
+**Module Docstring:** scripts/rescore_b1_ey_exposure.py — POST-HOC exposure re-score of the two B-1 value signals.
+- **Function `rescore()`**: No docstring
+- **Function `forbid_network()`**: OFFLINE BY CONSTRUCTION, not by declaration. This script reads three local files (the
+- **Function `main()`**: No docstring
+
+### `rescore_rr1.py`
+**Module Docstring:** RR-1 RE-SCORE driver — one cell, one arm, one record.
 - **Function `main()`**: No docstring
 
 ### `reset_base_edges.py`
@@ -1068,6 +1435,58 @@
 ### `return_stack_basis_probe_t296.py`
 **Module Docstring:** T-296 return-stack data-reality probe (reproduces the RSST synthetic basis finding).
 - **Function `main()`**: No docstring
+
+### `reviewer_liveness_sweep.py`
+**Module Docstring:** reviewer_liveness_sweep.py — the independent reviewer's instrument (Agent R, director-approved 2026-09-18).
+- **Class `FieldRow`**: No docstring
+- **Class `LabelRow`**: No docstring
+- **Function `scan_fields()`**: No docstring
+- **Function `check_labels()`**: No docstring
+- **Function `render()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `rr1_paired_delta.py`
+**Module Docstring:** RR-1 RE-SCORE — the pre-registered paired test on one before/after pair.
+- **Function `sharpe()`**: No docstring
+- **Function `sortino()`**: No docstring
+- **Function `paired()`**: Every Δ is computed on the SAME resampled indices — that is what makes it paired.
+- **Function `anchor()`**: No docstring
+- **Function `feature()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `rr1_window_vs_book.py`
+**Module Docstring:** RR-1 RE-SCORE — window vs book, on series already recorded (N_trials 0).
+- **Function `main()`**: No docstring
+
+### `rr3_empirical_rho.py`
+**Module Docstring:** RR-3 — the EMPIRICAL trial correlation: ρ̄, ONC clusters, and N_eff.
+- **Function `discover_runs()`**: {run_id: {"snapshot": Path, "summary": Path|None, "campaign": str}}.
+- **Function `census_md5()`**: No docstring
+- **Function `trial_key()`**: THE trial identity used to dedupe determinism reps: md5 of the daily equity series as CSV
+- **Function `daily_equity()`**: No docstring
+- **Function `mean_offdiag()`**: No docstring
+- **Function `bootstrap_rho()`**: No docstring
+- **Function `onc_top()`**: López de Prado ONC (2020, MLAM snippet 4.2) — the PUBLISHED algorithm, recursive.
+- **Function `onc_base_k()`**: Base-form cluster count. `sil_metric="precomputed"` scores the silhouette on the
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `rr3b_population_pass.py`
+**Module Docstring:** RR-3 Option B — the population pass (pre-registered in the proposal's §8 before the pull).
+- **Function `trial_keys()`**: {run_id: {"trial_key", "campaign", "source"}} for VALID runs — the same filters and the same equity
+- **Function `campaign_tasks()`**: Task ids carried by a campaign prefix ('s3:foundry-t196' -> ['T-196']). Pre-stated rule, §8 item 3.
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `rr6a_gate4_size_skewed.py`
+**Module Docstring:** R's F4 (RR-6a) — does Gate 4's sign-flip null hold its SIZE on skewed zero-mean streams?
+- **Function `generate()`**: No docstring
+- **Function `wilson()`**: No docstring
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
+
+### `rr6a_reversion_proof.py`
+**Module Docstring:** RR-6a proof by reversion: revert ONE fix, run ONLY its lock, require it to FAIL, restore + verify sha.
 
 ### `run.py`
 *No public classes or functions found.*
@@ -1141,6 +1560,10 @@
 ### `run_evaluator.py`
 - **Function `main()`**: No docstring
 
+### `run_evolution_controller_cycle.py`
+**Module Docstring:** Run one EvolutionController cycle (Engine F).
+- **Function `main()`**: No docstring
+
 ### `run_evolution_cycle.py`
 - **Class `AutonomousEvolution`**: The Master Learning Loop.
   - `def __init__()`
@@ -1155,6 +1578,8 @@
 ### `run_foundry_eval_t195.py`
 **Module Docstring:** T-2026-06-17-195 — CORRECTED discovery eval harness for a valid foundry test.
 - **Function `restore_clean_governor()`**: FIX 2a: restore the canonical 6-edge production book from the anchor.
+- **Function `select_features()`**: Tier-A/B features, limited to `only` when given. FAILS CLOSED (RR-1 §6.6).
+- **Function `foundry_record()`**: One sweep row from one `validate_candidate` result (or an `{"error": …}` row).
 - **Function `main()`**: No docstring
 
 ### `run_healthcheck.py`
@@ -1171,6 +1596,7 @@
 - **Function `save_anchor()`**: Snapshot `data/governor/<file>` for every name in ISOLATED_FILES.
 - **Function `restore_anchor()`**: Restore the full set of governor files from the anchor.
 - **Function `isolated()`**: Context manager: restore anchor on entry, restore again on exit.
+- **Function `enforce_canonical_data_feed()`**: A canonical/hermetic run REFUSES the yfinance fallback (ruling C-2, 2026-10-15).
 - **Function `main()`**: No docstring
 
 ### `run_live.py`
@@ -1194,7 +1620,7 @@
 **Module Docstring:** T-186 — one paper day in the cloud (EventBridge → Fargate → here).
 - **Class `_FailClosed`**: A [NN-FAIL-CLOSED] halt inside a strategy pipeline — carries the driver
   - `def __init__()`
-- **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud`` are injectable
+- **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
 
 ### `run_paper_day_t163.py`
 **Module Docstring:** T-163 Part C — run ONE armed paper day end-to-end on the PAPER account.
@@ -1421,7 +1847,9 @@
 
 ### `sync_docs.py`
 - **Function `parse_file()`**: No docstring
+- **Function `render_index()`**: The index.md content `sync_directory` WOULD write for `dir_path`: the hand-written top half
 - **Function `sync_directory()`**: No docstring
+- **Function `drifted()`**: The index files whose committed content differs from what a sync would write — the drift a
 
 ### `system_validity_check.py`
 - **Function `run_system_check()`**: No docstring
@@ -1441,6 +1869,37 @@
 - **Function `updown_capture()`**: monthly up/down capture vs robo.
 - **Function `win()`**: No docstring
 - **Function `dd_in_window()`**: No docstring
+
+### `taxable_futures_vehicle_t294b.py`
+**Module Docstring:** T-294b — taxable-margin vehicle: gated 2x SPY via MES futures (§1256, annual mark-to-market)
+- **Function `blended()`**: No docstring
+- **Function `spy_close()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `roth_sso()`**: V1 = T-284 PRIMARY blend, zero tax.
+- **Function `taxable_sso()`**: Same ETF blend in taxable: gains DEFER (never sold); only dividends/distributions taxed annually.
+- **Function `taxable_bh_spy()`**: Buy-hold SPY in taxable: dividend taxed annually; NO terminal cap-gains (never-sell / step-up).
+- **Function `taxable_futures()`**: MES futures on T-bill collateral. Notional reset only on gate change (no daily reset).
+- **Function `stats()`**: No docstring
+
+### `third_stream_battery.py`
+**Module Docstring:** Third-stream candidate battery — the standing same-day verdict tool (free data, $0).
+- **Function `load_candidate()`**: Daily simple returns for the candidate + a display label.
+- **Function `load_cash()`**: No docstring
+- **Function `block_ci_pairs()`**: Paired stationary block-bootstrap CI (the `[NN-SHARPE-CI]` standard).
+- **Function `window_panel()`**: Coverage-checked, CI-aware correlation verdict for one window.
+- **Function `drag_vs_cash()`**: Long-run carry: annualized excess-of-cash return, CI-aware (T-333 framing).
+- **Function `main()`**: No docstring
+
+### `tilt_decision_measure_t318_t320.py`
+**Module Docstring:** T-318 + T-320 — the tilt DECISION measurements (frozen pre-regs; N += 2, one per family).
+- **Function `ff_factor()`**: A single FF factor/portfolio column, monthly decimal returns.
+- **Function `load_legs()`**: All legs, monthly, TOTAL return (market = MktRF + RF).
+- **Function `nasdaq_monthly()`**: ^IXIC monthly TR proxy (price index — dividends light for a growth index; named caveat).
+- **Function `blend()`**: Monthly-rebalanced (1-w) benchmark + w tilt, each net of its annual ER.
+- **Function `regret()`**: THE REGRET METRIC: worst rolling-15yr RELATIVE drawdown + time to recover.
+- **Function `rolling_win_and_ci()`**: Fraction of rolling-40yr windows the blend wins + block-bootstrap log-wealth CI.
+- **Function `report_arm()`**: No docstring
+- **Function `main()`**: No docstring
 
 ### `train_gate.py`
 - **Function `train_gate_model()`**: Train the SignalGate model using harvested data.
@@ -1479,6 +1938,14 @@
 
 ### `train_signal_gate.py`
 - **Function `train_gate()`**: No docstring
+
+### `transition_acct2_to_deploy_candidate_t350.py`
+**Module Docstring:** T-350 — the ONE-TIME account-2 transition: offense sleeve → deploy candidate.
+- **Function `aws()`**: No docstring
+- **Function `snapshot()`**: Step 1 — what is there, written down BEFORE anything moves.
+- **Function `close_legacy_position()`**: Step 2 — close the offense-era position via a READ-ONLY-SAFE container job.
+- **Function `archive_state()`**: Step 3 — [NN-ARCHIVE]: copy the offense-era state aside, never delete.
+- **Function `main()`**: No docstring
 
 ### `trend_gated_leverage_t282.py`
 **Module Docstring:** T-282 — trend-gated leverage: the validated ensemble sleeve with its SPY leg at up to 2x WHEN trend on.
@@ -1523,6 +1990,18 @@
 - **Function `buyhold_sleeve()`**: No docstring
 - **Function `mean_pairwise_corr()`**: No docstring
 - **Function `main()`**: No docstring
+
+### `turnover_reduction_t297.py`
+**Module Docstring:** T-297 — turnover reduction on the offense config (execution-bound lever).
+- **Function `spy_close()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `deadband()`**: Carver buffering: hold unless |target - held| > band, then re-trade to target.
+- **Function `monthly_hold()`**: Decide on the first trading day of each month; hold that exposure for the month.
+- **Function `arm_returns()`**: T-284 PRIMARY blend structure, exposure path = e. Fair slippage: extra bps on the SSO leg only.
+- **Function `stats()`**: No docstring
+- **Function `first_at_or_below()`**: No docstring
+- **Function `lag_days()`**: No docstring
 
 ### `update_data.py`
 - **Function `update_all_data()`**: Programmatic entry point for data updating.
@@ -1585,6 +2064,21 @@
 - **Function `cond_mean_dd()`**: No docstring
 - **Function `lead_time_stats()`**: No docstring
 - **Function `main()`**: No docstring
+
+### `vehicle_bakeoff_t294.py`
+**Module Docstring:** T-294 — leverage-vehicle bake-off. Is the offense edge leaking through SSO's daily reset?
+- **Function `spy_close()`**: No docstring
+- **Function `cser()`**: No docstring
+- **Function `macro()`**: No docstring
+- **Function `yf_close()`**: No docstring
+- **Function `rf_on()`**: No docstring
+- **Function `lev_monthly()`**: L-x position reset MONTHLY (no daily reset): fixed notional within the month, NAV drifts.
+- **Function `basis()`**: No docstring
+- **Function `blend_2x()`**: T-284 PRIMARY structure: e<=1 hold SPY(1x); e>1 hold SPY + the 2x vehicle. Exposure = e2 either way.
+- **Function `gate_fund()`**: Hold the (unleverable) fund at weight = ensemble fraction; rest cash.
+- **Function `stats()`**: No docstring
+- **Function `win()`**: No docstring
+- **Function `cagr()`**: No docstring
 
 ### `verify_altdata_snapshot.py`
 **Module Docstring:** scripts/verify_altdata_snapshot.py

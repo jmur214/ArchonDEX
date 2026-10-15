@@ -154,12 +154,19 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 
 *This section is automatically built by `scripts/sync_docs.py`. Do not edit manually.*
 
+### `coverage.py`
+**Module Docstring:** The stale/holed-files guard (adopted 2026-10-15; docs/Sources/proposal_stale_and_holed_files_guard_2026-10-15.md).
+- **Function `load_data_gaps()`**: The declared data gaps, validated. An absent file means no declarations; a malformed one
+- **Function `majority_calendar()`**: Trading days in [start, end]: dates on which at least `share` of the names ACTIVE that day
+- **Function `formation_coverage()`**: Rows FORMED on each formation date over EVERY member on that date — never over the names that
+- **Function `stale_files_record()`**: The `stale_files` census block. Per name: first/last bar, the REQUIRED end (the earlier of
+
 ### `data_manager.py`
 - **Class `CacheUnreadableError`**: A cache file could not be read. It was QUARANTINED (renamed), never deleted.
   - `def __init__()`
 - **Class `DataManager`**: No docstring
   - `def __init__()`
-  - `def prefetch_fundamentals()`: Batch-fetch and cache fundamentals for all tickers. Call during data loading.
+  - `def prefetch_fundamentals()`: Fetch fundamentals for every ticker that has NO cached file. Call during data loading.
   - `def fetch_historical_fundamentals()`: Reconstructs DEEP historical fundamental time-series.
   - `def fetch_fundamentals()`: Fetch fundamental data (P/E, EPS, etc.) for a ticker.
   - `def cache_path()`
@@ -171,6 +178,9 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `is_info_enabled()`**: No docstring
 - **Function `data_feed_summary()`**: What the network fed this process: counts by source and the yfinance-fed tickers.
 - **Function `reset_feed_log()`**: Forget the recorded fetches (tests, or a fresh run in a long-lived process).
+- **Function `fundamentals_miss_summary()`**: Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
+- **Function `ticker_fundamentals_blind()`**: The per-ticker fundamentals blind count for a set of LOADED edges. `consumers` are the
+- **Function `reset_fundamentals_log()`**: Forget the recorded misses (tests, or a fresh run in a long-lived process).
 
 ### `earnings_data.py`
 **Module Docstring:** yfinance-backed earnings calendar + surprise data pipeline.
@@ -191,8 +201,11 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `check_declared()`**: STEP (b), on the SERVED frame, outside any read error handling: fail closed if a bar that
 - **Function `withhold_excluded_bars()`**: Both steps on an already-normalized frame (the network-fetch serve point).
 - **Function `clip_membership()`**: Apply the declarations to PIT membership intervals (`ticker`, `start`, `end`): an interval
+- **Function `withhold_declared_tickers()`**: The ticker kind at a UNIVERSE: remove every declared name and record where it was withheld.
+- **Function `lift_verified()`**: The re-pin #2 lift lock: a ticker-kind declaration may be lifted only when the WRITTEN level
+- **Function `ticker_exclusions_applied()`**: The census block for the ticker kind: every declared name withheld in this run (at
 - **Function `exclusions_applied()`**: The census block: every declaration applied in this run, keyed by its census key.
-- **Function `reset_exclusion_log()`**: Start a run's bar record (membership is applied once per process and kept).
+- **Function `reset_exclusion_log()`**: Start a run's bar and resolution records (membership is applied once per process and kept).
 
 ### `insider_data.py`
 **Module Docstring:** OpenInsider Form 4 scraping pipeline.
@@ -244,8 +257,12 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `seam_return_ok()`**: R's C-3 rail: an UNADJUSTED provider after a split matches the pre-split overlap and would
 - **Function `with_derived_columns()`**: ATR + PrevClose per project convention (scripts/merge_stooq_alpaca_substrate.py).
 - **Function `write_pair_atomically()`**: Both temp files are written first; only then are both swapped in. A failure while writing
+- **Function `load_level_declarations()`**: The hand-set facts the identity cannot establish: per name, `kind` (`scale_defect` — a level
+- **Function `level_identity()`**: The cache's last bar against the level the provider says it SHOULD hold. The cache was
+- **Function `substrate_level_declarations()`**: The census block (`level_declarations`): every file in this substrate whose CURRENT version
 - **Function `full_refetch()`**: Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
 - **Function `yfinance_provider()`**: yfinance: auto_adjust=True -> total return; False -> split-adjusted Close.
+- **Function `yfinance_actions()`**: yfinance's corporate-actions record (dividends and split factors), tz-naive.
 
 ### `universe.py`
 **Module Docstring:** Survivorship-bias-aware S&P 500 historical membership pipeline.
@@ -266,7 +283,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 
 ### `universe_resolver.py`
 **Module Docstring:** engines/data_manager/universe_resolver.py
-- **Function `resolve_universe()`**: Return the (tickers, debug_info) tuple for a backtest run.
+- **Function `resolve_universe()`**: The single entry point (see `_resolve_universe_unfiltered` for the parameters).
 - **Function `discover_cached_tickers()`**: Return the set of tickers with a USABLE cached price CSV under
 
 ### `yahoo_symbols.py`

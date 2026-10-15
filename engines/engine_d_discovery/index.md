@@ -41,6 +41,7 @@
 - **Function `cumulative_gate_margin()`**: Compute the spec's Option-B objective: sum of (metric - threshold)/
 
 ### `discovery.py`
+- **Class `RegistryUnreadableError`**: edges.yml exists but cannot be read as an edge registry. Discovery REFUSES — it never
 - **Class `RegimeContextUnavailable`**: RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
 - **Class `DiscoveryEngine`**: Engine D (Discovery): The Evolutionary Lab.
   - `def __init__()`
