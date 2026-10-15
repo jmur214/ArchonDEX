@@ -37,6 +37,18 @@ class AutonomousEvolution:
     5. PROMOTE: Add winners to production config.
     """
     
+    def _load_cache_wide(self) -> dict:
+        """Every cached per-ticker file, withheld through `withhold_declared_tickers` (recorded under
+        the census's ticker_exclusions as withheld at this site)."""
+        from engines.data_manager.exclusions import withhold_declared_tickers
+        cached = [f.name.split("_")[0] for f in sorted(self.dm.cache_dir.glob("*_1d.csv"))]
+        out = {}
+        for ticker in withhold_declared_tickers(cached, where="scripts.run_evolution_cycle"):
+            df = self.dm.load_cached(ticker, "1d")
+            if df is not None and not df.empty:
+                out[ticker] = df
+        return out
+
     def __init__(self, root_dir: str):
         self.root = Path(root_dir)
         self.discovery = DiscoveryEngine(
@@ -48,16 +60,13 @@ class AutonomousEvolution:
         )
         self.dm = DataManager(cache_dir=str(self.root / "data" / "processed"))
         
-        # Load Data once
+        # Load Data once — the CACHE-WIDE universe, read through the declared ticker exclusion. The
+        # exclusion (AZO, MTD, NVR: ÷10 files; SLE: a reused ticker) is applied at universe
+        # RESOLUTION, and this glob bypassed it, so a dashboard-launched cycle validated candidates
+        # on those files (the direct-globbers contract, 2026-10-15).
         logger.info("Loading market data for research...")
-        self.data_map = {}
-        # Scan cache for available data
-        for f in self.dm.cache_dir.glob("*_1d.csv"):
-             ticker = f.name.split("_")[0]
-             df = self.dm.load_cached(ticker, "1d")
-             if df is not None and not df.empty:
-                 self.data_map[ticker] = df
-                 
+        self.data_map = self._load_cache_wide()
+
         if not self.data_map:
             logger.error("No data found! Please run 'scripts/update_data.py' first.")
             sys.exit(1)
