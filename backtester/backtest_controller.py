@@ -131,8 +131,11 @@ class BacktestController:
         # (n_in_panel = len(self.data_map)). A silent gap is the T-167
         # universe-shrink class of bug.
         self._census_n_resolved: int = len(data_map)
-        self._census_regime_total_bars: int = 0
-        self._census_regime_unknown_bars: int = 0
+        # NO silent zero (ruling 2026-10-15): the regime counters start UNSET (None) and become set
+        # on the first bar the regime tally sees. A counter that was never set is ABSENT from the
+        # census and the gate fails it ("counter never set"); a measured 0 fails its own invariant.
+        self._census_regime_total_bars: Optional[int] = None
+        self._census_regime_unknown_bars: Optional[int] = None
         self.data_map: Dict[str, pd.DataFrame] = {}
         for t, df in data_map.items():
             if df is None or df.empty:
@@ -390,6 +393,8 @@ class BacktestController:
         # T-181 census tally (observation only): a bar is "regime-unknown" if
         # no regime_meta was produced or its macro label resolves to unknown.
         # 100% unknown = the regime layer was silently OFF (T-164 GAP-2).
+        if self._census_regime_total_bars is None:      # first bar tallied: the counters become SET
+            self._census_regime_total_bars, self._census_regime_unknown_bars = 0, 0
         self._census_regime_total_bars += 1
         _unknown = True
         if regime_meta:
@@ -1330,21 +1335,43 @@ class BacktestController:
             census["edges_errored"] = {k: {"crash_bars": int(v), "last_error": samples.get(k, "")}
                                        for k, v in sorted(errs.items()) if int(v) > 0}
         except Exception as e:
-            census["edges_blind"] = []
-            census["edges_errored"] = {}
+            # Fail closed (R, item-(d) review): this branch used to ALSO write the PASSING values
+            # edges_blind=[] and edges_errored={}, and the gate never read the error record — so a
+            # crash in the edges census produced a census that PASSED invariants 1 and 1b. It now
+            # writes only the error record, which assert_census fails on.
             census["edges_blind_error"] = repr(e)
 
+        # Which census this is. The gate applies the run-shape invariants (2, 5) to a backtest census;
+        # Discovery's Gate-1 candidate census declares itself "candidate". Both producers write it.
+        census["census_kind"] = "backtest"
+
+        # NO silent zero (ruling 2026-10-15). These used `getattr(..., 0)`, and the gate SKIPPED an
+        # invariant whose counter read 0 — so a run that never set a counter passed it unmeasured. A
+        # counter that was never set is now ABSENT (the gate fails "counter never set"); a measured 0
+        # fails its own invariant.
         # Invariant 2 — universe didn't silently shrink.
-        census["n_resolved"] = int(getattr(self, "_census_n_resolved", 0))
+        if hasattr(self, "_census_n_resolved"):
+            census["n_resolved"] = int(self._census_n_resolved)
         census["n_in_panel"] = int(len(self.data_map))
 
-        # Invariant 4 — regime + macro actually ON.
-        tot = int(getattr(self, "_census_regime_total_bars", 0))
-        unk = int(getattr(self, "_census_regime_unknown_bars", 0))
-        census["regime_total_bars"] = tot
-        census["regime_unknown_bars"] = unk
-        census["regime_unknown_frac"] = round(unk / tot, 4) if tot else 1.0
-        census["macro_panel_complete"] = bool(tot > 0 and unk < tot)
+        # Invariant 4/5 — regime + macro actually ON.
+        tot = getattr(self, "_census_regime_total_bars", None)
+        if tot is not None:
+            unk = int(self._census_regime_unknown_bars)
+            census["regime_total_bars"] = int(tot)
+            census["regime_unknown_bars"] = unk
+            census["regime_unknown_frac"] = round(unk / tot, 4) if tot else 1.0
+            census["macro_panel_complete"] = bool(tot > 0 and unk < tot)
+        # A regime layer OFF by design is DECLARED, never inferred from a quiet counter: no detector
+        # = "off", and the run is canonical only with the pre-registration's label, recorded here
+        # (CENSUS_REGIME_OFF_LABEL = the brief that declares the layer off).
+        if getattr(self, "regime_detector", None) is None:
+            census["regime_layer"] = "off"
+            label = os.environ.get("CENSUS_REGIME_OFF_LABEL", "").strip()
+            if label:
+                census["regime_off_label"] = label
+        else:
+            census["regime_layer"] = "on"
 
         # Invariant 1/4 — fundamentals overlay actually fed.
         try:
@@ -1356,7 +1383,8 @@ class BacktestController:
             census["fundamentals_edges_active"] = fund_active
             census["fundamentals_blind"] = int(bool(fund_active) and panel_is_blind())
         except Exception as e:
-            census["fundamentals_blind"] = 0
+            # Same shape as the edges block (found in the audit for the same unit): the PASSING
+            # fundamentals_blind=0 is gone; the error record alone fails the gate.
             census["fundamentals_blind_error"] = repr(e)
 
         # Invariant 3 — the run actually traded.

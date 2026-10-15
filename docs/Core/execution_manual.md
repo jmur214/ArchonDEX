@@ -1277,6 +1277,21 @@ leaves that temp file behind as evidence.
 python scripts/registry_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
 ```
 
+## Census fail-closed — proof by reversion (added 2026-10-15)
+
+`assert_census` fails a run whose census carries any `<block>_error` record or an errored `data_feed` /
+`data_exclusions` record. A census block that crashed measured nothing. The Layer-2d contract EXECUTES every
+except branch in `_build_census`; the gate must fail each one.
+
+No silent zero: a backtest census whose `n_resolved` or regime counters were never set (absent), or are
+measured at 0, is NON-CANONICAL. A run WITHOUT the regime layer (no detector) is canonical only when it
+carries its pre-registration label. Set `CENSUS_REGIME_OFF_LABEL=<path of the brief that declares the layer
+off>` for that run; the census then records `regime_layer: "off"` together with the label.
+
+```bash
+python scripts/census_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
+```
+
 ## Honest N — the gate's inputs (RR-3, added 2026-10-13)
 
 Discovery Gate 0/8 read two inputs, both FAIL CLOSED and both **PINNED** by the committed pointer
