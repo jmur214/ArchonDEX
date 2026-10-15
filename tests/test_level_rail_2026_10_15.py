@@ -133,17 +133,25 @@ def test_a_declared_REUSED_TICKER_is_never_written_even_when_the_identity_holds(
 
 # ── corporate actions after the cache's last bar are EXPLAINED, not declared ────
 
-def test_a_split_after_the_cache_is_explained_by_the_providers_split_record(tmp_path):
-    """KLAC/CTVA/CVNA's shape: a 4:1 split after the cache's last bar. The provider's series are
-    split-adjusted (÷4 before the split); the cache holds the true pre-split print."""
+def _pin_adjusted_as_of(cache_dir: Path, date: str, ticker: str = "ABC") -> None:
+    """A prior write record: the date the cached file's adjustment is as of."""
+    (cache_dir / w.WRITE_RECORDS_DIR).mkdir(parents=True, exist_ok=True)
+    (cache_dir / w.WRITE_RECORDS_DIR / f"{ticker}.json").write_text(
+        json.dumps({"ticker": ticker, "adjusted_as_of": date}))
+
+
+def test_a_split_after_the_caches_adjustment_is_explained_by_the_providers_split_record(tmp_path):
+    """KLAC/CTVA/CVNA's shape: a 4:1 split AFTER the cache was written. The provider's series are
+    split-adjusted (÷4 before the split); the cache, written before it, holds the pre-split level."""
     raw = _raw()
     split = pd.Timestamp("2025-11-03")
     adj_basis = raw.where(raw.index >= split, raw / 4.0)
     _seed(tmp_path, raw[raw.index <= CACHE_END])
+    _pin_adjusted_as_of(tmp_path, str(CACHE_END.date()))        # written before the split
     rec = w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adj_basis, adj_basis)}, today=TODAY,
                          actions=_actions(splits={split: 4.0}), declarations=NO_DECL)
-    assert rec.level["splits_after"] == 4.0 and rec.level["log_residual"] == pytest.approx(0.0, abs=1e-12)
-    assert rec.level_declared is None
+    assert rec.level["splits_after_adjusted_as_of"] == 4.0
+    assert rec.level["log_residual"] == pytest.approx(0.0, abs=1e-12) and rec.level_declared is None
 
 
 def test_without_the_split_record_the_same_split_is_REFUSED(tmp_path):
@@ -151,9 +159,79 @@ def test_without_the_split_record_the_same_split_is_REFUSED(tmp_path):
     split = pd.Timestamp("2025-11-03")
     adj_basis = raw.where(raw.index >= split, raw / 4.0)
     _seed(tmp_path, raw[raw.index <= CACHE_END])
+    _pin_adjusted_as_of(tmp_path, str(CACHE_END.date()))
     with pytest.raises(w.WriterRefusal, match="LEVEL IDENTITY"):
         w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adj_basis, adj_basis)}, today=TODAY,
                        actions=NONE, declarations=NO_DECL)
+
+
+def test_a_STALE_file_split_adjusted_by_its_writer_is_NOT_read_as_a_scale_defect(tmp_path):
+    """NVDA's shape (found by the 652-file sweep): the file ENDS 2025-09-30, a 4:1 split came on
+    2025-11-03, and the file was written AFTER it (adjusted as of 2025-12-31) — so its writer already
+    split-adjusted every bar, and its last bar holds the split-adjusted level, correctly. The split
+    falls in (d, W], so it is NOT multiplied back in. On the first rail (splits after d) this read 0.25
+    and was refused as a level defect."""
+    raw = _raw()
+    split = pd.Timestamp("2025-11-03")
+    adj_basis = raw.where(raw.index >= split, raw / 4.0)
+    _seed(tmp_path, adj_basis[adj_basis.index <= CACHE_END])     # split-adjusted by its writer
+    _pin_adjusted_as_of(tmp_path, "2025-12-31")                  # written after the split
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adj_basis, adj_basis)}, today=TODAY,
+                         actions=_actions(splits={split: 4.0}), declarations=NO_DECL)
+    assert rec.level["splits_after_adjusted_as_of"] == 1.0
+    assert rec.level["log_residual"] == pytest.approx(0.0, abs=1e-12) and rec.level_declared is None
+
+
+def test_the_NVDA_shape_through_the_LEGACY_path_with_no_pinned_record(tmp_path):
+    """R: the legacy files have no record — W is LEGACY_ADJUSTED_AS_OF (2026-04-25). The split
+    (2025-11-03) falls in (d, W_legacy], the cache is post-split: identity 1 with no record at all."""
+    raw = _raw()
+    split = pd.Timestamp("2025-11-03")
+    assert CACHE_END < split <= w.LEGACY_ADJUSTED_AS_OF
+    adj_basis = raw.where(raw.index >= split, raw / 4.0)
+    _seed(tmp_path, adj_basis[adj_basis.index <= CACHE_END])
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adj_basis, adj_basis)}, today=TODAY,
+                         actions=_actions(splits={split: 4.0}), declarations=NO_DECL)
+    assert rec.level["adjusted_as_of"] == str(w.LEGACY_ADJUSTED_AS_OF.date())
+    assert rec.level["splits_after_adjusted_as_of"] == 1.0
+    assert rec.level["log_residual"] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_a_split_BEFORE_the_caches_last_bar_has_no_effect(tmp_path):
+    """R's third interval: a split before d is in every basis already (the cache's and the
+    provider's); it is multiplied in by neither formula."""
+    raw = _raw()
+    split = pd.Timestamp("2024-06-03")
+    assert split < CACHE_END
+    adj_basis = raw.where(raw.index >= split, raw / 4.0)
+    _seed(tmp_path, adj_basis[adj_basis.index <= CACHE_END])
+    _pin_adjusted_as_of(tmp_path, str(CACHE_END.date()))
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adj_basis, adj_basis)}, today=TODAY,
+                         actions=_actions(splits={split: 4.0}), declarations=NO_DECL)
+    assert rec.level["splits_after_adjusted_as_of"] == 1.0
+    assert rec.level["log_residual"] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_a_dividend_AND_a_split_both_in_d_to_W_read_in_one_basis(tmp_path):
+    """R: with a split and a dividend both in (d, W], the dividend factor's prior close must be in
+    the same (split-adjusted) basis as the dividend amount, or the factor is off by the split. The
+    provider quotes both split-adjusted; the cache (written at W) is split-adjusted AND scaled by
+    the dividend: identity = 1 − y, factor = 1 − y, residual 1."""
+    raw = _raw()
+    split, ex = pd.Timestamp("2025-10-20"), pd.Timestamp("2025-11-17")
+    W = pd.Timestamp("2025-12-15")
+    y = 0.03
+    adj_basis = raw.where(raw.index >= split, raw / 4.0)                 # split-adjusted, unadjusted for divs
+    p_prev = float(adj_basis.loc[:ex - pd.Timedelta(days=1)].iloc[-1])   # in the split-adjusted basis
+    _seed(tmp_path, adj_basis[adj_basis.index <= CACHE_END] * (1.0 - y))
+    _pin_adjusted_as_of(tmp_path, str(W.date()))
+    adjusted = adj_basis.where(adj_basis.index >= ex, adj_basis * (1.0 - y))
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _provider(adjusted, adj_basis)}, today=TODAY,
+                         actions=_actions(splits={split: 4.0}, dividends={ex: y * p_prev}),
+                         declarations=NO_DECL)
+    assert rec.level["splits_after_adjusted_as_of"] == 1.0
+    assert rec.level["dividend_factor"] == pytest.approx(1.0 - y, rel=1e-9)
+    assert rec.level["log_residual"] == pytest.approx(0.0, abs=1e-9)
 
 
 # ── a stale file: the dividends after its last bar are explained exactly ────────
@@ -209,7 +287,13 @@ def test_a_new_ticker_needs_no_identity(tmp_path):
 
 
 def test_the_census_reader_REPORTS_an_absent_records_dir_rather_than_a_clean_zero(tmp_path):
-    assert w.substrate_level_declarations(tmp_path) == {"records_dir_present": False, "declared": {}}
+    assert w.substrate_level_declarations(tmp_path) == {"cache_dir": str(tmp_path),
+                                                        "records_dir_present": False, "declared": {}}
+
+
+def test_the_census_block_NAMES_the_directory_it_read(tmp_path):
+    """R: on a proof-on-a-copy run the producers read the canonical cache; the block says which."""
+    assert w.substrate_level_declarations(tmp_path)["cache_dir"] == str(tmp_path)
 
 
 def test_the_shipped_declarations_are_the_four_div10_restorations_and_the_two_reused_tickers():

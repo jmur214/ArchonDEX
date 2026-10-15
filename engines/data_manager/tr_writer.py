@@ -245,10 +245,15 @@ def load_level_declarations(path: Path = LEVEL_DECLARATIONS_PATH) -> Dict[str, d
 
 def level_identity(cached_close: pd.Series, unadjusted: pd.Series, actions: pd.DataFrame,
                    adjusted_as_of: pd.Timestamp) -> dict:
-    """The cache's last bar against the TRUE PRINT the provider reconstructs:
-    true_print = unadjusted(d) × Π(split factors after d);  identity = cache(d) / true_print;
-    the dividend factor the cache's own adjustment applied after d (ex-dates in (d, adjusted_as_of]);
-    residual = identity / that factor. A correct cached LEVEL reads residual 1."""
+    """The cache's last bar against the level the provider says it SHOULD hold. The cache was
+    adjusted as of `adjusted_as_of` (W): every split and dividend in (d, W] was already applied to
+    its bars by its own writer, so the reference is the provider's split-adjusted close at d with
+    only the splits AFTER W multiplied back in:
+        reference = unadjusted(d) × Π(split factors after W);   identity = cache(d) / reference;
+        the dividend factor over ex-dates in (d, W];             residual = identity / factor.
+    A correct cached LEVEL reads residual 1. (Fixed 2026-10-15: the splits were first taken after
+    d, which falsely read a STALE file split-adjusted by its writer — NVDA ends 2024-05-10, its 10:1
+    split was 2024-06-10, the file was written 2026-04 — as ÷10. The 652-file sweep found it.)"""
     d = pd.Timestamp(cached_close.index.max())
     c = float(cached_close.iloc[-1])
     upto = unadjusted.loc[:d]
@@ -259,9 +264,9 @@ def level_identity(cached_close: pd.Series, unadjusted: pd.Series, actions: pd.D
     actions = actions.copy()
     actions.index = pd.to_datetime(actions.index)      # an EMPTY record has no datetime index
     splits = actions["Stock Splits"] if "Stock Splits" in actions else pd.Series(dtype=float)
-    splits = splits[(splits > 0) & (splits.index > d)]
+    splits = splits[(splits > 0) & (splits.index > pd.Timestamp(adjusted_as_of))]
     mult = float(splits.prod()) if len(splits) else 1.0
-    true_print = raw_d * mult
+    reference = raw_d * mult
     divs = actions["Dividends"] if "Dividends" in actions else pd.Series(dtype=float)
     divs = divs[(divs > 0) & (divs.index > d) & (divs.index <= pd.Timestamp(adjusted_as_of))]
     factor = 1.0
@@ -271,10 +276,10 @@ def level_identity(cached_close: pd.Series, unadjusted: pd.Series, actions: pd.D
             raise WriterRefusal(f"no provider close before ex-date {ex.date()}",
                                 detail={"level": {"d_last": str(d.date())}})
         factor *= 1.0 - float(dv) / float(prev.iloc[-1])
-    identity = c / true_print
+    identity = c / reference
     residual = identity / factor
     return {"d_last": str(d.date()), "cache_close": c, "unadjusted_close": raw_d,
-            "splits_after": mult, "true_print": true_print, "identity": identity,
+            "splits_after_adjusted_as_of": mult, "reference": reference, "identity": identity,
             "dividend_factor": factor, "adjusted_as_of": str(pd.Timestamp(adjusted_as_of).date()),
             "residual": residual, "log_residual": float(np.log(residual))}
 
@@ -300,9 +305,11 @@ def substrate_level_declarations(cache_dir: Path) -> dict:
     """The census block (`level_declarations`): every file in this substrate whose CURRENT version
     was written under a level declaration, read from the pinned per-file records. The records
     directory's presence is reported, never assumed: a substrate written before the rail has no
-    records, which reads `records_dir_present: False`, not as a clean zero."""
+    records, which reads `records_dir_present: False`, not as a clean zero. The block names the
+    directory it READ (`cache_dir`): on a proof-on-a-copy run the producers still read the canonical
+    cache, so the label is what keeps the block from describing a substrate it did not read (R)."""
     d = Path(cache_dir) / WRITE_RECORDS_DIR
-    out = {"records_dir_present": d.is_dir(), "declared": {}}
+    out = {"cache_dir": str(Path(cache_dir)), "records_dir_present": d.is_dir(), "declared": {}}
     if not d.is_dir():
         return out
     for p in sorted(d.glob("*.json")):
@@ -412,7 +419,7 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         elif abs(lr) > LEVEL_TOLERANCE:
             raise WriterRefusal(
                 f"{who}: LEVEL IDENTITY fails — the cache's last bar ({level['d_last']}) is "
-                f"{level['identity']:.4f} of the provider's true print, residual "
+                f"{level['identity']:.4f} of the provider's reference level, residual "
                 f"{level['residual']:.4f} after the provider's dividends; a level change outside the "
                 f"identity needs a declaration; not writing",
                 detail={"level": level, "symbol_mapped": mapped})
