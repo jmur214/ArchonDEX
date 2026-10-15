@@ -89,7 +89,7 @@ then LOW. Within each severity, list newest at the top.
   directional, not noise. The director rules.
 - Description: of the 730 cache files, 652 are LIVE (the provider serves them through 2026-10-14).
   **33 of those 652 have a canonical file that ENDS before 2025-12-31**, by end date:
-  SMCI 2023-05-02, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06, FIX 2024-02-22,
+  SMCI 2023-05-02, FIX 2024-02-22, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06,
   PLTR 2025-01-15, VRT 2025-04-04, EME 2025-04-08, AVGO 2025-04-23, NRG 2025-04-23, ANET 2025-04-30,
   CVNA 2025-05-07, HOOD 2025-05-09, GE 2025-05-14, PWR 2025-06-10, JBL 2025-06-13, IBKR 2025-06-24,
   APH 2025-08-01, STX 2025-09-04, CIEN 2025-09-30, KLAC 2025-10-10, ATI 2025-10-22, CAH 2025-10-23,
