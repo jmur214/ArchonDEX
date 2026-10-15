@@ -81,6 +81,11 @@ CASES = [
     ("engines/engine_d_discovery/discovery.py", "candidate census: census_kind dropped (refused for backtest counters)",
      [('        "census_kind": "candidate",\n', '')],
      [L + "test_a_GATE1_candidate_census_is_not_asked_for_backtest_counters"]),
+    # ---- R's review: the exec model's selector boundary ----
+    (B, "producer: a census block written through census.update() (the selector would skip it)",
+     [('        census["census_kind"] = "backtest"\n',
+       '        census["census_kind"] = "backtest"\n        census.update({"census_kind": "backtest"})\n')],
+     [K + "test_layer2d_build_census_writes_the_census_only_by_subscript"]),
 ]
 
 env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")

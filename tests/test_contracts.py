@@ -406,12 +406,43 @@ _CANONICAL_CENSUS = {
 }
 
 
+def test_layer2d_build_census_writes_the_census_only_by_subscript():
+    """The except-branch contract below selects blocks by their `census[key] = …` writes. Any OTHER
+    way of writing the census dict inside `_build_census` — `.update`, `.setdefault`, `|=`, `del`,
+    `.pop` — would let a block escape that contract silently. There are none; keep it that way."""
+    import ast
+    fn = _build_census_node()
+    other = []
+    for n in ast.walk(fn):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and isinstance(n.func.value, ast.Name) and n.func.value.id == "census"
+                and n.func.attr in {"update", "setdefault", "pop", "popitem", "clear"}):
+            other.append(f"census.{n.func.attr}() at line {n.lineno}")
+        elif (isinstance(n, ast.AugAssign) and isinstance(n.target, ast.Name) and n.target.id == "census"):
+            other.append(f"census augmented-assign at line {n.lineno}")
+        elif isinstance(n, ast.Delete) and any(
+                isinstance(t, ast.Subscript) and getattr(t.value, "id", None) == "census" for t in n.targets):
+            other.append(f"del census[...] at line {n.lineno}")
+    assert not other, f"_build_census writes the census outside `census[key] = …`: {other}"
+
+
 def test_layer2d_every_except_branch_in_build_census_FAILS_the_gate():
     """[NN-FAIL-CLOSED]: a census block that crashed measured nothing. Every except branch in
     `_build_census` that guards census writes is EXECUTED (its own statements, with a planted
     exception bound to its name) and planted into an otherwise-canonical census: the gate must say
     NON-CANONICAL. And no gating value it writes may be a PASSING one — each gating key it assigns
-    must fail the gate on its own, without the error record."""
+    must fail the gate on its own, without the error record.
+
+    The model's two boundaries (R, 2026-10-15), stated so they are not mistaken for coverage:
+      * the selector picks a try whose BODY writes `census[key] = …`. A block that wrote through
+        `census.update(...)` / `setdefault` would be skipped — so
+        `test_layer2d_build_census_writes_the_census_only_by_subscript` asserts no such write exists;
+      * only `_build_census`'s OWN try/excepts are modelled. A source-of-truth PRODUCER that swallows
+        internally and returns a passing dict (`_census_config_provenance`, `data_feed_summary`,
+        `exclusions_applied`) is TRUSTED here — that is the trusted edge, each producer's own tests
+        are its lock.
+    The failure direction of the exec model is loud: a handler that referenced a free name (self,
+    a logger) or did I/O would raise here rather than be certified."""
     import ast
     from core.census import assert_census
     assert assert_census({"census": dict(_CANONICAL_CENSUS),
