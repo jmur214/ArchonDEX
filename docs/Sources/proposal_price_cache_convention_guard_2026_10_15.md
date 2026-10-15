@@ -125,6 +125,23 @@ post-2020 segment, the one the merge called "Alpaca, split-only", matched yfinan
 suggests, but does not prove, that the cache's recent segment came from a yfinance total-return pull
 rather than the Alpaca split path. Recorded as a lead, not a finding.
 
+**What the write pass on the copy added (2026-10-15; cutover proposal §2b and §4).**
+- *Corroboration, still not proof:* post-seam, 643 of the 647 files with a post-seam return delta
+  agree with a yfinance total-return re-fetch to within 0.5%/yr (the delta is 0.00 at p10, the median
+  and p90). The 4 exceptions are files the writer refuses. That is what a yfinance-TR origin for the
+  recent segment would produce.
+- *Confirmed:* the `backfill_t052` row above. The pass refuses exactly its three files (AGG, EFA,
+  VNQ) as split-only.
+- **OPEN — which writer produced AMCR's tail?** The cache agrees with yfinance TR at a constant ratio
+  from 2018 through 2025-09-04, then misses two ex-dates (2025-09-05, 2025-11-28; +1.5% each), and is
+  constant after. None of the five writers above is known to have touched AMCR in that window.
+- **OPEN — the source of BK's 2026 bars.** They disagree with Yahoo's adjustment factors by +0.042%
+  at two dates (2026-01-20, 2026-02-06), and agree to a constant before them.
+- *Narrowed, not answered:* both files are pinned in `config/substrate_manifest.sha256` (ad03a97,
+  2026-06-18) and are byte-identical today, as is every `data/processed` file that manifest lists. So
+  both tails were already in the cache on 2026-06-18, and no writer has touched them since. The
+  writer is one that ran before the June pin.
+
 **Rule (unchanged):** every top-level writer goes through `tr_writer` and the guard, or is retired
 to `Archive/`.
 
