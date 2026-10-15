@@ -57,14 +57,6 @@ then LOW. Within each severity, list newest at the top.
 - Status: OPEN. Ruled 2026-10-15: (1) test-only, B, now — `tests/conftest.py` autouse fixture that removes the `.env` key NAMES (read via `dotenv_values`, never printed) from `os.environ` for every test, so the suite is hermetic; reversion-proven against the pulse path; (2) propose-first, engine code — `load_dotenv` becomes an explicit call at process entry WITHOUT override (importing an engine must never override the real environment); R reviews; the cloud image carries no `.env`, so the fleet is unaffected, verify by listing the container.
 - Recommended next step: (1) MERGED (`9b1be4a`, `tests/conftest.py` strips the `.env` key names before every test; stated limit: a test that spawns repo code in a subprocess re-reads `.env` in the child — two B-1 tests do); (2)+(3) MERGED 2026-10-15 (`feature/dotenv-explicit-entry-load` @ 4b9c764, R-approved twice by hash): the four import-time loads removed; one `core/env.load_local_env()` (override=False, idempotent) at the 64 true process entries (62 with the helper, 2 OFFLINE_BY_DESIGN; an importlib-aware AST lock keeps the list complete; library engine modules may carry no `__main__` — alpha_engine's AAPL-downloading block removed); the provider call sites refuse under `PYTEST_CURRENT_TEST` without an injected session (children inherit it); REFEREE: canonical runs REFUSE the yfinance fallback (`ARCHONDEX_REFUSE_YFINANCE_FALLBACK`, set by `run_isolated` after its re-exec), the census records `data_feed` (contract-guarded; invariant 7: yfinance tickers or an errored record → NON-CANONICAL), Discovery's separate Gate-1 candidate census carries it too, `reset_feed_log()` opens each `run_backtest` before its first fetch. Phase B ships in the fleet image — first artifact: each account's next pulse booking after deploy; the pulse code should additionally refuse a live provider call under pytest (a fail-closed guard at the call site, not only in the fixture).
 
-### [HIGH] `DataManager.load_cached` DELETES a cache file it fails to parse — a reader silently destroying substrate (B, 2026-10-15)
-- Engine: data manager (`engines/data_manager/data_manager.py`, `load_cached`: `pq_path.unlink` / `path.unlink` on a parse failure)
-- First flagged: 2026-10-15, while building the total-return writer (`feature/price-cache-tr-writer`)
-- Description: a read that fails to parse a parquet/csv cache file unlinks it. The edges.yml wipe class, on the price substrate: a transient parse error (a half-written file from the non-atomic parquet+csv pair, a crash mid-write) erases the series, and the next load silently re-fetches it from whatever provider answers — possibly a different convention. `[NN-FAIL-CLOSED]`, `[NN-ARCHIVE]` (never delete).
-- Status: OPEN, propose-first. Ruled 2026-10-15: a reader NEVER deletes — an unparseable cache file is REFUSED with the path and error named, quarantined by rename to a sibling `.unreadable-<ts>` (never unlinked), and the run halts in the measurement path; fix rides with the convention-guard unit (B, R reviews).
-- Recommended next step: in the guard unit; a lock that plants a corrupt cache file and asserts the bytes still exist after a load attempt.
-- Anchor: `engines/data_manager/data_manager.py:656` contains `pq_path.unlink()` — the reader deleting on a parse failure (closes when the never-delete reader merges; re-pointed from :652 on feature/item-d-price-levels — the item (d) load_cached wrapper moved the line, the defect is unchanged)
-
 ### [MEDIUM] The foundry's calendar tables start in 2018 — three calendar features are BLIND for 2000–2017, and every earlier test of them on pre-2018 data was blind (A, B-1 pre-data census, 2026-10-14)
 - Engine: Engine A / foundry (`FOMC_DATES`, `US_MARKET_HOLIDAYS`)
 - First flagged: 2026-10-14, B-1's pre-data calendar census (A); first artifact: the harness smoke's `halt.json`
@@ -754,6 +746,13 @@ then LOW. Within each severity, list newest at the top.
 ---
 
 ## Resolved (last 90 days)
+
+### [HIGH → RESOLVED 2026-10-15] `DataManager.load_cached` DELETED a cache file it failed to parse — a reader silently destroying substrate (B, 2026-10-15)
+- Engine: data manager (`engines/data_manager/data_manager.py`, `load_cached`)
+- First flagged: 2026-10-15, while building the total-return writer (`feature/price-cache-tr-writer`)
+- Description: a read that failed to parse a parquet/csv cache file removed it from disk — the edges.yml wipe class on the price substrate. Worse (found by the lock): the handler also wrapped normalization, so a normalization BUG removed a perfectly GOOD parquet. `[NN-FAIL-CLOSED]`, `[NN-ARCHIVE]`.
+- Resolved: 2026-10-15 (`cef7278`, `feature/price-cache-tr-writer`, merged with item (d)'s loader) — only the READ is guarded: an unreadable file is quarantined by rename to a sibling `.unreadable-<UTC ts>` and CacheUnreadableError names the path, the error and the destination; a normalization error propagates as itself and never touches the file. Item (d)'s order is kept: declared exclusions truncated on the RAW frame before normalization, and the fail-closed exclusion check on the served frame OUTSIDE the read's handler. Locks: a planted corrupt parquet and csv survive byte-identical at the quarantine path; a normalization bug leaves a good file untouched; the old reader fails 3 of them.
+- Closed by the anchor lint's exit (a): the witness (the reader's delete call, last at `:656`) no longer exists.
 
 ### [HIGH → RESOLVED 2026-10-15] `_normalize_df` AUTO-SCALED prices ÷10 whenever the median close exceeded 1000 — on every load (B, 2026-10-15; item (d)'s core)
 - Engine: data manager (`engines/data_manager/data_manager.py`, `_normalize_df`)
