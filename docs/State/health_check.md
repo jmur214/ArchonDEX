@@ -84,15 +84,11 @@ then LOW. Within each severity, list newest at the top.
 ### [HIGH] The pre-T-167 GLOBAL-median×3 band, applied at WRITE time, removed the run-ups of the biggest movers from the canonical cache — 33 LIVE files END early (28 within 5 % of their all-time high) and 114 files have HOLES inside their span (SHOWN 2026-10-15: the replayed band reproduces NVDA's, PLTR's and GE's saved date sets exactly) (B, 2026-10-15)
 - Engine: data substrate — `data/processed/<T>_1d.*`; universe admission `engines/data_manager/universe_resolver.py` `discover_cached_tickers`
 - First flagged: 2026-10-15 (KLAC and APH surfaced in the last-bar level identity; the count measured across all 730 files)
-- Status: OPEN, owner B. **HIGH** (director, 2026-10-15; signature verified independently: NVDA
-  ends 2024-05-10 at its all-time high, +211 % trailing 12 months; PLTR 0.999, +307 %; GE at its high;
-  MU 0.970; AVGO 0.968; the controls AAPL and MSFT end off their highs). The missing bars sit inside
-  every canonical window and fall on exactly the names a momentum signal ranks highest, so the bias
-  is directional, not noise.
-  **For verdicts:** every verdict on a window reaching the damaged spans read these names wrongly.
-  B-1's momentum rows come first; A writes B-1's dated note from this list. B-1 and every verdict
-  on a 2024–2025 window RE-RUN on the cutover substrate, whichever treatment is chosen (director). The
-  2020–21 holes (SE, ETSY, PENN, ENPH, MTCH, XYZ) reach further back.
+- Status: OPEN, owner B. **RULED HIGH by the director 2026-10-15 (verified: NVDA ends 2024-05-10 AT its all-time high, +211% trailing 12m; PLTR 2025-01-15 at 0.999 of its ATH, +307%; GE at its ATH; MU 0.970; AVGO 0.968; AAPL/MSFT end 2026-04-17 well off theirs). A file that stops exactly at its all-time high is the fingerprint of a rolling-median tick filter at write time. Next: (1) SHOW the hypothesis by replaying the band as the WRITER applied it over NVDA's provider bars from 2024-05-13 — the band's threshold and the first rejected bar reported; refuted if it does not stop there; (2) the admission rule reads each file's END date and a canonical run REFUSES a live name whose file ends before the window end unless declared ([NN-FAIL-CLOSED]), with a stale_files census key by both producers (propose-first, after the identity rail, ahead of the miss-refusal unit); (3) A writes B-1's dated note from this list: the momentum rows are measured on a cache missing the late bars of 33 names, 28 at all-time highs — the post-cutover re-run is the test under any treatment, so B-1 and every verdict on a 2024–2025 window re-run regardless of the user's (a)/(b) choice.**
+  *B's addition (2026-10-15):* the missing bars sit inside every canonical window and fall on exactly
+  the names a momentum signal ranks highest, so the bias is directional, not noise. The 2020–21
+  holes (SE, ETSY, PENN, ENPH, MTCH, XYZ) reach windows further back than 2024–2025, and A is
+  extending B-1's counts from early ends to holes across the whole panel.
 - Description: of the 730 cache files, 652 are LIVE (the provider serves them through 2026-10-14).
   **33 of those 652 have a canonical file that ENDS before 2025-12-31**, by end date:
   SMCI 2023-05-02, FIX 2024-02-22, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06,
@@ -134,16 +130,21 @@ then LOW. Within each severity, list newest at the top.
   files, the pass WROTE 81, and ALL 81 have every hole filled. The other 33 stay holed: BBBY, PSKY
   (span), CPWR (convention), and 30 unfetchable delisted names (CCE, NCC, CFC, MHS, …), with no
   provider series to fill them or to run the band test against. Under the user's option (a), the
-  post-seam damage still needs a re-fetch.
+  post-seam damage still needs a re-fetch (the cutover proposal's option (a) row says so).
+  **The 33 unfillable holed files** become a DECLARED `data_gaps` entry the census carries, under the
+  same key as the stale files: the names, their hole counts, and the reason "no provider series"
+  (director, 2026-10-15). They are the standing argument for a survivorship-complete source (option
+  (c)) when the user weighs it: BBBY 301, CPWR 237, CCE 158, NCC 132, CFC 111, MHS 77, CCR 64, TIE 54,
+  HAR 24, GR 15, COL 13, PSKY 12, WBD 10, TEG 8, SATS 5, BMC 4, CDAY 3, CMA 3, CTLT 3, DFS 3, …
   **Consequence:** inside every canonical window ending 2025-12-31, these names drop out or skip
   their run-ups, read as "stopped trading" or as a jump across a gap. That biases against momentum,
   B-1's momentum deciles included; the magnitude is unmeasured. It lives in every verdict measured
   on TODAY's canonical cache.
 - Recommended next step: (1) the admission guard (propose-first, after the identity rail, ahead of
-  the miss-refusal unit): the admission rule reads each file's END date AND its internal GAPS. A
-  canonical run REFUSES a live name whose file ends before the window end, or has gaps, unless
-  declared (`[NN-FAIL-CLOSED]`), and a `stale_files` census key (both producers, the two-producer
-  lock) makes the count visible on every run. (2) The 33 unfixable holed files need a declared
+  the miss-refusal unit): `stale_files` carries, per live name, its END date AND its count of missing
+  trading days inside the window. A canonical run REFUSES a live name that ends before the window end,
+  or has gaps over a declared tolerance, unless declared (`[NN-FAIL-CLOSED]`), and never reads a holed
+  file silently. Both producers write the key, under the two-producer lock. (2) The 33 unfixable holed files need a declared
   treatment at cutover. (3) Sizing the bias on the momentum verdicts is a measurement for their
   owners.
 - Anchor: `engines/data_manager/universe_resolver.py:302` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (the line moves to :333 when the ticker-exclusion unit 4c57d4c merges)
