@@ -96,7 +96,7 @@ survivorship bias into an upward bias whose SHAPE differs by survivor status.
 | option | what it does | consequences |
 |---|---|---|
 | **(a) One convention everywhere: keep the drip, labelled universally** | No cutover of deep history until a delisted-capable total-return source exists. Every deep history is labelled "drip (constant-yield approximation)", everywhere. | Homogeneous and survivorship-consistent. **Knowingly keeps** the drip's per-name return DISPERSION (finding one: median −0.10 %/yr, but 102 of 559 names move by more than 1 %/yr) in every pre-seam number, labelled rather than fixed. Post-seam is already exact. Cheapest; no re-qualification beyond the label. The universal label is a census field, so this is a referee change too, as in (b). |
-| **(b) Exact where available, drip where not, with a per-name convention field** | Live names cut over; delisted names stay on the drip. Each file carries a `convention` field (`exact_tr` / `drip`); the **census reads it**, and every equity-book measurement reports the split (share of names, share of weight, on each convention). | The most exact per name. The universe is **mixed by construction**, and the mix correlates with survivor status, so a long/short or cross-sectional result can partly reflect the convention split. That is visible because it is reported, but it is a confound. A census field becomes a referee change. |
+| **(b) Exact where available, drip where not, with a per-name convention field** | Live names cut over; delisted names stay on the drip. The split is survivor-only **only after** the §2b declared classes (AGG/EFA/VNQ, AMCR, BK, (ii)–(iv)) have been ruled and run; before that, 23 LIVE names also sit on the old convention (§6). Each file carries a `convention` field (`exact_tr` / `drip`); the **census reads it**, and every equity-book measurement reports the split (share of names, share of weight, on each convention). | The most exact per name. The universe is **mixed by construction**, and the mix correlates with survivor status, so a long/short or cross-sectional result can partly reflect the convention split. That is visible because it is reported, but it is a confound. A census field becomes a referee change. |
 | **(c) Buy a survivorship-complete total-return source** | Acquire a source that covers delisted names with exact total return (the B-1 prereg's re-verification clause already names this path). One provider, one convention, the whole universe. | The only option that is exact AND homogeneous. Costs money and is a new external dependency (a propose-first gate under CLAUDE.md), plus provider evaluation and a manifest of its own. Until it lands, (a) or (b) must hold. |
 
 ## 2a. The provider rule: ONE provider for the whole universe (C-1's per-span rule overturned by measurement)
@@ -248,7 +248,7 @@ resolutions change at the next image build.
 | `tests/test_golden_master.py` | fixed-number test | the backtester's golden summary | its fixture reads the processed closes | regenerate the golden in the cutover commit |
 | `tests/test_rescore_rr1_driver.py:25-28` (also `scripts/rescore_rr1.py:10`) | fixed-number test | `PRE_RR1_GOLDEN`: Sharpe 0.04946…, 171 trades, turnover 4,047,969.47, max position 47,956.64 | computed on the processed closes through the golden master's pipeline; no input-hash guard, so a data change reads as a code change | **RETIRE at cutover** (director's ruling, 2026-10-15). Its purpose, proving the before arm reproduced main as of 09-30 bit for bit, was served and is recorded. After the cutover the data it pins no longer exists, and a lock that cannot be satisfied is retired, not loosened. The reason goes in the test and in RR-1's §4; the record keeps the number |
 | `engines/data_manager/exclusions.py:29-39` (+ `tests/test_price_levels_item_d_2026_10_15.py:114-123`) | declared constant | DAL cutoff 2007-05-03; `max_close_after` 1000 | DAL's treatment is the user's §2b (ii) decision; the check fails closed on a mismatch | re-declare with the ruling |
-| the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), so a stale anchor passes silently: a referee fail-open, a HIGH row, D's unit (ruled 2026-10-15). D's design has the gate check a nightly verify STAMP by digest and refuse while it is stale or absent; the nightly full verify that writes the stamp is Agent B's janitor unit | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
+| the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), and nothing automated compares a canon with its ANCHOR after the run either: the canary (`:360-380`) compares cells with EACH OTHER (the determinism floor), and the summary CSV carries each cell's `canon_md5` (`:491-497`) "so the analyst can verify post-run", which is a manual step. So a stale anchor passes silently, at submit OR post-run: a referee fail-open, a HIGH row, D's unit (ruled 2026-10-15). D's design has the gate check a nightly verify STAMP by digest and refuse while it is stale or absent; the nightly full verify that writes the stamp is Agent B's janitor unit | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
 | B-1: panel `d9d449d17f8f`; results `5de36b89e0ad…`; 2012 window `bbf88ffc9f23…` (`docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`) | canon | "must reproduce" md5s | built from the processed closes (R's lock 7: the panel must move VISIBLY) | the verdict doc's §12 commands |
 | `config/substrate_manifest.sha256` | manifest | sha256 of 14,120 substrate files (2,049 under `data/processed/`) | every rewritten file | re-pin #2: `scripts/gen_substrate_manifest.py generate` in the cutover commit, after re-pin #1 has made it green on the drip substrate. **See the note below: it fails verify today** |
 | the content-addressed S3 substrate prefix = md5 of the manifest (`.github/workflows/build_backtest_image.yml:112-117`); the image label (`scripts/build_backtest_image.sh:127,161,168`) | CI workflow | the substrate snapshot the backtest image is built from | a new manifest gives a new md5, and that prefix will not exist yet | a manual `aws s3 sync` to `substrate/<md5>/data` (no script), then `workflow_dispatch`. The workflow's `data/processed/**` trigger never fires, because `data/` is untracked |
@@ -351,7 +351,7 @@ Over the 652 files yfinance served (latest inventory row per file, yfinance thro
 | basis (two-mode, last 90 days) | 652 | 461 measured_tr; 190 "unverified: no ex-date in window"; 1 too few common bars |
 | overlap over the last 252 cached bars (the write pass) | 652 | 474 RESCALED; 156 APPEND; 5 DIFFERENT_CONVENTION; 17 span refusals were never compared. (Outside the 652: BRK.B APPEND and BF.B RESCALED, under the shared symbol table) |
 | **pre-seam** return delta, exact − drip | 559 | median −0.10%/yr; p10 −1.34; p90 +0.58; 102 move more than 1%/yr (§1) |
-| pre-seam level ratio, exact / drip (median per file) | 561 | p10 0.968; median 1.007; p90 1.124 |
+| pre-seam level ratio, exact / drip (median per file) | 561 | p10 0.968; median 1.007; p90 1.124. *(561, not §1's 559: POM — cache from 2025-10-08, seam 2025-12-10 — and SE — cache from 2017-10-20, seam 2018-01-02 — have a pre-seam level ratio but fewer than the 60 common pre-seam bars the annualised return delta requires, so they carry no return delta.)* |
 | **post-seam** return delta | 647 | median 0.00; p10 and p90 0.00. Only 4 files move more than 0.5%/yr, and they are exactly refused ones: AGG +3.19, EFA +2.66, VNQ +4.30 (their dividend yields, split-only) and CPWR −9.19 (identity) |
 | post-seam level ratio (median per file) | 649 | p10 0.979; median 0.994; p90 1.000: a constant rescale from ex-dates since the cache was written. **Silent at the tails: 14 files lie outside [0.80, 1.10]. They are level changes, not dividend rescales, and include the three ÷10 files (§2b)** |
 
@@ -378,29 +378,84 @@ reasons a pre-seam number moves: §1's per-name return dispersion, and the item 
 | **Independent harnesses on RAW Stooq files** (CONFIRMED from each script, 2026-10-15) | T-204 (`trend_overlay_validation_t204.py:35-37`: SPY/AGG/GLD from `data/raw/stooq/daily/us/nyse etfs/…`), T-213 (`industry_momentum_t213.py:25-30`: sector ETFs globbed from `data/raw/stooq/daily/us/**`), T-239 (`moonshot_rescore_t239.py:11`: `data/raw/stooq/daily/us/**/<t>.us.txt`) | **UNAFFECTED by this cutover**, which rewrites only `data/processed/`. Their basis is raw Stooq, split-only before about 2011 (R's per-era finding). That is T-256's known question, not a cutover one, and is noted here, not reopened |
 | **RR-1's "needs a reviewer" (7)** | T-136, T-148, T-166, T-169, T-172, T-214, T-220 | inherit RR-1's resolution, then the same test |
 
-### 5.1 Harnesses OUTSIDE RR-1's row set, classified by the director's rule (R's read, 2026-10-15)
+### 5.1 Every harness that reads per-ticker processed files — found by GLOB, classified by the rule
 
-RR-1's selection test ("did the controller produce it?") is orthogonal to the cutover's ("does it read
-pre-seam processed closes?"), so these were missing. **The rule (director):**
-- RE-LABEL as "refuted on the drip substrate; not re-run" when the ledger status is refuted or null
-  AND nothing current (a parameter, a gate, a live-risk setting) reads from it;
-- RE-RUN on the cutover substrate when anything current consumes it.
+**Method: a glob, not a list from memory.** The first lists (mine and R's) both missed readers. The
+set is every T-script that reads a per-ticker processed file:
+`grep -lE "_1d\.csv|_1d\.parquet" scripts/*.py research/*.py | xargs grep -l processed`, restricted
+to `_t<NNN>` names. That gives **63 scripts**. A read-only scan classified what each one actually
+reads (all files, a per-ticker universe, a fixed list, `tr_reconciled/` only, a fallback, or not a
+reader). Every claim that carries weight below was verified by hand.
+
+**The rule (director):**
+- **RE-LABEL** as "measured on the drip substrate; not re-run" when the ledger status is refuted,
+  null or void, OR the result is an off-default option, AND nothing current (a parameter, a gate, a
+  live-risk setting) reads from it.
+- **RE-RUN** on the cutover substrate when anything current consumes it.
+- **A TRIGGER where an off-default option is involved:** enabling it later REQUIRES the re-run on
+  the then-current substrate first (`[NN-SUBSTRATE-REVERIFY]`). That is a gate, not a re-run today.
 
 Consuming sites were searched across `config/`, `engines/`, `paper_trader/`, `core/`,
-`orchestration/`, `intelligence/` and the edge registry `data/governor/edges.yml`:
+`orchestration/`, `intelligence/` and `data/governor/edges.yml`.
 
-| verdict | ledger | what it reads (R) | current consumer found | action |
+**The movers not already in §5's RR-1 rows** (T-122, T-129, T-136, T-145, T-148 and T-154 ARE in
+those rows, and follow them):
+
+| verdict | ledger | what it reads, from | current consumer | action |
 |---|---|---|---|---|
-| T-123 BAB | refuted | `glob(data/processed/*_1d.csv)`, from 2014 | none | **RE-LABEL** |
-| T-135 overnight/intraday | refuted | same glob, from 2000 | none for its NUMBERS. Its corrupt-opens repair METHOD is ported into `engines/engine_b_risk/yz_vol.py:17` (code, not a measured value). `overnight_intraday_edge.py` is NOT in the edge registry | **RE-LABEL** |
-| T-137 8-K reactions | refuted | same glob, from 2004 | none for its numbers. `core/multiple_testing.py` (a promoted helper) and `intelligence/event_call/eightk_body.py` (SEC etiquette) reuse code, not values | **RE-LABEL** |
-| T-150 OHLC panel | done | same glob, from 1999 | **Engine B live risk:** the Yang-Zhang estimator adopted on T-150's screens (`yz_vol.py`, `vol_target.py`, `risk_engine.py`) | **RE-RUN** (ruled) |
-| T-153 vol-collapse | done | EWMA over `*_1d.csv` | **Engine B live risk:** its assessment justifies YZ's collapse immunity (`yz_vol.py:13`), feeding `risk_engine.py` / `vol_target.py` | **RE-RUN** |
-| T-269 asymmetric exits | refuted | `data/processed/{tkr}_1d.csv`, SPY | none | **RE-LABEL** |
-| T-171 MF deep crisis | done | the frozen base curve (above) | none: no current MDD or risk parameter reads the base curve, and no MF-sleeve weight exists in `config/` or `paper_trader/` | **RE-LABEL with the base-curve pin** |
-| T-178 regime sleeve sizer | done | the frozen base curve | none: `paper_trader/paper_telemetry.py:199`'s `safe_f` is computed LIVE from the paper record (`compute_safef_car25`), and `SafeFConfig` carries no T-178 provenance | **RE-LABEL with the base-curve pin** |
+| T-123 BAB | refuted | all files, 2014 | none | **RE-LABEL** |
+| T-135 overnight/intraday | refuted | all files, 1999 | none for its NUMBERS (its corrupt-opens repair METHOD is ported into `yz_vol.py:17`; `overnight_intraday_edge.py` is not in the registry) | **RE-LABEL** |
+| T-137 8-K reactions | refuted | all files, 2004 | none for its numbers (`core/multiple_testing.py` and the SEC etiquette reuse code) | **RE-LABEL** |
+| T-150 OHLC panel + screens | done | all files, 1999 (build) / 2005 (screens) | **none: Yang-Zhang is an OFF-default option.** `estimator_type` defaults to `"rolling"` (`engines/engine_b_risk/vol_target.py:67`), and nothing under `config/`, `paper_trader/` or `data/governor/` sets `"yang_zhang"` | **RE-LABEL + TRIGGER:** setting `estimator_type="yang_zhang"` in any production config requires T-150's re-run first. *(This row first said RE-RUN on "Engine B live risk". That reading checked that the code exists, not that it is enabled. Withdrawn, director-verified.)* |
+| T-153 vol-collapse | done | all files, full history | **none: the σ floor is OFF-default.** `vol_floor_enabled` defaults to `False` (`vol_target.py:107`; ":294: the bitwise pre-T-153 path"), and nothing enables it | **RE-LABEL + TRIGGER:** enabling `vol_floor_enabled` requires T-153's re-run first |
+| T-269 asymmetric exits | refuted | PIT members + SPY, 2000 | none | **RE-LABEL** |
+| T-171 MF deep crisis | done | the frozen base curve | none (no current MDD or risk parameter reads the curve; no MF-sleeve weight in `config/` or `paper_trader/`) | **RE-LABEL with the base-curve pin** |
+| T-178 regime sleeve sizer | done | the frozen base curve | none (`paper_telemetry.py:198-199`'s `safe_f` is computed LIVE from the paper record) | **RE-LABEL with the base-curve pin** |
+| T-205 defensive tilt screens | done | the first 200 files alphabetically + SimFin, 2008/09 | the tilt is merged code, **OFF-default** (`engines/engine_c_portfolio/phase1_composition.py`) | **RE-LABEL + TRIGGER:** turning the tilt on requires the re-run |
+| T-273 breadth tilt | **no ledger row** (the T-239/241 class) | PIT members + SPY, 1999/2000 | none | **RE-LABEL**, and the missing ledger row is itself a record defect |
+| T-289 news interaction tests | done (all four tests null) | the T-265/T-271 research prices, falling back to processed per ticker; filings from 2015 (the 2015–17 drip) | none for its numbers (the news panel it built is data, not a price verdict) | **RE-LABEL** |
+| T-337 dividend-strip audit | done ("receipt unobtainable") | traded tickers, 2000 | none (`core/durability_census.py` cites its CLASS, not its numbers) | **RE-LABEL**. It audited the drip itself, so the cutover is its subject |
+| T-339 / T-339b anonymized eval | done (VOID ×2) | news symbols with a processed file, 2015–2023 | none | **RE-LABEL** |
+| T-207 PIT dry-run | done | static + PIT names via `load_cached`, 2015 | none for its numbers (`engines/execution/slippage_model.py:55` cites its Sharpe sensitivity to motivate an OFF-default retail cost mode whose spreads come from external evidence) | **RE-LABEL** |
+| **T-146 auction execution** | done | the trade log's tickers: **Close × Volume → dollar-ADV half-spread buckets** (`demo_auction_execution_t146.py:46-73`), over the trade log's span | **YES, LIVE:** the slippage gate's p95 bar (`paper_trader/sleeve_tracker.py:52`, "the T-146 §5.2 bar") and the telemetry's expected auction print (`paper_trader/paper_telemetry.py:11,77`) | **RE-RUN**, by the rule. What moves: dollar-ADV buckets (item (d) L1–L3 class). The live sleeve's ETFs are all mega-cap, so the bucket is expected to hold; that is what the re-run confirms |
+| **T-247 carry sleeve** | **no ledger row** | **processed AGG**, GLD, SPY; AGG's full history from 2003-09-29 | none live (`core/carry_signal.py` is the module; carry closed at T-263) | **RE-LABEL**. See the AGG note below |
+| **T-257 integer-share reality check** | done | processed SPY, **AGG**, GLD, from 2020 | `config/advisor_tier_table.json:20` cites it as `validation_ref`. The table is a SPEC ARTIFACT, "NOT yet wired to runtime" (`advisor_tier_table.schema.json:5`) | **RE-LABEL + TRIGGER:** wiring the tier table to runtime requires T-257's and T-278's re-run first |
+| **T-262 compose vol-target** | refuted | SPY; **AGG**/GLD in the integer tracking-error check, from 2020 | none | **RE-LABEL** |
+| **T-278 capital-tier gauntlet** | **no ledger row** | processed SPY, **AGG**, GLD, from 2020 | the same spec artifact (not wired) | **RE-LABEL + TRIGGER** (with T-257) |
 
-R checks this classification.
+**The AGG note: a correction, and a finding.** The processed AGG file is **split-only** (§2b's trio;
+`backfill_t052` wrote it with `auto_adjust=False`). The cutover's declared trio path re-fetches it as
+total return, which raises AGG's return by about its yield: **+3.19 %/yr** post-seam, measured, and
+EFA +2.66, VNQ +4.30. So the four harnesses that read the processed AGG file (T-247, T-257, T-262,
+T-278) **MOVE**. They are not "all constant", as the first check of T-247 and R's read of T-262 had
+it. GLD is unchanged (APPEND) and SPY rescales by a constant.
+
+Independent of the cutover, those four measured AGG **without its dividends**, understating its
+total return by about 3 %/yr. That is recorded against their evidence. §5's ETF verdicts on
+`tr_reconciled/` are unaffected, and T-236 reads its bond leg from `/tmp/t236`, not from the processed
+AGG file.
+
+**Checked, NOT movers:**
+- **SPY-only readers (28 verdict harnesses):** T-172, T-236, T-250, T-252, T-255, T-260, T-265 (benchmark only),
+  T-268, T-270, T-272, T-274, T-279, T-282, T-283, T-284, T-285, T-287, T-291, T-294, T-294b, T-296,
+  T-297, T-298, T-299 and T-318/T-320 (cross-check); plus T-259, T-263 and T-266 (SPY and
+  `tr_reconciled/`). SPY has no seam and reads RESCALED by a constant 0.99496 over 1993–2026 (return
+  delta 6e-9), and a constant cancels in returns.
+- **T-087:** SPY comes from raw Stooq. TLT comes from processed only as a fallback, and processed TLT
+  rescales by a constant (0.977; return delta 2e-8).
+- **T-132:** a feature-panel map, not a price verdict. Its window (about 2021–24) is post-seam, where
+  returns do not move.
+- **`tr_reconciled/` only:** T-261, T-267.
+- **Infra:** T-052 (writes the trio, the SOURCE of the split-only AGG), T-137's fetch (file names
+  only), T-167 (the SPY regeneration), T-219 (the cap cohort, §3.2), T-256 (Stooq → `tr_reconciled`),
+  and T-306's build (SPY plus `tr_reconciled` AGG).
+
+**Two harness facts found by the scan, recorded:**
+- **T-291 cannot run as the code stands.** Its import fails, because T-250 no longer defines `FOMC`
+  (`event_interaction_t291.py:18`), so its verdict cannot be reproduced.
+- **19 scripts hard-code ANOTHER agent's tree** as their root (15 agent-d, 4 agent-a). Both trees'
+  `data/processed` link to the same canonical cache, so the data is the same, but a reproduction from
+  anywhere else depends on those links.
 
 **Sequencing (RULED 2026-10-15 by the director, for the user to override).** The 31 controller and consumer verdicts are
 already slated for re-scoring under the corrected referee (RR-1/RR-5). The cutover changes their
