@@ -144,6 +144,13 @@ then LOW. Within each severity, list newest at the top.
     (bd68438, 2026-06-13) every file was LOADED through the same global-median × 3 band. After it, the
     files themselves are the ones written through that band on 2026-04-25. So no verdict from that era
     is cited as free of it.
+    **By name, a reader the resolution never covered (B, 2026-10-15; the direct-globbers contract,
+    `a38db0b`, with R):** until that commit, the dashboard-launched `scripts/run_evolution_cycle.py`
+    built its universe from a glob of EVERY cached file. Discovery's candidate validation therefore
+    read AZO, MTD, NVR and SLE at one tenth of their price, and the band-damaged files (the early
+    ends and the holes) along with them, in every evolution cycle ever launched from the dashboard.
+    It now reads through `withhold_declared_tickers`, with the site recorded under
+    `ticker_exclusions`. The band damage itself is the cutover's to repair.
   **What the cutover fixes, from the copy:** the 32 stale live names (NFX aside) are written through
   2026-10-14, each last bar EQUAL to the provider's close (identity 1.000000). Of the 114 holed
   files, the pass WROTE 81, and ALL 81 have every hole filled. The other 33 stay holed: BBBY, PSKY

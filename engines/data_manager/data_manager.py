@@ -249,13 +249,21 @@ class DataManager:
     def fetch_historical_fundamentals(self, ticker: str) -> pd.DataFrame:
         """
         Reconstructs DEEP historical fundamental time-series.
-        Fetches Income, Balance Sheet, and Cash Flow.
-        Returns DataFrame with:
-          - Valuation: PE_Ratio, PS_Ratio, PB_Ratio, PFCF_Ratio (Price to Free Cash Flow)
-          - Health: Debt_to_Equity, Current_Ratio
-          - Growth: Revenue_Growth (YoY), EPS_Growth (YoY)
-        Indexed by Date (Daily, forward filled from reporting date + 45 days lag).
-        Results are cached to parquet for subsequent runs.
+
+        Order: the cached parquet if one exists (returned whatever its age — never re-fetched); a
+        SYNTH- ticker's generated frame; the static CSV if it covers the ticker; otherwise a cache
+        MISS. In a canonical run (REFUSE_YFINANCE_ENV) a miss is REFUSED — recorded, empty, never
+        fetched or written; under ARCHONDEX_HERMETIC it is BLOCKED; otherwise it is fetched from
+        yfinance and written into the pinned cache scope (see `_FUNDAMENTALS_LOG`).
+
+        The network fetch reads exactly three provider attributes: `quarterly_income_stmt` (the
+        minimum — empty means no data), `quarterly_balance_sheet` and `quarterly_cashflow`; plus
+        `history()` for the close the ratios divide by.
+
+        Returns (each column only when its inputs were present): PE_Ratio, PS_Ratio, PB_Ratio,
+        PFCF_Ratio, Debt_to_Equity, Market_Cap, EPS_TTM — indexed daily, forward-filled from the
+        reporting date + 45 days (the publication lag). It does NOT return Current_Ratio,
+        Revenue_Growth or EPS_Growth, which an earlier docstring listed.
         """
         # Check parquet cache first (persists across runs)
         cache_path = self._fundamentals_cache_path(ticker)
