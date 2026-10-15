@@ -14,6 +14,18 @@ n_trials: 0
 `edges_blind_error`. A crash inside the edges census therefore produced a census that PASSED invariants 1 and 1b.
 That is the measurement path's own gate degrading to a plausible pass (`[NN-FAIL-CLOSED]`, `[NN-CENSUS]`).
 
+## Scope — which runs this reaches
+
+The gate (`core/census.py` `assert_census`) is called by three kinds of caller:
+- the measurement path's census check: local `run_isolated` / `run_substrate_arms`, and the cloud entrypoint;
+- Discovery's Gate-1 candidate census;
+- the paper heartbeat.
+
+**The live cloud paper fleet is NOT reached.** `paper_trader/scheduler.py`'s `_record_heartbeat` calls
+`heartbeat.record_run(…)` with `summary=None`, so the heartbeat never evaluates a census on the fleet path.
+Verified by reading the call, not inferred. The change therefore alters only what is certified CANONICAL among
+backtests, measured runs and Gate-1 candidates. On the 955 recorded summaries it changes no verdict (955 distinct files: an earlier count of 956 included `data/research/performance_summary.json` twice, because this worktree's `data/research` is a symlink to the canonical tree's — corrected on R's check; the double-counted file carries no census, so the 79 and the 0 flips stand).
+
 ## The audit — every except branch in `_build_census`, against what the gate reads
 
 | block | its except branch wrote | gate before | after this unit |
@@ -61,7 +73,7 @@ A run that never set either counter passes both invariants without measuring the
   assigns `edges_blind` only in the except branch: the old regex contract passed that; the AST contract fails it.
 - 49 census-touching test files: **585 passed / 0 failed**.
 - **First artifact, read-only.** The old and new gates were run over every recorded `performance_summary.json`
-  on disk: 956 read, 79 with a census, **0 verdict flips**. The one record carrying an error was already
+  on disk: 955 read, 79 with a census, **0 verdict flips**. The one record carrying an error was already
   NON-CANONICAL through `census_error`. No locally recorded run was ever certified clean by this defect. S3-held
   records were not scanned.
 - **health_check:** the HIGH row's anchor (`backtest_controller.py:1333`, `census["edges_blind"] = []` in the
@@ -112,7 +124,7 @@ That lock bites on the message, which names the true cause.
 
 **Tests:** 49 census-touching test files, **591 passed / 0 failed**.
 
-**First artifact, re-run:** old gate against new over 956 recorded summaries (79 with a census): canonical
+**First artifact, re-run:** old gate against new over 955 recorded summaries (79 with a census): canonical
 **13 → 13, 0 flips**. No recorded run relied on a skipped zero.
 
 **The live fleet is NOT reached.** The cloud paper scheduler's `_record_heartbeat` calls `record_run` with
