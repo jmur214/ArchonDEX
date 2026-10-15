@@ -167,6 +167,8 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
   - `def load_or_fetch()`: Try to load from Parquet cache, then CSV, then use fetch_func if provided.
   - `def ensure_data()`
 - **Function `is_info_enabled()`**: No docstring
+- **Function `data_feed_summary()`**: What the network fed this process: counts by source and the yfinance-fed tickers.
+- **Function `reset_feed_log()`**: Forget the recorded fetches (tests, or a fresh run in a long-lived process).
 
 ### `earnings_data.py`
 **Module Docstring:** yfinance-backed earnings calendar + surprise data pipeline.

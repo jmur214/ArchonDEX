@@ -51,6 +51,7 @@ def data_feed_summary() -> dict:
 
 
 def reset_feed_log() -> None:
+    """Forget the recorded fetches (tests, or a fresh run in a long-lived process)."""
     _FEED_LOG.clear()
 
 
