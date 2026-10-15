@@ -265,9 +265,20 @@ python scripts/run_shadow_paper.py
 
 ### DATA & MARKET INTELLIGENCE
 ```bash
-# Update ALL Data (Intraday + Fundamentals)
-# Reads tickers from config/universe.json
+# Update OHLCV data for the tickers in config/universe.json
+# (corrected 2026-10-15: it does NOT fetch fundamentals — see the re-bake below)
 python scripts/update_data.py
+
+# Fundamentals RE-BAKE: the deliberate, NON-canonical fetch of NAMED tickers' missing per-ticker
+# fundamentals (re-pin #1's declared step). Names are explicit; there is no sweep. Misses only:
+# a non-empty cached file is untouched, and an EMPTY one is reported present_empty and left alone.
+# Refused under ARCHONDEX_REFUSE_YFINANCE_FALLBACK and ARCHONDEX_HERMETIC. It writes into the
+# pinned scope plus a record per name (data/processed/parquet/_fundamentals_records/<T>.json:
+# the source and version, the attributes read, the time, rows/columns, first/last date, md5).
+# The manifest's verify then reads red until a re-pin. Exit: 0 = all fetched or present;
+# 1 = an empty result or present_empty; 2 = refused.
+python -m scripts.rebake_fundamentals --tickers CVNA,KG
+python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.json   # the census's refused set
 
 # Fetch entire universe history (defined in config/backtest_settings.json)
 python scripts/fetch_all.py
