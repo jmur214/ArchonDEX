@@ -82,7 +82,7 @@ reasons a pre-seam number moves: §1's dividend under-count, and the item (d) do
 | **Independent harnesses whose PRICE SOURCE is unconfirmed** | T-204, T-213, T-239 | **TO CONFIRM per harness** whether it reads `data/processed/` equity closes (then RE-RUN) or `tr_reconciled/`/raw files (then unaffected). Not guessed here |
 | **RR-1's "needs a reviewer" (7)** | T-136, T-148, T-166, T-169, T-172, T-214, T-220 | inherit RR-1's resolution, then the same test |
 
-**Sequencing, the planning point that matters most.** The 31 controller and consumer verdicts are
+**Sequencing (RULED 2026-10-15 by the director, for the user to override).** The 31 controller and consumer verdicts are
 already slated for re-scoring under the corrected referee (RR-1/RR-5). The cutover changes their
 substrate too. Re-scoring them on the drip substrate and again after the cutover would spend the
 campaign twice and leave two incompatible sets of numbers. **Recommended: one re-run, on the
