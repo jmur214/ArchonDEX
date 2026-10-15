@@ -112,7 +112,24 @@ def rescore(panel: pd.DataFrame, census: dict, recorded: dict, price_root: Path,
             "label": "POST-HOC EXPOSURE CHECK — not a measurement of record; one-sided"}, halts
 
 
+def forbid_network() -> None:
+    """OFFLINE BY CONSTRUCTION, not by declaration. This script reads three local files (the
+    panel, the run's results JSON, SPY's cached CSV) and never fetches. Its imports reach the
+    data layer, where a keyless process silently falls back to yfinance (the env lock's reason),
+    so every socket connect and DNS lookup is made to RAISE for the life of the process: a
+    fetch from here cannot succeed quietly."""
+    import socket
+
+    def _refuse(*_a, **_k):
+        raise RuntimeError("rescore_b1_ey_exposure is offline by design: network access refused")
+    socket.socket.connect = _refuse
+    socket.socket.connect_ex = _refuse
+    socket.create_connection = _refuse
+    socket.getaddrinfo = _refuse
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    forbid_network()                                     # FIRST — before any import does work
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--panel", required=True)
     ap.add_argument("--recorded", required=True, help="the run's results JSON (run1)")
@@ -154,5 +171,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    # offline by design, like the B-1 builder and harness — no .env, no keys
+    # load_local_env: offline by design — reads only the panel, the run's results and SPY's
+    # cached CSV; main() calls forbid_network() first, so any fetch RAISES instead of falling
+    # back to a keyless provider (tests/test_rescore_b1_ey_exposure.py locks both).
     sys.exit(main())
