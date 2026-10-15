@@ -1340,6 +1340,15 @@
 - **Function `run()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `rebake_fundamentals.py`
+**Module Docstring:** The fundamentals RE-BAKE: a deliberate, NON-canonical refresh of NAMED tickers' per-ticker
+- **Class `RebakeRefused`**: A re-bake that must not run: the canonical switch, hermetic mode, or no names.
+- **Class `_RecordingTicker`**: Passes every attribute through to the provider's object and records the public names read.
+  - `def __init__()`
+- **Function `names_from_census()`**: The census's refused fundamentals misses: the names a canonical run left blind.
+- **Function `rebake()`**: Fetch each NAMED ticker's missing fundamentals and record every attempt. Returns the records.
+- **Function `main()`**: No docstring
+
 ### `reconcile_stooq_tr_t256.py`
 **Module Docstring:** T-2026-07-02-256 Part 2 — TR reconciliation of the Stooq-ingested ETFs.
 - **Function `load_stooq_close()`**: No docstring
