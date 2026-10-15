@@ -70,7 +70,7 @@ then LOW. Within each severity, list newest at the top.
 - Description: the gate asserts the presence of the anchor keys (158fe678 the 26-yr anchor; 16-yr 3e9ea427; 2022 eb48742e; GFC 67784c1b) and never compares an anchor's content hash to the substrate manifest, so a run against a changed substrate (the cutover, or any refresh) submits under the old anchors with no refusal. The same class as the census's silent-zero defaults: a presence check standing in for a verification.
 - Status: OPEN, propose-first (referee). Ruled 2026-10-15, owner D: the gate verifies each anchor's sha256 against the pinned manifest and REFUSES on mismatch or absence, naming the anchor; a lock that plants a stale anchor and asserts the refusal, reversion-proven; R reviews.
 - Recommended next step: D's unit after the registry build; required BEFORE any cloud campaign runs on the cutover substrate.
-- Anchor: `scripts/submit_arms_campaign.py:262` contains `anchor` — the key-presence check that never reads the anchor's sha256
+- Anchor: `scripts/submit_arms_campaign.py:268` contains `has_external_anchor` — the presence check that never reads the anchor's sha256
 
 ### [HIGH] `gen_substrate_manifest.py verify` EXITS 1 TODAY — the substrate has not been re-pinned since 2026-06-18, and `tr_reconciled/` is baked into the paper image UNPINNED (B, 2026-10-15)
 - Engine: referee substrate pin — `scripts/gen_substrate_manifest.py`, `config/substrate_manifest.sha256` (ad03a97, 2026-06-18)
