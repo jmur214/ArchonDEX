@@ -297,3 +297,60 @@ def test_an_overlap_too_short_to_measure_is_REFUSED_when_a_cache_exists(tmp_path
     with pytest.raises(w.WriterRefusal, match="INSUFFICIENT"):
         w.full_refetch("ABC", tmp_path, {"yfinance": gappy}, today=IDX[-1])
     assert _pair_bytes(tmp_path) == before
+
+
+# ── the Yahoo symbol: ONE table, recorded, never guessed ────────────────────────
+
+def _symbol_bound(answers_to: str, calls: list, series=None):
+    """A provider that answers ONLY to `answers_to` (empty for any other symbol) and logs every symbol."""
+    raw = _raw()
+
+    def provider(symbol, start, end, adjusted):
+        calls.append(symbol)
+        if symbol != answers_to:
+            return pd.DataFrame(columns=w.COLUMNS)
+        s = series if series is not None else (_tr(raw) if adjusted else raw)
+        return _ohlcv(s[(s.index >= pd.Timestamp(start)) & (s.index <= end)])
+    return provider
+
+
+def test_a_share_class_is_fetched_under_its_yahoo_spelling_and_the_record_says_so(tmp_path):
+    """BRK.B and BF.B read 'no bars' under the merged writer: Yahoo spells a class with a dash."""
+    _seed_cache(tmp_path, _tr_cache_as_of(), ticker="BRK.B")
+    calls, log = [], tmp_path / "write_log.jsonl"
+    rec = w.full_refetch("BRK.B", tmp_path, {"yfinance": _symbol_bound("BRK-B", calls)},
+                         today=IDX[-1], log_path=log)
+    assert rec.symbol_mapped == "BRK.B -> BRK-B (share class)"
+    assert set(calls) == {"BRK-B"}, "fetched under the Yahoo spelling only"
+    assert (tmp_path / "parquet" / "BRK.B_1d.parquet").exists(), "the file keeps the cache's name"
+    assert '"symbol_mapped": "BRK.B -> BRK-B (share class)"' in log.read_text()
+
+
+def test_an_unmapped_ticker_records_no_mapping(tmp_path):
+    _seed_cache(tmp_path, _tr_cache_as_of())
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _symbol_bound("ABC", [])}, today=IDX[-1],
+                         write=False)
+    assert rec.symbol_mapped is None
+
+
+def test_a_RENAME_is_an_identity_claim_held_to_the_overlap_rail_and_its_refusal_names_the_claim(tmp_path):
+    """FRC -> FRCB: if the symbol's history is another security's, the overlap refuses it."""
+    _seed_cache(tmp_path, _tr_cache_as_of(), ticker="FRC")
+    other_security = _raw(37.0) * np.exp(0.002 * np.sin(np.arange(len(IDX)) / 5.0))
+    before = _pair_bytes(tmp_path, "FRC")
+    with pytest.raises(w.WriterRefusal, match=r"symbol mapped: FRC -> FRCB \(rename\)") as refused:
+        w.full_refetch("FRC", tmp_path, {"yfinance": _symbol_bound("FRCB", [], series=other_security)},
+                       today=IDX[-1])
+    assert refused.value.detail["symbol_mapped"] == "FRC -> FRCB (rename)"
+    assert refused.value.detail["overlap"]["verdict"] == "DIFFERENT_CONVENTION"
+    assert _pair_bytes(tmp_path, "FRC") == before
+
+
+def test_NO_fallback_symbol_is_ever_tried(tmp_path):
+    """The script's 'most rows wins' tries FRCB then FRC; the writer tries the table's symbol ONLY,
+    and an empty answer is a refusal, not a cue to guess."""
+    _seed_cache(tmp_path, _tr_cache_as_of(), ticker="FRC")
+    calls = []
+    with pytest.raises(w.WriterRefusal, match="returned no bars"):
+        w.full_refetch("FRC", tmp_path, {"yfinance": _symbol_bound("FRC", calls)}, today=IDX[-1])
+    assert calls == ["FRCB"], f"the writer tried {calls}"

@@ -101,50 +101,10 @@ YAHOO_FALLBACKS: dict[str, list[str]] = {
     "FRC":  ["FRCB", "FRC"],
 }
 
-# Yahoo uses '-' instead of '.' for share-class separators.
-# Some membership-table tickers are old names whose Yahoo symbol differs.
-YAHOO_OVERRIDES: dict[str, str] = {
-    "BF.B": "BF-B",
-    "BRK.B": "BRK-B",
-    # Old-name -> last Yahoo-known symbol while listed
-    "FRC": "FRCB",       # First Republic Bank — OTC pink sheet after FDIC
-    "SIVB": "SIVBQ",     # SVB Financial Group — chapter 11 ticker
-    "ATVI": "ATVI",      # Activision (acquired by MSFT)
-    "TWTR": "TWTR",      # Twitter (delisted post-Musk)
-    "DAY": "DAY",        # Dayforce (current ticker)
-    "K": "K",            # Kellanova
-    "WBA": "WBA",        # Walgreens (delisted Aug 2025)
-    "ANSS": "ANSS",
-    "JNPR": "JNPR",
-    "DFS": "DFS",
-    "HES": "HES",
-    "IPG": "IPG",
-    "CTLT": "CTLT",
-    "MRO": "MRO",
-    "PXD": "PXD",
-    "CMA": "CMA",
-    "ABMD": "ABMD",
-    "ALXN": "ALXN",
-    "CERN": "CERN",
-    "CTXS": "CTXS",
-    "CXO": "CXO",
-    "DISCA": "DISCA",
-    "DISCK": "DISCK",
-    "DISH": "DISH",
-    "DRE": "DRE",
-    "FBHS": "FBHS",
-    "FLIR": "FLIR",
-    "GPS": "GPS",
-    "HBI": "HBI",
-    "HFC": "HFC",
-    "KSU": "KSU",
-    "MXIM": "MXIM",
-    "NLSN": "NLSN",
-    "PBCT": "PBCT",
-    "TIF": "TIF",
-    "VAR": "VAR",
-    "XLNX": "XLNX",
-}
+# Yahoo uses '-' instead of '.' for share-class separators, and some membership-table tickers are
+# old names whose Yahoo symbol differs. The table lives in ONE place, shared with the total-return
+# writer (director ruling 2026-10-15). YAHOO_FALLBACKS above stays here: the writer never guesses.
+from engines.data_manager.yahoo_symbols import YAHOO_OVERRIDES  # noqa: E402
 
 # Stooq uses lowercase + ".us" suffix; share-class becomes "-b".
 STOOQ_OVERRIDES: dict[str, str] = {

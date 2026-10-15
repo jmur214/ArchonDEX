@@ -31,7 +31,10 @@ What the writer proves, rather than assumes (R's C-3/C-4):
     provider on the other convention — a split-only provider's two modes are identical, so it reads
     "unverified", exactly like a non-payer — so without this a split-only series replaces a
     total-return cache under a clean write record (Agent R's planted mismatch, 2026-10-15);
-  * the parquet + csv pair is written ATOMICALLY: a failure of either leaves both originals intact.
+  * the parquet + csv pair is written ATOMICALLY: a failure of either leaves both originals intact;
+  * the Yahoo symbol comes from ONE table (`yahoo_symbols`): a share class is a spelling (BRK.B ->
+    BRK-B); a rename is an IDENTITY claim held to the same span and overlap rails, and the record
+    says "symbol mapped: X -> Y (kind)". No other symbol is ever tried.
 The guard primitives (overlap classification at the rounding floor, the seam-return rail) live
 here too, so the writer and the guard share one definition of "same convention".
 """
@@ -46,6 +49,8 @@ from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+from engines.data_manager.yahoo_symbols import yahoo_symbol
 
 UNIVERSE_PROVIDER = "yfinance"  # ONE provider for every file — see the module docstring
 SPAN_SLACK_DAYS = 7            # a provider's first bar may trail the cached first bar by a holiday
@@ -81,7 +86,8 @@ class WriterRefusal(RuntimeError):
 class WriteRecord:
     ticker: str
     provider: str
-    mode: str                      # the fetch mode ASSERTED: "adjusted" (total return)
+    symbol_mapped: Optional[str]   # "X -> Y (share class|rename)"; None when fetched as named
+    mode: str                     # the fetch mode ASSERTED: "adjusted" (total return)
     span_start: str
     span_end: str
     n_rows: int
@@ -231,16 +237,20 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     if provider not in providers:
         raise WriterRefusal(f"{ticker}: no {provider} provider given — the writer will not "
                             f"substitute another provider for the universe's")
+    symbol, kind = yahoo_symbol(ticker)      # the universe provider's ONE table; no symbol is guessed
+    mapped = None if kind is None else f"{ticker} -> {symbol} ({kind})"
+    who = f"{ticker} via {provider}" + ("" if mapped is None else f" [symbol mapped: {mapped}]")
     start = cached_start if cached_start is not None else new_ticker_start
-    fetched = providers[provider](ticker, start, today, True)
+    fetched = providers[provider](symbol, start, today, True)
     ok, why = covers_span(fetched, cached)
     if not ok:
-        raise WriterRefusal(f"{ticker} via {provider}: {why}")
+        raise WriterRefusal(f"{who}: {why}", detail={"symbol_mapped": mapped})
     tail_start = today - pd.Timedelta(days=BASIS_WINDOW_DAYS)
-    unadjusted = providers[provider](ticker, tail_start, today, False)
+    unadjusted = providers[provider](symbol, tail_start, today, False)
     basis = measure_basis(fetched["Close"][fetched.index >= tail_start], unadjusted["Close"])
     if basis["basis"].startswith("anomalous"):
-        raise WriterRefusal(f"{ticker} via {provider}: {basis['basis']} — not writing")
+        raise WriterRefusal(f"{who}: {basis['basis']} — not writing",
+                            detail={"basis": basis, "symbol_mapped": mapped})
     overlap = None
     if cached is not None and not cached.empty:
         cached_tail = cached["Close"].iloc[-OVERLAP_TAIL_BARS:]
@@ -248,13 +258,13 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                                    fetched["Close"][fetched.index >= cached_tail.index.min()])
         if overlap["verdict"] not in ("APPEND", "RESCALED"):
             raise WriterRefusal(
-                f"{ticker} via {provider}: the re-fetch reads {overlap['verdict']} against the last "
+                f"{who}: the re-fetch reads {overlap['verdict']} against the last "
                 f"{len(cached_tail)} cached bars (basis {basis['basis']!r}) — a whole-file "
                 f"replacement must agree with the cache up to a rescale; not writing",
-                detail={"overlap": overlap, "basis": basis})
+                detail={"overlap": overlap, "basis": basis, "symbol_mapped": mapped})
     out = with_derived_columns(fetched)
     record = WriteRecord(
-        ticker=ticker, provider=provider, mode="adjusted",
+        ticker=ticker, provider=provider, symbol_mapped=mapped, mode="adjusted",
         span_start=str(out.index.min().date()), span_end=str(out.index.max().date()),
         n_rows=int(len(out)), basis=basis["basis"], basis_detail=basis, overlap=overlap,
         cached_span=(None if cached is None or cached.empty
