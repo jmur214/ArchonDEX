@@ -879,16 +879,15 @@ class ModeController:
         # spans, is never admitted as "stopped trading". In a MEASURED run that is a MeasurementHalt
         # (halt_or_degrade), never a silent drop: dropping the stale winners and calling the run
         # canonical would re-create the bias the guard exists to stop. Outside measured mode: WARN;
-        # the census records it and its gate fails the run as non-canonical.
+        # the census records it and its gate fails the run as non-canonical. The admission reads the
+        # record through the gate's own reader (`coverage_defects`), so the two cannot disagree.
+        from core.census import coverage_defects
         from core.measured import halt_or_degrade
         from engines.data_manager.coverage import stale_files_record
         _cov = stale_files_record(data_map, start, end, intervals=_membership_intervals)
-        if _cov["n_stale"] or _cov["n_holed"] or _cov["calendar"]["spy_missing_days"]:
-            _bad = sorted(t for t, v in _cov["names"].items() if not v["declared"]
-                          and (v["ends_before_required"] or v["missing_trading_days"]))
-            _msg = (f"{_cov['n_stale']} stale and {_cov['n_holed']} holed undeclared names "
-                    f"(e.g. {', '.join(_bad[:8])}); SPY calendar holes: "
-                    f"{len(_cov['calendar']['spy_missing_days'])}")
+        _defects = coverage_defects(_cov)
+        if _defects:
+            _msg = " | ".join(_defects)
             halt_or_degrade("coverage.stale_or_holed", load_bearing=True, active=True, reason=_msg)
             print(f"[RUN_BACKTEST][WARN] coverage: {_msg} — the census gate will fail this run")
 

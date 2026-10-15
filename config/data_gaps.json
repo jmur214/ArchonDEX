@@ -1,0 +1,2156 @@
+{
+ "_doc": "Declared data gaps (the stale/holed-files guard, engines/data_manager/coverage.py). Each facet excuses exactly what it declares: holed_inside.runs excuse missing trading days inside those runs only; ends_at_delisting excuses an early END only when the file's last bar IS last_bar. Neither excuses the other. First set 2026-10-15: every holed file that NO provider can fill (no series) \u2014 built mechanically by Dev/_substrate_candidates/build_data_gaps_2026-10-15.py.",
+ "declarations": {
+  "ABS": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2019-06-05",
+      "2019-06-05"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2006-06-02) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "AVB": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "BBBY": {
+   "holed_inside": {
+    "n": 302,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ],
+     [
+      "2018-02-15",
+      "2018-02-20"
+     ],
+     [
+      "2018-02-26",
+      "2018-02-26"
+     ],
+     [
+      "2020-07-30",
+      "2020-09-04"
+     ],
+     [
+      "2020-09-09",
+      "2020-10-28"
+     ],
+     [
+      "2020-11-05",
+      "2020-11-06"
+     ],
+     [
+      "2020-11-23",
+      "2020-11-30"
+     ],
+     [
+      "2020-12-16",
+      "2020-12-17"
+     ],
+     [
+      "2021-01-14",
+      "2021-01-14"
+     ],
+     [
+      "2021-01-22",
+      "2021-03-03"
+     ],
+     [
+      "2021-03-09",
+      "2021-03-23"
+     ],
+     [
+      "2021-03-26",
+      "2021-03-26"
+     ],
+     [
+      "2021-03-30",
+      "2021-04-06"
+     ],
+     [
+      "2021-04-08",
+      "2021-12-17"
+     ],
+     [
+      "2021-12-21",
+      "2021-12-21"
+     ]
+    ]
+   },
+   "reason": "reused ticker (the cutover proposal's class (i)): no provider series for the PIT entity",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "BMC": {
+   "holed_inside": {
+    "n": 4,
+    "runs": [
+     [
+      "2021-06-23",
+      "2021-06-28"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2013-09-11) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CCE": {
+   "holed_inside": {
+    "n": 158,
+    "runs": [
+     [
+      "2019-03-18",
+      "2019-03-18"
+     ],
+     [
+      "2019-06-10",
+      "2019-11-27"
+     ],
+     [
+      "2019-12-02",
+      "2020-01-02"
+     ],
+     [
+      "2020-02-25",
+      "2020-02-28"
+     ],
+     [
+      "2020-03-13",
+      "2020-03-25"
+     ],
+     [
+      "2020-04-28",
+      "2020-04-28"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2016-05-31) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CCR": {
+   "holed_inside": {
+    "n": 64,
+    "runs": [
+     [
+      "2020-07-29",
+      "2020-07-29"
+     ],
+     [
+      "2020-07-31",
+      "2020-08-07"
+     ],
+     [
+      "2020-08-12",
+      "2020-08-21"
+     ],
+     [
+      "2020-08-25",
+      "2020-09-01"
+     ],
+     [
+      "2020-09-03",
+      "2020-09-04"
+     ],
+     [
+      "2020-09-10",
+      "2020-09-10"
+     ],
+     [
+      "2020-09-14",
+      "2020-09-21"
+     ],
+     [
+      "2020-09-23",
+      "2020-09-23"
+     ],
+     [
+      "2020-09-28",
+      "2020-10-05"
+     ],
+     [
+      "2020-10-07",
+      "2020-10-08"
+     ],
+     [
+      "2020-10-13",
+      "2020-10-22"
+     ],
+     [
+      "2020-10-27",
+      "2020-11-03"
+     ],
+     [
+      "2020-11-05",
+      "2020-11-06"
+     ],
+     [
+      "2020-11-13",
+      "2020-11-13"
+     ],
+     [
+      "2020-11-20",
+      "2020-11-20"
+     ],
+     [
+      "2020-11-24",
+      "2020-11-24"
+     ],
+     [
+      "2020-11-27",
+      "2020-11-27"
+     ],
+     [
+      "2020-12-01",
+      "2020-12-01"
+     ],
+     [
+      "2020-12-03",
+      "2020-12-03"
+     ],
+     [
+      "2020-12-15",
+      "2020-12-15"
+     ],
+     [
+      "2020-12-22",
+      "2020-12-22"
+     ],
+     [
+      "2020-12-24",
+      "2020-12-24"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CDAY": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2024-01-31",
+    "pit_exit": "2024-02-01"
+   }
+  },
+  "CFC": {
+   "holed_inside": {
+    "n": 111,
+    "runs": [
+     [
+      "2019-06-10",
+      "2019-06-28"
+     ],
+     [
+      "2019-07-02",
+      "2019-07-08"
+     ],
+     [
+      "2019-07-10",
+      "2019-09-05"
+     ],
+     [
+      "2019-09-09",
+      "2019-09-25"
+     ],
+     [
+      "2019-09-27",
+      "2019-10-21"
+     ],
+     [
+      "2019-10-23",
+      "2019-11-05"
+     ],
+     [
+      "2019-11-07",
+      "2019-11-11"
+     ],
+     [
+      "2019-11-13",
+      "2019-11-13"
+     ],
+     [
+      "2019-11-18",
+      "2019-11-26"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2008-07-01) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CMA": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "COG": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2021-10-01",
+    "pit_exit": "2021-10-04"
+   }
+  },
+  "COL": {
+   "holed_inside": {
+    "n": 13,
+    "runs": [
+     [
+      "2018-05-21",
+      "2018-05-21"
+     ],
+     [
+      "2018-07-02",
+      "2018-07-02"
+     ],
+     [
+      "2018-08-06",
+      "2018-08-06"
+     ],
+     [
+      "2018-10-08",
+      "2018-10-08"
+     ],
+     [
+      "2018-12-26",
+      "2018-12-26"
+     ],
+     [
+      "2019-05-20",
+      "2019-05-20"
+     ],
+     [
+      "2019-07-01",
+      "2019-07-01"
+     ],
+     [
+      "2019-08-05",
+      "2019-08-05"
+     ],
+     [
+      "2019-10-14",
+      "2019-10-14"
+     ],
+     [
+      "2019-12-26",
+      "2019-12-26"
+     ],
+     [
+      "2020-07-01",
+      "2020-07-01"
+     ],
+     [
+      "2020-08-03",
+      "2020-08-03"
+     ],
+     [
+      "2020-10-12",
+      "2020-10-12"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CPWR": {
+   "holed_inside": {
+    "n": 237,
+    "runs": [
+     [
+      "2018-10-10",
+      "2018-10-12"
+     ],
+     [
+      "2018-10-19",
+      "2018-11-02"
+     ],
+     [
+      "2018-11-07",
+      "2018-11-15"
+     ],
+     [
+      "2018-11-19",
+      "2018-11-21"
+     ],
+     [
+      "2018-11-27",
+      "2018-11-28"
+     ],
+     [
+      "2018-11-30",
+      "2019-02-15"
+     ],
+     [
+      "2019-03-04",
+      "2019-03-07"
+     ],
+     [
+      "2019-03-14",
+      "2019-03-14"
+     ],
+     [
+      "2019-03-25",
+      "2019-03-29"
+     ],
+     [
+      "2019-04-02",
+      "2019-04-04"
+     ],
+     [
+      "2019-04-09",
+      "2019-04-12"
+     ],
+     [
+      "2019-04-22",
+      "2019-04-23"
+     ],
+     [
+      "2019-04-26",
+      "2019-04-26"
+     ],
+     [
+      "2019-05-01",
+      "2019-05-07"
+     ],
+     [
+      "2019-05-09",
+      "2019-05-14"
+     ],
+     [
+      "2019-06-28",
+      "2019-06-28"
+     ],
+     [
+      "2019-07-03",
+      "2019-07-05"
+     ],
+     [
+      "2019-08-07",
+      "2019-08-14"
+     ],
+     [
+      "2019-09-03",
+      "2019-09-12"
+     ],
+     [
+      "2019-11-20",
+      "2019-11-26"
+     ],
+     [
+      "2020-01-16",
+      "2020-02-13"
+     ],
+     [
+      "2020-02-20",
+      "2020-02-24"
+     ],
+     [
+      "2020-03-04",
+      "2020-03-06"
+     ],
+     [
+      "2020-03-11",
+      "2020-04-03"
+     ],
+     [
+      "2020-04-07",
+      "2020-04-07"
+     ],
+     [
+      "2020-04-09",
+      "2020-04-16"
+     ],
+     [
+      "2020-04-22",
+      "2020-05-01"
+     ],
+     [
+      "2020-05-08",
+      "2020-05-12"
+     ],
+     [
+      "2020-05-14",
+      "2020-05-20"
+     ],
+     [
+      "2020-05-22",
+      "2020-05-29"
+     ],
+     [
+      "2020-06-08",
+      "2020-06-16"
+     ],
+     [
+      "2021-01-07",
+      "2021-01-28"
+     ],
+     [
+      "2021-02-01",
+      "2021-02-16"
+     ],
+     [
+      "2021-02-18",
+      "2021-02-18"
+     ],
+     [
+      "2021-02-22",
+      "2021-02-22"
+     ],
+     [
+      "2021-02-25",
+      "2021-02-25"
+     ],
+     [
+      "2021-03-16",
+      "2021-03-16"
+     ]
+    ]
+   },
+   "reason": "reused ticker (the cutover proposal's class (i)): no provider series for the PIT entity",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "CTLT": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2024-12-17",
+    "pit_exit": "2024-12-23"
+   }
+  },
+  "CTRA": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "DFS": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2025-05-16",
+    "pit_exit": "2025-05-19"
+   }
+  },
+  "DRE": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2022-09-30",
+    "pit_exit": "2022-10-03"
+   }
+  },
+  "EQR": {
+   "holed_inside": {
+    "n": 2,
+    "runs": [
+     [
+      "1999-11-16",
+      "1999-11-16"
+     ],
+     [
+      "2001-07-26",
+      "2001-07-26"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "FBHS": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2022-12-14",
+    "pit_exit": "2022-12-19"
+   }
+  },
+  "FLT": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2024-03-22",
+    "pit_exit": "2024-03-25"
+   }
+  },
+  "FRC": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2023-04-28",
+    "pit_exit": "2023-05-04"
+   }
+  },
+  "FSR": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "GPS": {
+   "holed_inside": {
+    "n": 2,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "GR": {
+   "holed_inside": {
+    "n": 15,
+    "runs": [
+     [
+      "2018-01-31",
+      "2018-02-21"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2012-07-27) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "HAR": {
+   "holed_inside": {
+    "n": 24,
+    "runs": [
+     [
+      "2019-12-03",
+      "2019-12-05"
+     ],
+     [
+      "2021-06-23",
+      "2021-06-28"
+     ],
+     [
+      "2021-12-23",
+      "2022-01-11"
+     ],
+     [
+      "2022-02-01",
+      "2022-02-04"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2017-03-13) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "HBI": {
+   "holed_inside": {
+    "n": 2,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "HES": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2025-07-17",
+    "pit_exit": "2025-07-23"
+   }
+  },
+  "HFC": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "HOLX": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2026-04-07",
+    "pit_exit": "2026-04-09"
+   }
+  },
+  "IPG": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2025-11-26",
+    "pit_exit": "2025-11-28"
+   }
+  },
+  "JNPR": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2025-07-01",
+    "pit_exit": "2025-07-09"
+   }
+  },
+  "K": {
+   "holed_inside": {
+    "n": 2,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2025-12-10",
+    "pit_exit": "2025-12-11"
+   }
+  },
+  "KSU": {
+   "holed_inside": {
+    "n": 2,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2021-12-13",
+    "pit_exit": "2021-12-14"
+   }
+  },
+  "LEG": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "1999-11-16",
+      "1999-11-16"
+     ],
+     [
+      "2002-08-15",
+      "2002-08-15"
+     ],
+     [
+      "2002-09-16",
+      "2002-09-16"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "MHS": {
+   "holed_inside": {
+    "n": 77,
+    "runs": [
+     [
+      "2020-03-03",
+      "2020-03-03"
+     ],
+     [
+      "2020-03-23",
+      "2020-03-23"
+     ],
+     [
+      "2020-03-26",
+      "2020-03-26"
+     ],
+     [
+      "2020-04-14",
+      "2020-04-14"
+     ],
+     [
+      "2020-04-21",
+      "2020-04-21"
+     ],
+     [
+      "2020-05-08",
+      "2020-05-08"
+     ],
+     [
+      "2020-06-02",
+      "2020-06-02"
+     ],
+     [
+      "2020-07-02",
+      "2020-07-02"
+     ],
+     [
+      "2020-09-28",
+      "2020-09-28"
+     ],
+     [
+      "2020-10-01",
+      "2020-10-01"
+     ],
+     [
+      "2020-11-02",
+      "2020-11-02"
+     ],
+     [
+      "2020-11-18",
+      "2020-11-18"
+     ],
+     [
+      "2020-12-08",
+      "2020-12-08"
+     ],
+     [
+      "2020-12-14",
+      "2020-12-14"
+     ],
+     [
+      "2021-04-01",
+      "2021-04-01"
+     ],
+     [
+      "2021-06-11",
+      "2021-06-11"
+     ],
+     [
+      "2021-08-13",
+      "2021-08-13"
+     ],
+     [
+      "2021-09-08",
+      "2021-09-08"
+     ],
+     [
+      "2021-11-01",
+      "2021-11-01"
+     ],
+     [
+      "2021-12-07",
+      "2021-12-07"
+     ],
+     [
+      "2021-12-09",
+      "2021-12-09"
+     ],
+     [
+      "2021-12-27",
+      "2021-12-27"
+     ],
+     [
+      "2022-03-09",
+      "2022-03-09"
+     ],
+     [
+      "2022-03-28",
+      "2022-03-28"
+     ],
+     [
+      "2022-06-02",
+      "2022-06-02"
+     ],
+     [
+      "2022-06-07",
+      "2022-06-07"
+     ],
+     [
+      "2022-07-01",
+      "2022-07-01"
+     ],
+     [
+      "2022-08-24",
+      "2022-08-24"
+     ],
+     [
+      "2022-11-09",
+      "2022-11-09"
+     ],
+     [
+      "2022-12-05",
+      "2022-12-05"
+     ],
+     [
+      "2022-12-22",
+      "2022-12-22"
+     ],
+     [
+      "2023-03-01",
+      "2023-03-01"
+     ],
+     [
+      "2023-03-28",
+      "2023-03-28"
+     ],
+     [
+      "2023-05-17",
+      "2023-05-17"
+     ],
+     [
+      "2023-05-23",
+      "2023-05-23"
+     ],
+     [
+      "2023-06-14",
+      "2023-06-14"
+     ],
+     [
+      "2023-06-22",
+      "2023-06-22"
+     ],
+     [
+      "2023-07-07",
+      "2023-07-07"
+     ],
+     [
+      "2023-08-03",
+      "2023-08-03"
+     ],
+     [
+      "2023-09-01",
+      "2023-09-01"
+     ],
+     [
+      "2023-11-03",
+      "2023-11-06"
+     ],
+     [
+      "2023-11-27",
+      "2023-11-27"
+     ],
+     [
+      "2023-12-15",
+      "2023-12-15"
+     ],
+     [
+      "2023-12-29",
+      "2023-12-29"
+     ],
+     [
+      "2024-01-08",
+      "2024-01-08"
+     ],
+     [
+      "2024-01-25",
+      "2024-01-26"
+     ],
+     [
+      "2024-02-08",
+      "2024-02-08"
+     ],
+     [
+      "2024-03-07",
+      "2024-03-07"
+     ],
+     [
+      "2024-04-08",
+      "2024-04-08"
+     ],
+     [
+      "2024-09-06",
+      "2024-09-06"
+     ],
+     [
+      "2024-09-19",
+      "2024-09-19"
+     ],
+     [
+      "2024-10-01",
+      "2024-10-01"
+     ],
+     [
+      "2024-10-07",
+      "2024-10-07"
+     ],
+     [
+      "2024-11-01",
+      "2024-11-01"
+     ],
+     [
+      "2024-12-18",
+      "2024-12-18"
+     ],
+     [
+      "2024-12-30",
+      "2024-12-30"
+     ],
+     [
+      "2025-01-15",
+      "2025-01-15"
+     ],
+     [
+      "2025-02-04",
+      "2025-02-04"
+     ],
+     [
+      "2025-03-06",
+      "2025-03-06"
+     ],
+     [
+      "2025-03-28",
+      "2025-03-28"
+     ],
+     [
+      "2025-04-01",
+      "2025-04-01"
+     ],
+     [
+      "2025-06-11",
+      "2025-06-11"
+     ],
+     [
+      "2025-08-27",
+      "2025-08-27"
+     ],
+     [
+      "2025-09-05",
+      "2025-09-05"
+     ],
+     [
+      "2025-10-01",
+      "2025-10-01"
+     ],
+     [
+      "2025-10-06",
+      "2025-10-06"
+     ],
+     [
+      "2025-10-09",
+      "2025-10-09"
+     ],
+     [
+      "2025-10-24",
+      "2025-10-24"
+     ],
+     [
+      "2025-11-03",
+      "2025-11-03"
+     ],
+     [
+      "2025-12-04",
+      "2025-12-04"
+     ],
+     [
+      "2025-12-22",
+      "2025-12-22"
+     ],
+     [
+      "2026-01-15",
+      "2026-01-15"
+     ],
+     [
+      "2026-03-17",
+      "2026-03-17"
+     ],
+     [
+      "2026-04-01",
+      "2026-04-01"
+     ],
+     [
+      "2026-04-06",
+      "2026-04-06"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2012-04-02) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "MRO": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2024-11-21",
+    "pit_exit": "2024-11-26"
+   }
+  },
+  "NCC": {
+   "holed_inside": {
+    "n": 132,
+    "runs": [
+     [
+      "2019-06-14",
+      "2019-06-14"
+     ],
+     [
+      "2019-06-21",
+      "2019-06-21"
+     ],
+     [
+      "2019-06-28",
+      "2019-06-28"
+     ],
+     [
+      "2019-07-05",
+      "2019-07-05"
+     ],
+     [
+      "2019-07-12",
+      "2019-07-12"
+     ],
+     [
+      "2019-07-19",
+      "2019-07-19"
+     ],
+     [
+      "2019-07-26",
+      "2019-07-26"
+     ],
+     [
+      "2019-08-02",
+      "2019-08-02"
+     ],
+     [
+      "2019-08-09",
+      "2019-08-09"
+     ],
+     [
+      "2019-08-16",
+      "2019-08-16"
+     ],
+     [
+      "2019-08-23",
+      "2019-08-23"
+     ],
+     [
+      "2019-08-30",
+      "2019-08-30"
+     ],
+     [
+      "2019-09-06",
+      "2019-09-06"
+     ],
+     [
+      "2019-09-13",
+      "2019-09-13"
+     ],
+     [
+      "2019-09-20",
+      "2019-09-20"
+     ],
+     [
+      "2019-09-27",
+      "2019-09-27"
+     ],
+     [
+      "2019-10-04",
+      "2019-10-04"
+     ],
+     [
+      "2019-10-11",
+      "2019-10-11"
+     ],
+     [
+      "2019-10-18",
+      "2019-10-18"
+     ],
+     [
+      "2019-10-25",
+      "2019-10-25"
+     ],
+     [
+      "2019-11-01",
+      "2019-11-01"
+     ],
+     [
+      "2019-11-08",
+      "2019-11-08"
+     ],
+     [
+      "2019-11-15",
+      "2019-11-15"
+     ],
+     [
+      "2019-11-22",
+      "2019-11-22"
+     ],
+     [
+      "2019-11-29",
+      "2019-11-29"
+     ],
+     [
+      "2019-12-06",
+      "2019-12-06"
+     ],
+     [
+      "2019-12-13",
+      "2019-12-13"
+     ],
+     [
+      "2019-12-20",
+      "2019-12-20"
+     ],
+     [
+      "2019-12-27",
+      "2019-12-27"
+     ],
+     [
+      "2020-01-03",
+      "2020-01-03"
+     ],
+     [
+      "2020-01-10",
+      "2020-01-10"
+     ],
+     [
+      "2020-01-17",
+      "2020-01-17"
+     ],
+     [
+      "2020-01-24",
+      "2020-01-24"
+     ],
+     [
+      "2020-01-31",
+      "2020-01-31"
+     ],
+     [
+      "2020-02-07",
+      "2020-02-07"
+     ],
+     [
+      "2020-02-14",
+      "2020-02-14"
+     ],
+     [
+      "2020-02-21",
+      "2020-02-21"
+     ],
+     [
+      "2020-02-28",
+      "2020-02-28"
+     ],
+     [
+      "2020-03-06",
+      "2020-03-06"
+     ],
+     [
+      "2020-03-13",
+      "2020-03-13"
+     ],
+     [
+      "2020-03-20",
+      "2020-03-20"
+     ],
+     [
+      "2020-03-27",
+      "2020-03-27"
+     ],
+     [
+      "2020-04-03",
+      "2020-04-03"
+     ],
+     [
+      "2020-04-17",
+      "2020-04-17"
+     ],
+     [
+      "2020-04-24",
+      "2020-04-24"
+     ],
+     [
+      "2020-05-01",
+      "2020-05-01"
+     ],
+     [
+      "2020-05-08",
+      "2020-05-08"
+     ],
+     [
+      "2020-05-15",
+      "2020-05-15"
+     ],
+     [
+      "2020-05-22",
+      "2020-05-22"
+     ],
+     [
+      "2020-05-29",
+      "2020-05-29"
+     ],
+     [
+      "2020-06-05",
+      "2020-06-05"
+     ],
+     [
+      "2020-06-12",
+      "2020-06-12"
+     ],
+     [
+      "2020-06-19",
+      "2020-06-19"
+     ],
+     [
+      "2020-06-26",
+      "2020-06-26"
+     ],
+     [
+      "2020-07-10",
+      "2020-07-10"
+     ],
+     [
+      "2020-07-17",
+      "2020-07-17"
+     ],
+     [
+      "2020-07-24",
+      "2020-07-24"
+     ],
+     [
+      "2020-07-31",
+      "2020-07-31"
+     ],
+     [
+      "2020-08-07",
+      "2020-08-07"
+     ],
+     [
+      "2020-08-14",
+      "2020-08-14"
+     ],
+     [
+      "2020-08-21",
+      "2020-08-21"
+     ],
+     [
+      "2020-08-28",
+      "2020-08-28"
+     ],
+     [
+      "2020-09-04",
+      "2020-09-04"
+     ],
+     [
+      "2020-09-11",
+      "2020-09-11"
+     ],
+     [
+      "2020-09-18",
+      "2020-09-18"
+     ],
+     [
+      "2020-09-25",
+      "2020-09-25"
+     ],
+     [
+      "2020-10-02",
+      "2020-10-02"
+     ],
+     [
+      "2020-10-09",
+      "2020-10-09"
+     ],
+     [
+      "2020-10-16",
+      "2020-10-16"
+     ],
+     [
+      "2020-10-23",
+      "2020-10-23"
+     ],
+     [
+      "2020-10-30",
+      "2020-10-30"
+     ],
+     [
+      "2020-11-06",
+      "2020-11-06"
+     ],
+     [
+      "2020-11-13",
+      "2020-11-13"
+     ],
+     [
+      "2020-11-20",
+      "2020-11-20"
+     ],
+     [
+      "2020-11-27",
+      "2020-11-27"
+     ],
+     [
+      "2020-12-04",
+      "2020-12-04"
+     ],
+     [
+      "2020-12-11",
+      "2020-12-11"
+     ],
+     [
+      "2020-12-18",
+      "2020-12-18"
+     ],
+     [
+      "2021-01-08",
+      "2021-01-08"
+     ],
+     [
+      "2021-01-15",
+      "2021-01-15"
+     ],
+     [
+      "2021-01-22",
+      "2021-01-22"
+     ],
+     [
+      "2021-01-29",
+      "2021-01-29"
+     ],
+     [
+      "2021-02-05",
+      "2021-02-05"
+     ],
+     [
+      "2021-02-12",
+      "2021-02-12"
+     ],
+     [
+      "2021-02-19",
+      "2021-02-19"
+     ],
+     [
+      "2021-02-26",
+      "2021-02-26"
+     ],
+     [
+      "2021-03-05",
+      "2021-03-05"
+     ],
+     [
+      "2021-03-12",
+      "2021-03-12"
+     ],
+     [
+      "2021-03-19",
+      "2021-03-19"
+     ],
+     [
+      "2021-03-26",
+      "2021-03-26"
+     ],
+     [
+      "2021-04-09",
+      "2021-04-09"
+     ],
+     [
+      "2021-04-16",
+      "2021-04-16"
+     ],
+     [
+      "2021-04-23",
+      "2021-04-23"
+     ],
+     [
+      "2021-04-30",
+      "2021-04-30"
+     ],
+     [
+      "2021-05-07",
+      "2021-05-07"
+     ],
+     [
+      "2021-05-14",
+      "2021-05-14"
+     ],
+     [
+      "2021-05-21",
+      "2021-05-21"
+     ],
+     [
+      "2021-05-28",
+      "2021-05-28"
+     ],
+     [
+      "2021-06-04",
+      "2021-06-04"
+     ],
+     [
+      "2021-06-11",
+      "2021-06-11"
+     ],
+     [
+      "2021-06-18",
+      "2021-06-18"
+     ],
+     [
+      "2021-06-22",
+      "2021-06-28"
+     ],
+     [
+      "2021-07-02",
+      "2021-07-02"
+     ],
+     [
+      "2021-07-09",
+      "2021-07-09"
+     ],
+     [
+      "2021-07-16",
+      "2021-07-16"
+     ],
+     [
+      "2021-07-23",
+      "2021-07-23"
+     ],
+     [
+      "2021-07-30",
+      "2021-07-30"
+     ],
+     [
+      "2021-08-06",
+      "2021-08-06"
+     ],
+     [
+      "2021-08-13",
+      "2021-08-13"
+     ],
+     [
+      "2021-08-20",
+      "2021-08-20"
+     ],
+     [
+      "2021-08-27",
+      "2021-08-27"
+     ],
+     [
+      "2021-09-03",
+      "2021-09-03"
+     ],
+     [
+      "2021-09-10",
+      "2021-09-10"
+     ],
+     [
+      "2021-09-17",
+      "2021-09-17"
+     ],
+     [
+      "2021-09-24",
+      "2021-09-24"
+     ],
+     [
+      "2021-10-01",
+      "2021-10-01"
+     ],
+     [
+      "2021-10-08",
+      "2021-10-08"
+     ],
+     [
+      "2021-10-15",
+      "2021-10-15"
+     ],
+     [
+      "2021-10-22",
+      "2021-10-22"
+     ],
+     [
+      "2021-10-29",
+      "2021-10-29"
+     ],
+     [
+      "2021-11-05",
+      "2021-11-05"
+     ],
+     [
+      "2021-11-12",
+      "2021-11-12"
+     ],
+     [
+      "2021-11-19",
+      "2021-11-19"
+     ],
+     [
+      "2021-11-26",
+      "2021-11-26"
+     ],
+     [
+      "2021-12-03",
+      "2021-12-03"
+     ],
+     [
+      "2021-12-10",
+      "2021-12-10"
+     ],
+     [
+      "2021-12-17",
+      "2021-12-17"
+     ],
+     [
+      "2021-12-31",
+      "2021-12-31"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2009-01-02) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "NLSN": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2022-10-11",
+    "pit_exit": "2022-10-12"
+   }
+  },
+  "PSKY": {
+   "holed_inside": {
+    "n": 13,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ],
+     [
+      "2021-03-08",
+      "2021-03-23"
+     ]
+    ]
+   },
+   "reason": "reused ticker (the cutover proposal's class (i)): no provider series for the PIT entity",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "PXD": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2024-05-02",
+    "pit_exit": "2024-05-08"
+   }
+  },
+  "RE": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2023-07-07",
+    "pit_exit": "2023-07-10"
+   }
+  },
+  "SATS": {
+   "holed_inside": {
+    "n": 6,
+    "runs": [
+     [
+      "2011-02-17",
+      "2011-02-17"
+     ],
+     [
+      "2025-09-08",
+      "2025-09-10"
+     ],
+     [
+      "2025-10-01",
+      "2025-10-02"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "TEG": {
+   "holed_inside": {
+    "n": 8,
+    "runs": [
+     [
+      "2019-12-03",
+      "2019-12-05"
+     ],
+     [
+      "2022-01-03",
+      "2022-01-03"
+     ],
+     [
+      "2022-02-01",
+      "2022-02-04"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2015-06-30) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "TIE": {
+   "holed_inside": {
+    "n": 54,
+    "runs": [
+     [
+      "2018-01-22",
+      "2018-01-24"
+     ],
+     [
+      "2018-02-01",
+      "2018-03-14"
+     ],
+     [
+      "2019-06-10",
+      "2019-06-26"
+     ],
+     [
+      "2019-06-28",
+      "2019-07-11"
+     ]
+    ]
+   },
+   "reason": "no provider series; the file lies entirely after the PIT name's last exit (2012-12-24) \u2014 a later entity on the symbol",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  },
+  "TWTR": {
+   "holed_inside": {
+    "n": 3,
+    "runs": [
+     [
+      "2021-04-19",
+      "2021-04-19"
+     ],
+     [
+      "2021-10-25",
+      "2021-10-25"
+     ],
+     [
+      "2022-03-08",
+      "2022-03-08"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B",
+   "ends_at_delisting": {
+    "last_bar": "2022-10-27",
+    "pit_exit": "2022-11-01"
+   }
+  },
+  "WBD": {
+   "holed_inside": {
+    "n": 10,
+    "runs": [
+     [
+      "2021-03-08",
+      "2021-03-08"
+     ],
+     [
+      "2021-03-11",
+      "2021-03-23"
+     ]
+    ]
+   },
+   "reason": "no provider series \u2014 delisted (the provider returned empty after 3 tries)",
+   "source": "B's holes census 2026-10-15 (Dev/_substrate_candidates/holes_census_2026-10-15.json; the guard's own count against the post-write copy's majority calendar, proven against SPY both ways); provider record: measure_2026-10-15_retry.jsonl",
+   "date": "2026-10-15",
+   "declared_by": "B"
+  }
+ }
+}
