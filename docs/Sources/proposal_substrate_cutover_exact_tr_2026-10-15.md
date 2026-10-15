@@ -63,12 +63,31 @@ Per file: provider by span, span coverage, measured basis, overlap class, pre-se
 ratio, and pre-seam and post-seam annualised return delta. A distribution summary goes here; the full
 per-file inventory is the jsonl above.
 
-## 5. Per-verdict re-qualification plan under `[NN-SUBSTRATE-REVERIFY]` *(to be completed)*
+## 5. Per-verdict re-qualification plan under `[NN-SUBSTRATE-REVERIFY]`: first classification
 
-Verdict by verdict: **re-run** (the verdict's own measurement crosses pre-seam history on equity
-names, so finding one can move it) or **re-label** (post-seam only, or ETF sleeves on `tr_reconciled/`,
-which this cutover does not touch). The scope authority for which verdicts ran on this substrate is
-the RR-1 proposal's verdict list, per `CURRENT_STATE`, not a paraphrase. *(PENDING: the enumeration.)*
+**Scope authority:** `docs/Sources/referee_repair_proposal_RR-1_2026_09_30.md` §5, the verdict list
+read row by row. The cutover's own test is different from RR-1's. **Does the verdict's evidence read
+PRE-SEAM equity closes in `data/processed/`, or a dollar-ADV computed from them?** There are two
+reasons a pre-seam number moves: §1's dividend under-count, and the item (d) dollar-ADV deflation
+(`docs/Sources/scan_price_level_consumers_item_d_2026_10_15.md`).
+
+| class | verdicts | cutover action |
+|---|---|---|
+| **Controller-produced (RR-1: UNTESTED under corrected sizing, 29)** | T-066, T-092, T-126, T-140, T-140-fu3, T-180; T-055c/d/e/g/h, T-057, T-057b, T-109, T-118-rerun, T-120, T-121, T-128r, T-154, T-162, T-174; T-041b, T-122, T-129, T-144, T-145, T-196, T-241; T-211 | **RE-RUN, once, on the post-cutover substrate** (see the sequencing below) |
+| **Consumes a controller curve (2)** | T-170, T-206 | **RE-RUN** with their inputs |
+| **B-1** (raw-signal deciles, PIT S&P 500 2000–2025, verdict 2026-10-14) | reads the processed closes across 2000–2018 pre-seam | **RE-RUN** on the cutover substrate. DAL is not a factor (masked; PIT from 2013) |
+| **Mechanism, determinism, infra (RR-1: unaffected)** | T-038-CONT … T-218 (RR-1 §5) | **RE-LABEL**: the claims are invariant to prices. Determinism canon md5s **re-pin** and the claim is re-confirmed on the new substrate (bitwise N=5) |
+| **T-306-substrate family** (sleeve T-255/T-311; tilts T-318/T-320; offense T-294/T-294b/T-298/T-312/T-315) | built from FF, DGS10 and LBMA data | **UNAFFECTED**: they read no `data/processed` equity closes |
+| **ETF verdicts on `tr_reconciled/`** | already exact total return; untouched by this cutover | **UNAFFECTED** |
+| **Independent harnesses whose PRICE SOURCE is unconfirmed** | T-204, T-213, T-239 | **TO CONFIRM per harness** whether it reads `data/processed/` equity closes (then RE-RUN) or `tr_reconciled/`/raw files (then unaffected). Not guessed here |
+| **RR-1's "needs a reviewer" (7)** | T-136, T-148, T-166, T-169, T-172, T-214, T-220 | inherit RR-1's resolution, then the same test |
+
+**Sequencing, the planning point that matters most.** The 31 controller and consumer verdicts are
+already slated for re-scoring under the corrected referee (RR-1/RR-5). The cutover changes their
+substrate too. Re-scoring them on the drip substrate and again after the cutover would spend the
+campaign twice and leave two incompatible sets of numbers. **Recommended: one re-run, on the
+post-cutover substrate, after the referee repairs and the cutover both land**, with the RE-SCORE
+labels carrying both reasons.
 
 ## 6. Sequence, if the user approves
 
