@@ -420,8 +420,10 @@ readers of the per-ticker processed cache. One is a T-script in a subdirectory
 - **Fixed, not exempted: `run_evolution_cycle.py`.** The dashboard's command runner launches it,
   and it built its universe from a glob of every cached file. It now reads through
   `withhold_declared_tickers`.
-- **The other 16 are exempted by name, PROPOSED and pending R's ruling at the review.** None
-  has a production caller (no scheduler, cloud entrypoint or dashboard command).
+- **The other 16 are exempted by name, ACCEPTED by R at the review** (a38db0b approved,
+  2026-10-15; `docs/Audit/processed_globbers_contract_review_agent_r_2026_10_15.md`). R
+  re-verified by grep that none has a production caller (no scheduler, cloud entrypoint or
+  dashboard command).
 
 | class | scripts | reason |
 |---|---|---|
