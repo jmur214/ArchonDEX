@@ -573,6 +573,27 @@ then LOW. Within each severity, list newest at the top.
 - Status: **PARTIAL 2026-05-23** — T-079 removed 5 functions (`invalidate_on_universe_change`, `invalidate_on_window_change`, `load_fundamentals`, `load_ablation`, `async_prefetch`), 3 dataclass fields (`Feature.registered_at`, `LifecycleConfig.retirement_{recent_window,decay_std}`, `GovernorConfig.max_turnover_per_month`), and archived `scripts/run_substrate_arm1_t035.py` to `Archive/scripts/`. 69 relevant tests pass. **REMAINING:** `ingest_fmp_ratios` (Medium-risk per agent — Path-C SimFin-rewire template, kept), 13 module-level constants in 8 files (deferred to next sweep).
 - Recommended next step: a future sweep can pick up the 13 deferred unused constants in atomic per-file commits. Excludes: pytest fixtures (auto-injected by name) and in-file helper functions (used only inside their own script's main). Out of scope per agent instructions: Engine B, Engine E, signal_processor.py.
 
+### [LOW] `prefetch_fundamentals` promises a 7-day re-fetch of stale fundamentals that never happens — the docstring says what the code does not do (B, 2026-10-15, re-pin #1 brief)
+- Category: other (a false docstring on a measurement-input path)
+- Files: `engines/data_manager/data_manager.py:169-186` (`prefetch_fundamentals`), `:188-201` (`fetch_historical_fundamentals`); called on every backtest at `orchestration/mode_controller.py:868`
+- First flagged: 2026-10-15
+- Status: OPEN, owner B. The fix is a later call (director, 2026-10-15): either make the docstring
+  true (docs-only), or make the refresh real. Making it real is a BEHAVIOUR change on a pinned
+  measurement input and needs a brief: every re-fetch would rewrite a pinned file, turn `verify`
+  red, and turn the submit stamp stale.
+- Description: the docstring (`:171`) says "Re-fetches if cache is older than max_age_days (default
+  7 for quarterly data)". The age check (`:177-180`) does decide to call
+  `fetch_historical_fundamentals`, but that function returns the cached parquet whenever one exists
+  (`:201`), so nothing is ever re-fetched. Only a cache MISS writes. The artifact agrees: of 589
+  `*_fundamentals.parquet` files, 521 were last written in 2026-05 and 64 in 2026-06, and none since
+  2026-06-11 except four cache misses on 2026-10-14 (CVNA, KG, SII, S; the B-1 run). A reader who
+  trusts the docstring believes the fundamentals are at most a week old; most are about five months
+  old.
+- Recommended next step: the docs-only fix, unless the owner of the value edges wants fresh
+  fundamentals, which needs a brief that names the re-pin cost. The canonical-run miss refusal
+  (approved 2026-10-15, B's unit) is separate and unaffected.
+- Anchor: `engines/data_manager/data_manager.py:171` contains `Re-fetches if cache is older than max_age_days` — the false promise. It disappears with the docs-only fix; if the refresh is made real instead, close the row by hand.
+
 ### [LOW] Engine D save_candidates uses print() instead of structured logger; conflicts with DiscoveryLogger
 - Engine: D
 - First flagged: 2026-04-28
