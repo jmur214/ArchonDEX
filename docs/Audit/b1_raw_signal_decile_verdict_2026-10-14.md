@@ -4,7 +4,7 @@ title: "B-1 raw-signal decile re-evaluation — VERDICT"
 date: 2026-10-14
 author: Agent A
 outcome: "H1 NOT MET — 0 of 13 main signals clear the IC bar and none meets the wealth leg against both benchmarks; short window 0 of 6; calendar 0 of 7. Scoped refutation (§6 'Nothing meets H1')."
-status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only. Dated note 2026-10-15 (§13): post-hoc exposure check of the two value signals, no change to the verdict; N_trials 4 → 6.
+status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only. Dated note 2026-10-15 (§13): post-hoc exposure check of the two value signals, no change to the verdict; N_trials 4 → 6. Dated note 2026-10-15 (§14): 33 live names' files end early — counts only, a weaker null, H1 NOT MET stands; no trial consumed.
 reproduce: "§12 below; the panel md5 d9d449d17f8f102614b34079e8f1bd60 and the results md5 5de36b89e0ade6eac008667e035d2d03 must reproduce"
 ---
 
@@ -545,3 +545,109 @@ python -m scripts.rescore_b1_ey_exposure \
   --panel data/research/b1/full_2a/signal_panel_d9d449d17f8f.parquet \
   --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_value_ex3/
 ```
+
+## 14. Dated note — 2026-10-15: 33 LIVE names' canonical files END before 2025-12-31 (counts only; no re-score)
+
+**What this note is:** the B-1 exposure to a substrate fault B measured (the `health_check` HIGH
+row, main `54be0a9`), counted from B-1's own artifacts. **There is no re-score:** the missing bars
+are absent from the canonical cache, so nothing can be re-scored on it. No computation was done on
+returns, so **no trial is consumed; N_trials stays 6.**
+
+**The fact:** 33 names that the provider still serves live have a canonical file that ENDS before
+the window end, 2025-12-31. 28 of the 33 end within 5% of their own all-time high, mid-rally:
+- NVDA ends 2024-05-10 exactly at its all-time high (+211% trailing 12 months);
+- PLTR ends 2025-01-15 (+307%);
+- GE, AVGO and MU end at or near theirs.
+
+**The mechanism is a labelled HYPOTHESIS, not shown:** the T-167 bad-tick band applied when the
+files were written. The fact is the missing bars. Every file end date below was read from the file
+B-1 actually read (`data/processed/<T>_1d.csv`), and all 33 match B's list.
+
+**Counts**, from the membership table (`data/universe/sp500_membership_pit.parquet`, interval rows;
+no month-end falls on a boundary) and the panel (`signal_panel_d9d449d17f8f.parquet`, canonical md5
+`d9d449d17f8f102614b34079e8f1bd60`):
+
+| name | file ends | (i) member month-ends after the file end | (ii) absent from the panel | present, NaN forward return | the month before the end: forward return |
+|---|---|--:|--:|--:|---|
+| SMCI | 2023-05-02 | 22 | 0 | 22 | — |
+| FIX | 2024-02-22 | 1 | 0 | 1 | — |
+| VST | 2024-04-22 | 20 | 0 | 20 | — |
+| NVDA | 2024-05-10 | 20 | 0 | 20 | 2024-04-30: +0.0402 |
+| HWM | 2024-11-04 | 14 | 0 | 14 | 2024-10-31: +0.0012 |
+| APP | 2024-11-06 | 4 | 0 | 4 | — |
+| PLTR | 2025-01-15 | 12 | 0 | 12 | 2024-12-31: NaN (no bar on the month-end: gap before the file end) |
+| VRT | 2025-04-04 | 0 | 0 | 0 | — |
+| EME | 2025-04-08 | 4 | 0 | 4 | — |
+| AVGO | 2025-04-23 | 9 | 0 | 9 | 2025-03-31: +0.0566 |
+| NRG | 2025-04-23 | 9 | 0 | 9 | 2025-03-31: +0.0689 |
+| ANET | 2025-04-30 | 8 | 0 | 8 | 2025-04-30: NaN (the file ends ON the month-end: no later price) |
+| CVNA | 2025-05-07 | 1 | 0 | 1 | — |
+| HOOD | 2025-05-09 | 4 | 0 | 4 | — |
+| GE | 2025-05-14 | 8 | 0 | 8 | 2025-04-30: +0.1077 |
+| PWR | 2025-06-10 | 7 | 0 | 7 | 2025-05-30: +0.0181 |
+| JBL | 2025-06-13 | 7 | 0 | 7 | 2025-05-30: +0.0466 |
+| IBKR | 2025-06-24 | 5 | 0 | 5 | — |
+| APH | 2025-08-01 | 5 | 0 | 5 | 2025-07-31: −0.0207 |
+| STX | 2025-09-04 | 4 | 0 | 4 | 2025-08-29: +0.0990 |
+| CIEN | 2025-09-30 | 0 | 0 | 0 | — |
+| KLAC | 2025-10-10 | 3 | 0 | 3 | 2025-09-30: NaN (no bar on the month-end: gap before the file end) |
+| ATI | 2025-10-22 | 0 | 0 | 0 | — |
+| CAH | 2025-10-23 | 3 | 0 | 3 | 2025-09-30: +0.0173 |
+| WDC | 2025-10-28 | 3 | 0 | 3 | 2025-09-30: +0.0405 |
+| LITE | 2025-11-04 | 0 | 0 | 0 | — |
+| TRGP | 2025-11-05 | 2 | 0 | 2 | 2025-10-31: +0.0562 |
+| PH | 2025-11-24 | 2 | 0 | 2 | 2025-10-31: +0.0893 |
+| COHR | 2025-11-25 | 0 | 0 | 0 | — |
+| TPR | 2025-12-02 | 1 | 0 | 1 | 2025-11-28: −0.0002 |
+| MCK | 2025-12-09 | 1 | 0 | 1 | 2025-11-28: NaN (no bar on the month-end: gap before the file end) |
+| MU | 2025-12-17 | 1 | 0 | 1 | 2025-11-28: NaN (no bar on the month-end: gap before the file end) |
+| NFX | 2019-02-13 | 0 | 0 | 0 | 2019-01-31: −0.0662 (old Newfield; genuine acquisition exit) |
+
+- **(iii) Member-months lost from evaluation: 180.** All 180 fall in the short window, inside
+  2024-03 → 2025-12 (the 22 month-ends of that stretch carry 10,962 panel rows). 27 of the 33
+  contribute.
+- The other six have no member month after their file end. VRT, LITE and COHR join the index only
+  in 2026; CIEN was a member 2001–2009 and again from 2026-02; ATI's membership ended in 2015-07;
+  NFX is the reused ticker (the old Newfield).
+- SMCI, FIX, VST, APP, EME, CVNA, HOOD and IBKR joined the index AFTER their files end, so every
+  one of their member months is stale.
+
+**(ii), corrected against expectation: the rows are NOT absent from the panel.** All 180 member-months
+are present as rows. The builder admits a member whose file has any bar on or before the month-end,
+so these rows carry signals computed from the stale bars (finite in all 180) and a NaN forward
+return (all 180; by the builder's rule, there is no price on the month-end).
+- **For the decile rows** (foundry features, the IC and both arms), the harness's eligibility rule
+  (finite signal AND finite forward return) drops all 180. The effect is the same as absence: these
+  names' late months are simply not in the cross-section.
+- **For the Engine A selection edges, it is not the same.** Each edge ran its own cross-section in
+  the builder with these rows present. **158 of the 180 were SELECTED by `momentum_12_1_v1`**: for most of
+  them, the last bars sit near their highs. Those selections then carry NaN forward returns and fall out of
+  Arm L, and the names they displaced at the edge's cut were never selected.
+- That touches the definition-sensitivity rows (in no BH count) and the short-window edges; it does
+  not touch any BH member's ranking.
+
+**The month before each file end:** 20 names have it in the panel.
+- 15 carry a forward return truncated at the file's last close, so the month is measured only
+  partway.
+- 5 are NaN. ANET's file ends ON a month-end, so there is no later price. PLTR, KLAC, MCK and MU
+  have no bar on the month-end, **because their files also have gaps BEFORE the end**: PLTR has no
+  bars from 2024-12-21 to 2025-01-07, KLAC a single bar between 2025-09-20 and its end on 10-10, and
+  MCK and MU gaps in late November. This is reported to B as observed; it is not this note's to
+  explain.
+
+**The caveat, as a fact:** every momentum / trend-class row was measured on a panel missing the
+late bars of these names, the period's largest winners. That covers 12-1, 6-1, the 52-week-high
+distance and the moving-average rows, the reversal rows too, and their Engine A twins. It is a
+**directional** loss against momentum's top decile. **Its magnitude is unmeasurable on this
+cache.** The post-cutover re-run is the test, under any treatment the user picks.
+
+**H1 NOT MET stands as recorded. A null measured against momentum's winners is a WEAKER null, not
+a flipped one.** That holds for the momentum and trend rows, which lost their late winners; nothing
+here turns a non-clear into a clear.
+
+**Read-only inputs:**
+- the panel and `data/universe/sp500_membership_pit.parquet`;
+- the 33 files `data/processed/<T>_1d.csv`;
+- B's measurement in `docs/State/health_check.md` (main `54be0a9`).
+
+Nothing was written under `data/`.
