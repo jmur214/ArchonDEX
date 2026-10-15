@@ -37,12 +37,46 @@ def _ohlcv(close: pd.Series) -> pd.DataFrame:
                          "Close": close, "Volume": 1e6}, index=close.index)
 
 
-# ── provider choice and span (lock 3) ───────────────────────────────────────────
+def _seed_cache(cache_dir: Path, ohlcv: pd.DataFrame, ticker: str = "ABC") -> None:
+    w.write_pair_atomically(w.with_derived_columns(ohlcv), cache_dir / "parquet" / f"{ticker}_1d.parquet",
+                            cache_dir / f"{ticker}_1d.csv")
 
-def test_one_provider_per_file_chosen_by_span():
-    assert w.choose_provider(pd.Timestamp("1970-01-02"), pd.Timestamp("1970-01-02")) == "yfinance"
-    assert w.choose_provider(pd.Timestamp("2018-01-02"), pd.Timestamp("2018-01-02")) == "alpaca"
-    assert w.choose_provider(None, pd.Timestamp("2020-01-02")) == "alpaca"
+
+CACHE_END = pd.Timestamp("2025-09-30")
+
+
+def _tr_cache_as_of(end: pd.Timestamp = CACHE_END, exdates=QUARTERLY_EXDATES) -> pd.DataFrame:
+    """The cache as a total-return fetch made on `end` wrote it: only the ex-dates up to `end` are
+    applied. A re-fetch after a later ex-date reads it as a constant RESCALE — the steady state."""
+    raw = _raw()
+    raw = raw[raw.index <= end]
+    return _ohlcv(_tr(raw, exdates=[d for d in pd.DatetimeIndex(exdates) if d <= end]))
+
+
+# ── one provider for the universe, and the span (lock 3) ────────────────────────
+
+def test_ONE_provider_for_the_whole_universe_even_for_a_post_2016_file(tmp_path):
+    """The per-span rule sent 2016+ files to Alpaca, whose IEX history starts 2020-07-27: 69 of the
+    103 that returned could not cover the cache. A 2018-start file comes from the universe provider."""
+    _seed_cache(tmp_path, _tr_cache_as_of())
+
+    def per_file_alpaca(*a):
+        raise AssertionError("the writer consulted a per-file provider")
+    calls = []
+    rec = w.full_refetch("ABC", tmp_path, {"alpaca": per_file_alpaca, "yfinance": _fake(IDX[0], calls)},
+                         today=IDX[-1], write=False)
+    assert rec.provider == "yfinance" and calls
+
+
+def test_a_providers_map_without_the_universe_provider_is_REFUSED(tmp_path):
+    _seed_cache(tmp_path, _tr_cache_as_of())
+    with pytest.raises(w.WriterRefusal, match="no yfinance provider"):
+        w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], [])}, today=IDX[-1], write=False)
+
+
+def test_the_default_providers_name_only_the_universe_provider():
+    assert w.UNIVERSE_PROVIDER == "yfinance"
+    assert set(w.DEFAULT_PROVIDERS) == {w.UNIVERSE_PROVIDER}
 
 
 def test_a_deep_file_refetched_from_a_2016_provider_is_REFUSED():
@@ -165,32 +199,101 @@ def _fake(provider_start: pd.Timestamp, calls: list):
 
 
 def test_full_refetch_writes_a_measured_total_return_pair_and_logs_the_mode(tmp_path):
-    w.write_pair_atomically(w.with_derived_columns(_ohlcv(_raw())),
-                            tmp_path / "parquet" / "ABC_1d.parquet", tmp_path / "ABC_1d.csv")
+    """The steady state: an ex-date (2025-11-10) since the cache was written rescales its past."""
+    _seed_cache(tmp_path, _tr_cache_as_of())
     calls, log = [], tmp_path / "write_log.jsonl"
-    rec = w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], calls), "yfinance": None},
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], calls)},
                          today=IDX[-1], log_path=log)
-    assert rec.provider == "alpaca" and rec.mode == "adjusted" and rec.basis == "measured_tr"
+    assert rec.provider == "yfinance" and rec.mode == "adjusted" and rec.basis == "measured_tr"
+    assert rec.overlap["verdict"] == "RESCALED" and rec.overlap["ratio"] == pytest.approx(1 - 0.009, rel=1e-6)
     written = pd.read_parquet(tmp_path / "parquet" / "ABC_1d.parquet")
     assert written["Close"].iloc[0] < _raw().iloc[0], "total return: the past is scaled down"
-    assert '"mode": "adjusted"' in log.read_text()
+    assert '"mode": "adjusted"' in log.read_text() and '"verdict": "RESCALED"' in log.read_text()
     assert [c[2] for c in calls] == [True, False], "adjusted span + the two-mode basis tail"
 
 
 def test_full_refetch_REFUSES_a_provider_that_cannot_cover_the_span(tmp_path):
-    w.write_pair_atomically(w.with_derived_columns(_ohlcv(_raw())),
-                            tmp_path / "parquet" / "ABC_1d.parquet", tmp_path / "ABC_1d.csv")
+    _seed_cache(tmp_path, _tr_cache_as_of())
     before = (tmp_path / "ABC_1d.csv").read_bytes()
     late = _fake(pd.Timestamp("2020-01-02"), [])
     with pytest.raises(w.WriterRefusal, match="cannot replace the file"):
-        w.full_refetch("ABC", tmp_path, {"alpaca": late, "yfinance": None}, today=IDX[-1])
+        w.full_refetch("ABC", tmp_path, {"yfinance": late}, today=IDX[-1])
     assert (tmp_path / "ABC_1d.csv").read_bytes() == before
 
 
 def test_measure_only_mode_writes_nothing(tmp_path):
-    w.write_pair_atomically(w.with_derived_columns(_ohlcv(_raw())),
-                            tmp_path / "parquet" / "ABC_1d.parquet", tmp_path / "ABC_1d.csv")
+    _seed_cache(tmp_path, _tr_cache_as_of())
     before = (tmp_path / "ABC_1d.csv").read_bytes()
-    rec = w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], []), "yfinance": None},
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], [])},
                          today=IDX[-1], write=False)
     assert rec.basis == "measured_tr" and (tmp_path / "ABC_1d.csv").read_bytes() == before
+
+
+def test_a_new_ticker_has_no_cache_to_agree_with_and_is_written(tmp_path):
+    rec = w.full_refetch("NEW", tmp_path, {"yfinance": _fake(IDX[0], [])}, today=IDX[-1],
+                         new_ticker_start=IDX[0])
+    assert rec.overlap is None and (tmp_path / "parquet" / "NEW_1d.parquet").exists()
+
+
+# ── the re-fetch must agree with the cache up to a rescale (Agent R's planted mismatch) ──
+
+SEMIANNUAL_EXDATES = [pd.Timestamp(f"{y}-{m:02d}-16") for y in range(2018, 2026) for m in (6, 12)]
+
+
+def _nominal_provider():
+    """A provider on the OTHER convention: split-only — both modes return the nominal path."""
+    raw = _raw()
+
+    def provider(ticker, start, end, adjusted):
+        return _ohlcv(raw[(raw.index >= pd.Timestamp(start)) & (raw.index <= end)])
+    return provider
+
+
+def _pair_bytes(cache_dir: Path, ticker: str = "ABC") -> tuple:
+    return ((cache_dir / f"{ticker}_1d.csv").read_bytes(),
+            (cache_dir / "parquet" / f"{ticker}_1d.parquet").read_bytes())
+
+
+def test_a_split_only_provider_does_NOT_replace_a_total_return_cache(tmp_path):
+    """R's planted mismatch: the span is covered and the basis measure is BLIND (two identical
+    modes read 'unverified', exactly like a non-payer) — only the overlap sees it. Unguarded, the
+    writer wrote the nominal series over the total-return cache under a clean write record."""
+    _seed_cache(tmp_path, _tr_cache_as_of())
+    before = _pair_bytes(tmp_path)
+    with pytest.raises(w.WriterRefusal, match="DIFFERENT_CONVENTION") as refused:
+        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=IDX[-1])
+    assert refused.value.detail["basis"]["basis"] == "unverified: no ex-date in window", \
+        "the basis measure cannot see this case — the overlap is the only rail"
+    assert refused.value.detail["overlap"]["verdict"] == "DIFFERENT_CONVENTION"
+    assert _pair_bytes(tmp_path) == before
+
+
+def test_a_payer_whose_last_ex_date_is_older_than_a_short_tail_is_still_REFUSED(tmp_path):
+    """EFA and VNQ on the real cache: inside a window with no ex-date a total-return tail and a
+    split-only tail are IDENTICAL, so a 40-bar tail reads the other convention as agreement. The
+    writer compares a trading year (OVERLAP_TAIL_BARS)."""
+    end = pd.Timestamp("2025-11-03")            # the last ex-date, 2025-06-16, is ~100 bars back
+    cache = _tr_cache_as_of(end, exdates=SEMIANNUAL_EXDATES)
+    _seed_cache(tmp_path, cache)
+    nominal = _raw()[_raw().index <= end]
+    assert w.classify_overlap(cache["Close"].iloc[-40:], nominal)["verdict"] == "APPEND", \
+        "a 40-bar tail is blind to this payer — the reason the window is a year"
+    before = _pair_bytes(tmp_path)
+    with pytest.raises(w.WriterRefusal, match="DIFFERENT_CONVENTION"):
+        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=end)
+    assert _pair_bytes(tmp_path) == before
+
+
+def test_an_overlap_too_short_to_measure_is_REFUSED_when_a_cache_exists(tmp_path):
+    """The span check reads only the first and last bars; a provider whose bars never meet the
+    cached tail leaves nothing to compare — an unmeasured overlap is not agreement."""
+    _seed_cache(tmp_path, _tr_cache_as_of())
+    full = _fake(IDX[0], [])
+
+    def gappy(ticker, start, end, adjusted):
+        df = full(ticker, start, end, adjusted)
+        return df[~((df.index > pd.Timestamp("2024-06-01")) & (df.index < CACHE_END))]
+    before = _pair_bytes(tmp_path)
+    with pytest.raises(w.WriterRefusal, match="INSUFFICIENT"):
+        w.full_refetch("ABC", tmp_path, {"yfinance": gappy}, today=IDX[-1])
+    assert _pair_bytes(tmp_path) == before
