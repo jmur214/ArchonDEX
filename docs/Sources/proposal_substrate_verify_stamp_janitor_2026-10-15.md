@@ -110,3 +110,31 @@ that registration is a separate one-line edit by the census's owner, not the jan
 4. **The re-pin step's stamp:** D's design names "the re-pin step's full-hash verify result". Is
    that a new `gen_substrate_manifest.py` subcommand (proposed: `generate` stamps PASS after its own
    full verify), or a separate script?
+
+## 7. AGREED INTERFACE, B ↔ D, 2026-10-15 (supersedes §6's open questions; for R as one review)
+
+**Ruled by the director:**
+- **R1.** The key is the sha256 of the committed manifest file. The S3 prefix's md5 is recorded,
+  never used as the key.
+- **R2.** `generate` stamps PASS after its own full verify, and the stamp records its writer.
+- **R3.** The 48 h bound is a FEATURE. An unpushed local re-pin must not license cloud submits for
+  long; the refusal names relay_gap.
+
+**Agreed between B and D** (D's additions marked ⊕):
+
+| # | term | owner |
+|---|---|---|
+| P1 | ONE module, `core/substrate_stamp.py`, OWNED BY B. It provides `canonical_root()` (the janitor's resolution: git common dir → the main tree's `data/state`); the schema; an atomic `write_stamp()`; `read_stamp(digest)`; ⊕ `manifest_digest(path) -> sha256 hex`, the ONE identity function, which D's `config/anchors.json` also uses for each anchor's `substrate_manifest_digest`; ⊕ `FRESHNESS = 48 h` as a module constant shared by the gate and any future census check | B writes; D imports the reader |
+| P2 | The gate hashes the manifest on disk AND refuses if it differs from `git show HEAD:config/substrate_manifest.sha256`. An uncommitted manifest is not a pin. ⊕ It also refuses, fail-closed, when HEAD has no copy or the tree is not a git checkout: a "committed" that cannot be resolved is not a pin | D |
+| P3 | Refusal order: (a) manifest committed (P2) → (b) stamp present for its sha256 → (c) result == PASS → (d) age ≤ `FRESHNESS`, ⊕ and REFUSE a stamp dated in the FUTURE (> now + 5 min skew), which would extend its own freshness → then D's anchor lookups. Each refusal names its step and its fix. *Note:* a separate "stamp older than the manifest" check is subsumed by the digest key: a stamp for digest X is a verdict on manifest content X, whatever the mtimes | D |
+| P4 | Schema ⊕ `"schema": "substrate_verify_stamp/v1"`; the reader REFUSES an unknown version. Per digest: `result` (PASS / FAIL / ERROR), `verified_at` (UTC ISO), `writer` (`repin` / `janitor_nightly`), `tree_head`, `s3_prefix_md5`, `counts` {pinned, host, missing, extra, changed}, `first_paths`. PASS only on missing = extra = changed = 0 from a COMPLETE `build_manifest()`; ERROR is never PASS. ⊕ `read_stamp` distinguishes ABSENT (returns None; fix: run the nightly or re-pin) from UNREADABLE (raises a typed `StampUnreadable`; fix: investigate a writer bug or a torn write). Both refuse at the gate | B (module), D (gate) |
+| P5 | Locks, each driving the REAL entrypoint and reversion-proven. **B:** drift, clean, fail-closed (with a positive control), isolation (another digest's stamp untouched), atomicity, unknown-schema and unreadable reads. **D:** absent, FAIL, ERROR, stale (> 48 h), future-dated, other-digest-only, unknown schema, unreadable, uncommitted manifest, manifest absent at HEAD — each refuses, naming which; plus a positive control (a fresh PASS for the committed digest and a matching anchor → the submit is allowed) | both |
+
+**Known, stated for whoever reads a refusal:**
+- (1) Every submit refuses until re-pin #1 (the honest-N re-bake) lands, because `verify` exits 1
+  today. That is the honest state.
+- (2) Re-pin #1 PINS the fundamentals cache. A canonical-run cache MISS makes the next nightly stamp
+  FAIL, until B's approved miss-refusal unit lands. That unit is queued after this one.
+
+**Build:** after D's registry unit (the user's go-ahead is pending). D's half is based on this
+module's interface exactly as agreed here.
