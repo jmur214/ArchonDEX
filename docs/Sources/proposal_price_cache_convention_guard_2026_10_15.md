@@ -137,6 +137,10 @@ rather than the Alpaca split path. Recorded as a lead, not a finding.
   constant after. None of the five writers above is known to have touched AMCR in that window.
 - **OPEN — the source of BK's 2026 bars.** They disagree with Yahoo's adjustment factors by +0.042%
   at two dates (2026-01-20, 2026-02-06), and agree to a constant before them.
+- *Narrowed, not answered:* both files are pinned in `config/substrate_manifest.sha256` (ad03a97,
+  2026-06-18) and are byte-identical today, as is every `data/processed` file that manifest lists. So
+  both tails were already in the cache on 2026-06-18, and no writer has touched them since. The
+  writer is one that ran before the June pin.
 
 **Rule (unchanged):** every top-level writer goes through `tr_writer` and the guard, or is retired
 to `Archive/`.

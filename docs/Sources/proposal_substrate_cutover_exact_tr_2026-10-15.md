@@ -16,9 +16,10 @@ provider for the universe, and the overlap refusal), run on a COPY of the cache 
 under `/Users/jacksonmurphy/Dev/_substrate_candidates/`:
 - **the real cache, never written:** aggregate md5 `8ead63bc2271b38fc7adf56a0aa2918c` (2,172
   files), BEFORE and AFTER the write pass, identical;
-- **the copy:** md5 `cb1ceca4…` before the write pass, `40f30344…` after (1,260 files changed = 630
-  written × csv + parquet); write log `write_log_2026-10-15.jsonl` (630 records); per-file outcomes
-  `write_pass_2026-10-15.jsonl` (730 files);
+- **the copy:** md5 `cb1ceca4…` before the write pass; `40f30344…` after the main pass (1,260 files
+  changed = 630 written × csv + parquet); `2418dc67…` after the shared symbol table merged (main
+  `47aca8a`) and BRK.B and BF.B were written (4 more files). Write log `write_log_2026-10-15.jsonl`
+  (632 records); per-file outcomes `write_pass_2026-10-15.jsonl` (730 files, latest row per file);
 - **the inventories, latest row per file:** `measure_2026-10-15.jsonl` (730 files; its first pass
   routed by span, see §2a), `measure_2026-10-15_yfinance172.jsonl` (the 172 Alpaca-routed files
   re-measured on yfinance), `measure_2026-10-15_retry.jsonl` and `retry_2026-10-15.log` (the serial
@@ -62,8 +63,8 @@ independent current status:
 
 | of the 78 | files | yfinance says | Alpaca says | resolution |
 |---|---|---|---|---|
-| **share-class spelling** | BRK.B, BF.B | "no timezone" / "no price data" for the dot form | ACTIVE | **fetchable**: Yahoo spells a class with a dash (BRK-B, BF-B); the shared symbol table fixes it (§2b) |
-| **ticker change** | BK | "no price data found" | BK unknown; **BNY ACTIVE** ("Bank of New York Mellon Corporation") | a RENAME, BK → BNY; identity verified, but refused by the overlap rail (§2b) |
+| **share-class spelling** | BRK.B, BF.B | "no timezone" / "no price data" for the dot form | ACTIVE | **written**: Yahoo spells a class with a dash; the shared symbol table (main `47aca8a`) fetches BRK-B and BF-B (§2b) |
+| **ticker change** | BK | "no price data found" | BK unknown; **BNY ACTIVE** ("Bank of New York Mellon Corporation") | BK → BNY; identity across the change is the declared class's ruling (§2b) |
 | **delisted** | **75** | 45 "no timezone found", 30 "no price data found" | **none ACTIVE**: 50 INACTIVE, 25 unknown | unfetchable from the universe provider |
 
 By cache end date, 66 of the 75 ended early, before the substrate's common end dates (2026-04-17 and
@@ -119,10 +120,11 @@ row, no non-yfinance row replayed) gives every one of the 730 files an outcome:
 
 | outcome | files |
 |---|---|
-| **written** | **630**: 474 RESCALED (the steady state), 156 APPEND |
+| **written** | **632**: 475 RESCALED (the steady state), 157 APPEND (incl. BRK.B and BF.B, under the shared symbol table) |
 | refused: DIFFERENT_CONVENTION | 5: AGG, EFA, VNQ, AMCR, CPWR |
 | refused: span | 17: BBBY, PSKY, NFX; DAL; C, INTC, JPM, ELV, MAR, PLD, AXP, WMT; CHTR, KDP, TDC, UAL, WU |
-| not served by yfinance | 78: 2 spelling + 1 rename + 75 delisted (§2) |
+| ticker change, held | 1: BK (below) |
+| unfetchable (delisted) | 75 (§2) |
 
 The refusals, by class:
 
@@ -130,18 +132,17 @@ The refusals, by class:
 |---|---|---|---|
 | **Split-only in the canonical cache** | **AGG, EFA, VNQ** | DIFFERENT_CONVENTION. One writer, `scripts/backfill_t052_macro_data.py`, wrote exactly these three with `auto_adjust=False`; the yfinance/cache ratio steps up at every ex-date | **Adopted:** a DECLARED split-only path. The declaration is verified against the provider's split-only mode, recorded, and only then is the file re-fetched over its whole span. Not built. |
 | **Mixed-convention cache** | **AMCR** | DIFFERENT_CONVENTION. log(yfinance TR / cache) is constant at −0.0614 from 2018 through 2025-09-04, then steps +1.5% on 2025-09-05 and again on 2025-11-28 (each about one quarter of AMCR's dividend), and is constant after: the cache applied total return, then missed two ex-dates | **Adopted:** a whole-span re-fetch after a declared check, as for the split-only trio. **Open:** which writer produced that tail (the guard proposal's writer inventory, §4) |
-| **Adjustment-factor disagreement on a rename** | **BK** (→ BNY) | DIFFERENT_CONVENTION over 252 bars: two steps of +0.042% (2026-01-20, 2026-02-06), about a tenth of a BNY dividend. The identity itself is verified: log(BNY TR / BK cache) is constant at −0.0088 from 2018 through 2025, and against BNY's split-only series the cache shows all 33 ex-date steps | The rail cannot tell a 0.04% factor disagreement from a convention change without being loosened, and it is not loosened. **The declared class**, the same treatment as AMCR |
+| **Ticker change, held for the declared class** | **BK** (→ BNY) | Under the merged writer: "the provider returned no bars" (Yahoo BK is empty). The **evidence for BK → BNY**: Alpaca has no BK, and BNY is ACTIVE ("Bank of New York Mellon Corporation"); log(BNY TR / BK cache) is CONSTANT at −0.0088 from 2018 through 2025, with no step; against BNY's split-only series the cache shows all 33 ex-date steps (so the cache is total return and BNY is the same security). With BK → BNY tried in the table (measure-only, never merged), the rail **still refuses**: DIFFERENT_CONVENTION over 252 bars, two steps of +0.042% (2026-01-20, 2026-02-06), about a tenth of a BNY dividend, an adjustment-factor disagreement | **The declared class.** The table encodes what the writer may USE, and this entry enables no write, so it is not in code (R, adopted by the director, 2026-10-15). The entry lands WITH the class on cutover day; the rail is not loosened |
 | **(i) Ticker reuse — identity** | **BBBY, PSKY, NFX** (span: yfinance's history for the symbol starts in 2026-07, a different entity); **CPWR** (DIFFERENT_CONVENTION: ratio 0.16, slope 4.9 log units; Compuware was acquired in 2014); **CA** (unfetchable; the cached file is a 2023 reuse of the symbol) | span, or DIFFERENT_CONVENTION | **Refused forever.** The identity rail is the span check plus the DIFFERENT_CONVENTION refusal. These are never re-fetched under the reused symbol. |
 | **(ii) Stitched identity** | **DAL** | span: cache from 1980, yfinance from 2007-05-03 (pre-2007 is old Delta) | **The user's decision:** declared truncation vs a declared seam. Note: the writer does not yet apply DAL's declared load-time exclusion (`dal_pre2007_excluded`) to the span it must cover. |
 | **(iii) Stooq history deeper than yfinance** | **C** (+7 yr), **INTC** (+8), **JPM** (+10), **ELV** (+8), **MAR** (+4.5), **PLD** (+2), **AXP** and **WMT** (+5 months) | span | **The user's decision:** declared truncation (lose the oldest years) vs a declared seam (keep the drip before yfinance's first bar — a two-convention file, the T-082b class, but declared and census-recorded) |
 | **(iv) Start-window leads, 9–34 days** | **CHTR, KDP, TDC, UAL, WU** | span: yfinance starts 9–34 days after the cache, past the 7-day slack (listing or emergence windows) | **The user's decision**, the same choice as (iii) at a much smaller scale |
 
-**Share-class spelling (BRK.B, BF.B).** The merged writer passes the cache's dot form, which Yahoo
-does not know. The shared symbol table (`feature/yahoo-symbol-table`, with R) fetches BRK-B and BF-B,
-records "symbol mapped: X -> Y (share class)", and never tries a second symbol. Measure-only on the
-copy against the real provider: BRK.B returns 7,657 rows from 1996-05-09 (the cache's exact start)
-and would be written APPEND (no dividend, so 'unverified'); BF.B would be written RESCALED 0.983,
-measured_tr.
+**Share-class spelling (BRK.B, BF.B).** The writer as first merged passed the cache's dot form,
+which Yahoo does not know. The shared symbol table (main `47aca8a`) fetches BRK-B and BF-B, records
+"symbol mapped: X -> Y (share class)", and never tries a second symbol. Both are now **written on the
+copy**: BRK.B APPEND from 1996-05-09, the cache's exact start (no dividend, so 'unverified'); BF.B
+RESCALED 0.983, measured_tr. The real cache's md5 was unchanged by that step too.
 
 **One-bar stubs.** RX (one bar, 2018-02-22) and SRCL (one bar, 2026-03-02, after the company's 2024
 acquisition) are too short for any overlap (`OVERLAP_MIN_BARS` = 10), so the writer refuses them as
@@ -151,14 +152,98 @@ bars reads normally: a 252-bar slice of a shorter file is the whole file.
 
 ## 3. The re-pin list (every pinned artifact the cutover moves)
 
-| artifact | why it moves |
-|---|---|
-| the backtester golden master | its fixture reads the processed closes |
-| the 26-yr anchor `158fe678` | the canonical-window equity book |
-| B-1's panel md5 `d9d449d17f8f` | built from the processed closes (R's lock 7: it must move VISIBLY) |
-| `config/substrate_manifest.sha256` | exact-match verify of `data/processed/` |
-| the exact-TR candidate's own manifest | pinned now, so the candidate is a fixed object |
-| *(PENDING)* | any other pin whose inputs read `data/processed/`, enumerated by grep before the user's gate |
+Enumerated read-only on 2026-10-15. A first grep found about 40 candidate files; each was classified
+by reading the code, and the claims that carry weight were checked by hand. The kinds are: **reads
+at run time**, **bakes at build**, **fixed-number test**, **CI workflow**, **canon / manifest**, and
+**not a reader**.
+
+### 3.1 The live / paper path: settled first, because it decides who rules
+
+**The cutover changes NO live trading input.** As far as the artifacts reach:
+
+- **Trading closes come from Alpaca at run time** (`scripts/run_paper_cloud_day.py:651`,
+  `client.fetch_daily_closes` for the sleeve; every other close fetch on the path, `:156`, `:222` and
+  `:995`–`:1227`, is the same Alpaca client). `paper_trader/*.py` never references `data/processed`. There is no
+  `live_trader/` directory.
+- **The paper image bakes no file the cutover rewrites.** `scripts/build_paper_image.sh` stages:
+  - a `git archive` (:28-29); `data/` is gitignored, so no cache comes with it;
+  - `data/universe/sp500_membership_pit.parquet` (:38-46);
+  - `data/processed/tr_reconciled/*.csv` (:58-66), for the agentic analyst's `query_prices`
+    (`intelligence/analyst/agentic_readers.py:144,322`).
+
+  `tr_reconciled/` is outside the cutover: the write pass changed exactly 1,264 top-level files (632
+  × csv + parquet) and nothing under `tr_reconciled/`. `Dockerfile.paper:48-55` says the same: "No
+  other data substrate is baked."
+- **One run-time read of the flat files, report-only.** The eval harness resolves analyst predictions
+  for symbols outside the sleeve by falling back to `data/processed/<SYM>_1d.csv`
+  (`run_paper_cloud_day.py:1249-1257` → `intelligence/analyst/eval_harness.py:37,55-58`). The path is
+  hard-coded, not env-driven. By the build script those files are not in the image, so the fallback
+  returns None. But the comments at `run_paper_cloud_day.py:638-640` and `:1250-1253` call them
+  "baked". The two artifacts disagree. **Unverified: needs the image listing**, the container's
+  actual file list, which is the same audit already waiting on the user. Either way the read is
+  report-only: no order, no size, no risk input depends on it.
+- **The container's environment:** `Dockerfile.paper:58-59` sets only `PYTHONUNBUFFERED` and
+  `AWS_DEFAULT_REGION`. The Batch job definition's environment is **unverified locally**: it needs the
+  job definition, part of the same audit.
+- **Not on the cloud paper path:** the old local dry-run loop (`scripts/run_paper_loop.py` →
+  `orchestration/mode_controller.py:551`, `cache_dir=data/processed`) reads the cache. It is launched
+  only by `scripts/start_stack.py:31`, and nothing schedules it.
+
+**Consequence for who rules and when:** no live redeploy follows from the cutover. The one open
+question, whether the image listing shows the flat CSVs, decides only whether report-only eval
+resolutions change at the next image build.
+
+### 3.2 Pins the cutover moves
+
+| artifact | kind | what is pinned | why the cutover moves it | re-pin |
+|---|---|---|---|---|
+| `tests/test_golden_master.py` | fixed-number test | the backtester's golden summary | its fixture reads the processed closes | regenerate the golden in the cutover commit |
+| `tests/test_rescore_rr1_driver.py:25-28` (also `scripts/rescore_rr1.py:10`) | fixed-number test | `PRE_RR1_GOLDEN`: Sharpe 0.04946…, 171 trades, turnover 4,047,969.47, max position 47,956.64 | computed on the processed closes through the golden master's pipeline; no input-hash guard, so a data change reads as a code change | re-run the test body on the new substrate and re-pin, or retire the lock (RR-1 is merged) — a ruling |
+| `engines/data_manager/exclusions.py:29-39` (+ `tests/test_price_levels_item_d_2026_10_15.py:114-123`) | declared constant | DAL cutoff 2007-05-03; `max_close_after` 1000 | DAL's treatment is the user's §2b (ii) decision; the check fails closed on a mismatch | re-declare with the ruling |
+| the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), so a stale anchor passes silently | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
+| B-1: panel `d9d449d17f8f`; results `5de36b89e0ad…`; 2012 window `bbf88ffc9f23…` (`docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`) | canon | "must reproduce" md5s | built from the processed closes (R's lock 7: the panel must move VISIBLY) | the verdict doc's §12 commands |
+| `config/substrate_manifest.sha256` | manifest | sha256 of 14,120 substrate files (2,049 under `data/processed/`) | every rewritten file | `scripts/gen_substrate_manifest.py generate` in the cutover commit. **See the note below: it already fails verify today** |
+| the content-addressed S3 substrate prefix = md5 of the manifest (`.github/workflows/build_backtest_image.yml:112-117`); the image label (`scripts/build_backtest_image.sh:127,161,168`) | CI workflow | the substrate snapshot the backtest image is built from | a new manifest gives a new md5, and that prefix will not exist yet | a manual `aws s3 sync` to `substrate/<md5>/data` (no script), then `workflow_dispatch`. The workflow's `data/processed/**` trigger never fires, because `data/` is untracked |
+| `Dockerfile.backtest:126` (`COPY data/processed/`) | bakes at build | the research image's substrate | the image carries whatever the cache is at build time | rebuild after cutover (research only; the image excludes `live_trader`, :100) |
+| the exact-TR candidate's own manifest | manifest | the copy as a fixed object | — | pin after the §2b declared paths run (§6) |
+
+**Derived files with no hash, which would go stale silently:**
+- `data/universe/market_cap_tiers.json`: its delisted-name entries are processed Close × shares
+  (`scripts/build_pit_cap_history_t219.py:61-68`), byte-pinned, and baked into the research image
+  (`Dockerfile.backtest:142`). It moves only for names the cutover rewrites, and the 75 delisted
+  names are not rewritten (§2).
+- the T-306 SPY leg of `substrate_multidecade` (`scripts/build_multidecade_substrate_t306.py:75-77`).
+  SPY is RESCALED by a constant 0.99496 over its whole span (§5 row below), so only its level moves.
+- `ohlc_features_t150`.
+- `_merge_meta.json`, which nothing reads.
+
+**The manifest already fails verify, before any cutover.**
+`python scripts/gen_substrate_manifest.py verify` exits 1 on 2026-10-15. Measured file by file
+against the committed manifest (ad03a97, 2026-06-18): **every one of the 2,049 `data/processed`
+files it lists is byte-identical today**. The failure is 5 CHANGED files under `data/macro/`
+(VIX9D, `_meta.json`, …) and files added since June that the manifest never listed (macro SKEW,
+VVIX and Shiller data; 4 fundamentals parquets; `stooq_us_daily/`; `tr_reconciled/`). The paper
+image bakes `tr_reconciled/`, and it is **not pinned**. The re-pin on cutover day is therefore also
+the first re-pin since June, and it must say so.
+
+### 3.3 Checked: NOT a pin the cutover moves
+
+- `tests/test_golden_path.py`: synthetic fixture data.
+- `tests/test_substrate_completeness_t167.py`: synthetic bounds and a SPY depth bound (≤ 1994);
+  SPY keeps its 1993 start.
+- `tests/test_hmm_repoint_t_2026_08_26.py`: its AUC thresholds read a FROZEN 2026-06 measurement
+  (`docs/Measurements/2026-06/hmm_crisis_validation_t103.json`), not the cache.
+- `tests/test_run_backtest_pure.py:229-269`: compares two runs to each other.
+- `tests/test_discovery_seed_foundry_perf.py`: None checks and loose bounds.
+- `tests/test_price_levels_item_d_2026_10_15.py`: md5 before == after; nothing stored.
+- `tests/test_processed_cache_adjustment_class_2026_10_15.py`: the TR-drift floors over 2023-25
+  still hold after the cutover (post-seam, and the cache stays total return).
+- `.github/workflows/contract_tests.yml`: the golden master auto-skips there (:105-107).
+- `core/benchmark.py` and `engines/engine_e_regime/macro_features.py`: recompute live; no stored
+  value. `engines/engine_c_portfolio/phase1_composition.py` is tested NOT to read processed closes.
+- `config/honest_n_pin.json`: pins the run registry, not prices.
+- `scripts/t139_fixture_data.py`: a frozen extract; nothing compares against it.
+- `docs/Audit/*_manifest.json`: historical records.
 
 ## 4. Measured deltas per file
 
@@ -168,7 +253,7 @@ Over the 652 files yfinance served (latest inventory row per file, yfinance thro
 |---|---|---|
 | span coverage | 652 | 635 cover; 17 do not (§2b, span) |
 | basis (two-mode, last 90 days) | 652 | 461 measured_tr; 190 "unverified: no ex-date in window"; 1 too few common bars |
-| overlap over the last 252 cached bars (the write pass) | 652 | 474 RESCALED; 156 APPEND; 5 DIFFERENT_CONVENTION; 17 span refusals were never compared |
+| overlap over the last 252 cached bars (the write pass) | 652 | 474 RESCALED; 156 APPEND; 5 DIFFERENT_CONVENTION; 17 span refusals were never compared. (Outside the 652: BRK.B APPEND and BF.B RESCALED, under the shared symbol table) |
 | **pre-seam** return delta, exact − drip | 559 | median −0.10%/yr; p10 −1.34; p90 +0.58; 102 move more than 1%/yr (§1) |
 | pre-seam level ratio, exact / drip (median per file) | 561 | p10 0.968; median 1.007; p90 1.124 |
 | **post-seam** return delta | 647 | median 0.00; p10 and p90 0.00. Only 4 files move more than 0.5%/yr, and they are exactly refused ones: AGG +3.19, EFA +2.66, VNQ +4.30 (their dividend yields, split-only) and CPWR −9.19 (identity) |
@@ -192,7 +277,7 @@ reasons a pre-seam number moves: §1's dividend under-count, and the item (d) do
 | **Consumes a controller curve (2)** | T-170, T-206 | **RE-RUN** with their inputs |
 | **B-1** (raw-signal deciles, PIT S&P 500 2000–2025, verdict 2026-10-14) | reads the processed closes across 2000–2018 pre-seam | **RE-RUN** on the cutover substrate. DAL is not a factor (masked; PIT from 2013) |
 | **Mechanism, determinism, infra (RR-1: unaffected)** | T-038-CONT … T-218 (RR-1 §5) | **RE-LABEL**: the claims are invariant to prices. Determinism canon md5s **re-pin** and the claim is re-confirmed on the new substrate (bitwise N=5) |
-| **T-306-substrate family** (sleeve T-255/T-311; tilts T-318/T-320; offense T-294/T-294b/T-298/T-312/T-315) | built from FF, DGS10 and LBMA data | **UNAFFECTED**: they read no `data/processed` equity closes |
+| **T-306-substrate family** (sleeve T-255/T-311; tilts T-318/T-320; offense T-294/T-294b/T-298/T-312/T-315) | built from FF, DGS10 and LBMA data, **and SPY from `data/processed/SPY_1d.csv`** (`fair_t236_rerun_t255.py:17`, `vehicle_bakeoff_t294.py:16`, `asymmetric_damping_t298.py:14`, `tilt_decision_measure_t318_t320.py:262`, and the T-306 SPY leg) | **UNAFFECTED in substance, measured:** SPY has no seam and reads RESCALED by a constant 0.99496 over its whole 1993–2026 span (annualised return delta 6e-9). A constant factor cancels in returns. *(This row first said the family reads no processed closes; that was wrong, and the scan of 2026-10-15 corrected it.)* |
 | **ETF verdicts on `tr_reconciled/`** | already exact total return; untouched by this cutover | **UNAFFECTED** |
 | **Independent harnesses on RAW Stooq files** (CONFIRMED from each script, 2026-10-15) | T-204 (`trend_overlay_validation_t204.py:35-37`: SPY/AGG/GLD from `data/raw/stooq/daily/us/nyse etfs/…`), T-213 (`industry_momentum_t213.py:25-30`: sector ETFs globbed from `data/raw/stooq/daily/us/**`), T-239 (`moonshot_rescore_t239.py:11`: `data/raw/stooq/daily/us/**/<t>.us.txt`) | **UNAFFECTED by this cutover**, which rewrites only `data/processed/`. Their basis is raw Stooq, split-only before about 2011 (R's per-era finding). That is T-256's known question, not a cutover one, and is noted here, not reopened |
 | **RR-1's "needs a reviewer" (7)** | T-136, T-148, T-166, T-169, T-172, T-214, T-220 | inherit RR-1's resolution, then the same test |
@@ -209,8 +294,8 @@ labels carrying both reasons.
 1. The user's choice among (a), (b) and (c), and the user's choice for §2b classes (ii)–(iv):
    declared truncation vs a declared seam.
 2. The write pass on the copy: **DONE** under the merged writer (§2b; the real cache untouched,
-   md5 identical before and after). Still to run: the shared symbol table's files once it merges
-   (BRK.B and BF.B; BK only if R keeps the rename); then the §2b declared paths run
+   md5 identical before and after; BRK.B and BF.B written once the shared symbol table merged).
+   Then the §2b declared paths run, with BK's table entry landing WITH its class
    (split-only trio verified against the provider's split-only mode; the (ii)–(iv) declarations
    applied); the candidate manifest is pinned.
 3. Re-qualification runs per §5.
