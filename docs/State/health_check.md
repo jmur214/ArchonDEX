@@ -81,12 +81,18 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: D's unit after the registry build; required BEFORE any cloud campaign runs on the cutover substrate.
 - Anchor: `scripts/submit_arms_campaign.py:268` contains `has_external_anchor` — the presence check that never reads the anchor's sha256
 
-### [MEDIUM→HIGH] 33 LIVE names' canonical files END before the canonical window end (2025-12-31) — and 28 of them end within 5 % of their own all-time high, mid-rally (median trailing-12-month return +90 %): the period's momentum winners are missing their late bars in every canonical window (B, 2026-10-15, the level-rail read)
+### [HIGH] The pre-T-167 GLOBAL-median×3 band, applied at WRITE time, removed the run-ups of the biggest movers from the canonical cache — 33 LIVE files END early (28 within 5 % of their all-time high) and 114 files have HOLES inside their span (SHOWN 2026-10-15: the replayed band reproduces NVDA's, PLTR's and GE's saved date sets exactly) (B, 2026-10-15)
 - Engine: data substrate — `data/processed/<T>_1d.*`; universe admission `engines/data_manager/universe_resolver.py` `discover_cached_tickers`
 - First flagged: 2026-10-15 (KLAC and APH surfaced in the last-bar level identity; the count measured across all 730 files)
-- Status: OPEN, owner B. Severity MEDIUM as ruled. **B proposes HIGH:** the missing bars sit inside **RULED HIGH by the director 2026-10-15 (verified: NVDA ends 2024-05-10 AT its all-time high, +211% trailing 12m; PLTR 2025-01-15 at 0.999 of its ATH, +307%; GE at its ATH; MU 0.970; AVGO 0.968; AAPL/MSFT end 2026-04-17 well off theirs). A file that stops exactly at its all-time high is the fingerprint of a rolling-median tick filter at write time. Next: (1) SHOW the hypothesis by replaying the band as the WRITER applied it over NVDA's provider bars from 2024-05-13 — the band's threshold and the first rejected bar reported; refuted if it does not stop there; (2) the admission rule reads each file's END date and a canonical run REFUSES a live name whose file ends before the window end unless declared ([NN-FAIL-CLOSED]), with a stale_files census key by both producers (propose-first, after the identity rail, ahead of the miss-refusal unit); (3) A writes B-1's dated note from this list: the momentum rows are measured on a cache missing the late bars of 33 names, 28 at all-time highs — the post-cutover re-run is the test under any treatment, so B-1 and every verdict on a 2024–2025 window re-run regardless of the user's (a)/(b) choice.**
-  every canonical window and fall on exactly the names a momentum signal ranks highest, so the bias is
-  directional, not noise. The director rules.
+- Status: OPEN, owner B. **HIGH** (director, 2026-10-15; signature verified independently: NVDA
+  ends 2024-05-10 at its all-time high, +211 % trailing 12 months; PLTR 0.999, +307 %; GE at its high;
+  MU 0.970; AVGO 0.968; the controls AAPL and MSFT end off their highs). The missing bars sit inside
+  every canonical window and fall on exactly the names a momentum signal ranks highest, so the bias
+  is directional, not noise.
+  **For verdicts:** every verdict on a window reaching the damaged spans read these names wrongly.
+  B-1's momentum rows come first; A writes B-1's dated note from this list. B-1 and every verdict
+  on a 2024–2025 window RE-RUN on the cutover substrate, whichever treatment is chosen (director). The
+  2020–21 holes (SE, ETSY, PENN, ENPH, MTCH, XYZ) reach further back.
 - Description: of the 730 cache files, 652 are LIVE (the provider serves them through 2026-10-14).
   **33 of those 652 have a canonical file that ENDS before 2025-12-31**, by end date:
   SMCI 2023-05-02, FIX 2024-02-22, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06,
@@ -103,18 +109,43 @@ then LOW. Within each severity, list newest at the top.
   is +90 %. The exceptions are NFX (reused), CIEN and ATI (their all-time highs are decades old), SMCI
   (0.90) and LITE (0.94). None has a provider split near its end date (NVDA's 10:1 is a month later).
   All 12 examined are `merge_case: both`.
-  **Hypothesis, NOT yet shown:** the T-167 bad-tick band (a rolling median that rejects an uptrend's
-  bars and never re-admits them) was applied when these files were WRITTEN. The T-167 loader fix
-  cannot restore bars a writer never saved — the same shape as the ÷10 baked at the T-082b merge.
-  **Consequence:** inside every canonical window ending 2025-12-31, these names stop early, so a run
-  reads them as "stopped trading". That biases against momentum, B-1's momentum deciles included;
-  the magnitude is unmeasured. The cutover's write pass already wrote them through 2026-10-14, so the
-  effect lives in every verdict measured on TODAY's canonical cache.
-- Recommended next step: (1) test the hypothesis: replay the pre-T-167 band over a provider series
-  (NVDA) and see whether it stops at 2024-05-10. (2) The `stale_files` census key (ruled; a
-  propose-first unit after the identity rail, both producers, the two-producer lock), so no run reads
-  "stopped trading" silently. (3) The size of the bias on the momentum verdicts is a measurement for
-  their owners.
+  **SHOWN (2026-10-15, read-only):** the write path was the pre-T-167 DataManager (bd68438^; the fix
+  landed 2026-06-13). In `ensure_data`, an uncached ticker went fetch → `self._normalize_df(df)`
+  (bd68438^:745) → `self.save_cache(t, df)` (:802), so the band ran BEFORE the save. The band was a
+  **GLOBAL median × 3 over the whole fetched frame** (bd68438^:527-529: `df[(Close > 0) & (Close <
+  median_close * 3)]`), not a rolling median (the rolling median is T-167's FIX). Every bar at or above
+  the threshold was dropped and never re-admitted. NVDA's file was written 2026-04-18 under that band
+  (the pre-merge backup `data/processed_alpaca_backup_2026_05_23`). The T-082b merge (2026-05-23)
+  copied that leg VERBATIM, so it carried the damage; it did not make it.
+  Replayed over the provider's split-adjusted closes on the same span, up to the write date:
+  - **NVDA:** median 30.04 → threshold 90.11. Last kept 2024-05-10. EVERY bar from 2024-05-13 on is
+    rejected. The first rejected bar is 2024-03-07. Kept 1,014 = the saved file's 1,014, and the kept
+    DATE SET EQUALS the saved file's dates exactly.
+  - **PLTR** (threshold 68.85; ends 2025-01-15; 1,055) and **GE** (228.51; ends 2025-05-14; 1,281):
+    date sets equal.
+  - **The AAPL control:** 0 rejected; 1,513 equal; it ends at the write date.
+  **HOLES, not only early ends:** the band dropped above-threshold bars even where the price later
+  fell back. NVDA is missing 15 days (2024-03-07 → 05-08), PLTR 24 (2024-12-03 → 2025-01-07). Across
+  the canonical cache, **114 files have three or more missing trading days inside their own post-seam
+  span**, many with hundreds: SEDG 613, ANF 443, FICO 392, AXON 330, VRT 287, and the 2020–21 peaks
+  (MTCH, SE, XYZ, ETSY, ENPH, PENN)… Some of the 114 have other causes (BBBY, CPWR, reused tickers).
+  **What the cutover fixes, from the copy:** the 32 stale live names (NFX aside) are written through
+  2026-10-14, each last bar EQUAL to the provider's close (identity 1.000000). Of the 114 holed
+  files, the pass WROTE 81, and ALL 81 have every hole filled. The other 33 stay holed: BBBY, PSKY
+  (span), CPWR (convention), and 30 unfetchable delisted names (CCE, NCC, CFC, MHS, …), with no
+  provider series to fill them or to run the band test against. Under the user's option (a), the
+  post-seam damage still needs a re-fetch.
+  **Consequence:** inside every canonical window ending 2025-12-31, these names drop out or skip
+  their run-ups, read as "stopped trading" or as a jump across a gap. That biases against momentum,
+  B-1's momentum deciles included; the magnitude is unmeasured. It lives in every verdict measured
+  on TODAY's canonical cache.
+- Recommended next step: (1) the admission guard (propose-first, after the identity rail, ahead of
+  the miss-refusal unit): the admission rule reads each file's END date AND its internal GAPS. A
+  canonical run REFUSES a live name whose file ends before the window end, or has gaps, unless
+  declared (`[NN-FAIL-CLOSED]`), and a `stale_files` census key (both producers, the two-producer
+  lock) makes the count visible on every run. (2) The 33 unfixable holed files need a declared
+  treatment at cutover. (3) Sizing the bias on the momentum verdicts is a measurement for their
+  owners.
 - Anchor: `engines/data_manager/universe_resolver.py:302` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (the line moves to :333 when the ticker-exclusion unit 4c57d4c merges)
 
 ### [MEDIUM] The canonical AGG file is SPLIT-ONLY (the backfill_t052 trio; EFA and VNQ likewise) — T-247/T-257/T-262/T-278 measured AGG without its dividends, ~3 %/yr understated; T-257/T-278 carry a trigger via the advisor tier table (B, 2026-10-15, cutover proposal §5.1)
