@@ -92,8 +92,9 @@ membership, declared)`, so the two producers cannot drift. `_build_census` assig
 
 ## 6. As built (B, 2026-10-15): what changed from §1–§4, and what it reads
 
-**Built** on `feature/stale-holed-guard` (fc1296d: the guard at 6309cb3, two fixture commits, and
-FISV's declaration; on the rail with its split-window fix); with R for a build review. Differences from the proposal, each forced by a measurement:
+**Built** on `feature/stale-holed-guard` (73b421c: the guard at 6309cb3, two fixture commits,
+FISV's declaration, and R's two build-review corrections; on the rail with its split-window fix);
+with R for re-approval by diff. Differences from the proposal, each forced by a measurement:
 
 - **The calendar is proven, not assumed.** §1 named "the SPY bar dates" as the calendar. SPY's own
   file is canonical and can be wrong, so the calendar is instead the majority of the names active
@@ -141,9 +142,21 @@ The five on the copy are JPM, KDP, TDC, WMT and WU, the §2b span refusals await
 reading.** So after the cutover, the guard is one user ruling from green over the full canonical
 window. The real cache stays RED, as ruled.
 
-**Formation coverage reads the same on both substrates:** a minimum of 0.66, a median of 0.83, and
-134 of 312 month-ends below 0.80. Members whose files START late (the survivorship gap) form no row.
-The cutover does not move it. It is recorded, not gated (§1).
+**Formation coverage is over EVERY member on the date** (R's build-review correction). The member
+set is the PIT intervals covering the date, or the static list under a static universe. A member
+with no file, or with no bar on the date, is not formed. The first build took its members from
+the data map, so a member with NO file dropped out of the denominator. That was A's §14.3
+file-presence defect in a new form, and it read 0.66 / 0.83 / 134; R measured 0.72 / 0.87 / 89 on
+another map, which is the signature of a denominator that moves with the files present.
+
+Corrected, it reads min **0.38**, median **0.70**, with **208 of 312** month-ends below 0.80.
+Those are A's numbers, and they are IDENTICAL on the real cache and the post-write copy, whichever
+files are in the map. The gap is late starts and missing files (the survivorship gap); the
+cutover does not move it. It is recorded, not gated (§1).
+
+**The contract (R):** the candidate producer is executed on a clean map and window, and NO
+provenance key may be an error record. Before this, its except branch's `{"error": …}` counted
+as "present".
 
 **One rule beyond §1–§4:** a run with no SPY has an UNVERIFIED calendar, and the gate fails it.
 It caught 19 Discovery test fixtures whose synthetic data_maps carried only AAA, so Gate 1
