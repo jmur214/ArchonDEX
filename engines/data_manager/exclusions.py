@@ -38,8 +38,34 @@ DECLARED_EXCLUSIONS: Dict[str, dict] = {
     },
 }
 
+#: The second exclusion KIND — `ticker` — ruled 2026-10-15 (the AZO/MTD/NVR HIGH). A bars-kind
+#: withholding of a WHOLE history would serve an empty frame for a ticker that stays resolved: the
+#: panel then runs short of the resolved universe and census invariant 2 fails every canonical run —
+#: and raising the panel allow-list to hide that would also hide a genuine shrink (the T-167 class).
+#: So a ticker-kind name is removed at universe RESOLUTION (`resolve_universe`) and from PIT
+#: membership (`clip_membership`): the resolved universe and the panel BOTH exclude it, and the
+#: allow-list stays 0. Recorded under its own census key, written by BOTH census producers.
+#:
+#: AZO, MTD and NVR sit at exactly one tenth of their true price for their whole history in the
+#: canonical cache: the old loader's ÷10 auto-scale fired on their Alpaca legs (true medians above
+#: 1,000) at MERGE time and `fit_ratio_loglinear` carried the 0.1 back through the Stooq years. The
+#: files are NOT edited (a substrate change would invalidate every anchor's digest). The exclusion
+#: lifts at re-pin #2 only through `lift_verified`: each written level must agree with the declared
+#: ratio at the evidence date.
+DECLARED_TICKER_EXCLUSIONS: Dict[str, dict] = {
+    t: {"census_key": "scale_defect_div10",
+        "reason": "scale defect ÷10 baked at the T-082b merge",
+        "declared_ratio": 10.0,
+        # the evidence the declaration was made on: the canonical cache's close at a reference date
+        "evidence": {"date": "2021-06-01", "cache_close": close}}
+    for t, close in (("AZO", 141.08), ("MTD", 129.63), ("NVR", 484.10))
+}
+LIFT_TOLERANCE = 1e-3          # |written / (cache_close × declared_ratio) − 1| for the lift
+
 _BARS_APPLIED: Dict[str, dict] = {}        # reset per run
 _MEMBERSHIP_APPLIED: Dict[str, dict] = {}  # membership loads once per process (lru_cache)
+_TICKERS_APPLIED: Dict[str, set] = {}      # ticker -> where withheld ("resolution"); reset per run
+_TICKER_MEMBERSHIP_APPLIED: Dict[str, int] = {}  # ticker -> intervals dropped; kept per process
 
 
 class ExclusionMismatchError(RuntimeError):
@@ -113,6 +139,47 @@ def clip_membership(m: pd.DataFrame) -> pd.DataFrame:
         _MEMBERSHIP_APPLIED[ticker] = {"census_key": spec["census_key"], "before": spec["before"],
                                        "intervals_dropped": int(ended_before.sum()),
                                        "intervals_clipped": int(clipped.sum())}
+    for ticker in DECLARED_TICKER_EXCLUSIONS:      # the ticker kind: every interval goes
+        rows = out["ticker"] == ticker
+        if rows.any():
+            _TICKER_MEMBERSHIP_APPLIED[ticker] = int(rows.sum())
+            out = out.loc[~rows]
+    return out
+
+
+def withhold_declared_tickers(tickers, *, where: str) -> list:
+    """The ticker kind at a UNIVERSE: remove every declared name and record where it was withheld.
+    A pure filter (never raises), order preserved."""
+    kept = []
+    for t in tickers:
+        if t in DECLARED_TICKER_EXCLUSIONS:
+            _TICKERS_APPLIED.setdefault(t, set()).add(where)
+        else:
+            kept.append(t)
+    return kept
+
+
+def lift_verified(ticker: str, written_close_at_evidence_date: float) -> bool:
+    """The re-pin #2 lift lock: a ticker-kind declaration may be lifted only when the WRITTEN level
+    at the evidence date equals the declared cache level × the declared ratio (the defect undone,
+    exactly). Anything else — still ÷10, or a different factor — keeps the exclusion."""
+    spec = DECLARED_TICKER_EXCLUSIONS[ticker]
+    expected = spec["evidence"]["cache_close"] * spec["declared_ratio"]
+    return abs(float(written_close_at_evidence_date) / expected - 1.0) <= LIFT_TOLERANCE
+
+
+def ticker_exclusions_applied() -> Dict[str, dict]:
+    """The census block for the ticker kind: every declared name withheld in this run (at
+    resolution) or in this process's PIT membership, keyed by census key."""
+    out: Dict[str, dict] = {}
+    names = sorted(set(_TICKERS_APPLIED) | set(_TICKER_MEMBERSHIP_APPLIED))
+    for t in names:
+        spec = DECLARED_TICKER_EXCLUSIONS[t]
+        entry = out.setdefault(spec["census_key"], {"reason": spec["reason"],
+                                                    "declared_ratio": spec["declared_ratio"],
+                                                    "tickers": {}})
+        entry["tickers"][t] = {"withheld_at": sorted(_TICKERS_APPLIED.get(t, set())),
+                               "membership_intervals_dropped": _TICKER_MEMBERSHIP_APPLIED.get(t, 0)}
     return out
 
 
@@ -130,5 +197,6 @@ def exclusions_applied() -> Dict[str, dict]:
 
 
 def reset_exclusion_log() -> None:
-    """Start a run's bar record (membership is applied once per process and kept)."""
+    """Start a run's bar and resolution records (membership is applied once per process and kept)."""
     _BARS_APPLIED.clear()
+    _TICKERS_APPLIED.clear()

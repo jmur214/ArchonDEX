@@ -101,6 +101,37 @@ def resolve_universe(
     available_filter: Optional[Sequence[str]] = None,
     spinoff_events: Optional[Sequence[Any]] = None,
 ) -> tuple[list[str], dict]:
+    """The single entry point (see `_resolve_universe_unfiltered` for the parameters).
+
+    Every path's result passes through the declared TICKER-kind exclusions
+    (`engines/data_manager/exclusions.py`, ruled 2026-10-15): a declared name is removed HERE, at
+    resolution, so the resolved universe and the panel built from it both exclude it — census
+    invariant 2 holds with the panel allow-list at 0 — and the withholding is recorded for the
+    census's `ticker_exclusions` block. `info["ticker_exclusions"]` lists the names removed.
+    """
+    from engines.data_manager.exclusions import withhold_declared_tickers
+    tickers, info = _resolve_universe_unfiltered(
+        static_tickers=static_tickers, start=start, end=end, use_historical=use_historical,
+        cache_dir=cache_dir, anchor_dates=anchor_dates, essential_tickers=essential_tickers,
+        available_filter=available_filter, spinoff_events=spinoff_events)
+    kept = withhold_declared_tickers(tickers, where="resolution")
+    info["ticker_exclusions"] = sorted(set(tickers) - set(kept))
+    info["n_after_ticker_exclusions"] = len(kept)
+    return kept, info
+
+
+def _resolve_universe_unfiltered(
+    *,
+    static_tickers: Sequence[str],
+    start: str | pd.Timestamp,
+    end: str | pd.Timestamp,
+    use_historical: bool,
+    cache_dir: Path,
+    anchor_dates: Optional[Sequence[str]] = None,
+    essential_tickers: Sequence[str] = DEFAULT_ESSENTIAL_TICKERS,
+    available_filter: Optional[Sequence[str]] = None,
+    spinoff_events: Optional[Sequence[Any]] = None,
+) -> tuple[list[str], dict]:
     """Return the (tickers, debug_info) tuple for a backtest run.
 
     Parameters

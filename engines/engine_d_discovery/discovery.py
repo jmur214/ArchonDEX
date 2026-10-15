@@ -66,7 +66,9 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
       * data_feed (ruling C-2): a candidate validated on yfinance-fed data fails closed here;
       * data_exclusions (item d): a candidate validated where a declared exclusion was applied
         (e.g. dal_pre2007_excluded) carries the record — the exclusion itself is applied to the
-        candidate's data at load either way; this is the record of it."""
+        candidate's data at load either way; this is the record of it;
+      * ticker_exclusions (2026-10-15, the AZO/MTD/NVR scale defect): the TICKER-kind record —
+        names removed at universe resolution and from PIT membership."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
         # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST
@@ -84,6 +86,11 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
         block["data_exclusions"] = exclusions_applied()
     except Exception as e:   # recorded, never omitted
         block["data_exclusions"] = {"error": repr(e)}
+    try:
+        from engines.data_manager.exclusions import ticker_exclusions_applied
+        block["ticker_exclusions"] = ticker_exclusions_applied()
+    except Exception as e:   # recorded, never omitted
+        block["ticker_exclusions"] = {"error": repr(e)}
     return block
 
 

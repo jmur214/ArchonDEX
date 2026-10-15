@@ -1421,6 +1421,13 @@ class BacktestController:
             census["data_exclusions"] = exclusions_applied()
         except Exception as e:
             census["data_exclusions"] = {"error": repr(e)}
+        # Declared TICKER-kind exclusions (2026-10-15, the AZO/MTD/NVR scale defect): names removed
+        # at universe resolution and from PIT membership, recorded under their own key. Not a gate.
+        try:
+            from engines.data_manager.exclusions import ticker_exclusions_applied
+            census["ticker_exclusions"] = ticker_exclusions_applied()
+        except Exception as e:
+            census["ticker_exclusions"] = {"error": repr(e)}
         try:
             from engines.data_manager.data_manager import data_feed_summary
             census["data_feed"] = data_feed_summary()
