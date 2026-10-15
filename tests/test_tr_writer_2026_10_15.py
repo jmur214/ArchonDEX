@@ -45,6 +45,11 @@ def _seed_cache(cache_dir: Path, ohlcv: pd.DataFrame, ticker: str = "ABC") -> No
 CACHE_END = pd.Timestamp("2025-09-30")
 
 
+def NO_ACTIONS(symbol):
+    """An empty corporate-actions record: no splits or dividends after the cache's last bar."""
+    return pd.DataFrame(columns=["Dividends", "Stock Splits"], dtype=float)
+
+
 def _tr_cache_as_of(end: pd.Timestamp = CACHE_END, exdates=QUARTERLY_EXDATES) -> pd.DataFrame:
     """The cache as a total-return fetch made on `end` wrote it: only the ex-dates up to `end` are
     applied. A re-fetch after a later ex-date reads it as a constant RESCALE — the steady state."""
@@ -64,14 +69,14 @@ def test_ONE_provider_for_the_whole_universe_even_for_a_post_2016_file(tmp_path)
         raise AssertionError("the writer consulted a per-file provider")
     calls = []
     rec = w.full_refetch("ABC", tmp_path, {"alpaca": per_file_alpaca, "yfinance": _fake(IDX[0], calls)},
-                         today=IDX[-1], write=False)
+                         today=IDX[-1], write=False, actions=NO_ACTIONS)
     assert rec.provider == "yfinance" and calls
 
 
 def test_a_providers_map_without_the_universe_provider_is_REFUSED(tmp_path):
     _seed_cache(tmp_path, _tr_cache_as_of())
     with pytest.raises(w.WriterRefusal, match="no yfinance provider"):
-        w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], [])}, today=IDX[-1], write=False)
+        w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], [])}, today=IDX[-1], write=False, actions=NO_ACTIONS)
 
 
 def test_the_default_providers_name_only_the_universe_provider():
@@ -203,13 +208,14 @@ def test_full_refetch_writes_a_measured_total_return_pair_and_logs_the_mode(tmp_
     _seed_cache(tmp_path, _tr_cache_as_of())
     calls, log = [], tmp_path / "write_log.jsonl"
     rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], calls)},
-                         today=IDX[-1], log_path=log)
+                         today=IDX[-1], log_path=log, actions=NO_ACTIONS)
     assert rec.provider == "yfinance" and rec.mode == "adjusted" and rec.basis == "measured_tr"
     assert rec.overlap["verdict"] == "RESCALED" and rec.overlap["ratio"] == pytest.approx(1 - 0.009, rel=1e-6)
     written = pd.read_parquet(tmp_path / "parquet" / "ABC_1d.parquet")
     assert written["Close"].iloc[0] < _raw().iloc[0], "total return: the past is scaled down"
     assert '"mode": "adjusted"' in log.read_text() and '"verdict": "RESCALED"' in log.read_text()
-    assert [c[2] for c in calls] == [True, False], "adjusted span + the two-mode basis tail"
+    assert [c[2] for c in calls] == [True, False, False], \
+        "adjusted span + the two-mode basis tail + the LEVEL rail's unadjusted read at the cache's last bar"
 
 
 def test_full_refetch_REFUSES_a_provider_that_cannot_cover_the_span(tmp_path):
@@ -217,7 +223,7 @@ def test_full_refetch_REFUSES_a_provider_that_cannot_cover_the_span(tmp_path):
     before = (tmp_path / "ABC_1d.csv").read_bytes()
     late = _fake(pd.Timestamp("2020-01-02"), [])
     with pytest.raises(w.WriterRefusal, match="cannot replace the file"):
-        w.full_refetch("ABC", tmp_path, {"yfinance": late}, today=IDX[-1])
+        w.full_refetch("ABC", tmp_path, {"yfinance": late}, today=IDX[-1], actions=NO_ACTIONS)
     assert (tmp_path / "ABC_1d.csv").read_bytes() == before
 
 
@@ -225,13 +231,13 @@ def test_measure_only_mode_writes_nothing(tmp_path):
     _seed_cache(tmp_path, _tr_cache_as_of())
     before = (tmp_path / "ABC_1d.csv").read_bytes()
     rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], [])},
-                         today=IDX[-1], write=False)
+                         today=IDX[-1], write=False, actions=NO_ACTIONS)
     assert rec.basis == "measured_tr" and (tmp_path / "ABC_1d.csv").read_bytes() == before
 
 
 def test_a_new_ticker_has_no_cache_to_agree_with_and_is_written(tmp_path):
     rec = w.full_refetch("NEW", tmp_path, {"yfinance": _fake(IDX[0], [])}, today=IDX[-1],
-                         new_ticker_start=IDX[0])
+                         new_ticker_start=IDX[0], actions=NO_ACTIONS)
     assert rec.overlap is None and (tmp_path / "parquet" / "NEW_1d.parquet").exists()
 
 
@@ -261,7 +267,7 @@ def test_a_split_only_provider_does_NOT_replace_a_total_return_cache(tmp_path):
     _seed_cache(tmp_path, _tr_cache_as_of())
     before = _pair_bytes(tmp_path)
     with pytest.raises(w.WriterRefusal, match="DIFFERENT_CONVENTION") as refused:
-        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=IDX[-1])
+        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=IDX[-1], actions=NO_ACTIONS)
     assert refused.value.detail["basis"]["basis"] == "unverified: no ex-date in window", \
         "the basis measure cannot see this case — the overlap is the only rail"
     assert refused.value.detail["overlap"]["verdict"] == "DIFFERENT_CONVENTION"
@@ -280,7 +286,7 @@ def test_a_payer_whose_last_ex_date_is_older_than_a_short_tail_is_still_REFUSED(
         "a 40-bar tail is blind to this payer — the reason the window is a year"
     before = _pair_bytes(tmp_path)
     with pytest.raises(w.WriterRefusal, match="DIFFERENT_CONVENTION"):
-        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=end)
+        w.full_refetch("ABC", tmp_path, {"yfinance": _nominal_provider()}, today=end, actions=NO_ACTIONS)
     assert _pair_bytes(tmp_path) == before
 
 
@@ -295,7 +301,7 @@ def test_an_overlap_too_short_to_measure_is_REFUSED_when_a_cache_exists(tmp_path
         return df[~((df.index > pd.Timestamp("2024-06-01")) & (df.index < CACHE_END))]
     before = _pair_bytes(tmp_path)
     with pytest.raises(w.WriterRefusal, match="INSUFFICIENT"):
-        w.full_refetch("ABC", tmp_path, {"yfinance": gappy}, today=IDX[-1])
+        w.full_refetch("ABC", tmp_path, {"yfinance": gappy}, today=IDX[-1], actions=NO_ACTIONS)
     assert _pair_bytes(tmp_path) == before
 
 
@@ -319,7 +325,7 @@ def test_a_share_class_is_fetched_under_its_yahoo_spelling_and_the_record_says_s
     _seed_cache(tmp_path, _tr_cache_as_of(), ticker="BRK.B")
     calls, log = [], tmp_path / "write_log.jsonl"
     rec = w.full_refetch("BRK.B", tmp_path, {"yfinance": _symbol_bound("BRK-B", calls)},
-                         today=IDX[-1], log_path=log)
+                         today=IDX[-1], log_path=log, actions=NO_ACTIONS)
     assert rec.symbol_mapped == "BRK.B -> BRK-B (share class)"
     assert set(calls) == {"BRK-B"}, "fetched under the Yahoo spelling only"
     assert (tmp_path / "parquet" / "BRK.B_1d.parquet").exists(), "the file keeps the cache's name"
@@ -329,7 +335,7 @@ def test_a_share_class_is_fetched_under_its_yahoo_spelling_and_the_record_says_s
 def test_an_unmapped_ticker_records_no_mapping(tmp_path):
     _seed_cache(tmp_path, _tr_cache_as_of())
     rec = w.full_refetch("ABC", tmp_path, {"yfinance": _symbol_bound("ABC", [])}, today=IDX[-1],
-                         write=False)
+                         write=False, actions=NO_ACTIONS)
     assert rec.symbol_mapped is None
 
 
@@ -340,7 +346,7 @@ def test_a_RENAME_is_an_identity_claim_held_to_the_overlap_rail_and_its_refusal_
     before = _pair_bytes(tmp_path, "FRC")
     with pytest.raises(w.WriterRefusal, match=r"symbol mapped: FRC -> FRCB \(rename\)") as refused:
         w.full_refetch("FRC", tmp_path, {"yfinance": _symbol_bound("FRCB", [], series=other_security)},
-                       today=IDX[-1])
+                       today=IDX[-1], actions=NO_ACTIONS)
     assert refused.value.detail["symbol_mapped"] == "FRC -> FRCB (rename)"
     assert refused.value.detail["overlap"]["verdict"] == "DIFFERENT_CONVENTION"
     assert _pair_bytes(tmp_path, "FRC") == before
@@ -352,5 +358,5 @@ def test_NO_fallback_symbol_is_ever_tried(tmp_path):
     _seed_cache(tmp_path, _tr_cache_as_of(), ticker="FRC")
     calls = []
     with pytest.raises(w.WriterRefusal, match="returned no bars"):
-        w.full_refetch("FRC", tmp_path, {"yfinance": _symbol_bound("FRC", calls)}, today=IDX[-1])
+        w.full_refetch("FRC", tmp_path, {"yfinance": _symbol_bound("FRC", calls)}, today=IDX[-1], actions=NO_ACTIONS)
     assert calls == ["FRCB"], f"the writer tried {calls}"

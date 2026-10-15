@@ -21,7 +21,8 @@ the audit's invariants fail:
   7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
-  8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions record
+  8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
+     level_declarations record
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
@@ -103,7 +104,7 @@ def assert_census(
     for k in sorted(census):
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
-    for key in ("data_exclusions", "ticker_exclusions"):
+    for key in ("data_exclusions", "ticker_exclusions", "level_declarations"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
