@@ -82,6 +82,15 @@ class DataManager:
             if timeframe == "1m": interval = "1m"
             elif timeframe == "1H": interval = "1h"
             
+            # MEASURED 2026-10-15 — READ BEFORE THE RATIONALE BELOW: the processed
+            # cache is NOT split-only. It is DIVIDEND BACK-ADJUSTED (XOM 2023-01-03
+            # reads 95.43 vs 106.51 in the split-only Alpaca bars; the processed/raw
+            # ratio drifts at each name's yield — XOM +3.51, KO +3.06, SPY +1.33 %/yr)
+            # and was so before T-082b. So this split-only fallback now writes INTO a
+            # total-return cache — the contamination below, inverted. Which convention
+            # is intended is an open ruling (health_check.md; the data-derived lock is
+            # tests/test_processed_cache_adjustment_class_2026_10_15.py).
+            #
             # T-088: yfinance fallback writes to the SAME cache as the primary
             # Alpaca path (data_manager.py:~671), which is split-only. Using
             # auto_adjust=True here would produce dividend+split (total-return)
