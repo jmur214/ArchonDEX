@@ -1380,3 +1380,18 @@ python -m pytest tests/test_raw_signal_decile_b1.py -q
 Writes `results_<md5>.json` (the canonical md5 is in the name and in `meta`) or, on a HALT,
 `halt.json` with the reasons. Exit codes match the builder's. `--no-calendar` skips the daily
 calendar family (tests only; a measured run includes it).
+
+### B-1 post-hoc exposure re-score — `value_earnings_yield_v1` without AZO/MTD/NVR (added 2026-10-15)
+This is a POST-HOC check (director ruling `1bb076b`), not a measurement of record. AZO, MTD and
+NVR sit at 1/10 price in the cache, and this signal takes the price level through market cap.
+The script removes the three from the existing panel and re-scores the one signal with the
+harness's own functions, the run's seed and bootstrap, and its short-window BH family (the
+other five keep their recorded p). It reads; it never writes outside `--out`.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+python -m scripts.rescore_b1_ey_exposure \
+  --panel data/research/b1/full_2a/signal_panel_d9d449d17f8f.parquet \
+  --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_ey_ex3/
+python -m pytest tests/test_rescore_b1_ey_exposure.py -q
+```
