@@ -160,7 +160,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                                                      "names the refused fundamentals misses")
     ap.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     args = ap.parse_args(argv)
-    names = (args.tickers.split(",") if args.tickers else names_from_census(args.from_census))
+    # `is not None`, never truthiness: `--tickers ""` must reach the no-names refusal, not fall to
+    # the census branch with no path (R's build review, 2026-10-15)
+    names = (args.tickers.split(",") if args.tickers is not None
+             else names_from_census(args.from_census))
     try:
         recs = rebake(names, args.cache_dir)
     except RebakeRefused as e:

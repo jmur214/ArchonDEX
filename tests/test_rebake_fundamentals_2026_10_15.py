@@ -123,6 +123,8 @@ def test_names_from_a_CENSUS_refused_set(tmp_path, monkeypatch):
 
 def test_NO_names_is_refused_and_there_is_no_sweep_option(tmp_path):
     assert rb.main(["--tickers", " , ", "--cache-dir", str(_cache(tmp_path))]) == 2
+    # the EMPTY string is a given-but-empty name list: the same designed refusal, never a TypeError
+    assert rb.main(["--tickers", "", "--cache-dir", str(_cache(tmp_path / "e"))]) == 2
     with pytest.raises(SystemExit):
         rb.main(["--cache-dir", str(_cache(tmp_path / "b"))])      # a name source is required
 
