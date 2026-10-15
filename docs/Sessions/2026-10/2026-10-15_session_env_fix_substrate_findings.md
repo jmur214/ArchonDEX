@@ -20,8 +20,21 @@
 - **A loader that "protects" is a loader that masks:** the ÷10 auto-scale fired on exactly one series and it was corrupt. The dollar-ADV bias lived in the one product nobody looks at (Close × Volume on a back-adjusted close).
 - **Test-hygiene facts (B):** `monkeypatch.delenv` after a real setter RESTORES at teardown; `delenv(raising=False)` on an absent var records nothing; a reversion that passes for the wrong reason (the old load hid behind `if env_path.exists()`); AST locks on CALLS, never text; Discovery's Gate-1 candidate census is a separate producer.
 
+## What was worked on (afternoon)
+
+- **Three more merges on R's approval, each checked by the FULL suite on the staged merge in the main tree** (possible since the .env fix removed the hang): item (d) (`e733a94`, 4239/0 — the ÷10 auto-scale gone, DAL withheld by a declared exclusion carried by both census producers, the dollar-ADV row anchored, the two-producer rule in the contract); the price-cache guard branch (`23a5ef7`, 4260/0 — the total-return writer and guard NOT wired, the never-delete reader WIRED, the proposals as docs); D's census fail-closed unit (`032569d`, 4273/0 — the census fails closed on its own errors; three more fail-open shapes found by executing every except branch; no silent zero; the candidate census declares its kind). A 91-file "touching band" showed 8 order-dependent failures identical on clean main — a band artifact — which is why the full suite became the check.
+- **B's measure pass over the whole cache copy (730/730, the real cache untouched):** the pre-seam exact-TR vs drip delta is per-name DISPERSION (median −0.10%/yr, p10 −1.33, p90 +0.59), not the uplift XOM suggested; R's "one provider per file by span" overturned — Alpaca's IEX history starts 2020-07-27 and disagrees with the cache's convention wherever chosen, yfinance agrees everywhere → one provider for the whole universe; 69 "empty" results were Alpaca fetches, not delistings — the true unfetchable count is being re-measured (172 files via yfinance); AGG is split-only in the canonical cache; BBBY is a ticker-reuse hazard the span check caught.
+- **R reproduced B's writer gap with a planted mismatch:** `classify_overlap` existed but `full_refetch` never called it — a split-only provider series replaced a total-return cache with a clean write record. A blocker for switch-on (the writer is unwired, nothing exposed); the fix + lock and the Alpaca path/constant are B's next writer unit; the write pass on the copy is HELD until it merges.
+
+## What was learned (afternoon)
+
+- **A primitive that exists is not a guard until the write path calls it.** Prove a guard by a planted mismatch that reaches the write, never by the primitive's own unit test.
+- **A "touching band" is not a check**: subsets can fail on order; the full suite in under three minutes is now cheaper than attributing a band's artifacts.
+- **The lint's exits are a workflow, not a nuisance:** two rows resolved themselves on merge because their witness lines vanished; one anchor moved by reading the line. The director's own unanchored rows were the lint's first catches.
+- **Measure before ruling on a provider:** the "per file by span" rule was reasonable and wrong; one measurement over 730 files settled it.
+
 ## Pick up next time
 
 - The user's four decisions. After the push: the 03:00 janitor covers the real tree; B's 07:17 watch; D's R1 mirror upload; E's acct-3 redeploy (with E's user's confirmation); D builds the registry unit on 'approve'; B's image audit on 'approve'.
-- B: the measure-only pass's numbers → the cutover proposal (three survivorship treatments, no pick) → R → the user; the guard unit (with the never-delete reader) → R; item (d)'s build (auto-scale removal, DAL exclusion, the scan doc) → R.
+- B: the writer unit (classify_overlap in full_refetch refusing DIFFERENT_CONVENTION; the Alpaca path dropped or its constant corrected) → R (the planted mismatch is the lock) → merge → the write pass on the copy → the cutover proposal's numbers (the true unfetchable count; the dispersion wording; three survivorship treatments, no pick; §5's one re-run; L4 for the user; R's O-3 as a switch-on requirement) → R → the user.
 - R: the guard build, (d), the registry unit, the cutover proposal, in that order as they arrive.
