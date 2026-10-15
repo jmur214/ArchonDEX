@@ -39,13 +39,10 @@ from typing import Iterable, Optional
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-_ENV_PATH = ROOT_DIR / ".env"
-if _ENV_PATH.exists():
-    load_dotenv(dotenv_path=_ENV_PATH, override=False)
+# .env is NOT loaded on import (2026-10-15, #156): process entries call core.env.load_local_env().
 
 
 FRED_API_BASE = "https://api.stlouisfed.org/fred/series/observations"

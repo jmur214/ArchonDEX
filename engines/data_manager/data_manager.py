@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import threading
 import time
-from dotenv import load_dotenv
 
 from debug_config import is_debug_enabled
 
@@ -24,17 +23,7 @@ def is_info_enabled() -> bool:
     from debug_config import DEBUG_LEVELS
     return DEBUG_LEVELS.get("DATA_MANAGER_INFO", False)
 
-# --- Force load .env globally from project root ---
-ROOT_DIR = Path(__file__).resolve().parents[2]
-env_path = ROOT_DIR / ".env"
-
-if env_path.exists():
-    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-        print(f"[DATA_MANAGER][DEBUG] Loaded environment variables from {env_path}")
-    load_dotenv(dotenv_path=env_path, override=True)
-else:
-    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-        print(f"[DATA_MANAGER][WARN] .env not found at {env_path}")
+# .env is NOT loaded on import (2026-10-15, #156): process entries call core.env.load_local_env().
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame

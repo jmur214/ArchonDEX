@@ -79,9 +79,7 @@ except ImportError:
 
 from dateutil import parser as dateparser
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
+# .env is NOT loaded on import (2026-10-15, #156): process entries call core.env.load_local_env().
 
 
 # --------------------------- Data Models --------------------------- #
@@ -567,4 +565,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     sys.exit(main())
