@@ -139,6 +139,17 @@ Proposed sequence (each step after the user's ruling and after C's cells free th
      64 from June, none rewritten since 2026-06-11 except the four new ones. The re-fetch is dead
      code; the docstring should say what the code does. This is a LOW health row, separate from
      the decision.
+
+   **Also pinned at re-pin #1** (director's rulings, 2026-10-15; cutover proposal §3.2):
+   - **`data/external/base_curve/` joins `SUBSTRATE_DIRS`.** The frozen 26-yr arm0 curve that
+     T-171, T-178 and T-174 read is a controller product with zero manifest lines today. It is
+     pinned here and NOT regenerated at re-pin #2: the old file stays pinned as the input of record.
+   - **A SHARES SNAPSHOT for the T-219 `delist_shares` cohort.** `build_pit_cap_history_t219.py`
+     fetches shares LIVE (`get_shares_full`, :56) and swallows a failed fetch to None (:57-58). The
+     snapshot is fetched once here and pinned, so re-pin #2 recomputes the cohort deterministically
+     from the cutover cache. **The recompute path never calls `get_shares_full`**: that is the
+     condition under which the live-fetch fail-open is dead and needs no health row of its own. If
+     the recompute ever fetches, the fail-open is live again and the row is owed.
 3. **Ship the observability files under Option A.** Pin them in a **separate** observability manifest,
    not in the substrate manifest. The substrate changes rarely and deliberately; the registry changes
    with every run. Mixing the two would make every re-bake a substrate diff and train reviewers to
