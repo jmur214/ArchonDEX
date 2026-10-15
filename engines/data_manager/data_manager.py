@@ -75,6 +75,61 @@ def reset_feed_log() -> None:
     _FEED_LOG.clear()
 
 
+# ── fundamentals cache misses (re-pin #1's decision, 2026-10-15) ──────────────────────────
+# The per-ticker fundamentals cache (`<cache>/parquet/<T>_fundamentals.parquet`) is a PINNED
+# measurement input with exactly one runtime write path: a cache MISS fetched from the network
+# (yfinance) and written into the pinned scope. That changes the substrate under a measurement
+# and turns the verify stamp stale. In a canonical run (the SAME switch as the price fallback —
+# the fundamentals fetch is itself a yfinance network call) a miss is REFUSED: recorded and left
+# absent, never fetched, never written. Every outcome is recorded process-wide, and the census
+# carries it per ticker (`fundamentals_misses`).
+#   refused — a miss under the canonical switch: no network, no write
+#   blocked — a miss under ARCHONDEX_HERMETIC: no network, no write
+#   fetched — the network supplied data (written to the cache when non-empty)
+#   empty   — the network was tried and supplied nothing
+_FUNDAMENTALS_LOG: dict = {}          # ticker -> outcome of a fundamentals cache miss
+_FUNDAMENTALS_SOURCE = "yfinance"     # the one network source the miss path reaches
+#: The class attribute a per-ticker fundamentals CONSUMER declares (an edge that reads this cache).
+#: Read from the LOADED edge objects — never inferred from an edge id (the census's id-hint list
+#: matched value_trap_v1 alone). A contract lock requires it on every class that reaches the cache.
+READS_TICKER_FUNDAMENTALS = "READS_TICKER_FUNDAMENTALS"
+
+
+def fundamentals_miss_summary() -> dict:
+    """Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
+    network source of every miss that reached the network (so the census alone diagnoses one)."""
+    out: dict = {"refused": [], "blocked": [], "fetched": [], "empty": [], "sources": {}}
+    for t, outcome in sorted(_FUNDAMENTALS_LOG.items()):
+        out.setdefault(outcome, []).append(t)
+        if outcome in ("fetched", "empty"):
+            out["sources"][t] = _FUNDAMENTALS_SOURCE
+    return out
+
+
+def _unwrap_edge(edge):
+    """The edge under any proxy (the Gate-1 signal cache and the candidate's counting proxy both
+    hold it as `_wrapped`)."""
+    seen = 0
+    while hasattr(edge, "_wrapped") and seen < 8:
+        edge, seen = getattr(edge, "_wrapped"), seen + 1
+    return edge
+
+
+def ticker_fundamentals_blind(edges: dict) -> dict:
+    """The per-ticker fundamentals blind count for a set of LOADED edges. `consumers` are the
+    edges whose class declares READS_TICKER_FUNDAMENTALS; `blind_names` are the names whose cache
+    miss was refused or blocked this process, and they count only when a consumer is active."""
+    consumers = sorted(eid for eid, e in (edges or {}).items()
+                       if getattr(_unwrap_edge(e), READS_TICKER_FUNDAMENTALS, False) is True)
+    blind = sorted(t for t, o in _FUNDAMENTALS_LOG.items() if o in ("refused", "blocked"))
+    return {"consumers": consumers, "blind_names": blind if consumers else []}
+
+
+def reset_fundamentals_log() -> None:
+    """Forget the recorded misses (tests, or a fresh run in a long-lived process)."""
+    _FUNDAMENTALS_LOG.clear()
+
+
 class DataManager:
     def __init__(self, cache_dir: str = "data/processed", api_key=None, secret_key=None, base_url=None):
         self.cache_dir = Path(cache_dir)
@@ -167,8 +222,14 @@ class DataManager:
         return self.cache_dir / "parquet" / f"{ticker}_fundamentals.parquet"
 
     def prefetch_fundamentals(self, tickers, force=False, max_age_days=7):
-        """Batch-fetch and cache fundamentals for all tickers. Call during data loading.
-        Re-fetches if cache is older than max_age_days (default 7 for quarterly data)."""
+        """Fetch fundamentals for every ticker that has NO cached file. Call during data loading.
+
+        An existing cached file is NEVER re-fetched, whatever its age: `fetch_historical_fundamentals`
+        returns any non-empty cached file first, so `max_age_days` and `force` only decide whether
+        that call is made, never whether the network is reached (the files' mtimes confirm it — none
+        rewritten since 2026-06-11 except new misses; re-pin #1's record, 2026-10-15). A refresh is
+        a deliberate act on the cache, not a side effect of a backtest. In a canonical run a miss is
+        refused (see `_FUNDAMENTALS_LOG`)."""
         import time as _time
         for t in tickers:
             if t.startswith("SYNTH-") or t in ("SPY", "QQQ", "IWM", "TLT", "GLD"):
@@ -272,9 +333,16 @@ class DataManager:
         # parquet reached here. Gate BEFORE the try (strict mode not swallowed);
         # empty frame == the no-data outcome fundamental_value already handles
         # (scores 0 + continues), so the run COMPLETES instead of aborting.
+        # Re-pin #1's decision (2026-10-15): a canonical run REFUSES a fundamentals cache miss —
+        # recorded and left absent, never fetched, never written into the pinned scope.
+        if os.environ.get(REFUSE_YFINANCE_ENV):
+            _FUNDAMENTALS_LOG[ticker] = "refused"
+            return pd.DataFrame()
         from core.hermetic import hermetic_block
         if hermetic_block("data_manager.fetch_historical_fundamentals", ticker):
+            _FUNDAMENTALS_LOG[ticker] = "blocked"
             return pd.DataFrame()
+        _FUNDAMENTALS_LOG[ticker] = "empty"   # a network attempt; "fetched" once data enters
 
         try:
             print(f"DEBUG: Deep fetch for {ticker}...")
@@ -375,6 +443,8 @@ class DataManager:
             # --- 6. Join Price & Compute Ratios ---
             price_hist = t.history(start=start_date, end=end_date)
             if price_hist.empty:
+                if not daily.empty:
+                    _FUNDAMENTALS_LOG[ticker] = "fetched"
                 return daily
             
             if price_hist.index.tz is not None:
@@ -418,12 +488,17 @@ class DataManager:
                     cache_path = self._fundamentals_cache_path(ticker)
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
                     final_df.to_parquet(cache_path, index=True)
-                    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                        print(f"[DATA_MANAGER][INFO] Cached fundamentals for {ticker} to {cache_path}")
+                    # Outside canonical mode a miss is still WRITTEN into the pinned scope (how
+                    # B-1's four files arrived). Say so every time: a line, not a gate.
+                    print(f"[DATA_MANAGER][WARN] fundamentals cache MISS for {ticker} fetched from "
+                          f"{_FUNDAMENTALS_SOURCE} and WRITTEN into the pinned scope ({cache_path}) — "
+                          f"the substrate manifest's verify will read red until a re-pin")
                 except Exception as ce:
                     if is_debug_enabled("DATA_MANAGER"):
                         print(f"[DATA_MANAGER][WARN] Failed to cache fundamentals for {ticker}: {ce}")
 
+            if not final_df.empty:
+                _FUNDAMENTALS_LOG[ticker] = "fetched"
             return final_df
 
         except Exception as e:

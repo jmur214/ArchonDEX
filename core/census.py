@@ -19,6 +19,8 @@ the audit's invariants fail:
      regime_total_bars ABSENT or 0 fails; a declared regime_layer "off" needs regime_off_label
   6. config_provenance.degraded                  ({}/one-key fabricated config — T-088)
   7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
+  7b. fundamentals_misses.fetched non-empty        (an unpinned input entered mid-run: a fundamentals
+      cache miss fetched from the network into the pinned scope — re-pin #1's decision, 2026-10-15)
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
@@ -138,7 +140,8 @@ def assert_census(
     for k in sorted(census):
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
-    for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files"):
+    for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files",
+                "fundamentals_misses"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
@@ -197,9 +200,18 @@ def assert_census(
 
     # 4 — fundamentals overlay fed
     if int(census.get("fundamentals_blind", 0) or 0) > 0:
-        failures.append(
-            f"fundamentals_blind: a value/quality edge is active "
-            f"({census.get('fundamentals_edges_active')}) but the panel is unloaded")
+        names = list(census.get("fundamentals_blind_names") or [])
+        why = []
+        if census.get("fundamentals_panel_blind"):
+            why.append(f"a value/quality edge is active ({census.get('fundamentals_edges_active')}) "
+                       f"but the panel is unloaded")
+        if names:
+            why.append(f"a per-ticker fundamentals consumer is active "
+                       f"({census.get('fundamentals_ticker_consumers')}) and {len(names)} name(s) "
+                       f"had their cache miss refused or blocked: {names[:10]}"
+                       f"{' …' if len(names) > 10 else ''}")
+        failures.append("fundamentals_blind: " + ("; ".join(why) or
+                        f"{census.get('fundamentals_blind')} blind source(s)"))
 
     # 5 — regime layer ON. NO silent zero (ruling 2026-10-15): this used to pass when
     # regime_total_bars read 0. Absent = "counter never set"; a measured 0 = the layer produced
@@ -240,6 +252,17 @@ def assert_census(
     else:
         warnings.append("census has no data_feed record (summary predates 2026-10-15) — "
                         "the run's data sources are unrecorded")
+
+    # 7b — fundamentals cache misses (re-pin #1's decision, 2026-10-15). A miss FETCHED from the
+    # network wrote an unpinned input into the pinned scope during the run. A canonical run
+    # refuses the fetch, so this fires only without the switch — and it is a failure, never a note.
+    fm = census.get("fundamentals_misses")
+    if isinstance(fm, dict) and "error" not in fm and fm.get("fetched"):
+        src = fm.get("sources") or {}
+        got = [f"{t} ({src.get(t, 'unknown source')})" for t in fm["fetched"]]
+        failures.append(f"fundamentals_misses: {len(got)} unpinned input(s) entered mid-run — a "
+                        f"fundamentals cache miss fetched from the network and written into the "
+                        f"pinned scope: {got[:10]}{' …' if len(got) > 10 else ''}")
 
     # WARN — CI presence (CLAUDE.md ci_low rule)
     if "bootstrap_distribution" not in summary and not summary.get("bootstrap_ci_skip_reason"):
