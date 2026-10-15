@@ -89,21 +89,41 @@ fetches with the ruled convention (Alpaca `adjustment="all"`, yfinance `auto_adj
 - **A full re-fetch changes the substrate**, so it trips the substrate manifest's exact-match verify.
   That is correct: a refreshed cache is a re-pin event, not a silent drift.
 
-## 4. Who writes into the cache: step 1 of the unit, completed, not assumed
+## 4. Who writes into the cache: COMPLETE as far as static analysis reaches (2026-10-15)
 
-Found so far, by grepping write statements near `_1d` and processed/cache paths. This is **at
-least** the list:
-- `data_manager.save_cache` (`:658-690`) and the parquet write at `:386`;
-- `scripts/fetch_data.py:63`;
-- `scripts/fetch_missing_delisted.py:416`;
-- `scripts/ingest_stooq_us_daily.py:169`;
-- `scripts/build_multidecade_substrate_t306.py:77,82` (target dir to confirm);
-- `scripts/merge_stooq_alpaca_substrate.py`;
-- `scripts/regen_spy_full_history_t167.py`.
+**Method:** an AST scan of every write call (`to_csv`, `to_parquet`, `write_text`/`write_bytes`,
+`os.replace`, `shutil.*`, `open(..., "w")`) whose TARGET path resolves, through local AND
+module-level names, to the processed cache. 21 sites in 11 files. The first pass resolved local
+names only and missed `regen_spy_full_history_t167`, which writes to a module-level `CSV = ROOT /
+"data/processed/SPY_1d.csv"`. **Not covered:** dynamic paths (importlib/eval) and writes made outside
+the repo by hand.
 
-The unit completes the list with a grep plus an import trace. **Rule:** a script that writes into
-the cache goes through `save_cache` and so through the guard; a direct writer is either routed
-through it or retired to `Archive/`.
+**Writers of the TOP-LEVEL price cache `data/processed/<T>_1d.{csv,parquet}` (the substrate):**
+
+| writer | convention it writes | status under the TR ruling |
+|---|---|---|
+| `DataManager.save_cache` (`data_manager.py:658-690`), via `ensure_data` (`:848`) and `load_or_fetch` (`:707`) | split-only: Alpaca `adjustment="split"`, yfinance `auto_adjust=False` | **the live mixing hazard**; routed through `tr_writer` + guard |
+| `scripts/fetch_missing_delisted.py:416,420` (`save_ticker`) | yfinance `auto_adjust=True` (TR), with a **Stooq fallback** (split-only before about 2011) | mixes on the fallback; route through the writer or refuse the fallback |
+| `scripts/merge_stooq_alpaca_substrate.py:138-139` (`_write`) | T-082b drip (constant-yield pre-seam) | historical; superseded by `full_refetch` |
+| `scripts/regen_spy_full_history_t167.py` | deep yfinance `auto_adjust=False` + reconstruction | historical; superseded |
+| `scripts/backfill_t052_macro_data.py:77` (`fetch_etf`) | yfinance `auto_adjust=False`, writing `Close` **and** `Adj Close`; readers take `Close`, so **split-only** | **a second mixing writer**; route through the writer |
+
+**Writers of their own subdirectories** (not the substrate the backtester reads):
+`ingest_stooq_us_daily.py` → `stooq_us_daily/` (Stooq, split-only per era);
+`reconcile_stooq_tr_t256.py` → `tr_reconciled/` (TR).
+
+**Not price bars:** the fundamentals cache (`data_manager.py:386`), `simfin_adapter.py:224`,
+`insider_data.py:384`, `pin_earnings_dates.py`, and `core/feature_foundry/data_source.py` (its own
+`data/feature_foundry/cache`).
+
+**A forensic lead on "what wrote the TR bars".** `regen_spy_full_history_t167.py:20` states, in June:
+*"The existing 2020+ rows are EXACTLY yfinance total-return (Adj Close) basis."* So at least SPY's
+post-2020 segment, the one the merge called "Alpaca, split-only", matched yfinance `Adj Close`. That
+suggests, but does not prove, that the cache's recent segment came from a yfinance total-return pull
+rather than the Alpaca split path. Recorded as a lead, not a finding.
+
+**Rule (unchanged):** every top-level writer goes through `tr_writer` and the guard, or is retired
+to `Archive/`.
 
 ## 5. Statements corrected to match the ruling (item b), each citing 0f7a013 as the receipt
 
