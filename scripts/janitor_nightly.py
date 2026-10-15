@@ -84,7 +84,9 @@ MERGE_REQUESTS = ROOT / "data/coordination/janitor_merge_requests.md"
 # worktree, venv, and launchd context. (Caught by the janitor's own first run:
 # 22 tests green, integration dead on first contact — `[NN-FIRST-ARTIFACT]`.)
 PY = sys.executable
-FAST_SUITE = ["-q", "-p", "no:randomly", "-m", "not slow"]
+# "tests" is explicit, matching pytest.ini's `testpaths`: either alone keeps collection
+# out of data/ (symlinked into main's in agent worktrees), so one edit cannot reopen it.
+FAST_SUITE = ["-q", "-p", "no:randomly", "-m", "not slow", "tests"]
 
 
 @dataclass
