@@ -117,7 +117,8 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         },
         index=idx,
     )
-    data_map = {"AAA": df}
+    # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
+    data_map = {"AAA": df, "SPY": df}
 
     # ---- Synthetic backtest result with a measurable contribution ----
     def _fake_result(daily_offset: float):
@@ -286,7 +287,8 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
         },
         index=idx,
     )
-    data_map = {"AAA": df}
+    # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
+    data_map = {"AAA": df, "SPY": df}
 
     def _fake_result(daily_offset: float):
         rets = pd.Series(0.0005 + daily_offset, index=idx[1:])
