@@ -29,6 +29,8 @@ def _clean_census() -> dict:
         "edges_errored": {},
         "regime_unknown_frac": 0.03,
         "regime_total_bars": 6000,
+        # ruling C-2 (2026-10-15): a modern census carries the data-feed record
+        "data_feed": {"n_network_fetched": 0, "by_source": {}, "yfinance_tickers": []},
         "config_provenance": {"degraded": False,
                               "risk": {"exists": True, "n_keys": 11}},
     }

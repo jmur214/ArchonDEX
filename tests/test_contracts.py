@@ -323,6 +323,10 @@ CENSUS_GATING_KEYS = {
     "regime_unknown_frac",
     "regime_total_bars",
     "config_provenance",
+    # data_feed (ruling C-2, 2026-10-15): the gate reads data_feed.yfinance_tickers to refuse a
+    # run whose network fetches fell back to yfinance — a source AND adjustment-basis switch.
+    # Without the producer emitting it, that refusal would silently read None and pass.
+    "data_feed",
 }
 
 

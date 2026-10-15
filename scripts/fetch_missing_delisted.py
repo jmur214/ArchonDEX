@@ -66,11 +66,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:  # noqa: BLE001
-    pass
+# .env: loaded by the __main__ entry via core.env.load_local_env() (2026-10-15), never on import.
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -654,4 +650,6 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     raise SystemExit(main())

@@ -600,4 +600,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
+    # load_local_env: offline by design — B-1 runs on the CACHED substrate with no .env (it ran in
+    # Agent A's worktree without one) and its own census is fail-closed; it must not pick up keys.
     sys.exit(main())

@@ -393,8 +393,20 @@ def _find_run_id(before: set[str]) -> str | None:
     return candidates[0][0].name
 
 
+def enforce_canonical_data_feed() -> None:
+    """A canonical/hermetic run REFUSES the yfinance fallback (ruling C-2, 2026-10-15).
+
+    Keys present, or the cache complete — else HALT at the first uncached ticker, instead of
+    DataManager silently switching that ticker to yfinance (a different source and adjustment
+    basis). Set in the process that runs the backtest, after the hashseed re-exec.
+    """
+    from engines.data_manager.data_manager import REFUSE_YFINANCE_ENV
+    os.environ[REFUSE_YFINANCE_ENV] = "1"
+
+
 def main() -> int:
     _reexec_if_hashseed_unset()
+    enforce_canonical_data_feed()
     parser = argparse.ArgumentParser()
     parser.add_argument("--save-anchor", action="store_true",
                         help="Snapshot current governor state as anchor and exit.")
@@ -555,4 +567,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     sys.exit(main())

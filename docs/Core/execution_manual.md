@@ -239,7 +239,10 @@ python -m scripts.run_backtest --fresh --discover    # with fresh logs
 
 # GENERATE CANDIDATES ONLY (no validation)
 # Creates template mutations + GA-evolved composite genomes
-python -m engines.engine_d_discovery.discovery
+python -m scripts.discovery_generate_candidates      # moved from the engine module's __main__ (2026-10-15)
+
+# ONE EvolutionController CYCLE (Engine F) — moved from the engine module's __main__ (2026-10-15)
+python -m scripts.run_evolution_controller_cycle
 
 # VALIDATE CANDIDATES (Evolutionary Selector)
 # Runs walk-forward optimization on 'candidate' edges.

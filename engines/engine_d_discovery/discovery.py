@@ -1424,11 +1424,16 @@ class DiscoveryEngine:
             # (`df or []` raises "truth value of a DataFrame is ambiguous").
             _tl = getattr(with_candidate_result, "trade_log", None)
             n_trades_with = 0 if _tl is None else int(len(_tl))
+            from engines.data_manager.data_manager import data_feed_summary as _data_feed_summary
             _census_block = {
                 "edges_blind": ([cand_id] if cand_census.nonzero_calls == 0 else []),
                 "edges_errored": ({cand_id: {"crash_bars": cand_census.errors}}
                                   if cand_census.errors else {}),
                 "n_trades": n_trades_with,
+                # Ruling C-2 (2026-10-15): the same data-feed provenance the measurement
+                # path records — a candidate validated on yfinance-fed data (a source and
+                # adjustment-basis switch) fails closed here, not on a mixed basis.
+                "data_feed": _data_feed_summary(),
             }
             _cv = assert_census(
                 {"census": _census_block,
@@ -1993,10 +1998,5 @@ class DiscoveryEngine:
             print(f"[validate_candidate] {type(e).__name__}: {e}")
             return _finish()
 
-if __name__ == "__main__":
-    # Test run
-    disc = DiscoveryEngine()
-    cands = disc.generate_candidates(n_mutations=3)
-    print(f"Generated {len(cands)} candidates.")
-    # In main block we don't have data_map, so we skip validation call
-    disc.save_candidates(cands)
+# No __main__ block (2026-10-15): a library module is not a process entry. The
+# "generate candidates only" CLI moved to scripts/discovery_generate_candidates.py.

@@ -1082,17 +1082,5 @@ class AlphaEngine:
 
         return signals
     
-if __name__ == "__main__":
-    import yfinance as yf
-    import pandas as pd
-    from debug_config import is_debug_enabled
-    if is_debug_enabled("ALPHA"):
-        print("[DEBUG] Downloading test data for AAPL...")
-    df = yf.download("AAPL", period="1y", interval="1d")
-
-    ae = AlphaEngine(edges={}, debug=True)
-    now = pd.Timestamp(df.index[-1])
-    signals = ae.generate_signals({"AAPL": df}, now)
-    if is_debug_enabled("ALPHA"):
-        print("\n[DEBUG] Example output:")
-    print(signals)
+# No __main__ block (2026-10-15, ruling C-1; found by Agent R's importlib-aware trace): a library
+# module is not a process entry. The removed block was a demo that downloaded AAPL from yfinance.

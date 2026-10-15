@@ -96,5 +96,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     code = main()
     sys.exit(0 if code is None else code)
