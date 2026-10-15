@@ -104,6 +104,41 @@ Proposed sequence (each step after the user's ruling and after C's cells free th
    the shallow flat ETF files the 08-26 repoint routes around (RR-7 D3's cautions). DFII10 is
    **absent**, not unpinned: fetch it, or record it as absent (`macro_real_rate_v1` is paused, and the
    HMM does not use the column).
+
+   **This is re-pin #1** (director, 2026-10-15). It pins the CURRENT substrate (the drip world) and
+   makes `verify` green. Re-pin #2 pins the exact-TR substrate on cutover day (cutover proposal
+   §3.2). Measured 2026-10-15: MISSING 0, EXTRA 134, CHANGED 5.
+   - The 5 CHANGED VIX-term files are a pure extension: every June row is bit-identical.
+   - The EXTRA files are the T-256 additions (including `tr_reconciled/`, which the paper image
+     bakes) and 4 fundamentals parquets.
+
+   **Decision (Agent B, by the director's delegation): PIN the fundamentals cache; do NOT exclude
+   `*_fundamentals.parquet`.**
+   - *Why pin.* 585 of the 589 files are already pinned since June. They are measurement inputs:
+     value edges read them, and the census gates `fundamentals_blind`. A JUNK exclusion would UNPIN
+     585 inputs that are pinned today, so a changed fundamentals file could move a result without
+     the manifest noticing. That is a regression in the referee.
+   - *The four new files* (CVNA, KG, SII, S; written 2026-10-14, 02:45–03:06) are what B-1 actually
+     read. Pinning them records that input.
+   - *The consequence, stated:* the cache has exactly ONE runtime write path, a cache MISS.
+     `fetch_historical_fundamentals` (`engines/data_manager/data_manager.py:188`; the cache check at :201) fetches from
+     the network when no file exists, and writes a new file into the pinned scope. That happened 4
+     times on 2026-10-14, inside a measurement run (B-1).
+     - Every such miss turns `verify` red. Under D's stamp design, it turns the stamp STALE, and
+       **every campaign submit then refuses until the next re-pin.** That is the right fail-closed
+       answer: an unpinned input entered the substrate.
+     - It also means one local run can block cloud submits.
+   - *Proposed, not built:* in canonical runs a fundamentals cache miss should NOT fetch. It should
+     be recorded (per ticker, under the census's `fundamentals_blind`) and left absent, so the
+     substrate changes only through a deliberate refresh. This is the same class as the
+     yfinance-fallback refusal (`ARCHONDEX_REFUSE_YFINANCE_FALLBACK`).
+   - *Found on the way: a lying docstring.* `prefetch_fundamentals` (`data_manager.py:169-185`,
+     called on every backtest at `orchestration/mode_controller.py:868`) says it "re-fetches if cache
+     is older than max_age_days (default 7)". It never does: `fetch_historical_fundamentals` returns
+     the cached file whenever one exists. The files' modification times confirm it: 521 from May,
+     64 from June, none rewritten since 2026-06-11 except the four new ones. The re-fetch is dead
+     code; the docstring should say what the code does. This is a LOW health row, separate from
+     the decision.
 3. **Ship the observability files under Option A.** Pin them in a **separate** observability manifest,
    not in the substrate manifest. The substrate changes rarely and deliberately; the registry changes
    with every run. Mixing the two would make every re-bake a substrate diff and train reviewers to
