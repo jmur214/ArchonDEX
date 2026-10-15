@@ -132,6 +132,16 @@ Proposed sequence (each step after the user's ruling and after C's cells free th
      be recorded (per ticker, under the census's `fundamentals_blind`) and left absent, so the
      substrate changes only through a deliberate refresh. This is the same class as the
      yfinance-fallback refusal (`ARCHONDEX_REFUSE_YFINANCE_FALLBACK`).
+     **BUILT 2026-10-15** (main `a4c6f89`; R-approved at `55e1325`). A canonical run never fetches a
+     missing fundamentals file: the miss is recorded as refused, the census names it, and with a
+     per-ticker consumer loaded the run is NON-CANONICAL. A miss fetched mid-run fails the gate as
+     an unpinned input. So this procedure has a **declared re-bake step**, and it is now a
+     property of the code, not a convention. Before any canonical run with a value edge can be
+     green, a NEW universe name's fundamentals are fetched by a deliberate refresh: the fundamentals
+     prefetch run for those names WITHOUT the canonical switch; the written files reviewed; then the
+     manifest re-pinned. **No dedicated CLI exists for this step today.** It is named by what it
+     does, not by an invented command ([NN-NO-GUESS-CLI]). A small script for it is a follow-up,
+     added to `execution_manual.md` when it exists.
    - *Found on the way: a lying docstring.* `prefetch_fundamentals` (`data_manager.py:169-185`,
      called on every backtest at `orchestration/mode_controller.py:868`) says it "re-fetches if cache
      is older than max_age_days (default 7)". It never does: `fetch_historical_fundamentals` returns
