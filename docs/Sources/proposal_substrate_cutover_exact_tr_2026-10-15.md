@@ -150,6 +150,29 @@ The refusals, by class:
 | **(iii) Stooq history deeper than yfinance** | **C** (+7 yr), **INTC** (+8), **JPM** (+10), **ELV** (+8), **MAR** (+4.5), **PLD** (+2), **AXP** and **WMT** (+5 months) | span | **The user's decision:** declared truncation (lose the oldest years) vs a declared seam (keep the drip before yfinance's first bar — a two-convention file, the T-082b class, but declared and census-recorded) |
 | **(iv) Start-window leads, 9–34 days** | **CHTR, KDP, TDC, UAL, WU** | span: yfinance starts 9–34 days after the cache, past the 7-day slack (listing or emergence windows) | **The user's decision**, the same choice as (iii) at a much smaller scale |
 
+**Class (i), ADDED 2026-10-15: ten later-entity files, by name** (from the stale/holed-files
+guard's declarations; R's build review, ratified by the director). Each cached file lies ENTIRELY
+after its PIT name's last exit, and the provider has no series for it:
+
+| file | the PIT name's last exit |
+|---|---|
+| ABS | 2006-06-02 |
+| BMC | 2013-09-11 |
+| CCE | 2016-05-31 |
+| CFC | 2008-07-01 |
+| GR | 2012-07-27 |
+| HAR | 2017-03-13 |
+| MHS | 2012-04-02 |
+| NCC | 2009-01-02 |
+| TEG | 2015-06-30 |
+| TIE | 2012-12-24 |
+
+No PIT window reaches them, because no membership interval overlaps the file. A static or
+cache-wide universe, though, would read each one as the PIT name. They are class (i) beside SLE
+and POM, and are refused forever under the symbol. Their holes are declared in
+`config/data_gaps.json` with the reason "a later entity on the symbol". That declaration records
+the fact and excuses only those days, never the identity.
+
 **Level changes the writer adopted SILENTLY as RESCALED (Agent R's read, 2026-10-15; reproduced
 from the write pass's own record).** `classify_overlap` reads any CONSTANT ratio as a rescale, and
 it has no band. So 14 written files changed level by a factor of 2× to 18× under a clean record.
@@ -479,6 +502,12 @@ labels carrying both reasons.
    span, 5 convention, BK) stop six months before the rest, a ragged end that any to-date run reads
    as "stopped trading". The canonical windows end 2025-12-31 and are unaffected; this step runs the
    classes before cutover day.
+   **The write log quotes the five LEGACY-W residuals (ruled 2026-10-15; the rail proposal §8):**
+   CAT +0.0019, ZTS +0.0043, LOW +0.0048, PG +0.0075 and CVS +0.0087 are quoted beside the pass's
+   own values. A provider history revision since the record is then a visible diff, and a material
+   one is a LEVEL IDENTITY refusal, never a silent pass. *(Note, same day: "the DECLARED
+   level-ratio band" above was superseded by the level rail, the last-bar identity merged at
+   dad8786; see the rail proposal.)*
 3. Re-qualification runs per §5.
 4. Cutover day: the copy replaces the canonical substrate in one step; every §3 pin is re-pinned
    together; the guard switches on at every writer in the §4 inventory of the guard proposal, all at

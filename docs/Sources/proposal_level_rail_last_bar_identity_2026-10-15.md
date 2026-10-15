@@ -217,3 +217,17 @@ ratio. The record shows none: the over-tolerance set is exactly the five above.
   stale file's d says nothing about when it was fetched.
 - (ii) The cutover-day write log should quote these five residuals beside its own, so a provider
   revision between now and then is a visible diff.
+
+**RULED (R, ratified by the director, 2026-10-15): LEGACY W = 2026-04-25 is ACCEPTED, with this
+record as its proof on the closed set, on three grounds:**
+- the set is closed, because every new write pins its true W;
+- the exposure is bounded by the data, because any legacy file with an ex-date between its true
+  fetch date and 04-25 large enough to breach 0.01 would already sit in the over-tolerance set,
+  and that set is exactly the declared five;
+- the affected files are named with their ex-dates and residuals: CAT +0.0019, ZTS +0.0043,
+  LOW +0.0048, PG +0.0075, CVS +0.0087, all inside 0.01, the margin 0.0013 stated, not tuned.
+
+So it is a measurement, not a bound. NO per-file W is read off each file's own content (the last
+ex-date it carries): that would give residual 1 for all five, but choosing the hypothesis that yields
+the smaller residual is tuning under another name. (ii) is ruled yes: the cutover-day write log
+quotes the five residuals (the cutover proposal §6).
