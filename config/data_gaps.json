@@ -1,5 +1,5 @@
 {
- "_doc": "Declared data gaps (the stale/holed-files guard, engines/data_manager/coverage.py). Each facet excuses exactly what it declares: holed_inside.runs excuse missing trading days inside those runs only; ends_at_delisting excuses an early END only when the file's last bar IS last_bar. Neither excuses the other. First set 2026-10-15: every holed file that NO provider can fill (no series) \u2014 built mechanically by Dev/_substrate_candidates/build_data_gaps_2026-10-15.py.",
+ "_doc": "Declared data gaps (the stale/holed-files guard, engines/data_manager/coverage.py). Each facet excuses exactly what it declares: holed_inside.runs excuse missing trading days inside those runs only; ends_at_delisting excuses an early END only when the file's last bar IS last_bar. Neither excuses the other. First set 2026-10-15: every holed file that NO provider can fill (no series), plus provider gaps on days the security traded (with independent evidence) \u2014 built mechanically by Dev/_substrate_candidates/build_data_gaps_2026-10-15.py.",
  "declarations": {
   "ABS": {
    "holed_inside": {
@@ -730,6 +730,21 @@
     "last_bar": "2022-12-14",
     "pit_exit": "2022-12-19"
    }
+  },
+  "FISV": {
+   "holed_inside": {
+    "n": 1,
+    "runs": [
+     [
+      "2025-11-12",
+      "2025-11-12"
+     ]
+    ]
+   },
+   "reason": "provider gap: the universe provider (yfinance) lacks this bar in BOTH modes (auto_adjust True and False) while the security traded - Alpaca records a full session (SIP volume 6,244,651; IEX 169,683); the day after Fiserv's FI -> FISV ticker change (FI's last bar 2025-11-10). Not a non-trading day: SPY traded. The one-provider rule keeps it unfilled; the real cache lacks it too",
+   "source": "yfinance FISV 2025-11-03..11-21 both modes, fetched 2026-10-15 (11-12 absent); Alpaca StockBars FISV 2025-11-07..11-14 iex and sip (11-12 present); Alpaca asset FISV: NASDAQ, ACTIVE",
+   "date": "2026-10-15",
+   "declared_by": "B"
   },
   "FLT": {
    "holed_inside": {

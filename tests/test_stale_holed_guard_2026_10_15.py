@@ -224,15 +224,19 @@ def test_a_malformed_declaration_file_RAISES(tmp_path, bad):
 
 def test_the_SHIPPED_declarations_load_and_name_the_first_set():
     """The first set (2026-10-15): every holed file NO provider can fill, built mechanically from the
-    holes census; ends_at_delisting only where the PIT exit evidences it."""
+    holes census; ends_at_delisting only where the PIT exit evidences it; plus one PROVIDER GAP on a
+    day the security traded (FISV 2025-11-12: absent from the universe provider in both modes,
+    present in an independent source), declared with that evidence."""
     d = load_data_gaps()
-    assert len(d) == 45
+    assert len(d) == 46
     assert {"BBBY", "PSKY", "CPWR", "CCE", "NCC", "CFC"} <= set(d)
     ends = {t for t, v in d.items() if "ends_at_delisting" in v}
     assert len(ends) == 19 and d["JNPR"]["ends_at_delisting"] == {
         "last_bar": "2025-07-01", "pit_exit": "2025-07-09"}
     assert all("holed_inside" in v and v["holed_inside"]["runs"] for v in d.values())
-    assert sum(v["holed_inside"]["n"] for v in d.values()) == 1298
+    assert sum(v["holed_inside"]["n"] for v in d.values()) == 1299
+    assert d["FISV"]["holed_inside"] == {"n": 1, "runs": [["2025-11-12", "2025-11-12"]]}
+    assert d["FISV"]["reason"].startswith("provider gap") and "Alpaca" in d["FISV"]["source"]
 
 
 # ---------------------------------------------------------------- formation coverage --------------
