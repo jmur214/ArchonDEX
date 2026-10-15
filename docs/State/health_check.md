@@ -166,7 +166,7 @@ then LOW. Within each severity, list newest at the top.
   file silently. Both producers write the key, under the two-producer lock. (2) The 33 unfixable holed files need a declared
   treatment at cutover. (3) Sizing the bias on the momentum verdicts is a measurement for their
   owners.
-- Anchor: `engines/data_manager/universe_resolver.py:302` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (the line moves to :333 when the ticker-exclusion unit 4c57d4c merges)
+- Anchor: `engines/data_manager/universe_resolver.py:333` contains `if n_lines - 1 < min_rows:` — the admission rule reads a file's ROW COUNT and never its END date (moved from :302 when the ticker-exclusion unit 4c57d4c merged at 0435de7; re-pointed deliberately under the lint's exit (b): :333 is the same code, not a comment, and still the witness)
 
 ### [MEDIUM] The canonical AGG file is SPLIT-ONLY (the backfill_t052 trio; EFA and VNQ likewise) — T-247/T-257/T-262/T-278 measured AGG without its dividends, ~3 %/yr understated; T-257/T-278 carry a trigger via the advisor tier table (B, 2026-10-15, cutover proposal §5.1)
 - Engine: data substrate / research verdicts — `data/processed/{AGG,EFA,VNQ}_1d.*`, written by `scripts/backfill_t052_macro_data.py`
