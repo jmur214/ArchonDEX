@@ -69,8 +69,13 @@ identity failure:
 **The first declaration set** is the four ÷10 files, kind `scale_defect`, declared_ratio 10.0, source
 "the old loader's ÷10 fired on the Alpaca leg at the T-082b merge (R's read; B's identity
 measurement)". For AZO, MTD and NVR this write IS the restoration. It is what the ticker exclusion's
-`lift_verified` then checks at re-pin #2. SLE's write is refused anyway on identity grounds (reused
-ticker, class (i)); its declaration exists so the ÷10 is on record.
+`lift_verified` then checks at re-pin #2. **SLE is NOT covered by a declaration's write.** *(This
+sentence first said SLE's write is "refused anyway on identity grounds". That was false: the write
+pass WROTE SLE, RESCALED at 10.0, because its file IS the reused entity, so the span and the overlap
+both pass. R's read, 2026-10-15.)* A matching `scale_defect` declaration would write Super League at
+×10 under Sara Lee's symbol, and `lift_verified` would lift its exclusion. So SLE, with POM, is class
+(i) in the cutover proposal's reused-ticker table, refused forever. Its `scale_defect` record exists
+only so the ÷10 is on file, never as a license to write.
 
 **R's other ten need NO declaration:** the identity explains them all.
 
