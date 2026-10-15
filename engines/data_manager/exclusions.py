@@ -52,13 +52,20 @@ DECLARED_EXCLUSIONS: Dict[str, dict] = {
 #: files are NOT edited (a substrate change would invalidate every anchor's digest). The exclusion
 #: lifts at re-pin #2 only through `lift_verified`: each written level must agree with the declared
 #: ratio at the evidence date.
+_MERGE_DIV10 = "scale defect ÷10 baked at the T-082b merge"
 DECLARED_TICKER_EXCLUSIONS: Dict[str, dict] = {
-    t: {"census_key": "scale_defect_div10",
-        "reason": "scale defect ÷10 baked at the T-082b merge",
-        "declared_ratio": 10.0,
-        # the evidence the declaration was made on: the canonical cache's close at a reference date
-        "evidence": {"date": "2021-06-01", "cache_close": close}}
-    for t, close in (("AZO", 141.08), ("MTD", 129.63), ("NVR", 484.10))
+    **{t: {"census_key": "scale_defect_div10", "reason": _MERGE_DIV10, "declared_ratio": 10.0,
+           # the evidence the declaration was made on: the canonical cache's close at a date
+           "evidence": {"date": "2021-06-01", "cache_close": close}}
+       for t, close in (("AZO", 141.08), ("MTD", 129.63), ("NVR", 484.10))},
+    # Added 2026-10-15 (director's ruling (b)): the writer's last-bar LEVEL IDENTITY read SLE at
+    # exactly 0.1000 of its true print (cache 0.376 vs 3.76 on 2026-04-24). SLE is also a REUSED
+    # ticker (Sara Lee left the index; the cached file from 2019-02-26 is the reused entity) and has
+    # NO PIT interval — but a static or cache-wide universe can reach it, so it is withheld too.
+    "SLE": {"census_key": "scale_defect_div10",
+            "reason": "scale defect ÷10, no PIT interval; reachable by a static or cache-wide universe",
+            "declared_ratio": 10.0,
+            "evidence": {"date": "2026-04-24", "cache_close": 0.3759999990463257}},
 }
 LIFT_TOLERANCE = 1e-3          # |written / (cache_close × declared_ratio) − 1| for the lift
 
@@ -170,15 +177,17 @@ def lift_verified(ticker: str, written_close_at_evidence_date: float) -> bool:
 
 def ticker_exclusions_applied() -> Dict[str, dict]:
     """The census block for the ticker kind: every declared name withheld in this run (at
-    resolution) or in this process's PIT membership, keyed by census key."""
+    resolution) or in this process's PIT membership, keyed by census key. The reason and evidence
+    are PER TICKER — names under one key can carry different reasons (SLE's is not AZO's), and a
+    key-level reason would silently keep only the first name's."""
     out: Dict[str, dict] = {}
     names = sorted(set(_TICKERS_APPLIED) | set(_TICKER_MEMBERSHIP_APPLIED))
     for t in names:
         spec = DECLARED_TICKER_EXCLUSIONS[t]
-        entry = out.setdefault(spec["census_key"], {"reason": spec["reason"],
-                                                    "declared_ratio": spec["declared_ratio"],
-                                                    "tickers": {}})
-        entry["tickers"][t] = {"withheld_at": sorted(_TICKERS_APPLIED.get(t, set())),
+        entry = out.setdefault(spec["census_key"], {"tickers": {}})
+        entry["tickers"][t] = {"reason": spec["reason"], "declared_ratio": spec["declared_ratio"],
+                               "evidence": dict(spec["evidence"]),
+                               "withheld_at": sorted(_TICKERS_APPLIED.get(t, set())),
                                "membership_intervals_dropped": _TICKER_MEMBERSHIP_APPLIED.get(t, 0)}
     return out
 

@@ -31,10 +31,13 @@ def _resolution_names() -> set:
 
 # ── removed at RESOLUTION, on every path ────────────────────────────────────────
 
-def test_the_declaration_is_the_three_scale_defect_names():
-    assert DECLARED == ["AZO", "MTD", "NVR"]
+def test_the_declaration_is_the_four_scale_defect_names():
+    """AZO, MTD, NVR (R's read) and SLE (the last-bar LEVEL IDENTITY read it at exactly 0.1000)."""
+    assert DECLARED == ["AZO", "MTD", "NVR", "SLE"]
     for spec in ex.DECLARED_TICKER_EXCLUSIONS.values():
         assert spec["declared_ratio"] == 10.0 and "÷10" in spec["reason"]
+    assert ex.DECLARED_TICKER_EXCLUSIONS["AZO"]["reason"] == "scale defect ÷10 baked at the T-082b merge"
+    assert "no PIT interval" in ex.DECLARED_TICKER_EXCLUSIONS["SLE"]["reason"]
 
 
 def test_a_declared_ticker_is_removed_at_RESOLUTION_on_the_static_path(tmp_path):
@@ -78,9 +81,20 @@ def test_resolution_exclusion_keeps_census_invariant_2_GREEN_with_the_allowlist_
 def test_the_census_block_names_the_names_the_reason_and_the_declared_ratio(tmp_path):
     resolve_universe(static_tickers=["MTD", "AAPL"], start="2021-01-01", end="2024-12-31",
                      use_historical=False, cache_dir=tmp_path)
-    blk = ex.ticker_exclusions_applied()["scale_defect_div10"]
-    assert blk["reason"] == "scale defect ÷10 baked at the T-082b merge" and blk["declared_ratio"] == 10.0
-    assert blk["tickers"]["MTD"]["withheld_at"] == ["resolution"]
+    rec = ex.ticker_exclusions_applied()["scale_defect_div10"]["tickers"]["MTD"]
+    assert rec["reason"] == "scale defect ÷10 baked at the T-082b merge" and rec["declared_ratio"] == 10.0
+    assert rec["withheld_at"] == ["resolution"] and rec["evidence"]["cache_close"] == 129.63
+
+
+def test_SLE_and_AZO_withheld_together_KEEP_BOTH_reasons(tmp_path):
+    """One census key, two reasons: a key-level reason would keep only the first name's (found
+    when SLE was added)."""
+    resolve_universe(static_tickers=["AZO", "SLE", "AAPL"], start="2021-01-01", end="2024-12-31",
+                     use_historical=False, cache_dir=tmp_path)
+    tick = ex.ticker_exclusions_applied()["scale_defect_div10"]["tickers"]
+    assert set(tick) == {"AZO", "SLE"}
+    assert tick["AZO"]["reason"] != tick["SLE"]["reason"]
+    assert "no PIT interval" in tick["SLE"]["reason"]
 
 
 def test_an_ERRORED_ticker_exclusions_record_fails_the_census():
