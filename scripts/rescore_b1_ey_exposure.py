@@ -129,7 +129,7 @@ def forbid_network() -> None:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    forbid_network()                                     # FIRST — before any import does work
+    forbid_network()             # FIRST in main(): before any read, lazy import or possible fetch
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--panel", required=True)
     ap.add_argument("--recorded", required=True, help="the run's results JSON (run1)")
