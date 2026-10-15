@@ -155,6 +155,8 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 *This section is automatically built by `scripts/sync_docs.py`. Do not edit manually.*
 
 ### `data_manager.py`
+- **Class `CacheUnreadableError`**: A cache file could not be read. It was QUARANTINED (renamed), never deleted.
+  - `def __init__()`
 - **Class `DataManager`**: No docstring
   - `def __init__()`
   - `def prefetch_fundamentals()`: Batch-fetch and cache fundamentals for all tickers. Call during data loading.
@@ -231,6 +233,20 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `members_on()`**: No docstring
 - **Function `in_index()`**: Boolean (date x ticker) membership mask, vectorized over intervals.
 
+### `tr_writer.py`
+**Module Docstring:** The TOTAL-RETURN writer for the processed price cache (data/processed/<TICKER>_1d.{csv,parquet}).
+- **Class `WriterRefusal`**: The writer will not write: the evidence for a safe replacement is missing.
+  - `def __init__()`
+- **Class `WriteRecord`**: No docstring
+- **Function `covers_span()`**: A whole-file replacement must cover everything the cached file holds.
+- **Function `measure_basis()`**: Two-mode measurement (R's C-4). Total-return back-adjustment makes adjusted/unadjusted RISE
+- **Function `classify_overlap()`**: The guard's test on an overlap window (R §3.1): the same convention reads ratio 1 at the
+- **Function `seam_return_ok()`**: R's C-3 rail: an UNADJUSTED provider after a split matches the pre-split overlap and would
+- **Function `with_derived_columns()`**: ATR + PrevClose per project convention (scripts/merge_stooq_alpaca_substrate.py).
+- **Function `write_pair_atomically()`**: Both temp files are written first; only then are both swapped in. A failure while writing
+- **Function `full_refetch()`**: Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
+- **Function `yfinance_provider()`**: yfinance: auto_adjust=True -> total return; False -> split-adjusted Close.
+
 ### `universe.py`
 **Module Docstring:** Survivorship-bias-aware S&P 500 historical membership pipeline.
 - **Class `UniverseError`**: Raised for non-recoverable failures in the universe pipeline.
@@ -252,3 +268,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 **Module Docstring:** engines/data_manager/universe_resolver.py
 - **Function `resolve_universe()`**: Return the (tickers, debug_info) tuple for a backtest run.
 - **Function `discover_cached_tickers()`**: Return the set of tickers with a USABLE cached price CSV under
+
+### `yahoo_symbols.py`
+**Module Docstring:** ONE Yahoo symbol table for the processed cache's tickers (director ruling, 2026-10-15).
+- **Function `yahoo_symbol()`**: (the Yahoo symbol to fetch, the kind of mapping: None, SHARE_CLASS or RENAME).
