@@ -154,3 +154,30 @@ take it next.
 1. Approve §3–§5 as one propose-first unit. It runs after C's cells, because a refresh is a
    substrate change.
 2. Assign item (d), the price-level scan.
+
+## 8. Proof on a COPY: XOM (R's lock 2), 2026-10-15, real cache untouched (md5 verified)
+
+`full_refetch("XOM", <scratch copy>, DEFAULT_PROVIDERS, today=2026-10-14)`:
+
+- **Write record:**
+  - provider `yfinance` (the span starts 1970, so not Alpaca);
+  - mode `adjusted`;
+  - span `1970-01-02 → 2026-10-14`, covering the cached `1970-01-02 → 2026-04-17`;
+  - 14,318 rows;
+  - basis **`measured_tr`** (a step on 2026-08-17 inside the 90-day window).
+- **Ex-date steps against the split-only Alpaca raw bars, 2023–2025:** **12** in the re-fetch,
+  **12** in the current cache, **on the same dates**.
+- **Post-seam, re-fetch/cache = constant 0.98687 (2024–2026 median).** That is the rescale from the
+  dividends since the cache's last bar. It is exactly the `RESCALED → full re-fetch` case, and the
+  reason the re-fetch branch is the steady state.
+- **Pre-seam, re-fetch/cache ≈ 1.10 (1990s median).** The writer replaces T-082b's constant-yield
+  drip with exact ex-date total return. **The first full pass is therefore not a cosmetic refresh: it
+  rewrites roughly 2000–2018 history for the ~626 `both` files** (about 10% in level for XOM in the
+  1990s). Every deep-history measurement on this substrate becomes a re-pin event, and the B-1 panel
+  md5 will change by design (R's lock 7: visible as a re-pin, never silent).
+
+**Still to do (the full pass is ruled separately):**
+- the writer inventory (§4, partial);
+- the full pass on a copy of all ~730 files (lock 7: the 0f7a013 class lock holds; the B-1 panel md5
+  moves visibly);
+- only then, switching the guard on at the refresh paths.
