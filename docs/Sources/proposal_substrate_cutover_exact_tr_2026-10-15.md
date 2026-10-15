@@ -95,7 +95,7 @@ survivorship bias into an upward bias whose SHAPE differs by survivor status.
 
 | option | what it does | consequences |
 |---|---|---|
-| **(a) One convention everywhere: keep the drip, labelled universally** | No cutover of deep history until a delisted-capable total-return source exists. Every deep history is labelled "drip (constant-yield approximation)", everywhere. | Homogeneous and survivorship-consistent. **Knowingly keeps** the dividend under-count (finding one) in every pre-seam number, labelled rather than fixed. Post-seam is already exact. Cheapest; no re-qualification beyond the label. |
+| **(a) One convention everywhere: keep the drip, labelled universally** | No cutover of deep history until a delisted-capable total-return source exists. Every deep history is labelled "drip (constant-yield approximation)", everywhere. | Homogeneous and survivorship-consistent. **Knowingly keeps** the drip's per-name return DISPERSION (finding one: median −0.10 %/yr, but 102 of 559 names move by more than 1 %/yr) in every pre-seam number, labelled rather than fixed. Post-seam is already exact. Cheapest; no re-qualification beyond the label. The universal label is a census field, so this is a referee change too, as in (b). |
 | **(b) Exact where available, drip where not, with a per-name convention field** | Live names cut over; delisted names stay on the drip. Each file carries a `convention` field (`exact_tr` / `drip`); the **census reads it**, and every equity-book measurement reports the split (share of names, share of weight, on each convention). | The most exact per name. The universe is **mixed by construction**, and the mix correlates with survivor status, so a long/short or cross-sectional result can partly reflect the convention split. That is visible because it is reported, but it is a confound. A census field becomes a referee change. |
 | **(c) Buy a survivorship-complete total-return source** | Acquire a source that covers delisted names with exact total return (the B-1 prereg's re-verification clause already names this path). One provider, one convention, the whole universe. | The only option that is exact AND homogeneous. Costs money and is a new external dependency (a propose-first gate under CLAUDE.md), plus provider evaluation and a manifest of its own. Until it lands, (a) or (b) must hold. |
 
@@ -132,7 +132,7 @@ row, no non-yfinance row replayed) gives every one of the 730 files an outcome:
 
 | outcome | files |
 |---|---|
-| **written** | **632**: 475 RESCALED (the steady state), 157 APPEND (incl. BRK.B and BF.B, under the shared symbol table) |
+| **written** | **632**: 475 RESCALED, 157 APPEND (incl. BRK.B and BF.B, under the shared symbol table). **Of the 475, 14 are LEVEL CHANGES outside the dividend band [0.80, 1.10], not dividend rescales** (below) |
 | refused: DIFFERENT_CONVENTION | 5: AGG, EFA, VNQ, AMCR, CPWR |
 | refused: span | 17: BBBY, PSKY, NFX; DAL; C, INTC, JPM, ELV, MAR, PLD, AXP, WMT; CHTR, KDP, TDC, UAL, WU |
 | ticker change, held | 1: BK (below) |
@@ -149,6 +149,39 @@ The refusals, by class:
 | **(ii) Stitched identity** | **DAL** | span: cache from 1980, yfinance from 2007-05-03 (pre-2007 is old Delta) | **The user's decision:** declared truncation vs a declared seam. Note: the writer does not yet apply DAL's declared load-time exclusion (`dal_pre2007_excluded`) to the span it must cover. |
 | **(iii) Stooq history deeper than yfinance** | **C** (+7 yr), **INTC** (+8), **JPM** (+10), **ELV** (+8), **MAR** (+4.5), **PLD** (+2), **AXP** and **WMT** (+5 months) | span | **The user's decision:** declared truncation (lose the oldest years) vs a declared seam (keep the drip before yfinance's first bar — a two-convention file, the T-082b class, but declared and census-recorded) |
 | **(iv) Start-window leads, 9–34 days** | **CHTR, KDP, TDC, UAL, WU** | span: yfinance starts 9–34 days after the cache, past the 7-day slack (listing or emergence windows) | **The user's decision**, the same choice as (iii) at a much smaller scale |
+
+**Level changes the writer adopted SILENTLY as RESCALED (Agent R's read, 2026-10-15; reproduced
+from the write pass's own record).** `classify_overlap` reads any CONSTANT ratio as a rescale, and
+it has no band. So 14 written files changed level by a factor of 2× to 18× under a clean record.
+That is this writer's defect, and the percentiles in §4 hid it at the tails:
+
+| ratio (provider / cache) | files | class |
+|---|---|---|
+| 0.0998 · 0.149 · 0.200 · 0.250 · 0.4985 · 0.500 | KLAC · CTVA · CVNA · CRWD · APH · MNST | corporate actions (splits) after the cache's last bar: a legitimate back-adjustment of the whole history |
+| 0.696 · 0.800 · 2.975 | AIV · FDX · DD | large distributions and a spin-off |
+| 10.0 · 18.0 | SLE (cache from 2019-02-26) · POM (from 2025-10-08) | **reused tickers where the cached file IS the reused entity.** Sara Lee and Pepco left the index years earlier. The identity rail passes because the tail agrees with itself, and the PIT mask hides them |
+| **10.000000000000002** | **AZO · MTD · NVR** | **a SCALE DEFECT, ÷10, over the whole history in the canonical cache TODAY** |
+
+The three ÷10 files are a new HIGH on main (owner B). Their Alpaca legs had true medians above 1,000,
+so the old loader's ÷10 auto-scale fired at MERGE time, and `fit_ratio_loglinear` carried the 0.1
+back through the Stooq years. The result is uniform, with no seam jump and a median under 1,000, which
+is why item (d)'s load-path count ("exactly ONE — DAL") could not see them.
+
+Ruled (director, 2026-10-15, amended):
+- **NOW:** the three are withheld by a second exclusion KIND, `ticker`, applied at universe
+  RESOLUTION, so the resolved universe and the panel both exclude them and the census allow-list
+  stays 0. The withholding carries its own census key (the names, the reason, the declared ratio
+  10.0), written by BOTH census producers.
+- **No ×10 edit of the canonical files:** a substrate change would invalidate every anchor's digest.
+- **At re-pin #2:** the exclusion lifts only when each written level verifies against the declared
+  ratio.
+- **BEFORE cutover day:** the guard gets a DECLARED level-ratio band. A constant ratio outside the
+  dividend band is a corporate action, a reused ticker or a scale defect, never a dividend rescale,
+  so the write must match a per-name declaration (kind, source, date) or REFUSE. These 14 files are
+  the first declaration set.
+
+The 98 unwritten files cannot be checked for the same defect this way, because there is no provider
+series to compare against.
 
 **Share-class spelling (BRK.B, BF.B).** The writer as first merged passed the cache's dot form,
 which Yahoo does not know. The shared symbol table (main `47aca8a`) fetches BRK-B and BF-B, records
@@ -185,7 +218,9 @@ at run time**, **bakes at build**, **fixed-number test**, **CI workflow**, **can
 
   `tr_reconciled/` is outside the cutover: the write pass changed exactly 1,264 top-level files (632
   × csv + parquet) and nothing under `tr_reconciled/`. `Dockerfile.paper:48-55` says the same: "No
-  other data substrate is baked."
+  other data substrate is baked." (Its line 49, "exactly one data file", has itself been stale since
+  `tr_reconciled/` was staged. The comment fix rides with the next touch of that file, not as a unit
+  of its own.)
 - **One run-time read of the flat files, report-only.** The eval harness resolves analyst predictions
   for symbols outside the sleeve by falling back to `data/processed/<SYM>_1d.csv`
   (`run_paper_cloud_day.py:1249-1257` → `intelligence/analyst/eval_harness.py:37,55-58`). The path is
@@ -221,14 +256,38 @@ resolutions change at the next image build.
 | the exact-TR candidate's own manifest | manifest | the copy as a fixed object | — | pin after the §2b declared paths run (§6) |
 
 **Derived files with no hash, which would go stale silently:**
-- `data/universe/market_cap_tiers.json`: its delisted-name entries are processed Close × shares
-  (`scripts/build_pit_cap_history_t219.py:61-68`), byte-pinned, and baked into the research image
-  (`Dockerfile.backtest:142`). It moves only for names the cutover rewrites, and the 75 delisted
-  names are not rewritten (§2).
+- **`data/external/base_curve/`** (`t118r_v1_26yr_arm0_3b403882.csv`). A controller product derived
+  from the processed closes, read by T-171 (`mf_sleeve_deep_crisis_t171.py:43`), T-178
+  (`regime_sleeve_sizer_t178.py:37`) and T-174 (`vrp_edge_t174.py:25`). `data/external` is in no
+  `SUBSTRATE_DIRS` entry, so the manifest has zero lines for it (R's read).
+  **Decision (B, delegated): PIN it at re-pin #1, by adding `data/external/base_curve` to the
+  manifest's scope (`SUBSTRATE_DIRS`),** so it is inside the manifest before the gate reads the
+  manifest. It is NOT regenerated at re-pin #2: T-171 and T-178 are re-labelled with this pin
+  (§5.1), and T-174's RR-1 re-run writes its own new curve under a new name. The old file stays
+  pinned as the input of record.
+
+**A pinned derived file the cutover MOVES:**
+- **`data/universe/market_cap_tiers.json`**: byte-pinned (`SUBSTRATE_FILES`) and baked into the
+  research image (`Dockerfile.backtest:142`). Its T-219 `delist_shares` cohort is 138 entries,
+  computed as processed Close × shares (`scripts/build_pit_cap_history_t219.py:61-68`).
+  *(Corrected: this bullet first said the cohort is not rewritten. It is: the cohort is "left the PIT
+  panel", not "left the exchange", so **91 of the 138 are files the pass WROTE**, 52 of them with a
+  rescale ratio from 0.955 to 18. R's read.)*
+  **Re-pin #2 REGENERATES the cohort from the cutover cache, with its command recorded. But as
+  written that regeneration is NOT deterministic:** the shares come from a LIVE yfinance fetch
+  (`get_shares_full`, :56), and a failed fetch is swallowed to None (:57-58). The fix: pin a shares
+  snapshot once, at re-pin #1, so re-pin #2 becomes a deterministic recompute. If that is not done,
+  the fallback applies and the cohort is FROZEN with this reason. The swallow is a fail-open of its
+  own: a failed fetch reads as "no shares data", the free-data wall.
 - the T-306 SPY leg of `substrate_multidecade` (`scripts/build_multidecade_substrate_t306.py:75-77`).
   SPY is RESCALED by a constant 0.99496 over its whole span (§5 row below), so only its level moves.
 - `ohlc_features_t150`.
 - `_merge_meta.json`, which nothing reads.
+
+**The fundamentals pin's consequence (R's read):** with the cache pinned, and a canonical-run miss
+recorded rather than fetched, a universe change in a canonical run reads `fundamentals_blind > 0`.
+That is NON-CANONICAL under `[NN-CENSUS]` while a value edge is active, so the fundamentals prefetch
+becomes a DECLARED re-bake step of re-pin #1, never a run-time fetch.
 
 **The manifest already fails verify, before any cutover: the known B-7 blocker.** This was first
 recorded on 2026-09-30 in RR-7 Deliverable 3 (`docs/Sources/referee_repair_proposal_RR-7_2026-09-30.md`):
@@ -294,7 +353,7 @@ Over the 652 files yfinance served (latest inventory row per file, yfinance thro
 | **pre-seam** return delta, exact − drip | 559 | median −0.10%/yr; p10 −1.34; p90 +0.58; 102 move more than 1%/yr (§1) |
 | pre-seam level ratio, exact / drip (median per file) | 561 | p10 0.968; median 1.007; p90 1.124 |
 | **post-seam** return delta | 647 | median 0.00; p10 and p90 0.00. Only 4 files move more than 0.5%/yr, and they are exactly refused ones: AGG +3.19, EFA +2.66, VNQ +4.30 (their dividend yields, split-only) and CPWR −9.19 (identity) |
-| post-seam level ratio (median per file) | 649 | p10 0.979; median 0.994; p90 1.000: a constant rescale from ex-dates since the cache was written |
+| post-seam level ratio (median per file) | 649 | p10 0.979; median 0.994; p90 1.000: a constant rescale from ex-dates since the cache was written. **Silent at the tails: 14 files lie outside [0.80, 1.10]. They are level changes, not dividend rescales, and include the three ÷10 files (§2b)** |
 
 **The post-seam cache is already exact total return everywhere except the files the writer
 refuses.** The cutover's effect on returns is confined to the pre-seam drip (§1). The per-file
@@ -305,7 +364,7 @@ detail is in the inventories listed in the evidence base.
 **Scope authority:** `docs/Sources/referee_repair_proposal_RR-1_2026_09_30.md` §5, the verdict list
 read row by row. The cutover's own test is different from RR-1's. **Does the verdict's evidence read
 PRE-SEAM equity closes in `data/processed/`, or a dollar-ADV computed from them?** There are two
-reasons a pre-seam number moves: §1's dividend under-count, and the item (d) dollar-ADV deflation
+reasons a pre-seam number moves: §1's per-name return dispersion, and the item (d) dollar-ADV deflation
 (`docs/Sources/scan_price_level_consumers_item_d_2026_10_15.md`).
 
 | class | verdicts | cutover action |
@@ -318,6 +377,30 @@ reasons a pre-seam number moves: §1's dividend under-count, and the item (d) do
 | **ETF verdicts on `tr_reconciled/`** | already exact total return; untouched by this cutover | **UNAFFECTED** |
 | **Independent harnesses on RAW Stooq files** (CONFIRMED from each script, 2026-10-15) | T-204 (`trend_overlay_validation_t204.py:35-37`: SPY/AGG/GLD from `data/raw/stooq/daily/us/nyse etfs/…`), T-213 (`industry_momentum_t213.py:25-30`: sector ETFs globbed from `data/raw/stooq/daily/us/**`), T-239 (`moonshot_rescore_t239.py:11`: `data/raw/stooq/daily/us/**/<t>.us.txt`) | **UNAFFECTED by this cutover**, which rewrites only `data/processed/`. Their basis is raw Stooq, split-only before about 2011 (R's per-era finding). That is T-256's known question, not a cutover one, and is noted here, not reopened |
 | **RR-1's "needs a reviewer" (7)** | T-136, T-148, T-166, T-169, T-172, T-214, T-220 | inherit RR-1's resolution, then the same test |
+
+### 5.1 Harnesses OUTSIDE RR-1's row set, classified by the director's rule (R's read, 2026-10-15)
+
+RR-1's selection test ("did the controller produce it?") is orthogonal to the cutover's ("does it read
+pre-seam processed closes?"), so these were missing. **The rule (director):**
+- RE-LABEL as "refuted on the drip substrate; not re-run" when the ledger status is refuted or null
+  AND nothing current (a parameter, a gate, a live-risk setting) reads from it;
+- RE-RUN on the cutover substrate when anything current consumes it.
+
+Consuming sites were searched across `config/`, `engines/`, `paper_trader/`, `core/`,
+`orchestration/`, `intelligence/` and the edge registry `data/governor/edges.yml`:
+
+| verdict | ledger | what it reads (R) | current consumer found | action |
+|---|---|---|---|---|
+| T-123 BAB | refuted | `glob(data/processed/*_1d.csv)`, from 2014 | none | **RE-LABEL** |
+| T-135 overnight/intraday | refuted | same glob, from 2000 | none for its NUMBERS. Its corrupt-opens repair METHOD is ported into `engines/engine_b_risk/yz_vol.py:17` (code, not a measured value). `overnight_intraday_edge.py` is NOT in the edge registry | **RE-LABEL** |
+| T-137 8-K reactions | refuted | same glob, from 2004 | none for its numbers. `core/multiple_testing.py` (a promoted helper) and `intelligence/event_call/eightk_body.py` (SEC etiquette) reuse code, not values | **RE-LABEL** |
+| T-150 OHLC panel | done | same glob, from 1999 | **Engine B live risk:** the Yang-Zhang estimator adopted on T-150's screens (`yz_vol.py`, `vol_target.py`, `risk_engine.py`) | **RE-RUN** (ruled) |
+| T-153 vol-collapse | done | EWMA over `*_1d.csv` | **Engine B live risk:** its assessment justifies YZ's collapse immunity (`yz_vol.py:13`), feeding `risk_engine.py` / `vol_target.py` | **RE-RUN** |
+| T-269 asymmetric exits | refuted | `data/processed/{tkr}_1d.csv`, SPY | none | **RE-LABEL** |
+| T-171 MF deep crisis | done | the frozen base curve (above) | none: no current MDD or risk parameter reads the base curve, and no MF-sleeve weight exists in `config/` or `paper_trader/` | **RE-LABEL with the base-curve pin** |
+| T-178 regime sleeve sizer | done | the frozen base curve | none: `paper_trader/paper_telemetry.py:199`'s `safe_f` is computed LIVE from the paper record (`compute_safef_car25`), and `SafeFConfig` carries no T-178 provenance | **RE-LABEL with the base-curve pin** |
+
+R checks this classification.
 
 **Sequencing (RULED 2026-10-15 by the director, for the user to override).** The 31 controller and consumer verdicts are
 already slated for re-scoring under the corrected referee (RR-1/RR-5). The cutover changes their
@@ -334,7 +417,13 @@ labels carrying both reasons.
    md5 identical before and after; BRK.B and BF.B written once the shared symbol table merged).
    Then the §2b declared paths run, with BK's table entry landing WITH its class
    (split-only trio verified against the provider's split-only mode; the (ii)–(iv) declarations
-   applied); the candidate manifest is pinned.
+   applied). The DECLARED level-ratio band is in force before the real-cache write (§2b: the 14 are
+   the first declaration set). The candidate manifest is pinned.
+   **The cutover moves the cache's END** (R's read): all 632 written files end 2026-10-14, while the
+   98 unwritten end 2026-04-17/24 or earlier. Until the §2b declared classes run, 23 LIVE names (17
+   span, 5 convention, BK) stop six months before the rest, a ragged end that any to-date run reads
+   as "stopped trading". The canonical windows end 2025-12-31 and are unaffected; this step runs the
+   classes before cutover day.
 3. Re-qualification runs per §5.
 4. Cutover day: the copy replaces the canonical substrate in one step; every §3 pin is re-pinned
    together; the guard switches on at every writer in the §4 inventory of the guard proposal, all at
