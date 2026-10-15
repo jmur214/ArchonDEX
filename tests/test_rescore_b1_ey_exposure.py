@@ -12,7 +12,7 @@ FAM = ["value_book_to_market_v1", "value_earnings_yield_v1", "quality_gross_prof
 
 
 def _recorded(n_months, ey_p=0.36):
-    rows = [{"signal": s, "family": "short_window", "ic_p": (ey_p if s == rs.SIGNAL else 0.8)}
+    rows = [{"signal": s, "family": "short_window", "ic_p": (ey_p if s in rs.SIGNALS else 0.8)}
             for s in FAM]
     return {"rows": rows, "benchmarks": {"short_window": {"n_months": n_months}}}
 
@@ -26,7 +26,7 @@ def _planted_panel(spy, tilt_three: bool):
         if tilt_three:
             v[:3] = 10.0
         return v
-    p = _panel(spy, cols={rs.SIGNAL: ey})
+    p = _panel(spy, cols={sig: ey for sig in rs.SIGNALS})
     names = sorted(p.index.get_level_values("ticker").unique())[:3]
     p = p.rename(index=dict(zip(names, rs.REMOVED)), level="ticker")
     if tilt_three:
@@ -44,34 +44,40 @@ def test_the_three_are_REMOVED_and_the_family_is_the_short_window_six(tmp_path):
     res, halts = rs.rescore(p, cen, _recorded(months), root, 0, 100, 6)
     assert halts == [], halts
     assert res["family"] == "short_window" and len(res["family_p_used"]) == 6
-    assert res["rescored"]["n_months"] == months
-    # with the planted three removed, what remains is noise — no clear, no change
-    assert res["rescored"]["clears_ic"] is False
-    assert res["decision"] == "no change to the verdict"
+    assert set(res["signals"]) == set(rs.SIGNALS)
+    for sig in rs.SIGNALS:                    # both value signals, each re-scored
+        r = res["signals"][sig]["rescored"]
+        assert r["n_months"] == months
+        # with the planted three removed, what remains is noise — no clear, no change
+        assert r["clears_ic"] is False
+        assert res["signals"][sig]["decision"] == "no change to the verdict"
+        assert res["family_p_used"][sig] == r["ic_p"]   # the re-scored p enters the BH
     # control: the same method WITHOUT the removal finds the plant (so the removal is what bites)
     from scripts import raw_signal_decile_b1 as h
     _, frames = h.window_frames(p, "2021-07", p.index.get_level_values(0).max())
     kept = h.evaluate_signal(rs.SIGNAL, False, frames, np.zeros(months), np.zeros(months),
                              [fr.index for fr in frames], 0, 50, 6)
-    assert kept["ic_t_nw"] > res["rescored"]["ic_t_nw"] + 2
+    assert kept["ic_t_nw"] > res["signals"][rs.SIGNAL]["rescored"]["ic_t_nw"] + 2
 
 
 def test_a_rescore_that_CLEARS_is_labelled_CONTAMINATED_never_clear(tmp_path):
     root, spy = _spy_root(tmp_path)
-    p = _panel(spy, cols={rs.SIGNAL: lambda rng, n, fwd: fwd + rng.normal(0, 0.02, n)})
+    p = _panel(spy, cols={rs.SIGNALS[0]: lambda rng, n, fwd: fwd + rng.normal(0, 0.02, n),
+                          rs.SIGNALS[1]: lambda rng, n, fwd: rng.normal(size=n)})
     names = sorted(p.index.get_level_values("ticker").unique())[:3]
     p = p.rename(index=dict(zip(names, rs.REMOVED)), level="ticker")
     months = len([m for m in p.index.get_level_values("month_end").unique()
                   if m >= pd.Timestamp("2021-07-01")])
     res, halts = rs.rescore(p, _census(p), _recorded(months), root, 0, 100, 6)
     assert halts == [], halts
-    assert res["rescored"]["clears_ic"] is True
-    assert res["decision"] == "CONTAMINATED — UNTESTED"
+    assert res["signals"][rs.SIGNALS[0]]["rescored"]["clears_ic"] is True
+    assert res["signals"][rs.SIGNALS[0]]["decision"] == "CONTAMINATED — UNTESTED"
+    assert res["signals"][rs.SIGNALS[1]]["decision"] == "no change to the verdict"  # per signal
 
 
 def test_a_panel_missing_one_of_the_three_HALTS(tmp_path):
     root, spy = _spy_root(tmp_path)
-    p = _panel(spy, cols={rs.SIGNAL: lambda rng, n, fwd: rng.normal(size=n)})
+    p = _panel(spy, cols={sig: (lambda rng, n, fwd: rng.normal(size=n)) for sig in rs.SIGNALS})
     names = sorted(p.index.get_level_values("ticker").unique())[:2]
     p = p.rename(index=dict(zip(names, rs.REMOVED[:2])), level="ticker")
     _, halts = rs.rescore(p, _census(p), _recorded(42), root, 0, 50, 6)

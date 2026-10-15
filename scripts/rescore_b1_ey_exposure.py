@@ -1,24 +1,26 @@
-"""scripts/rescore_b1_ey_exposure.py — POST-HOC exposure re-score of ONE B-1 signal.
+"""scripts/rescore_b1_ey_exposure.py — POST-HOC exposure re-score of the two B-1 value signals.
 
 Director ruling 2026-10-15 (the AZO/MTD/NVR HIGH, `1bb076b`): AZO, MTD and NVR sit at exactly
 1/10 of their true price across their whole history in the canonical cache. Returns are
-unaffected (a uniform factor), but `value_earnings_yield_v1` takes the price LEVEL
-(market_cap = latest_close × shares_diluted), so the three carried a tenfold-inflated yield and
-sat in its top basket in 54 of 54 short-window months.
+unaffected (a uniform factor), but two signals take the price LEVEL through
+market_cap = latest_close × shares_diluted: `value_earnings_yield_v1`
+(value_earnings_yield_edge.py:87) and `value_book_to_market_v1` (value_book_to_market_edge.py:81).
+Extended to both on 2026-10-15 by the director's correction.
 
 The re-score: the three are REMOVED from the existing panel (the ruled treatment is a ticker-kind
 exclusion, so removal — never a ×10 repair). The method is the run's, by import — the harness's
 own `evaluate_signal`, `leg_series`, `bh_adjust` and `classify` — on the same short-window months,
 seed, bootstrap and BH family. The family is the SHORT-WINDOW one (6 members), where the run
-placed this signal; the other five keep their recorded p-values from the run's own results.
+placed both signals: their two re-scored p-values replace the recorded ones, and the other four
+keep their recorded p-values from the run's own results.
 
 Stated limitation: removing rows does not recompute the edge's quintile basket. The names the
 three displaced from the top quintile stay out; restoring them means re-running the edge, a
 reconstruction this unit does not do.
 
-DECISION RULE (ruled before any number, `1bb076b`): one-sided. Still fails after BH → a dated
-"no change to the verdict" note. CLEARS → "CONTAMINATED — UNTESTED", never "clear". The other
-signals and H1 NOT MET stand either way. One distinct configuration: N_trials 4 → 5.
+DECISION RULE (ruled before any number, `1bb076b`), PER SIGNAL: one-sided. Still fails after BH →
+a dated "no change to the verdict" note. CLEARS → "CONTAMINATED — UNTESTED", never "clear". The
+other signals and H1 NOT MET stand either way. +1 trial per re-scored signal: N_trials 4 → 6.
 
     PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
     OMP_DYNAMIC=FALSE python -m scripts.rescore_b1_ey_exposure \
@@ -51,7 +53,8 @@ import pandas as pd  # noqa: E402
 from scripts import build_signal_panel_b1 as panel_mod  # noqa: E402
 from scripts import raw_signal_decile_b1 as h  # noqa: E402
 
-SIGNAL = "value_earnings_yield_v1"
+SIGNALS = ("value_earnings_yield_v1", "value_book_to_market_v1")
+SIGNAL = SIGNALS[0]
 REMOVED = ("AZO", "MTD", "NVR")
 FAMILY = "short_window"
 
@@ -59,8 +62,9 @@ FAMILY = "short_window"
 def rescore(panel: pd.DataFrame, census: dict, recorded: dict, price_root: Path,
             seed: int, iters: int, block: int) -> Tuple[dict, List[str]]:
     halts: List[str] = []
-    if panel_mod.FAMILY.get(SIGNAL) != FAMILY:
-        return {}, [f"{SIGNAL} is not in the {FAMILY} family"]
+    for sig in SIGNALS:
+        if panel_mod.FAMILY.get(sig) != FAMILY:
+            return {}, [f"{sig} is not in the {FAMILY} family"]
     present = sorted(set(panel.index.get_level_values("ticker")) & set(REMOVED))
     if present != sorted(REMOVED):
         return {}, [f"expected all of {REMOVED} in the panel, found {present}"]
@@ -83,25 +87,28 @@ def rescore(panel: pd.DataFrame, census: dict, recorded: dict, price_root: Path,
     ew_legs = [fr.index[fr[h.FWD].notna()] for fr in frames]
     E = h.leg_series(ew_legs, [fr[h.FWD] for fr in frames])
     ew = (E["gross"] - E["cost"]).to_numpy()
-    sparse = census["signals"][SIGNAL]["sparse"]
-    row = h.evaluate_signal(SIGNAL, bool(sparse), frames, spy, ew, ew_legs, seed, iters, block)
+    rows = {sig: h.evaluate_signal(sig, bool(census["signals"][sig]["sparse"]), frames, spy, ew,
+                                   ew_legs, seed, iters, block) for sig in SIGNALS}
 
     fam_rows = [r for r in recorded["rows"] if r["family"] == FAMILY]
     if len(fam_rows) != 6:
         halts.append(f"recorded {FAMILY} family has {len(fam_rows)} members, not 6")
-    ps = [row["ic_p"] if r["signal"] == SIGNAL else r["ic_p"] for r in fam_rows]
+    ps = [rows[r["signal"]]["ic_p"] if r["signal"] in rows else r["ic_p"] for r in fam_rows]
     adj, rej = h.bh_adjust(ps)
     for r, a, j in zip(fam_rows, adj, rej):
-        if r["signal"] == SIGNAL:
-            row["ic_p_bh"], row["ic_bh_reject"] = a, j
-    h.classify(row)
-    recorded_row = next(r for r in fam_rows if r["signal"] == SIGNAL)
-    # the ruled rule keys on BH alone: "still fails after BH" → no change; "clears" →
-    # CONTAMINATED — UNTESTED (never "clear"). The wealth leg is reported beside it.
-    decision = "CONTAMINATED — UNTESTED" if row["clears_ic"] else "no change to the verdict"
-    return {"signal": SIGNAL, "family": FAMILY, "removed": list(REMOVED),
-            "n_months": len(months), "family_p_used": dict(zip([r["signal"] for r in fam_rows], ps)),
-            "recorded": recorded_row, "rescored": row, "decision": decision,
+        if r["signal"] in rows:
+            rows[r["signal"]]["ic_p_bh"], rows[r["signal"]]["ic_bh_reject"] = a, j
+    out = {}
+    for sig in SIGNALS:
+        h.classify(rows[sig])
+        # the ruled rule keys on BH alone: "still fails after BH" → no change; "clears" →
+        # CONTAMINATED — UNTESTED (never "clear"). The wealth leg is reported beside it.
+        out[sig] = {"recorded": next(r for r in fam_rows if r["signal"] == sig),
+                    "rescored": rows[sig],
+                    "decision": ("CONTAMINATED — UNTESTED" if rows[sig]["clears_ic"]
+                                 else "no change to the verdict")}
+    return {"signals": out, "family": FAMILY, "removed": list(REMOVED), "n_months": len(months),
+            "family_p_used": dict(zip([r["signal"] for r in fam_rows], ps)),
             "label": "POST-HOC EXPOSURE CHECK — not a measurement of record; one-sided"}, halts
 
 
@@ -130,8 +137,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         (out / "halt.json").write_text(json.dumps({"halt_reasons": halts}, indent=2))
         print("[B1-RESCORE] HALT — " + "; ".join(halts), file=sys.stderr)
         return 2
-    body = {"rows": [res["rescored"]], "calendar": [], "benchmarks": {}, "families": {},
-            "h1": {"decision": res["decision"]}}
+    body = {"rows": [v["rescored"] for v in res["signals"].values()], "calendar": [],
+            "benchmarks": {}, "families": {},
+            "h1": {s: v["decision"] for s, v in res["signals"].items()}}
     digest = h.canonical_results_md5(body)
     res["meta"] = {"panel_canonical_md5": census["panel_canonical_md5"],
                    "recorded_results_md5": meta.get("results_canonical_md5"),
@@ -141,7 +149,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                    "rescore_canonical_md5": digest}
     (out / f"rescore_{digest[:12]}.json").write_text(json.dumps(res, indent=2, default=str))
     print(f"[B1-RESCORE] -> {out / f'rescore_{digest[:12]}.json'}  canonical md5 {digest}  "
-          f"decision: {res['decision']}")
+          f"decisions: {json.dumps({s: v['decision'] for s, v in res['signals'].items()})}")
     return 0
 
 
