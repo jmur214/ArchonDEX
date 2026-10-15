@@ -15,10 +15,11 @@ The design read is `docs/Audit/price_cache_convention_guard_design_read_agent_r_
   No total-return writer exists in current code (`:765` is `adjustment="split"`; the yfinance
   fallback is `auto_adjust=False`). If the guard went live first, the first ex-date would refuse an
   append that nothing could satisfy, and the cache would stall stale across the universe.
-  - **One provider per file, whole-file replace.** Files whose cached span starts on or after 2016
-    are re-fetched from Alpaca (`adjustment="all"`). DEEP files (single names from 1970, SPY from
-    1993) are re-fetched from yfinance (`auto_adjust=True`), because Alpaca's history cannot cover
-    their span.
+  - **One provider, whole-file replace.** *(SUPERSEDED 2026-10-15 by measurement: the per-span split
+    first proposed here, Alpaca for spans from 2016 and yfinance for deeper files, failed on this
+    feed. Alpaca is IEX from 2020-07-27; 69 of the 103 Alpaca re-fetches that returned could not
+    cover the span, and 99 read DIFFERENT_CONVENTION. Now ruled: ONE provider for the whole universe,
+    yfinance `auto_adjust=True`. See the cutover proposal §2a.)*
   - **A re-fetch that does not cover the cached span is refused.**
   - Mixing two providers' back-adjustments at a seam would be the T-082b class again.
 - **C-2, cadence in numbers: the re-fetch branch is the STEADY STATE.** 33 of 39 names twinned over
@@ -71,8 +72,10 @@ write**.
 ## 3. The guard: one function, called by every writer
 
 `check_cache_convention(cached, fetched, overlap_days=N)` sits in `data_manager`. Every refresh
-fetches with the ruled convention (Alpaca `adjustment="all"`, yfinance `auto_adjust=True`) and
-**includes an overlap of the last N cached days**. The function computes
+fetches with the ruled convention (yfinance `auto_adjust=True`, the one provider; the Alpaca leg
+is superseded, see the cutover proposal §2a) and **includes an overlap of the last N cached days**.
+*(The writer's whole-file check uses N = 252 cached bars, because a short tail is blind to a payer
+whose last ex-date is older than the window; see the cutover proposal §2b.)* The function computes
 `ratio = fetched_close / cached_close` on that overlap:
 
 | overlap reads | meaning | action |
@@ -129,7 +132,7 @@ to `Archive/`.
 
 | where | now says | becomes |
 |---|---|---|
-| `data_manager.py:765` | `adjustment="split"`, "CRITICAL FIX" | `adjustment="all"`, behind the §3 guard (behaviour) |
+| `data_manager.py:765` | `adjustment="split"`, "CRITICAL FIX" | ~~`adjustment="all"`, behind the §3 guard~~ *(superseded 2026-10-15: one provider, cutover §2a)*. The Alpaca fetch no longer writes the cache: an uncached ticker's save goes through `full_refetch` or is refused in canonical runs (R's O-3, a hard requirement of the switch-on commit) (behaviour) |
 | `data_manager.py` yfinance fallback | `auto_adjust=False` + the T-088 split-only rationale | `auto_adjust=True` + the guard; rationale rewritten (behaviour) |
 | `scripts/merge_stooq_alpaca_substrate.py:1-40` | "Alpaca is split-only; Stooq is total-return" | **both premises inverted** (see below) |
 | merge docstring's "price changes only; no dividend reinvestment" PnL text | price-only | total return via adjusted prices; no separate dividend channel exists (0 files) |
