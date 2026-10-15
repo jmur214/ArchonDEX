@@ -10,10 +10,16 @@ refuses an append nothing can satisfy and the cache stalls stale.
 Why it REPLACES files whole: a dividend back-adjusted series is not append-only — every new ex-date
 rescales the provider's entire past. So a refresh is a whole-file re-fetch from ONE provider that
 covers the cached span (mixing two providers' back-adjustments at a seam is the T-082b class).
-Files whose span starts on/after ALPACA_HISTORY_START come from Alpaca (`adjustment="all"`); deep
-files (single names from 1970, SPY from 1993) come from yfinance (`auto_adjust=True`). On the
-measured cadence (33 of 39 twinned names step at ex-dates, most quarterly) this branch is the
-STEADY STATE — ~580 of ~730 files a quarter — and every pass is a substrate re-pin.
+ONE provider for the WHOLE universe — yfinance (`auto_adjust=True`) — never chosen per file
+(director ruling 2026-10-15, provisional until the yfinance re-measure of the files below confirms
+it). Measured on a copy, this overturns the per-span rule first built here (C-1: Alpaca for spans
+starting on/after 2016): the project's Alpaca feed is IEX, whose daily history starts 2020-07-27.
+Of the 172 files that rule sent to Alpaca, 69 came back empty, 69 of the 103 that returned could
+not cover the cached span, and 99 of the 103 read DIFFERENT_CONVENTION against the cache — an IEX
+tail is not the tape the cache was built from. The Alpaca writer provider is archived
+(Archive/data_engine/tr_writer_alpaca_provider_2026_10_15.py). On the measured cadence (33 of 39
+twinned names step at ex-dates, most quarterly) this branch is the STEADY STATE — ~580 of ~730
+files a quarter — and every pass is a substrate re-pin.
 
 What the writer proves, rather than assumes (R's C-3/C-4):
   * the fetch MODE is asserted in a write record, never inferred from a parameter;
@@ -36,7 +42,7 @@ from typing import Callable, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-ALPACA_HISTORY_START = pd.Timestamp("2016-01-01")
+UNIVERSE_PROVIDER = "yfinance"  # ONE provider for every file — see the module docstring
 SPAN_SLACK_DAYS = 7            # a provider's first bar may trail the cached first bar by a holiday
 BASIS_WINDOW_DAYS = 90         # calendar days ≈ 60 trading days for the two-mode basis measure
 ROUNDING = 0.005               # adjusted closes round to the cent: 0.005/price per bar (R §3.1)
@@ -69,12 +75,6 @@ class WriteRecord:
 
 
 # ── pure primitives ───────────────────────────────────────────────────────────────
-
-def choose_provider(cached_start: Optional[pd.Timestamp], requested_start: pd.Timestamp) -> str:
-    """ONE provider per file, chosen by the span it must cover."""
-    starts = [s for s in (cached_start, requested_start) if s is not None]
-    return "alpaca" if min(starts) >= ALPACA_HISTORY_START else "yfinance"
-
 
 def covers_span(new: Optional[pd.DataFrame], cached: Optional[pd.DataFrame],
                 slack_days: int = SPAN_SLACK_DAYS) -> Tuple[bool, str]:
@@ -196,7 +196,7 @@ def _read_cached(cache_dir: Path, ticker: str) -> Optional[pd.DataFrame]:
 def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *,
                  today: pd.Timestamp, new_ticker_start: Optional[pd.Timestamp] = None,
                  write: bool = True, log_path: Optional[Path] = None) -> WriteRecord:
-    """Replace `<ticker>_1d` whole with a total-return re-fetch from ONE provider — or refuse.
+    """Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
 
     Never writes unless: the provider covers the cached span, the basis is not anomalous, and the
     pair can be written atomically. `write=False` measures and returns the record only (the
@@ -207,7 +207,10 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     cached_start = None if cached is None or cached.empty else pd.Timestamp(cached.index.min())
     if cached_start is None and new_ticker_start is None:
         raise WriterRefusal(f"{ticker}: no cached file and no start given for a new ticker")
-    provider = choose_provider(cached_start, new_ticker_start or cached_start)
+    provider = UNIVERSE_PROVIDER
+    if provider not in providers:
+        raise WriterRefusal(f"{ticker}: no {provider} provider given — the writer will not "
+                            f"substitute another provider for the universe's")
     start = cached_start if cached_start is not None else new_ticker_start
     fetched = providers[provider](ticker, start, today, True)
     ok, why = covers_span(fetched, cached)
@@ -252,29 +255,6 @@ def yfinance_provider(ticker: str, start: pd.Timestamp, end: pd.Timestamp, adjus
     return df[COLUMNS].sort_index()
 
 
-def alpaca_provider(ticker: str, start: pd.Timestamp, end: pd.Timestamp, adjusted: bool) -> pd.DataFrame:
-    """Alpaca, same feed as DataManager (IEX): adjustment="all" -> total return; "split" otherwise."""
-    from alpaca.data.historical import StockHistoricalDataClient
-    from alpaca.data.requests import StockBarsRequest
-    from alpaca.data.timeframe import TimeFrame
-    key = os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID")
-    secret = os.environ.get("ALPACA_SECRET_KEY") or os.environ.get("APCA_API_SECRET_KEY")
-    if not (key and secret):
-        raise WriterRefusal("no Alpaca keys — the writer will not substitute another provider")
-    client = StockHistoricalDataClient(key, secret)
-    req = StockBarsRequest(symbol_or_symbols=ticker, timeframe=TimeFrame.Day,
-                           start=pd.Timestamp(start).tz_localize("UTC"),
-                           end=pd.Timestamp(end).tz_localize("UTC"),
-                           adjustment="all" if adjusted else "split", feed="iex", limit=10000)
-    df = client.get_stock_bars(req).df
-    if df.empty:
-        return pd.DataFrame(columns=COLUMNS)
-    if isinstance(df.index, pd.MultiIndex):
-        df = df.reset_index().set_index("timestamp")
-    df.index = pd.to_datetime(df.index).tz_localize(None).normalize()
-    df = df.rename(columns={"open": "Open", "high": "High", "low": "Low",
-                            "close": "Close", "volume": "Volume"})
-    return df[COLUMNS].sort_index()
-
-
-DEFAULT_PROVIDERS: Dict[str, Provider] = {"alpaca": alpaca_provider, "yfinance": yfinance_provider}
+#: The universe provider only. The Alpaca provider is archived
+#: (Archive/data_engine/tr_writer_alpaca_provider_2026_10_15.py) — see the module docstring.
+DEFAULT_PROVIDERS: Dict[str, Provider] = {UNIVERSE_PROVIDER: yfinance_provider}

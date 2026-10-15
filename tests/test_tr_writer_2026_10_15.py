@@ -37,12 +37,35 @@ def _ohlcv(close: pd.Series) -> pd.DataFrame:
                          "Close": close, "Volume": 1e6}, index=close.index)
 
 
-# ── provider choice and span (lock 3) ───────────────────────────────────────────
+def _seed_cache(cache_dir: Path, ohlcv: pd.DataFrame, ticker: str = "ABC") -> None:
+    w.write_pair_atomically(w.with_derived_columns(ohlcv), cache_dir / "parquet" / f"{ticker}_1d.parquet",
+                            cache_dir / f"{ticker}_1d.csv")
 
-def test_one_provider_per_file_chosen_by_span():
-    assert w.choose_provider(pd.Timestamp("1970-01-02"), pd.Timestamp("1970-01-02")) == "yfinance"
-    assert w.choose_provider(pd.Timestamp("2018-01-02"), pd.Timestamp("2018-01-02")) == "alpaca"
-    assert w.choose_provider(None, pd.Timestamp("2020-01-02")) == "alpaca"
+
+# ── one provider for the universe, and the span (lock 3) ────────────────────────
+
+def test_ONE_provider_for_the_whole_universe_even_for_a_post_2016_file(tmp_path):
+    """The per-span rule sent 2016+ files to Alpaca, whose IEX history starts 2020-07-27: 69 of the
+    103 that returned could not cover the cache. A 2018-start file comes from the universe provider."""
+    _seed_cache(tmp_path, _ohlcv(_raw()))
+
+    def per_file_alpaca(*a):
+        raise AssertionError("the writer consulted a per-file provider")
+    calls = []
+    rec = w.full_refetch("ABC", tmp_path, {"alpaca": per_file_alpaca, "yfinance": _fake(IDX[0], calls)},
+                         today=IDX[-1], write=False)
+    assert rec.provider == "yfinance" and calls
+
+
+def test_a_providers_map_without_the_universe_provider_is_REFUSED(tmp_path):
+    _seed_cache(tmp_path, _ohlcv(_raw()))
+    with pytest.raises(w.WriterRefusal, match="no yfinance provider"):
+        w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], [])}, today=IDX[-1], write=False)
+
+
+def test_the_default_providers_name_only_the_universe_provider():
+    assert w.UNIVERSE_PROVIDER == "yfinance"
+    assert set(w.DEFAULT_PROVIDERS) == {w.UNIVERSE_PROVIDER}
 
 
 def test_a_deep_file_refetched_from_a_2016_provider_is_REFUSED():
@@ -168,9 +191,9 @@ def test_full_refetch_writes_a_measured_total_return_pair_and_logs_the_mode(tmp_
     w.write_pair_atomically(w.with_derived_columns(_ohlcv(_raw())),
                             tmp_path / "parquet" / "ABC_1d.parquet", tmp_path / "ABC_1d.csv")
     calls, log = [], tmp_path / "write_log.jsonl"
-    rec = w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], calls), "yfinance": None},
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], calls)},
                          today=IDX[-1], log_path=log)
-    assert rec.provider == "alpaca" and rec.mode == "adjusted" and rec.basis == "measured_tr"
+    assert rec.provider == "yfinance" and rec.mode == "adjusted" and rec.basis == "measured_tr"
     written = pd.read_parquet(tmp_path / "parquet" / "ABC_1d.parquet")
     assert written["Close"].iloc[0] < _raw().iloc[0], "total return: the past is scaled down"
     assert '"mode": "adjusted"' in log.read_text()
@@ -183,7 +206,7 @@ def test_full_refetch_REFUSES_a_provider_that_cannot_cover_the_span(tmp_path):
     before = (tmp_path / "ABC_1d.csv").read_bytes()
     late = _fake(pd.Timestamp("2020-01-02"), [])
     with pytest.raises(w.WriterRefusal, match="cannot replace the file"):
-        w.full_refetch("ABC", tmp_path, {"alpaca": late, "yfinance": None}, today=IDX[-1])
+        w.full_refetch("ABC", tmp_path, {"yfinance": late}, today=IDX[-1])
     assert (tmp_path / "ABC_1d.csv").read_bytes() == before
 
 
@@ -191,6 +214,6 @@ def test_measure_only_mode_writes_nothing(tmp_path):
     w.write_pair_atomically(w.with_derived_columns(_ohlcv(_raw())),
                             tmp_path / "parquet" / "ABC_1d.parquet", tmp_path / "ABC_1d.csv")
     before = (tmp_path / "ABC_1d.csv").read_bytes()
-    rec = w.full_refetch("ABC", tmp_path, {"alpaca": _fake(IDX[0], []), "yfinance": None},
+    rec = w.full_refetch("ABC", tmp_path, {"yfinance": _fake(IDX[0], [])},
                          today=IDX[-1], write=False)
     assert rec.basis == "measured_tr" and (tmp_path / "ABC_1d.csv").read_bytes() == before
