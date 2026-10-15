@@ -410,6 +410,28 @@ to `_t<NNN>` names. That gives **63 scripts**. A read-only scan classified what 
 reads (all files, a per-ticker universe, a fixed list, `tr_reconciled/` only, a fallback, or not a
 reader). Every claim that carries weight below was verified by hand.
 
+**Note, 2026-10-15 (B; the direct-globbers contract, `a38db0b`, with R): this glob was INCOMPLETE as
+a list of readers.** It took `_t<NNN>` names only, and it globbed `scripts/*.py` non-recursively.
+The contract's AST sweep (scripts/, research/ and the repo root; a wildcard `*_1d.csv` or
+`*_1d.parquet` anywhere in an expression, or a path built per ticker) found **17 more** direct
+readers of the per-ticker processed cache. One is a T-script in a subdirectory
+(`scripts/lazy_prices/backtest_lazy_prices_t237.py`).
+
+- **Fixed, not exempted: `run_evolution_cycle.py`.** The dashboard's command runner launches it,
+  and it built its universe from a glob of every cached file. It now reads through
+  `withhold_declared_tickers`.
+- **The other 16 are exempted by name, PROPOSED and pending R's ruling at the review.** None
+  has a production caller (no scheduler, cloud entrypoint or dashboard command).
+
+| class | scripts | reason |
+|---|---|---|
+| data-ops (3) | `fetch_missing_delisted.py`, `ingest_stooq_us_daily.py`, `merge_stooq_alpaca_substrate.py` | they maintain the cache files themselves; the exclusion is a rule for the measurement universe |
+| a frozen measurement of record (1) | `build_signal_panel_b1.py` | B-1's panel builder. Its exposure to the ÷10 names is on the record (the verdict's §13), and DAL's is in the record note. Its bytes are pinned |
+| research harnesses (12) | `backtest_lazy_prices_t237.py`, `backtest_transition_warning.py`, `cointegration_pair_screen.py`, `run_discovery_diagnostic_standalone.py`, `run_falsifiable_spec.py`, `run_oos_validation.py`, `run_path2_ub.py`, `run_trend_wider_universe.py`, `sleeve_phase0_verdict.py`, `third_stream_battery.py`, `train_per_ticker_metalearner.py`, `verify_gate1_cache_determinism.py` | no production caller |
+
+Neither the 63 nor these 16 may grow: new code reads through the exclusion, or carries
+`# ticker-exclusions: bypassed — <reason>` beside the read.
+
 **The rule (director):**
 - **RE-LABEL** as "measured on the drip substrate; not re-run" when the ledger status is refuted,
   null or void, OR the result is an off-default option, AND nothing current (a parameter, a gate, a
