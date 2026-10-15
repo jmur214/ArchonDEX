@@ -732,6 +732,8 @@ class ModeController:
         # that comes AFTER the fetch below and would erase this run's own fallback fetches.)
         from engines.data_manager.data_manager import reset_feed_log
         reset_feed_log()
+        from engines.data_manager.exclusions import reset_exclusion_log
+        reset_exclusion_log()
         import os
         import json
         import random

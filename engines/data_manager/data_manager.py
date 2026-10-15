@@ -24,6 +24,7 @@ def is_info_enabled() -> bool:
     return DEBUG_LEVELS.get("DATA_MANAGER_INFO", False)
 
 # .env is NOT loaded on import (2026-10-15, #156): process entries call core.env.load_local_env().
+from engines.data_manager.exclusions import check_declared, truncate_declared, withhold_excluded_bars  # item d
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
@@ -536,18 +537,11 @@ class DataManager:
         # --- Drop invalid rows ---
         df = df[df["Close"].notna()]
 
-        # --- AUTO SCALE FIX ---
-        median_price = df["Close"].median()
-        scale = 1.0
-        while median_price > 1000:
-            median_price /= 10
-            scale *= 10
-
-        if scale != 1.0:
-            if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                print(f"[DATA_MANAGER][INFO] Auto-scaling prices: ÷{scale}")
-            for c in ["Open", "High", "Low", "Close"]:
-                df[c] = df[c] / scale
+        # No auto-scaling (item (d), ruled 2026-10-15). A loader that divided OHLC by 10 whenever
+        # the median close exceeded 1000 fired on exactly ONE cached series — DAL, whose 1980-2005
+        # bars are a corrupt stitch (old Delta's cancelled equity at 3,000-8,000) — so it masked bad
+        # data instead of protecting good data. A series now loads at its stored level; DAL's
+        # pre-2007 bars are withheld by a DECLARED exclusion (DECLARED_EXCLUSIONS), never rescued.
 
         # --- Data sanity cleanup: drop ISOLATED bad ticks (fat-finger /
         # mis-scaled prints), NOT sustained legitimate price levels. ---
@@ -635,11 +629,21 @@ class DataManager:
         return self.cache_dir / "parquet" / f"{ticker}_{timeframe}.parquet"
 
     def load_cached(self, ticker: str, timeframe: str) -> pd.DataFrame | None:
+        """The cached bars, with DECLARED exclusions withheld (item d, 2026-10-15).
+
+        The withholding runs OUTSIDE the read's error handling, deliberately: a declaration that no
+        longer matches the data raises ExclusionMismatchError, and that must propagate — never be
+        caught by a read-failure handler and treated as a corrupt file."""
+        df = self._load_cached_unfiltered(ticker, timeframe)
+        return None if df is None else check_declared(ticker, df)
+
+    def _load_cached_unfiltered(self, ticker: str, timeframe: str) -> pd.DataFrame | None:
         # Try Parquet first, then fallback to CSV
         pq_path = self.parquet_cache_path(ticker, timeframe)
         if pq_path.exists():
             try:
                 df = pd.read_parquet(pq_path)
+                df = truncate_declared(ticker, df)          # BEFORE normalization (item d)
                 df = self._normalize_df(df, ticker=ticker)
                 if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                     print(f"[DATA_MANAGER][INFO] Loaded Parquet cache for {ticker} ({timeframe})")
@@ -658,6 +662,7 @@ class DataManager:
             return None
         try:
             df = pd.read_csv(path)
+            df = truncate_declared(ticker, df)              # BEFORE normalization (item d)
             df = self._normalize_df(df, ticker=ticker)
             return df
         except Exception as e:
@@ -873,7 +878,7 @@ class DataManager:
                 self.save_cache(t, timeframe, df)
                 if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                     print(f"[DATA_MANAGER][INFO] Downloaded data for {t} ({len(df)} rows)")
-                out[t] = df
+                out[t] = withhold_excluded_bars(t, df)   # the file keeps everything; serving withholds
             else:
                 # FAIL LOUD (non-fatal): a network fetch was attempted and got
                 # nothing — name the ticker + feed so a stalled/blocked fetch

@@ -1386,6 +1386,13 @@ class BacktestController:
         # Invariant 7 (ruling C-2, 2026-10-15) — data-feed provenance. Which source fed
         # every ticker the NETWORK supplied to this process. A yfinance-fed ticker is a
         # source + adjustment-basis switch; assert_census marks the run NON-CANONICAL.
+        # Declared data exclusions (item d, 2026-10-15): acknowledged withholding, recorded —
+        # e.g. dal_pre2007_excluded. Not a gate: a declared exclusion is ruled, not a failure.
+        try:
+            from engines.data_manager.exclusions import exclusions_applied
+            census["data_exclusions"] = exclusions_applied()
+        except Exception as e:
+            census["data_exclusions"] = {"error": repr(e)}
         try:
             from engines.data_manager.data_manager import data_feed_summary
             census["data_feed"] = data_feed_summary()

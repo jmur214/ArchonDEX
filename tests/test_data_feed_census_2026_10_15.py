@@ -130,15 +130,17 @@ def test_a_legacy_summary_without_the_record_only_warns():
 
 def test_discoverys_gate1_candidate_census_carries_the_feed_record():
     """validate_candidate builds its own census block; it must carry data_feed, or a candidate
-    validated on yfinance-fed data passes Gate 1 unflagged. AST: the dict assigned to
-    `_census_block` in discovery.py has a "data_feed" key."""
+    validated on yfinance-fed data passes Gate 1 unflagged. Since item (d)'s fixup the block is
+    built by candidate_census_block(): EXECUTED here, and validate_candidate must CALL it."""
+    from engines.engine_d_discovery.discovery import candidate_census_block
+
+    class _C:
+        nonzero_calls, errors = 1, 0
+    assert "data_feed" in candidate_census_block("cand_v1", _C(), n_trades=5)
     tree = ast.parse((REPO / "engines" / "engine_d_discovery" / "discovery.py").read_text())
-    blocks = [n.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
-              and any(getattr(t, "id", "") == "_census_block" for t in n.targets)
-              and isinstance(n.value, ast.Dict)]
-    assert blocks, "validate_candidate's _census_block literal not found"
-    keys = {k.value for b in blocks for k in b.keys if isinstance(k, ast.Constant)}
-    assert "data_feed" in keys
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "validate_candidate")
+    called = {getattr(c.func, "id", getattr(c.func, "attr", "")) for c in ast.walk(fn) if isinstance(c, ast.Call)}
+    assert "candidate_census_block" in called
 
 
 def test_each_backtest_run_starts_its_own_feed_record_BEFORE_it_fetches():

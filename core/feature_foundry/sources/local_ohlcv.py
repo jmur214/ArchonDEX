@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
+from engines.data_manager.exclusions import withhold_excluded_bars
 
 from ..data_source import DataSource, get_source_registry
 
@@ -47,6 +48,10 @@ class LocalOHLCV(DataSource):
             return None
         if "Close" not in df.columns:
             return None
+        # Declared exclusions are ONE read gate (item d / Agent R's O-1): every foundry feature
+        # reads data/processed through here, bypassing DataManager — so the declaration is applied
+        # here too, not left as a property of today's universes.
+        df = withhold_excluded_bars(path.stem.replace("_1d", ""), df)
         df = df.rename(columns={c: c.lower() for c in df.columns})
         df["ticker"] = path.stem.replace("_1d", "")
         keep = ["ticker", "date", "open", "high", "low", "close", "volume"]
@@ -105,6 +110,7 @@ def close_series(ticker: str) -> Optional[pd.Series]:
     except Exception:
         _CLOSE_CACHE[ticker] = pd.Series(dtype=float)
         return None
+    df = withhold_excluded_bars(ticker, df)          # the same declared read gate (item d)
     s = pd.Series(df["Close"].values, index=df["Date"].dt.date).sort_index()
     _CLOSE_CACHE[ticker] = s
     return s if not s.empty else None
