@@ -726,6 +726,12 @@ class ModeController:
         Full backtest orchestration with all features previously in run_backtest_logic().
         Returns a performance summary dict.
         """
+        # Ruling C-2 / Agent R's O-1 (2026-10-15): the data-feed record is process-wide, so start
+        # it HERE — before this run's ensure_data — or a yfinance fetch in an earlier run in the
+        # same process would mark this run's census NON-CANONICAL. (Not at BacktestController.run:
+        # that comes AFTER the fetch below and would erase this run's own fallback fetches.)
+        from engines.data_manager.data_manager import reset_feed_log
+        reset_feed_log()
         import os
         import json
         import random

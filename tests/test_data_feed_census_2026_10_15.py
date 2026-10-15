@@ -139,3 +139,27 @@ def test_discoverys_gate1_candidate_census_carries_the_feed_record():
     assert blocks, "validate_candidate's _census_block literal not found"
     keys = {k.value for b in blocks for k in b.keys if isinstance(k, ast.Constant)}
     assert "data_feed" in keys
+
+
+def test_each_backtest_run_starts_its_own_feed_record_BEFORE_it_fetches():
+    """Agent R's O-1: the log is process-wide, so a long-lived multi-run process would carry run 1's
+    yfinance fetch into every later census. The reset sits at the top of run_backtest and BEFORE its
+    first ensure_data — at BacktestController.run (after the fetch) it would erase the run's own
+    fallback fetches, the opposite of the intent."""
+    tree = ast.parse((REPO / "orchestration" / "mode_controller.py").read_text())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "run_backtest")
+    def first_line(name):
+        lines = [c.lineno for c in ast.walk(fn) if isinstance(c, ast.Call)
+                 and (getattr(c.func, "attr", None) or getattr(c.func, "id", None)) == name]
+        return min(lines) if lines else None
+    reset, fetch = first_line("reset_feed_log"), first_line("ensure_data")
+    assert reset is not None, "run_backtest never resets the feed record"
+    assert fetch is not None and reset < fetch, f"reset (line {reset}) must precede the fetch (line {fetch})"
+
+
+def test_reset_clears_a_prior_runs_fallback(offline_dm):
+    dm, _ = offline_dm
+    dm.ensure_data(["RUNONE"], "2024-01-01", "2024-03-01")
+    assert dmod.data_feed_summary()["yfinance_tickers"] == ["RUNONE"]
+    dmod.reset_feed_log()
+    assert dmod.data_feed_summary()["yfinance_tickers"] == [], "run 2 must not inherit run 1's fetch"
