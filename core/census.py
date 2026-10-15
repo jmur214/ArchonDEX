@@ -11,12 +11,16 @@ in `backtester/backtest_controller.py:_build_census`). A run is
 the audit's invariants fail:
 
   1. edges_blind non-empty                     (active edge fired 0 signals — T-177/T-175)
-  2. n_in_panel < n_resolved − allowlist        (universe silently shrank — T-167)
+  2. n_in_panel < n_resolved − allowlist        (universe silently shrank — T-167);
+     n_resolved ABSENT (never set) or 0 fails too (no silent zero, 2026-10-15)
   3. n_trades == 0 OR trades_canon_md5==EMPTY    (run didn't trade — T-175/T-164)
   4. fundamentals_blind > 0                      (value edges starved — T-175)
-  5. regime_unknown_frac >= 1.0                  (regime layer silently OFF — T-164 GAP-2)
+  5. regime_unknown_frac >= 1.0                  (regime layer silently OFF — T-164 GAP-2);
+     regime_total_bars ABSENT or 0 fails; a declared regime_layer "off" needs regime_off_label
   6. config_provenance.degraded                  ({}/one-key fabricated config — T-088)
   7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
+  Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
+  (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions record
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
 
@@ -122,13 +126,25 @@ def assert_census(
         failures.append(f"edges_errored non-empty: {detail} — an edge raised + was "
                         f"swallowed on some bars (partial crash, not a no-signal)")
 
-    # 2 — universe shrink
-    n_resolved = int(census.get("n_resolved", 0) or 0)
+    # Which census. A Gate-1 CANDIDATE census declares itself and is not asked for the backtest
+    # run-shape counters; an UNDECLARED census is treated as the strictest kind, a backtest.
+    is_backtest = census.get("census_kind", "backtest") != "candidate"
+
+    # 2 — universe shrink. NO silent zero (ruling 2026-10-15): this used to SKIP when n_resolved read
+    # 0, so a run that never set the counter passed unmeasured. Absent = "counter never set"; a
+    # measured 0 = no universe; both fail.
     n_in_panel = int(census.get("n_in_panel", 0) or 0)
-    if n_resolved and (n_in_panel < n_resolved - panel_allow):
-        failures.append(
-            f"panel shrank: n_in_panel={n_in_panel} < n_resolved={n_resolved} "
-            f"(allowlist={panel_allow})")
+    if is_backtest:
+        if "n_resolved" not in census:
+            failures.append("n_resolved: counter never set — the universe was never measured")
+        else:
+            n_resolved = int(census["n_resolved"] or 0)
+            if n_resolved <= 0:
+                failures.append("n_resolved == 0 — no universe was resolved")
+            elif n_in_panel < n_resolved - panel_allow:
+                failures.append(
+                    f"panel shrank: n_in_panel={n_in_panel} < n_resolved={n_resolved} "
+                    f"(allowlist={panel_allow})")
 
     # 3 — actually traded. `n_trades <= 0`, not `== 0`: the trades block's except branch writes the
     # sentinel n_trades=-1 ("count unknown"), which the `== 0` form read as a valid count (found by
@@ -145,10 +161,22 @@ def assert_census(
             f"fundamentals_blind: a value/quality edge is active "
             f"({census.get('fundamentals_edges_active')}) but the panel is unloaded")
 
-    # 5 — regime layer ON
-    if float(census.get("regime_unknown_frac", 1.0) or 0.0) >= 1.0 \
-            and int(census.get("regime_total_bars", 0) or 0) > 0:
-        failures.append("regime 100% unknown — the regime/macro layer was silently OFF")
+    # 5 — regime layer ON. NO silent zero (ruling 2026-10-15): this used to pass when
+    # regime_total_bars read 0. Absent = "counter never set"; a measured 0 = the layer produced
+    # nothing; both fail. A layer OFF BY DESIGN is declared (regime_layer: "off") and is canonical
+    # only with the pre-registration's label recorded in the census (regime_off_label).
+    if is_backtest:
+        if census.get("regime_layer") == "off":
+            if not str(census.get("regime_off_label") or "").strip():
+                failures.append("regime layer OFF with no pre-registered label — a run without the "
+                                "regime layer is a different experiment (set CENSUS_REGIME_OFF_LABEL "
+                                "to the brief that declares the layer off by design)")
+        elif "regime_total_bars" not in census:
+            failures.append("regime_total_bars: counter never set — the regime layer was never measured")
+        elif int(census["regime_total_bars"] or 0) <= 0:
+            failures.append("regime_total_bars == 0 — the regime layer produced nothing")
+        elif float(census.get("regime_unknown_frac", 1.0) or 0.0) >= 1.0:
+            failures.append("regime 100% unknown — the regime/macro layer was silently OFF")
 
     # 6 — config provenance
     prov = census.get("config_provenance") or {}

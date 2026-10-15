@@ -43,19 +43,12 @@ class _CrashEdge:
 
 
 def _census_block(cand_id, census, n_trades):
-    """The block `validate_candidate` builds — kept in one place so the tests
-    lock the CONTRACT with assert_census, not a private copy of it."""
-    return {
-        "census": {
-            "edges_blind": ([cand_id] if census.nonzero_calls == 0 else []),
-            "edges_errored": ({cand_id: {"crash_bars": census.errors}}
-                              if census.errors else {}),
-            "n_trades": n_trades,
-            # mirrors validate_candidate's block, which carries the C-2 feed record
-            "data_feed": {"n_network_fetched": 0, "by_source": {}, "yfinance_tickers": []},
-        },
-        "bootstrap_ci_skip_reason": "gate1_contribution_run",
-    }
+    """The block `validate_candidate` builds — the REAL producer, so the tests lock the CONTRACT
+    with assert_census, not a private copy of it. (2026-10-15: this used to be a hand-written copy;
+    it drifted the day the candidate census gained `census_kind`, which is exactly what a copy does.)"""
+    from engines.engine_d_discovery.discovery import candidate_census_block
+    return {"census": candidate_census_block(cand_id, census, n_trades=n_trades),
+            "bootstrap_ci_skip_reason": "gate1_contribution_run"}
 
 
 # --------------------------------------------------------------------------- #

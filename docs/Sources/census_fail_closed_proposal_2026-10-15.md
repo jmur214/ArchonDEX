@@ -66,3 +66,54 @@ A run that never set either counter passes both invariants without measuring the
   records were not scanned.
 - **health_check:** the HIGH row's anchor (`backtest_controller.py:1333`, `census["edges_blind"] = []` in the
   except branch) is the line this unit removes. Close the row at merge.
+
+## Fixup — NO silent zero (the director's ruling on the held-out counters, 2026-10-15)
+
+`n_resolved` and the regime counters came from `getattr(..., 0)`, and the gate SKIPPED an invariant whose
+counter read 0. So a run that never set a counter passed invariants 2 and 5 without either being measured.
+
+**Producer (`backtest_controller.py`):**
+- the regime counters start **UNSET** (`None`) and become set on the first bar the per-bar tally sees in
+  `_detect_regime`;
+- a counter that was never set is **ABSENT** from the census;
+- the census declares `census_kind: "backtest"`, and `regime_layer: "on"` or `"off"`, where "off" means no
+  detector;
+- a declared-off layer also records `regime_off_label`, taken from `CENSUS_REGIME_OFF_LABEL` (the brief that
+  pre-registers the layer as off by design).
+
+**Gate (`core/census.py`), applied to a BACKTEST census:**
+- an absent counter fails: "counter never set";
+- a measured 0 fails: `n_resolved == 0` means no universe, and `regime_total_bars == 0` means the layer
+  produced nothing;
+- a declared-off layer fails unless the census carries the label;
+- with the label, the regime invariant is not applied, and the run is canonical with the declaration recorded.
+
+**Discovery's Gate-1 candidate census** declares `census_kind: "candidate"` and is not asked for the backtest
+counters. Before this unit it passed only because absent counters read as a skipped 0, so it now declares what
+it is. **An undeclared census is treated as a backtest**, the strictest kind.
+
+**Fixtures that relied on the silent zero were made as complete as production:**
+- `tests/test_gate1_candidate_census_t347.py` kept a hand-written COPY of the candidate block, whose own
+  docstring said "not a private copy". The copy drifted the day `census_kind` landed, so it now calls the real
+  `candidate_census_block`.
+- My own lock's controller sets the counters a real run sets.
+
+**Locks** (`tests/test_census_fail_closed.py`):
+- an absent counter fails;
+- a measured 0 fails, for both counters;
+- a declared-off layer fails unlabelled and is canonical labelled;
+- the real `_detect_regime` tally turns an unset counter into a set one;
+- the candidate census is not asked for backtest counters.
+
+**Proof:** `scripts/census_fail_closed_reversion_proof.py` now runs **12 of 12**, each for the right reason. One
+honest note: with the explicit `regime_total_bars == 0` check reverted, a measured 0 STILL fails, through the
+100%-unknown check (the producer writes `frac = 1.0` at 0 bars, and the old `regime_total_bars > 0` guard is gone).
+That lock bites on the message, which names the true cause.
+
+**Tests:** 49 census-touching test files, **591 passed / 0 failed**.
+
+**First artifact, re-run:** old gate against new over 956 recorded summaries (79 with a census): canonical
+**13 → 13, 0 flips**. No recorded run relied on a skipped zero.
+
+**The live fleet is NOT reached.** The cloud paper scheduler's `_record_heartbeat` calls `record_run` with
+`summary=None`, so the heartbeat never evaluates a census there. Verified by reading `paper_trader/scheduler.py`.

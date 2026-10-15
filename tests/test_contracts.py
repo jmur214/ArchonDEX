@@ -338,6 +338,11 @@ CENSUS_GATING_KEYS = {
     # data_exclusions (2026-10-15, census fail-closed unit): the gate fails an ERRORED exclusions
     # record — "what was withheld" unknown is not a measurement.
     "data_exclusions",
+    # No silent zero (ruling 2026-10-15): which census (backtest vs Gate-1 candidate), and the
+    # regime layer's DECLARED state + the pre-registration label a declared-off run must carry.
+    "census_kind",
+    "regime_layer",
+    "regime_off_label",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
@@ -397,7 +402,7 @@ _CANONICAL_CENSUS = {
     "n_trades": 5, "trades_canon_md5": "0" * 32, "trades_empty": False,
     "fundamentals_blind": 0, "regime_unknown_frac": 0.1, "regime_total_bars": 100,
     "config_provenance": {"degraded": False}, "data_feed": {"yfinance_tickers": []},
-    "data_exclusions": {},
+    "data_exclusions": {}, "census_kind": "backtest", "regime_layer": "on",
 }
 
 

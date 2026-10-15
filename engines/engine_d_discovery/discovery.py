@@ -69,6 +69,10 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
         candidate's data at load either way; this is the record of it."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
+        # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST
+        # run-shape counters (n_resolved, regime_total_bars) — and treats an UNdeclared census as a
+        # backtest, which must carry them (no silent zero, 2026-10-15).
+        "census_kind": "candidate",
         "edges_blind": ([cand_id] if cand_census.nonzero_calls == 0 else []),
         "edges_errored": ({cand_id: {"crash_bars": cand_census.errors}}
                           if cand_census.errors else {}),

@@ -25,12 +25,12 @@ GATE_ERROR_RULE = '''    for k in sorted(census):
 '''
 EDGES_EXCEPT_NEW = '''            census["edges_blind_error"] = repr(e)
 
-        # Invariant 2'''
+        # Which census this is.'''
 EDGES_EXCEPT_OLD = '''            census["edges_blind"] = []
             census["edges_errored"] = {}
             census["edges_blind_error"] = repr(e)
 
-        # Invariant 2'''
+        # Which census this is.'''
 
 CASES = [
     (C, "gate: the `<block>_error` rule removed (crashed blocks read as clean)",
@@ -56,6 +56,31 @@ CASES = [
      [('            census["edges_blind"] = [e for e in active if int(counts.get(e, 0)) == 0]\n', ""),
       (EDGES_EXCEPT_NEW, EDGES_EXCEPT_OLD)],
      [K + "test_layer2d_census_producer_emits_all_gating_keys"]),
+    # ---- the fixup: NO silent zero (ruling 2026-10-15) ----
+    (B, "producer: n_resolved back to getattr(..., 0) (a never-set counter reads as a measured 0)",
+     [('        if hasattr(self, "_census_n_resolved"):\n            census["n_resolved"] = int(self._census_n_resolved)\n',
+       '        census["n_resolved"] = int(getattr(self, "_census_n_resolved", 0))\n')],
+     [L + "test_a_counter_that_was_never_set_is_ABSENT_and_FAILS"]),
+    (C, "gate: invariant 2 skips a 0 again",
+     [('            if n_resolved <= 0:\n                failures.append("n_resolved == 0 — no universe was resolved")\n'
+       '            elif n_in_panel < n_resolved - panel_allow:',
+       '            if n_resolved and n_in_panel < n_resolved - panel_allow:')],
+     [L + "test_a_measured_ZERO_fails_its_own_invariant"]),
+    (C, "gate: invariant 5 passes a 0 again",
+     [('        elif int(census["regime_total_bars"] or 0) <= 0:\n'
+       '            failures.append("regime_total_bars == 0 — the regime layer produced nothing")\n', '')],
+     [L + "test_a_measured_ZERO_fails_its_own_invariant"]),
+    (C, "gate: a declared-OFF regime layer needs no label",
+     [('            if not str(census.get("regime_off_label") or "").strip():',
+       '            if False:')],
+     [L + "test_a_regime_layer_OFF_is_DECLARED_and_canonical_only_with_the_pre_registration_label"]),
+    (B, "producer: the per-bar tally no longer starts the counters from UNSET",
+     [('        if self._census_regime_total_bars is None:      # first bar tallied: the counters become SET\n'
+       '            self._census_regime_total_bars, self._census_regime_unknown_bars = 0, 0\n', '')],
+     [L + "test_the_real_per_bar_tally_turns_an_UNSET_counter_into_a_SET_one"]),
+    ("engines/engine_d_discovery/discovery.py", "candidate census: census_kind dropped (refused for backtest counters)",
+     [('        "census_kind": "candidate",\n', '')],
+     [L + "test_a_GATE1_candidate_census_is_not_asked_for_backtest_counters"]),
 ]
 
 env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")

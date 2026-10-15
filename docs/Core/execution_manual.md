@@ -1283,6 +1283,11 @@ python scripts/registry_fail_closed_reversion_proof.py   # each fix reverted alo
 `data_exclusions` record. A census block that crashed measured nothing. The Layer-2d contract EXECUTES every
 except branch in `_build_census`; the gate must fail each one.
 
+No silent zero: a backtest census whose `n_resolved` or regime counters were never set (absent), or are
+measured at 0, is NON-CANONICAL. A run WITHOUT the regime layer (no detector) is canonical only when it
+carries its pre-registration label. Set `CENSUS_REGIME_OFF_LABEL=<path of the brief that declares the layer
+off>` for that run; the census then records `regime_layer: "off"` together with the label.
+
 ```bash
 python scripts/census_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
 ```
