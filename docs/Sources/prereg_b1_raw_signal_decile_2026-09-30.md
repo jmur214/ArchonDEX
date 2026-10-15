@@ -4,7 +4,7 @@ title: Pre-registration — raw-signal decile re-evaluation of the foundry featu
 date: 2026-09-30
 worker: Agent A (prereg); the RUN is staffed separately (likely C after RR-1)
 branch: research/raw-signal-decile-b1
-status: FROZEN 2026-10-13 (director-acknowledged; rulings issued 2026-10-01) — RUN COMPLETE 2026-10-14 (three post-freeze PRE-DATA amendments, each proven by file time; §4/§8 byte-identical at the run) — VERDICT: H1 NOT MET; nothing meets H1 (docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md, R-approved). N_trials consumed: 4.
+status: FROZEN 2026-10-13 (director-acknowledged; rulings issued 2026-10-01) — RUN COMPLETE 2026-10-14 (three post-freeze PRE-DATA amendments, each proven by file time; §4/§8 byte-identical at the run) — VERDICT: H1 NOT MET; nothing meets H1 (docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md, R-approved). N_trials consumed: 6 (4 at the run; +2 on 2026-10-15 for the post-hoc exposure re-score of the two value signals, one per re-scored signal — no change to the verdict; verdict §13).
 ---
 
 # B-1 — does the price vocabulary have anything, tested the way the literature tests it?
@@ -606,6 +606,18 @@ output.**
   - `herding_v1` and `earnings_proximity_5d` (first amendment);
   - `volume_anomaly_v1` (the pre-ruling).
 - **N_trials consumed: 4.** The numbers live in the verdict, not here.
+
+**2026-10-15 — POST-HOC EXPOSURE CHECK (director ruling `1bb076b` and its correction).**
+- AZO, MTD and NVR sit at 1/10 price in the canonical cache. `value_earnings_yield_v1` and
+  `value_book_to_market_v1` take the price level through market cap.
+- Both were re-scored on the existing panel with the three removed, by the run's own method and
+  BH family (the short-window six). The script was committed before it read any data (`53d1c5b`,
+  extended at `04237a8`) and ran twice with an identical canonical md5.
+- **Outcome by the ruled rule: both still fail after BH; no change to the verdict. H1 NOT MET
+  stands.**
+- **N_trials consumed: 6**: one per re-scored signal, counted by configuration, not by execution.
+- The numbers, the exposure counts, the correction of an earlier wrong reading of book-to-market's
+  inputs, and the file-time order are in the verdict's §13.
 
 ## DIRECTOR FREEZE — 2026-10-13 (rulings issued 2026-10-01; BINDING)
 Frozen as amended. The load-bearing terms, quoted so they cannot drift:

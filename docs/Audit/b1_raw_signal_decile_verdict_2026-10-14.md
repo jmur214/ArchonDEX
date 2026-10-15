@@ -4,7 +4,7 @@ title: "B-1 raw-signal decile re-evaluation — VERDICT"
 date: 2026-10-14
 author: Agent A
 outcome: "H1 NOT MET — 0 of 13 main signals clear the IC bar and none meets the wealth leg against both benchmarks; short window 0 of 6; calendar 0 of 7. Scoped refutation (§6 'Nothing meets H1')."
-status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only.
+status: FINAL — R-approved at 7266caa (first read, 1,190 cells vs the artifacts, 0 mismatches) and the wording fixup bfe8055 (re-checked by hash); merged 2026-10-14. What travels (R-3): the prereg's own words only. Dated note 2026-10-15 (§13): post-hoc exposure check of the two value signals, no change to the verdict; N_trials 4 → 6.
 reproduce: "§12 below; the panel md5 d9d449d17f8f102614b34079e8f1bd60 and the results md5 5de36b89e0ade6eac008667e035d2d03 must reproduce"
 ---
 
@@ -14,7 +14,7 @@ Pre-registration: `docs/Sources/prereg_b1_raw_signal_decile_2026-09-30.md`, FROZ
 (`469fa69` on the branch; `2af10ad` the director's merge to main, identical text), with three post-freeze, pre-data amendments (§3 below). Branch
 `research/raw-signal-decile-b1`. The harness's open choices were fixed in prereg §11.4 and
 committed (`bae38e5`, revised `6c6200a` / `cc8a24e`) before the harness produced any output.
-**N_trials +4.**
+**N_trials +4 at the run; +2 for the post-hoc exposure re-score of 2026-10-15 (§13), one per re-scored signal: 6 in all.**
 
 ## 0. The answer
 
@@ -382,6 +382,8 @@ Coverage exceeds 80% for this whole window. **0 of 13 main signals clear; 0 of 7
 ## 9. Honest N and minimum backtest length
 
 - **N_trials +4 consumed** (main L, main LS, short window, calendar), as ruled 2026-10-01.
+  **+2 on 2026-10-15** for the post-hoc exposure re-score (§13): one per re-scored signal,
+  counted by configuration, not by execution, as ruled. **6 in all.**
   Recording it in the run registry is the director's call: the harness writes nothing there.
 - A refutation needs no MBL clearance. A positive on the short window (4.5 years) could only have
   nominated (§5.2). At N_eff ≈ 37, a 26-year window needs SR ≥ 0.42 (`[NN-MBL]`); no signal
@@ -425,3 +427,121 @@ python -m pytest tests/test_build_signal_panel_b1.py tests/test_raw_signal_decil
 ```
 
 The data under `data/research/b1/` is gitignored, so the tables above are the durable copy.
+
+## 13. Dated note — 2026-10-15: POST-HOC EXPOSURE CHECK (AZO, MTD, NVR at 1/10 price)
+
+**Exposure: three names at 1/10 price; the two value signals re-scored with them removed; no
+change to the verdict.**
+
+**The exposure.** R's cutover read found AZO, MTD and NVR at exactly one tenth of their true price
+across their whole history in the canonical cache (the HIGH row on main, `61c39d9`). Returns are
+a uniform factor and are unaffected. B-1 has no dollar-ADV or price-level filter, so all three
+were in the panel in every member month: 312/312, 112/112 and 76/76. **Two signals take the price
+LEVEL** through market_cap = latest_close × shares_diluted, and their ratios to market cap were
+inflated tenfold for the three names:
+- `value_earnings_yield_v1` (`value_earnings_yield_edge.py:87`, returning TTM net income /
+  market cap);
+- `value_book_to_market_v1` (`value_book_to_market_edge.py:81`, returning equity / market cap at
+  `:84`).
+
+**Correction to the record:** Agent A's first exposure count (2026-10-15) excluded
+book-to-market from the price-level readers. That reading was wrong. Line 81 above computes
+market cap from the close, exactly as earnings yield does. The director's correction extended the
+re-score to both signals.
+
+**Exposure counts in the panel** (`signal_panel_d9d449d17f8f.parquet`, the 54 short-window
+months; reported before the re-score):
+- **Earnings yield:** AZO, MTD and NVR are each in the top basket (> 0) in 54 of 54 months.
+- **Book-to-market:** NVR is in the basket in 54/54 months. AZO is in it 0/54 times, and price
+  never enters for it: its SimFin total equity is ≤ 0 in all 18 filings for 2021–25, and the edge
+  returns no score for equity ≤ 0 (`:78-80`). MTD is in it 0/54 times; its equity is ≤ 0 in 10
+  of 18 filings, and when positive, the inflated ratio still never reached the basket.
+
+**The ruling and its order (verifiable by file time):**
+- The director's ruling and one-sided decision rule are on main at `1bb076b` (2026-10-15
+  12:32:05).
+- The earnings-yield-only script was committed at `53d1c5b` (12:34:25) and ran at 12:34:34.
+- The director's correction extended the re-score to both signals, and ruled that the BH family
+  is the run's short-window six.
+- The extended script was committed at `04237a8` (12:37:51), before it read any data. Its two
+  runs wrote at 12:38:14 and 12:38:17.
+
+**The decision rule, as ruled, PER SIGNAL:** still fails after BH → this note; CLEARS →
+"CONTAMINATED — UNTESTED", never "clear". The label is POST-HOC; it is not a measurement of
+record.
+
+**Method — the run's, by import.** `scripts/rescore_b1_ey_exposure.py` removes the three from the
+existing panel (canonical md5 `d9d449d17f8f102614b34079e8f1bd60`). The ruled treatment is a
+ticker-kind exclusion, never a ×10 repair. It then calls the harness's own `evaluate_signal`,
+`leg_series`, `bh_adjust` and `classify` with:
+- the run's 54 short-window months;
+- seed 0, 1000 iterations, 6-month blocks;
+- **the run's BH family for these signals, the short-window six (§3).** Both re-scored p-values
+  enter it, and the other four keep their recorded p-values.
+
+**Stated limitation:** removing rows does not recompute either edge's quintile basket. The names
+the three displaced from the top quintile stay out of it; restoring them would mean re-running
+the edges, which is a reconstruction this check does not do.
+
+| `value_earnings_yield_v1` (short window, 2021-07 → 2025-12) | recorded (run, `5de36b89…`) | re-scored, three removed (`05828515…`) |
+|---|---|---|
+| IC mean [95% HAC CI] | −0.0103 [−0.0324, +0.0118] | −0.0113 [−0.0338, +0.0112] |
+| NW t / p | −0.92 / 0.3600 | −0.99 / 0.3234 |
+| BH p (short-window six) | 0.9987 | 0.9776 |
+| clears IC | no | **no** |
+| Arm L ann. / MaxDD | 8.0% / −22.7% | 7.9% / −22.7% |
+| Arm L Sharpe [95% CI] | +0.423 [−0.187, +1.011] | +0.411 [−0.201, +1.006] |
+| Arm L Sortino `ci_low` | −0.32 | −0.33 |
+| LS (decile spread) ann. / Sharpe [CI] | −1.7% / −0.264 [−1.118, +0.566] | −1.9% / −0.281 [−1.133, +0.562] |
+| Δ log W vs SPY [CI] | −0.055 [−0.131, +0.031] | −0.057 [−0.133, +0.029] |
+| Δ log W vs EW sleeve [CI] | −0.014 [−0.059, +0.040] | −0.015 [−0.062, +0.041] |
+| wealth leg clears both | no | no |
+| IC months / Arm L fallback months | 54/54 / 0 | 54/54 / 0 |
+
+**Decision (ruled rule): no change to the verdict.**
+
+| `value_book_to_market_v1` (short window, 2021-07 → 2025-12) | recorded (run, `5de36b89…`) | re-scored, three removed (`05828515…`) |
+|---|---|---|
+| IC mean [95% HAC CI] | −0.0000 [−0.0244, +0.0243] | −0.0004 [−0.0255, +0.0247] |
+| NW t / p | −0.00 / 0.9987 | −0.03 / 0.9765 |
+| BH p (short-window six) | 0.9987 | 0.9776 |
+| clears IC | no | **no** |
+| Arm L ann. / MaxDD | 10.2% / −22.0% | 10.1% / −22.2% |
+| Arm L Sharpe [95% CI] | +0.546 [−0.156, +1.125] | +0.545 [−0.157, +1.122] |
+| Arm L Sortino `ci_low` | −0.24 | −0.24 |
+| LS (decile spread) ann. / Sharpe [CI] | 0.8% / +0.105 [−1.011, +0.965] | 0.8% / +0.102 [−1.021, +0.951] |
+| Δ log W vs SPY [CI] | −0.030 [−0.138, +0.072] | −0.030 [−0.141, +0.074] |
+| Δ log W vs EW sleeve [CI] | +0.012 [−0.063, +0.077] | +0.012 [−0.065, +0.078] |
+| wealth leg clears both | no | no |
+| IC months / Arm L fallback months | 54/54 / 0 | 54/54 / 0 |
+
+**Decision (ruled rule): no change to the verdict.**
+
+**The earlier earnings-yield-only run.** It is an execution of the SAME configuration for
+earnings yield (`53d1c5b`, `rescore_ey_ex3/`, md5 `8b23422c456c2e0fbcbaab18c4dd5553`, decision
+"no change"), superseded by the extended run and kept on file. Its earnings-yield numbers are
+**identical to the extended run's in 31 of 32 fields**. The one difference is the BH p: 0.9987
+there against 0.9776 here. It moved only because book-to-market's re-scored p (0.9765) replaced
+its recorded p (0.9987) inside the same six-member BH.
+
+**The outcome, by the ruled rule: both value signals still fail after BH → no change to the
+verdict.**
+- Both value signals stay "does not clear".
+- Every other row stands as recorded.
+- 0 of 13 (main), 0 of 6 (short window) and 0 of 7 (calendar) stand.
+- **H1 NOT MET stands.**
+- **N_trials: 4 → 6**, one per re-scored signal, counted by configuration, not by execution.
+
+**Artifacts** (gitignored, under the main tree's `data/research/b1/`):
+- `rescore_value_ex3/rescore_05828515e998.json` and `rescore_value_ex3_b/` — the extended
+  re-score run twice, canonical md5 `05828515e99863698064dd334baad9c5` both times.
+- `rescore_ey_ex3/` and `rescore_ey_ex3_b/` — the superseded earnings-yield-only execution,
+  `8b23422c…` both times.
+- The inputs: the panel and the run's own results (`run1/results_5de36b89e0ad.json`).
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+python -m scripts.rescore_b1_ey_exposure \
+  --panel data/research/b1/full_2a/signal_panel_d9d449d17f8f.parquet \
+  --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_value_ex3/
+```
