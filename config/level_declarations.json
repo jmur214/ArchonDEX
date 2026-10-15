@@ -1,0 +1,15 @@
+{
+  "_doc": "The LEVEL rail's hand-set facts (docs/Sources/proposal_level_rail_last_bar_identity_2026-10-15.md). The last-bar identity explains every other level change from the provider's own split and dividend record; only these need declaring. scale_defect: the write may make a level change the declared_ratio explains (the declared write IS the restoration). reused_ticker: class (i) — the cached file is another entity; never written.",
+  "declarations": {
+    "AZO": {"kind": "scale_defect", "declared_ratio": 10.0, "date": "2026-04-25",
+            "source": "the old loader's ÷10 fired on the Alpaca leg at the T-082b merge (R's cutover read; the last-bar identity reads exactly 0.1000)"},
+    "MTD": {"kind": "scale_defect", "declared_ratio": 10.0, "date": "2026-04-25",
+            "source": "the old loader's ÷10 fired on the Alpaca leg at the T-082b merge (R's cutover read; the last-bar identity reads exactly 0.1000)"},
+    "NVR": {"kind": "scale_defect", "declared_ratio": 10.0, "date": "2026-04-25",
+            "source": "the old loader's ÷10 fired on the Alpaca leg at the T-082b merge (R's cutover read; the last-bar identity reads exactly 0.1000)"},
+    "SLE": {"kind": "reused_ticker", "date": "2019-02-26",
+            "source": "Sara Lee left the index; the cached file from 2019-02-26 is the reused entity (and is also ÷10). The write pass wrote it RESCALED 10.0 because the file IS that entity (R's level-rail read)"},
+    "POM": {"kind": "reused_ticker", "date": "2025-10-08",
+            "source": "Pepco left the index; the cached file from 2025-10-08 is the reused entity. The write pass wrote it RESCALED 18.0 (a reverse split of the reused entity)"}
+  }
+}

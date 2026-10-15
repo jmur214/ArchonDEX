@@ -1588,7 +1588,8 @@ def test_layer4_registry_nonempty_and_seeds_t216_gate():
 # withholding); they are named here so the contract names every emitted provenance key.
 # ticker_exclusions: the TICKER kind (2026-10-15, the AZO/MTD/NVR scale defect), its own key.
 CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied",
-                          "ticker_exclusions": "ticker_exclusions_applied"}
+                          "ticker_exclusions": "ticker_exclusions_applied",
+                          "level_declarations": "substrate_level_declarations"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:

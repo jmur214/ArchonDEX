@@ -31,6 +31,10 @@ What the writer proves, rather than assumes (R's C-3/C-4):
     provider on the other convention — a split-only provider's two modes are identical, so it reads
     "unverified", exactly like a non-payer — so without this a split-only series replaces a
     total-return cache under a clean write record (Agent R's planted mismatch, 2026-10-15);
+  * the cache's LAST BAR must equal the provider's true print (unadjusted close × splits after it),
+    up to the dividends its own adjustment applied (the LEVEL rail, adopted 2026-10-15). A level
+    change outside the identity needs a declaration (`config/level_declarations.json`), and a
+    declared reused ticker is never written. Each write pins a per-file record under the cache;
   * the parquet + csv pair is written ATOMICALLY: a failure of either leaves both originals intact;
   * the Yahoo symbol comes from ONE table (`yahoo_symbols`): a share class is a spelling (BRK.B ->
     BRK-B); a rename is an IDENTITY claim held to the same span and overlap rails, and the record
@@ -69,6 +73,25 @@ OVERLAP_MIN_BARS = 10
 OVERLAP_TAIL_BARS = 252
 COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
+# ── the LEVEL rail (adopted 2026-10-15; docs/Sources/proposal_level_rail_last_bar_identity_2026-10-15.md)
+#: |ln residual| tolerance for the last-bar level identity. Measured: legitimate files sit within
+#: 0.0053 (APH, stale); scale defects at ln 10 = 2.30 — a factor of ~400 of separation.
+LEVEL_TOLERANCE = 0.01
+#: A cached file with no pinned write record was written by the pre-T-167 DataManager on
+#: 2026-04-18/25 (the pre-merge backup); its total-return adjustment is as of this date, so the
+#: identity's dividend factor runs from the file's last bar to here (a stale file's last bar was
+#: scaled by the dividends paid between the two — APH 0.9947, explained to 1.0000).
+LEGACY_ADJUSTED_AS_OF = pd.Timestamp("2026-04-25")
+#: Per-file write records, pinned UNDER the cache (inside the substrate manifest's scope, so the
+#: census can read them in the image) — R's condition (c).
+WRITE_RECORDS_DIR = "_write_records"
+LEVEL_DECLARATIONS_PATH = Path(__file__).resolve().parents[2] / "config" / "level_declarations.json"
+CANONICAL_CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+
+#: symbol -> DataFrame indexed by date with columns "Dividends" and "Stock Splits" (the provider's
+#: corporate-actions record, in the same split basis as its unadjusted closes).
+Actions = Callable[[str], pd.DataFrame]
+
 #: (ticker, start, end, adjusted) -> OHLCV DataFrame on a tz-naive DatetimeIndex.
 #: adjusted=True -> total return (dividends + splits); False -> split-adjusted only.
 Provider = Callable[[str, pd.Timestamp, pd.Timestamp, bool], pd.DataFrame]
@@ -96,6 +119,9 @@ class WriteRecord:
     overlap: Optional[dict]        # classify_overlap vs the cached tail; None for a new ticker
     cached_span: Optional[list]
     written_at: str
+    level: Optional[dict] = None   # the last-bar identity (None for a new ticker)
+    level_declared: Optional[dict] = None   # the declaration a level change was written under
+    adjusted_as_of: Optional[str] = None    # the date this file's total-return adjustment is as of
 
 
 # ── pure primitives ───────────────────────────────────────────────────────────────
@@ -205,6 +231,89 @@ def write_pair_atomically(df: pd.DataFrame, parquet_path: Path, csv_path: Path) 
     os.replace(tmp_pq, parquet_path)
 
 
+# ── the LEVEL rail ────────────────────────────────────────────────────────────────
+
+def load_level_declarations(path: Path = LEVEL_DECLARATIONS_PATH) -> Dict[str, dict]:
+    """The hand-set facts the identity cannot establish: per name, `kind` (`scale_defect` — a level
+    change the write may make if `declared_ratio` explains it; `reused_ticker` — class (i), never
+    written), with its source. An absent file means no declarations; an unreadable one raises."""
+    path = Path(path)
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text()).get("declarations", {})
+
+
+def level_identity(cached_close: pd.Series, unadjusted: pd.Series, actions: pd.DataFrame,
+                   adjusted_as_of: pd.Timestamp) -> dict:
+    """The cache's last bar against the TRUE PRINT the provider reconstructs:
+    true_print = unadjusted(d) × Π(split factors after d);  identity = cache(d) / true_print;
+    the dividend factor the cache's own adjustment applied after d (ex-dates in (d, adjusted_as_of]);
+    residual = identity / that factor. A correct cached LEVEL reads residual 1."""
+    d = pd.Timestamp(cached_close.index.max())
+    c = float(cached_close.iloc[-1])
+    upto = unadjusted.loc[:d]
+    if upto.empty:
+        raise WriterRefusal(f"no provider print at or before the cache's last bar {d.date()}",
+                            detail={"level": {"d_last": str(d.date())}})
+    raw_d = float(upto.iloc[-1])
+    actions = actions.copy()
+    actions.index = pd.to_datetime(actions.index)      # an EMPTY record has no datetime index
+    splits = actions["Stock Splits"] if "Stock Splits" in actions else pd.Series(dtype=float)
+    splits = splits[(splits > 0) & (splits.index > d)]
+    mult = float(splits.prod()) if len(splits) else 1.0
+    true_print = raw_d * mult
+    divs = actions["Dividends"] if "Dividends" in actions else pd.Series(dtype=float)
+    divs = divs[(divs > 0) & (divs.index > d) & (divs.index <= pd.Timestamp(adjusted_as_of))]
+    factor = 1.0
+    for ex, dv in divs.items():
+        prev = unadjusted.loc[:ex - pd.Timedelta(days=1)]
+        if prev.empty:
+            raise WriterRefusal(f"no provider close before ex-date {ex.date()}",
+                                detail={"level": {"d_last": str(d.date())}})
+        factor *= 1.0 - float(dv) / float(prev.iloc[-1])
+    identity = c / true_print
+    residual = identity / factor
+    return {"d_last": str(d.date()), "cache_close": c, "unadjusted_close": raw_d,
+            "splits_after": mult, "true_print": true_print, "identity": identity,
+            "dividend_factor": factor, "adjusted_as_of": str(pd.Timestamp(adjusted_as_of).date()),
+            "residual": residual, "log_residual": float(np.log(residual))}
+
+
+def _write_record_path(cache_dir: Path, ticker: str) -> Path:
+    return Path(cache_dir) / WRITE_RECORDS_DIR / f"{ticker}.json"
+
+
+def _read_write_record(cache_dir: Path, ticker: str) -> Optional[dict]:
+    p = _write_record_path(cache_dir, ticker)
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def _write_record_atomically(cache_dir: Path, record: "WriteRecord") -> None:
+    p = _write_record_path(cache_dir, record.ticker)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".writing")
+    tmp.write_text(json.dumps(asdict(record), indent=1, default=str))
+    os.replace(tmp, p)
+
+
+def substrate_level_declarations(cache_dir: Path) -> dict:
+    """The census block (`level_declarations`): every file in this substrate whose CURRENT version
+    was written under a level declaration, read from the pinned per-file records. The records
+    directory's presence is reported, never assumed: a substrate written before the rail has no
+    records, which reads `records_dir_present: False`, not as a clean zero."""
+    d = Path(cache_dir) / WRITE_RECORDS_DIR
+    out = {"records_dir_present": d.is_dir(), "declared": {}}
+    if not d.is_dir():
+        return out
+    for p in sorted(d.glob("*.json")):
+        rec = json.loads(p.read_text())
+        if rec.get("level_declared"):
+            out["declared"][rec["ticker"]] = {"kind": rec["level_declared"].get("kind"),
+                                              "declared_ratio": rec["level_declared"].get("declared_ratio"),
+                                              "written_at": rec.get("written_at")}
+    return out
+
+
 # ── the writer ────────────────────────────────────────────────────────────────────
 
 def _read_cached(cache_dir: Path, ticker: str) -> Optional[pd.DataFrame]:
@@ -219,14 +328,19 @@ def _read_cached(cache_dir: Path, ticker: str) -> Optional[pd.DataFrame]:
 
 def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *,
                  today: pd.Timestamp, new_ticker_start: Optional[pd.Timestamp] = None,
-                 write: bool = True, log_path: Optional[Path] = None) -> WriteRecord:
+                 write: bool = True, log_path: Optional[Path] = None,
+                 actions: Optional[Actions] = None,
+                 declarations: Optional[Dict[str, dict]] = None) -> WriteRecord:
     """Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
 
     Never writes unless: the provider covers the cached span, the basis is not anomalous, the
     re-fetch agrees with the cached tail up to a rescale (APPEND or RESCALED — DIFFERENT_CONVENTION,
-    and an overlap too short to measure when a cache exists, are refused), and the pair can be
-    written atomically. `write=False` measures and returns the record only (the proof-on-a-copy
-    mode).
+    and an overlap too short to measure when a cache exists, are refused), the cache's LAST BAR
+    equals the provider's true print up to the dividends its own adjustment applied (the LEVEL rail;
+    a level change outside it needs a matching declaration, and a declared reused ticker is never
+    written), and the pair can be written atomically. `actions` (the provider's dividend/split
+    record) is REQUIRED when a cache exists: without it the identity cannot be checked, and the
+    writer refuses. `write=False` measures and returns the record only (the proof-on-a-copy mode).
     """
     cache_dir = Path(cache_dir)
     cached = _read_cached(cache_dir, ticker)
@@ -240,6 +354,12 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     symbol, kind = yahoo_symbol(ticker)      # the universe provider's ONE table; no symbol is guessed
     mapped = None if kind is None else f"{ticker} -> {symbol} ({kind})"
     who = f"{ticker} via {provider}" + ("" if mapped is None else f" [symbol mapped: {mapped}]")
+    declarations = load_level_declarations() if declarations is None else declarations
+    decl = declarations.get(ticker)
+    if decl and decl.get("kind") == "reused_ticker":       # before any provider call
+        raise WriterRefusal(f"{who}: declared a REUSED TICKER (class (i): {decl.get('source', '')}) — "
+                            f"the cached file is another entity; never written",
+                            detail={"level_declared": decl, "symbol_mapped": mapped})
     start = cached_start if cached_start is not None else new_ticker_start
     fetched = providers[provider](symbol, start, today, True)
     ok, why = covers_span(fetched, cached)
@@ -262,6 +382,40 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                 f"{len(cached_tail)} cached bars (basis {basis['basis']!r}) — a whole-file "
                 f"replacement must agree with the cache up to a rescale; not writing",
                 detail={"overlap": overlap, "basis": basis, "symbol_mapped": mapped})
+    level, level_declared = None, None
+    if cached is not None and not cached.empty:
+        if actions is None:
+            raise WriterRefusal(f"{who}: no corporate-actions record given — the last-bar level "
+                                f"identity cannot be checked; not writing",
+                                detail={"symbol_mapped": mapped})
+        prior = _read_write_record(cache_dir, ticker)
+        as_of = (pd.Timestamp(prior["adjusted_as_of"]) if prior and prior.get("adjusted_as_of")
+                 else LEGACY_ADJUSTED_AS_OF)
+        d_last = pd.Timestamp(cached.index.max())
+        unadj = providers[provider](symbol, d_last - pd.Timedelta(days=10),
+                                    max(d_last, as_of) + pd.Timedelta(days=3), False)
+        level = level_identity(cached["Close"], unadj["Close"], actions(symbol), as_of)
+        lr = level["log_residual"]
+        if decl and decl.get("kind") == "scale_defect":
+            if abs(lr + float(np.log(decl["declared_ratio"]))) <= LEVEL_TOLERANCE:
+                level_declared = decl
+            elif abs(lr) <= LEVEL_TOLERANCE:
+                raise WriterRefusal(
+                    f"{who}: a scale defect is DECLARED but the level identity holds (residual "
+                    f"{level['residual']:.4f}) — the declaration no longer matches the data; re-rule it",
+                    detail={"level": level, "level_declared": decl, "symbol_mapped": mapped})
+            else:
+                raise WriterRefusal(
+                    f"{who}: the declared ratio {decl['declared_ratio']} does not explain the level "
+                    f"residual {level['residual']:.4f}; not writing",
+                    detail={"level": level, "level_declared": decl, "symbol_mapped": mapped})
+        elif abs(lr) > LEVEL_TOLERANCE:
+            raise WriterRefusal(
+                f"{who}: LEVEL IDENTITY fails — the cache's last bar ({level['d_last']}) is "
+                f"{level['identity']:.4f} of the provider's true print, residual "
+                f"{level['residual']:.4f} after the provider's dividends; a level change outside the "
+                f"identity needs a declaration; not writing",
+                detail={"level": level, "symbol_mapped": mapped})
     out = with_derived_columns(fetched)
     record = WriteRecord(
         ticker=ticker, provider=provider, symbol_mapped=mapped, mode="adjusted",
@@ -269,10 +423,12 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         n_rows=int(len(out)), basis=basis["basis"], basis_detail=basis, overlap=overlap,
         cached_span=(None if cached is None or cached.empty
                      else [str(cached.index.min().date()), str(cached.index.max().date())]),
-        written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        level=level, level_declared=level_declared, adjusted_as_of=str(pd.Timestamp(today).date()))
     if write:
         write_pair_atomically(out, cache_dir / "parquet" / f"{ticker}_1d.parquet",
                               cache_dir / f"{ticker}_1d.csv")
+        _write_record_atomically(cache_dir, record)      # pinned under the substrate (R's (c))
         if log_path is not None:
             Path(log_path).parent.mkdir(parents=True, exist_ok=True)
             with open(log_path, "a") as f:
@@ -295,6 +451,20 @@ def yfinance_provider(ticker: str, start: pd.Timestamp, end: pd.Timestamp, adjus
     df.index = pd.to_datetime(df.index).tz_localize(None)
     return df[COLUMNS].sort_index()
 
+
+def yfinance_actions(symbol: str) -> pd.DataFrame:
+    """yfinance's corporate-actions record (dividends and split factors), tz-naive."""
+    import yfinance as yf
+    a = yf.Ticker(symbol).actions
+    if a is None or a.empty:
+        return pd.DataFrame(columns=["Dividends", "Stock Splits"])
+    idx = pd.to_datetime(a.index)
+    a.index = idx.tz_localize(None) if idx.tz is not None else idx
+    return a
+
+
+#: The default actions record for the universe provider (passed explicitly; never implied).
+DEFAULT_ACTIONS: Actions = yfinance_actions
 
 #: The universe provider only. The Alpaca provider is archived
 #: (Archive/data_engine/tr_writer_alpaca_provider_2026_10_15.py) — see the module docstring.

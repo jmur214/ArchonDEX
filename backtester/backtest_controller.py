@@ -1428,6 +1428,14 @@ class BacktestController:
             census["ticker_exclusions"] = ticker_exclusions_applied()
         except Exception as e:
             census["ticker_exclusions"] = {"error": repr(e)}
+        # The LEVEL rail's declarations (2026-10-15): substrate files whose CURRENT version was
+        # written under a level declaration (a declared scale-defect restoration), read from the
+        # per-file write records pinned under the cache. Not a gate; an errored record fails.
+        try:
+            from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR, substrate_level_declarations
+            census["level_declarations"] = substrate_level_declarations(CANONICAL_CACHE_DIR)
+        except Exception as e:
+            census["level_declarations"] = {"error": repr(e)}
         try:
             from engines.data_manager.data_manager import data_feed_summary
             census["data_feed"] = data_feed_summary()

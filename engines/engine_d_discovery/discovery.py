@@ -68,7 +68,9 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
         (e.g. dal_pre2007_excluded) carries the record — the exclusion itself is applied to the
         candidate's data at load either way; this is the record of it;
       * ticker_exclusions (2026-10-15, the AZO/MTD/NVR scale defect): the TICKER-kind record —
-        names removed at universe resolution and from PIT membership."""
+        names removed at universe resolution and from PIT membership;
+      * level_declarations (2026-10-15, the LEVEL rail): substrate files written under a level
+        declaration, from the per-file write records."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
         # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST
@@ -91,6 +93,11 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
         block["ticker_exclusions"] = ticker_exclusions_applied()
     except Exception as e:   # recorded, never omitted
         block["ticker_exclusions"] = {"error": repr(e)}
+    try:
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR, substrate_level_declarations
+        block["level_declarations"] = substrate_level_declarations(CANONICAL_CACHE_DIR)
+    except Exception as e:   # recorded, never omitted
+        block["level_declarations"] = {"error": repr(e)}
     return block
 
 
