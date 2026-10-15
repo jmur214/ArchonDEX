@@ -26,6 +26,11 @@ What the writer proves, rather than assumes (R's C-3/C-4):
   * the basis is MEASURED at write time with a two-mode fetch (adjusted vs dividend-unadjusted):
     "measured_tr" when the ratio steps at ex-dates, "unverified: no ex-date in window" otherwise;
   * the re-fetch must COVER the cached span, or it is refused;
+  * the re-fetch must AGREE with the cache up to a rescale over the last OVERLAP_TAIL_BARS cached
+    bars (classify_overlap: APPEND or RESCALED), or it is refused. The basis measure cannot catch a
+    provider on the other convention — a split-only provider's two modes are identical, so it reads
+    "unverified", exactly like a non-payer — so without this a split-only series replaces a
+    total-return cache under a clean write record (Agent R's planted mismatch, 2026-10-15);
   * the parquet + csv pair is written ATOMICALLY: a failure of either leaves both originals intact.
 The guard primitives (overlap classification at the rounding floor, the seam-return rail) live
 here too, so the writer and the guard share one definition of "same convention".
@@ -49,6 +54,14 @@ ROUNDING = 0.005               # adjusted closes round to the cent: 0.005/price 
 FP_NOISE = 1e-9
 SEAM_RAIL = 0.25               # |first appended return| above this is refused unless a rescale was seen
 OVERLAP_MIN_BARS = 10
+#: The cached tail a whole-file replacement must agree with: one trading year, so the window holds
+#: an ex-date of every payer that pays at least annually. Inside a window with no ex-date a
+#: total-return tail and a split-only tail are IDENTICAL, so a short tail passes the other
+#: convention. Measured on a copy of the cache (532 covered files): verdicts are identical at 126,
+#: 252 and 504 bars and over the whole post-seam region — 419 RESCALED, 110 APPEND, and
+#: DIFFERENT_CONVENTION on exactly AGG, EFA, VNQ (the split-only files backfill_t052 wrote) — while
+#: a 40-bar tail reads EFA and VNQ as RESCALED.
+OVERLAP_TAIL_BARS = 252
 COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 #: (ticker, start, end, adjusted) -> OHLCV DataFrame on a tz-naive DatetimeIndex.
@@ -58,6 +71,10 @@ Provider = Callable[[str, pd.Timestamp, pd.Timestamp, bool], pd.DataFrame]
 
 class WriterRefusal(RuntimeError):
     """The writer will not write: the evidence for a safe replacement is missing."""
+
+    def __init__(self, message: str, detail: Optional[dict] = None):
+        super().__init__(message)
+        self.detail = detail or {}       # the measured evidence, for the caller's record
 
 
 @dataclass
@@ -70,6 +87,7 @@ class WriteRecord:
     n_rows: int
     basis: str                     # "measured_tr" | "unverified: ..." — measured, not claimed
     basis_detail: dict
+    overlap: Optional[dict]        # classify_overlap vs the cached tail; None for a new ticker
     cached_span: Optional[list]
     written_at: str
 
@@ -198,9 +216,11 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                  write: bool = True, log_path: Optional[Path] = None) -> WriteRecord:
     """Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
 
-    Never writes unless: the provider covers the cached span, the basis is not anomalous, and the
-    pair can be written atomically. `write=False` measures and returns the record only (the
-    proof-on-a-copy mode).
+    Never writes unless: the provider covers the cached span, the basis is not anomalous, the
+    re-fetch agrees with the cached tail up to a rescale (APPEND or RESCALED — DIFFERENT_CONVENTION,
+    and an overlap too short to measure when a cache exists, are refused), and the pair can be
+    written atomically. `write=False` measures and returns the record only (the proof-on-a-copy
+    mode).
     """
     cache_dir = Path(cache_dir)
     cached = _read_cached(cache_dir, ticker)
@@ -221,11 +241,22 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     basis = measure_basis(fetched["Close"][fetched.index >= tail_start], unadjusted["Close"])
     if basis["basis"].startswith("anomalous"):
         raise WriterRefusal(f"{ticker} via {provider}: {basis['basis']} — not writing")
+    overlap = None
+    if cached is not None and not cached.empty:
+        cached_tail = cached["Close"].iloc[-OVERLAP_TAIL_BARS:]
+        overlap = classify_overlap(cached_tail,
+                                   fetched["Close"][fetched.index >= cached_tail.index.min()])
+        if overlap["verdict"] not in ("APPEND", "RESCALED"):
+            raise WriterRefusal(
+                f"{ticker} via {provider}: the re-fetch reads {overlap['verdict']} against the last "
+                f"{len(cached_tail)} cached bars (basis {basis['basis']!r}) — a whole-file "
+                f"replacement must agree with the cache up to a rescale; not writing",
+                detail={"overlap": overlap, "basis": basis})
     out = with_derived_columns(fetched)
     record = WriteRecord(
         ticker=ticker, provider=provider, mode="adjusted",
         span_start=str(out.index.min().date()), span_end=str(out.index.max().date()),
-        n_rows=int(len(out)), basis=basis["basis"], basis_detail=basis,
+        n_rows=int(len(out)), basis=basis["basis"], basis_detail=basis, overlap=overlap,
         cached_span=(None if cached is None or cached.empty
                      else [str(cached.index.min().date()), str(cached.index.max().date())]),
         written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
