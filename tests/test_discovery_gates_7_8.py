@@ -82,7 +82,10 @@ def _make_synthetic_dfs(seed: int = 0):
         },
         index=idx,
     )
-    return {"AAA": df}, idx
+    # SPY on the same calendar, as every production data_map carries it (an essential ticker under
+    # PIT; in the static config's list): the Gate-1 candidate census proves its trading calendar
+    # against SPY and FAILS an unverified one (the stale/holed-files guard, 2026-10-15).
+    return {"AAA": df, "SPY": df.copy()}, idx
 
 
 def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
