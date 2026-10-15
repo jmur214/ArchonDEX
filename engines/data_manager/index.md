@@ -162,7 +162,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
   - `def fetch_fundamentals()`: Fetch fundamental data (P/E, EPS, etc.) for a ticker.
   - `def cache_path()`
   - `def parquet_cache_path()`
-  - `def load_cached()`
+  - `def load_cached()`: The cached bars, with DECLARED exclusions withheld (item d, 2026-10-15).
   - `def save_cache()`
   - `def load_or_fetch()`: Try to load from Parquet cache, then CSV, then use fetch_func if provided.
   - `def ensure_data()`
@@ -181,6 +181,16 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
   - `def fetch_universe()`: Fetch a list of tickers and concatenate into a long events frame.
   - `def cache_status()`: Return a DataFrame describing the on-disk cache state.
 - **Function `surprise_pct()`**: Standard surprise-magnitude transform.
+
+### `exclusions.py`
+**Module Docstring:** Declared data exclusions: bars the loader WITHHOLDS, by name, with a reason, and records.
+- **Class `ExclusionMismatchError`**: A declared exclusion no longer matches the data it was declared for.
+- **Function `truncate_declared()`**: STEP (a), on the RAW frame BEFORE normalization: drop the declared-excluded bars and record
+- **Function `check_declared()`**: STEP (b), on the SERVED frame, outside any read error handling: fail closed if a bar that
+- **Function `withhold_excluded_bars()`**: Both steps on an already-normalized frame (the network-fetch serve point).
+- **Function `clip_membership()`**: Apply the declarations to PIT membership intervals (`ticker`, `start`, `end`): an interval
+- **Function `exclusions_applied()`**: The census block: every declaration applied in this run, keyed by its census key.
+- **Function `reset_exclusion_log()`**: Start a run's bar record (membership is applied once per process and kept).
 
 ### `insider_data.py`
 **Module Docstring:** OpenInsider Form 4 scraping pipeline.

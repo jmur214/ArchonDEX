@@ -1,0 +1,129 @@
+"""Declared data exclusions: bars the loader WITHHOLDS, by name, with a reason, and records.
+
+Ruled 2026-10-15 (item (d)). DAL's cached history is two securities stitched under one ticker: the
+old Delta (equity cancelled in the 2005–07 bankruptcy) at 3,000–8,000, then the new Delta from its
+2007-05-03 listing. The loader used to divide such a series by 10 "to fix scaling", which half-masked
+the corruption. Now the series loads at its stored level, and the pre-2007 bars are WITHHELD by this
+declaration — acknowledged, never silent:
+
+  * every application is recorded process-wide (reset per run with the data-feed record), and the
+    census emits it under the ruled key (`dal_pre2007_excluded`);
+  * nothing is deleted: the stitched file stays on disk as the archived artifact;
+  * it FAILS CLOSED if the declaration and the data disagree (a bar that survives the exclusion
+    still carries the corruption signature) — then the declaration is wrong, and nothing is served.
+
+Interim by ruling: at the substrate cutover, DAL becomes DAL_OLD + DAL if a delisted-capable
+total-return source exists; otherwise this exclusion stands permanently, with its reason.
+"""
+from __future__ import annotations
+
+from typing import Dict
+
+import pandas as pd
+
+DECLARED_EXCLUSIONS: Dict[str, dict] = {
+    "DAL": {
+        "before": "2007-05-03",
+        "census_key": "dal_pre2007_excluded",
+        "reason": ("stitched identity — old Delta cancelled in the 2005–07 bankruptcy; "
+                   "new Delta listed 2007-05"),
+        # The corruption signature: if any bar served AFTER the exclusion exceeds this close, the
+        # declaration no longer matches the data (fail closed).
+        "max_close_after": 1000.0,
+    },
+}
+
+_BARS_APPLIED: Dict[str, dict] = {}        # reset per run
+_MEMBERSHIP_APPLIED: Dict[str, dict] = {}  # membership loads once per process (lru_cache)
+
+
+class ExclusionMismatchError(RuntimeError):
+    """A declared exclusion no longer matches the data it was declared for."""
+
+
+def _dates(df: pd.DataFrame) -> pd.DatetimeIndex:
+    """The bar dates of a RAW frame: its DatetimeIndex, or a Date/timestamp column (csv reads)."""
+    if isinstance(df.index, pd.DatetimeIndex):
+        return pd.DatetimeIndex(df.index).tz_localize(None) if df.index.tz is not None else df.index
+    for col in ("Date", "date", "timestamp", "Datetime"):
+        if col in df.columns:
+            d = pd.to_datetime(df[col], errors="coerce", utc=True)
+            return pd.DatetimeIndex(d).tz_convert(None)
+    return pd.DatetimeIndex(pd.to_datetime(df.index, errors="coerce"))
+
+
+def truncate_declared(ticker: str, raw: pd.DataFrame) -> pd.DataFrame:
+    """STEP (a), on the RAW frame BEFORE normalization: drop the declared-excluded bars and record
+    it. Before, not after — normalization's bad-tick band is a ROLLING window, so excluded bars
+    left in would still shape the cleaning of the legitimate bars next to them (found by test: a
+    stitched 5,000-level block made the band drop the first weeks of good post-cutoff bars).
+    A pure filter: it never raises, so no read-failure handler can mistake it for corruption."""
+    spec = DECLARED_EXCLUSIONS.get(ticker)
+    if spec is None or raw is None or len(raw) == 0:
+        return raw
+    dates = _dates(raw)
+    keep = ~(dates < pd.Timestamp(spec["before"]))
+    n_withheld = int((~keep).sum())
+    prev = _BARS_APPLIED.get(ticker, {})
+    _BARS_APPLIED[ticker] = {"census_key": spec["census_key"], "before": spec["before"],
+                             "reason": spec["reason"],
+                             "n_bars_withheld": max(n_withheld, prev.get("n_bars_withheld", 0))}
+    return raw.loc[keep]
+
+
+def check_declared(ticker: str, served: pd.DataFrame) -> pd.DataFrame:
+    """STEP (b), on the SERVED frame, outside any read error handling: fail closed if a bar that
+    survived the exclusion still carries the corruption signature — the declaration is then wrong."""
+    spec = DECLARED_EXCLUSIONS.get(ticker)
+    if spec is None or served is None or len(served) == 0 or "Close" not in served.columns:
+        return served
+    worst = float(served["Close"].max())
+    if worst > spec["max_close_after"]:
+        raise ExclusionMismatchError(
+            f"{ticker}: declared exclusion '{spec['census_key']}' withholds bars before "
+            f"{spec['before']}, but a bar served after it closes at {worst:.2f} "
+            f"(> {spec['max_close_after']}) — the declaration no longer matches the data; "
+            f"nothing is served until it is re-ruled ({spec['reason']}).")
+    return served
+
+
+def withhold_excluded_bars(ticker: str, df: pd.DataFrame) -> pd.DataFrame:
+    """Both steps on an already-normalized frame (the network-fetch serve point)."""
+    return check_declared(ticker, truncate_declared(ticker, df))
+
+
+def clip_membership(m: pd.DataFrame) -> pd.DataFrame:
+    """Apply the declarations to PIT membership intervals (`ticker`, `start`, `end`): an interval
+    is clipped to start at the cutoff, and dropped if it ended before it."""
+    out = m.copy()
+    for ticker, spec in DECLARED_EXCLUSIONS.items():
+        cutoff = pd.Timestamp(spec["before"])
+        rows = out["ticker"] == ticker
+        if not rows.any():
+            continue
+        ended_before = rows & out["end"].notna() & (out["end"] < cutoff)
+        clipped = rows & ~ended_before & (out["start"] < cutoff)
+        out.loc[clipped, "start"] = cutoff
+        out = out.loc[~ended_before]
+        _MEMBERSHIP_APPLIED[ticker] = {"census_key": spec["census_key"], "before": spec["before"],
+                                       "intervals_dropped": int(ended_before.sum()),
+                                       "intervals_clipped": int(clipped.sum())}
+    return out
+
+
+def exclusions_applied() -> Dict[str, dict]:
+    """The census block: every declaration applied in this run, keyed by its census key."""
+    out: Dict[str, dict] = {}
+    for ticker, rec in _BARS_APPLIED.items():
+        out.setdefault(rec["census_key"], {"ticker": ticker, "before": rec["before"],
+                                           "reason": rec["reason"]})["n_bars_withheld"] = rec["n_bars_withheld"]
+    for ticker, rec in _MEMBERSHIP_APPLIED.items():
+        entry = out.setdefault(rec["census_key"], {"ticker": ticker, "before": rec["before"],
+                                                   "reason": DECLARED_EXCLUSIONS[ticker]["reason"]})
+        entry["membership"] = {k: rec[k] for k in ("intervals_dropped", "intervals_clipped")}
+    return out
+
+
+def reset_exclusion_log() -> None:
+    """Start a run's bar record (membership is applied once per process and kept)."""
+    _BARS_APPLIED.clear()
