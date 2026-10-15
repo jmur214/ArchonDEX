@@ -1584,9 +1584,11 @@ def test_layer4_registry_nonempty_and_seeds_t216_gate():
 
 
 # What ENTERED the run's data — written by BOTH census producers (the rule above).
-# data_exclusions is NOT gating (a declared exclusion is ruled, acknowledged withholding); it is
-# named here so the contract names every emitted provenance key.
-CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied"}
+# data_exclusions and ticker_exclusions are NOT gating (a declared exclusion is ruled, acknowledged
+# withholding); they are named here so the contract names every emitted provenance key.
+# ticker_exclusions: the TICKER kind (2026-10-15, the AZO/MTD/NVR scale defect), its own key.
+CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied",
+                          "ticker_exclusions": "ticker_exclusions_applied"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
