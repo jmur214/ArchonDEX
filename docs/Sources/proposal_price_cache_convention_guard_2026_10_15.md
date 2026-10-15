@@ -134,6 +134,7 @@ to `Archive/`.
 | `scripts/merge_stooq_alpaca_substrate.py:1-40` | "Alpaca is split-only; Stooq is total-return" | **both premises inverted** (see below) |
 | merge docstring's "price changes only; no dividend reinvestment" PnL text | price-only | total return via adjusted prices; no separate dividend channel exists (0 files) |
 | `core/hermetic.py:10`, `scripts/submit_arms_campaign.py:157` | "the split-only cache" | "the total-return cache" |
+| `core/benchmark.py:134` (found in item (d)'s direct-reader scan) | "the flat `data/processed/` is PRICE-ONLY" | the flat cache is dividend back-adjusted: exact total return post-seam, the constant-yield drip pre-seam (R-5) |
 
 **The Stooq record, corrected per era (R §3.4; the first version of this paragraph was wrong in
 mechanism).** T-082b's `apply_dividend_strip` multiplies pre-seam Stooq by a smooth
