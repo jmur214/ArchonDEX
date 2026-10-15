@@ -309,6 +309,8 @@ class AutonomousEvolution:
             logger.error(f"Failed to promote winners: {e}")
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     evo = AutonomousEvolution(root)
     evo.run_cycle(n_candidates=3) # Small batch for demo

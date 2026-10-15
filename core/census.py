@@ -16,6 +16,7 @@ the audit's invariants fail:
   4. fundamentals_blind > 0                      (value edges starved — T-175)
   5. regime_unknown_frac >= 1.0                  (regime layer silently OFF — T-164 GAP-2)
   6. config_provenance.degraded                  ({}/one-key fabricated config — T-088)
+  7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
 bootstrap CI nor an explicit skip reason (the CLAUDE.md ci_low rule).
@@ -141,6 +142,22 @@ def assert_census(
         bad = {k: v for k, v in prov.items()
                if isinstance(v, dict) and ((not v.get("exists")) or v.get("n_keys", 0) <= 1 or "error" in v)}
         failures.append(f"config degraded (missing/empty/one-key fallback): {sorted(bad)}")
+
+    # 7 — data-feed provenance (ruling C-2, 2026-10-15). A ticker the network fed from
+    # yfinance switched SOURCE and ADJUSTMENT BASIS mid-substrate (the T-088 class).
+    feed = census.get("data_feed")
+    if isinstance(feed, dict):
+        if "error" in feed:
+            failures.append(f"data_feed record errored: {feed['error']} — the run's sources are unknown")
+        elif feed.get("yfinance_tickers"):
+            yf = list(feed["yfinance_tickers"])
+            failures.append(
+                f"data feed switched to yfinance for {len(yf)} ticker(s) "
+                f"{yf[:10]}{' …' if len(yf) > 10 else ''} — a different source and adjustment "
+                f"basis entered the substrate ([NN-FAIL-CLOSED]/T-088)")
+    else:
+        warnings.append("census has no data_feed record (summary predates 2026-10-15) — "
+                        "the run's data sources are unrecorded")
 
     # WARN — CI presence (CLAUDE.md ci_low rule)
     if "bootstrap_distribution" not in summary and not summary.get("bootstrap_ci_skip_reason"):

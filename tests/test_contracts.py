@@ -310,6 +310,14 @@ def test_layer1c_required_risk_keys_present_in_prod_json():
 # the keys the gate READS (core/census.py:assert_census) must agree, or a
 # renamed census key silently reads None and the gate passes a clouded run.
 # Static source scan — same idiom as Layer 2a (no backtest required).
+#
+# RULE (director, 2026-10-15): a census PROVENANCE field exists only when BOTH producers write it —
+# the measurement path's `_build_census` AND Discovery's Gate-1 `candidate_census_block`. A field
+# written by one producer is a record with a hole in it: Agent R found the gap twice in one day
+# (data_feed, then data_exclusions), each time with the protection applied but the record absent
+# from the candidate census. Run-shape fields (n_resolved, regime_total_bars, ...) describe a
+# backtest and are not asked of a candidate; provenance fields describe what ENTERED the data and
+# are asked of both. Enforced by test_layer2d_provenance_fields_are_written_by_BOTH_producers.
 # --------------------------------------------------------------------------- #
 CENSUS_GATING_KEYS = {
     "edges_blind",
@@ -323,6 +331,10 @@ CENSUS_GATING_KEYS = {
     "regime_unknown_frac",
     "regime_total_bars",
     "config_provenance",
+    # data_feed (ruling C-2, 2026-10-15): the gate reads data_feed.yfinance_tickers to refuse a
+    # run whose network fetches fell back to yfinance — a source AND adjustment-basis switch.
+    # Without the producer emitting it, that refusal would silently read None and pass.
+    "data_feed",
 }
 
 
@@ -1448,3 +1460,41 @@ def test_layer4_registry_nonempty_and_seeds_t216_gate():
         "Layer 4 lost its T-216 seed pairing (g_regime ↔ hmm_regime_label). "
         "Re-add it — this is the bug the layer exists to catch."
     )
+
+
+# What ENTERED the run's data — written by BOTH census producers (the rule above).
+# data_exclusions is NOT gating (a declared exclusion is ruled, acknowledged withholding); it is
+# named here so the contract names every emitted provenance key.
+CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied"}
+
+
+def _assigned_from(fn_node, key: str, producer: str) -> bool:
+    """census[key] = producer(...) somewhere in the function — the SUCCESS path, assigned from its
+    source of truth. A text match is not enough: the first version of this test regex-matched
+    `census["key"] =`, and the except branch's `census[key] = {"error": ...}` satisfied it with the
+    real assignment removed (found by reversion)."""
+    import ast
+    for a in ast.walk(fn_node):
+        if (isinstance(a, ast.Assign) and isinstance(a.value, ast.Call)
+                and (getattr(a.value.func, "id", None) or getattr(a.value.func, "attr", None)) == producer
+                and any(isinstance(t, ast.Subscript) and ast.unparse(t.slice).strip("'\"") == key
+                        for t in a.targets)):
+            return True
+    return False
+
+
+def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
+    """A provenance field exists only when BOTH producers write it. The measurement path: each key
+    assigned FROM its source-of-truth function in `_build_census` (AST). The candidate census:
+    its builder EXECUTED, and each key present."""
+    import ast
+    tree = ast.parse((REPO / "backtester" / "backtest_controller.py").read_text())
+    build = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_build_census")
+    missing = [k for k, prod in CENSUS_PROVENANCE_KEYS.items() if not _assigned_from(build, k, prod)]
+    assert not missing, f"_build_census does not write these from their source of truth: {missing}"
+    from engines.engine_d_discovery.discovery import candidate_census_block
+
+    class _C:
+        nonzero_calls, errors = 1, 0
+    block = candidate_census_block("cand_v1", _C(), n_trades=10)
+    assert not (set(CENSUS_PROVENANCE_KEYS) - set(block)), sorted(set(CENSUS_PROVENANCE_KEYS) - set(block))

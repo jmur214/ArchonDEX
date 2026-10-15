@@ -232,6 +232,5 @@ class EvolutionController:
         except Exception as e:
             log.error(f"Failed to update production config: {e}")
 
-if __name__ == "__main__":
-    controller = EvolutionController()
-    controller.run_cycle()
+# No __main__ block (2026-10-15): a library module is not a process entry. The
+# cycle CLI moved to scripts/run_evolution_controller_cycle.py.

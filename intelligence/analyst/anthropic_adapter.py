@@ -60,6 +60,24 @@ def _cost_usd(usage: Dict[str, Any], tier: Dict[str, Any]) -> float:
         6)
 
 
+def _refuse_live_call_under_pytest(session) -> None:
+    """The guard around the MONEY (Change B, 2026-10-15, #156).
+
+    A test that reaches the paid provider is a bug: in the main tree a pytest session once ran
+    with the real key (an import-time .env load) and the pulse made a live call. The test-side
+    fixture strips the keys, but it cannot reach a SUBPROCESS child, which re-imports and could
+    carry a key. PYTEST_CURRENT_TEST is set by pytest during every test and is inherited by
+    children spawned with the parent's environment — so the refusal lives HERE, at call time.
+
+    Only the real network path is refused (`session is None`): tests inject a fake session.
+    In production the variable is never set, so this never fires there.
+    """
+    if session is None and os.environ.get("PYTEST_CURRENT_TEST"):
+        raise RuntimeError(
+            "live provider call refused under pytest — inject a fake `session=`; "
+            "a test that reaches the paid provider is a bug (2026-10-15, #156)")
+
+
 def make_model_call(tier_name: str = "daily", *,
                     settings: Dict[str, Any] | None = None,
                     api_key_env: str = "ANTHROPIC_API_KEY",
@@ -74,6 +92,7 @@ def make_model_call(tier_name: str = "daily", *,
     post = (session or requests).post
 
     def call(prompt_text: str, bundle_json: str, max_output_tokens: int) -> Dict[str, Any]:
+        _refuse_live_call_under_pytest(session)
         key = os.environ.get(api_key_env, "")
         if not key:
             raise RuntimeError(f"{api_key_env} not set")
@@ -145,6 +164,7 @@ def make_agentic_call(tier_name: str = "daily", *,
     def call(prompt_text: str, bundle_json: str, max_output_tokens: int,
              tools: List[Dict[str, Any]], execute: Callable[[str, dict], "tuple[str, bool]"],
              max_calls: int) -> Dict[str, Any]:
+        _refuse_live_call_under_pytest(session)
         key = os.environ.get(api_key_env, "")
         if not key:
             raise RuntimeError(f"{api_key_env} not set")

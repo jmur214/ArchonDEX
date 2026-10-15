@@ -58,6 +58,31 @@ class RegimeContextUnavailable(RuntimeError):
     the same label. There is no labelled 'no regime context' mode, so the cycle refuses."""
 
 
+def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
+    """The Gate-1 candidate's census block, routed through the SAME `assert_census` the
+    measurement path uses. It carries the SAME provenance fields the measurement path's census
+    writes — a census provenance field exists only when BOTH producers write it (Agent R found
+    the gap twice: data_feed, then data_exclusions):
+      * data_feed (ruling C-2): a candidate validated on yfinance-fed data fails closed here;
+      * data_exclusions (item d): a candidate validated where a declared exclusion was applied
+        (e.g. dal_pre2007_excluded) carries the record — the exclusion itself is applied to the
+        candidate's data at load either way; this is the record of it."""
+    from engines.data_manager.data_manager import data_feed_summary
+    block = {
+        "edges_blind": ([cand_id] if cand_census.nonzero_calls == 0 else []),
+        "edges_errored": ({cand_id: {"crash_bars": cand_census.errors}}
+                          if cand_census.errors else {}),
+        "n_trades": n_trades,
+        "data_feed": data_feed_summary(),
+    }
+    try:
+        from engines.data_manager.exclusions import exclusions_applied
+        block["data_exclusions"] = exclusions_applied()
+    except Exception as e:   # recorded, never omitted
+        block["data_exclusions"] = {"error": repr(e)}
+    return block
+
+
 class DiscoveryEngine:
     """
     Engine D (Discovery): The Evolutionary Lab.
@@ -1424,12 +1449,7 @@ class DiscoveryEngine:
             # (`df or []` raises "truth value of a DataFrame is ambiguous").
             _tl = getattr(with_candidate_result, "trade_log", None)
             n_trades_with = 0 if _tl is None else int(len(_tl))
-            _census_block = {
-                "edges_blind": ([cand_id] if cand_census.nonzero_calls == 0 else []),
-                "edges_errored": ({cand_id: {"crash_bars": cand_census.errors}}
-                                  if cand_census.errors else {}),
-                "n_trades": n_trades_with,
-            }
+            _census_block = candidate_census_block(cand_id, cand_census, n_trades_with)
             _cv = assert_census(
                 {"census": _census_block,
                  # A Gate-1 contribution run is not a headline measurement; the
@@ -1993,10 +2013,5 @@ class DiscoveryEngine:
             print(f"[validate_candidate] {type(e).__name__}: {e}")
             return _finish()
 
-if __name__ == "__main__":
-    # Test run
-    disc = DiscoveryEngine()
-    cands = disc.generate_candidates(n_mutations=3)
-    print(f"Generated {len(cands)} candidates.")
-    # In main block we don't have data_map, so we skip validation call
-    disc.save_candidates(cands)
+# No __main__ block (2026-10-15): a library module is not a process entry. The
+# "generate candidates only" CLI moved to scripts/discovery_generate_candidates.py.

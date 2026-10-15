@@ -8,6 +8,8 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from orchestration.mode_controller import ModeController, CachedCSVLiveFeed
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     root = Path(__file__).resolve().parents[1]
     mc = ModeController(project_root=root)
 

@@ -90,6 +90,8 @@ def run_cycle():
     logger.info("--- Cycle Complete ---\n")
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     if len(sys.argv) > 1 and sys.argv[1] == "--loop":
         logger.info("Entering Infinite Autonomous Loop (Interval: 1 hour)")
         while True:

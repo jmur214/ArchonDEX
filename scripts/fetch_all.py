@@ -3,7 +3,6 @@ import os
 import json
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Ensure we can find the engines module
 sys.path.append(os.getcwd())
@@ -11,7 +10,6 @@ sys.path.append(os.getcwd())
 from engines.data_manager.data_manager import DataManager
 
 def main():
-    load_dotenv()
     
     # Check credentials
     api_key = os.getenv("ALPACA_API_KEY")
@@ -58,4 +56,6 @@ def main():
     print(f"[FETCH_ALL] Done. Check data/processed/")
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     main()

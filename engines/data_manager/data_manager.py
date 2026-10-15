@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import threading
 import time
-from dotenv import load_dotenv
 
 from debug_config import is_debug_enabled
 
@@ -24,17 +23,8 @@ def is_info_enabled() -> bool:
     from debug_config import DEBUG_LEVELS
     return DEBUG_LEVELS.get("DATA_MANAGER_INFO", False)
 
-# --- Force load .env globally from project root ---
-ROOT_DIR = Path(__file__).resolve().parents[2]
-env_path = ROOT_DIR / ".env"
-
-if env_path.exists():
-    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-        print(f"[DATA_MANAGER][DEBUG] Loaded environment variables from {env_path}")
-    load_dotenv(dotenv_path=env_path, override=True)
-else:
-    if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-        print(f"[DATA_MANAGER][WARN] .env not found at {env_path}")
+# .env is NOT loaded on import (2026-10-15, #156): process entries call core.env.load_local_env().
+from engines.data_manager.exclusions import check_declared, truncate_declared, withhold_excluded_bars  # item d
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
@@ -58,6 +48,31 @@ def _quarantine(path: Path) -> Path:
     dest = path.with_name(f"{path.name}.unreadable-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}")
     path.rename(dest)
     return dest
+
+
+# ── data-feed provenance (ruling C-2, 2026-10-15) ────────────────────────────────
+# Without Alpaca keys — or when Alpaca fails for a ticker — an UNCACHED ticker is fetched
+# from yfinance: a different source on a different adjustment basis (the T-088 class).
+# That used to be a print. Now every NETWORK fetch that puts data into this process is
+# recorded here (process-wide, so a second DataManager instance cannot hide one), the
+# census emits it, and assert_census marks a yfinance-fed run NON-CANONICAL. A canonical
+# runner sets REFUSE_YFINANCE_ENV, and the fallback then HALTS instead of switching source.
+REFUSE_YFINANCE_ENV = "ARCHONDEX_REFUSE_YFINANCE_FALLBACK"
+_FEED_LOG: dict = {}          # ticker -> source of the data actually fetched this process
+
+
+def data_feed_summary() -> dict:
+    """What the network fed this process: counts by source and the yfinance-fed tickers."""
+    by_source: dict = {}
+    for src in _FEED_LOG.values():
+        by_source[src] = by_source.get(src, 0) + 1
+    return {"n_network_fetched": len(_FEED_LOG), "by_source": by_source,
+            "yfinance_tickers": sorted(t for t, s in _FEED_LOG.items() if s.startswith("yfinance"))}
+
+
+def reset_feed_log() -> None:
+    """Forget the recorded fetches (tests, or a fresh run in a long-lived process)."""
+    _FEED_LOG.clear()
 
 
 class DataManager:
@@ -541,18 +556,11 @@ class DataManager:
         # --- Drop invalid rows ---
         df = df[df["Close"].notna()]
 
-        # --- AUTO SCALE FIX ---
-        median_price = df["Close"].median()
-        scale = 1.0
-        while median_price > 1000:
-            median_price /= 10
-            scale *= 10
-
-        if scale != 1.0:
-            if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                print(f"[DATA_MANAGER][INFO] Auto-scaling prices: ÷{scale}")
-            for c in ["Open", "High", "Low", "Close"]:
-                df[c] = df[c] / scale
+        # No auto-scaling (item (d), ruled 2026-10-15). A loader that divided OHLC by 10 whenever
+        # the median close exceeded 1000 fired on exactly ONE cached series — DAL, whose 1980-2005
+        # bars are a corrupt stitch (old Delta's cancelled equity at 3,000-8,000) — so it masked bad
+        # data instead of protecting good data. A series now loads at its stored level; DAL's
+        # pre-2007 bars are withheld by a DECLARED exclusion (DECLARED_EXCLUSIONS), never rescued.
 
         # --- Data sanity cleanup: drop ISOLATED bad ticks (fat-finger /
         # mis-scaled prints), NOT sustained legitimate price levels. ---
@@ -640,18 +648,28 @@ class DataManager:
         return self.cache_dir / "parquet" / f"{ticker}_{timeframe}.parquet"
 
     def load_cached(self, ticker: str, timeframe: str) -> pd.DataFrame | None:
+        """The cached bars, with DECLARED exclusions withheld (item d, 2026-10-15).
+
+        The withholding check runs OUTSIDE the read's error handling, deliberately: a declaration
+        that no longer matches the data raises ExclusionMismatchError, and that must propagate —
+        never be caught by a read-failure handler and treated as a corrupt file."""
+        df = self._load_cached_unfiltered(ticker, timeframe)
+        return None if df is None else check_declared(ticker, df)
+
+    def _load_cached_unfiltered(self, ticker: str, timeframe: str) -> pd.DataFrame | None:
         """Parquet first, then CSV. A cache file that cannot be READ is quarantined and refused —
         never deleted (ruling, 2026-10-15): it is renamed to a sibling `.unreadable-<UTC ts>` and
-        CacheUnreadableError names the path, the error and where the bytes went. The old behaviour
-        unlinked it — a reader silently destroying substrate. Only the READ is guarded: an error
-        in normalization is a code bug and propagates as itself, never quarantining a good file."""
+        CacheUnreadableError names the path, the error and where the bytes went. Only the READ is
+        guarded: declared exclusions are truncated on the RAW frame BEFORE normalization (item d —
+        excluded bars must not shape the rolling bad-tick band), and an error in normalization is a
+        code bug that propagates as itself, never quarantining a good file."""
         pq_path = self.parquet_cache_path(ticker, timeframe)
         if pq_path.exists():
             try:
                 raw = pd.read_parquet(pq_path)
             except Exception as e:
                 raise CacheUnreadableError(ticker, pq_path, e, _quarantine(pq_path)) from e
-            df = self._normalize_df(raw, ticker=ticker)
+            df = self._normalize_df(truncate_declared(ticker, raw), ticker=ticker)
             if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                 print(f"[DATA_MANAGER][INFO] Loaded Parquet cache for {ticker} ({timeframe})")
             return df
@@ -662,7 +680,7 @@ class DataManager:
             raw = pd.read_csv(path)
         except Exception as e:
             raise CacheUnreadableError(ticker, path, e, _quarantine(path)) from e
-        return self._normalize_df(raw, ticker=ticker)
+        return self._normalize_df(truncate_declared(ticker, raw), ticker=ticker)
 
     def save_cache(self, ticker: str, timeframe: str, df: pd.DataFrame) -> None:
         # Save both Parquet and CSV for compatibility (Parquet preferred)
@@ -833,17 +851,27 @@ class DataManager:
 
             # --- network path (uncached only) — bounded by the seatbelt ---
             df = None
+            source = None
             _prev_to = socket.getdefaulttimeout()
             socket.setdefaulttimeout(DATA_FETCH_TIMEOUT_S)
             try:
                 if not offline:
                     try:
                         df = fetch_from_alpaca(t, timeframe, start, end)
+                        source = "alpaca"
                     except Exception:
                         df = None
 
                 # Fallback to yfinance if Alpaca failed or offline
                 if (df is None or df.empty):
+                    if os.environ.get(REFUSE_YFINANCE_ENV):
+                        raise RuntimeError(
+                            f"[DATA_MANAGER] {t}: uncached and "
+                            f"{'no Alpaca keys' if offline else 'Alpaca returned nothing'} — a "
+                            f"canonical run REFUSES the yfinance fallback (a different source and "
+                            f"adjustment basis; [NN-FAIL-CLOSED], ruling C-2). Load the keys "
+                            f"(core.env.load_local_env) or complete the cache.")
+                    source = "yfinance(offline)" if offline else "yfinance(alpaca-failed)"
                     try:
                         df = self._fetch_yfinance(t, start, end, timeframe)
                     except Exception as e:
@@ -854,10 +882,11 @@ class DataManager:
                 socket.setdefaulttimeout(_prev_to)
 
             if df is not None and not df.empty:
+                _FEED_LOG[t] = source or "unknown"
                 self.save_cache(t, timeframe, df)
                 if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                     print(f"[DATA_MANAGER][INFO] Downloaded data for {t} ({len(df)} rows)")
-                out[t] = df
+                out[t] = withhold_excluded_bars(t, df)   # the file keeps everything; serving withholds
             else:
                 # FAIL LOUD (non-fatal): a network fetch was attempted and got
                 # nothing — name the ticker + feed so a stalled/blocked fetch

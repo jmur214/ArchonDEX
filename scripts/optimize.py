@@ -34,7 +34,7 @@ def main():
     
     if not candidates:
         print("[DARWIN] No 'candidate' edges found. Run discovery engine first!")
-        print("Hint: python -m engines.engine_d_discovery.discovery")
+        print("Hint: python -m scripts.discovery_generate_candidates")
         return
 
     print(f"[DARWIN] Found {len(candidates)} candidates awaiting validation.")
@@ -96,4 +96,6 @@ def main():
     print("="*50)
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     main()

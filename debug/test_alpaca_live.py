@@ -2,6 +2,8 @@
 from orchestration.mode_controller import ModeController, CachedCSVLiveFeed
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     controller = ModeController(project_root=".")
     feed = CachedCSVLiveFeed(
         cache_dir="./data/processed",

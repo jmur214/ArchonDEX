@@ -79,6 +79,8 @@ def fetch_etf(ticker: str) -> None:
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     print("=" * 60)
     print("T-2026-05-12-052 macro/ETF backfill")
     print("=" * 60)

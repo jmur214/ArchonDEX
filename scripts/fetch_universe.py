@@ -326,4 +326,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     raise SystemExit(main())

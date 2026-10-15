@@ -43,7 +43,10 @@ def load_membership(path: str | None = None) -> pd.DataFrame:
     df = pd.read_parquet(p)
     df["start"] = pd.to_datetime(df["start"])
     df["end"] = pd.to_datetime(df["end"])
-    return df
+    # Declared exclusions (item d, 2026-10-15) apply to membership too — a rule, not a property of
+    # today's file: a future membership source must not reintroduce a withheld identity.
+    from engines.data_manager.exclusions import clip_membership
+    return clip_membership(df)
 
 
 def members_on(date, path: str | None = None) -> set:
