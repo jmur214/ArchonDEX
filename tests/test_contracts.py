@@ -335,22 +335,107 @@ CENSUS_GATING_KEYS = {
     # run whose network fetches fell back to yfinance — a source AND adjustment-basis switch.
     # Without the producer emitting it, that refusal would silently read None and pass.
     "data_feed",
+    # data_exclusions (2026-10-15, census fail-closed unit): the gate fails an ERRORED exclusions
+    # record — "what was withheld" unknown is not a measurement.
+    "data_exclusions",
 }
+
+# Source-of-truth producers for the census keys that have one (the rest are computed inline).
+CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
+                        "data_feed": "data_feed_summary",
+                        "data_exclusions": "exclusions_applied"}
+
+
+def _build_census_node():
+    import ast
+    tree = ast.parse((REPO / "backtester" / "backtest_controller.py").read_text())
+    return next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_build_census")
+
+
+def _census_assigned_keys(nodes) -> Set[str]:
+    """Keys assigned as census["key"] = ... anywhere inside `nodes` (AST)."""
+    import ast
+    keys: Set[str] = set()
+    for root in nodes:
+        for a in ast.walk(root):
+            if isinstance(a, ast.Assign):
+                for t in a.targets:
+                    if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                            and t.value.id == "census" and isinstance(t.slice, ast.Constant)):
+                        keys.add(t.slice.value)
+    return keys
+
+
+def _census_success_path_keys(fn) -> Set[str]:
+    """Keys assigned OUTSIDE every except handler — the success path."""
+    import ast
+    in_handler = {id(x) for h in ast.walk(fn) if isinstance(h, ast.ExceptHandler) for x in ast.walk(h)}
+    keys: Set[str] = set()
+    for a in ast.walk(fn):
+        if isinstance(a, ast.Assign) and id(a) not in in_handler:
+            keys |= _census_assigned_keys([a])
+    return keys
 
 
 def test_layer2d_census_producer_emits_all_gating_keys():
-    """Every key the gate relies on must be emitted by the producer
-    (`_build_census`). A producer that stops writing a gating key would let
-    the gate silently read None and pass a non-canonical run."""
-    src = (REPO / "backtester" / "backtest_controller.py").read_text()
-    # producer assigns via census["key"] = ...
-    emitted = set(re.findall(r'census\[\s*["\']([a-z0-9_]+)["\']\s*\]\s*=', src))
-    missing = sorted(CENSUS_GATING_KEYS - emitted)
+    """Every key the gate relies on is assigned on the SUCCESS path of `_build_census` (AST), and a
+    key with a source-of-truth producer is assigned FROM it. The previous regex form was satisfied
+    by an except branch writing a PASSING value (edges_blind=[]): the key was 'emitted' only when
+    the census block had crashed."""
+    fn = _build_census_node()
+    missing = sorted(CENSUS_GATING_KEYS - _census_success_path_keys(fn))
     assert not missing, (
-        "[Layer 2d] census keys the gate reads but the producer "
-        "(_build_census) does NOT emit:\n  " + "\n  ".join(missing)
-        + "\n  A renamed/dropped producer key makes the gate read None silently."
-    )
+        "[Layer 2d] gating census keys NOT assigned on _build_census's success path "
+        "(only in an except branch, or not at all):\n  " + "\n  ".join(missing))
+    wrong_source = [k for k, prod in CENSUS_KEY_PRODUCERS.items() if not _assigned_from(fn, k, prod)]
+    assert not wrong_source, f"[Layer 2d] not assigned from their source-of-truth producer: {wrong_source}"
+
+
+# A census the gate passes — the baseline every except branch is planted into.
+_CANONICAL_CENSUS = {
+    "edges_blind": [], "edges_errored": {}, "n_resolved": 10, "n_in_panel": 10,
+    "n_trades": 5, "trades_canon_md5": "0" * 32, "trades_empty": False,
+    "fundamentals_blind": 0, "regime_unknown_frac": 0.1, "regime_total_bars": 100,
+    "config_provenance": {"degraded": False}, "data_feed": {"yfinance_tickers": []},
+    "data_exclusions": {},
+}
+
+
+def test_layer2d_every_except_branch_in_build_census_FAILS_the_gate():
+    """[NN-FAIL-CLOSED]: a census block that crashed measured nothing. Every except branch in
+    `_build_census` that guards census writes is EXECUTED (its own statements, with a planted
+    exception bound to its name) and planted into an otherwise-canonical census: the gate must say
+    NON-CANONICAL. And no gating value it writes may be a PASSING one — each gating key it assigns
+    must fail the gate on its own, without the error record."""
+    import ast
+    from core.census import assert_census
+    assert assert_census({"census": dict(_CANONICAL_CENSUS),
+                          "bootstrap_ci_skip_reason": "contract"}).canonical, \
+        "precondition: the baseline census must be canonical"
+    fn = _build_census_node()
+    checked = []
+    for t in ast.walk(fn):
+        if not isinstance(t, ast.Try) or not _census_assigned_keys(t.body):
+            continue
+        for h in t.handlers:
+            ns = {"census": {}, (h.name or "_e"): RuntimeError("planted")}
+            exec(compile(ast.Module(body=h.body, type_ignores=[]), "<except-branch>", "exec"), {}, ns)
+            written = ns["census"]
+            assert written, f"except branch at line {h.lineno} writes NOTHING — the failure would vanish"
+            v = assert_census({"census": {**_CANONICAL_CENSUS, **written},
+                               "bootstrap_ci_skip_reason": "contract"})
+            assert not v.canonical, (f"except branch at line {h.lineno} writes {written} — the gate "
+                                     f"PASSES it; a crashed census block reads as a clean measurement")
+            passing = {k: val for k, val in written.items()
+                       if k in CENSUS_GATING_KEYS and not k.endswith("_error")
+                       and not (isinstance(val, dict) and "error" in val)}
+            for k, val in passing.items():
+                alone = assert_census({"census": {**_CANONICAL_CENSUS, k: val},
+                                       "bootstrap_ci_skip_reason": "contract"})
+                assert not alone.canonical, (f"except branch at line {h.lineno} writes the PASSING "
+                                             f"value {k}={val!r}")
+            checked.append(h.lineno)
+    assert len(checked) >= 5, f"expected every census try/except to be checked; checked lines {checked}"
 
 
 def test_layer2d_census_consumer_keys_subset_of_contract():

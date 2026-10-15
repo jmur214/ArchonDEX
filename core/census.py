@@ -17,6 +17,8 @@ the audit's invariants fail:
   5. regime_unknown_frac >= 1.0                  (regime layer silently OFF — T-164 GAP-2)
   6. config_provenance.degraded                  ({}/one-key fabricated config — T-088)
   7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
+  8. any `<block>_error` record, or an errored data_feed / data_exclusions record
+                                                 (a census block that crashed measured nothing — R, 2026-10-15)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
 bootstrap CI nor an explicit skip reason (the CLAUDE.md ci_low rule).
@@ -90,6 +92,16 @@ def assert_census(
         return v
     if "census_error" in census:
         failures.append(f"census assembly errored: {census['census_error']}")
+    # A census block that CRASHED is not a measurement ([NN-FAIL-CLOSED], [NN-CENSUS]). Every
+    # except branch in `_build_census` records `<block>_error`; the gate fails on it. Before this,
+    # the edges block's except ALSO wrote edges_blind=[] / edges_errored={} and this gate never read
+    # `edges_blind_error` — a crash in the edges census PASSED invariants 1 and 1b (Agent R).
+    for k in sorted(census):
+        if k.endswith("_error") and k != "census_error":
+            failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
+    excl = census.get("data_exclusions")
+    if isinstance(excl, dict) and "error" in excl:
+        failures.append(f"data_exclusions record errored: {excl['error']} — what was withheld is unknown")
 
     dormant = set(expected_dormant or set()) | _env_set("CENSUS_EXPECTED_DORMANT")
     panel_allow = panel_allowlist if panel_allowlist is not None else _env_int("CENSUS_PANEL_ALLOWLIST", 0)
@@ -118,8 +130,10 @@ def assert_census(
             f"panel shrank: n_in_panel={n_in_panel} < n_resolved={n_resolved} "
             f"(allowlist={panel_allow})")
 
-    # 3 — actually traded
-    if bool(census.get("trades_empty", False)) or int(census.get("n_trades", 0) or 0) == 0:
+    # 3 — actually traded. `n_trades <= 0`, not `== 0`: the trades block's except branch writes the
+    # sentinel n_trades=-1 ("count unknown"), which the `== 0` form read as a valid count (found by
+    # the Layer-2d except-branch contract, 2026-10-15).
+    if bool(census.get("trades_empty", False)) or int(census.get("n_trades", 0) or 0) <= 0:
         failures.append(f"zero-trade run (n_trades={census.get('n_trades')}, "
                         f"canon={census.get('trades_canon_md5')})")
     elif str(census.get("trades_canon_md5", "")) == EMPTY_MD5:

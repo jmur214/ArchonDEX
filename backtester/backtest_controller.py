@@ -1330,8 +1330,10 @@ class BacktestController:
             census["edges_errored"] = {k: {"crash_bars": int(v), "last_error": samples.get(k, "")}
                                        for k, v in sorted(errs.items()) if int(v) > 0}
         except Exception as e:
-            census["edges_blind"] = []
-            census["edges_errored"] = {}
+            # Fail closed (R, item-(d) review): this branch used to ALSO write the PASSING values
+            # edges_blind=[] and edges_errored={}, and the gate never read the error record — so a
+            # crash in the edges census produced a census that PASSED invariants 1 and 1b. It now
+            # writes only the error record, which assert_census fails on.
             census["edges_blind_error"] = repr(e)
 
         # Invariant 2 — universe didn't silently shrink.
@@ -1356,7 +1358,8 @@ class BacktestController:
             census["fundamentals_edges_active"] = fund_active
             census["fundamentals_blind"] = int(bool(fund_active) and panel_is_blind())
         except Exception as e:
-            census["fundamentals_blind"] = 0
+            # Same shape as the edges block (found in the audit for the same unit): the PASSING
+            # fundamentals_blind=0 is gone; the error record alone fails the gate.
             census["fundamentals_blind_error"] = repr(e)
 
         # Invariant 3 — the run actually traded.

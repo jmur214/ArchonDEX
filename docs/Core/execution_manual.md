@@ -1277,6 +1277,16 @@ leaves that temp file behind as evidence.
 python scripts/registry_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
 ```
 
+## Census fail-closed — proof by reversion (added 2026-10-15)
+
+`assert_census` fails a run whose census carries any `<block>_error` record or an errored `data_feed` /
+`data_exclusions` record. A census block that crashed measured nothing. The Layer-2d contract EXECUTES every
+except branch in `_build_census`; the gate must fail each one.
+
+```bash
+python scripts/census_fail_closed_reversion_proof.py   # each fix reverted alone; its lock must fail (restores by sha256)
+```
+
 ## Honest N — the gate's inputs (RR-3, added 2026-10-13)
 
 Discovery Gate 0/8 read two inputs, both FAIL CLOSED and both **PINNED** by the committed pointer
