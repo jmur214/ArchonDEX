@@ -22,6 +22,17 @@ then LOW. Within each severity, list newest at the top.
 
 ### HIGH
 
+### [HIGH] Dollar-ADV on total-return closes: a yield-correlated bias in every existing equity-book measurement (XOM's 2000 dollar volume at 43% of true) (2026-10-15)
+- Category: measurement integrity / adjustment basis
+- Files: `engines/engine_a_alpha/edge_base.py:58-65` (ADV floor, five edges); `engines/execution/slippage_model.py:279`; `backtester/borrow_rate_model.py:127`
+- First flagged: 2026-10-15 (B, item (d) scan — `docs/Sources/scan_price_level_consumers_item_d_2026_10_15.md`)
+- Status: OPEN — RULED; the fix ships WITH the cutover writer (no second writer is invented for it).
+- Description: the cache's closes are dividend back-adjusted, so every Close × Volume is deflated by the cumulative dividend factor still to come — measured (Adj Close ÷ split-only Close): XOM 0.432 (2000) / 0.537 (2010), KO 0.474 / 0.600, SPY 0.625 / 0.744, AAPL 0.837 / 0.837. The ADV floor (atr_breakout, gap_edge, herding_edge, momentum_edge, volume_anomaly_edge) excluded high-yielders more often in early years, and the ADV-bucketed slippage and borrow models charged them more: a value/defensive-tilted bias in universe membership and costs inside every equity-book number, independent of the cutover (exact total return deflates the same way). Recorded, not re-run.
+- Anchor: `engines/engine_a_alpha/edge_base.py:64` contains `close = df["Close"].astype(float)` — the ADV floor reads the TR close
+- Anchor: `engines/execution/slippage_model.py:279` contains `dollar_vol = (recent["Close"] * recent["Volume"]).astype(float)` — slippage bucket
+- Anchor: `backtester/borrow_rate_model.py:127` contains `dollar_vol = (recent["Close"].astype(float) * recent["Volume"].astype(float))` — borrow bucket
+- Recommended next step: the cutover writer adds `close_unadj` (its unadjusted mode); these three readers switch to split-only price × volume in the same unit, with the lock that on an ex-date dollar-ADV equals split-only price × volume to the cent; the cutover's per-verdict plan names this as the second reason pre-seam numbers are re-qualified.
+
 ### [HIGH] The processed price cache is DIVIDEND BACK-ADJUSTED while its fetch code, comment and merge design all say split-only (2026-10-15)
 - Category: data-convention drift / contradictory record
 - Files: `data/processed/*_1d.csv`; `engines/data_manager/data_manager.py:84-105` (comment), `:765` (`adjustment="split"`); `scripts/merge_stooq_alpaca_substrate.py:1-40`
