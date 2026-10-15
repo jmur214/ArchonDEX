@@ -51,12 +51,17 @@ def _controller(alpha, *, counters=True, regime_detector=object()):
     counters were NEVER set."""
     ctrl = object.__new__(BacktestController)
     ctrl.alpha = alpha
-    ctrl.data_map = {"SPY": pd.DataFrame({"Close": [1.0]})}
+    ctrl.data_map = {"SPY": pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2025-12-31"]))}
+    ctrl._census_window = ("2025-12-31", "2025-12-31")      # as run() records it (the stale_files guard)
     ctrl.regime_detector = regime_detector
     if counters:
         ctrl._census_n_resolved = 1
         ctrl._census_regime_total_bars, ctrl._census_regime_unknown_bars = 40, 3
     return ctrl
+
+
+_WINDOW = ("2025-12-31", "2025-12-31")
+_CLEAN_MAP = {"SPY": pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2025-12-31"]))}
 
 
 def _trades(tmp_path):
@@ -183,7 +188,7 @@ def test_a_GATE1_candidate_census_is_not_asked_for_backtest_counters():
 
     class _C:
         nonzero_calls, errors = 5, 0
-    block = candidate_census_block("cand_v1", _C(), n_trades=50)
+    block = candidate_census_block("cand_v1", _C(), n_trades=50, data_map=_CLEAN_MAP, window=_WINDOW)
     v = _verdict(block)
     assert v.canonical, v.failures          # the consequence first: an undeclared block is refused
     assert block.get("census_kind") == "candidate" and "n_resolved" not in block

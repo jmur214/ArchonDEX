@@ -789,6 +789,13 @@ class ModeController:
             use_historical_universe = bool(
                 self.cfg_bt.get("use_historical_universe", False)
             )
+        # The stale/holed-files guard (2026-10-15): a PIT run's census and admission read each
+        # member's EXIT (a name is required to the earlier of the window end and its exit); a static
+        # run has none — every name live to the window end (R's ruling).
+        _membership_intervals = None
+        if use_historical_universe:
+            from engines.data_manager.membership import load_membership
+            _membership_intervals = load_membership()
         if use_historical_universe:
             from engines.data_manager.universe_resolver import (
                 resolve_universe,
@@ -866,6 +873,24 @@ class ModeController:
         # --- Load data with warmup ---
         data_map = self.dm.ensure_data(tickers, fetch_start_str, end, timeframe=timeframe)
         self.dm.prefetch_fundamentals(tickers)
+
+        # --- The stale/holed-files ADMISSION (2026-10-15): BARS, never file presence ---
+        # A live name whose file ends before its required end, or is holed inside its required
+        # spans, is never admitted as "stopped trading". In a MEASURED run that is a MeasurementHalt
+        # (halt_or_degrade), never a silent drop: dropping the stale winners and calling the run
+        # canonical would re-create the bias the guard exists to stop. Outside measured mode: WARN;
+        # the census records it and its gate fails the run as non-canonical.
+        from core.measured import halt_or_degrade
+        from engines.data_manager.coverage import stale_files_record
+        _cov = stale_files_record(data_map, start, end, intervals=_membership_intervals)
+        if _cov["n_stale"] or _cov["n_holed"] or _cov["calendar"]["spy_missing_days"]:
+            _bad = sorted(t for t, v in _cov["names"].items() if not v["declared"]
+                          and (v["ends_before_required"] or v["missing_trading_days"]))
+            _msg = (f"{_cov['n_stale']} stale and {_cov['n_holed']} holed undeclared names "
+                    f"(e.g. {', '.join(_bad[:8])}); SPY calendar holes: "
+                    f"{len(_cov['calendar']['spy_missing_days'])}")
+            halt_or_degrade("coverage.stale_or_holed", load_bearing=True, active=True, reason=_msg)
+            print(f"[RUN_BACKTEST][WARN] coverage: {_msg} — the census gate will fail this run")
 
         # --- Load edges via EdgeRegistry ---
         loaded_edges = self._load_edges_via_registry(
@@ -1014,6 +1039,7 @@ class ModeController:
             initial_capital=init_cap,
             regime_detector=regime_detector,
             portfolio_cfg=self.portfolio_cfg,
+            membership_intervals=_membership_intervals,
         )
 
         history = controller.run(start, end)
@@ -1361,6 +1387,11 @@ class ModeController:
                 # Gate-3 (WFO) still does proper multi-window OOS internally.
                 _val_months_env = _os_diag.environ.get("DISCOVERY_VALIDATION_MONTHS")
                 _val_start, _val_end = discovery_validation_window(data_map, _val_months_env)
+                # the stale/holed-files guard: the candidate census's END test reads exits when the
+                # universe is PIT (the same flag the backtest path reads); static → none
+                from engines.data_manager.membership import load_membership as _load_membership
+                _disc_intervals = (_load_membership()
+                                   if bool(self.cfg_bt.get("use_historical_universe", False)) else None)
                 try:
                     result = discovery.validate_candidate(
                         cand, data_map,
@@ -1370,6 +1401,7 @@ class ModeController:
                         diagnostic_log_path=_diag_log_path,
                         cache=cycle_cache,
                         start_date=_val_start,
+                        membership_intervals=_disc_intervals,
                         end_date=_val_end,
                         data_map_substrate_b=cycle_data_map_substrate_b,
                         n_trials_for_dsr=cycle_n_trials_for_dsr,

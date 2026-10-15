@@ -343,12 +343,16 @@ CENSUS_GATING_KEYS = {
     "census_kind",
     "regime_layer",
     "regime_off_label",
+    # stale_files (2026-10-15, the stale/holed-files guard): the gate fails undeclared stale or holed
+    # names and a holed reference calendar — BARS, never file presence.
+    "stale_files",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
 CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_feed": "data_feed_summary",
-                        "data_exclusions": "exclusions_applied"}
+                        "data_exclusions": "exclusions_applied",
+                        "stale_files": "stale_files_record"}
 
 
 def _build_census_node():
@@ -1589,7 +1593,8 @@ def test_layer4_registry_nonempty_and_seeds_t216_gate():
 # ticker_exclusions: the TICKER kind (2026-10-15, the AZO/MTD/NVR scale defect), its own key.
 CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied",
                           "ticker_exclusions": "ticker_exclusions_applied",
-                          "level_declarations": "substrate_level_declarations"}
+                          "level_declarations": "substrate_level_declarations",
+                          "stale_files": "stale_files_record"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:

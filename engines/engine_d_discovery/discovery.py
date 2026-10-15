@@ -58,7 +58,10 @@ class RegimeContextUnavailable(RuntimeError):
     the same label. There is no labelled 'no regime context' mode, so the cycle refuses."""
 
 
-def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
+def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
+                           data_map: Optional[Dict[str, pd.DataFrame]] = None,
+                           window: Optional[tuple] = None,
+                           membership_intervals: Optional[pd.DataFrame] = None) -> dict:
     """The Gate-1 candidate's census block, routed through the SAME `assert_census` the
     measurement path uses. It carries the SAME provenance fields the measurement path's census
     writes — a census provenance field exists only when BOTH producers write it (Agent R found
@@ -70,7 +73,10 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
       * ticker_exclusions (2026-10-15, the AZO/MTD/NVR scale defect): the TICKER-kind record —
         names removed at universe resolution and from PIT membership;
       * level_declarations (2026-10-15, the LEVEL rail): substrate files written under a level
-        declaration, from the per-file write records."""
+        declaration, from the per-file write records;
+      * stale_files (2026-10-15, the stale/holed-files guard): BARS, never file presence, over the
+        candidate's own data_map and window. Without them the record is an ERROR, which fails the
+        gate — coverage that was not measured is never a pass."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
         # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST
@@ -98,6 +104,13 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int) -> dict:
         block["level_declarations"] = substrate_level_declarations(CANONICAL_CACHE_DIR)
     except Exception as e:   # recorded, never omitted
         block["level_declarations"] = {"error": repr(e)}
+    try:
+        from engines.data_manager.coverage import stale_files_record
+        if data_map is None or window is None:
+            raise RuntimeError("no data_map/window given — coverage not measured")
+        block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals)
+    except Exception as e:   # recorded, never omitted
+        block["stale_files"] = {"error": repr(e)}
     return block
 
 
@@ -1059,6 +1072,9 @@ class DiscoveryEngine:
         # at orchestration/mode_controller.py for the loader integration.
         data_map_substrate_b: Optional[Dict[str, pd.DataFrame]] = None,
         gate7_max_substrate_drift: float = 0.5,
+        # The stale/holed-files guard (2026-10-15): PIT membership intervals for the candidate
+        # census's per-name END test. None = a static universe (every name live to the window end).
+        membership_intervals: Optional[pd.DataFrame] = None,
         # ---- Multiple-testing-corrected gate (Gate 8 / DSR) ----
         # When n_trials_for_dsr > 1, the candidate's attribution Sharpe is
         # checked against the expected-max-of-N-trials null. This protects
@@ -1467,7 +1483,9 @@ class DiscoveryEngine:
             # (`df or []` raises "truth value of a DataFrame is ambiguous").
             _tl = getattr(with_candidate_result, "trade_log", None)
             n_trades_with = 0 if _tl is None else int(len(_tl))
-            _census_block = candidate_census_block(cand_id, cand_census, n_trades_with)
+            _census_block = candidate_census_block(
+                cand_id, cand_census, n_trades_with, data_map=data_map,
+                window=(start_date, end_date), membership_intervals=membership_intervals)
             _cv = assert_census(
                 {"census": _census_block,
                  # A Gate-1 contribution run is not a headline measurement; the

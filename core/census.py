@@ -22,7 +22,10 @@ the audit's invariants fail:
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
-     level_declarations record
+     level_declarations / stale_files record
+  9. stale_files: any UNDECLARED live name that ends before its required end (the earlier of the
+     window end and its exit) or is holed inside its required spans, or a holed reference calendar
+     (BARS, never file presence — the stale/holed-files guard, 2026-10-15)
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
@@ -104,10 +107,22 @@ def assert_census(
     for k in sorted(census):
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
-    for key in ("data_exclusions", "ticker_exclusions", "level_declarations"):
+    for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
+    # 9 — the stale/holed-files guard: counts BARS, never file presence (2026-10-15)
+    sf = census.get("stale_files")
+    if isinstance(sf, dict) and "error" not in sf:
+        if sf.get("n_stale"):
+            failures.append(f"stale_files: {sf['n_stale']} undeclared live name(s) END before their "
+                            f"required end — read as 'stopped trading' (the write-time band class)")
+        if sf.get("n_holed"):
+            failures.append(f"stale_files: {sf['n_holed']} undeclared name(s) are HOLED inside their "
+                            f"required spans")
+        if (sf.get("calendar") or {}).get("spy_missing_days"):
+            failures.append(f"stale_files: the reference calendar is holed — SPY lacks "
+                            f"{len(sf['calendar']['spy_missing_days'])} majority trading day(s)")
 
     dormant = set(expected_dormant or set()) | _env_set("CENSUS_EXPECTED_DORMANT")
     panel_allow = panel_allowlist if panel_allowlist is not None else _env_int("CENSUS_PANEL_ALLOWLIST", 0)
