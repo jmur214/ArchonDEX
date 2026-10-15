@@ -730,8 +730,9 @@ class ModeController:
         # it HERE — before this run's ensure_data — or a yfinance fetch in an earlier run in the
         # same process would mark this run's census NON-CANONICAL. (Not at BacktestController.run:
         # that comes AFTER the fetch below and would erase this run's own fallback fetches.)
-        from engines.data_manager.data_manager import reset_feed_log
+        from engines.data_manager.data_manager import reset_feed_log, reset_fundamentals_log
         reset_feed_log()
+        reset_fundamentals_log()       # this run's fundamentals cache misses, not an earlier run's
         from engines.data_manager.exclusions import reset_exclusion_log
         reset_exclusion_log()
         import os

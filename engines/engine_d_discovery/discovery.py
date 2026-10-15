@@ -91,6 +91,19 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         "data_feed": data_feed_summary(),
     }
     try:
+        from engines.data_manager.data_manager import (fundamentals_miss_summary,
+                                                       ticker_fundamentals_blind)
+        block["fundamentals_misses"] = fundamentals_miss_summary()
+        # Gate 1 reads the same blind count as the backtest census, over the CANDIDATE: a
+        # per-ticker fundamentals consumer whose names' misses were refused or blocked ran blind,
+        # and its "contribution" would measure the blindness, not the edge (re-pin #1's decision).
+        _tick = ticker_fundamentals_blind({cand_id: cand_census})
+        block["fundamentals_ticker_consumers"] = _tick["consumers"]
+        block["fundamentals_blind_names"] = _tick["blind_names"]
+        block["fundamentals_blind"] = len(_tick["blind_names"])
+    except Exception as e:   # recorded, never omitted
+        block["fundamentals_misses"] = {"error": repr(e)}
+    try:
         from engines.data_manager.exclusions import exclusions_applied
         block["data_exclusions"] = exclusions_applied()
     except Exception as e:   # recorded, never omitted

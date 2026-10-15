@@ -1391,7 +1391,15 @@ class BacktestController:
             loaded = set(getattr(self.alpha, "edges", {}) or {})
             fund_active = sorted([e for e in loaded if any(h in e.lower() for h in _FUND_HINTS)])
             census["fundamentals_edges_active"] = fund_active
-            census["fundamentals_blind"] = int(bool(fund_active) and panel_is_blind())
+            panel_blind = int(bool(fund_active) and panel_is_blind())
+            # Per-ticker consumers, read from the LOADED edges' declared attribute (never an id
+            # hint): a refused or blocked cache miss is a blind name when one is active.
+            from engines.data_manager.data_manager import ticker_fundamentals_blind
+            _tick = ticker_fundamentals_blind(getattr(self.alpha, "edges", {}) or {})
+            census["fundamentals_panel_blind"] = panel_blind
+            census["fundamentals_ticker_consumers"] = _tick["consumers"]
+            census["fundamentals_blind_names"] = _tick["blind_names"]
+            census["fundamentals_blind"] = panel_blind + len(_tick["blind_names"])
         except Exception as e:
             # Same shape as the edges block (found in the audit for the same unit): the PASSING
             # fundamentals_blind=0 is gone; the error record alone fails the gate.
@@ -1465,6 +1473,14 @@ class BacktestController:
             census["data_feed"] = data_feed_summary()
         except Exception as e:  # recorded, never omitted: the gate fails an errored feed record
             census["data_feed"] = {"error": repr(e)}
+        # Re-pin #1's decision (2026-10-15): every fundamentals cache MISS this process, per ticker
+        # and outcome (refused / blocked / fetched / empty). A canonical run refuses a miss rather
+        # than fetch it into the pinned scope; the census says which names it left absent.
+        try:
+            from engines.data_manager.data_manager import fundamentals_miss_summary
+            census["fundamentals_misses"] = fundamentals_miss_summary()
+        except Exception as e:  # recorded, never omitted
+            census["fundamentals_misses"] = {"error": repr(e)}
 
         # One-line operator summary (visibility; the gate runs at publish).
         try:

@@ -346,13 +346,17 @@ CENSUS_GATING_KEYS = {
     # stale_files (2026-10-15, the stale/holed-files guard): the gate fails undeclared stale or holed
     # names and a holed reference calendar — BARS, never file presence.
     "stale_files",
+    # fundamentals_misses (2026-10-15, re-pin #1's decision): the gate fails a cache miss FETCHED
+    # mid-run (an unpinned input entered the pinned scope) and an errored record.
+    "fundamentals_misses",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
 CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_feed": "data_feed_summary",
                         "data_exclusions": "exclusions_applied",
-                        "stale_files": "stale_files_record"}
+                        "stale_files": "stale_files_record",
+                        "fundamentals_misses": "fundamentals_miss_summary"}
 
 
 def _build_census_node():
@@ -485,7 +489,10 @@ def test_layer2d_census_consumer_keys_subset_of_contract():
     src = (REPO / "core" / "census.py").read_text()
     read = set(re.findall(r'census\.get\(\s*["\']([a-z0-9_]+)["\']', src))
     # keys read for messaging only (not gating) — allowlisted as non-binding
-    NON_GATING = {"fundamentals_edges_active"}
+    NON_GATING = {"fundamentals_edges_active",
+                  # invariant 4's MESSAGE only — the gate itself is fundamentals_blind > 0
+                  "fundamentals_panel_blind", "fundamentals_ticker_consumers",
+                  "fundamentals_blind_names"}
     uncovered = sorted((read - NON_GATING) - CENSUS_GATING_KEYS)
     assert not uncovered, (
         "[Layer 2d] core/census.py reads census keys not in the "
@@ -1594,7 +1601,8 @@ def test_layer4_registry_nonempty_and_seeds_t216_gate():
 CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "exclusions_applied",
                           "ticker_exclusions": "ticker_exclusions_applied",
                           "level_declarations": "substrate_level_declarations",
-                          "stale_files": "stale_files_record"}
+                          "stale_files": "stale_files_record",
+                          "fundamentals_misses": "fundamentals_miss_summary"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
@@ -1639,3 +1647,96 @@ def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     errored = {k: block[k] for k in CENSUS_PROVENANCE_KEYS
                if isinstance(block[k], dict) and "error" in block[k]}
     assert not errored, f"candidate_census_block did not PRODUCE these (error records): {errored}"
+
+
+# The per-ticker fundamentals cache (re-pin #1's decision, R's condition, 2026-10-15): every edge
+# class that REACHES it — a call to one of these, in its body or through a project function it
+# imports — must DECLARE itself a consumer, so a fourth consumer cannot arrive without joining the
+# census's blind count. The id-hint list this replaces matched value_trap_v1 alone.
+_TICKER_FUND_ENTRY_POINTS = {"fetch_historical_fundamentals", "_fundamentals_cache_path",
+                             "prefetch_fundamentals", "fetch_fundamentals"}
+
+
+def _called_names(node) -> set:
+    import ast
+    out = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call):
+            f = n.func
+            name = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
+            if name:
+                out.add(name)
+    return out
+
+
+def _engine_modules() -> dict:
+    """dotted module name -> parsed AST, for every module under engines/."""
+    import ast
+    mods = {}
+    for p in (REPO / "engines").rglob("*.py"):
+        rel = p.relative_to(REPO).with_suffix("")
+        try:
+            mods[".".join(rel.parts)] = ast.parse(p.read_text())
+        except SyntaxError:
+            continue
+    return mods
+
+
+def _reaching_functions(mods: dict) -> set:
+    """(module, function) pairs whose body reaches a per-ticker fundamentals entry point, directly
+    or through other project functions (local or imported), to a fixed point."""
+    import ast
+    funcs, imports = {}, {}
+    for m, tree in mods.items():
+        imports[m] = {}
+        for n in tree.body:
+            if isinstance(n, ast.FunctionDef):
+                funcs[(m, n.name)] = _called_names(n)
+            elif isinstance(n, ast.ImportFrom) and n.module:
+                for a in n.names:
+                    imports[m][a.asname or a.name] = (n.module, a.name)
+    reach = {k for k, called in funcs.items() if called & _TICKER_FUND_ENTRY_POINTS}
+    changed = True
+    while changed:
+        changed = False
+        for (m, fn), called in funcs.items():
+            if (m, fn) in reach:
+                continue
+            for c in called:
+                tgt = (m, c) if (m, c) in funcs else imports[m].get(c)
+                if tgt in reach:
+                    reach.add((m, fn))
+                    changed = True
+                    break
+    return reach
+
+
+def test_every_edge_class_reaching_the_ticker_fundamentals_cache_DECLARES_itself_a_consumer():
+    import ast
+    mods = _engine_modules()
+    reach = _reaching_functions(mods)
+    reaching, undeclared = set(), []
+    for m, tree in mods.items():
+        if not m.startswith("engines.engine_a_alpha.edges"):
+            continue
+        local = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+        imported = {a.asname or a.name: (n.module, a.name) for n in tree.body
+                    if isinstance(n, ast.ImportFrom) and n.module for a in n.names}
+        for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
+            called = _called_names(cls)
+            hits = (called & _TICKER_FUND_ENTRY_POINTS
+                    or {c for c in called if c in local and (m, c) in reach}
+                    or {c for c in called if imported.get(c) in reach})
+            if not hits:
+                continue
+            reaching.add(cls.name)
+            declares = any(isinstance(s, ast.Assign) and any(getattr(t, "id", None) == "READS_TICKER_FUNDAMENTALS"
+                                                              for t in s.targets)
+                           and isinstance(s.value, ast.Constant) and s.value.value is True
+                           for s in cls.body)
+            if not declares:
+                undeclared.append(f"{m}.{cls.name} (reaches via {sorted(hits)})")
+    # positive control: the scan must SEE the known consumers, or it proves nothing
+    assert {"ValueTrapEdge", "FundamentalRatioEdge", "CompositeEdge"} <= reaching, sorted(reaching)
+    assert not undeclared, ("these edge classes reach the per-ticker fundamentals cache without "
+                            f"declaring READS_TICKER_FUNDAMENTALS = True: {undeclared}")

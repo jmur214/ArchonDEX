@@ -37,6 +37,11 @@ class CompositeEdge(EdgeBase, EdgeTemplate):
     """
     
     EDGE_ID = "composite_v1"
+    # A per-ticker fundamentals CONSUMER: this class reads the DataManager's per-ticker
+    # fundamentals cache. The census counts refused/blocked misses as blind only for a loaded
+    # consumer, read from this attribute (a contract lock requires it on every class that reaches
+    # the cache; re-pin #1's decision, 2026-10-15).
+    READS_TICKER_FUNDAMENTALS = True
     EDGE_GROUP = "composite"
     EDGE_CATEGORY = "evolutionary"
 
