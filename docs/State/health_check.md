@@ -64,6 +64,22 @@ then LOW. Within each severity, list newest at the top.
 - Status: OPEN. B-1 ruling 2026-10-14: the three are EXCLUDED from B-1's calendar family as structurally ineligible over the frozen window (10 → 7, one window; §8 compared as written; UNTESTED by B-1). Extending the tables to 2000 is its own propose-first foundry unit, queued in the program.
 - Recommended next step: the foundry's census should treat a constant-zero feature over a year as BLIND, not as a measured zero (the T-346 class); the table extension unit when scheduled.
 
+### [HIGH] The campaign submit gate checks only that the anchor KEYS exist — a STALE anchor passes silently (B, 2026-10-15, cutover proposal §3.2)
+- Engine: referee / cloud submission — `scripts/submit_arms_campaign.py:266-271`
+- First flagged: 2026-10-15, the cutover proposal's re-pin scan (B)
+- Description: the gate asserts the presence of the anchor keys (158fe678 the 26-yr anchor; 16-yr 3e9ea427; 2022 eb48742e; GFC 67784c1b) and never compares an anchor's content hash to the substrate manifest, so a run against a changed substrate (the cutover, or any refresh) submits under the old anchors with no refusal. The same class as the census's silent-zero defaults: a presence check standing in for a verification.
+- Status: OPEN, propose-first (referee). Ruled 2026-10-15, owner D: the gate verifies each anchor's sha256 against the pinned manifest and REFUSES on mismatch or absence, naming the anchor; a lock that plants a stale anchor and asserts the refusal, reversion-proven; R reviews.
+- Recommended next step: D's unit after the registry build; required BEFORE any cloud campaign runs on the cutover substrate.
+- Anchor: `scripts/submit_arms_campaign.py:262` contains `anchor` — the key-presence check that never reads the anchor's sha256
+
+### [HIGH] `gen_substrate_manifest.py verify` EXITS 1 TODAY — the substrate has not been re-pinned since 2026-06-18, and `tr_reconciled/` is baked into the paper image UNPINNED (B, 2026-10-15)
+- Engine: referee substrate pin — `scripts/gen_substrate_manifest.py`, `config/substrate_manifest.sha256` (ad03a97, 2026-06-18)
+- First flagged: 2026-10-15, the cutover proposal's re-pin scan (B); measured file by file
+- Description: all 2,049 listed `data/processed` files are byte-identical to the June pin; the failure is 5 CHANGED `data/macro` files (VIX9D, `_meta.json`, …) plus files added since June that were never listed (SKEW/VVIX/Shiller, four fundamentals parquets, `stooq_us_daily/`, `tr_reconciled/`). The paper image bakes `tr_reconciled/*.csv` (build_paper_image.sh:38-46, 58-66) with no pin covering it. A verify that fails today means no canonical run since June has been checked against a true pin.
+- Status: OPEN. Ruled 2026-10-15, owner B: a read-only unit first — what changed the five macro files, when, by which writer (legitimate refresh vs anything else), and the never-listed additions inventoried; the RE-PIN itself lands with the cutover (one re-pin since June, not two) unless the macro read finds a wrong reason, which becomes its own HIGH; `tr_reconciled/` joins the image re-bake checklist beside the Gate-7 cache and `data/observability`.
+- Recommended next step: B's read-only unit now; the re-pin on cutover day; the submit gate (previous row) verifying against it.
+- Anchor: none — the defect is the state of a pin file against the data, not a code line; the witness is `verify`'s exit code
+
 ### [HIGH] Engine A's EdgeRegistry is a third edges.yml writer with the wipe shape — live at IMPORT in 29 edge modules (R, 2026-10-14, proven on planted files)
 - Engine: Engine A (`engines/engine_a_alpha/edge_registry.py`) — with Engine D's `save_candidates` (fixed, `6e20790` with R) and Engine F's `lifecycle_manager._save_registry` / `evolution_controller.save_edges` (non-atomic `open("w")` inside a swallowing except; own unit)
 - First flagged: 2026-10-14, `docs/Audit/registry_fail_closed_review_agent_r_2026_10_14.md` §F1 (R's review of D's registry unit)
