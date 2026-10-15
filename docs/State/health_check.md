@@ -81,6 +81,27 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: D's unit after the registry build; required BEFORE any cloud campaign runs on the cutover substrate.
 - Anchor: `scripts/submit_arms_campaign.py:268` contains `has_external_anchor` — the presence check that never reads the anchor's sha256
 
+### [MEDIUM] The canonical AGG file is SPLIT-ONLY (the backfill_t052 trio; EFA and VNQ likewise) — T-247/T-257/T-262/T-278 measured AGG without its dividends, ~3 %/yr understated; T-257/T-278 carry a trigger via the advisor tier table (B, 2026-10-15, cutover proposal §5.1)
+- Engine: data substrate / research verdicts — `data/processed/{AGG,EFA,VNQ}_1d.*`, written by `scripts/backfill_t052_macro_data.py`
+- First flagged: 2026-10-15 (B's write pass: the three files read DIFFERENT_CONVENTION; the cutover proposal's §5.1 glob found the readers)
+- Status: OPEN, owner B. Independent of the cutover, and ACCEPTED as such (director, 2026-10-15). The
+  cutover's declared split-only path (§2b) re-fetches the trio as total return, which closes the DATA
+  defect. The four verdicts stay RE-LABELLED "measured on split-only AGG; not re-run". A re-run is
+  owed only through the trigger.
+- Description: `backfill_t052_macro_data.py` writes EFA, AGG and VNQ with `yf.download(...,
+  auto_adjust=False)` and keeps `Close`, the dividend-UNadjusted series. Every reader of the processed
+  file therefore gets AGG, EFA and VNQ without their dividends. Measured against a yfinance
+  total-return re-fetch: post-seam return deltas of **+3.19 %/yr (AGG), +2.66 (EFA), +4.30 (VNQ)**.
+  The readers that measured verdicts on processed AGG are T-247 (carry sleeve, from 2003; no ledger
+  row), T-257 (integer-share reality check, from 2020; done), T-262 (compose vol-target: AGG/GLD in
+  its integer tracking-error check; refuted) and T-278 (capital-tier gauntlet, from 2020; no ledger
+  row). Each understated AGG's return by about 3 %/yr. §5's ETF verdicts on `tr_reconciled/` are
+  unaffected.
+- Recommended next step: none today. The TRIGGER: wiring `config/advisor_tier_table.json` (a SPEC
+  ARTIFACT, "NOT yet wired to runtime", its schema at :5) requires T-257's and T-278's re-run on the
+  then-current substrate first. The data defect closes at the cutover's declared trio path.
+- Anchor: `scripts/backfill_t052_macro_data.py:67` contains `auto_adjust=False` — the writer of the split-only trio (it stays while the canonical files are split-only; close the row by hand when the declared trio path has re-fetched them)
+
 ### [MEDIUM] The substrate manifest is UNPINNED since 2026-06-18 — `verify` exits 1 (the KNOWN B-7 blocker from RR-7 D3, 2026-09-30; not new): the 5 changed macro files are a legitimate July refresh, the extras are T-256 additions plus a runtime cache; `tr_reconciled/` is baked into the paper image unpinned (B's read, 2026-10-15)
 - Engine: referee substrate pin — `scripts/gen_substrate_manifest.py`, `config/substrate_manifest.sha256` (ad03a97, 2026-06-18)
 - First flagged: 2026-09-30, RR-7 Deliverable 3 (B): pinned 14,120 / host 14,250 / missing 0 / extra 130 / changed 5 — the B-7 blocker on the backtest image rebuild; re-quoted as a discovery on 2026-10-15 after a context reset (B's own correction); the read-only read of 2026-10-15 settled WHAT changed
@@ -581,6 +602,19 @@ then LOW. Within each severity, list newest at the top.
 - First flagged: 2026-05-23
 - Status: **PARTIAL 2026-05-23** — T-079 removed 5 functions (`invalidate_on_universe_change`, `invalidate_on_window_change`, `load_fundamentals`, `load_ablation`, `async_prefetch`), 3 dataclass fields (`Feature.registered_at`, `LifecycleConfig.retirement_{recent_window,decay_std}`, `GovernorConfig.max_turnover_per_month`), and archived `scripts/run_substrate_arm1_t035.py` to `Archive/scripts/`. 69 relevant tests pass. **REMAINING:** `ingest_fmp_ratios` (Medium-risk per agent — Path-C SimFin-rewire template, kept), 13 module-level constants in 8 files (deferred to next sweep).
 - Recommended next step: a future sweep can pick up the 13 deferred unused constants in atomic per-file commits. Excludes: pytest fixtures (auto-injected by name) and in-file helper functions (used only inside their own script's main). Out of scope per agent instructions: Engine B, Engine E, signal_processor.py.
+
+### [LOW] 21 research scripts hard-code ANOTHER agent's worktree as ROOT (16 agent-d, 5 agent-a) — a worktree path baked into research code is a reproduction hazard once that worktree is retired (B, 2026-10-15, cutover proposal §5.1 scan)
+- Category: other (reproduction hazard)
+- Files: `scripts/*.py` matching `ROOT = '/Users/jacksonmurphy/Dev/trading_machine-agent-{a,d}'`. agent-d (16): t236, t239, t249, t250, t254, t255, t260, t268, t273, t282, t284, t285, t294, t294b, t297, t298. agent-a (5): t259, t263, t266, t270, t339b (`anon_historical_score_t339b.py`)
+- First flagged: 2026-10-15
+- Status: OPEN, owner B. Not a wrong number today: both trees' `data/processed` link to the same
+  canonical cache, and the scripts' imports resolve through that tree's checkout. But the verdict
+  depends on a worktree that is not the repo. Retire or re-point agent-d or agent-a, and these scripts
+  either fail or silently read a different checkout's code.
+- Recommended next step: re-point each `ROOT` to the script's own repo root
+  (`Path(__file__).resolve().parents[1]`), one mechanical commit with a smoke run per script. LOW
+  because nothing reproduces these verdicts on a schedule.
+- Anchor: `scripts/breadth_tilt_t273.py:7` contains `ROOT = '/Users/jacksonmurphy/Dev/trading_machine-agent-d'`
 
 ### [LOW] `prefetch_fundamentals` promises a 7-day re-fetch of stale fundamentals that never happens — the docstring says what the code does not do (B, 2026-10-15, re-pin #1 brief)
 - Category: other (a false docstring on a measurement-input path)
