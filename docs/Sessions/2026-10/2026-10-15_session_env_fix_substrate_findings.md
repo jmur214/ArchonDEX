@@ -33,6 +33,19 @@
 - **The lint's exits are a workflow, not a nuisance:** two rows resolved themselves on merge because their witness lines vanished; one anchor moved by reading the line. The director's own unanchored rows were the lint's first catches.
 - **Measure before ruling on a provider:** the "per file by span" rule was reasonable and wrong; one measurement over 730 files settled it.
 
+## What was worked on (evening)
+
+- **The writer unit merged (`8616f93`, 4279/0 on the staged merge):** the Alpaca path dropped (one provider for the whole universe — its IEX history starts 2020-07-27 and disagreed with the cache wherever chosen), the overlap refusal in `full_refetch` over a measured 252-bar window (a 40-bar tail passed two conventions as a rescale), R's planted mismatch as the lock. **The Yahoo symbol table merged alone (`47aca8a`, 4292/0)**; the BK → BNY rename HELD out of code until the cutover's declared class (R: an identity claim does not enter code ahead of the ruling).
+- **The write pass on the copy, complete; the real cache untouched (md5 identical):** 630 of 730 written; every refusal classed (the split-only trio AGG/EFA/VNQ from one writer; AMCR a mixed cache; CPWR/NFX/CA/BBBY/PSKY reused tickers; DAL the stitch; eight names with Stooq history deeper than the provider's; five with start leads); **the true unfetchable count 75 of 730 (10.3%)**, measured by a slow serial retry keeping the provider's own reasons — the survivorship number the cutover must rule on. §4 final: pre-seam delta median −0.10 %/yr (p10 −1.34, p90 +0.58), post-seam exact TR everywhere but the four refused.
+- **The cutover proposal is COMPLETE and with R** (`docs/cutover-proposal-numbers` @ ec3385b). §3 settled by artifact: **the cutover changes NO live trading input** (trading closes come from Alpaca at run time; the paper image bakes tr_reconciled, outside the cutover; one report-only read is 'unverified: needs the image listing'); the re-pin list; corrections by evidence (the four tests the director named do not move; the T-306 family reads SPY_1d.csv but a constant ratio cancels). Two findings of their own, now HIGH rows: **the campaign submit gate checks only that anchor KEYS exist** (a stale anchor passes silently — D's unit); **`gen_substrate_manifest.py verify` EXITS 1 TODAY** (5 changed macro files + never-listed additions; tr_reconciled baked into the paper image unpinned — B's read-only unit; the re-pin with the cutover, the first since June).
+
+## What was learned (evening)
+
+- **A presence check is not a verification** (the submit gate; the silent-zero census defaults; the regex contract) — the class recurs wherever "is the key there?" stands in for "does it match?".
+- **A pin that fails `verify` today certifies nothing**: nobody had run it since June. The re-pin is a cutover-day act, and the gate that reads it must fail closed on a manifest that does not verify itself.
+- **Keep the provider's raw reasons**: an earlier grep had filtered exactly the lines that carried yfinance's per-symbol reason; the 78 → 75 correction came from reading them. Retry serially AFTER heavy fetching, never alongside.
+- **An identity claim is a ruling, not a table entry** — the writer's rail refused a verified rename on two 0.042% steps and was right not to be loosened.
+
 ## Pick up next time
 
 - The user's four decisions. After the push: the 03:00 janitor covers the real tree; B's 07:17 watch; D's R1 mirror upload; E's acct-3 redeploy (with E's user's confirmation); D builds the registry unit on 'approve'; B's image audit on 'approve'.
