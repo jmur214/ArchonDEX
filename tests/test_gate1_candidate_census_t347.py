@@ -51,6 +51,8 @@ def _census_block(cand_id, census, n_trades):
             "edges_errored": ({cand_id: {"crash_bars": census.errors}}
                               if census.errors else {}),
             "n_trades": n_trades,
+            # mirrors validate_candidate's block, which carries the C-2 feed record
+            "data_feed": {"n_network_fetched": 0, "by_source": {}, "yfinance_tickers": []},
         },
         "bootstrap_ci_skip_reason": "gate1_contribution_run",
     }
