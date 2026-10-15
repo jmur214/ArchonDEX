@@ -111,4 +111,6 @@ def harvest():
     print(f"[HARVEST] Saved {len(df_train)} training samples to data/brain/training_data.csv")
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     harvest()

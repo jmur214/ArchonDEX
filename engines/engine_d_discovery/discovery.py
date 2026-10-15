@@ -1993,10 +1993,5 @@ class DiscoveryEngine:
             print(f"[validate_candidate] {type(e).__name__}: {e}")
             return _finish()
 
-if __name__ == "__main__":
-    # Test run
-    disc = DiscoveryEngine()
-    cands = disc.generate_candidates(n_mutations=3)
-    print(f"Generated {len(cands)} candidates.")
-    # In main block we don't have data_map, so we skip validation call
-    disc.save_candidates(cands)
+# No __main__ block (2026-10-15): a library module is not a process entry. The
+# "generate candidates only" CLI moved to scripts/discovery_generate_candidates.py.

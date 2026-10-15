@@ -143,4 +143,6 @@ def train_gate():
         print("[TRAIN] Brain Upgrade Complete.")
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     train_gate()

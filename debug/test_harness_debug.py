@@ -64,4 +64,6 @@ def main():
         traceback.print_exc()
 
 if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
     main()
