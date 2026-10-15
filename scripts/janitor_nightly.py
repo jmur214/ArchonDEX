@@ -174,6 +174,23 @@ def check_doc_lint() -> Check:
                  mechanical=not anchor_broken)
 
 
+def check_index_drift() -> Check:
+    """The sync_docs index drift: index.md auto-generated sections that no longer match the code's
+    docstrings. CLAUDE.md asks every engines/** change to run sync_docs; nothing enforced it, and
+    ~540 lines had accumulated by 2026-10-15. Regenerating is the fix, so it is MECHANICAL — the
+    fix phase's guard still refuses any path on the propose-first list (engine_b_risk's index
+    among them). A crash of the checker is NOT drift: it fails non-mechanically, with its error."""
+    r = _run([PY, "scripts/sync_docs.py", "--check"])
+    stale = [l[len("DRIFT "):] for l in (r.stdout or "").splitlines() if l.startswith("DRIFT ")]
+    if r.returncode == 0:
+        return Check("index_drift", True, "no index drift", mechanical=True)
+    if r.returncode == 1 and stale:
+        return Check("index_drift", False, "drifted: " + ", ".join(stale), mechanical=True)
+    err = ((r.stderr or r.stdout or "").strip().splitlines() or ["no output"])[-1]
+    return Check("index_drift", False, f"sync_docs --check failed (rc {r.returncode}): {err}",
+                 mechanical=False)
+
+
 def check_census() -> Check:
     """Read-only census review. The census is the referee — the janitor READS it and
     never edits it (clock_census.py is on the guard's denylist)."""
@@ -328,7 +345,7 @@ def survival_syncs(as_of: str) -> List[tuple]:
 def run_checks() -> List[Check]:
     return [check_runner_canon(), check_relay_gap(), check_worktree_canon(), check_launchd_canon(),
             check_ledger_backup(), check_observability_backup(), check_doc_lint(),
-            check_census(), check_suite()]
+            check_index_drift(), check_census(), check_suite()]
 
 
 # ── the record ─────────────────────────────────────────────────────────────────

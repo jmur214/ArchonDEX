@@ -19,6 +19,28 @@
 
 *This section is automatically built by `scripts/sync_docs.py`. Do not edit manually.*
 
+### `cross_account_wash_guard.py`
+**Module Docstring:** engines/engine_b_risk/cross_account_wash_guard.py — T-319 (spec: A/T-317 §1).
+- **Class `EquivalenceClasses`**: Maps a ticker → its substantially-identical class. A ticker not in any
+  - `def __init__()`
+  - `def load()`
+  - `def class_of()`: The equivalence class of ``symbol`` — or a self-class ``SELF:<TICKER>``
+- **Class `LotEvent`**: No docstring
+  - `def to_dict()`
+- **Class `TaxLotLedger`**: Append-only cross-account lot ledger. BUY fills open lots; SELL fills
+  - `def __init__()`
+  - `def record_fill()`: Append a fill (broker truth). Returns the stamped LotEvent (with the
+  - `def loss_sales()`: Every LOSS sale whose symbol's class == ``cls`` inside ``window``
+  - `def buys()`: Every BUY whose symbol's class == ``cls`` inside ``window`` — the
+- **Class `Decision`**: No docstring
+  - `def refused()`
+- **Class `WashSaleRefusal`**: Raised pre-submission when a buy would trip the wash-sale rule. Typed so the
+  - `def __init__()`
+- **Class `CrossAccountWashGuard`**: The order-path authority. One instance per fleet (shared ledger across
+  - `def __init__()`
+  - `def check_order()`: The pre-submission decision (spec §1.2). Sells never trip the guard;
+  - `def check_loss_sale()`: BACKWARD direction (spec §1.2): before a LOSS sale, flag it
+
 ### `factor_analysis.py`
 - **Class `FactorDecompResult`**: Book/strategy-level factor decomposition (the 'beta or edge?' answer).
   - `def is_it_beta_or_edge()`: One-line verdict. Significant positive HAC alpha ⇒ edge candidate;
