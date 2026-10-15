@@ -92,8 +92,8 @@ membership, declared)`, so the two producers cannot drift. `_build_census` assig
 
 ## 6. As built (B, 2026-10-15): what changed from §1–§4, and what it reads
 
-**Built** on `feature/stale-holed-guard` (0b706aa: the guard at 6309cb3 plus two fixture commits; on
-the rail with its split-window fix); with R for a build review. Differences from the proposal, each forced by a measurement:
+**Built** on `feature/stale-holed-guard` (fc1296d: the guard at 6309cb3, two fixture commits, and
+FISV's declaration; on the rail with its split-window fix); with R for a build review. Differences from the proposal, each forced by a measurement:
 
 - **The calendar is proven, not assumed.** §1 named "the SPY bar dates" as the calendar. SPY's own
   file is canonical and can be wrong, so the calendar is instead the majority of the names active
@@ -114,28 +114,32 @@ the rail with its split-window fix); with R for a build review. Differences from
   never absorbed by widening the slack.
 - **One reader for the gate and the admission:** `core.census.coverage_defects`. In a measured run
   the admission is a MeasurementHalt (`halt_or_degrade`), never a silent drop.
-- **The first declaration set is 45 files, not 33.** §2 counted the holed files the cutover cannot
-  fill at three or more missing days inside the post-seam span. At tolerance 0 over each file's
-  full span, the set of files NO provider can fill is 45:
+- **The first declaration set is 46: 45 files, not 33, plus one provider gap.** §2 counted the holed
+  files the cutover cannot fill at three or more missing days inside the post-seam span. At
+  tolerance 0 over each file's full span, the set of files NO provider can fill is 45:
   - 32 delisted;
   - 10 files lying entirely after their PIT name's exit (later entities on the symbol);
   - the 3 class (i) names.
   That is 1,298 holes in 395 runs; 19 of the 45 also carry `ends_at_delisting`. All were built
   mechanically from the guard's own count on the post-write copy.
+  **Plus FISV 2025-11-12, a PROVIDER GAP** (the director's ruling: declared with the provider's
+  own reason). The universe provider lacks the bar in both modes, yet the security TRADED: Alpaca
+  records a full session (SIP volume 6,244,651), on the day after Fiserv's FI → FISV ticker change.
+  So the declaration says "a provider gap on a session that happened, unfilled under the
+  one-provider rule", never "no provider series" or "a non-trading day".
 
 **What it reads.** PIT, over the canonical window 2000-01-03 → 2025-12-31, with the shipped
 declarations:
 
 | substrate | stale | holed | calendar |
 |---|---|---|---|
-| the real cache today | 27 | 246 | proven |
-| the post-write copy | **0** | **6** single days | proven |
+| the real cache today | 27 | 245 | proven |
+| the post-write copy | **0** | **5** single days | proven |
 
-The six on the copy:
-- FISV (2025-11-12) is a provider gap in a written file;
-- JPM, KDP, TDC, WMT and WU are §2b span refusals awaiting the user's class decision.
-Over 2018 → 2025 only FISV remains. These are the residual misses the first green run enumerates
-(R's answer 1); none is declared here.
+The five on the copy are JPM, KDP, TDC, WMT and WU, the §2b span refusals awaiting the user's class
+(iii)/(iv) ruling. **Over 2018 → 2025 the copy reads no defects at all: the guard's first green
+reading.** So after the cutover, the guard is one user ruling from green over the full canonical
+window. The real cache stays RED, as ruled.
 
 **Formation coverage reads the same on both substrates:** a minimum of 0.66, a median of 0.83, and
 134 of 312 month-ends below 0.80. Members whose files START late (the survivorship gap) form no row.
