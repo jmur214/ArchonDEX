@@ -703,11 +703,11 @@ then LOW. Within each severity, list newest at the top.
   because nothing reproduces these verdicts on a schedule.
 - Anchor: `scripts/breadth_tilt_t273.py:7` contains `ROOT = '/Users/jacksonmurphy/Dev/trading_machine-agent-d'`
 
-### [LOW] `prefetch_fundamentals` promises a 7-day re-fetch of stale fundamentals that never happens — the docstring says what the code does not do (B, 2026-10-15, re-pin #1 brief)
+### [LOW → RESOLVED] `prefetch_fundamentals` promises a 7-day re-fetch of stale fundamentals that never happens — the docstring says what the code does not do (B, 2026-10-15, re-pin #1 brief)
 - Category: other (a false docstring on a measurement-input path)
 - Files: `engines/data_manager/data_manager.py:169-186` (`prefetch_fundamentals`), `:188-201` (`fetch_historical_fundamentals`); called on every backtest at `orchestration/mode_controller.py:868`
 - First flagged: 2026-10-15
-- Status: OPEN, owner B. The fix is a later call (director, 2026-10-15): either make the docstring
+- Status: OPEN, owner B. The fix is a later call (director, 2026-10-15): either make the docstring **RESOLVED by the fundamentals miss-refusal unit (a4c6f89, B's 55e1325, R-approved): the docstring now says what the code does; the 7-day refresh is not resurrected (a behaviour change on a pinned input stays a brief with the re-pin cost). Recorded with it, not changed: DataManager.fetch_fundamentals (a bare yfinance call) has zero production callers.**
   true (docs-only), or make the refresh real. Making it real is a BEHAVIOUR change on a pinned
   measurement input and needs a brief: every re-fetch would rewrite a pinned file, turn `verify`
   red, and turn the submit stamp stale.
