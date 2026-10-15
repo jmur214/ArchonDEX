@@ -215,7 +215,7 @@ resolutions change at the next image build.
 | `engines/data_manager/exclusions.py:29-39` (+ `tests/test_price_levels_item_d_2026_10_15.py:114-123`) | declared constant | DAL cutoff 2007-05-03; `max_close_after` 1000 | DAL's treatment is the user's §2b (ii) decision; the check fails closed on a mismatch | re-declare with the ruling |
 | the 26-yr anchor `158fe678`; 16-yr `3e9ea427` and 2022 `eb48742e` (`scripts/gen_t118_campaign_spec.py:124-129`); T-215 GFC `67784c1b…` (`docs/Audit/t215_campaign_specs/t215_ab_spec.json:11-15`) | canon | arm-0 canon md5 per window | new substrate, new canons. **The submit gate checks only that the keys exist** (`scripts/submit_arms_campaign.py:266-271`), so a stale anchor passes silently: a referee fail-open, a HIGH row, D's unit (ruled 2026-10-15). D's design has the gate check a nightly verify STAMP by digest and refuse while it is stale or absent; the nightly full verify that writes the stamp is Agent B's janitor unit | `run_isolated` N=5 bitwise per window on the new image; edit the generator and spec |
 | B-1: panel `d9d449d17f8f`; results `5de36b89e0ad…`; 2012 window `bbf88ffc9f23…` (`docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`) | canon | "must reproduce" md5s | built from the processed closes (R's lock 7: the panel must move VISIBLY) | the verdict doc's §12 commands |
-| `config/substrate_manifest.sha256` | manifest | sha256 of 14,120 substrate files (2,049 under `data/processed/`) | every rewritten file | `scripts/gen_substrate_manifest.py generate` in the cutover commit. **See the note below: it already fails verify today** |
+| `config/substrate_manifest.sha256` | manifest | sha256 of 14,120 substrate files (2,049 under `data/processed/`) | every rewritten file | re-pin #2: `scripts/gen_substrate_manifest.py generate` in the cutover commit, after re-pin #1 has made it green on the drip substrate. **See the note below: it fails verify today** |
 | the content-addressed S3 substrate prefix = md5 of the manifest (`.github/workflows/build_backtest_image.yml:112-117`); the image label (`scripts/build_backtest_image.sh:127,161,168`) | CI workflow | the substrate snapshot the backtest image is built from | a new manifest gives a new md5, and that prefix will not exist yet | a manual `aws s3 sync` to `substrate/<md5>/data` (no script), then `workflow_dispatch`. The workflow's `data/processed/**` trigger never fires, because `data/` is untracked |
 | `Dockerfile.backtest:126` (`COPY data/processed/`) | bakes at build | the research image's substrate | the image carries whatever the cache is at build time | rebuild after cutover (research only; the image excludes `live_trader`, :100) |
 | the exact-TR candidate's own manifest | manifest | the copy as a fixed object | — | pin after the §2b declared paths run (§6) |
@@ -249,7 +249,19 @@ Re-measured 2026-10-15 with the generator's own `build_manifest()`: **MISSING 0,
 
 The paper image bakes `tr_reconciled/`, and it is **not pinned**. That goes on the image re-bake
 checklist (`docs/Sources/proposal_observability_shipping_2026_10_13.md` §5), beside the Gate-7
-cache. **The re-pin lands WITH the cutover** (director, 2026-10-15): one re-pin since June, not two.
+cache.
+
+**TWO re-pins, each with its reason** (director, 2026-10-15, revising an earlier "one re-pin"):
+- **Re-pin #1, NOW, with the honest-N re-bake (B-7).** It pins the CURRENT substrate (the drip
+  world) and makes `verify` green. It decides the runtime-cache pattern (exclude
+  `*_fundamentals.parquet` by the JUNK rules, or pin it), and pins the T-256 additions, including
+  `tr_reconciled/`. RR-3's cloud halt lifts on that re-bake when the registry ships; the cutover must
+  not hold the cloud hostage.
+- **Re-pin #2, on CUTOVER DAY.** It pins the exact-TR substrate, which cannot be pinned before it
+  exists.
+
+*A fact for the VIX-term series' consumers, not a defect:* those files end 2026-06/07 and have not
+been refreshed since 07-02.
 
 ### 3.3 Checked: NOT a pin the cutover moves
 
