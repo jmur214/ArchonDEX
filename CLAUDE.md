@@ -312,7 +312,7 @@ You are authorized to:
 - `git stash`, `git stash pop`
 
 You MUST stop and propose first for:
-- `git push` to any remote
+- `git push` to any remote — **EXCEPT `git push origin main` by the director, delegated by the user 2026-10-22** (pre-push checks stand: remote unchanged by `ls-remote`, a secrets scan of the range, no data blobs, fast-forward only, never force; the next nightly row's `HEAD=` is the push's first artifact)
 - `git merge` onto main
 - `git pull` (may introduce changes you haven't reviewed)
 - `git tag` (creates permanent references)
