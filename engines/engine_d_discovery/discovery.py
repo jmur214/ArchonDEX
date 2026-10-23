@@ -77,7 +77,10 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         declaration, from the per-file write records;
       * stale_files (2026-10-15, the stale/holed-files guard): BARS, never file presence, over the
         candidate's own data_map and window. Without them the record is an ERROR, which fails the
-        gate — coverage that was not measured is never a pass."""
+        gate — coverage that was not measured is never a pass;
+      * substrate_convention (2026-10-22, option (a)'s universal label): drip vs exact_tr per span
+        for every name in the candidate's data_map, from the write records / overrides / merge
+        record under the canonical cache; an unlabelled name fails the gate, never a default."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
         # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST

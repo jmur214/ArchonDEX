@@ -526,6 +526,21 @@
 - **Function `format_report()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `cutover_step1_pass.py`
+**Module Docstring:** Cutover step 1 (the user's OPTION (a) ruling, 2026-10-22): drive the total-return writer over a
+- **Class `_Tee`**: No docstring
+  - `def __init__()`
+  - `def write()`
+  - `def flush()`
+- **Function `assert_is_a_copy()`**: Refuse anything that is, or could be, the canonical cache.
+- **Function `cmd_fresh_copy()`**: No docstring
+- **Function `capture_provider_output()`**: Everything the provider prints or logs during one file, UNFILTERED, under the file's name.
+- **Function `cmd_pass()`**: No docstring
+- **Function `cmd_guard()`**: No docstring
+- **Function `cmd_label()`**: No docstring
+- **Function `cmd_stage()`**: A root whose data/processed IS the copy and whose other substrate dirs are the main tree's,
+- **Function `main()`**: No docstring
+
 ### `dbmf_kmlm_phase0_t110.py`
 **Module Docstring:** T-110 Phase 0 — DBMF + KMLM managed-futures ETFs diagnostic.
 - **Function `load_stooq_etf()`**: No docstring
