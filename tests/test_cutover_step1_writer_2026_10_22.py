@@ -292,6 +292,24 @@ def test_the_twelve_class_i_names_are_refused_BEFORE_any_provider_call(tmp_path,
     assert calls == [] and (tmp_path / f"{ticker}_1d.csv").read_bytes() == before
 
 
+RELISTED = ["AVB", "EA", "EQR", "LEG", "QRVO", "SATS", "WBD"]
+
+
+@pytest.mark.parametrize("ticker", RELISTED)
+def test_the_seven_symbols_reused_by_a_later_entity_are_KEPT_and_never_refetched(tmp_path, ticker):
+    """RULED 2026-10-23: the cached file IS the PIT entity; the provider's series under the symbol
+    (from 2026-08..10) is another company. Refused BEFORE any provider call — the refusal no longer
+    rests on the provider's start date, which could move — and the file is untouched."""
+    _seed(tmp_path, drip_cache(), ticker=ticker)
+    calls = []
+    before = (tmp_path / f"{ticker}_1d.csv").read_bytes()
+    with pytest.raises(w.WriterRefusal, match="SYMBOL REUSED BY A LATER ENTITY") as e:
+        w.full_refetch(ticker, tmp_path, {"yfinance": _provider(tr_as_of(TODAY), RAW, calls=calls)},
+                       today=TODAY, actions=_actions)             # the SHIPPED declarations
+    assert calls == [] and (tmp_path / f"{ticker}_1d.csv").read_bytes() == before
+    assert e.value.detail["level_declared"]["provider_series_start"].startswith("2026-")
+
+
 def test_BK_is_fetched_as_BNY_under_the_rename_kind_and_the_record_names_the_claim(tmp_path):
     assert yahoo_symbol("BK") == ("BNY", RENAME)
     _seed(tmp_path, drip_cache(), ticker="BK")

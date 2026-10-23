@@ -30,6 +30,27 @@
     "TEG": {"kind": "reused_ticker", "date": "2015-06-30",
             "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2015-06-30; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
     "TIE": {"kind": "reused_ticker", "date": "2012-12-24",
-            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2012-12-24; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"}
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2012-12-24; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "AVB": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-08-14",
+            "cached_span": ["2005-02-25", "2026-04-24"], "pit_interval": ["2007-01-10", null],
+            "source": "RULED 2026-10-23 (the mirror of class (i)): the cached file IS the PIT entity (AvalonBay, from 2005); the provider's series under the symbol starts 2026-08-14 (Alpaca: INACTIVE at the 2026-10-15 read) — a later entity; never re-fetched under this symbol; a writer-side declaration, not a universe exclusion. Pass 2 refused it on span (the record's §5)"},
+    "EA": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-08-04",
+           "cached_span": ["2011-12-21", "2026-04-24"], "pit_interval": ["2002-07-22", null],
+           "source": "RULED 2026-10-23: the cached file IS the PIT entity (Electronic Arts); the provider's series under the symbol starts 2026-08-04 (Alpaca INACTIVE at the 2026-10-15 read) — a later entity; never re-fetched under this symbol"},
+    "EQR": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-08-17",
+            "cached_span": ["1993-08-12", "2026-04-24"], "pit_interval": ["2001-12-03", null],
+            "source": "RULED 2026-10-23: the cached file IS the PIT entity (Equity Residential, from 1993); the provider's series under the symbol starts 2026-08-17 (Alpaca: unknown at the 2026-10-15 read) — a later entity; never re-fetched under this symbol"},
+    "LEG": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-08-26",
+            "cached_span": ["1987-11-05", "2026-04-24"], "pit_interval": ["1999-10-18", "2021-12-20"],
+            "source": "RULED 2026-10-23: the cached file IS the PIT entity (Leggett & Platt, from 1987); the provider's series under the symbol starts 2026-08-26 (Alpaca INACTIVE at the 2026-10-15 read) — a later entity; never re-fetched under this symbol"},
+    "QRVO": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-10-02",
+             "cached_span": ["2015-02-10", "2026-04-24"], "pit_interval": ["2015-06-12", "2024-12-23"],
+             "source": "RULED 2026-10-23: the cached file IS the PIT entity (Qorvo); the provider's series under the symbol starts 2026-10-02 (Alpaca INACTIVE at the 2026-10-15 read) — a later entity; never re-fetched under this symbol"},
+    "SATS": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-10-20",
+             "cached_span": ["2007-12-31", "2025-12-04"], "pit_interval": ["2026-03-23", null],
+             "source": "RULED 2026-10-23: the cached file IS the PIT entity (EchoStar, from 2007); the provider's series under the symbol starts 2026-10-20 — a later entity; never re-fetched under this symbol"},
+    "WBD": {"kind": "symbol_reused_by_later_entity", "date": "2026-10-23", "provider_series_start": "2026-10-05",
+            "cached_span": ["2018-01-02", "2026-04-24"], "pit_interval": ["2022-04-11", null],
+            "source": "RULED 2026-10-23: the cached file IS the PIT entity (Warner Bros. Discovery); the provider's series under the symbol starts 2026-10-05 (Alpaca INACTIVE at the 2026-10-15 read) — a later entity; never re-fetched under this symbol"}
   }
 }

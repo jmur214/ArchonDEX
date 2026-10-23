@@ -303,6 +303,11 @@ def test_the_shipped_declarations_are_the_three_div10_restorations_and_the_twelv
     assert {t for t, v in d.items() if v["kind"] == "scale_defect"} == {"AZO", "MTD", "NVR"}
     assert {t for t, v in d.items() if v["kind"] == "reused_ticker"} == {
         "SLE", "POM", "ABS", "BMC", "CCE", "CFC", "GR", "HAR", "MHS", "NCC", "TEG", "TIE"}
+    # RULED 2026-10-23: the seven symbols a later entity now trades under — the cached files ARE the
+    # PIT entities and are kept; never re-fetched under the symbol (a writer-side declaration).
+    assert {t for t, v in d.items() if v["kind"] == "symbol_reused_by_later_entity"} == {
+        "AVB", "EA", "EQR", "LEG", "QRVO", "SATS", "WBD"}
+    assert all(v.get("provider_series_start") for v in d.values() if v["kind"] == "symbol_reused_by_later_entity")
     assert all(v["declared_ratio"] == 10.0 for v in d.values() if v["kind"] == "scale_defect")
 
 

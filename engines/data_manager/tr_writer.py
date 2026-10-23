@@ -555,6 +555,15 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         raise WriterRefusal(f"{who}: declared a REUSED TICKER (class (i): {decl.get('source', '')}) — "
                             f"the cached file is another entity; never written",
                             detail={"level_declared": decl, "symbol_mapped": mapped})
+    if decl and decl.get("kind") == "symbol_reused_by_later_entity":   # before any provider call
+        # The MIRROR of class (i) (ruled 2026-10-23): the cached file IS the PIT entity and is KEPT;
+        # the provider's series under the symbol (from `provider_series_start`) is a later company.
+        # Never re-fetched under this symbol — a writer-side declaration, not a universe exclusion.
+        raise WriterRefusal(f"{who}: declared SYMBOL REUSED BY A LATER ENTITY — the cached file is the "
+                            f"PIT entity and is kept; the provider's series under this symbol (from "
+                            f"{decl.get('provider_series_start')}) is another company; never re-fetched "
+                            f"under this symbol ({decl.get('source', '')})",
+                            detail={"level_declared": decl, "symbol_mapped": mapped})
     conventions = load_convention_declarations() if conventions is None else conventions
     defect = conventions["cache_convention_defects"].get(ticker)
     # OPTION (a): the seam. The kept span is the cached bars before it; the provider must cover the
