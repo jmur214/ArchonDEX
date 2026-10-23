@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate (or verify) the pinned data-substrate manifest.
+"""Generate (or verify) the pinned data-substrate manifest — and STAMP the verdict.
 
 T-2026-06-09-127: the cloud image bakes ``data/processed/``, ``data/raw/``
 and ``data/governor/`` from the HOST FILESYSTEM at build time. T-125 pinned
@@ -14,11 +14,22 @@ This script closes the third leg:
 * ``generate`` walks the three substrate dirs, hashes every file (sha256),
   and writes a sorted manifest. The manifest is COMMITTED to git
   (``config/substrate_manifest.sha256``), making the expected data state
-  part of the reviewed source tree.
+  part of the reviewed source tree. It then runs its OWN second full pass
+  over the data and stamps the new manifest's digest PASS (writer ``repin``)
+  in the verify stamp — the re-pin step of the campaign submit gate (§7 R2 of
+  ``docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md``).
 * ``verify`` recomputes and diffs against the committed manifest, failing
   loudly with the exact paths that drifted. ``scripts/build_backtest_image.sh``
   runs this before every build — a build on drifted data CANNOT succeed
-  silently anymore.
+  silently anymore. With ``--stamp-writer janitor_nightly`` (the nightly
+  janitor's invocation, and ONLY its) the verdict is stamped too; a bare
+  ``verify`` never writes the stamp — exactly two writers exist.
+
+The stamp (``core/substrate_stamp.py``) lives at the MAIN tree's
+``data/state/substrate_verify_stamp.json`` by default; ``--stamp-root``
+points a scratch run elsewhere. PASS only on missing = extra = changed = 0
+from a COMPLETE ``build_manifest()``; FAIL with the true counts; ERROR —
+never PASS — when the verify could not run (exit 3).
 
 When the substrate legitimately changes (new data vintage, governor seed
 update), regenerate + commit the manifest in the same PR — that turns a
@@ -32,7 +43,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from core import substrate_stamp as stamp                      # noqa: E402
 
 SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
 # T-2026-06-13-164: curated individual files pinned WITHOUT walking their whole
@@ -88,6 +104,17 @@ LIVE_MUTABLE_GOVERNOR = {
 }
 
 
+class SubstrateIncomplete(RuntimeError):
+    """The verify cannot run COMPLETELY against this root (a substrate dir missing or
+    unreadable). The stamp records ERROR, never a FAIL made of the files it could see."""
+
+
+def _walk_error(exc: OSError) -> None:
+    """`os.walk` swallows unreadable directories by default, which would turn an
+    unreadable dir into MISSING counts — a FAIL that looks like drift. Raise instead."""
+    raise SubstrateIncomplete(f"cannot walk {exc.filename}: {exc.strerror}") from exc
+
+
 def iter_substrate_files(root: Path):
     import os
     for d in SUBSTRATE_DIRS:
@@ -103,7 +130,7 @@ def iter_substrate_files(root: Path):
         # "EXTRA: _isolated_anchor/...". The generator must dereference
         # exactly like the build stages.
         paths = []
-        for dirpath, _dirnames, filenames in os.walk(base, followlinks=True):
+        for dirpath, _dirnames, filenames in os.walk(base, followlinks=True, onerror=_walk_error):
             for fn in filenames:
                 paths.append(Path(dirpath) / fn)
         for p in sorted(paths):
@@ -141,48 +168,76 @@ def build_manifest(root: Path) -> list[str]:
     return lines
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("mode", choices=["generate", "verify"])
-    ap.add_argument("--root", default=".", help="repo root holding data/ (symlinked subdirs are followed)")
-    ap.add_argument("--manifest", default=DEFAULT_MANIFEST, help=f"manifest path (default {DEFAULT_MANIFEST})")
-    args = ap.parse_args()
+# ── the verify, as a value (the stamp's counts come from HERE, never the printed footer) ──
 
-    root = Path(args.root)
-    manifest_path = root / args.manifest
+@dataclass
+class VerifyResult:
+    pinned: int
+    host: int
+    missing: List[str] = field(default_factory=list)
+    extra: List[str] = field(default_factory=list)
+    changed: List[str] = field(default_factory=list)
 
-    lines = build_manifest(root)
-    body = "\n".join(lines) + "\n"
-    digest_of_manifest = hashlib.md5(body.encode()).hexdigest()
+    @property
+    def ok(self) -> bool:
+        return not (self.missing or self.extra or self.changed)
 
-    if args.mode == "generate":
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(body)
-        print(f"wrote {manifest_path} ({len(lines)} files; manifest-md5 {digest_of_manifest})")
-        return 0
+    @property
+    def counts(self) -> Dict[str, int]:
+        return {"pinned": self.pinned, "host": self.host, "missing": len(self.missing),
+                "extra": len(self.extra), "changed": len(self.changed)}
 
-    # verify
-    if not manifest_path.exists():
-        print(f"FAIL: manifest {manifest_path} does not exist — run `generate` and commit it", file=sys.stderr)
-        return 2
-    expected = manifest_path.read_text().splitlines()
-    actual = lines
-    if expected == actual:
-        print(f"OK: substrate matches manifest ({len(lines)} files; manifest-md5 {digest_of_manifest})")
-        return 0
+    def first_paths(self, n: int = 10) -> List[str]:
+        """MISSING, then CHANGED, then EXTRA — the order a reader needs: a pinned file gone
+        or altered matters more than an unpinned addition, and 134 extras must not hide
+        five changed macro files (today's exact case)."""
+        out = [f"MISSING {p}" for p in self.missing] + [f"CHANGED {p}" for p in self.changed] \
+            + [f"EXTRA {p}" for p in self.extra]
+        return out[:n]
+
+
+def diff_manifest(expected: List[str], actual: List[str]) -> VerifyResult:
     exp_map = dict(reversed(l.split("  ", 1)) for l in expected if "  " in l)
     act_map = dict(reversed(l.split("  ", 1)) for l in actual if "  " in l)
-    missing = sorted(set(exp_map) - set(act_map))
-    extra = sorted(set(act_map) - set(exp_map))
-    changed = sorted(k for k in set(exp_map) & set(act_map) if exp_map[k] != act_map[k])
+    return VerifyResult(
+        pinned=len(exp_map), host=len(act_map),
+        missing=sorted(set(exp_map) - set(act_map)),
+        extra=sorted(set(act_map) - set(exp_map)),
+        changed=sorted(k for k in set(exp_map) & set(act_map) if exp_map[k] != act_map[k]))
+
+
+def full_verify(root: Path, manifest_path: Path) -> VerifyResult:
+    """The COMPLETE verify: every substrate dir must exist and walk, every file must hash.
+    Raises (`SubstrateIncomplete`, `OSError`, ...) rather than returning a partial count."""
+    absent = [d for d in SUBSTRATE_DIRS if not (root / d).is_dir()]
+    if absent:
+        raise SubstrateIncomplete(f"substrate dir(s) missing under {root}: {', '.join(absent)}")
+    expected = manifest_path.read_text().splitlines()
+    return diff_manifest(expected, build_manifest(root))
+
+
+def _stamp(digest: str, manifest_path: Path, writer: str, stamp_root: Optional[Path],
+           res: Optional[VerifyResult], error: Optional[str] = None) -> Path:
+    rec = stamp.make_record(
+        result="ERROR" if res is None else ("PASS" if res.ok else "FAIL"), writer=writer,
+        tree_head=stamp.git_head(manifest_path.parent),
+        s3_prefix_md5=stamp.manifest_s3_prefix_md5(manifest_path),
+        counts=None if res is None else res.counts,
+        first_paths=[] if res is None else res.first_paths(), error=error)
+    p = stamp.write_stamp(digest, rec, root=stamp_root)
+    print(f"stamped {rec['result']} for manifest {digest[:12]} by {writer} at {p}")
+    return p
+
+
+def _print_drift(res: VerifyResult) -> None:
     print("FAIL: substrate has DRIFTED from the committed manifest:", file=sys.stderr)
-    for p in missing[:20]:
+    for p in res.missing[:20]:
         print(f"  MISSING : {p}", file=sys.stderr)
-    for p in extra[:20]:
+    for p in res.extra[:20]:
         print(f"  EXTRA   : {p}", file=sys.stderr)
-    for p in changed[:20]:
+    for p in res.changed[:20]:
         print(f"  CHANGED : {p}", file=sys.stderr)
-    total = len(missing) + len(extra) + len(changed)
+    total = len(res.missing) + len(res.extra) + len(res.changed)
     if total > 60:
         print(f"  … and {total - 60} more", file=sys.stderr)
     print(
@@ -190,6 +245,77 @@ def main() -> int:
         "regenerate + COMMIT the manifest in the same PR.",
         file=sys.stderr,
     )
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("mode", choices=["generate", "verify"])
+    ap.add_argument("--root", default=".", help="repo root holding data/ (symlinked subdirs are followed)")
+    ap.add_argument("--manifest", default=DEFAULT_MANIFEST,
+                    help=f"manifest path, relative to --root or absolute (default {DEFAULT_MANIFEST})")
+    ap.add_argument("--stamp-writer", choices=["janitor_nightly"], default=None,
+                    help="verify only: ALSO stamp the verdict as this writer. Reserved for the "
+                         "nightly janitor; a bare verify never writes the stamp")
+    ap.add_argument("--stamp-root", default=None,
+                    help="where the stamp file lives (default: the MAIN tree, via the git "
+                         "common dir). Point a scratch generate/verify here so it never "
+                         "touches the real stamp")
+    args = ap.parse_args()
+
+    root = Path(args.root)
+    manifest_path = root / args.manifest
+    stamp_root = Path(args.stamp_root) if args.stamp_root else None
+
+    if args.mode == "generate":
+        lines = build_manifest(root)
+        body = "\n".join(lines) + "\n"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(body)
+        md5 = hashlib.md5(body.encode()).hexdigest()
+        print(f"wrote {manifest_path} ({len(lines)} files; manifest-md5 {md5})")
+        # R2: the re-pin step's OWN full verify — a SECOND complete pass over the data,
+        # diffed against the file just written (not the lines in memory), so a file that
+        # changed during the walk (the runtime fundamentals cache, T-175) cannot be
+        # stamped PASS. The stamp records the writer.
+        digest = stamp.manifest_digest(manifest_path)
+        try:
+            res = full_verify(root, manifest_path)
+        except Exception as exc:
+            _stamp(digest, manifest_path, "repin", stamp_root, None,
+                   error=f"{type(exc).__name__}: {exc}")
+            print(f"ERROR: the re-pin's own verify could not run: {type(exc).__name__}: {exc}",
+                  file=sys.stderr)
+            return 3
+        _stamp(digest, manifest_path, "repin", stamp_root, res)
+        if res.ok:
+            print(f"OK: re-pin verified ({res.pinned} files; manifest-sha256 {digest})")
+            return 0
+        _print_drift(res)
+        print("The manifest was written but the data moved under it — re-run generate.",
+              file=sys.stderr)
+        return 1
+
+    # verify
+    if not manifest_path.exists():
+        print(f"FAIL: manifest {manifest_path} does not exist — run `generate` and commit it", file=sys.stderr)
+        return 2
+    digest = stamp.manifest_digest(manifest_path)
+    try:
+        res = full_verify(root, manifest_path)
+    except Exception as exc:
+        # ERROR, never PASS and never a FAIL made of partial counts (`[NN-FAIL-CLOSED]`).
+        if args.stamp_writer:
+            _stamp(digest, manifest_path, args.stamp_writer, stamp_root, None,
+                   error=f"{type(exc).__name__}: {exc}")
+        print(f"ERROR: verify could not run: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 3
+    if args.stamp_writer:
+        _stamp(digest, manifest_path, args.stamp_writer, stamp_root, res)
+    if res.ok:
+        print(f"OK: substrate matches manifest ({res.pinned} files; manifest-sha256 {digest}; "
+              f"manifest-md5 {stamp.manifest_s3_prefix_md5(manifest_path)})")
+        return 0
+    _print_drift(res)
     return 1
 
 

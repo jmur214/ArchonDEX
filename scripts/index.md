@@ -829,10 +829,17 @@
 - **Function `win()`**: No docstring
 
 ### `gen_substrate_manifest.py`
-**Module Docstring:** Generate (or verify) the pinned data-substrate manifest.
+**Module Docstring:** Generate (or verify) the pinned data-substrate manifest — and STAMP the verdict.
+- **Class `SubstrateIncomplete`**: The verify cannot run COMPLETELY against this root (a substrate dir missing or
+- **Class `VerifyResult`**: No docstring
+  - `def ok()`
+  - `def counts()`
+  - `def first_paths()`: MISSING, then CHANGED, then EXTRA — the order a reader needs: a pinned file gone
 - **Function `iter_substrate_files()`**: No docstring
 - **Function `hash_file()`**: No docstring
 - **Function `build_manifest()`**: No docstring
+- **Function `diff_manifest()`**: No docstring
+- **Function `full_verify()`**: The COMPLETE verify: every substrate dir must exist and walk, every file must hash.
 - **Function `main()`**: No docstring
 
 ### `gen_t118_campaign_spec.py`
@@ -943,6 +950,7 @@
 - **Function `check_runner_canon()`**: Is the janitor running CANONICAL code?
 - **Function `check_ledger_backup()`**: Does a readable REMOTE copy of the authority record exist, and is it current?
 - **Function `check_observability_backup()`**: Last night's push of the honest-N inputs (run registry + ρ̄ artifacts): is each
+- **Function `check_substrate_verify()`**: The FULL data-hashing verify of the canonical substrate against the manifest committed
 - **Function `survival_syncs()`**: The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
 - **Function `run_checks()`**: No docstring
 - **Function `write_report()`**: No docstring
