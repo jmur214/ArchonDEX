@@ -214,6 +214,7 @@ def cmd_pass(args) -> int:
                             "level_declared": None if rec.level_declared is None else rec.level_declared.get("kind"),
                             "convention_declared": (None if rec.convention_declared is None
                                                     else rec.convention_declared.get("kind")),
+                            "close_unadj": rec.close_unadj,
                             "terminal": True})
                         break
                     except w.WriterRefusal as e:

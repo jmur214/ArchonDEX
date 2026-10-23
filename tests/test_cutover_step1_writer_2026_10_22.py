@@ -225,8 +225,40 @@ def test_a_DECLARED_split_only_cache_is_verified_against_the_split_only_mode_and
     assert rec.convention_declared["kind"] == "split_only_cache"
     assert rec.convention_declared["against_split_only"]["verdict"] == "APPEND"
     assert rec.convention_declared["against_total_return"]["verdict"] == "DIFFERENT_CONVENTION"
-    assert [c[2] for c in calls].count(False) == 3, "the basis tail, the declared split-only check, the level rail"
+    assert [c[2] for c in calls].count(False) == 4, \
+        "the basis tail, the declared split-only check, the level rail, the close_unadj span"
     np.testing.assert_allclose(_written(tmp_path).values, tr_as_of(TODAY).values, rtol=1e-12)
+
+
+# ── the split-only close as a second column (close_unadj; ruled 2026-10-15) ──────
+
+def test_every_written_file_carries_the_providers_split_only_close_as_close_unadj(tmp_path):
+    """The dollar-ADV, slippage and borrow buckets and the Engine B share-sizing unit read the
+    column named EXACTLY `close_unadj`: the provider's unadjusted mode over the file's whole span,
+    NaN only on bars the provider does not hold, never derived from the total-return close."""
+    _seed(tmp_path, drip_cache())
+    _meta(tmp_path)
+    rec = _run(tmp_path)
+    got = pd.read_parquet(tmp_path / "parquet" / f"{TICKER}_1d.parquet")
+    assert w.CLOSE_UNADJ == "close_unadj" and w.CLOSE_UNADJ in got.columns
+    assert got[w.CLOSE_UNADJ].notna().all()
+    np.testing.assert_allclose(got[w.CLOSE_UNADJ].values, RAW[got.index].values, rtol=1e-12)
+    assert not np.allclose(got[w.CLOSE_UNADJ].values, got["Close"].values), "split-only, not the TR close"
+    assert rec.close_unadj == {"column": "close_unadj", "mode": rec.close_unadj["mode"], "n_bars": len(got),
+                               "n_missing": 0, "span": [str(IDX[0].date()), str(TODAY.date())]}
+    csv = pd.read_csv(tmp_path / f"{TICKER}_1d.csv")
+    assert w.CLOSE_UNADJ in csv.columns, "the csv pair carries it too"
+
+
+def test_close_unadj_is_NaN_before_a_class_iii_iv_providers_first_bar_never_derived(tmp_path):
+    _seed(tmp_path, drip_cache())
+    _meta(tmp_path)
+    late = _provider(tr_as_of(TODAY), RAW, provider_start=SEAM)
+    rec = _run(tmp_path, late)
+    got = pd.read_parquet(tmp_path / "parquet" / f"{TICKER}_1d.parquet")
+    assert got.loc[got.index < SEAM, w.CLOSE_UNADJ].isna().all()
+    assert got.loc[got.index >= SEAM, w.CLOSE_UNADJ].notna().all()
+    assert rec.close_unadj["n_missing"] == int((IDX < SEAM).sum()) and rec.close_unadj["span"][0] == str(SEAM.date())
 
 
 def test_a_split_only_declaration_on_a_TOTAL_RETURN_cache_is_refused_as_no_longer_matching(tmp_path):

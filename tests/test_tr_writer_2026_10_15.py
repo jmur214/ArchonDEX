@@ -214,8 +214,11 @@ def test_full_refetch_writes_a_measured_total_return_pair_and_logs_the_mode(tmp_
     written = pd.read_parquet(tmp_path / "parquet" / "ABC_1d.parquet")
     assert written["Close"].iloc[0] < _raw().iloc[0], "total return: the past is scaled down"
     assert '"mode": "adjusted"' in log.read_text() and '"verdict": "RESCALED"' in log.read_text()
-    assert [c[2] for c in calls] == [True, False, False], \
-        "adjusted span + the two-mode basis tail + the LEVEL rail's unadjusted read at the cache's last bar"
+    assert [c[2] for c in calls] == [True, False, False, False], \
+        ("adjusted span + the two-mode basis tail + the LEVEL rail's unadjusted read at the cache's last "
+         "bar + the split-only close over the file's span (close_unadj, 2026-10-22)")
+    assert written[w.CLOSE_UNADJ].notna().all() and (written[w.CLOSE_UNADJ] == _raw()[written.index]).all(), \
+        "the written file carries the provider's split-only close as close_unadj"
 
 
 def test_full_refetch_REFUSES_a_provider_that_cannot_cover_the_span(tmp_path):

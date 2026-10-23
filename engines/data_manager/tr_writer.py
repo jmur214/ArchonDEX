@@ -85,6 +85,12 @@ OVERLAP_MIN_BARS = 10
 #: a 40-bar tail reads EFA and VNQ as RESCALED.
 OVERLAP_TAIL_BARS = 252
 COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+#: The SPLIT-ONLY close (the provider's unadjusted mode — the price that traded, split-adjusted) as
+#: a second column on every written file, named EXACTLY this (ruled 2026-10-15, the dollar-ADV HIGH:
+#: every dollar-ADV, slippage and borrow bucket, and the Engine B share-sizing unit, read it; a file
+#: without the column is read as total-return basis). NaN on bars the provider does not hold (the
+#: kept pre-seam bars before a class (iii)/(iv) provider's first bar) — never derived.
+CLOSE_UNADJ = "close_unadj"
 
 # ── the LEVEL rail (adopted 2026-10-15; docs/Sources/proposal_level_rail_last_bar_identity_2026-10-15.md)
 #: |ln residual| tolerance for the last-bar level identity. Measured: legitimate files sit within
@@ -160,6 +166,7 @@ class WriteRecord:
     seam: Optional[dict] = None             # option (a): the kept pre-seam span and the seam ratio
     convention: Optional[dict] = None       # what each span of the written file IS (drip / exact_tr)
     convention_declared: Optional[dict] = None   # the cache-convention defect a write was made under
+    close_unadj: Optional[dict] = None      # the split-only column: its span and the bars it lacks
 
 
 # ── pure primitives ───────────────────────────────────────────────────────────────
@@ -678,6 +685,18 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                       "post_seam": seam_spec["post_seam"]}
     else:
         out = with_derived_columns(fetched)
+    # The SPLIT-ONLY close as a second column (ruled 2026-10-15; CLOSE_UNADJ): the provider's
+    # unadjusted mode over the file's whole span, NaN on bars the provider does not hold — measured,
+    # never derived from the total-return close.
+    file_start = cached_start if cached_start is not None else new_ticker_start
+    unadj_full = providers[provider](symbol, file_start, today, False)
+    out[CLOSE_UNADJ] = (unadj_full["Close"].astype(float).reindex(out.index)
+                        if not unadj_full.empty else np.nan)
+    have = out[CLOSE_UNADJ].notna()
+    close_unadj = {"column": CLOSE_UNADJ, "mode": "unadjusted (split-only; the provider's auto_adjust=False)",
+                   "n_bars": int(have.sum()), "n_missing": int((~have).sum()),
+                   "span": ([str(out.index[have].min().date()), str(out.index[have].max().date())]
+                            if have.any() else None)}
     record = WriteRecord(
         ticker=ticker, provider=provider, symbol_mapped=mapped, mode="adjusted",
         span_start=str(out.index.min().date()), span_end=str(out.index.max().date()),
@@ -686,7 +705,8 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                      else [str(cached.index.min().date()), str(cached.index.max().date())]),
         written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         level=level, level_declared=level_declared, adjusted_as_of=str(pd.Timestamp(today).date()),
-        seam=seam_record, convention=convention, convention_declared=convention_declared)
+        seam=seam_record, convention=convention, convention_declared=convention_declared,
+        close_unadj=close_unadj)
     if write:
         write_pair_atomically(out, cache_dir / "parquet" / f"{ticker}_1d.parquet",
                               cache_dir / f"{ticker}_1d.csv")
