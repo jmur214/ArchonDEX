@@ -743,6 +743,16 @@ python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE 
 python -m scripts.run_isolated --save-anchor               # writes + chmods anchors 0o444
 python3 scripts/gen_substrate_manifest.py generate         # re-pin
 # commit the manifest in the SAME PR with the reason for the seed change
+
+# The cutover's write pass on a COPY (option (a), 2026-10-22; scripts/cutover_step1_pass.py).
+# Every subcommand REFUSES a path that resolves to any repo's data/processed; a copy lives
+# under Dev/_substrate_candidates/. The real-cache write is cutover day, a separate approved act.
+python -m scripts.cutover_step1_pass fresh-copy --to /Users/jacksonmurphy/Dev/_substrate_candidates/<copy>   # from the canonical; refuses an existing target
+python -m scripts.cutover_step1_pass pass --copy <copy> --today YYYY-MM-DD --tag <tag> [--only A,B]   # resumable; pass_<tag>.jsonl, write_log_<tag>.jsonl, provider_<tag>.log (UNFILTERED) beside the copy
+python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 --out x.json   # the stale/holed-files guard's reading (exit 3 on defects); read-only on <dir>
+python -m scripts.cutover_step1_pass label --cache <dir> --out x.json                                      # the universal convention label over every file (exit 3 if any unlabelled)
+python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
+python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
