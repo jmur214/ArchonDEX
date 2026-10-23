@@ -29,6 +29,9 @@ the audit's invariants fail:
      window end and its exit) or is holed inside its required spans, or a reference calendar that
      is holed or unverified — `coverage_defects`, shared with the measured-run admission
      (BARS, never file presence — the stale/holed-files guard, 2026-10-15)
+  10. substrate_convention: any name in the panel with NO convention label (option (a)'s universal
+      drip label, 2026-10-22 — a label is read from the write record / override / merge record,
+      never defaulted); an errored record fails under 8
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
@@ -141,7 +144,7 @@ def assert_census(
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
     for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files",
-                "fundamentals_misses"):
+                "fundamentals_misses", "substrate_convention"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
@@ -149,6 +152,22 @@ def assert_census(
     sf = census.get("stale_files")
     if isinstance(sf, dict) and "error" not in sf:
         failures.extend(coverage_defects(sf))
+    # 10 — option (a)'s UNIVERSAL convention label (2026-10-22): every name in the panel carries
+    # what each span of its file IS (the pre-seam drip vs exact total return). A name with no label
+    # — no write record, no override, no merge record, or a merge record the run's own frame proves
+    # stale — is a measurement on an unknown convention, never a default; the run is non-canonical.
+    sc = census.get("substrate_convention")
+    if isinstance(sc, dict) and "error" not in sc:
+        if sc.get("unlabelled"):
+            bad = sc["unlabelled"]
+            names = sorted(bad)
+            failures.append(
+                f"substrate_convention: {len(names)} name(s) in the panel carry NO convention label "
+                f"(the pre-seam drip is labelled, never defaulted): "
+                f"{', '.join(f'{n} ({bad[n]})' for n in names[:5])}{' …' if len(names) > 5 else ''}")
+    elif sc is None:
+        warnings.append("census has no substrate_convention record (summary predates 2026-10-22) — "
+                        "the pre-seam drip is unlabelled")
 
     dormant = set(expected_dormant or set()) | _env_set("CENSUS_EXPECTED_DORMANT")
     panel_allow = panel_allowlist if panel_allowlist is not None else _env_int("CENSUS_PANEL_ALLOWLIST", 0)

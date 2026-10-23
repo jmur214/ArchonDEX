@@ -119,6 +119,18 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
     except Exception as e:   # recorded, never omitted
         block["level_declarations"] = {"error": repr(e)}
     try:
+        # OPTION (a)'s universal convention label (2026-10-22), over the CANDIDATE's own names —
+        # drip vs exact_tr per span, from the write records / overrides / merge record; an
+        # unlabelled name fails the gate. Without the candidate's data_map the names are unknown.
+        from engines.data_manager.convention import substrate_convention_record
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _cache_dir
+        if data_map is None:
+            raise RuntimeError("no data_map given — the candidate's names are unknown; convention not labelled")
+        block["substrate_convention"] = substrate_convention_record(
+            _cache_dir, run_names=sorted(data_map), data_map=data_map)
+    except Exception as e:   # recorded, never omitted
+        block["substrate_convention"] = {"error": repr(e)}
+    try:
         from engines.data_manager.coverage import stale_files_record
         if data_map is None or window is None:
             raise RuntimeError("no data_map/window given — coverage not measured")

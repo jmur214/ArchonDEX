@@ -85,7 +85,11 @@ def _make_synthetic_dfs(seed: int = 0):
     # SPY on the same calendar, as every production data_map carries it (an essential ticker under
     # PIT; in the static config's list): the Gate-1 candidate census proves its trading calendar
     # against SPY and FAILS an unverified one (the stale/holed-files guard, 2026-10-15).
-    return {"AAA": df, "SPY": df.copy()}, idx
+    # The name is one the SUBSTRATE records (2026-10-22, option (a)'s universal convention label):
+    # the candidate census labels every name in the map from the canonical cache's merge record /
+    # write records, and FAILS a name it cannot label — a synthetic "AAA" is refused as unlabelled,
+    # exactly as a production candidate validated on a name outside the substrate would be.
+    return {"AAPL": df, "SPY": df.copy()}, idx
 
 
 def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
@@ -269,7 +273,7 @@ def test_gate_7_fails_when_substrate_b_contribution_is_negative(monkeypatch):
         results_b={"with_sharpe": 0.5, "baseline_sharpe": 1.0,  # contribution = -0.5
                    "daily_returns_with": rets - 0.0005, "daily_returns_baseline": rets},
     )
-    data_map_b = {"SUBSTRATEB": data_map["AAA"]}
+    data_map_b = {"SUBSTRATEB": data_map["AAPL"]}
     disc = _make_disc()
     result = disc.validate_candidate(
         _make_cand_spec(), data_map,
@@ -299,7 +303,7 @@ def test_gate_7_fails_when_substrate_drift_exceeds_threshold(monkeypatch):
         results_b={"with_sharpe": 1.1, "baseline_sharpe": 1.0,  # contribution = +0.1; drift = 0.9
                    "daily_returns_with": rets + 0.0001, "daily_returns_baseline": rets},
     )
-    data_map_b = {"SUBSTRATEB": data_map["AAA"]}
+    data_map_b = {"SUBSTRATEB": data_map["AAPL"]}
     disc = _make_disc()
     result = disc.validate_candidate(
         _make_cand_spec(), data_map,
@@ -329,7 +333,7 @@ def test_gate_7_passes_when_substrate_b_holds_within_drift(monkeypatch):
         results_b={"with_sharpe": 1.4, "baseline_sharpe": 1.0,  # contribution = +0.4; drift = 0.1
                    "daily_returns_with": rets + 0.0004, "daily_returns_baseline": rets},
     )
-    data_map_b = {"SUBSTRATEB": data_map["AAA"]}
+    data_map_b = {"SUBSTRATEB": data_map["AAPL"]}
     disc = _make_disc()
     result = disc.validate_candidate(
         _make_cand_spec(), data_map,

@@ -349,6 +349,10 @@ CENSUS_GATING_KEYS = {
     # fundamentals_misses (2026-10-15, re-pin #1's decision): the gate fails a cache miss FETCHED
     # mid-run (an unpinned input entered the pinned scope) and an errored record.
     "fundamentals_misses",
+    # substrate_convention (2026-10-22, option (a)'s universal drip label): the gate fails a name
+    # in the panel with NO convention label (drip vs exact_tr per span, never defaulted) and an
+    # errored record.
+    "substrate_convention",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
@@ -1602,7 +1606,9 @@ CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "
                           "ticker_exclusions": "ticker_exclusions_applied",
                           "level_declarations": "substrate_level_declarations",
                           "stale_files": "stale_files_record",
-                          "fundamentals_misses": "fundamentals_miss_summary"}
+                          "fundamentals_misses": "fundamentals_miss_summary",
+                          # option (a)'s universal drip label (2026-10-22): drip vs exact_tr per span
+                          "substrate_convention": "substrate_convention_record"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
