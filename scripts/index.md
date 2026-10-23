@@ -1349,6 +1349,10 @@
 - **Function `rebake()`**: Fetch each NAMED ticker's missing fundamentals and record every attempt. Returns the records.
 - **Function `main()`**: No docstring
 
+### `rebake_simfin_panel.py`
+**Module Docstring:** The SimFin panel RE-BAKE: the one declared entrypoint that rebuilds
+- **Function `main()`**: No docstring
+
 ### `reconcile_stooq_tr_t256.py`
 **Module Docstring:** T-2026-07-02-256 Part 2 — TR reconciliation of the Stooq-ingested ETFs.
 - **Function `load_stooq_close()`**: No docstring
