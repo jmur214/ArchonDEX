@@ -29,7 +29,7 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -377,7 +377,14 @@ def check_substrate_verify() -> Check:
     except OSError as exc:
         return Check(name, False, f"ERROR — manifest unreadable ({exc}); nothing to stamp; "
                                   f"every campaign submit refuses")
-    started = datetime.now(timezone.utc)
+    # THIS RUN'S verdict is the record that CHANGED across the verify — never a time window:
+    # a PASS stamped seconds before a SIGKILLed verify would read as tonight's under one
+    # (the reviewer's correction, 2026-10-22). An unreadable pre-state counts as no record;
+    # the writer sets such a file aside and writes fresh, so a record after is this run's.
+    try:
+        before = substrate_stamp.read_stamp(digest, root=CANON)
+    except substrate_stamp.StampUnreadable:
+        before = None
     cmd = [PY, "scripts/gen_substrate_manifest.py", "verify", "--root", str(CANON),
            "--manifest", str(MANIFEST), "--stamp-writer", "janitor_nightly",
            "--stamp-root", str(CANON)]
@@ -394,9 +401,7 @@ def check_substrate_verify() -> Check:
         return Check(name, False, f"ERROR — the stamp is UNREADABLE after the verify ({exc}); "
                                   f"investigate a writer bug or a torn write; every campaign "
                                   f"submit refuses")
-    fresh = rec is not None and substrate_stamp.parse_verified_at(rec["verified_at"]) >= \
-        started - timedelta(seconds=5)
-    if not fresh:
+    if rec is None or rec == before:
         tail = ((r.stderr or r.stdout or "").strip().splitlines() or ["no output"])[-1]
         receipt = _stamp_error(digest, f"verify exited {r.returncode} without stamping: {tail}")
         return Check(name, False, f"ERROR — the verify exited {r.returncode} without writing a "

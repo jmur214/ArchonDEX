@@ -3,15 +3,20 @@
 The agreed interface is §7 of `docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md`;
 these are P5's locks on B's side — drift, clean, fail-closed (with a positive control),
 isolation, atomicity, unknown-schema and unreadable reads — plus the two-writer rule, the
-freshness rule the gate shares, and the janitor wiring. Every lock DRIVES THE REAL ENTRYPOINT:
-`janitor_nightly.check_substrate_verify()` running the real `gen_substrate_manifest.py` CLI in a
-subprocess against a planted, COMPLETE substrate; `write_stamp` / `read_stamp` on a real file.
-No text assertion stands in for execution (the 2026-09-14 lesson). Each lock was proven by
-REVERSION — the guarded line removed, the test run red, the file restored — and the record of
-each reversion is in the unit's session report.
+freshness rule the gate shares, R2 (generate's PASS comes from its OWN full verify, and a
+manifest reaches the target only on that PASS), and the janitor wiring. Every lock DRIVES THE
+REAL ENTRYPOINT: `janitor_nightly.check_substrate_verify()` running the real
+`gen_substrate_manifest.py` CLI in a subprocess against a planted, COMPLETE substrate;
+`write_stamp` / `read_stamp` on a real file. No text assertion stands in for execution (the
+2026-09-14 lesson). Each lock was proven by REVERSION — the guarded line removed, the test run
+red, the file restored — and the record of each reversion is in the unit's session report.
 
-Nothing here touches the real stamp: every run points `--stamp-root` (via `jn.CANON`) at a
-tmp root, and the janitor's `MANIFEST` is the planted one.
+NOTHING HERE MAY TOUCH THE REAL STAMP. The reviewer found one reversion of an earlier version
+writing a PASS into the MAIN tree's stamp through a CLI arm that omitted `--stamp-root`. Two
+guards now hold: in-process, `canonical_root` is monkeypatched to REFUSE for every test (every
+read/write passes `root=tmp_path`); for the subprocess arms, `_cli()` refuses any arm without
+`--stamp-root`, and the real stamp's bytes are snapshotted before this module and asserted
+identical after it.
 """
 from __future__ import annotations
 
@@ -34,6 +39,48 @@ REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable
 CLI = REPO / "scripts" / "gen_substrate_manifest.py"
 OTHER = "f" * 64                               # a digest no manifest will ever have
+ZERO = {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}
+
+_REAL_CANONICAL_ROOT = st.canonical_root       # kept for the one test OF the resolver
+
+
+# ── never the real stamp ────────────────────────────────────────────────────────
+
+def _real_stamp_bytes():
+    try:
+        p = _REAL_CANONICAL_ROOT() / st.STAMP_REL
+    except st.CanonicalRootUnresolved:
+        return None
+    return p.read_bytes() if p.exists() else None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _the_real_stamp_is_byte_identical_across_this_module():
+    before = _real_stamp_bytes()
+    yield
+    assert _real_stamp_bytes() == before, "this test module CHANGED the real stamp file"
+
+
+@pytest.fixture(autouse=True)
+def _no_in_process_resolution_of_the_real_stamp(monkeypatch):
+    def _refuse(start=None):
+        raise AssertionError("a test resolved the REAL stamp path — pass root=tmp_path")
+    monkeypatch.setattr(st, "canonical_root", _refuse)
+
+
+def _cli(*args: str) -> subprocess.CompletedProcess:
+    """Every CLI arm names its stamp root; without it the CLI would resolve the REAL one."""
+    assert "--stamp-root" in args, "CLI arm without --stamp-root — it would touch the real stamp"
+    return subprocess.run([PY, str(CLI), *args], capture_output=True, text=True, timeout=120)
+
+
+def test_the_guards_against_the_real_stamp_FIRE(tmp_path):
+    with pytest.raises(AssertionError):
+        st.stamp_path()                                      # in-process, no root
+    with pytest.raises(AssertionError):
+        st.read_stamp(OTHER)
+    with pytest.raises(AssertionError):
+        _cli("verify", "--root", str(tmp_path), "--manifest", str(tmp_path / "m"))
 
 
 # ── a planted, COMPLETE substrate ───────────────────────────────────────────────
@@ -165,9 +212,8 @@ def test_LOCK_fail_closed_the_CLI_itself_stamps_ERROR_and_exits_3(tmp_path):
     raw = tmp_path / "data/raw"
     raw.chmod(0)
     try:
-        r = subprocess.run([PY, str(CLI), "verify", "--root", str(tmp_path), "--manifest", str(m),
-                            "--stamp-writer", "janitor_nightly", "--stamp-root", str(tmp_path)],
-                           capture_output=True, text=True, timeout=120)
+        r = _cli("verify", "--root", str(tmp_path), "--manifest", str(m),
+                 "--stamp-writer", "janitor_nightly", "--stamp-root", str(tmp_path))
     finally:
         raw.chmod(0o755)
     assert r.returncode == 3, r.stderr
@@ -194,6 +240,23 @@ def test_LOCK_fail_closed_a_verify_that_DIES_without_stamping_gets_an_ERROR_stam
     assert "MemoryError: boom" in c.detail and "stamp ERROR written by the janitor" in c.detail
     rec = st.read_stamp(digest, root=tmp_path)
     assert rec["result"] == "ERROR" and rec["counts"] is None and "MemoryError" in rec["error"]
+
+
+def test_LOCK_a_PASS_stamped_SECONDS_before_a_verify_that_died_is_NOT_tonights(tmp_path, monkeypatch):
+    """The reviewer's SIGKILL case (2026-10-22): under a time window, a PASS stamped 3 s before
+    a killed verify read as this run's. This run's verdict is the record that CHANGED across
+    the verify — an unchanged record means the verify wrote nothing, whatever its age."""
+    m = _plant(tmp_path)
+    _janitor_on(monkeypatch, tmp_path, m)
+    digest = st.manifest_digest(m)
+    just_now = st.make_record("PASS", "janitor_nightly", None, "0" * 32,
+                              {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}, [])
+    st.write_stamp(digest, just_now, root=tmp_path)
+    monkeypatch.setattr(jn, "_run", lambda cmd, **kw: subprocess.CompletedProcess(
+        cmd, -9, "", "Killed: 9\n"))
+    c = jn.check_substrate_verify()
+    assert c.status == "FAIL" and "exited -9 without writing a stamp" in c.detail, c.detail
+    assert st.read_stamp(digest, root=tmp_path)["result"] == "ERROR"
 
 
 def test_LOCK_fail_closed_a_TIMEOUT_is_an_ERROR_stamp(tmp_path, monkeypatch):
@@ -238,8 +301,7 @@ def test_LOCK_isolation_another_digests_entry_survives_BYTE_IDENTICAL(tmp_path, 
 @pytest.mark.parametrize("fault", ["fsync", "replace"])
 def test_LOCK_atomicity_a_torn_write_leaves_the_previous_stamp_readable_and_no_temp_file(
         tmp_path, monkeypatch, fault):
-    good = st.make_record("PASS", "repin", None, "0" * 32,
-                          {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}, [])
+    good = st.make_record("PASS", "repin", None, "0" * 32, ZERO, [])
     p = st.write_stamp(OTHER, good, root=tmp_path)
     before = p.read_bytes()
 
@@ -314,17 +376,16 @@ def test_absent_is_None_for_no_file_and_for_another_digest_only(tmp_path):
 
 
 def test_a_writer_cannot_build_a_self_contradicting_record_either():
-    zero = {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}
     with pytest.raises(st.StampUnreadable):
-        st.make_record("PASS", "repin", None, None, {**zero, "extra": 2}, [])
+        st.make_record("PASS", "repin", None, None, {**ZERO, "extra": 2}, [])
     with pytest.raises(st.StampUnreadable):
-        st.make_record("FAIL", "repin", None, None, zero, [])
+        st.make_record("FAIL", "repin", None, None, ZERO, [])
     with pytest.raises(st.StampUnreadable):
-        st.make_record("ERROR", "repin", None, None, zero, [], error="x")
+        st.make_record("ERROR", "repin", None, None, ZERO, [], error="x")
     with pytest.raises(st.StampUnreadable):
         st.make_record("ERROR", "repin", None, None, None, [])            # ERROR must say what
     with pytest.raises(st.StampUnreadable):
-        st.make_record("PASS", "submit", None, None, zero, [])
+        st.make_record("PASS", "submit", None, None, ZERO, [])
     assert st.WRITERS == ("janitor_nightly", "repin")
 
 
@@ -332,8 +393,7 @@ def test_an_unreadable_existing_file_is_set_aside_never_deleted_and_the_writer_r
     p = tmp_path / st.STAMP_REL
     p.parent.mkdir(parents=True)
     p.write_bytes(b"{torn")
-    good = st.make_record("PASS", "repin", None, None,
-                          {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}, [])
+    good = st.make_record("PASS", "repin", None, None, ZERO, [])
     st.write_stamp(OTHER, good, root=tmp_path)
     aside = [x for x in p.parent.iterdir() if ".unreadable." in x.name]
     assert len(aside) == 1 and aside[0].read_bytes() == b"{torn"
@@ -346,10 +406,9 @@ def test_an_unreadable_existing_file_is_set_aside_never_deleted_and_the_writer_r
 def test_freshness_is_48h_stale_and_FUTURE_DATED_are_refused_naming_which():
     assert st.FRESHNESS == timedelta(hours=48)
     now = datetime(2026, 10, 23, 12, 0, tzinfo=timezone.utc)
-    counts = {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}
 
     def rec(delta):
-        return st.make_record("PASS", "repin", None, None, counts, [],
+        return st.make_record("PASS", "repin", None, None, ZERO, [],
                               verified_at=st.utc_now_iso(now + delta))
     assert st.freshness_verdict(rec(timedelta(hours=-47)), now) is None
     assert st.freshness_verdict(rec(timedelta(minutes=2)), now) is None       # within skew
@@ -372,15 +431,17 @@ def test_verified_at_is_UTC_Z_and_non_UTC_input_is_refused():
 
 def test_canonical_root_resolves_the_MAIN_tree_from_any_worktree_and_FAILS_CLOSED_otherwise(
         tmp_path, monkeypatch):
-    main = st.canonical_root()
+    """The one test OF the resolver, through the saved original (the autouse guard refuses
+    the module attribute for every other test)."""
+    main = _REAL_CANONICAL_ROOT()
     assert (main / "data").is_dir() and (main / ".git").exists()
-    assert st.stamp_path() == main / "data/state/substrate_verify_stamp.json"
+    assert st.stamp_path(main) == main / "data/state/substrate_verify_stamp.json"
     with pytest.raises(st.CanonicalRootUnresolved):
-        st.canonical_root(tmp_path)                      # not a checkout: no invented location
+        _REAL_CANONICAL_ROOT(tmp_path)                   # not a checkout: no invented location
     monkeypatch.setattr(st.subprocess, "run",
                         lambda *a, **k: (_ for _ in ()).throw(OSError("no git")))
     with pytest.raises(st.CanonicalRootUnresolved):     # never "degrade to ROOT" (unlike the ledger)
-        st.canonical_root()
+        _REAL_CANONICAL_ROOT()
 
 
 def test_manifest_digest_is_sha256_of_the_bytes_and_the_md5_is_recorded_beside_it_never_the_key(tmp_path):
@@ -394,10 +455,6 @@ def test_manifest_digest_is_sha256_of_the_bytes_and_the_md5_is_recorded_beside_i
 
 
 # ── R2: the re-pin step, and the two-writer rule ────────────────────────────────
-
-def _cli(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([PY, str(CLI), *args], capture_output=True, text=True, timeout=120)
-
 
 def test_LOCK_generate_stamps_PASS_as_repin_after_its_OWN_full_verify(tmp_path):
     _plant(tmp_path)
@@ -413,6 +470,30 @@ def test_LOCK_generate_stamps_PASS_as_repin_after_its_OWN_full_verify(tmp_path):
     assert rec["result"] == "PASS" and rec["writer"] == "repin"
     assert rec["counts"] == {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}
     assert rec["s3_prefix_md5"] == hashlib.md5(m.read_bytes()).hexdigest()
+    assert not list(m.parent.glob("*.tmp.*"))                            # the temp was renamed, not left
+
+
+def test_LOCK_generate_with_a_substrate_dir_ABSENT_exits_3_stamps_ERROR_and_writes_NO_manifest(tmp_path):
+    """R2 is load-bearing only if generate's PASS comes from its OWN full verify: with data/raw
+    absent the build still produces lines, so a faked second pass would stamp PASS and exit 0
+    (the reviewer's vacuous-lock finding, 2026-10-22). The real one raises SubstrateIncomplete:
+    ERROR for the content that was built, exit 3, and the target is NOT written — the previous
+    pin stays byte-identical, and no temp file is left beside it."""
+    _plant(tmp_path)
+    m = tmp_path / "config/substrate_manifest.sha256"
+    previous = m.read_bytes()
+    os.rename(tmp_path / "data/raw", tmp_path / "data/raw_gone")
+    built = ("\n".join(gm.build_manifest(tmp_path)) + "\n").encode()      # what generate would pin
+    r = _cli("generate", "--root", str(tmp_path), "--stamp-root", str(tmp_path))
+    assert r.returncode == 3, r.stderr
+    assert "NOT written" in r.stderr and "Traceback" not in r.stderr
+    assert m.read_bytes() == previous
+    assert not list(m.parent.glob("*.tmp.*"))
+    rec = st.read_stamp(hashlib.sha256(built).hexdigest(), root=tmp_path)
+    assert rec["result"] == "ERROR" and rec["writer"] == "repin" and "data/raw" in rec["error"]
+    m.unlink()                                                             # and with no previous pin
+    r = _cli("generate", "--root", str(tmp_path), "--stamp-root", str(tmp_path))
+    assert r.returncode == 3 and not m.exists() and not list(m.parent.glob("*.tmp.*"))
 
 
 def test_a_bare_verify_NEVER_writes_the_stamp_and_repin_is_not_a_verify_writer(tmp_path):
@@ -420,20 +501,23 @@ def test_a_bare_verify_NEVER_writes_the_stamp_and_repin_is_not_a_verify_writer(t
     r = _cli("verify", "--root", str(tmp_path), "--manifest", str(m), "--stamp-root", str(tmp_path))
     assert r.returncode == 0 and "OK: substrate matches" in r.stdout
     assert not (tmp_path / st.STAMP_REL).exists()
-    r = _cli("verify", "--root", str(tmp_path), "--manifest", str(m), "--stamp-writer", "repin")
+    r = _cli("verify", "--root", str(tmp_path), "--manifest", str(m), "--stamp-writer", "repin",
+             "--stamp-root", str(tmp_path))
     assert r.returncode == 2 and "invalid choice" in r.stderr
+    assert not (tmp_path / st.STAMP_REL).exists()
 
 
 def test_verify_exit_codes_are_0_clean_1_drift_2_no_manifest(tmp_path):
     m = _plant(tmp_path)
-    assert _cli("verify", "--root", str(tmp_path), "--manifest", str(m)).returncode == 0
+    root = ("--root", str(tmp_path), "--stamp-root", str(tmp_path))
+    assert _cli("verify", *root, "--manifest", str(m)).returncode == 0
     (tmp_path / "data/macro/VIX.parquet").write_bytes(b"moved")
-    r = _cli("verify", "--root", str(tmp_path), "--manifest", str(m))
+    r = _cli("verify", *root, "--manifest", str(m))
     assert r.returncode == 1 and "CHANGED : data/macro/VIX.parquet" in r.stderr
-    assert _cli("verify", "--root", str(tmp_path), "--manifest", "nope.sha256").returncode == 2
+    assert _cli("verify", *root, "--manifest", "nope.sha256").returncode == 2
 
 
-# ── the janitor wiring ──────────────────────────────────────────────────────────
+# ── the janitor wiring, and the censuses ────────────────────────────────────────
 
 def test_the_janitor_runs_the_check_and_it_is_never_mechanical(monkeypatch):
     assert "check_substrate_verify()" in inspect.getsource(jn.run_checks)
@@ -444,10 +528,13 @@ def test_the_janitor_runs_the_check_and_it_is_never_mechanical(monkeypatch):
     assert "mechanical=True" not in inspect.getsource(jn.check_substrate_verify)
 
 
-def test_the_stamp_is_registered_in_BOTH_censuses_with_a_reason():
-    from core.durability_census import REGISTRY, assert_durability
+def test_the_stamp_is_registered_in_BOTH_censuses_and_the_durability_census_SEES_the_writer():
+    from core.durability_census import REGISTRY, assert_durability, scan_writers
     from paper_trader.clock_census import EXEMPT
     rec = next(r for r in REGISTRY if r.path == st.STAMP_REL)
     assert rec.writer == "core/substrate_stamp.py" and rec.venue == "local" and len(rec.reason) > 100
     assert assert_durability().ok
+    # by construction, not by declaration: the scan matches `json.dump(` + the one path literal
+    assert "core/substrate_stamp.py" in scan_writers().get(st.STAMP_REL, []), \
+        "the durability census must SEE the writer (json.dump + the one literal)"
     assert "FRESHNESS" in EXEMPT[st.STAMP_REL] and "48 h" in EXEMPT[st.STAMP_REL]

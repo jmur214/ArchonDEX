@@ -81,7 +81,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: P4 (D's addition): the reader REFUSES any other value.
 SCHEMA = "substrate_verify_stamp/v1"
-#: One literal, so the T-356 durability census (`core/durability_census.py`) can see the writer.
+#: ONE literal of the path, and the write below goes through `json.dump(` — the two things the
+#: T-356 durability census's scan matches (`core/durability_census.py`: `_DATA_PATH` and
+#: `_WRITE_IDIOM`), so the census SEES this module as the stamp's writer by construction
+#: (locked in `tests/test_substrate_stamp_2026_10_22.py`) instead of carrying it by
+#: declaration only. The reviewer caught the first comment here claiming this of a
+#: `f.write(json.dumps(...))` the scan cannot see (2026-10-22).
 STAMP_REL = "data/state/substrate_verify_stamp.json"
 #: P1 (D's addition): the ONE freshness bound, shared by the gate and any census check (R3).
 FRESHNESS = timedelta(hours=48)
@@ -325,13 +330,14 @@ def read_stamp(digest: str, root: Optional[Path] = None) -> Optional[Dict[str, A
     return None if rec is None else dict(rec)
 
 
-def _write_atomic(p: Path, text: str) -> None:
-    """Temp file in the same directory, fsync, `os.replace`; on ANY failure the temp file
-    is removed and the previous file is untouched."""
+def _write_atomic(p: Path, doc: Dict[str, Any]) -> None:
+    """Temp file in the same directory, `json.dump`, fsync, `os.replace`; on ANY failure
+    the temp file is removed and the previous file is untouched."""
     fd, tmp = tempfile.mkstemp(prefix=p.name + ".", suffix=".tmp", dir=str(p.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
+            json.dump(doc, f, indent=1, sort_keys=True)
+            f.write("\n")
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, p)
@@ -370,5 +376,5 @@ def write_stamp(digest: str, record: Dict[str, Any], root: Optional[Path] = None
     if doc is None:
         doc = {"schema": SCHEMA, "stamps": {}}
     doc["stamps"][digest] = rec
-    _write_atomic(p, json.dumps(doc, indent=1, sort_keys=True) + "\n")
+    _write_atomic(p, doc)
     return p

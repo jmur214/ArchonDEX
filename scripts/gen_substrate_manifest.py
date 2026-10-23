@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -247,6 +248,47 @@ def _print_drift(res: VerifyResult) -> None:
     )
 
 
+def generate(root: Path, manifest_path: Path, stamp_root: Optional[Path]) -> int:
+    """R2, the re-pin step: build, write the manifest to a TEMP path beside the target, run
+    the re-pin's OWN second complete pass over the data against THAT file (not the lines in
+    memory, so a file that changed during the walk — the runtime fundamentals cache, T-175 —
+    cannot be stamped PASS), and rename onto the target ONLY on PASS. A truncated or
+    unverified manifest never sits at the target: with a substrate dir absent the first
+    version of this step left one there before exiting 3 (the reviewer's 5g probe,
+    2026-10-22). On FAIL/ERROR the previous pin and its stamp stay exactly as they were;
+    the verdict for the content that WAS built is still stamped — true, and inert at the
+    gate, which looks up the COMMITTED manifest's digest."""
+    lines = build_manifest(root)
+    body = "\n".join(lines) + "\n"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = manifest_path.with_name(f"{manifest_path.name}.tmp.{os.getpid()}")
+    tmp.write_text(body)
+    digest = stamp.manifest_digest(tmp)
+    try:
+        try:
+            res = full_verify(root, tmp)
+        except Exception as exc:
+            _stamp(digest, tmp, "repin", stamp_root, None, error=f"{type(exc).__name__}: {exc}")
+            print(f"ERROR: the re-pin's own verify could not run: {type(exc).__name__}: {exc}; "
+                  f"{manifest_path} was NOT written", file=sys.stderr)
+            return 3
+        if not res.ok:
+            _stamp(digest, tmp, "repin", stamp_root, res)
+            _print_drift(res)
+            print(f"The data moved between the two passes — {manifest_path} was NOT written; "
+                  f"re-run generate.", file=sys.stderr)
+            return 1
+        os.replace(tmp, manifest_path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+    _stamp(digest, manifest_path, "repin", stamp_root, res)
+    print(f"wrote {manifest_path} ({res.pinned} files; manifest-md5 "
+          f"{stamp.manifest_s3_prefix_md5(manifest_path)})")
+    print(f"OK: re-pin verified ({res.pinned} files; manifest-sha256 {digest})")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("mode", choices=["generate", "verify"])
@@ -267,33 +309,7 @@ def main() -> int:
     stamp_root = Path(args.stamp_root) if args.stamp_root else None
 
     if args.mode == "generate":
-        lines = build_manifest(root)
-        body = "\n".join(lines) + "\n"
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(body)
-        md5 = hashlib.md5(body.encode()).hexdigest()
-        print(f"wrote {manifest_path} ({len(lines)} files; manifest-md5 {md5})")
-        # R2: the re-pin step's OWN full verify — a SECOND complete pass over the data,
-        # diffed against the file just written (not the lines in memory), so a file that
-        # changed during the walk (the runtime fundamentals cache, T-175) cannot be
-        # stamped PASS. The stamp records the writer.
-        digest = stamp.manifest_digest(manifest_path)
-        try:
-            res = full_verify(root, manifest_path)
-        except Exception as exc:
-            _stamp(digest, manifest_path, "repin", stamp_root, None,
-                   error=f"{type(exc).__name__}: {exc}")
-            print(f"ERROR: the re-pin's own verify could not run: {type(exc).__name__}: {exc}",
-                  file=sys.stderr)
-            return 3
-        _stamp(digest, manifest_path, "repin", stamp_root, res)
-        if res.ok:
-            print(f"OK: re-pin verified ({res.pinned} files; manifest-sha256 {digest})")
-            return 0
-        _print_drift(res)
-        print("The manifest was written but the data moved under it — re-run generate.",
-              file=sys.stderr)
-        return 1
+        return generate(root, manifest_path, stamp_root)
 
     # verify
     if not manifest_path.exists():
