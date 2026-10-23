@@ -155,6 +155,56 @@ def test_lock1_path_B_atr_sizing_lands_on_real_shares(tmp_path):
     assert order["qty"] <= meta["target_qty"]
 
 
+def _planted_factor(volume: float, factor: float = 0.625) -> pd.DataFrame:
+    """A constant dividend factor (SPY-2000-like 0.625) ending at a $140 print on EX1, with a
+    chosen constant Volume so the ADV limit (Volume × max_pct_adv) is exact."""
+    idx = pd.bdate_range("2023-10-02", EX1)
+    unadj = np.linspace(120.0, 140.0, len(idx))
+    close = unadj * factor
+    df = pd.DataFrame({"Open": close, "High": close * 1.01, "Low": close * 0.99, "Close": close,
+                       "Volume": float(volume), "close_unadj": unadj}, index=idx)
+    df.index.name = "Date"
+    return df
+
+
+# --------------------------------------------------------------------------- #
+# Lock 1-ADV — the liquidity check and the clip are in REAL shares (Volume is real shares)
+# --------------------------------------------------------------------------- #
+def test_lock1_adv_check_runs_on_real_shares_not_units(tmp_path):
+    """$10,000 at a $140 print marked $87.5: 71 real shares carried as 113 units. ADV limit 80
+    shares (Volume 8,000 × max_pct_adv 0.01): 71 passes; a check on the 113 units would clip.
+    Reverted line: `risk_engine.py` `liq_qty = sizing.shares_traded if ... else add_qty` ->
+    `liq_qty = add_qty`. The lock fails: the order is clipped."""
+    hist = _load(tmp_path, _planted_factor(volume=8_000.0))
+    close, cu = float(hist["Close"].iloc[-1]), float(hist["close_unadj"].iloc[-1])
+    assert (math.floor(10_000.0 / cu), math.floor(71 * cu / close)) == (71, 113)
+    re = _engine(max_pct_adv=0.01)
+    order = re.prepare_order(_signal(), equity=100_000.0, df_hist=hist, current_qty=0,
+                             target_weights={TICKER: 0.10})
+    assert order is not None, re.last_skip_by_ticker
+    assert (order["qty"], order["meta"]["shares_traded"]) == (113, 71)
+    assert "liquidity_clipped" not in order["meta"]
+    assert TICKER not in re.last_skip_by_ticker
+
+
+def test_lock1_adv_clip_is_in_real_shares_carried_as_units(tmp_path):
+    """ADV limit 10 shares (Volume 1,000 × 0.01): 71 shares clip to 10, carried as
+    trunc(10 × 140 / 87.5) = 16 units. Reverted line: `risk_engine.py`
+    `sizing = size_real_shares(limit_qty, price, close_unadj)` -> `add_qty = limit_qty` (a clip in
+    units). The lock fails: qty 10."""
+    hist = _load(tmp_path, _planted_factor(volume=1_000.0))
+    close, cu = float(hist["Close"].iloc[-1]), float(hist["close_unadj"].iloc[-1])
+    re = _engine(max_pct_adv=0.01)
+    order = re.prepare_order(_signal(), equity=100_000.0, df_hist=hist, current_qty=0,
+                             target_weights={TICKER: 0.10})
+    assert order is not None, re.last_skip_by_ticker
+    assert order["meta"]["shares_traded"] == 10
+    assert order["qty"] == 16 == math.floor(10 * cu / close)
+    assert order["meta"]["liquidity_clipped"] is True
+    assert re.last_skip_by_ticker.get(TICKER) == "liquidity_limit_exceeded"   # as before: noted, then clipped
+    assert abs(order["qty"] * close - 10 * cu) < close
+
+
 # --------------------------------------------------------------------------- #
 # Lock 2 — no close_unadj column: the basis is RECORDED total_return, the count is unchanged
 # --------------------------------------------------------------------------- #
