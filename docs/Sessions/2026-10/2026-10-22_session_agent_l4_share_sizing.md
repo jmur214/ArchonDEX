@@ -120,7 +120,18 @@ census refused them; the stubs were made faithful (`b656fab`), the guard kept.
 - **Suite layout corrected per the coordinator:** a plain `data/processed` symlink lets a suite
   write into the main tree's pinned cache. Replaced by a REAL `data/processed/` holding 730
   per-file symlinks to the main tree's `*_1d.csv`, a `tr_reconciled` symlink and an EMPTY real
-  `parquet/`; the full suite re-run on that layout (line below).
+  `parquet/`. **Full suite on that layout (after a 25-min wait for another session's suite):
+  19 failed, 4389 passed, 33 skipped, 5 deselected, 11 xfailed in 3:09**; zero mentions of
+  `share_price_basis` / `DiscoveryCandidateCensusError`. The 18 data-bound rows are the same as
+  before; the 19th is new to the layout: `tests/test_fundamentals_edges.py::test_pit_no_future_data_in_score`
+  (`ttm_sum` returns None — its `panel` fixture read the panel the suite itself REBUILT, below).
+- **The hazard, WITNESSED on the per-file layout:** during the suite a loader rebuilt and wrote
+  `data/processed/fundamentals_simfin.parquet` (47,254 × 30, 9.1 MB, from 2021-01-31, 23:43) and
+  `data/processed/parquet/AAPL_fundamentals.parquet` (16.6 KB) into the worktree's REAL dir, and
+  an import-time registry writer regenerated `data/governor/edges.yml` (7.6 KB). Through a
+  directory symlink the first write REPLACES the main tree's pinned simfin panel (9.9 MB,
+  2026-06-17 — the fundamentals substrate input). The writer composes the path (no test names it
+  literally); not chased here — outside this unit, for the director.
 
 ## Pick up next time
 
