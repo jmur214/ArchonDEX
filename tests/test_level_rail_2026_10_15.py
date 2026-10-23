@@ -296,10 +296,13 @@ def test_the_census_block_NAMES_the_directory_it_read(tmp_path):
     assert w.substrate_level_declarations(tmp_path)["cache_dir"] == str(tmp_path)
 
 
-def test_the_shipped_declarations_are_the_four_div10_restorations_and_the_two_reused_tickers():
+def test_the_shipped_declarations_are_the_three_div10_restorations_and_the_twelve_class_i_names():
+    """Cutover step 1 (2026-10-22): the ten later-entity files (class (i), cutover proposal §2b)
+    join SLE and POM as declared REUSED TICKERS — refused before any provider call."""
     d = w.load_level_declarations()
     assert {t for t, v in d.items() if v["kind"] == "scale_defect"} == {"AZO", "MTD", "NVR"}
-    assert {t for t, v in d.items() if v["kind"] == "reused_ticker"} == {"SLE", "POM"}
+    assert {t for t, v in d.items() if v["kind"] == "reused_ticker"} == {
+        "SLE", "POM", "ABS", "BMC", "CCE", "CFC", "GR", "HAR", "MHS", "NCC", "TEG", "TIE"}
     assert all(v["declared_ratio"] == 10.0 for v in d.values() if v["kind"] == "scale_defect")
 
 

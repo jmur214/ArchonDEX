@@ -10,6 +10,26 @@
     "SLE": {"kind": "reused_ticker", "date": "2019-02-26",
             "source": "Sara Lee left the index; the cached file from 2019-02-26 is the reused entity (and is also ÷10). The write pass wrote it RESCALED 10.0 because the file IS that entity (R's level-rail read)"},
     "POM": {"kind": "reused_ticker", "date": "2025-10-08",
-            "source": "Pepco left the index; the cached file from 2025-10-08 is the reused entity. The write pass wrote it RESCALED 18.0 (a reverse split of the reused entity)"}
+            "source": "Pepco left the index; the cached file from 2025-10-08 is the reused entity. The write pass wrote it RESCALED 18.0 (a reverse split of the reused entity)"},
+    "ABS": {"kind": "reused_ticker", "date": "2018-08-28",
+            "source": "class (i), the ten later-entity files (cutover proposal §2b, added 2026-10-15; declared at cutover step 1, 2026-10-22): the cached file (2018-08-28 → 2019-06-07) lies entirely after the PIT name's last exit 2006-06-02, and the provider has no series for it; refused forever under the symbol"},
+    "BMC": {"kind": "reused_ticker", "date": "2013-09-11",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2013-09-11; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "CCE": {"kind": "reused_ticker", "date": "2016-05-31",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2016-05-31; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "CFC": {"kind": "reused_ticker", "date": "2008-07-01",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2008-07-01; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "GR": {"kind": "reused_ticker", "date": "2012-07-27",
+           "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2012-07-27; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "HAR": {"kind": "reused_ticker", "date": "2017-03-13",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2017-03-13; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "MHS": {"kind": "reused_ticker", "date": "2012-04-02",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2012-04-02; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "NCC": {"kind": "reused_ticker", "date": "2009-01-02",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2009-01-02; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "TEG": {"kind": "reused_ticker", "date": "2015-06-30",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2015-06-30; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"},
+    "TIE": {"kind": "reused_ticker", "date": "2012-12-24",
+            "source": "class (i), the ten later-entity files: the cached file lies entirely after the PIT name's last exit 2012-12-24; no provider series; refused forever under the symbol (cutover step 1, 2026-10-22)"}
   }
 }
