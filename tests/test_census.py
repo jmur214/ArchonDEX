@@ -33,6 +33,9 @@ def _clean_census() -> dict:
         "data_feed": {"n_network_fetched": 0, "by_source": {}, "yfinance_tickers": []},
         "config_provenance": {"degraded": False,
                               "risk": {"exists": True, "n_keys": 11}},
+        # the edges.yml single-writer unit (2026-10-22): a modern census carries the labelled
+        # bootstrap-book record (absent → the gate WARNS, as for a missing data_feed record)
+        "bootstrap_book": False,
     }
 
 
