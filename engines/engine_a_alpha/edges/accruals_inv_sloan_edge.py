@@ -103,7 +103,7 @@ class AccrualsInvSloanEdge(EdgeBase):
 # value_earnings_yield_edge.py for full rationale.
 import logging  # noqa: E402
 
-from engines.engine_a_alpha.edge_registry import EdgeRegistry, EdgeSpec  # noqa: E402
+from engines.engine_a_alpha.edge_registry import EdgeRegistry, EdgeSpec, RegistryUnreadableError  # noqa: E402
 
 _REG_LOG = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ try:
         params=dict(AccrualsInvSloanEdge.DEFAULT_PARAMS),
         status="active",
     ))
-except (FileNotFoundError, PermissionError, OSError) as _exc:
+except (FileNotFoundError, PermissionError, OSError, RegistryUnreadableError) as _exc:  # a refused registry READ is swallowed at import; the consumer refuses (single-writer unit, 2026-10-22)
     _REG_LOG.warning(
         "%s auto-register skipped: %s: %s",
         AccrualsInvSloanEdge.EDGE_ID, type(_exc).__name__, _exc,

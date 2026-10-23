@@ -96,7 +96,7 @@ def stub_panel():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("edge_cls", _ALL_EDGE_CLASSES)
-def test_edge_registers_cleanly(edge_cls):
+def test_edge_registers_cleanly(edge_cls, tmp_path):
     """Each edge has the required class attrs and registers without raising."""
     assert edge_cls.EDGE_ID
     assert edge_cls.CATEGORY == "fundamental"
@@ -105,8 +105,13 @@ def test_edge_registers_cleanly(edge_cls):
     assert "long_score" in edge_cls.DEFAULT_PARAMS
     assert "min_universe" in edge_cls.DEFAULT_PARAMS
 
-    # Spec must be in the registry under its id
-    reg = EdgeRegistry()
+    # Spec must be in the registry under its id — through the explicit sync on a tmp registry
+    # (since the single-writer unit imports never write; this used to construct `EdgeRegistry()`
+    # on the REAL, CWD-relative file and depended on — and mutated — it).
+    from scripts.sync_edge_registry import sync
+    reg_path = tmp_path / "edges.yml"
+    sync(reg_path, modules=[edge_cls.__module__.rsplit(".", 1)[-1]])
+    reg = EdgeRegistry(store_path=reg_path)
     spec = reg.get(edge_cls.EDGE_ID)
     assert spec is not None, f"{edge_cls.EDGE_ID} not in registry"
     assert spec.category == "fundamental"

@@ -331,7 +331,7 @@ def test_all_pairs_register_at_paused_feature(tmp_path):
     reg = EdgeRegistry(store_path=tmp_path / "edges.yml")
     for surv in survivors:
         _Reg, spec = _build_pair_spec(surv)
-        reg.ensure(spec)
+        reg.register(spec)      # the explicit write (ensure() never writes since the single-writer unit)
 
     # Fresh instance re-reads from disk — proves the YAML round-trip too.
     reg2 = EdgeRegistry(store_path=tmp_path / "edges.yml")

@@ -63,9 +63,14 @@ def _make_data_map(returns_per_ticker: dict[str, float],
 # Registration
 # ---------------------------------------------------------------------------
 
-def test_all_three_edges_register_at_paused_feature():
-    """All 3 edge_ids must register at status='paused' tier='feature'."""
-    reg = EdgeRegistry()
+def test_all_three_edges_register_at_paused_feature(tmp_path):
+    """All 3 edge_ids must register at status='paused' tier='feature' — through the explicit sync on
+    a tmp registry (since the single-writer unit imports never write; this used to construct
+    `EdgeRegistry()` on the REAL, CWD-relative file and depended on — and mutated — it)."""
+    from scripts.sync_edge_registry import sync
+    reg_path = tmp_path / "edges.yml"
+    sync(reg_path, modules=["momentum_12_1_v1", "momentum_6_1_v1", "short_term_reversal_v1"])
+    reg = EdgeRegistry(store_path=reg_path)
     for eid in EDGE_IDS:
         spec = next((s for s in reg.get_all_specs() if s.edge_id == eid), None)
         assert spec is not None, f"Edge {eid} did not register"

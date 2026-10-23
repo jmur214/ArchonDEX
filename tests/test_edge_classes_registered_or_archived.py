@@ -54,8 +54,8 @@ def _registry_ids_and_modules():
     if not REGISTRY.exists():
         pytest.skip(f"no registry at {REGISTRY} — a fresh checkout refuses until "
                     f"`python scripts/sync_edge_registry.py` has run once")
-    import yaml
-    rows = yaml.safe_load(REGISTRY.read_text())["edges"]
+    from core.edge_registry_io import read_registry
+    rows = read_registry(REGISTRY)["edges"]
     ids = {r["edge_id"] for r in rows}
     mods = set()
     for r in rows:
