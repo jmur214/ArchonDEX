@@ -96,6 +96,32 @@ registry writer regenerated here at 309 lines; the ledger cites `:1755`/`:1778` 
 Discovery-gate tests' four stubs of `run_backtest_pure` lacked the new counter, so the candidate
 census refused them; the stubs were made faithful (`b656fab`), the guard kept.
 
+## Follow-ups after the reviewer's APPROVE at `949a585` (same night; commits on top, never amended)
+
+- The reviewer approved by execution: the ruled form on a planted ex-date file (69 real shares
+  carried as 110 units, 98.3 % deployed vs 61.7 % under the literal form); byte-identical trade logs
+  vs main without the column; both producers; the optimizer paths; paper_trader unchanged by AST.
+- **(1) ADV lock.** The reviewer's reversion R5 (the liquidity check back on units) survived the
+  suite: correct behaviour, unlocked. Two locks added — the check runs on real shares (71 pass an
+  80-share limit where 113 units would clip) and the clip is in real shares carried as units (10
+  shares → 16 units); both reversion-proven (check on `add_qty`: 1 failed / 1 passed; clip
+  `add_qty = limit_qty`: 1 failed / 1 passed).
+- **(2) HIGH row, anchored:** `_fail("non_positive_risk_budget")` at `risk_engine.py:1287` has no
+  `return` — Path B with a zero budget (`risk_per_trade_pct 0`, or a killed edge's
+  `governor_weight 0.0`) emits `{side: long, qty: 1, forced_min_qty: True}` while the skip channel
+  says rejected. When the fleet reaches Path B is stated in the row (only through gaps in the
+  policy's weight dict; the sleeve passes target weights on every call). NOT fixed: Engine B
+  outside the L4 approval; the one-line fix is named for the user.
+- **(3) trim→buy re-rated MEDIUM** on the reviewer's evidence (Close 630, hold 2, target 1 % →
+  delta −260 → LONG 1 with no meta marker; 2 → 3 → 2 → 3 across bars — a one-share round trip every
+  two bars on the production path); moved into the MEDIUM region.
+- **Record:** no writer lands `close_unadj` yet; the cutover unit must write that exact column name
+  (`core.share_sizing.CLOSE_UNADJ_COLUMN`).
+- **Suite layout corrected per the coordinator:** a plain `data/processed` symlink lets a suite
+  write into the main tree's pinned cache. Replaced by a REAL `data/processed/` holding 730
+  per-file symlinks to the main tree's `*_1d.csv`, a `tr_reconciled` symlink and an EMPTY real
+  `parquet/`; the full suite re-run on that layout (line below).
+
 ## Pick up next time
 
 - R's review; merge only with the full suite green (the known environmental rows named in the
