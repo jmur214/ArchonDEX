@@ -244,6 +244,7 @@ python scripts/sync_edge_registry.py --check         # write nothing; exit 1 if 
 python scripts/sync_edge_registry.py --registry PATH # another registry (an isolated run's); --json for the report
 # Reversion proof for the unit's locks (revert ONE fix, run ONLY its locks, require FAIL; ~10 min):
 python scripts/registry_single_writer_reversion_proof.py
+python scripts/registry_single_writer_reversion_proof.py R5 R12   # only the cases whose name starts with a token
 
 # FULL DISCOVERY CYCLE (Recommended — post-backtest)
 # Runs: regime detection → feature hunt (LightGBM+DTree) → GA evolution →

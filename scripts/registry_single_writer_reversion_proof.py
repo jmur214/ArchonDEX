@@ -25,6 +25,9 @@ C = "core/census.py"
 S = "scripts/sync_edge_registry.py"
 PT = "paper_trader/__init__.py"
 T = "tests/test_edge_registry_single_writer.py::"
+T2 = "tests/test_edge_registry_single_writer_r2.py::"
+TH = "engines/engine_d_discovery/thresholds.py"
+EV = "engines/engine_f_governance/evolution_controller.py"
 
 CASES = [
     (A, "LOCK 1 — ensure() registers AND SAVES at import again (the import-time writer)",
@@ -107,11 +110,58 @@ CASES = [
        "    except yaml.YAMLError:\n        return {\"edges\": []}\n")],
      [T + "test_the_one_reader_refuses_everything_that_is_not_an_edge_registry",
       T + "test_LOCK4c_an_unreadable_registry_is_a_HARD_refusal_of_the_gauntlet"]),
+    # ---- R's eight test-only gaps (the reviewer's execution of ae9bd15): each reverted ALONE ----
+    (M, "R5 — ONLY the `if not loaded_edges: raise` removed (all modules fail to import → {} → default edges)",
+     [("        if not loaded_edges:\n            raise EdgeLoadRefusal(",
+       "        if not loaded_edges and False:\n            raise EdgeLoadRefusal(")],
+     [T2 + "test_R5_a_tradeable_set_whose_modules_all_fail_to_import_REFUSES_never_returns_empty"]),
+    (G, "R7 — evaluate_tiers swallows a registry read/save failure",
+     [("            if isinstance(e, (RegistryUnreadableError, RegistryWriteError)):\n                raise\n"
+       '            log.warning(f"[Governor] Tier reclassification failed: {e}")\n',
+       '            log.warning(f"[Governor] Tier reclassification failed: {e}")\n')],
+     [T2 + "test_R7_evaluate_tiers_lets_a_registry_failure_through_and_swallows_an_ordinary_one"]),
+    (S, "R8 — the sync no longer reads the DEFAULT registry before importing",
+     [("    if path.resolve() != Path(DEFAULT_REGISTRY_PATH).resolve():\n        read_registry(DEFAULT_REGISTRY_PATH)\n", "")],
+     [T2 + "test_R8_the_sync_refuses_an_unreadable_default_registry_when_the_target_is_another_file"]),
+    (TH, "R9 — bootstrap_book_declared defaults a missing / non-bool key to False",
+     [('    if "bootstrap_book" not in cfg or not isinstance(cfg["bootstrap_book"], bool):\n'
+       '        raise ValueError(f"discovery_settings.bootstrap_book must be a bool: {cfg.get(\'bootstrap_book\')!r}")\n'
+       '    return cfg["bootstrap_book"]\n',
+       '    return bool(cfg.get("bootstrap_book", False))\n')],
+     [T2 + "test_R9_bootstrap_book_declared_fails_closed_on_a_missing_or_non_bool_key"]),
+    (EV, "R10 — EvolutionController.load_edges returns [] on any failure again",
+     [("        from core.edge_registry_io import read_registry\n        return read_registry(self.registry_path)[\"edges\"]\n",
+       "        if not self.registry_path.exists():\n            return []\n        try:\n            import yaml as _y\n"
+       "            with open(self.registry_path, \"r\") as f:\n                data = _y.safe_load(f) or {}\n"
+       "                return data.get(\"edges\", [])\n        except Exception as e:\n"
+       "            log.error(f\"Error loading edges: {e}\")\n            return []\n")],
+     [T2 + "test_R10_evolution_controller_load_edges_refuses_an_unreadable_registry"]),
+    (A, "R11 — row_to_spec no longer refuses a row without a module (a bare KeyError again)",
+     [('    if not row.get("module"):\n        raise RegistryUnreadableError(',
+       '    if False:\n        raise RegistryUnreadableError(')],
+     [T2 + "test_R11_a_row_without_a_module_refuses_as_RegistryUnreadableError_naming_the_row"]),
+    (M, "R12 — the journal-apply path swallows a registry failure (the generic WARN)",
+     [("                    except (RegistryUnreadableError, RegistryWriteError):\n"
+       "                        raise                      # the journal apply IS the registry save on this path\n", "")],
+     [T2 + "test_R12_a_registry_failure_in_the_journal_apply_is_held_recorded_then_raised"]),
+    (C, "R13 — the no-census early return drops post_run_failure (invariant 10 only with a census)",
+     [('        v = CensusVerdict(ok=not require_census and not failures, canonical=False,\n'
+       '                          failures=(["census block missing from summary"] if require_census else []) + failures,\n'
+       '                          census_present=False)\n',
+       '        v = CensusVerdict(ok=not require_census, canonical=False,\n'
+       '                          failures=["census block missing from summary"] if require_census else [],\n'
+       '                          census_present=False)\n')],
+     [T2 + "test_R13_post_run_failure_fails_the_gate_even_when_the_summary_has_no_census_block"]),
 ]
 
 env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")
 ok = True
+# `python scripts/registry_single_writer_reversion_proof.py R5 R12` runs only the cases whose name
+# starts with one of the given tokens (e.g. the reviewer's R-cases); no argument runs them all.
+only = sys.argv[1:]
 for rel, name, subs, tests in CASES:
+    if only and not any(name.startswith(tok) for tok in only):
+        continue
     p = W / rel
     orig = p.read_bytes()
     sha = hashlib.sha256(orig).hexdigest()
