@@ -63,18 +63,24 @@ class FundamentalsRebuildRefused(RuntimeError):
     """A rebuild/refresh asked for under a switch that forbids it, or without its inputs."""
 
 
+# The canonical switch, by NAME: the same variable as data_manager.REFUSE_YFINANCE_ENV (the lock
+# test asserts equality). Spelled here rather than imported so this module does not reach the
+# data manager in the import graph — tests/test_env_entries_2026_10_15.py's reachability lock
+# would otherwise make every script that reads the panel an "entry that reaches the data layer".
+CANONICAL_SWITCH_ENV = "ARCHONDEX_REFUSE_YFINANCE_FALLBACK"
+
+
 def _rebuild_refused_reason() -> Optional[str]:
     """Why a rebuild must not run here, or None. Read fresh on every call (test-friendly)."""
     from core.hermetic import hermetic_mode
     from core.measured import is_measured
-    from engines.data_manager.data_manager import REFUSE_YFINANCE_ENV
     if is_measured():
         return "ARCHONDEX_MEASURED (a measured run never rebuilds a pinned input)"
     mode = hermetic_mode()
     if mode != "off":
         return f"ARCHONDEX_HERMETIC={mode} (a rebuild or refresh is the network)"
-    if os.environ.get(REFUSE_YFINANCE_ENV):
-        return f"{REFUSE_YFINANCE_ENV} (a canonical run refuses a rebuild)"
+    if os.environ.get(CANONICAL_SWITCH_ENV):
+        return f"{CANONICAL_SWITCH_ENV} (a canonical run refuses a rebuild)"
     return None
 
 

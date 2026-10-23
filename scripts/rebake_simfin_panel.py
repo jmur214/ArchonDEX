@@ -30,7 +30,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--download", action="store_true",
                     help="refresh the raw datasets from SimFin first (needs SIMFIN_API_KEY)")
     args = ap.parse_args(argv)
-    load_local_env()
     try:
         path = rebuild_panel(download=args.download)
     except FundamentalsRebuildRefused as exc:
@@ -41,4 +40,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    load_local_env()   # the repo's own .env, explicitly, at the process entry (ruling C-1)
     sys.exit(main())

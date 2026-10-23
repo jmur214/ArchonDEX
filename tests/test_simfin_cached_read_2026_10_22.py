@@ -32,6 +32,12 @@ class NetworkTouched(AssertionError):
 SWITCHES = ("ARCHONDEX_MEASURED", "ARCHONDEX_HERMETIC", REFUSE_YFINANCE_ENV, "SIMFIN_API_KEY")
 
 
+def test_the_adapter_spells_the_canonical_switch_by_the_data_managers_name():
+    """The adapter names the switch locally (so it does not reach the data manager in the import
+    graph — tests/test_env_entries_2026_10_15.py's reachability lock); the name must stay equal."""
+    assert sa.CANONICAL_SWITCH_ENV == REFUSE_YFINANCE_ENV
+
+
 @pytest.fixture
 def switches_off(monkeypatch):
     for name in SWITCHES:
