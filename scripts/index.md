@@ -141,15 +141,6 @@
 - **Function `analyze_cell()`**: No docstring
 - **Function `main()`**: No docstring
 
-### `analyze_vrp_factor_t122.py`
-**Module Docstring:** scripts/analyze_vrp_factor_t122.py
-- **Function `build_market_return()`**: Equal-weight daily return of the processed universe — the market proxy
-- **Function `vrp_signal_series()`**: Daily VRP scale ∈[0,1] using the SAME VIX−RV formula as the edge
-- **Function `vrp_return_stream()`**: Vol-managed market return: scale_{t-1} * market_return_t, minus cost on
-- **Function `factor_report()`**: No docstring
-- **Function `book_correlation()`**: Correlation of VRP return to the existing 6-active-edge book + to the
-- **Function `main()`**: No docstring
-
 ### `anon_historical_eval_t339.py`
 **Module Docstring:** scripts/anon_historical_eval_t339.py — RUN the frozen T-339 evaluation.
 - **Function `price()`**: No docstring
@@ -1504,10 +1495,6 @@
 - **Function `is_market_open()`**: Simple check: Mon-Fri, 9:30 AM - 4:00 PM EST.
 - **Function `run_cycle()`**: No docstring
 
-### `run_bab_gauntlet_t123.py`
-**Module Docstring:** scripts/run_bab_gauntlet_t123.py
-- **Function `main()`**: No docstring
-
 ### `run_backtest.py`
 **Module Docstring:** scripts/run_backtest.py
 - **Function `run_backtest_logic()`**: Backward-compatible programmatic entry point for running a backtest.
@@ -1708,10 +1695,6 @@
 **Module Docstring:** scripts/run_vol_target_arms_full.py
 - **Function `vol_target_patch()`**: Patch risk_settings.json to enable/disable vol-targeting, restore on exit.
 - **Function `run_full()`**: No docstring
-- **Function `main()`**: No docstring
-
-### `run_vrp_gauntlet_t122.py`
-**Module Docstring:** scripts/run_vrp_gauntlet_t122.py
 - **Function `main()`**: No docstring
 
 ### `screen_features_t150.py`

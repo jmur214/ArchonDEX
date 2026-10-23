@@ -183,9 +183,12 @@ def _flagged_names() -> set:
 def test_POSITIVE_CONTROL_the_detector_SEES_the_known_readers():
     """It must flag what the §5.1 scan found (49 of the 63 read per ticker; the other 14 read a fixed
     name, SPY or the reconciled AGG), and every pre-existing exemption must still be a reader — an
-    exemption the detector no longer sees is stale, not harmless."""
+    exemption the detector no longer sees is stale, not harmless.
+
+    48 since 2026-10-22: `analyze_vrp_factor_t122.py` (one of the 49) was ARCHIVED with the refuted VRP
+    edge (Archive/scripts/edges_refuted_2026_10/); the frozen set itself is unchanged (it never grows)."""
     flagged = _flagged_names()
-    assert len(flagged & GRANDFATHERED) >= 49, sorted(GRANDFATHERED - flagged)
+    assert len(flagged & GRANDFATHERED) >= 48, sorted(GRANDFATHERED - flagged)
     stale = sorted(set(PREEXISTING_OUTSIDE_THE_63) - flagged)
     assert not stale, f"exempted but no longer a per-ticker reader: {stale}"
 
