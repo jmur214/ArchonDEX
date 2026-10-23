@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_AAPL, requires_canonical
+
 import core.feature_foundry.features  # noqa: F401 — side-effectful register
 from core.feature_foundry import get_feature_registry
 from core.feature_foundry.features.correlation_average_60d import (
@@ -125,6 +127,7 @@ def test_correlation_average_60d_panel_cache_hit():
     )
 
 
+@requires_canonical(CANON_AAPL)
 def test_dispersion_60d_panel_cache_hit():
     """Same panel-cache pattern as correlation_average_60d."""
     t0 = time.perf_counter()
@@ -200,6 +203,7 @@ def test_correlation_output_unchanged_post_optimization():
         )
 
 
+@requires_canonical(CANON_AAPL)
 def test_dispersion_output_unchanged_post_optimization():
     """Same golden-file constraint for dispersion_60d. Unlike
     correlation_average_60d, this function returns REAL values on

@@ -95,6 +95,8 @@ from typing import Dict, List, Set, Tuple
 
 import pytest
 
+from tests._canonical_inputs import CANON_GOVERNOR
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -949,16 +951,26 @@ def test_layer3a_capability_ledger_source_lines_in_range():
     separately by sync_docs.py / human review."""
     refs = _parse_ledger_source_refs()
     out_of_range: List[Tuple[str, int, int, int]] = []
+    unverifiable: List[str] = []
     for path, line_no, ledger_lineno in refs:
         abs_path = REPO / path
         if not abs_path.exists():
             continue  # Layer 3a above handles missing-file failures
+        if path.startswith("data/") and not (REPO / CANON_GOVERNOR).exists():
+            # A data/ reference (the ledger cites data/governor/edges.yml lines) is verifiable
+            # only against the PINNED file; in a tree without the pinned governor dir edges.yml
+            # is the import-time regeneration from the edge modules (2026-10-22).
+            unverifiable.append(f"{path}:{line_no}")
+            continue
         try:
             n_lines = sum(1 for _ in abs_path.open("rb"))
         except Exception:
             continue
         if line_no > n_lines:
             out_of_range.append((path, line_no, n_lines, ledger_lineno))
+    if not out_of_range and unverifiable:
+        pytest.skip(f"declared skip: {len(unverifiable)} ledger refs under data/ are unverifiable "
+                    f"in this tree (pinned governor dir absent): {unverifiable}")
     if not out_of_range:
         return
     lines = [

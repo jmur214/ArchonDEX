@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 import core.feature_foundry.features  # noqa: F401 — register
+from tests._canonical_inputs import CANON_MACRO_HY_OAS, CANON_MACRO_VIX, requires_canonical
 from core.feature_foundry import get_feature_registry
 from core.feature_foundry.features import (
     vix_term_structure_slope,
@@ -104,6 +105,7 @@ def test_vix_term_structure_slope_contango_vs_backwardation():
     assert 1.24 < val < 1.26, f"backwardation ratio off: {val}"
 
 
+@requires_canonical(CANON_MACRO_VIX, "data/macro/VIX3M.parquet")
 def test_vix_term_structure_slope_returns_real_value_on_local_cache():
     """Real-data smoke: project's data/macro/VIX.parquet and
     VIX3M.parquet should yield a non-None value for a mid-2024 date."""
@@ -151,6 +153,7 @@ def test_hy_oas_change_20d_point_in_time():
     assert 49.0 < val < 51.0, f"expected ~50 bps, got {val}"
 
 
+@requires_canonical(CANON_MACRO_HY_OAS)
 def test_hy_oas_change_20d_returns_real_value_on_local_cache():
     """Real-data smoke."""
     val = _get("hy_oas_change_20d").func("AAPL", date(2024, 6, 17))
@@ -277,12 +280,14 @@ def test_faber_score_returns_none_when_too_few_etfs():
 # Gene vocabulary + seeding
 # ----------------------------------------------------------------------
 
-def test_gene_vocabulary_includes_regime_features():
+def test_gene_vocabulary_includes_regime_features(tmp_path):
     """`_create_random_gene` samples the foundry_feature bucket
     (20% prob); the tier-A+B registry includes the 4 new IDs, so
     sampling enough times should hit each at least once."""
     from engines.engine_d_discovery.discovery import DiscoveryEngine
-    eng = DiscoveryEngine(registry_path="data/governor/_isolated_anchor/edges.yml")
+    # A tmp registry: the engine mkdirs its registry's parent (2026-10-22: this created
+    # data/governor/_isolated_anchor/ in every tree the suite ran in).
+    eng = DiscoveryEngine(registry_path=str(tmp_path / "edges.yml"))
     seen: set = set()
     # 200 samples — at 20% foundry-bucket rate with ~35 features
     # uniform, each feature has 200 × 0.20 × 1/35 ≈ 1.14 expected hits.

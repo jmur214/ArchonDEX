@@ -36,6 +36,8 @@ from engines.engine_a_alpha.edges.accruals_inv_asset_growth_edge import (
     AccrualsInvAssetGrowthEdge,
 )
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
+from tests._canonical_inputs import CANON_SIMFIN_PANEL, REPO, skip_unless_canonical
+from tests._edge_registration import registry_from_reimport
 
 
 _ALL_EDGE_CLASSES = [
@@ -54,11 +56,18 @@ _ALL_EDGE_CLASSES = [
 
 @pytest.fixture(scope="module")
 def panel() -> pd.DataFrame:
-    """Real SimFin panel. Skips dependent tests if parquet isn't available."""
-    panel = fh.get_panel()
-    if panel is None:
-        pytest.skip("SimFin panel not available")
-    return panel
+    """The pinned SimFin panel, READ-ONLY; a declared skip when this tree lacks it.
+
+    2026-10-22: this fixture reached `get_panel()` -> `load_panel()`, which had a REBUILD behind
+    it: with the panel absent the simfin library refreshed the six pinned raw files (through a
+    worktree's data/raw symlink) and the rebuild rewrote the pinned panel. The read is now the
+    parquet itself; the edges' `get_panel()` is served from the same frame."""
+    skip_unless_canonical(CANON_SIMFIN_PANEL)
+    panel = pd.read_parquet(REPO / CANON_SIMFIN_PANEL)
+    fh.reset_panel_cache()
+    fh._PANEL_CACHE = panel
+    yield panel
+    fh.reset_panel_cache()
 
 
 def _fake_close_df(price: float = 100.0) -> pd.DataFrame:
@@ -96,7 +105,7 @@ def stub_panel():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("edge_cls", _ALL_EDGE_CLASSES)
-def test_edge_registers_cleanly(edge_cls):
+def test_edge_registers_cleanly(edge_cls, monkeypatch, tmp_path):
     """Each edge has the required class attrs and registers without raising."""
     assert edge_cls.EDGE_ID
     assert edge_cls.CATEGORY == "fundamental"
@@ -105,8 +114,9 @@ def test_edge_registers_cleanly(edge_cls):
     assert "long_score" in edge_cls.DEFAULT_PARAMS
     assert "min_universe" in edge_cls.DEFAULT_PARAMS
 
-    # Spec must be in the registry under its id
-    reg = EdgeRegistry()
+    # The module's own import-time registration, observed in a tmp registry — not the live
+    # data/governor/edges.yml (an import-time side effect a separate unit retires; 2026-10-22).
+    reg = registry_from_reimport(monkeypatch, tmp_path, sys.modules[edge_cls.__module__])
     spec = reg.get(edge_cls.EDGE_ID)
     assert spec is not None, f"{edge_cls.EDGE_ID} not in registry"
     assert spec.category == "fundamental"

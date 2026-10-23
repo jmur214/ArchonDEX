@@ -4,6 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import redirect_macro_manager
+
+
+@pytest.fixture(autouse=True)
+def _redirect_macro_cache(tmp_path, monkeypatch):
+    """RegimeDetector -> macro_features -> `MacroDataManager()` (data/macro; its constructor
+    mkdirs). Pinned dir when this tree holds it, tmp_path otherwise (2026-10-22)."""
+    redirect_macro_manager(monkeypatch, tmp_path)
+
 from engines.engine_e_regime.regime_detector import RegimeDetector
 from engines.engine_e_regime.regime_config import RegimeConfig
 from engines.engine_e_regime.advisory import AdvisoryEngine, MACRO_RULES

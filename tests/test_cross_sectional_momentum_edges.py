@@ -27,6 +27,10 @@ from engines.engine_a_alpha.edges.momentum_12_1_v1 import Momentum12_1Edge  # no
 from engines.engine_a_alpha.edges.momentum_6_1_v1 import Momentum6_1Edge  # noqa: E402
 from engines.engine_a_alpha.edges.short_term_reversal_v1 import ShortTermReversalEdge  # noqa: E402
 from engines.engine_a_alpha.edge_registry import EdgeRegistry  # noqa: E402
+from engines.engine_a_alpha.edges import (  # noqa: E402
+    momentum_12_1_v1, momentum_6_1_v1, short_term_reversal_v1,
+)
+from tests._edge_registration import registry_from_reimport  # noqa: E402
 
 
 EDGE_IDS = ["momentum_12_1_v1", "momentum_6_1_v1", "short_term_reversal_v1"]
@@ -63,9 +67,13 @@ def _make_data_map(returns_per_ticker: dict[str, float],
 # Registration
 # ---------------------------------------------------------------------------
 
-def test_all_three_edges_register_at_paused_feature():
-    """All 3 edge_ids must register at status='paused' tier='feature'."""
-    reg = EdgeRegistry()
+def test_all_three_edges_register_at_paused_feature(monkeypatch, tmp_path):
+    """All 3 edge_ids must register at status='paused' tier='feature'.
+
+    Observed in a tmp registry the modules re-register into — not the live
+    data/governor/edges.yml (an import-time side effect a separate unit retires; 2026-10-22)."""
+    reg = registry_from_reimport(monkeypatch, tmp_path,
+                                 momentum_12_1_v1, momentum_6_1_v1, short_term_reversal_v1)
     for eid in EDGE_IDS:
         spec = next((s for s in reg.get_all_specs() if s.edge_id == eid), None)
         assert spec is not None, f"Edge {eid} did not register"
