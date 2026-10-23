@@ -840,6 +840,7 @@
 - **Function `build_manifest()`**: No docstring
 - **Function `diff_manifest()`**: No docstring
 - **Function `full_verify()`**: The COMPLETE verify: every substrate dir must exist and walk, every file must hash.
+- **Function `generate()`**: R2, the re-pin step: build, write the manifest to a TEMP path beside the target, run
 - **Function `main()`**: No docstring
 
 ### `gen_t118_campaign_spec.py`
