@@ -7,6 +7,12 @@ import math
 import pandas as pd
 import numpy as np
 from debug_config import is_debug_enabled, is_info_enabled
+# L4 (approved 2026-10-22): integer share counts come from ONE helper — real shares at the bar's
+# unadjusted close where the substrate carries it, int(notional / Close) byte for byte where it does
+# not, the basis recorded per sizing. Engine C's production-parity baseline reads the same helper.
+from core.share_sizing import (
+    ShareSizing, read_close_unadj, size_real_shares, size_shares, size_units,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +231,13 @@ class RiskEngine:
         self.portfolio = None  # injected by controller
         self.last_skip_reason: Optional[str] = None
         self.last_skip_by_ticker: Dict[str, str] = {}
+
+        # L4 (2026-10-22): how many sizings ran on each price basis this run
+        # ({"total_return": n} on the pre-cutover cache; "unadjusted" once the
+        # substrate carries close_unadj). Read by BOTH census producers through
+        # core.share_sizing.share_price_basis_summary — a census FACT, never a
+        # gate on its value until the cutover lands.
+        self.share_price_basis_counts: Dict[str, int] = {}
 
         # Internal: bar-index bookkeeping for cooldown (per ticker)
         self._last_action_bar: Dict[str, int] = {}
@@ -521,6 +534,21 @@ class RiskEngine:
             return sum(1 for p in self.portfolio.positions.values() if p.qty != 0)  # type: ignore[union-attr]
         except Exception:
             return 0
+
+    def _record_share_basis(self, sizing: ShareSizing, meta: Dict[str, Any]) -> None:
+        """Count the basis this sizing ran on and stamp it into the order meta (L4).
+
+        The trades canon drops the meta column, so these keys move no canon md5; the census
+        reads the counter through ``share_price_basis_summary``.
+        """
+        self.share_price_basis_counts[sizing.basis] = (
+            self.share_price_basis_counts.get(sizing.basis, 0) + 1
+        )
+        meta.update({
+            "share_price_basis": sizing.basis,
+            "shares_traded": (None if sizing.shares_traded is None else abs(int(sizing.shares_traded))),
+            "close_unadj": sizing.close_unadj,
+        })
 
     def _compute_portfolio_vol_scalar(
         self, advisory: Optional[Dict[str, Any]] = None,
@@ -899,6 +927,9 @@ class RiskEngine:
                 print(f"[RISK][DEBUG] Rejected signal for {ticker} — reason={self.last_skip_by_ticker.get(ticker)}")
             return None
         price = float(close_val)
+        # L4: the bar's unadjusted close, from the SAME row — None on the pre-cutover cache
+        # (basis recorded total_return); a hole in a present column HALTS a measured run.
+        close_unadj = read_close_unadj(row, ticker)
         raw_atr = float(row.get("ATR", 0.0))
         # --- Sanity filter for abnormal prices/ATR ---
         if price <= 0 or not np.isfinite(price):
@@ -1107,11 +1138,16 @@ class RiskEngine:
                     print(f"[RISK][DEBUG] Rejected signal for {ticker} — reason={self.last_skip_by_ticker.get(ticker)}")
                 return None
 
-            add_qty = int(delta_notional / price)
+            # L4 (2026-10-22): the integer count comes from core.share_sizing — real shares at
+            # close_unadj where the bar carries it, carried as ledger units; int(delta_notional /
+            # price) byte for byte where it does not. The basis is recorded per sizing.
+            sizing: ShareSizing = size_shares(delta_notional, price, close_unadj)
+            add_qty = sizing.qty
             if add_qty == 0:
                 # Try to enforce a minimum 1-share adjustment if rounding-to-zero and notional is meaningful
                 if self.cfg.force_min_qty_on_signal and abs(delta_notional) >= float(self.cfg.min_notional):
-                    add_qty = 1
+                    sizing = size_real_shares(1, price, close_unadj)  # one REAL share, in units
+                    add_qty = sizing.qty
                 else:
                     self._fail(ticker, "rebalance_rounds_to_zero")
                     if is_debug_enabled("RISK"):
@@ -1258,7 +1294,11 @@ class RiskEngine:
             if self.cfg.round_qty:
                 target_qty = math.floor(target_qty)
 
-            add_qty = int(max(target_qty - abs(int(current_qty)), 0))
+            # L4 (2026-10-22): the integer step goes through core.share_sizing — int(units) byte
+            # for byte on the total-return basis; real shares at close_unadj, carried as units,
+            # where the bar carries it. The value cap above is a dollar cap and stays in units.
+            sizing = size_units(max(target_qty - abs(int(current_qty)), 0), price, close_unadj)
+            add_qty = sizing.qty
             if is_debug_enabled("RISK"):
                 print(
                     f"[RISK][DBG] {ticker} side={side} price={price:.4f} atr={atr:.4f} "
@@ -1273,15 +1313,16 @@ class RiskEngine:
                 if self.cfg.force_min_qty_on_signal and side in ("long", "short") and current_qty == 0:
                     # Ensure ticket clears minimum notional and (roughly) exposure
                     if price >= float(self.cfg.min_notional):
+                        probe = size_real_shares(1, price, close_unadj)  # one REAL share, in units
                         try:
                             price_map = {ticker: price}
-                            gross_after = self._gross_exposure(price_map) + (abs(1 * price) / max(float(equity), 1e-9))
+                            gross_after = self._gross_exposure(price_map) + (abs(probe.qty * price) / max(float(equity), 1e-9))
                             if gross_after <= float(self.cfg.max_gross_exposure):
-                                add_qty = 1
+                                sizing, add_qty = probe, probe.qty
                                 forced = True
                         except Exception:
                             # If exposure check unavailable, still allow the 1-share probe
-                            add_qty = 1
+                            sizing, add_qty = probe, probe.qty
                             forced = True
                 if not forced:
                     self._fail(ticker, "no_incremental_size")
@@ -1310,6 +1351,9 @@ class RiskEngine:
                 "target_qty": float(target_qty),
             })
 
+        # L4: count the basis this sizing ran on; stamp it into the order meta.
+        self._record_share_basis(sizing, meta)
+
         # Enforce minimum notional and min qty
         if add_qty < max(int(self.cfg.min_qty), 1):
             self._fail(ticker, "below_min_qty")
@@ -1317,22 +1361,27 @@ class RiskEngine:
                 print(f"[RISK][DEBUG] Rejected signal for {ticker} — reason={self.last_skip_by_ticker.get(ticker)}")
             return None
 
-        # Liquidity Check (New)
-        if not self._check_liquidity(ticker, add_qty, df_hist):
+        # Liquidity Check (New). Volume is in REAL shares, so on the unadjusted basis the check and
+        # the clip are in shares_traded (L4); on the total-return basis a unit IS a share.
+        liq_qty = sizing.shares_traded if sizing.shares_traded is not None else add_qty
+        if not self._check_liquidity(ticker, liq_qty, df_hist):
             self._fail(ticker, "liquidity_limit_exceeded")
-            # Professional approach: Clip it. 
+            # Professional approach: Clip it.
             vol_window = self.cfg.adv_window
             adv = df_hist["Volume"].iloc[-vol_window:].mean() if len(df_hist) >= vol_window else df_hist["Volume"].mean()
             limit_qty = int(adv * self.cfg.max_pct_adv)
-            
+
             if limit_qty < self.cfg.min_qty:
                 if is_debug_enabled("RISK"):
                     print(f"[RISK][DEBUG] Rejected {ticker}: ADV limit {limit_qty} < min_qty {self.cfg.min_qty}")
                 return None
             else:
                 if is_debug_enabled("RISK"):
-                    print(f"[RISK][INFO] Clipping {ticker} qty {add_qty} -> {limit_qty} due to liquidity constraint.")
-                add_qty = limit_qty
+                    print(f"[RISK][INFO] Clipping {ticker} qty {liq_qty} -> {limit_qty} due to liquidity constraint.")
+                sizing = size_real_shares(limit_qty, price, close_unadj)  # the clip is in REAL shares
+                add_qty = sizing.qty
+                meta["shares_traded"] = sizing.shares_traded
+                meta["liquidity_clipped"] = True
 
         # Min Notional Check
         if (add_qty * price) < float(self.cfg.min_notional):
