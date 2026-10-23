@@ -196,3 +196,21 @@ Sources whose documented history reaches before 2000: CRSP (from 1925/1926 per o
 44. [CRSP (via WRDS)](https://biblioteca.luiss.it/en/resources/crsp-wrds)
 45. [Connect From On & Off Campus](https://libraries.unl.edu/connect-campus/)
 46. [Tiingo - ML4T Data](https://ml4trading.io/docs/data/providers/tiingo/)
+
+---
+
+## Director's addendum, 2026-10-23 — FirstRate Data measured against the exact target list
+
+**License (firstratedata.com/about/license, read 2026-10-23, quoted):** "once downloaded, the data is yours to use forever"; "there is no expiry"; a "worldwide, royalty-free license to access, copy and use the Data"; "the Data is for the private use of the Subscriber only"; derivative works permitted ("incorporating the Data into its internal models"); no deletion clause; "Refunds will not be provided". Contrast Sharadar's terms (quoted by the user the same day): delete all copies and "all data sets that contain, substantially copy, or could reproduce the Services Data" within thirty days of termination — incompatible with a PINNED substrate that must persist and be re-run for years; derived works (backtest results, models, trade logs) may be kept. FirstRate's retention license is the one a pinned substrate needs.
+
+**Product:** "Stocks Complete (10,000+ Tickers)" — the page states 16,327 tickers, "Over 7000 delisted stocks", "Jan 2000 - Oct 2026", "1-minute, 5-minute, 30-minute, 1-hour, 1-day", "All prices and volumes are adjusted for dividends and splits (unadjusted data is also included)", one month of updates included then $59.95/month ($79 with fundamentals). The one-time price is script-rendered and not readable by fetch; the user reads it in the browser. The sample zip (frd_stock_sample.zip): per-ticker `*_1day_sample.csv` with columns `timestamp,open,high,low,close,volume`, one price series per file, no event tables in the sample — total return would come from the adjusted/unadjusted PAIR (a factor series; ex-dates derivable from its steps), which the writer's level-identity rail can verify against the last bar.
+
+**Coverage, MEASURED** (the product page embeds its full ticker list with per-ticker start dates; parsed 16,140 entries, 7,910 delisted with a `-DELISTED` suffix; joined on `docs/Sources/wanted_names_survivorship_gap_2026_10_23.csv`; the per-name table is `firstrate_coverage_vs_wanted_names_2026_10_23.csv` beside this file):
+
+| Priority | Names | Present as `-DELISTED` | Present as an ACTIVE symbol only (identity unconfirmed) | ABSENT |
+|---|---|---|---|---|
+| P1 (in window, no file) | 386 | 164 | 59 | 163 |
+| P2 (identity problems) | 17 | 13 (Albertsons, CA Technologies, Goodrich, Countrywide, BMC, Coca-Cola Enterprises, Bed Bath & Beyond, Medco, Harman, Integrys, Titanium Metals, Pepco, Newfield — the suffix separates the original from the reuse) | 2 (LEG, QRVO: the originals, relisted) | 2 (NCC, CPWR) |
+| P3 (pre-2000) | 121 | 23 | 36 | 62 |
+
+Of the 164 P1 delisted entries, only **83** start at or before the name's index entry (or 2000-01-04); the other 81 start later — most delisted series begin **2004-01-02**, so FirstRate's delisted history is effectively a 2004-onward archive despite the "Jan 2000" headline. The 163 absent P1 names cluster in the 2000–2003 deaths (ENRNQ, CPQ, BLS, MAY, MER, KM, JCP, FNMA, FMCC, CGP, GPU …), the dot-com and 2002 cohort that matters most. **Verdict:** FirstRate is a retention-licensed one-time purchase that recovers roughly half of the target with full spans for about a fifth, and does NOT recover the earliest cohort; Sharadar (prices from December 1997) likely does but only under a subscription that forbids keeping the data; CRSP via WRDS covers all of it if the user is eligible.
