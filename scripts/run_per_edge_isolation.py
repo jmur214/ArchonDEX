@@ -64,50 +64,53 @@ TARGET_EDGES = [
     "dividend_initiation_drift_v1",
 ]
 
-# Each target edge_id maps to the module that must be imported so the
-# EdgeRegistry's auto-register-on-import sees it. Without this pre-import
-# step, `exact_edge_ids=[<id>]` resolves to a None spec and ModeController
-# falls through to AlphaEngine defaults (rsi_bounce + xsec_momentum +
-# news_sentiment_edge), silently measuring the WRONG edge.
+# The modules (bare names under engines/engine_a_alpha/edges) whose registrations the sync persists
+# so `exact_edge_ids=[<id>]` resolves. Since the edges.yml single-writer unit (2026-10-22)
+# importing a module NEVER writes the registry: the explicit sync does, through the one atomic
+# writer, and ModeController REFUSES an id it cannot resolve (EdgeLoadRefusal) instead of falling
+# through to AlphaEngine's defaults — the silent wrong-edge measurement of 2026-05-10.
 TARGET_MODULES = [
-    "engines.engine_a_alpha.edges.momentum_12_1_v1",
-    "engines.engine_a_alpha.edges.momentum_6_1_v1",
-    "engines.engine_a_alpha.edges.short_term_reversal_v1",
-    "engines.engine_a_alpha.edges.pairs_trading_v1",          # holds pairs_trading_*_v1 specs
-    "engines.engine_a_alpha.edges.dividend_initiation_drift_v1",
+    "momentum_12_1_v1",
+    "momentum_6_1_v1",
+    "short_term_reversal_v1",
+    "pairs_trading_v1",          # holds pairs_trading_*_v1 specs
+    "dividend_initiation_drift_v1",
 ]
+REGISTRY_PATH = ROOT / "data" / "governor" / "edges.yml"
 
 DEFAULT_YEARS = [2021, 2022, 2023, 2024, 2025]
 
 
-def _preimport_target_modules() -> None:
-    """Ensure every target edge module is imported so its
-    auto-register-on-import block populates the registry (and the
-    on-disk edges.yml) before `isolated()` takes its snapshot.
+def _sync_target_modules(where: str) -> None:
+    """Persist the target modules' registrations into the registry through the ONE explicit writer
+    (`scripts/sync_edge_registry.py`), then prove every target id resolves.
 
-    Bug class: without this, `EdgeRegistry().get(target_id)` returns
-    None inside `_run_one`, ModeController's `_load_edges_via_registry`
-    builds an empty specs map, AlphaEngine.__init__ falls through to
-    defaults (rsi_bounce + xsec_momentum) — silently measuring the
-    wrong edge. Discovered 2026-05-10 mid-task; the initial smoke
-    appeared to PASS but was actually measuring `xsec_momentum_v1` +
-    `news_sentiment_edge_v1` against the q1 substrate, not the target.
+    Bug class this prevents (2026-05-10): the initial smoke appeared to PASS but measured
+    `xsec_momentum_v1` + `news_sentiment_edge_v1` against the q1 substrate, not the target —
+    `EdgeRegistry().get(target_id)` returned None, the spec map was empty, and AlphaEngine fell
+    through to its defaults. Both the pre-snapshot call and the inside-`isolated()` call (the
+    anchor restore drops the targets) are this one sync — the first artifact showing the
+    single-writer design is honest.
     """
-    import importlib
     from engines.engine_a_alpha.edge_registry import EdgeRegistry
-    for mod_path in TARGET_MODULES:
-        importlib.import_module(mod_path)
-    reg = EdgeRegistry()
+    from scripts.sync_edge_registry import sync
+    report = sync(REGISTRY_PATH, modules=TARGET_MODULES)
+    for line in report.lines():
+        print(f"[ISO][{where}] {line}", flush=True)
+    reg = EdgeRegistry(store_path=REGISTRY_PATH)
     for eid in TARGET_EDGES:
         s = reg.get(eid)
         if s is None:
             raise RuntimeError(
-                f"Pre-import failed: registry still missing {eid} after "
-                f"importing target modules. Inspect auto-register block in "
-                f"the edge module."
+                f"[{where}] sync failed: registry still missing {eid} after syncing "
+                f"{TARGET_MODULES}. Inspect the auto-register block in the edge module."
             )
-        print(f"[ISO] Pre-import OK: {eid} status={s.status} module={s.module}",
-              flush=True)
+        print(f"[ISO][{where}] registry OK: {eid} status={s.status} module={s.module}", flush=True)
+
+
+def _preimport_target_modules() -> None:
+    """Sync the targets into the registry BEFORE `isolated()` takes its snapshot."""
+    _sync_target_modules("pre-snapshot")
 
 
 def _reexec_if_hashseed_unset() -> None:
@@ -117,40 +120,18 @@ def _reexec_if_hashseed_unset() -> None:
 
 
 def _populate_registry_inside_isolation() -> None:
-    """Re-import the 5 target edge modules INSIDE the isolated() context.
+    """Sync the targets INSIDE the isolated() context.
 
-    `isolated()` restores edges.yml from the anchor on entry. Since the
-    anchor was taken before these new edges existed, the on-disk
-    edges.yml lacks them at this point. Re-importing forces the
-    auto-register-on-import block to run `EdgeRegistry().ensure()`,
-    which writes the new specs back to edges.yml so the
-    backtest-side `EdgeRegistry()` instantiation can resolve
-    `exact_edge_ids` correctly.
+    `isolated()` restores edges.yml from the anchor on entry. Since the anchor was taken before
+    these edges existed, the on-disk edges.yml lacks them at this point; the sync writes them
+    back (the ISOLATED registry — the one `isolated()` restored) so the backtest-side
+    `EdgeRegistry()` can resolve `exact_edge_ids`. Without it, `_load_edges_via_registry` now
+    REFUSES (EdgeLoadRefusal) instead of measuring the wrong edges.
 
-    Without this, mode_controller's `_load_edges_via_registry` calls
-    `registry.get(<target_id>)` → None → empty specs map →
-    AlphaEngine.__init__ falls through to defaults
-    (rsi_bounce + xsec_momentum + news_sentiment_edge). The run still
-    completes "successfully" but measures the wrong edges entirely.
-
-    Side effect: edges.yml will gain the 5 new entries during this
-    run. `isolated()` restores the anchor on exit, so the persistent
-    edges.yml state is unchanged across reps.
+    Side effect: edges.yml gains the target entries during the run; `isolated()` restores the
+    anchor on exit, so the persistent edges.yml state is unchanged across reps.
     """
-    import importlib
-    for mod_path in TARGET_MODULES:
-        # Use importlib.reload so a re-entry triggers the auto-register
-        # block even if the module was already imported in a previous
-        # rep of the same process. ensure() is idempotent so re-running
-        # the registration is safe.
-        try:
-            mod = importlib.import_module(mod_path)
-            importlib.reload(mod)
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to re-import {mod_path} inside isolated(): "
-                f"{type(e).__name__}: {e}"
-            ) from e
+    _sync_target_modules("isolated")
 
 
 def _flip_to_active_in_context(edge_id: str) -> None:

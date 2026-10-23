@@ -143,9 +143,14 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
         fake_run_backtest_pure,
     )
 
+    # The baseline is ONE faithful edge, never empty (2026-10-22, the edges.yml single-writer
+    # unit): a readable registry with no tradeable edge now renders Gate 1 NOT_EVALUATED(empty
+    # baseline), so an empty stub would refuse every candidate here for a reason these tests are
+    # not about. The fake backtest keys the with-arm on the candidate's id, so a baseline edge
+    # changes nothing else. The stub is made faithful; the guard is not relaxed.
     monkeypatch.setattr(
         DiscoveryEngine, "_build_production_edges",
-        lambda self, **kw: ({}, {}),
+        lambda self, **kw: ({"baseline_v0": _signalling_candidate()}, {"baseline_v0": 1.0}),
     )
     monkeypatch.setattr(
         DiscoveryEngine, "_instantiate_candidate",

@@ -70,6 +70,19 @@ def required_gates(path: Optional[Path] = None) -> Tuple[str, ...]:
     return tuple(g for g in GATE_ORDER if g in gates)
 
 
+def bootstrap_book_declared(path: Optional[Path] = None) -> bool:
+    """The ONE labelled bootstrap mode (the edges.yml single-writer unit, 2026-10-22; R §3.1).
+
+    True lets a standalone gauntlet seed an EMPTY book on purpose: Gate 1 renders against a zero
+    baseline instead of NOT_EVALUATED(empty baseline). It is recorded in the census as
+    `bootstrap_book` by BOTH producers, and a backtest census carrying it is NEVER canonical for a
+    performance claim. Fails closed: the key must exist and be a bool."""
+    cfg = _settings(path)
+    if "bootstrap_book" not in cfg or not isinstance(cfg["bootstrap_book"], bool):
+        raise ValueError(f"discovery_settings.bootstrap_book must be a bool: {cfg.get('bootstrap_book')!r}")
+    return cfg["bootstrap_book"]
+
+
 def discovery_validation_window(
     data_map: Dict[str, "pd.DataFrame"], months_env: Optional[str] = None
 ) -> Tuple[Optional[str], Optional[str]]:

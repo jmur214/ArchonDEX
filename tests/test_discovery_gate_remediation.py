@@ -154,10 +154,12 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
     disc.registry_path = "/tmp/edges_fake.yml"
     disc.processed_data_dir = "/tmp/processed_fake"
 
+    # ONE faithful baseline edge, never empty (2026-10-22, the single-writer unit): an empty
+    # baseline now renders Gate 1 NOT_EVALUATED(empty baseline), which is not what this tests.
     monkeypatch.setattr(
         DiscoveryEngine,
         "_build_production_edges",
-        lambda self, **kw: ({}, {}),
+        lambda self, **kw: ({"baseline_v0": _signalling_candidate()}, {"baseline_v0": 1.0}),
     )
     monkeypatch.setattr(
         DiscoveryEngine,
@@ -321,9 +323,9 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
     disc.registry_path = "/tmp/edges_fake.yml"
     disc.processed_data_dir = "/tmp/processed_fake"
 
-    monkeypatch.setattr(
+    monkeypatch.setattr(   # one faithful baseline edge, never empty (see above)
         DiscoveryEngine, "_build_production_edges",
-        lambda self, **kw: ({}, {}),
+        lambda self, **kw: ({"baseline_v0": _signalling_candidate()}, {"baseline_v0": 1.0}),
     )
     monkeypatch.setattr(
         DiscoveryEngine, "_instantiate_candidate",

@@ -349,6 +349,10 @@ CENSUS_GATING_KEYS = {
     # fundamentals_misses (2026-10-15, re-pin #1's decision): the gate fails a cache miss FETCHED
     # mid-run (an unpinned input entered the pinned scope) and an errored record.
     "fundamentals_misses",
+    # bootstrap_book (2026-10-22, the edges.yml single-writer unit): the labelled bootstrap mode's
+    # record; the gate fails a BACKTEST census carrying true (a seeded empty book is never canonical
+    # for a performance claim) and an errored record. Written by BOTH producers.
+    "bootstrap_book",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
@@ -356,7 +360,8 @@ CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_feed": "data_feed_summary",
                         "data_exclusions": "exclusions_applied",
                         "stale_files": "stale_files_record",
-                        "fundamentals_misses": "fundamentals_miss_summary"}
+                        "fundamentals_misses": "fundamentals_miss_summary",
+                        "bootstrap_book": "bootstrap_book_declared"}
 
 
 def _build_census_node():
@@ -411,6 +416,7 @@ _CANONICAL_CENSUS = {
     "fundamentals_blind": 0, "regime_unknown_frac": 0.1, "regime_total_bars": 100,
     "config_provenance": {"degraded": False}, "data_feed": {"yfinance_tickers": []},
     "data_exclusions": {}, "census_kind": "backtest", "regime_layer": "on",
+    "bootstrap_book": False,
 }
 
 
@@ -584,6 +590,12 @@ KNOWN_DOWNSTREAM_AUGMENT_KEYS: Set[str] = {
     # scripts/rescore_rr1.py, the RR-1 RE-SCORE driver.
     "bootstrap_distribution",  # backtester/backtest_controller.py:1182
     "census",                  # backtester/backtest_controller.py:1197
+    # post_run_failure (2026-10-22, the edges.yml single-writer unit, R §4.3): written by
+    # mode_controller.run_backtest AFTER the controller's summary when the post-run did not
+    # complete — an Engine-F registry save or the Discovery cycle failed. {stage, error_type,
+    # message}; the run holds the failure across the summary write, then re-raises, and
+    # assert_census marks the run NON-CANONICAL on it (invariant 10). One shape for both paths.
+    "post_run_failure",
 }
 
 
@@ -1602,7 +1614,9 @@ CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "
                           "ticker_exclusions": "ticker_exclusions_applied",
                           "level_declarations": "substrate_level_declarations",
                           "stale_files": "stale_files_record",
-                          "fundamentals_misses": "fundamentals_miss_summary"}
+                          "fundamentals_misses": "fundamentals_miss_summary",
+                          # bootstrap_book (2026-10-22): the labelled bootstrap mode, from its one reader
+                          "bootstrap_book": "bootstrap_book_declared"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
