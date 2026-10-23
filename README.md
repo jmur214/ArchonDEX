@@ -212,6 +212,11 @@ APCA_API_DATA_URL=https://data.alpaca.markets
 ### Running the System
 
 ```bash
+# STEP ONE on a fresh checkout: build the edge registry (data/governor/edges.yml) from the edge
+# modules. Importing a module never writes it; this is the one explicit writer, and every run
+# refuses an absent or empty registry until it has run once.
+python scripts/sync_edge_registry.py
+
 # Run a full backtest with fresh data
 python scripts/run_backtest.py --fresh --alpha-debug
 

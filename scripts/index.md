@@ -1393,6 +1393,9 @@
 ### `registry_fail_closed_reversion_proof.py`
 **Module Docstring:** edges.yml fail-closed unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
 
+### `registry_single_writer_reversion_proof.py`
+**Module Docstring:** edges.yml single-writer unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
 ### `reprice_lps_auction_t157.py`
 **Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED
 - **Function `cost_per_day_decimal()`**: All channels in decimal daily return units (of capital).
@@ -1842,6 +1845,17 @@
 - **Function `render_index()`**: The index.md content `sync_directory` WOULD write for `dir_path`: the hand-written top half
 - **Function `sync_directory()`**: No docstring
 - **Function `drifted()`**: The index files whose committed content differs from what a sync would write — the drift a
+
+### `sync_edge_registry.py`
+**Module Docstring:** scripts/sync_edge_registry.py — the ONE explicit step that persists what the edge modules register.
+- **Class `SyncReport`**: No docstring
+  - `def changes_file()`
+  - `def lines()`
+- **Function `auto_registering_modules()`**: Bare module names under the edges package whose module-level code calls `.ensure(` — the
+- **Function `network_dead_ended()`**: By construction: while the edge modules import, no socket can be created.
+- **Function `collect_registrations()`**: Import `modules` (bare names under the edges package) with the network dead-ended and return
+- **Function `sync()`**: Merge every auto-registering module's registration into `registry_path` and write it through
+- **Function `main()`**: No docstring
 
 ### `system_validity_check.py`
 - **Function `run_system_check()`**: No docstring

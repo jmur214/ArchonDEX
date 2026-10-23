@@ -446,6 +446,13 @@ D and F both write to `edges.yml` with explicit ownership:
 - **D writes**: New entries (candidate specs, params, metadata, source info, validation results)
 - **F writes**: `status` field changes (candidate → active → paused → retired), weight assignments
 - Neither engine deletes the other's fields
+- **The physical write (since 2026-10-22, the single-writer unit, user-approved):** every writer — D's
+  `save_candidates`, F's lifecycle save, A's explicit `register`/`set_status`/`save`, and
+  `scripts/sync_edge_registry.py` — goes through the ONE fail-closed reader and ONE atomic writer in
+  `core/edge_registry_io.py` (neutral ground; no engine imports another), with ONE row canonicaliser.
+  Importing an edge module never writes; A's code-owned fields (category, module, version, the
+  module's params keys) reach the file only through the sync, key-wise. Every reader refuses an
+  unreadable registry; an absent file is the only empty one. Field ownership above is unchanged.
 
 ### Invariants
 1. F **never** changes live state without a versioned audit trail
