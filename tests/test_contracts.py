@@ -349,6 +349,9 @@ CENSUS_GATING_KEYS = {
     # fundamentals_misses (2026-10-15, re-pin #1's decision): the gate fails a cache miss FETCHED
     # mid-run (an unpinned input entered the pinned scope) and an errored record.
     "fundamentals_misses",
+    # share_price_basis (L4, 2026-10-22): which price basis sized integer shares — recorded, never
+    # gated on its value (total_return is a fact until the cutover lands); an errored record fails.
+    "share_price_basis",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
@@ -356,7 +359,8 @@ CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_feed": "data_feed_summary",
                         "data_exclusions": "exclusions_applied",
                         "stale_files": "stale_files_record",
-                        "fundamentals_misses": "fundamentals_miss_summary"}
+                        "fundamentals_misses": "fundamentals_miss_summary",
+                        "share_price_basis": "share_price_basis_summary"}
 
 
 def _build_census_node():
@@ -1602,7 +1606,10 @@ CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "
                           "ticker_exclusions": "ticker_exclusions_applied",
                           "level_declarations": "substrate_level_declarations",
                           "stale_files": "stale_files_record",
-                          "fundamentals_misses": "fundamentals_miss_summary"}
+                          "fundamentals_misses": "fundamentals_miss_summary",
+                          # L4 (2026-10-22): the price basis that sized integer shares — the risk
+                          # engine's counter, through the ONE summary function in core.share_sizing.
+                          "share_price_basis": "share_price_basis_summary"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
@@ -1642,7 +1649,8 @@ def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     idx = pd.bdate_range("2025-01-02", periods=20)
     clean_map = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA", "BBB")}
     block = candidate_census_block("cand_v1", _C(), n_trades=10, data_map=clean_map,
-                                   window=(str(idx[0].date()), str(idx[-1].date())))
+                                   window=(str(idx[0].date()), str(idx[-1].date())),
+                                   share_basis_counts={"total_return": 10})
     assert not (set(CENSUS_PROVENANCE_KEYS) - set(block)), sorted(set(CENSUS_PROVENANCE_KEYS) - set(block))
     errored = {k: block[k] for k in CENSUS_PROVENANCE_KEYS
                if isinstance(block[k], dict) and "error" in block[k]}

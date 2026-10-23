@@ -30,6 +30,11 @@ the audit's invariants fail:
      is holed or unverified — `coverage_defects`, shared with the measured-run admission
      (BARS, never file presence — the stale/holed-files guard, 2026-10-15)
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
+  10. share_price_basis (L4, approved 2026-10-22): RECORDED, never gated on its value — which price
+      basis sized integer shares (`total_return` on the pre-cutover cache, `unadjusted` once the
+      substrate carries close_unadj, `mixed` with counts per basis). A total_return basis is a
+      census fact until the cutover lands; only an ERRORED record fails (the basis was not measured).
+      A summary without the record warns (it predates the field).
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
 bootstrap CI nor an explicit skip reason (the CLAUDE.md ci_low rule).
@@ -141,10 +146,14 @@ def assert_census(
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
     for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files",
-                "fundamentals_misses"):
+                "fundamentals_misses", "share_price_basis"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
+    # 10 — share_price_basis (L4, 2026-10-22): recorded, never gated on its value (see the docstring).
+    if "share_price_basis" not in census:
+        warnings.append("census has no share_price_basis record (summary predates 2026-10-22) — "
+                        "the price basis that sized integer shares is unrecorded")
     # 9 — the stale/holed-files guard: counts BARS, never file presence (2026-10-15)
     sf = census.get("stale_files")
     if isinstance(sf, dict) and "error" not in sf:
