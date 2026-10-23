@@ -81,12 +81,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: P4 (D's addition): the reader REFUSES any other value.
 SCHEMA = "substrate_verify_stamp/v1"
-#: ONE literal of the path, and the write below goes through `json.dump(` — the two things the
-#: T-356 durability census's scan matches (`core/durability_census.py`: `_DATA_PATH` and
-#: `_WRITE_IDIOM`), so the census SEES this module as the stamp's writer by construction
-#: (locked in `tests/test_substrate_stamp_2026_10_22.py`) instead of carrying it by
-#: declaration only. The reviewer caught the first comment here claiming this of a
-#: `f.write(json.dumps(...))` the scan cannot see (2026-10-22).
+#: ONE literal of the path, and `_write_atomic` serialises through the json module's dump
+#: call on a file handle — the two things the T-356 durability census's text scan matches
+#: (`core/durability_census.py`: `_DATA_PATH` and `_WRITE_IDIOM`), so the census SEES this
+#: module as the stamp's writer by construction instead of carrying it by declaration only.
+#: Locked in `tests/test_substrate_stamp_2026_10_22.py` against the scan AND by AST (the
+#: call must be in CODE: a comment spelling the idiom satisfied the text scan once, which
+#: is the "we said it" trap, 2026-10-22). The reviewer caught the first comment here
+#: claiming this of a `f.write(...)` the scan cannot see.
 STAMP_REL = "data/state/substrate_verify_stamp.json"
 #: P1 (D's addition): the ONE freshness bound, shared by the gate and any census check (R3).
 FRESHNESS = timedelta(hours=48)

@@ -534,7 +534,16 @@ def test_the_stamp_is_registered_in_BOTH_censuses_and_the_durability_census_SEES
     rec = next(r for r in REGISTRY if r.path == st.STAMP_REL)
     assert rec.writer == "core/substrate_stamp.py" and rec.venue == "local" and len(rec.reason) > 100
     assert assert_durability().ok
-    # by construction, not by declaration: the scan matches `json.dump(` + the one path literal
+    # by construction, not by declaration: the scan matches the json dump idiom + the one
+    # path literal ...
     assert "core/substrate_stamp.py" in scan_writers().get(st.STAMP_REL, []), \
-        "the durability census must SEE the writer (json.dump + the one literal)"
+        "the durability census must SEE the writer (the json dump idiom + the one literal)"
+    # ... and the idiom must be in CODE, not a comment that happens to spell it (a comment
+    # satisfied the text scan once — the "we said it" trap): an AST Call to json.dump.
+    import ast
+    tree = ast.parse(Path(st.__file__).read_text())
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+               and n.func.attr == "dump" and isinstance(n.func.value, ast.Name)
+               and n.func.value.id == "json" for n in ast.walk(tree)), \
+        "core/substrate_stamp.py must CALL json.dump — the census-visible write idiom"
     assert "FRESHNESS" in EXEMPT[st.STAMP_REL] and "48 h" in EXEMPT[st.STAMP_REL]
