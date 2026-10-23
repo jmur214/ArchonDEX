@@ -32,37 +32,100 @@ PROCESSED_PATH = REPO_ROOT / "data" / "processed" / "fundamentals_simfin.parquet
 # Loaders (cached on disk by simfin package)
 # ---------------------------------------------------------------------------
 
-def _ensure_simfin_configured() -> None:
-    # T-2026-06-17-180: a CACHED read needs no API key — `sf.load_*` reads the
-    # bulk quarterly CSVs straight from disk (the manifest-pinned, image-baked
-    # data/raw/simfin/*.csv). Only a fresh DOWNLOAD contacts the network. The
-    # old unconditional raise meant the hermetic cloud (no key) could not even
-    # read the cache → `get_panel()` fails-open → the 4 value/accruals edges go
-    # silently blind (the T-175/T-180 finding). Relaxed: if the cache is present
-    # we configure sf with a placeholder so the offline read proceeds; a genuine
-    # cache miss still raises (a network fetch under hermetic SHOULD fail loud).
-    SIMFIN_RAW_DIR.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------------
+# Cached read vs declared rebuild (the 2026-10-22 incident)
+# ---------------------------------------------------------------------------
+# WHAT HAPPENED: `sf.load_*` RE-DOWNLOADS any raw dataset older than its refresh window
+# (`refresh_days`, default 30). A panel build in a worktree whose data/raw was a symlink into
+# the main tree therefore replaced the six pinned raw files (three zips, three CSVs) at 23:21;
+# and `build_and_cache` rebuilt the panel whenever the raw CSVs were NEWER than it (and a key
+# was set), so from then on the first load_panel() in ANY tree pointing at main's data rewrote
+# the pinned data/processed/fundamentals_simfin.parquet — which the merge-gate suite did at 23:49.
+#
+# THE RULE NOW ([NN-FAIL-CLOSED]): a CACHED read never rebuilds and never downloads. A raw
+# dataset newer than the panel is a FACT the read RECORDS (a log line), never a trigger. A
+# rebuild, and a refresh of the raw datasets, happen only through the declared entrypoint
+# `rebuild_panel()` — the class of scripts/rebake_fundamentals.py (explicit, non-canonical,
+# WARNs that the manifest reads red until a re-pin) — and are REFUSED under the canonical /
+# measured / hermetic switches. tests/test_simfin_cached_read_2026_10_22.py locks both halves.
+_NEVER_REFRESH_DAYS = 10 ** 9   # simfin downloads again when file_age_days >= refresh_days
+RAW_DATASETS = ("us-income-quarterly.csv", "us-balance-quarterly.csv", "us-cashflow-quarterly.csv")
+REBAKE_WARN = ("[SIMFIN][WARN] rebuild_panel writes INTO the pinned scope (data/raw/simfin and "
+               "data/processed/fundamentals_simfin.parquet) — the substrate manifest's verify "
+               "reads red until a re-pin (scripts/gen_substrate_manifest.py generate)")
+
+
+class FundamentalsPanelMissing(FileNotFoundError):
+    """A cached read found no panel. The read never builds one; run the declared rebuild."""
+
+
+class FundamentalsRebuildRefused(RuntimeError):
+    """A rebuild/refresh asked for under a switch that forbids it, or without its inputs."""
+
+
+def _rebuild_refused_reason() -> Optional[str]:
+    """Why a rebuild must not run here, or None. Read fresh on every call (test-friendly)."""
+    from core.hermetic import hermetic_mode
+    from core.measured import is_measured
+    from engines.data_manager.data_manager import REFUSE_YFINANCE_ENV
+    if is_measured():
+        return "ARCHONDEX_MEASURED (a measured run never rebuilds a pinned input)"
+    mode = hermetic_mode()
+    if mode != "off":
+        return f"ARCHONDEX_HERMETIC={mode} (a rebuild or refresh is the network)"
+    if os.environ.get(REFUSE_YFINANCE_ENV):
+        return f"{REFUSE_YFINANCE_ENV} (a canonical run refuses a rebuild)"
+    return None
+
+
+def raw_cache_present() -> bool:
+    return all((SIMFIN_RAW_DIR / n).exists() for n in RAW_DATASETS)
+
+
+def raw_staleness() -> dict[str, str]:
+    """The fact a cached read records: each raw dataset's mtime relative to the panel's."""
+    panel_m = PROCESSED_PATH.stat().st_mtime if PROCESSED_PATH.exists() else None
+    out: dict[str, str] = {}
+    for n in RAW_DATASETS:
+        p = SIMFIN_RAW_DIR / n
+        if not p.exists():
+            out[n] = "absent"
+        elif panel_m is None:
+            out[n] = "present"
+        else:
+            out[n] = "newer_than_panel" if p.stat().st_mtime > panel_m else "older_than_panel"
+    return out
+
+
+def _configure_simfin(*, download: bool) -> None:
+    """Point the library at data/raw/simfin. A cached read needs no key: a placeholder keeps the
+    library configured, and with `refresh_days` that cannot fire it never contacts the API when
+    the file is present. A DOWNLOAD needs the real key."""
     api_key = os.environ.get("SIMFIN_API_KEY")
-    if not api_key:
-        cache_present = (SIMFIN_RAW_DIR / "us-income-quarterly.csv").exists()
-        if not cache_present:
-            raise RuntimeError(
-                "SIMFIN_API_KEY not set and no cached simfin CSVs present "
-                "(a fresh download needs the key)."
-            )
-        # Placeholder so set_api_key state is configured; the cached read below
-        # never contacts the API (simfin loads the local CSV when present).
-        api_key = "offline-cache-read"
-    sf.set_api_key(api_key)
-    sf.set_data_dir(str(SIMFIN_RAW_DIR))
+    if download and not api_key:
+        raise FundamentalsRebuildRefused("SIMFIN_API_KEY not set: a download needs the key")
+    sf.set_api_key(api_key or "offline-cache-read")
+    sf.set_data_dir(str(SIMFIN_RAW_DIR))   # the library keeps download/ info/ cache/ here
 
 
-def load_raw_panels() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Load the 3 quarterly bulk datasets from SimFin (cached after first call)."""
-    _ensure_simfin_configured()
-    inc = sf.load_income(variant="quarterly", market="us")
-    bal = sf.load_balance(variant="quarterly", market="us")
-    cf = sf.load_cashflow(variant="quarterly", market="us")
+def load_raw_panels(*, allow_download: bool = False
+                    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """The 3 quarterly bulk datasets from data/raw/simfin — READ ONLY unless `allow_download`.
+
+    A cached read with any dataset absent is REFUSED (never fetched), and an existing dataset is
+    never refreshed however old (a `refresh_days` that cannot fire). `allow_download=True` is the
+    declared refresh: the library downloads regardless of age (`refresh_days=0`).
+    """
+    if not allow_download and not raw_cache_present():
+        missing = [n for n in RAW_DATASETS if not (SIMFIN_RAW_DIR / n).exists()]
+        raise FundamentalsRebuildRefused(
+            f"raw simfin datasets absent under {SIMFIN_RAW_DIR}: {missing}; a cached read never "
+            f"downloads — the declared rebuild is scripts/rebake_simfin_panel.py --download")
+    _configure_simfin(download=allow_download)
+    refresh = 0 if allow_download else _NEVER_REFRESH_DAYS
+    inc = sf.load_income(variant="quarterly", market="us", refresh_days=refresh)
+    bal = sf.load_balance(variant="quarterly", market="us", refresh_days=refresh)
+    cf = sf.load_cashflow(variant="quarterly", market="us", refresh_days=refresh)
     return inc, bal, cf
 
 
@@ -194,38 +257,42 @@ def compute_factors(panel: pd.DataFrame) -> pd.DataFrame:
 # Cache + public API
 # ---------------------------------------------------------------------------
 
-def build_and_cache(force: bool = False) -> Path:
-    """Build the full panel + factors and cache to data/processed/.
+def cached_panel_path() -> Path:
+    """THE CACHED READ: the pinned panel if present. Never a build, never a download, no
+    directory created. Raw datasets newer than the panel are recorded, not acted on."""
+    if not PROCESSED_PATH.exists():
+        raise FundamentalsPanelMissing(
+            f"{PROCESSED_PATH} absent; a cached read never builds it — the declared rebuild is "
+            f"scripts/rebake_simfin_panel.py")
+    stale = raw_staleness()
+    if any(v == "newer_than_panel" for v in stale.values()):
+        print(f"[SIMFIN][INFO] raw datasets newer than the panel: {stale} — recorded, NOT a "
+              f"trigger; the pinned panel is served unchanged (a rebuild is a declared act)")
+    return PROCESSED_PATH
 
-    Idempotent: skips rebuild if the parquet exists and is newer than the
-    raw simfin caches, unless force=True.
-    """
+
+def rebuild_panel(*, download: bool = False) -> Path:
+    """THE DECLARED REBUILD — never reached by a read. Rebuilds the panel from the raw datasets,
+    refreshing them from SimFin first when `download=True`. Refused under the canonical /
+    measured / hermetic switches before anything is touched."""
+    reason = _rebuild_refused_reason()
+    if reason:
+        raise FundamentalsRebuildRefused(f"rebuild refused under {reason}")
+    print(REBAKE_WARN)
+    inc, bal, cf = load_raw_panels(allow_download=download)
+    panel = compute_factors(build_panel(inc, bal, cf))
     PROCESSED_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    if PROCESSED_PATH.exists() and not force:
-        # Cheap freshness check — if processed is newer than the income raw,
-        # assume nothing changed.
-        raw_income = SIMFIN_RAW_DIR / "us-income-quarterly.csv"
-        # T-2026-06-17-180: also return the cached parquet when no SIMFIN_API_KEY
-        # is set (e.g. the hermetic cloud container). A rebuild needs the key
-        # (`_ensure_simfin_configured` raises without it), so a stale-mtime
-        # rebuild attempt would just fail and `get_panel()` would silently
-        # blind the 4 value/accruals edges. The baked parquet IS the canonical,
-        # manifest-pinned panel there, so trust it. Without this, a benign
-        # mtime inversion from the build/S3-sync order (raw uploaded after the
-        # parquet) made the cloud re-anchor run simfin-blind (T-175 finding).
-        if (not raw_income.exists()
-                or PROCESSED_PATH.stat().st_mtime >= raw_income.stat().st_mtime
-                or not os.environ.get("SIMFIN_API_KEY")):
-            return PROCESSED_PATH
-
-    panel = build_panel()
-    panel = compute_factors(panel)
     panel.to_parquet(PROCESSED_PATH)
     return PROCESSED_PATH
 
 
+def build_and_cache(force: bool = False) -> Path:
+    """Compatibility name. `force=False` is the cached read (never builds, never downloads);
+    `force=True` is the declared rebuild from the on-disk raw datasets (no download)."""
+    return rebuild_panel(download=False) if force else cached_panel_path()
+
+
 def load_panel(force_rebuild: bool = False) -> pd.DataFrame:
-    """Load the cached PIT panel (build it if missing)."""
-    path = build_and_cache(force=force_rebuild)
-    return pd.read_parquet(path)
+    """Load the cached PIT panel. Builds nothing and downloads nothing unless `force_rebuild`,
+    which is the declared rebuild (refused under the canonical / measured / hermetic switches)."""
+    return pd.read_parquet(build_and_cache(force=force_rebuild))
