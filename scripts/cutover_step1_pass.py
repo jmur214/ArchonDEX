@@ -280,11 +280,15 @@ def cmd_guard(args) -> int:
 
 
 def cmd_label(args) -> int:
-    from engines.data_manager.convention import substrate_convention_record
+    from engines.data_manager.convention import cache_first_bar_frames, substrate_convention_record
     cache = Path(args.cache).resolve()
-    rec = substrate_convention_record(cache)
-    summary = {k: rec[k] for k in ("cache_dir", "merge_meta_present", "records_dir_present", "n_names",
-                                   "n_labelled", "n_pre_seam_drip", "labels", "seams", "sources")}
+    # The witness for a cache-wide label (R9, 2026-11-04): each merge-record label is checked
+    # against the FILE's first bar — the file on disk is what a run would load. Unwitnessed, a
+    # merge-record label is unmeasured and the name reads unlabelled.
+    rec = substrate_convention_record(cache, data_map=cache_first_bar_frames(cache))
+    summary = {k: rec[k] for k in ("cache_dir", "merge_meta_present", "records_dir_present", "witness",
+                                   "n_unwitnessed", "n_names", "n_labelled", "n_pre_seam_drip", "labels",
+                                   "seams", "sources")}
     summary["unlabelled"] = rec["unlabelled"]
     print(json.dumps(summary, indent=1))
     if args.out:
