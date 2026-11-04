@@ -141,15 +141,6 @@
 - **Function `analyze_cell()`**: No docstring
 - **Function `main()`**: No docstring
 
-### `analyze_vrp_factor_t122.py`
-**Module Docstring:** scripts/analyze_vrp_factor_t122.py
-- **Function `build_market_return()`**: Equal-weight daily return of the processed universe — the market proxy
-- **Function `vrp_signal_series()`**: Daily VRP scale ∈[0,1] using the SAME VIX−RV formula as the edge
-- **Function `vrp_return_stream()`**: Vol-managed market return: scale_{t-1} * market_return_t, minus cost on
-- **Function `factor_report()`**: No docstring
-- **Function `book_correlation()`**: Correlation of VRP return to the existing 6-active-edge book + to the
-- **Function `main()`**: No docstring
-
 ### `anon_historical_eval_t339.py`
 **Module Docstring:** scripts/anon_historical_eval_t339.py — RUN the frozen T-339 evaluation.
 - **Function `price()`**: No docstring
@@ -829,10 +820,18 @@
 - **Function `win()`**: No docstring
 
 ### `gen_substrate_manifest.py`
-**Module Docstring:** Generate (or verify) the pinned data-substrate manifest.
+**Module Docstring:** Generate (or verify) the pinned data-substrate manifest — and STAMP the verdict.
+- **Class `SubstrateIncomplete`**: The verify cannot run COMPLETELY against this root (a substrate dir missing or
+- **Class `VerifyResult`**: No docstring
+  - `def ok()`
+  - `def counts()`
+  - `def first_paths()`: MISSING, then CHANGED, then EXTRA — the order a reader needs: a pinned file gone
 - **Function `iter_substrate_files()`**: No docstring
 - **Function `hash_file()`**: No docstring
 - **Function `build_manifest()`**: No docstring
+- **Function `diff_manifest()`**: No docstring
+- **Function `full_verify()`**: The COMPLETE verify: every substrate dir must exist and walk, every file must hash.
+- **Function `generate()`**: R2, the re-pin step: build, write the manifest to a TEMP path beside the target, run
 - **Function `main()`**: No docstring
 
 ### `gen_t118_campaign_spec.py`
@@ -943,6 +942,7 @@
 - **Function `check_runner_canon()`**: Is the janitor running CANONICAL code?
 - **Function `check_ledger_backup()`**: Does a readable REMOTE copy of the authority record exist, and is it current?
 - **Function `check_observability_backup()`**: Last night's push of the honest-N inputs (run registry + ρ̄ artifacts): is each
+- **Function `check_substrate_verify()`**: The FULL data-hashing verify of the canonical substrate against the manifest committed
 - **Function `survival_syncs()`**: The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
 - **Function `run_checks()`**: No docstring
 - **Function `write_report()`**: No docstring
@@ -1406,6 +1406,9 @@
 ### `registry_fail_closed_reversion_proof.py`
 **Module Docstring:** edges.yml fail-closed unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
 
+### `registry_single_writer_reversion_proof.py`
+**Module Docstring:** edges.yml single-writer unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
 ### `reprice_lps_auction_t157.py`
 **Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED
 - **Function `cost_per_day_decimal()`**: All channels in decimal daily return units (of capital).
@@ -1507,10 +1510,6 @@
 ### `run_autonomous_cycle.py`
 - **Function `is_market_open()`**: Simple check: Mon-Fri, 9:30 AM - 4:00 PM EST.
 - **Function `run_cycle()`**: No docstring
-
-### `run_bab_gauntlet_t123.py`
-**Module Docstring:** scripts/run_bab_gauntlet_t123.py
-- **Function `main()`**: No docstring
 
 ### `run_backtest.py`
 **Module Docstring:** scripts/run_backtest.py
@@ -1714,10 +1713,6 @@
 - **Function `run_full()`**: No docstring
 - **Function `main()`**: No docstring
 
-### `run_vrp_gauntlet_t122.py`
-**Module Docstring:** scripts/run_vrp_gauntlet_t122.py
-- **Function `main()`**: No docstring
-
 ### `screen_features_t150.py`
 **Module Docstring:** scripts/screen_features_t150.py
 - **Function `load_returns()`**: No docstring
@@ -1863,6 +1858,17 @@
 - **Function `render_index()`**: The index.md content `sync_directory` WOULD write for `dir_path`: the hand-written top half
 - **Function `sync_directory()`**: No docstring
 - **Function `drifted()`**: The index files whose committed content differs from what a sync would write — the drift a
+
+### `sync_edge_registry.py`
+**Module Docstring:** scripts/sync_edge_registry.py — the ONE explicit step that persists what the edge modules register.
+- **Class `SyncReport`**: No docstring
+  - `def changes_file()`
+  - `def lines()`
+- **Function `auto_registering_modules()`**: Bare module names under the edges package whose module-level code calls `.ensure(` — the
+- **Function `network_dead_ended()`**: By construction: while the edge modules import, no socket can be created.
+- **Function `collect_registrations()`**: Import `modules` (bare names under the edges package) with the network dead-ended and return
+- **Function `sync()`**: Merge every auto-registering module's registration into `registry_path` and write it through
+- **Function `main()`**: No docstring
 
 ### `system_validity_check.py`
 - **Function `run_system_check()`**: No docstring

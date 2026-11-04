@@ -37,7 +37,6 @@ from engines.engine_a_alpha.edges.accruals_inv_asset_growth_edge import (
 )
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
 from tests._canonical_inputs import CANON_SIMFIN_PANEL, REPO, skip_unless_canonical
-from tests._edge_registration import registry_from_reimport
 
 
 _ALL_EDGE_CLASSES = [
@@ -105,7 +104,7 @@ def stub_panel():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("edge_cls", _ALL_EDGE_CLASSES)
-def test_edge_registers_cleanly(edge_cls, monkeypatch, tmp_path):
+def test_edge_registers_cleanly(edge_cls, tmp_path):
     """Each edge has the required class attrs and registers without raising."""
     assert edge_cls.EDGE_ID
     assert edge_cls.CATEGORY == "fundamental"
@@ -114,9 +113,13 @@ def test_edge_registers_cleanly(edge_cls, monkeypatch, tmp_path):
     assert "long_score" in edge_cls.DEFAULT_PARAMS
     assert "min_universe" in edge_cls.DEFAULT_PARAMS
 
-    # The module's own import-time registration, observed in a tmp registry — not the live
-    # data/governor/edges.yml (an import-time side effect a separate unit retires; 2026-10-22).
-    reg = registry_from_reimport(monkeypatch, tmp_path, sys.modules[edge_cls.__module__])
+    # Spec must be in the registry under its id — through the explicit sync on a tmp registry
+    # (since the single-writer unit imports never write; this used to construct `EdgeRegistry()`
+    # on the REAL, CWD-relative file and depended on — and mutated — it).
+    from scripts.sync_edge_registry import sync
+    reg_path = tmp_path / "edges.yml"
+    sync(reg_path, modules=[edge_cls.__module__.rsplit(".", 1)[-1]])
+    reg = EdgeRegistry(store_path=reg_path)
     spec = reg.get(edge_cls.EDGE_ID)
     assert spec is not None, f"{edge_cls.EDGE_ID} not in registry"
     assert spec.category == "fundamental"

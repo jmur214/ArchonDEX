@@ -49,7 +49,9 @@ def _census_block(cand_id, census, n_trades):
     from engines.engine_d_discovery.discovery import candidate_census_block
     one_bar = {"SPY": pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2025-12-31"]))}
     return {"census": candidate_census_block(cand_id, census, n_trades=n_trades, data_map=one_bar,
-                                             window=("2025-12-31", "2025-12-31")),
+                                             window=("2025-12-31", "2025-12-31"),
+                                             # L4: the with-candidate run's sizing counter
+                                             share_basis_counts={"total_return": int(n_trades)}),
             "bootstrap_ci_skip_reason": "gate1_contribution_run"}
 
 

@@ -116,6 +116,21 @@ REGISTRY: Tuple[Record, ...] = (
         "is its normal empty state rather than a loss.",
     ),
 
+    Record(
+        path="data/state/substrate_verify_stamp.json", venue="local", status=EXEMPT,
+        writer="core/substrate_stamp.py", reason=
+        "REGENERABLE BY CONSTRUCTION, and BOUNDED BY DESIGN (2026-10-22, the campaign submit "
+        "gate's verify stamp — docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md "
+        "§7). Not an accruing record: one entry per manifest digest, replaced whole by the next "
+        "FULL build_manifest() verify, and written only by the nightly janitor "
+        "(check_substrate_verify) and the re-pin step (gen_substrate_manifest.py generate). Its "
+        "durable content is the janitor's autonomy_ledger row the same night writes. Losing it "
+        "costs ONE re-verify (seconds on a warm cache) and, until a writer runs, every cloud "
+        "submit REFUSES — ABSENT is a refusal, never a pass — which is the fail-closed state the "
+        "gate was built for. A second copy would be a hazard, not a record: a PASS surviving "
+        "elsewhere could outlive the 48 h FRESHNESS bound the stamp exists to enforce.",
+    ),
+
     # ---- local venue: Engine F / D governance history --------------------------------
     Record(
         path="data/governor/lifecycle_history.csv", venue="local", status=KNOWN_GAP,

@@ -61,8 +61,8 @@ Per `docs/Core/engine_charters.md` § Engine F:
 - **Class `EvolutionController`**: Autonomous Evolution Controller
   - `def __init__()`
   - `def run_cycle()`
-  - `def load_edges()`
-  - `def save_edges()`
+  - `def load_edges()`: FAIL CLOSED through the ONE reader: an unreadable registry RAISES (it used to log and
+  - `def save_edges()`: Through the ONE atomic writer; a failure RAISES `RegistryWriteError` with the registry's
   - `def run_wfo_for_candidate()`: Run WFO for a candidate using WalkForwardOptimizer directly.
   - `def update_production_config()`: Updates alpha_settings.prod.json to include the new 'active' edge parameters.
 

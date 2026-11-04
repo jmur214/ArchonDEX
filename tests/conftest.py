@@ -99,14 +99,13 @@ _DATA_DIR = _REPO / "data"
 _COLLECTION_NODEID = "<collection/import time>"
 _UNATTRIBUTED_NODEID = ("<unattributed: changed outside every test's window — session-fixture "
                         "teardown after the last test, or a copy that preserved its timestamps>")
-# Written at IMPORT by engines/engine_a_alpha/edges/*.py: every edge module builds
-# `EdgeRegistry()` (store_path "data/governor/edges.yml") and `.ensure()`s itself, which CREATES
-# the file in a tree without one and REWRITES it (`ensure` -> `_save`, unconditionally) in a
-# tree that has it (the main tree). So merely COLLECTING the suite creates or modifies the file.
-# A separate unit retires that writer; until it lands these paths are tolerated at COLLECTION
-# time only — a TEST that creates, modifies or removes them still fails. Remove this allowance
-# with that unit.
-_COLLECTION_TIME_ALLOWED = frozenset({"data/", "data/governor/", "data/governor/edges.yml"})
+# NO collection-time allowance. Until the edges.yml single-writer unit (2026-10-22) every edge
+# module's import-time `EdgeRegistry().ensure()` wrote data/governor/edges.yml, so merely
+# COLLECTING the suite created data/, data/governor/ and the file (or REWROTE it in place in the
+# main tree), and those three paths were tolerated at collection time only. `ensure()` now records
+# in memory and never writes — proven at the merge (2026-11-04): collecting the whole suite (4553
+# tests) on a tree with NO data/ created nothing. A path created, modified or removed at
+# collection is attributed to _COLLECTION_NODEID and fails the session like any other.
 _CREATED, _MODIFIED, _REMOVED, _TRANSIENT = "CREATED", "MODIFIED", "REMOVED", "TRANSIENT"
 _MISSING = (-1, -1, -1)      # a path the walk could not stat (a dangling symlink)
 
@@ -331,17 +330,6 @@ def pytest_runtest_protocol(item, nextitem):
                                       for kind, path, _, who in found), red=True)
 
 
-def _offending() -> dict[str, list[tuple[str, str, str]]]:
-    """The attributed table minus the declared collection-time allowance."""
-    out: dict[str, list[tuple[str, str, str]]] = {}
-    for nodeid, found in _GUARD.attributed.items():
-        if nodeid == _COLLECTION_NODEID:
-            found = [f for f in found if f[1] not in _COLLECTION_TIME_ALLOWED]
-        if found:
-            out[nodeid] = found
-    return out
-
-
 def pytest_sessionfinish(session, exitstatus):
     g = _GUARD
     if not g.armed:
@@ -362,32 +350,23 @@ def pytest_sessionfinish(session, exitstatus):
     for p in sorted(g.baseline):
         if p not in g.seen and p not in final:
             _record(_UNATTRIBUTED_NODEID, _removed_under(p))
-    if _offending():
+    if g.attributed:                 # every entry is a finding: _record never adds an empty list
         g.failed = True
         if session.exitstatus == 0:
             session.exitstatus = 1
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
-    if not _GUARD.armed:
-        return
-    offending = _offending()
-    tolerated = [f for f in _GUARD.attributed.get(_COLLECTION_NODEID, [])
-                 if f[1] in _COLLECTION_TIME_ALLOWED]
-    if not offending and not tolerated:
+    g = _GUARD
+    if not g.armed or not g.attributed:
         return
     tr = terminalreporter
-    if offending:
-        tr.section("data/ write guard: FAILED — the suite created, modified or removed paths under data/",
-                   sep="=", red=True)
-        tr.write_line("A test that writes into the data layer must stub it (tmp_path cache dirs, a "
-                      "stubbed provider, a monkeypatched DataManager cache root). Session exit status "
-                      "forced to 1 ([NN-FAIL-CLOSED]).")
-        for nodeid, found in offending.items():
-            tr.write_line(f"  {nodeid}")
-            for kind, path, note in found:
-                tr.write_line(f"      {kind:<9} {path}" + (f"   {note}" if note else ""))
-    if tolerated:
-        tr.section("data/ write guard: tolerated at collection time (declared allowance)", sep="-")
-        for kind, path, _ in tolerated:
-            tr.write_line(f"      {kind:<9} {path}   (import-time EdgeRegistry writer; retire with its fix)")
+    tr.section("data/ write guard: FAILED — the suite created, modified or removed paths under data/",
+               sep="=", red=True)
+    tr.write_line("A test that writes into the data layer must stub it (tmp_path cache dirs, a "
+                  "stubbed provider, a monkeypatched DataManager cache root). Session exit status "
+                  "forced to 1 ([NN-FAIL-CLOSED]).")
+    for nodeid, found in g.attributed.items():
+        tr.write_line(f"  {nodeid}")
+        for kind, path, note in found:
+            tr.write_line(f"      {kind:<9} {path}" + (f"   {note}" if note else ""))

@@ -1,10 +1,40 @@
 # engines/engine_a_alpha/edge_registry.py
+"""Engine A's view of `data/governor/edges.yml` — specs in, explicit saves out, IMPORTS PURE.
+
+Until 2026-10-22 this file was the third writer of the registry and the worst one: `_load` ended
+in `except Exception: self._specs = {}`, `_save` was a non-atomic `write_text`, and `ensure()` —
+called at IMPORT by every auto-registering edge module — saved unconditionally. On an unreadable
+registry the first import rewrote the file holding ONE edge (R, proven on planted files;
+`docs/Sources/edge_registry_single_writer_brief_2026-10-14.md`).
+
+Now (the single-writer unit, user-approved 2026-10-22):
+* the read is the ONE fail-closed reader (`core.edge_registry_io.read_registry`): an unreadable
+  registry RAISES `RegistryUnreadableError` at construction, never becomes "no edges";
+* every write is EXPLICIT and goes through the ONE atomic writer: `register`, `set_status`,
+  `set_failure_metadata`, `save` (alias `_save`, kept for the tier classifier and journal_apply);
+* `ensure()` NEVER writes. It records what the module registered, in memory, process-wide
+  (`EdgeRegistry.import_registrations()`), with whether the registry already holds it and which
+  code-owned fields drifted. Unpersisted registrations are INVISIBLE to consumers — the file is
+  the sole authority — until `scripts/sync_edge_registry.py` persists them, reporting each class
+  of change. The params merge it applies is KEY-WISE (`merge_code_owned`): code-owned keys are
+  the module's `DEFAULT_PARAMS` keys and CODE wins on them; every other key is preserved verbatim.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-import yaml
+from typing import Any, Dict, List, Mapping, Optional, Tuple
+
+from core.edge_registry_io import (
+    KNOWN_ROW_KEYS,
+    REFUSAL,
+    RegistryUnreadableError,
+    RegistryWriteError,
+    canonical_row,
+    coerce_scalars,
+    read_registry,
+    write_registry_atomic,
+)
 
 
 # Closed vocabulary for `EdgeSpec.failure_reason`. Keep narrow on purpose;
@@ -72,108 +102,189 @@ class EdgeSpec:
     extra: Optional[Dict[str, Any]] = None
 
 
+def spec_to_row(spec: EdgeSpec) -> Dict[str, Any]:
+    """The registry row for a spec — Engine A's shape, which `canonical_row` leaves unchanged."""
+    row: Dict[str, Any] = {
+        "edge_id": spec.edge_id,
+        "category": spec.category,
+        "module": spec.module,
+        "version": spec.version,
+        "params": spec.params or {},
+        "status": spec.status,
+    }
+    if spec.regime_gate:
+        row["regime_gate"] = spec.regime_gate
+    if spec.tier:
+        row["tier"] = spec.tier
+    if spec.tier_last_updated:
+        row["tier_last_updated"] = spec.tier_last_updated
+    if spec.combination_role and spec.combination_role != "input":
+        row["combination_role"] = spec.combination_role
+    if spec.failure_reason is not None:
+        row["failure_reason"] = spec.failure_reason
+    if spec.superseded_by is not None:
+        row["superseded_by"] = spec.superseded_by
+    if spec.extra:
+        for k, v in spec.extra.items():
+            row[k] = v
+    return row
+
+
+def row_to_spec(row: Mapping[str, Any], *, path: Optional[Path] = None) -> EdgeSpec:
+    """A spec from a registry row. A row without a `module` cannot be loaded by Engine A (nothing
+    could instantiate it), so it REFUSES — `RegistryUnreadableError`, never a silently dropped row."""
+    if not row.get("module"):
+        raise RegistryUnreadableError(
+            f"{path or 'registry'}: row {row.get('edge_id')!r} has no module — Engine A cannot load it; {REFUSAL}")
+    extra = {k: v for k, v in row.items() if k not in KNOWN_ROW_KEYS}
+    return EdgeSpec(
+        edge_id=row["edge_id"],
+        category=row.get("category", "other"),
+        module=row["module"],
+        version=row.get("version", "1.0.0"),
+        params=row.get("params") or {},
+        status=row.get("status", "active"),
+        regime_gate=row.get("regime_gate") or None,
+        tier=row.get("tier", "feature"),
+        tier_last_updated=row.get("tier_last_updated"),
+        combination_role=row.get("combination_role", "input"),
+        failure_reason=row.get("failure_reason"),
+        superseded_by=row.get("superseded_by"),
+        extra=extra or None,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The code-owned merge (applied ONLY by the sync — never at import)
+# --------------------------------------------------------------------------- #
+#: Whole fields the module's code owns. Status, tier, tier_last_updated, combination_role,
+#: regime_gate, the graveyard tags and every extra key are registry-owned and never touched.
+CODE_OWNED_FIELDS: Tuple[str, ...] = ("category", "module", "version")
+
+ABSENT = "<absent>"   # a registry value that did not exist, in a report
+
+
+@dataclass
+class MergeReport:
+    """What a sync did (or would do) to ONE edge's row — four distinct classes (the brief's sync
+    specification): never registered, drift applied, type changes, registry-only keys preserved."""
+    edge_id: str
+    never_registered: bool = False
+    #: "category" | "module" | "version" | "params.<key>" -> (registry value or ABSENT, code value)
+    drift_applied: Dict[str, Tuple[Any, Any]] = field(default_factory=dict)
+    #: "params.<key>" -> (registry type name, code type name); the code value is applied
+    type_changes: Dict[str, Tuple[str, str]] = field(default_factory=dict)
+    #: "params.<key>" the code does not own, preserved verbatim (Discovery's verdict fields, notes)
+    registry_only_keys: List[str] = field(default_factory=list)
+
+    @property
+    def changes_file(self) -> bool:
+        return self.never_registered or bool(self.drift_applied) or bool(self.type_changes)
+
+
+def merge_code_owned(row: Optional[Mapping[str, Any]], spec: EdgeSpec) -> Tuple[Dict[str, Any], MergeReport]:
+    """The KEY-WISE merge of a module's registration into its registry row (R §4.1, ruled).
+
+    * no row → the spec's full row, class "never registered" (status and tier as the module
+      declares them: that is what a NEW registration gets);
+    * category / module / version → the code value when the code sets one and it differs
+      ("drift applied"); an empty code value keeps the registry's (`spec.x or s.x`, as before);
+    * params, key by key: a code-owned key (one in the module's params) absent in the registry is
+      added, a differing value takes the code value ("drift applied"), a differing TYPE is its own
+      class ("type change", the code value applied); every registry key the code does not own is
+      preserved verbatim and listed ("registry-only keys preserved"). The old wholesale
+      `s.params = spec.params or s.params` dropped those keys on every import.
+    The returned row is a NEW dict; `row` is not mutated."""
+    report = MergeReport(edge_id=spec.edge_id)
+    if row is None:
+        report.never_registered = True
+        return spec_to_row(spec), report
+    out: Dict[str, Any] = dict(row)
+    for f in CODE_OWNED_FIELDS:
+        code_v = getattr(spec, f)
+        if not code_v:
+            continue
+        if f not in row:
+            report.drift_applied[f] = (ABSENT, code_v)
+            out[f] = code_v
+        elif row[f] != code_v:
+            report.drift_applied[f] = (row[f], code_v)
+            out[f] = code_v
+    reg_params: Dict[str, Any] = dict(row.get("params") or {})
+    code_params: Dict[str, Any] = {k: coerce_scalars(v) for k, v in (spec.params or {}).items()}
+    merged = dict(reg_params)                       # registry keys first, verbatim, order kept
+    for k, code_v in code_params.items():
+        if k not in reg_params:
+            merged[k] = code_v
+            report.drift_applied[f"params.{k}"] = (ABSENT, code_v)
+            continue
+        reg_v = reg_params[k]
+        if type(reg_v) is not type(code_v):
+            report.type_changes[f"params.{k}"] = (type(reg_v).__name__, type(code_v).__name__)
+            merged[k] = code_v
+        elif reg_v != code_v:
+            report.drift_applied[f"params.{k}"] = (reg_v, code_v)
+            merged[k] = code_v
+    report.registry_only_keys = [f"params.{k}" for k in reg_params if k not in code_params]
+    out["params"] = merged
+    return out, report
+
+
+@dataclass
+class ImportRegistration:
+    """What one module registered at import, and how it stands against the registry that module
+    read at the time. Recorded in memory only; the sync persists it."""
+    spec: EdgeSpec
+    persisted: bool                 # the registry held this edge_id when the module imported
+    report: MergeReport             # the drift the sync would apply (empty when nothing differs)
+    registry_path: str
+
+
 class EdgeRegistry:
     """
-    Lightweight file-backed registry for edges.
-    Stores specs in data/governor/edges.yml.
+    File-backed view of the edge registry (`data/governor/edges.yml`).
 
-    NOTE: Backward compatible with current run_backtest.py flow where
-          active edges are imported by module name under
-          `engines.engine_a_alpha.edges.{module}`. This registry is here
-          to support discovery/lifecycle; you can opt-in gradually.
+    Reads through the ONE fail-closed reader; writes through the ONE atomic writer, and ONLY from
+    the explicit methods (`register`, `set_status`, `set_failure_metadata`, `save`). Constructing
+    an instance never writes and never creates directories. `ensure()` never writes.
     """
 
-    def __init__(self, store_path: str | Path = "data/governor/edges.yml") -> None:
+    #: Process-wide record of every import-time registration (`ensure()`), keyed by edge_id.
+    #: The sync reads it; consumers never do — an unpersisted registration is invisible.
+    _import_registrations: Dict[str, ImportRegistration] = {}
+
+    def __init__(self, store_path: "str | Path" = "data/governor/edges.yml") -> None:
         self.path = Path(store_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._specs: Dict[str, EdgeSpec] = {}
         self._load()
 
     # ---------------- file i/o ---------------- #
     def _load(self) -> None:
-        if not self.path.exists():
-            self._specs = {}
-            return
-        try:
-            data = yaml.safe_load(self.path.read_text()) or {}
-            specs: Dict[str, EdgeSpec] = {}
-            # First-class fields the registry models. Anything outside
-            # this set is preserved in `extra` and round-tripped verbatim
-            # on save, so audit/documentation tags (e.g. reclassified_to)
-            # added by users survive registry rewrites.
-            known_keys = {
-                "edge_id", "category", "module", "version", "params",
-                "status", "regime_gate", "tier", "tier_last_updated",
-                "combination_role", "failure_reason", "superseded_by",
-            }
-            for row in data.get("edges", []):
-                extra = {k: v for k, v in row.items() if k not in known_keys}
-                spec = EdgeSpec(
-                    edge_id=row["edge_id"],
-                    category=row.get("category", "other"),
-                    module=row["module"],
-                    version=row.get("version", "1.0.0"),
-                    params=row.get("params") or {},
-                    status=row.get("status", "active"),
-                    regime_gate=row.get("regime_gate") or None,
-                    tier=row.get("tier", "feature"),
-                    tier_last_updated=row.get("tier_last_updated"),
-                    combination_role=row.get("combination_role", "input"),
-                    failure_reason=row.get("failure_reason"),
-                    superseded_by=row.get("superseded_by"),
-                    extra=extra or None,
-                )
-                specs[spec.edge_id] = spec
-            self._specs = specs
-        except Exception:
-            self._specs = {}
+        """FAIL CLOSED: an absent file is the only empty registry; anything unreadable raises."""
+        data = read_registry(self.path)
+        specs: Dict[str, EdgeSpec] = {}
+        for row in data["edges"]:
+            spec = row_to_spec(row, path=self.path)
+            specs[spec.edge_id] = spec
+        self._specs = specs
 
-    def _save(self) -> None:
-        rows = []
-        for s in self._specs.values():
-            row: Dict[str, Any] = {
-                "edge_id": s.edge_id,
-                "category": s.category,
-                "module": s.module,
-                "version": s.version,
-                "params": s.params or {},
-                "status": s.status,
-            }
-            if s.regime_gate:
-                row["regime_gate"] = s.regime_gate
-            # Phase 1 tier fields — only emit when set so legacy registries
-            # without these keys round-trip cleanly. Default tier is "feature"
-            # but we still emit it so the user can see what the system thinks.
-            if s.tier:
-                row["tier"] = s.tier
-            if s.tier_last_updated:
-                row["tier_last_updated"] = s.tier_last_updated
-            if s.combination_role and s.combination_role != "input":
-                # Only emit when non-default to keep the YAML clean.
-                row["combination_role"] = s.combination_role
-            # Edge-graveyard tags: only emit when non-None so legacy
-            # entries without these fields don't gain spurious nulls.
-            if s.failure_reason is not None:
-                row["failure_reason"] = s.failure_reason
-            if s.superseded_by is not None:
-                row["superseded_by"] = s.superseded_by
-            # Round-trip any non-modeled fields verbatim (e.g. audit tags).
-            if s.extra:
-                for k, v in s.extra.items():
-                    row[k] = v
-            rows.append(row)
-        data = {"edges": rows}
-        self.path.write_text(yaml.safe_dump(data, sort_keys=False))
+    def save(self) -> None:
+        """The EXPLICIT save — atomic, through the one writer. Raises `RegistryWriteError`."""
+        write_registry_atomic(self.path, {"edges": [spec_to_row(s) for s in self._specs.values()]})
+
+    # The private name is what the tier classifier, journal_apply and older tests call.
+    _save = save
 
     # --------------- public api ---------------- #
     def register(self, spec: EdgeSpec) -> None:
+        """Explicit registration: upsert the spec and SAVE. Not for import time (use `ensure`)."""
         self._specs[spec.edge_id] = spec
-        self._save()
+        self.save()
 
     def set_status(self, edge_id: str, status: str) -> None:
         if edge_id in self._specs:
             self._specs[edge_id].status = status
-            self._save()
+            self.save()
 
     def set_failure_metadata(
         self,
@@ -220,7 +331,7 @@ class EdgeRegistry:
                         f"edge cannot supersede itself: {edge_id!r}"
                     )
                 spec.superseded_by = superseded_by
-        self._save()
+        self.save()
 
     def list(self, status: Optional[str] = None,
              statuses: Optional[List[str]] = None) -> List[EdgeSpec]:
@@ -264,47 +375,38 @@ class EdgeRegistry:
         """Returns all registered edge specs regardless of status."""
         return list(self._specs.values())
 
-    # Convenience to ensure a spec exists (idempotent upsert)
+    # ------------------- import-time registration (PURE) ------------------- #
     def ensure(self, spec: EdgeSpec) -> None:
-        """Idempotent upsert.
+        """Record an import-time registration. NEVER writes, never mutates the loaded specs.
 
-        For NEW specs (edge_id not yet in registry): register with the
-        provided status (typically `active` from auto-register-on-import code).
+        Records, process-wide, what the module registered and how it stands against the registry
+        this instance read: `persisted` (the id exists) and the code-owned drift the sync would
+        apply. Status, tier, tier_last_updated and combination_role are registry-owned and are not
+        part of the drift (the 2026-04-25 status-stomp and the tier-stomp guard, kept by
+        construction: the sync's merge never reads them from the spec for an existing row).
 
-        For EXISTING specs: merge non-status fields (category, module, version,
-        params) if changed. **Do NOT touch the status field.** Status is
-        owned by Engine F's lifecycle layer per the edges.yml Write Contract
-        in PROJECT_CONTEXT.md ("F writes: status field changes").
-
-        Same write-protection applies to the Phase 1 `tier`,
-        `tier_last_updated`, and `combination_role` fields: those are owned
-        by `engines.engine_a_alpha.tier_classifier.TierClassifier` and must
-        not be stomped by import-time `ensure()` calls. Without this guard,
-        every backtest startup would reset tier="feature" on edges the
-        classifier had promoted to "alpha", silently undoing the
-        classification — the same bug class as the 2026-04-25 status-stomp.
-
-        Prior bug (fixed 2026-04-25): the previous implementation did
-        `if spec.status: s.status = spec.status`, which let the auto-register-
-        on-import code (e.g. momentum_edge.py:64) silently stomp the
-        lifecycle's pause/retire decisions on every backtest startup. That
-        broke autonomy invisibly — edges paused by Phase α would revert to
-        active on the next module import, with the only "evidence" being
-        that lifecycle_history.csv accumulated repeated pause events for the
-        same edge across runs. Now status is write-protected here; only
-        Engine F (via direct `set_status`) can transition it.
+        Before 2026-10-22 this registered-and-SAVED at import — ~30 non-atomic rewrites per
+        process, and on an unreadable registry a one-edge file (R's F1).
         """
-        if spec.edge_id not in self._specs:
-            self.register(spec)
-        else:
-            # Merge non-status, non-tier fields. Status is OWNED by lifecycle/
-            # governance; tier fields are OWNED by TierClassifier.
-            s = self._specs[spec.edge_id]
-            s.category = spec.category or s.category
-            s.module = spec.module or s.module
-            s.version = spec.version or s.version
-            s.params = spec.params or s.params
-            # status: intentionally NOT updated — see docstring above
-            # tier / tier_last_updated / combination_role: intentionally NOT
-            # updated either — owned by TierClassifier
-            self._save()
+        existing = self._specs.get(spec.edge_id)
+        row = canonical_row(spec_to_row(existing)) if existing is not None else None
+        _, report = merge_code_owned(row, spec)
+        EdgeRegistry._import_registrations[spec.edge_id] = ImportRegistration(
+            spec=spec, persisted=existing is not None, report=report, registry_path=str(self.path))
+
+    @classmethod
+    def import_registrations(cls) -> Dict[str, ImportRegistration]:
+        """Every registration `ensure()` recorded in this process, by edge_id (a copy)."""
+        return dict(cls._import_registrations)
+
+    @classmethod
+    def clear_import_registrations(cls) -> None:
+        """Forget the recorded registrations (tests that re-import modules under a planted registry)."""
+        cls._import_registrations.clear()
+
+
+__all__ = [
+    "ABSENT", "CODE_OWNED_FIELDS", "EdgeRegistry", "EdgeSpec", "ImportRegistration", "MergeReport",
+    "RegistryUnreadableError", "RegistryWriteError", "VALID_FAILURE_REASONS", "merge_code_owned",
+    "row_to_spec", "spec_to_row",
+]

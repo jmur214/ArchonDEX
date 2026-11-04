@@ -39,6 +39,7 @@ from scripts.janitor_guard import vet_branch                      # noqa: E402
 from scripts.doc_lint import ANCHOR_CHECK_NAME                  # noqa: E402
 from scripts.launchd_canon import audit_live                      # noqa: E402
 from scripts import ledger_backup                                 # noqa: E402
+from core import substrate_stamp                                 # noqa: E402
 
 # Runtime artifacts live in the gitignored data/ tree, beside the ledger. A TRACKED
 # report would make the runner worktree dirty on every run, so the nightly
@@ -327,6 +328,105 @@ def check_observability_backup() -> Check:
     return Check("observability_backup", v.ok, v.detail)
 
 
+#: The manifest THIS runner's tree commits — the nightly certifies origin/main by design
+#: (check_relay_gap), so after a LOCAL re-pin it verifies the OLD manifest and stamps the
+#: OLD digest; the new digest's entry is untouched (§3 of the stamp proposal).
+MANIFEST = ROOT / "config/substrate_manifest.sha256"
+#: sha256 of the manifest committed 2026-06-18 (ad03a97) — the pin re-pin #1 replaces. A
+#: FAIL for THIS digest is the KNOWN B-7 blocker (health_check's MEDIUM manifest row), and
+#: the row says so; a FAIL for any later digest is new drift and is named as such.
+PRE_REPIN1_MANIFEST_SHA256 = "4b34ea8206e7e4191b13d4053b6f44e34c56a3fb1fd7a5c24d4413a684395b53"
+#: ~14,250 files hash in seconds on a warm cache and a few minutes cold; a hung verify
+#: must become an ERROR stamp, never a hung janitor.
+SUBSTRATE_VERIFY_TIMEOUT = 1800
+
+
+def _stamp_error(digest: str, error: str) -> str:
+    """When the verify died WITHOUT stamping, the stamp must still say so: a last PASS left
+    standing after a crashed nightly is the dead-clock class the stamp exists to close.
+    Returns a one-line receipt for the row (a failure to stamp is reported, never raised)."""
+    try:
+        rec = substrate_stamp.make_record(
+            "ERROR", "janitor_nightly", tree_head=substrate_stamp.git_head(ROOT),
+            s3_prefix_md5=substrate_stamp.manifest_s3_prefix_md5(MANIFEST),
+            counts=None, first_paths=[], error=error)
+        substrate_stamp.write_stamp(digest, rec, root=CANON)
+        return "stamp ERROR written by the janitor"
+    except Exception as exc:
+        return f"and the janitor could not write an ERROR stamp either ({type(exc).__name__}: {exc})"
+
+
+def check_substrate_verify() -> Check:
+    """The FULL data-hashing verify of the canonical substrate against the manifest committed
+    in this tree, STAMPED by digest for the campaign submit gate (the stamp proposal §2;
+    `core/substrate_stamp.py`). The verify runs in a subprocess through the generator's own
+    CLI so a crash or a hang is contained and becomes an ERROR stamp; the row is rendered
+    from the stamp READ BACK — the artifact, not the subprocess's stdout
+    (`[NN-FIRST-ARTIFACT]`). GREEN only on PASS. On FAIL: the true counts, the first paths,
+    and the fix (re-pin, committed in the same PR); for the June-18 manifest that is the
+    known B-7 blocker, re-pin #1, and the row says so. On ERROR: the error. Never
+    mechanical — a re-pin is a deliberate act, not a janitor fix. Every FAIL or ERROR means
+    every campaign submit refuses until a writer stamps PASS, and that is the honest state."""
+    name = "substrate_verify"
+    fix = "fix: re-pin — `scripts/gen_substrate_manifest.py generate`, committed in the same PR"
+    if not MANIFEST.is_file():
+        return Check(name, False, f"ERROR — no manifest at {MANIFEST}; nothing to verify or stamp; "
+                                  f"every campaign submit refuses (no pin); {fix}")
+    try:
+        digest = substrate_stamp.manifest_digest(MANIFEST)
+    except OSError as exc:
+        return Check(name, False, f"ERROR — manifest unreadable ({exc}); nothing to stamp; "
+                                  f"every campaign submit refuses")
+    # THIS RUN'S verdict is the record that CHANGED across the verify — never a time window:
+    # a PASS stamped seconds before a SIGKILLed verify would read as tonight's under one
+    # (the reviewer's correction, 2026-10-22). An unreadable pre-state counts as no record;
+    # the writer sets such a file aside and writes fresh, so a record after is this run's.
+    try:
+        before = substrate_stamp.read_stamp(digest, root=CANON)
+    except substrate_stamp.StampUnreadable:
+        before = None
+    cmd = [PY, "scripts/gen_substrate_manifest.py", "verify", "--root", str(CANON),
+           "--manifest", str(MANIFEST), "--stamp-writer", "janitor_nightly",
+           "--stamp-root", str(CANON)]
+    try:
+        r = _run(cmd, timeout=SUBSTRATE_VERIFY_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        receipt = _stamp_error(digest, f"verify timed out after {SUBSTRATE_VERIFY_TIMEOUT}s")
+        return Check(name, False, f"ERROR — the verify timed out after {SUBSTRATE_VERIFY_TIMEOUT}s "
+                                  f"({receipt}); every campaign submit refuses until a nightly or "
+                                  f"re-pin stamps PASS")
+    try:
+        rec = substrate_stamp.read_stamp(digest, root=CANON)
+    except substrate_stamp.StampUnreadable as exc:
+        return Check(name, False, f"ERROR — the stamp is UNREADABLE after the verify ({exc}); "
+                                  f"investigate a writer bug or a torn write; every campaign "
+                                  f"submit refuses")
+    if rec is None or rec == before:
+        tail = ((r.stderr or r.stdout or "").strip().splitlines() or ["no output"])[-1]
+        receipt = _stamp_error(digest, f"verify exited {r.returncode} without stamping: {tail}")
+        return Check(name, False, f"ERROR — the verify exited {r.returncode} without writing a "
+                                  f"stamp ({tail}); {receipt}; every campaign submit refuses "
+                                  f"until a nightly or re-pin stamps PASS")
+    head = (rec["tree_head"] or "no-tree")[:8]
+    if rec["result"] == "PASS":
+        return Check(name, True, f"PASS — substrate matches the committed manifest {digest[:12]} "
+                                 f"({rec['counts']['pinned']} files) at {head}; stamped "
+                                 f"{rec['verified_at']} by {rec['writer']}")
+    if rec["result"] == "ERROR":
+        return Check(name, False, f"ERROR — the verify could not run ({rec['error']}); stamp "
+                                  f"ERROR for {digest[:12]} at {head}; every campaign submit "
+                                  f"refuses until a nightly or re-pin stamps PASS")
+    c = rec["counts"]
+    blocker = (" — the KNOWN B-7 blocker: re-pin #1 (the honest-N re-bake) has not landed"
+               if digest == PRE_REPIN1_MANIFEST_SHA256 else "")
+    return Check(name, False,
+                 f"FAIL — substrate DRIFTED from the committed manifest {digest[:12]} at {head}: "
+                 f"pinned {c['pinned']} · host {c['host']} · MISSING {c['missing']} · EXTRA "
+                 f"{c['extra']} · CHANGED {c['changed']}; first: "
+                 f"{', '.join(rec['first_paths'][:5]) or 'none'}; stamp FAIL → every campaign "
+                 f"submit refuses{blocker}; {fix}")
+
+
 def survival_syncs(as_of: str) -> List[tuple]:
     """The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
     job may extend history, never overwrite it."""
@@ -345,7 +445,7 @@ def survival_syncs(as_of: str) -> List[tuple]:
 def run_checks() -> List[Check]:
     return [check_runner_canon(), check_relay_gap(), check_worktree_canon(), check_launchd_canon(),
             check_ledger_backup(), check_observability_backup(), check_doc_lint(),
-            check_index_drift(), check_census(), check_suite()]
+            check_index_drift(), check_substrate_verify(), check_census(), check_suite()]
 
 
 # ── the record ─────────────────────────────────────────────────────────────────

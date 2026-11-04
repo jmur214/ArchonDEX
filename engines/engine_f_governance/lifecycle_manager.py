@@ -49,7 +49,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import yaml
+from core.edge_registry_io import read_registry, write_registry_atomic  # the ONE reader / writer
 
 from core.metrics_engine import MetricsEngine
 from engines.engine_f_governance.factor_alpha_gate import (
@@ -1096,22 +1096,20 @@ class LifecycleManager:
         )
 
     def _load_registry(self) -> List[Dict]:
-        if not self.registry_path.exists():
-            return []
-        try:
-            data = yaml.safe_load(self.registry_path.read_text()) or {}
-            return list(data.get("edges", []))
-        except Exception as e:
-            log.warning(f"[Lifecycle] Could not load registry: {e}")
-            return []
+        """FAIL CLOSED through the ONE reader (core/edge_registry_io.py): an unreadable registry
+        RAISES `RegistryUnreadableError` (it used to log and return [] — a lifecycle pass that
+        silently found no edges). An absent file is the only empty registry. Any other top-level
+        key the file holds is kept for the save."""
+        data = read_registry(self.registry_path)
+        self._registry_extra = {k: v for k, v in data.items() if k != "edges"}
+        return list(data["edges"])
 
     def _save_registry(self, edges: List[Dict]) -> None:
-        try:
-            self.registry_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.registry_path.open("w") as f:
-                yaml.dump({"edges": edges}, f, sort_keys=False)
-        except Exception as e:
-            log.warning(f"[Lifecycle] Could not save registry: {e}")
+        """Through the ONE atomic writer: serialise first (every row canonical), temp file, fsync,
+        mode kept, `os.replace`. A failure RAISES `RegistryWriteError` with the registry's bytes
+        untouched — it used to `open("w")` (truncating the file) inside an `except: log`, so a dump
+        error or a crash mid-write left the sole edge authority empty and nobody was told."""
+        write_registry_atomic(self.registry_path, {**getattr(self, "_registry_extra", {}), "edges": edges})
 
     def _append_history(self, events: List[LifecycleEvent]) -> None:
         try:

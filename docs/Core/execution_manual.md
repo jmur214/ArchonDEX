@@ -231,6 +231,21 @@ rm -rf data/research/*
 
 ### EVOLUTION & OPTIMIZATION (DARWIN)
 ```bash
+# EDGE REGISTRY SYNC — the ONE explicit step that persists what the edge modules register
+# (the edges.yml single-writer unit, 2026-10-22). Importing an edge module NEVER writes
+# data/governor/edges.yml any more; this does, through the one atomic writer, key-wise
+# (code-owned fields and params keys take the code value; every other key, status and tier
+# are preserved). STEP ONE on a fresh checkout: every consumer REFUSES an absent or empty
+# registry until this has run once (ModeController: EdgeLoadRefusal naming this command).
+python scripts/sync_edge_registry.py                 # sync; prints the four classes: never registered,
+                                                     # drift applied, type changes, registry-only keys preserved
+python scripts/sync_edge_registry.py --check         # write nothing; exit 1 if a sync WOULD change the file
+                                                     # (the image build runs this; exit 2 = unreadable registry)
+python scripts/sync_edge_registry.py --registry PATH # another registry (an isolated run's); --json for the report
+# Reversion proof for the unit's locks (revert ONE fix, run ONLY its locks, require FAIL; ~10 min):
+python scripts/registry_single_writer_reversion_proof.py
+python scripts/registry_single_writer_reversion_proof.py R5 R12   # only the cases whose name starts with a token
+
 # FULL DISCOVERY CYCLE (Recommended — post-backtest)
 # Runs: regime detection → feature hunt (LightGBM+DTree) → GA evolution →
 #       4-gate validation (backtest → PBO → WFO → significance) → auto-promote
@@ -752,6 +767,27 @@ python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE 
 python -m scripts.run_isolated --save-anchor               # writes + chmods anchors 0o444
 python3 scripts/gen_substrate_manifest.py generate         # re-pin
 # commit the manifest in the SAME PR with the reason for the seed change
+
+# THE VERIFY STAMP (2026-10-22; `core/substrate_stamp.py` — B's half of the campaign
+# submit gate, docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md §7).
+# `generate` ALWAYS stamps: after writing the manifest it re-hashes the data a SECOND
+# time against the file just written and records PASS (writer `repin`) for the new
+# manifest's sha256 in the MAIN tree's data/state/substrate_verify_stamp.json; exit 1
+# + a FAIL stamp if the data moved between the two passes; exit 3 + an ERROR stamp —
+# never PASS — if the verify could not run. A bare `verify` NEVER writes the stamp.
+# Exactly two writers exist: the re-pin step above, and the nightly janitor's
+python3 scripts/gen_substrate_manifest.py verify --stamp-writer janitor_nightly   # the nightly's invocation ONLY
+# Scratch runs: point BOTH the data root and the stamp elsewhere, so the real stamp is
+# never touched (the manifest path may be absolute — the janitor verifies the runner
+# tree's committed manifest against the MAIN tree's data this way):
+python3 scripts/gen_substrate_manifest.py generate --root /tmp/x --stamp-root /tmp/x
+python3 scripts/gen_substrate_manifest.py verify --root /path/to/data-root --manifest /abs/manifest.sha256 --stamp-root /tmp/x
+# Exit codes: 0 PASS · 1 FAIL (drift; true counts + first paths on stderr) · 2 no manifest · 3 ERROR.
+# Reading: `core.substrate_stamp.read_stamp(manifest_digest(path))` — None is ABSENT
+# (fix: run the nightly or re-pin); `StampUnreadable` is a torn write or a writer bug
+# (fix: investigate; the writer sets an unreadable file aside, never deletes it).
+# `FRESHNESS` = 48 h: a stamp older than that — a LOCAL re-pin never pushed, or two
+# dead nightlies — is refused at the gate (ruled a FEATURE; the refusal names relay_gap).
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
@@ -1161,6 +1197,15 @@ Artifacts it writes each run:
   diff summary, outcome) so the autonomy stream can be SCORED and a bad class demoted.
 - `data/coordination/janitor_merge_requests.md` — appended only when a vetted branch
   is offered. The director pass decides; the janitor does not merge.
+- `data/state/substrate_verify_stamp.json` (the MAIN tree's, resolved through the
+  common dir like the ledger) — the `substrate_verify` check's stamp (2026-10-22): the
+  FULL hash of the canonical substrate against the manifest committed in the runner's
+  tree, keyed by that manifest's sha256 (`core/substrate_stamp.py`). GREEN only on an
+  exact match; RED on FAIL with the true counts, the first paths and the fix (re-pin,
+  committed in the same PR); RED on ERROR when the verify could not run (the stamp then
+  says ERROR, never a stale PASS). RED until re-pin #1 lands — the known B-7 blocker,
+  and the row says so — and every cloud campaign submit refuses meanwhile. That is the
+  honest state, not a defect.
 
 **The guard is the safety mechanism, not the prompt.** `scripts/janitor_guard.py`
 vets the diff against the constitution's exclusions after the session and before
