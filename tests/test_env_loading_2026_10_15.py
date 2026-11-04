@@ -29,7 +29,11 @@ LOADER_MODULES = [
     "intelligence.news_collector",
     "orchestration.mode_controller",      # the import pytest collection actually makes
 ]
-LIBRARY_ROOTS = ["engines", "intelligence", "paper_trader", "core"]
+# cockpit added 2026-11-04: cockpit/dashboard_v2/app.py loaded the repo-root .env at import for
+# two weeks (first a bare load_dotenv(), then load_local_env()) and neither root nor name below
+# covered it. `load_local_env` at module level is the same breach by the sanctioned helper.
+LIBRARY_ROOTS = ["engines", "intelligence", "paper_trader", "core", "cockpit"]
+MODULE_LEVEL_LOADERS = ("load_dotenv", "dotenv_values", "load_local_env")
 
 _CHILD = """
 import json, os, sys
@@ -74,8 +78,9 @@ def test_importing_the_loader_modules_makes_no_dotenv_call_and_changes_no_variab
 # ── lock 2: no module-level dotenv call in library code (AST) ─────────────────
 
 def _module_level_dotenv_calls(path: Path) -> list:
-    """Calls to load_dotenv/dotenv_values that execute at IMPORT: top-level statements and
-    top-level if/try blocks — never inside a def or class body."""
+    """Calls to load_dotenv/dotenv_values/load_local_env that execute at IMPORT: top-level
+    statements and top-level if/try blocks — never inside a def, a class body's defs, or a
+    `__main__` guard."""
     tree = ast.parse(path.read_text(), filename=str(path))
     hits = []
 
@@ -96,7 +101,7 @@ def _module_level_dotenv_calls(path: Path) -> list:
         def visit_Call(self, node):
             fn = node.func
             name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
-            if name in ("load_dotenv", "dotenv_values"):
+            if name in MODULE_LEVEL_LOADERS:
                 hits.append(node.lineno)
             self.generic_visit(node)
 
@@ -121,14 +126,17 @@ def test_no_library_module_loads_dotenv_at_import():
 
 
 def test_the_ast_scan_sees_a_module_level_load(tmp_path):
-    """The scanner itself: a top-level load is caught; one inside a function or __main__ is not."""
+    """The scanner itself: a top-level load is caught; one inside a function or __main__ is not.
+    `load_local_env` counts the same as the dotenv calls (the dashboard's shape, 2026-11-04)."""
     f = tmp_path / "m.py"
     f.write_text("from dotenv import load_dotenv\nload_dotenv()\n"            # 2: import-time
                  "def g():\n    load_dotenv()\n"                               # 4: in a def
                  "if __name__ == '__main__':\n    load_dotenv()\n"             # 6: __main__
                  "if True:\n    def h():\n        pass\n    load_dotenv()\n"  # 10: after a nested def
-                 "class C:\n    X = load_dotenv()\n")                          # 12: class body runs
-    assert _module_level_dotenv_calls(f) == [2, 10, 12]
+                 "class C:\n    X = load_dotenv()\n"                           # 12: class body runs
+                 "from core.env import load_local_env\nload_local_env()\n"    # 14: the helper, at import
+                 "if __name__ == '__main__':\n    load_local_env()\n")         # 16: the helper, at entry
+    assert _module_level_dotenv_calls(f) == [2, 10, 12, 14]
 
 
 # ── lock 4: the helper never overrides, and is idempotent ─────────────────────

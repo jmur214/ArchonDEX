@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
+# PROCESS ENTRY (2026-11-04): `python -m cockpit.dashboard_v2.app` loads the repo's own .env HERE —
+# inside the __main__ guard, so IMPORTING this module (the suite's path through the package and
+# tests/test_feature_foundry.py's tab import) puts NOTHING into os.environ (the 2026-10-15 rule:
+# no import loads the environment; `load_local_env` is called at process entries) — and BEFORE
+# the tab and callback imports below, because dashboard_callbacks and mode_callbacks read the
+# Alpaca keys at MODULE level and dashboard_callbacks starts the stream on them. The package's
+# __init__ imports this module lazily for the same reason (see its docstring). The 2026-10-22
+# unit's module-level `load_local_env()` stopped the UPWARD search but still loaded a REPO-ROOT
+# .env on import; cockpit_dashboard_v2.py, the other entry, loads in its own guard. Both entries
+# and the import are locked by tests/test_dashboard_entry_env_2026_11_04.py.
+if __name__ == "__main__":
+    from core.env import load_local_env
+    load_local_env()
+
 import dash
 from dash import dcc, html
-from core.env import load_local_env
-
-# The repo's OWN .env by explicit path (2026-10-22). The bare `load_dotenv()` this replaced
-# searched UPWARD from this file and, from an agent worktree under .claude/worktrees/, loaded the
-# MAIN tree's .env into a test session (the keys appeared during
-# tests/test_feature_foundry.py::test_feature_foundry_layout_renders, whose import chain reaches
-# this module). Still at import because the dashboard's callbacks read keys at module level; a
-# worktree has no .env, so there it is a no-op. The entry-time move is owed with those reads.
-load_local_env()
-
-# Load Alpaca keys
-ALPACA_API_KEY = os.environ.get("APCA_API_KEY_ID", "")
-ALPACA_API_SECRET = os.environ.get("APCA_API_SECRET_KEY", "")
 
 # --- Tabs (layouts) ---
 from .tabs.dashboard_tab import dashboard_layout

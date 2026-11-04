@@ -130,3 +130,225 @@ def test_a_test_that_writes_edges_yml_fails_the_session(layout):
     assert r.returncode != 0, out[-2000:]
     assert "tests/test_plant.py::test_plant_writes_under_data" in out
     assert "data/governor/edges.yml" in out
+
+
+# ── 2026-11-04: MODIFIED, REMOVED and create-then-unlink (review of the 2026-10-22 unit) ──────
+# The first guard caught only CREATED paths. Review proved by planted probes that an in-place
+# replacement (os.replace; DataFrame.to_parquet over an existing path — the incident's own
+# shape), a deletion and a create-then-unlink inside one test all passed unreported. Each case
+# below SEEDS the layout with baseline files before pytest starts, so they are in the guard's
+# baseline walk, and plants one writer per shape. Attribution is asserted per nodeid from the
+# summary table: the rename and the deletion are caught by the per-test directory poll; the
+# in-place rewrites move no directory mtime and are attributed at session end by the file's
+# ctime against the test's recorded window; the create-then-unlink leaves a directory whose
+# mtime moved with an unchanged listing (TRANSIENT).
+# Review findings applied at the merge onto main (2026-11-04): a same-size rewrite that RESTORES
+# its mtime (os.utime after the write) differs from the baseline only in ctime, so the guard
+# compares the full (size, mtime_ns, ctime_ns) triple — the reversion arm proves the planted
+# writer leaves size and mtime equal and moves ctime alone, so only the triple can catch it; and
+# a SESSION-fixture teardown write is attributed to the LAST test, never unattributed, because
+# pytest tears session fixtures down inside the last item's runtest protocol.
+
+SEEDED = {
+    "data/processed/existing_1d.csv": "a,b\n1,2\n",
+    "data/processed/other_1d.csv": "a,b\n3,4\n",
+    "data/processed/doomed_1d.csv": "a,b\n5,6\n",
+    "data/processed/restored_1d.csv": "a,b\n3,3\n",
+    "data/governor/edges.yml": "edges: [seeded]\n",
+}
+
+WRITERS = '''
+import os
+from pathlib import Path
+import pandas as pd
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+def test_plant_replaces_by_rename():
+    tmp = DATA / "processed" / "existing_1d.csv.tmp"
+    tmp.write_text("a,b\\n9,9\\n")
+    os.replace(tmp, DATA / "processed" / "existing_1d.csv")
+
+def test_plant_rewrites_in_place_same_size():
+    (DATA / "processed" / "other_1d.csv").write_text("a,b\\n7,7\\n")
+
+def test_plant_to_parquet_over_the_pinned_panel():
+    pd.DataFrame({"a": [2]}).to_parquet(DATA / "processed" / "parquet" / "pinned.parquet")
+
+def test_plant_deletes():
+    (DATA / "processed" / "doomed_1d.csv").unlink()
+
+def test_plant_creates_then_unlinks():
+    p = DATA / "processed" / "scratch.tmp"
+    p.write_text("x")
+    p.unlink()
+
+def test_plant_rewrites_same_size_and_restores_mtime():
+    p = DATA / "processed" / "restored_1d.csv"
+    st = p.stat()
+    p.write_text("a,b\\n8,8\\n")
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+def test_clean():
+    assert True
+'''
+
+SESSION_TEARDOWN_WRITER = '''
+from pathlib import Path
+import pytest
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+@pytest.fixture(scope="session", autouse=True)
+def _session_scoped():
+    yield
+    (DATA / "processed" / "existing_1d.csv").write_text("a,b\\n0,0\\n")
+
+def test_first():
+    assert True
+
+def test_last():
+    assert True
+'''
+
+EDGES_YML_REWRITER = '''
+from pathlib import Path
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+def test_plant_rewrites_edges_yml():
+    (DATA / "governor" / "edges.yml").write_text("edges: []\\n")
+
+def test_clean():
+    assert True
+'''
+
+
+@pytest.fixture
+def seeded(layout):
+    """The throwaway layout with BASELINE files under data/ (present before pytest starts)."""
+    import pandas as pd
+    for rel, text in SEEDED.items():
+        p = layout / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    pq = layout / "data" / "processed" / "parquet" / "pinned.parquet"
+    pq.parent.mkdir(parents=True)
+    pd.DataFrame({"a": [1]}).to_parquet(pq)
+    return layout
+
+
+def _table(out: str) -> dict:
+    """The FAILED section of the terminal summary as {nodeid: [entry lines]}."""
+    body = out.split("data/ write guard: FAILED", 1)[1]
+    table, node = {}, None
+    for line in body.splitlines()[1:]:
+        if line.startswith("      "):
+            table.setdefault(node, []).append(line.strip())
+        elif line.startswith("  ") and not line.startswith("   "):
+            node = line.strip()
+            table.setdefault(node, [])
+        elif line.startswith(("=", "-")):
+            break
+    return table
+
+
+def test_without_the_guard_every_planted_writer_is_green(seeded):
+    """Reversion arm: no conftest -> all seven pass and the files show the writes landed. The
+    mtime-restoring writer's INPUT CONDITION is proven here: size and mtime_ns equal the seeded
+    file's, ctime_ns moved — the shape only the full triple can catch."""
+    restored = seeded / "data/processed/restored_1d.csv"
+    before = restored.stat()
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded)
+    assert r.returncode == 0 and "7 passed" in r.stdout, (r.stdout + r.stderr)[-2000:]
+    assert (seeded / "data/processed/existing_1d.csv").read_text() == "a,b\n9,9\n"
+    assert (seeded / "data/processed/other_1d.csv").read_text() == "a,b\n7,7\n"
+    assert not (seeded / "data/processed/doomed_1d.csv").exists()
+    after = restored.stat()
+    assert restored.read_text() == "a,b\n8,8\n"
+    assert (after.st_size, after.st_mtime_ns) == (before.st_size, before.st_mtime_ns), \
+        "the planted writer must leave size and mtime exactly as seeded"
+    assert after.st_ctime_ns != before.st_ctime_ns, "only ctime moved"
+
+
+def test_with_the_live_conftest_every_planted_shape_fails_the_session_and_is_named(seeded):
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    assert "7 passed" in r.stdout, "the guard fails the SESSION; the tests themselves still ran"
+    assert "data/ write guard: FAILED" in out, out[-3000:]
+    t = _table(out)
+    P = "tests/test_plant.py::"
+    assert any(e.startswith("MODIFIED") and "data/processed/existing_1d.csv" in e
+               for e in t.get(P + "test_plant_replaces_by_rename", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/restored_1d.csv" in e
+               for e in t.get(P + "test_plant_rewrites_same_size_and_restores_mtime", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/other_1d.csv" in e
+               for e in t.get(P + "test_plant_rewrites_in_place_same_size", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/parquet/pinned.parquet" in e
+               for e in t.get(P + "test_plant_to_parquet_over_the_pinned_panel", [])), t
+    assert any(e.startswith("REMOVED") and "data/processed/doomed_1d.csv" in e
+               for e in t.get(P + "test_plant_deletes", [])), t
+    assert any(e.startswith("TRANSIENT") and "data/processed/" in e
+               for e in t.get(P + "test_plant_creates_then_unlinks", [])), t
+    assert P + "test_clean" not in t, "the clean test is not blamed"
+    assert not any("unattributed" in n for n in t), f"every write is attributed to its test: {t}"
+
+
+def test_a_session_fixture_teardown_write_is_attributed_to_the_last_test(seeded):
+    """pytest tears session fixtures down inside the LAST item's runtest protocol
+    (`pytest_runtest_teardown(item, nextitem=None)` -> `teardown_exact(None)`), so the window the
+    guard records for the last test holds the teardown write: it is MODIFIED by `test_last`,
+    never unattributed, and `test_first` is not blamed."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(SESSION_TEARDOWN_WRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    assert "2 passed" in r.stdout
+    t = _table(out)
+    P = "tests/test_plant.py::"
+    assert any(e.startswith("MODIFIED") and "data/processed/existing_1d.csv" in e
+               for e in t.get(P + "test_last", [])), t
+    assert P + "test_first" not in t, t
+    assert not any("unattributed" in n for n in t), t
+
+
+def test_a_pre_existing_edges_yml_rewritten_in_place_at_collection_fails_and_is_named(seeded):
+    """The main tree's OLD shape: edges.yml EXISTS and an import-time writer rewrites it in
+    place. No allowance covers it any more (the single-writer unit retired the import-time
+    EdgeRegistry writer; imports never write): the rewrite moves no directory mtime, so it is
+    found by the session-end stat diff, attributed by the file's ctime to the collection window,
+    and FAILS the session like any other write."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_importer.py").write_text(IMPORT_TIME_WRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    assert "data/ write guard: FAILED" in out, out[-3000:]
+    assert "tolerated" not in out
+    t = _table(out)
+    assert any(e.startswith("MODIFIED") and "data/governor/edges.yml" in e
+               for e in t.get("<collection/import time>", [])), t
+    assert "tests/test_importer.py::test_clean" not in t, "the clean test is not blamed"
+
+
+def test_a_test_that_rewrites_edges_yml_in_place_fails_the_session(seeded):
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(EDGES_YML_REWRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    t = _table(out)
+    assert any(e.startswith("MODIFIED") and "data/governor/edges.yml" in e
+               for e in t.get("tests/test_plant.py::test_plant_rewrites_edges_yml", [])), t
+    assert "tests/test_plant.py::test_clean" not in t
+
+
+def test_with_the_live_conftest_a_seeded_layout_left_alone_is_green(seeded):
+    """Negative control for the extension: baseline files that nobody touches raise nothing."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded, "-k", "test_clean")
+    assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+    assert "data/ write guard" not in r.stdout + r.stderr
