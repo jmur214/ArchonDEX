@@ -62,7 +62,8 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
                            data_map: Optional[Dict[str, pd.DataFrame]] = None,
                            window: Optional[tuple] = None,
                            membership_intervals: Optional[pd.DataFrame] = None,
-                           universe: Optional[List[str]] = None) -> dict:
+                           universe: Optional[List[str]] = None,
+                           share_basis_counts: Optional[Dict[str, int]] = None) -> dict:
     """The Gate-1 candidate's census block, routed through the SAME `assert_census` the
     measurement path uses. It carries the SAME provenance fields the measurement path's census
     writes — a census provenance field exists only when BOTH producers write it (Agent R found
@@ -77,7 +78,10 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         declaration, from the per-file write records;
       * stale_files (2026-10-15, the stale/holed-files guard): BARS, never file presence, over the
         candidate's own data_map and window. Without them the record is an ERROR, which fails the
-        gate — coverage that was not measured is never a pass."""
+        gate — coverage that was not measured is never a pass;
+      * share_price_basis (L4, 2026-10-22): which price basis sized the with-candidate run's
+        integer shares (the risk engine's counter, carried on the pure result). total_return on
+        the pre-cutover cache is a recorded fact; counts not supplied is an ERROR record."""
     from engines.data_manager.data_manager import data_feed_summary
     block = {
         # A candidate census, declared: the gate does not ask a Gate-1 candidate for the BACKTEST
@@ -126,6 +130,11 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
                                                   universe=universe)
     except Exception as e:   # recorded, never omitted
         block["stale_files"] = {"error": repr(e)}
+    try:
+        from core.share_sizing import share_price_basis_summary
+        block["share_price_basis"] = share_price_basis_summary(share_basis_counts)
+    except Exception as e:   # recorded, never omitted
+        block["share_price_basis"] = {"error": repr(e)}
     return block
 
 
@@ -1503,7 +1512,8 @@ class DiscoveryEngine:
             _census_block = candidate_census_block(
                 cand_id, cand_census, n_trades_with, data_map=data_map,
                 window=(start_date, end_date), membership_intervals=membership_intervals,
-                universe=census_universe)
+                universe=census_universe,
+                share_basis_counts=getattr(with_candidate_result, "share_price_basis_counts", None))
             _cv = assert_census(
                 {"census": _census_block,
                  # A Gate-1 contribution run is not a headline measurement; the

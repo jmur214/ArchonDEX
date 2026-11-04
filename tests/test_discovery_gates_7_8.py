@@ -109,6 +109,9 @@ def _wire_validate_candidate_happy_path(monkeypatch, results_a, results_b):
             daily_returns=daily_returns,
             attributed_pnl_per_edge={},
             fingerprint="fake",
+            # L4 (2026-10-22): a real result carries the risk engine's sizing-basis counter;
+            # without it the candidate census records an UNMEASURED basis and refuses.
+            share_price_basis_counts={"total_return": 3},
         )
 
     call_log = {"calls": []}

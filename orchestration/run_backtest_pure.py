@@ -91,6 +91,11 @@ class PureBacktestResult:
     fingerprint
         Cache key for the configuration that produced this result.
         See `_fingerprint_inputs`.
+    share_price_basis_counts
+        L4 (2026-10-22): the risk engine's per-sizing counter — how many
+        integer-share sizings ran on each price basis ({"total_return": n}
+        on the pre-cutover cache). Carried so the Gate-1 candidate census
+        records the same field the backtest census does.
     """
 
     metrics: Dict[str, float]
@@ -99,6 +104,7 @@ class PureBacktestResult:
     daily_returns: pd.Series
     attributed_pnl_per_edge: Dict[str, pd.Series] = field(default_factory=dict)
     fingerprint: str = ""
+    share_price_basis_counts: Dict[str, int] = field(default_factory=dict)
 
 
 # =============================================================================
@@ -544,6 +550,7 @@ def run_backtest_pure(
         daily_returns=daily_returns,
         attributed_pnl_per_edge=attributed,
         fingerprint=fp,
+        share_price_basis_counts=dict(getattr(risk, "share_price_basis_counts", {}) or {}),
     )
 
 
