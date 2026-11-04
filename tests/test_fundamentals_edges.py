@@ -36,6 +36,7 @@ from engines.engine_a_alpha.edges.accruals_inv_asset_growth_edge import (
     AccrualsInvAssetGrowthEdge,
 )
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
+from tests._canonical_inputs import CANON_SIMFIN_PANEL, REPO, skip_unless_canonical
 
 
 _ALL_EDGE_CLASSES = [
@@ -54,11 +55,18 @@ _ALL_EDGE_CLASSES = [
 
 @pytest.fixture(scope="module")
 def panel() -> pd.DataFrame:
-    """Real SimFin panel. Skips dependent tests if parquet isn't available."""
-    panel = fh.get_panel()
-    if panel is None:
-        pytest.skip("SimFin panel not available")
-    return panel
+    """The pinned SimFin panel, READ-ONLY; a declared skip when this tree lacks it.
+
+    2026-10-22: this fixture reached `get_panel()` -> `load_panel()`, which had a REBUILD behind
+    it: with the panel absent the simfin library refreshed the six pinned raw files (through a
+    worktree's data/raw symlink) and the rebuild rewrote the pinned panel. The read is now the
+    parquet itself; the edges' `get_panel()` is served from the same frame."""
+    skip_unless_canonical(CANON_SIMFIN_PANEL)
+    panel = pd.read_parquet(REPO / CANON_SIMFIN_PANEL)
+    fh.reset_panel_cache()
+    fh._PANEL_CACHE = panel
+    yield panel
+    fh.reset_panel_cache()
 
 
 def _fake_close_df(price: float = 100.0) -> pd.DataFrame:
@@ -96,7 +104,7 @@ def stub_panel():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("edge_cls", _ALL_EDGE_CLASSES)
-def test_edge_registers_cleanly(edge_cls):
+def test_edge_registers_cleanly(edge_cls, tmp_path):
     """Each edge has the required class attrs and registers without raising."""
     assert edge_cls.EDGE_ID
     assert edge_cls.CATEGORY == "fundamental"
@@ -105,8 +113,13 @@ def test_edge_registers_cleanly(edge_cls):
     assert "long_score" in edge_cls.DEFAULT_PARAMS
     assert "min_universe" in edge_cls.DEFAULT_PARAMS
 
-    # Spec must be in the registry under its id
-    reg = EdgeRegistry()
+    # Spec must be in the registry under its id — through the explicit sync on a tmp registry
+    # (since the single-writer unit imports never write; this used to construct `EdgeRegistry()`
+    # on the REAL, CWD-relative file and depended on — and mutated — it).
+    from scripts.sync_edge_registry import sync
+    reg_path = tmp_path / "edges.yml"
+    sync(reg_path, modules=[edge_cls.__module__.rsplit(".", 1)[-1]])
+    reg = EdgeRegistry(store_path=reg_path)
     spec = reg.get(edge_cls.EDGE_ID)
     assert spec is not None, f"{edge_cls.EDGE_ID} not in registry"
     assert spec.category == "fundamental"

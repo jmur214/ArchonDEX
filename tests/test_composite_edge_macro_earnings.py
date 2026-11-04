@@ -29,11 +29,38 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from engines.engine_a_alpha.edges.composite_edge import CompositeEdge
 from engines.engine_d_discovery.discovery import DiscoveryEngine
+from engines.data_manager.data_manager import DataManager as _DataManager
+from tests._canonical_inputs import (
+    CANON_EARNINGS_AAPL, CANON_MACRO_VIX, CANON_SPY, REPO, requires_canonical,
+)
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _stub_data_layer(tmp_path, monkeypatch):
+    """The composite edge builds a DataManager (data/processed) and its macro / earnings genes
+    build MacroDataManager (data/macro) and EarningsDataManager (data/earnings) with their default
+    cache dirs — every constructor mkdirs. Point each at the pinned dir when this tree holds it
+    (nothing is created; exist_ok) and at tmp_path otherwise (2026-10-22)."""
+    import functools
+    from engines.data_manager import earnings_data, macro_data
+    from engines.engine_a_alpha.edges import composite_edge as ce
+
+    def _dir(marker: str, name: str):
+        return (REPO / "data" / name) if (REPO / marker).exists() else (tmp_path / name)
+
+    monkeypatch.setattr(ce, "DataManager",
+                        lambda *a, **k: _DataManager(cache_dir=_dir(CANON_SPY, "processed")))
+    monkeypatch.setattr(macro_data, "MacroDataManager",
+                        functools.partial(macro_data.MacroDataManager,
+                                          cache_dir=_dir(CANON_MACRO_VIX, "macro")))
+    monkeypatch.setattr(earnings_data, "EarningsDataManager",
+                        functools.partial(earnings_data.EarningsDataManager,
+                                          cache_dir=_dir(CANON_EARNINGS_AAPL, "earnings")))
+
 
 @pytest.fixture()
 def edge():
@@ -60,6 +87,7 @@ def price_df():
 # Macro gene tests
 # ---------------------------------------------------------------------------
 
+@requires_canonical(CANON_MACRO_VIX)
 def test_calc_macro_yield_curve_returns_float(edge):
     val = edge._calc_macro_val(
         pd.Timestamp("2022-06-01"),
@@ -68,6 +96,7 @@ def test_calc_macro_yield_curve_returns_float(edge):
     assert isinstance(val, float)
 
 
+@requires_canonical(CANON_MACRO_VIX)
 def test_calc_macro_vix_returns_positive(edge):
     val = edge._calc_macro_val(
         pd.Timestamp("2022-01-15"),
@@ -77,6 +106,7 @@ def test_calc_macro_vix_returns_positive(edge):
     assert val > 0
 
 
+@requires_canonical(CANON_MACRO_VIX)
 def test_calc_macro_unemployment_delta_returns_float(edge):
     val = edge._calc_macro_val(
         pd.Timestamp("2022-01-01"),
@@ -113,6 +143,7 @@ def test_calc_macro_cached_after_first_call(edge):
 # Earnings gene tests
 # ---------------------------------------------------------------------------
 
+@requires_canonical(CANON_EARNINGS_AAPL)
 def test_calc_earnings_aapl_returns_float(edge):
     val = edge._calc_earnings_val(
         "AAPL",

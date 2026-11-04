@@ -22,6 +22,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_PAIRS_MANIFEST, requires_canonical
+
 from engines.engine_a_alpha.edges.pairs_trading_v1 import (
     MANIFEST_PATH,
     PairsTradingEdge,
@@ -301,6 +303,7 @@ def test_beta_alters_z_score():
 # Registration tests
 # ---------------------------------------------------------------------------
 
+@requires_canonical(CANON_PAIRS_MANIFEST)
 def test_all_pairs_register_at_paused_feature(tmp_path):
     """Every pair edge built from the cointegration manifest must
     register at status='paused' tier='feature'. No promotion to active
@@ -331,7 +334,7 @@ def test_all_pairs_register_at_paused_feature(tmp_path):
     reg = EdgeRegistry(store_path=tmp_path / "edges.yml")
     for surv in survivors:
         _Reg, spec = _build_pair_spec(surv)
-        reg.ensure(spec)
+        reg.register(spec)      # the explicit write (ensure() never writes since the single-writer unit)
 
     # Fresh instance re-reads from disk — proves the YAML round-trip too.
     reg2 = EdgeRegistry(store_path=tmp_path / "edges.yml")

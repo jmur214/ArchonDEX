@@ -95,6 +95,8 @@ from typing import Dict, List, Set, Tuple
 
 import pytest
 
+from tests._canonical_inputs import CANON_GOVERNOR
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -353,6 +355,13 @@ CENSUS_GATING_KEYS = {
     # in the panel with NO convention label (drip vs exact_tr per span, never defaulted) and an
     # errored record.
     "substrate_convention",
+    # bootstrap_book (2026-10-22, the edges.yml single-writer unit): the labelled bootstrap mode's
+    # record; the gate fails a BACKTEST census carrying true (a seeded empty book is never canonical
+    # for a performance claim) and an errored record. Written by BOTH producers.
+    "bootstrap_book",
+    # share_price_basis (L4, 2026-10-22): which price basis sized integer shares — recorded, never
+    # gated on its value (total_return is a fact until the cutover lands); an errored record fails.
+    "share_price_basis",
 }
 
 # Source-of-truth producers for the census keys that have one (the rest are computed inline).
@@ -360,7 +369,9 @@ CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_feed": "data_feed_summary",
                         "data_exclusions": "exclusions_applied",
                         "stale_files": "stale_files_record",
-                        "fundamentals_misses": "fundamentals_miss_summary"}
+                        "fundamentals_misses": "fundamentals_miss_summary",
+                        "bootstrap_book": "bootstrap_book_declared",
+                        "share_price_basis": "share_price_basis_summary"}
 
 
 def _build_census_node():
@@ -415,6 +426,7 @@ _CANONICAL_CENSUS = {
     "fundamentals_blind": 0, "regime_unknown_frac": 0.1, "regime_total_bars": 100,
     "config_provenance": {"degraded": False}, "data_feed": {"yfinance_tickers": []},
     "data_exclusions": {}, "census_kind": "backtest", "regime_layer": "on",
+    "bootstrap_book": False,
 }
 
 
@@ -588,6 +600,12 @@ KNOWN_DOWNSTREAM_AUGMENT_KEYS: Set[str] = {
     # scripts/rescore_rr1.py, the RR-1 RE-SCORE driver.
     "bootstrap_distribution",  # backtester/backtest_controller.py:1182
     "census",                  # backtester/backtest_controller.py:1197
+    # post_run_failure (2026-10-22, the edges.yml single-writer unit, R §4.3): written by
+    # mode_controller.run_backtest AFTER the controller's summary when the post-run did not
+    # complete — an Engine-F registry save or the Discovery cycle failed. {stage, error_type,
+    # message}; the run holds the failure across the summary write, then re-raises, and
+    # assert_census marks the run NON-CANONICAL on it (invariant 10). One shape for both paths.
+    "post_run_failure",
 }
 
 
@@ -953,16 +971,26 @@ def test_layer3a_capability_ledger_source_lines_in_range():
     separately by sync_docs.py / human review."""
     refs = _parse_ledger_source_refs()
     out_of_range: List[Tuple[str, int, int, int]] = []
+    unverifiable: List[str] = []
     for path, line_no, ledger_lineno in refs:
         abs_path = REPO / path
         if not abs_path.exists():
             continue  # Layer 3a above handles missing-file failures
+        if path.startswith("data/") and not (REPO / CANON_GOVERNOR).exists():
+            # A data/ reference (the ledger cites data/governor/edges.yml lines) is verifiable
+            # only against the PINNED file; in a tree without the pinned governor dir edges.yml
+            # is the import-time regeneration from the edge modules (2026-10-22).
+            unverifiable.append(f"{path}:{line_no}")
+            continue
         try:
             n_lines = sum(1 for _ in abs_path.open("rb"))
         except Exception:
             continue
         if line_no > n_lines:
             out_of_range.append((path, line_no, n_lines, ledger_lineno))
+    if not out_of_range and unverifiable:
+        pytest.skip(f"declared skip: {len(unverifiable)} ledger refs under data/ are unverifiable "
+                    f"in this tree (pinned governor dir absent): {unverifiable}")
     if not out_of_range:
         return
     lines = [
@@ -1608,7 +1636,12 @@ CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "
                           "stale_files": "stale_files_record",
                           "fundamentals_misses": "fundamentals_miss_summary",
                           # option (a)'s universal drip label (2026-10-22): drip vs exact_tr per span
-                          "substrate_convention": "substrate_convention_record"}
+                          "substrate_convention": "substrate_convention_record",
+                          # bootstrap_book (2026-10-22): the labelled bootstrap mode, from its one reader
+                          "bootstrap_book": "bootstrap_book_declared",
+                          # L4 (2026-10-22): the price basis that sized integer shares — the risk
+                          # engine's counter, through the ONE summary function in core.share_sizing.
+                          "share_price_basis": "share_price_basis_summary"}
 
 
 def _assigned_from(fn_node, key: str, producer: str) -> bool:
@@ -1648,7 +1681,8 @@ def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     idx = pd.bdate_range("2025-01-02", periods=20)
     clean_map = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA", "BBB")}
     block = candidate_census_block("cand_v1", _C(), n_trades=10, data_map=clean_map,
-                                   window=(str(idx[0].date()), str(idx[-1].date())))
+                                   window=(str(idx[0].date()), str(idx[-1].date())),
+                                   share_basis_counts={"total_return": 10})
     assert not (set(CENSUS_PROVENANCE_KEYS) - set(block)), sorted(set(CENSUS_PROVENANCE_KEYS) - set(block))
     errored = {k: block[k] for k in CENSUS_PROVENANCE_KEYS
                if isinstance(block[k], dict) and "error" in block[k]}

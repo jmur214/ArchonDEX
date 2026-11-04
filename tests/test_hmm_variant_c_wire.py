@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._canonical_inputs import CANON_MACRO_HY_OAS, CANON_MACRO_VIX, requires_canonical
+
 from engines.engine_e_regime.regime_config import HMMConfig, RegimeConfig
 
 
@@ -68,6 +70,7 @@ def test_all_minimal_hmm_variants_persist() -> None:
 
 # ----- Feature-panel selection logic ----------------------------- #
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_feature_set_minimal_c_includes_hyg_ig_and_leading_rs() -> None:
     """Sanity: build_feature_panel with the minimal_c kwargs returns a
     panel containing hyg_ig_oas, copper_gold_ratio, xlp_xly_ratio."""
@@ -85,6 +88,7 @@ def test_feature_set_minimal_c_includes_hyg_ig_and_leading_rs() -> None:
     assert "xlp_xly_ratio" in panel.columns
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_feature_set_minimal_b_includes_hyg_ig_only() -> None:
     from engines.engine_e_regime import macro_features as mf
 
@@ -99,7 +103,8 @@ def test_feature_set_minimal_b_includes_hyg_ig_only() -> None:
     assert "copper_gold_ratio" not in panel_b.columns
 
 
-def test_feature_set_legacy_has_no_extra_columns() -> None:
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)   # build_feature_panel constructs
+def test_feature_set_legacy_has_no_extra_columns() -> None:   # MacroDataManager (mkdir)
     from engines.engine_e_regime import macro_features as mf
 
     try:
@@ -132,6 +137,7 @@ def test_regime_detector_with_hmm_disabled_does_not_load_model() -> None:
 
 # ----- Variant C wire-up integration ----------------------------- #
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_regime_detector_with_variant_c_loads_minimal_c_model() -> None:
     """When hmm_enabled=True + feature_set=minimal_c + model_path points
     at hmm_minimal_C_v1.pkl, the detector loads the model + builds the

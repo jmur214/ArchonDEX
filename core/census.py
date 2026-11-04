@@ -24,15 +24,30 @@ the audit's invariants fail:
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
-     level_declarations / stale_files record
+     level_declarations / stale_files / fundamentals_misses / substrate_convention /
+     share_price_basis record
   9. stale_files: any UNDECLARED live name that ends before its required end (the earlier of the
      window end and its exit) or is holed inside its required spans, or a reference calendar that
      is holed or unverified — `coverage_defects`, shared with the measured-run admission
      (BARS, never file presence — the stale/holed-files guard, 2026-10-15)
-  10. substrate_convention: any name in the panel with NO convention label (option (a)'s universal
-      drip label, 2026-10-22 — a label is read from the write record / override / merge record,
-      never defaulted); an errored record fails under 8
                                                  (a census block that crashed measured nothing — R, 2026-10-15)
+  10. summary.post_run_failure present            (the run's POST-RUN did not complete — a registry
+      save (Engine F) or the Discovery cycle failed AFTER the run's own artifacts were written;
+      run_backtest holds the failure, writes it here, then re-raises — the edges.yml single-writer
+      unit, 2026-10-22, R §4.3: one failure shape for both post-run paths)
+  11. census.bootstrap_book true on a BACKTEST census (the book was seeded on purpose — labelled,
+      never canonical for a performance claim; a candidate census carries it as the record of the
+      seeding and is not failed on it, or the labelled bootstrap could never promote)
+  12. share_price_basis (L4, approved 2026-10-22): RECORDED, never gated on its value — which price
+      basis sized integer shares (`total_return` on the pre-cutover cache, `unadjusted` once the
+      substrate carries close_unadj, `mixed` with counts per basis). A total_return basis is a
+      census fact until the cutover lands; only an ERRORED record fails (the basis was not measured).
+      A summary without the record warns (it predates the field).
+  13. substrate_convention: any name in the panel with NO convention label (option (a)'s universal
+      drip label, 2026-10-22 — a label is read from the write record / override / merge record,
+      never defaulted); an errored record fails under 8. Numbered 10 on the cutover branch;
+      renumbered 13 at its merge onto main (2026-11-04), behind the single-writer unit's 10/11 and
+      the sizing unit's 12 — the semantics unchanged.
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
 bootstrap CI nor an explicit skip reason (the CLAUDE.md ci_low rule).
@@ -133,10 +148,19 @@ def assert_census(
     failures: List[str] = []
     warnings: List[str] = []
 
+    # 10 — the post-run did not complete (summary-level, before the census is even looked at: a run
+    # whose registry save or Discovery cycle failed carries its own artifacts AND this record).
+    prf = summary.get("post_run_failure") if isinstance(summary, dict) else None
+    if prf:
+        _stage = prf.get("stage") if isinstance(prf, dict) else None
+        _err = (f"{prf.get('error_type')}: {prf.get('message')}" if isinstance(prf, dict) else repr(prf))
+        failures.append(f"post_run_failure at stage {_stage!r}: {_err} — the run's post-run "
+                        f"(registry save / discovery) did not complete; its artifacts exist, the run is not a measurement")
+
     census = summary.get("census") if isinstance(summary, dict) else None
     if not isinstance(census, dict) or not census:
-        v = CensusVerdict(ok=not require_census, canonical=False,
-                          failures=["census block missing from summary"] if require_census else [],
+        v = CensusVerdict(ok=not require_census and not failures, canonical=False,
+                          failures=(["census block missing from summary"] if require_census else []) + failures,
                           census_present=False)
         return v
     if "census_error" in census:
@@ -149,15 +173,21 @@ def assert_census(
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
     for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files",
-                "fundamentals_misses", "substrate_convention"):
+                "fundamentals_misses", "substrate_convention", "share_price_basis"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
+    # 12 — share_price_basis (L4, 2026-10-22): recorded, never gated on its value (see the docstring).
+    if "share_price_basis" not in census:
+        warnings.append("census has no share_price_basis record (summary predates 2026-10-22) — "
+                        "the price basis that sized integer shares is unrecorded")
     # 9 — the stale/holed-files guard: counts BARS, never file presence (2026-10-15)
     sf = census.get("stale_files")
     if isinstance(sf, dict) and "error" not in sf:
         failures.extend(coverage_defects(sf))
-    # 10 — option (a)'s UNIVERSAL convention label (2026-10-22): every name in the panel carries
+    # 13 — option (a)'s UNIVERSAL convention label (2026-10-22; invariant 10 on the cutover branch,
+    # renumbered at the merge onto main behind 10 post_run_failure / 11 bootstrap_book /
+    # 12 share_price_basis): every name in the panel carries
     # what each span of its file IS (the pre-seam drip vs exact total return). A name with no label
     # — no write record, no override, no merge record, or a merge record the run's own frame proves
     # stale — is a measurement on an unknown convention, never a default; the run is non-canonical.
@@ -196,6 +226,14 @@ def assert_census(
     # Which census. A Gate-1 CANDIDATE census declares itself and is not asked for the backtest
     # run-shape counters; an UNDECLARED census is treated as the strictest kind, a backtest.
     is_backtest = census.get("census_kind", "backtest") != "candidate"
+
+    # 11 — the labelled bootstrap (the single-writer unit): a BACKTEST census carrying it is never
+    # canonical for a performance claim; a candidate census carries it as the record of the seeding.
+    if "bootstrap_book" not in census:
+        warnings.append("census has no bootstrap_book record (summary predates 2026-10-22)")
+    elif census.get("bootstrap_book") is True and is_backtest:
+        failures.append("bootstrap_book: the book was seeded on purpose (discovery_settings.bootstrap_book="
+                        "true) — labelled, never canonical for a performance claim")
 
     # 2 — universe shrink. NO silent zero (ruling 2026-10-15): this used to SKIP when n_resolved read
     # 0, so a run that never set the counter passed unmeasured. Absent = "counter never set"; a

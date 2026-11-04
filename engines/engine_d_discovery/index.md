@@ -41,7 +41,6 @@
 - **Function `cumulative_gate_margin()`**: Compute the spec's Option-B objective: sum of (metric - threshold)/
 
 ### `discovery.py`
-- **Class `RegistryUnreadableError`**: edges.yml exists but cannot be read as an edge registry. Discovery REFUSES — it never
 - **Class `RegimeContextUnavailable`**: RR-6a fixup: the Discovery cycle REFUSES when it cannot establish regime context.
 - **Class `DiscoveryEngine`**: Engine D (Discovery): The Evolutionary Lab.
   - `def __init__()`
@@ -162,6 +161,7 @@
 - **Function `discovery_significance_threshold()`**: RR-2: the ONE configured Gate-4 threshold (config/discovery_settings.json).
 - **Function `discovery_gate2_threshold()`**: RR-2: the ONE configured Gate-2 survival threshold (was 0.7 in the deleted
 - **Function `required_gates()`**: RR-6a: the gates whose verdict must be PASSED for a candidate to pass the gauntlet.
+- **Function `bootstrap_book_declared()`**: The ONE labelled bootstrap mode (the edges.yml single-writer unit, 2026-10-22; R §3.1).
 - **Function `discovery_validation_window()`**: The window `validate_candidate` (and therefore MBL Gate-0 / DSR) runs on.
 
 ### `tree_scanner.py`

@@ -43,10 +43,15 @@
   - `def reset_adv_skip_summary()`: Clear the per-ticker skip counter.
 
 ### `edge_registry.py`
+**Module Docstring:** Engine A's view of `data/governor/edges.yml` — specs in, explicit saves out, IMPORTS PURE.
 - **Class `EdgeSpec`**: No docstring
-- **Class `EdgeRegistry`**: Lightweight file-backed registry for edges.
+- **Class `MergeReport`**: What a sync did (or would do) to ONE edge's row — four distinct classes (the brief's sync
+  - `def changes_file()`
+- **Class `ImportRegistration`**: What one module registered at import, and how it stands against the registry that module
+- **Class `EdgeRegistry`**: File-backed view of the edge registry (`data/governor/edges.yml`).
   - `def __init__()`
-  - `def register()`
+  - `def save()`: The EXPLICIT save — atomic, through the one writer. Raises `RegistryWriteError`.
+  - `def register()`: Explicit registration: upsert the spec and SAVE. Not for import time (use `ensure`).
   - `def set_status()`
   - `def set_failure_metadata()`: Tag a failed edge with structured graveyard metadata.
   - `def list()`: List edges filtered by status. Pass `status="active"` for single
@@ -55,7 +60,12 @@
   - `def list_active_modules()`: Returns module names for edges whose status == 'active'.
   - `def get()`
   - `def get_all_specs()`: Returns all registered edge specs regardless of status.
-  - `def ensure()`: Idempotent upsert.
+  - `def ensure()`: Record an import-time registration. NEVER writes, never mutates the loaded specs.
+  - `def import_registrations()`: Every registration `ensure()` recorded in this process, by edge_id (a copy).
+  - `def clear_import_registrations()`: Forget the recorded registrations (tests that re-import modules under a planted registry).
+- **Function `spec_to_row()`**: The registry row for a spec — Engine A's shape, which `canonical_row` leaves unchanged.
+- **Function `row_to_spec()`**: A spec from a registry row. A row without a `module` cannot be loaded by Engine A (nothing
+- **Function `merge_code_owned()`**: The KEY-WISE merge of a module's registration into its registry row (R §4.1, ruled).
 
 ### `edge_taxonomy.py`
 **Module Docstring:** engines/engine_a_alpha/edge_taxonomy.py

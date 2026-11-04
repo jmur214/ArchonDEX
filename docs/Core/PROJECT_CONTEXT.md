@@ -69,6 +69,10 @@ Both Discovery (D) and Governance (F) write to `data/governor/edges.yml`:
 - **D writes:** New entries (candidate specs, params, metadata, source info)
 - **F writes:** `status` field changes (candidate → active → paused → retired), weight assignments
 - Neither engine deletes the other's fields.
+- **One writer (2026-10-22):** every write goes through `core/edge_registry_io.py` (fail-closed read,
+  atomic write, one canonical row form). Importing an edge module never writes; a module's code-owned
+  fields reach the file only through `python scripts/sync_edge_registry.py` — step one on a fresh
+  checkout, since every consumer refuses an absent or empty registry.
 
 ## Current State
 

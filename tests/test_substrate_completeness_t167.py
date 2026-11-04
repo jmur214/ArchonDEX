@@ -22,6 +22,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_SPY, requires_canonical, skip_unless_canonical
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -86,6 +88,7 @@ def test_normalize_strictly_additive_vs_old_band():
     assert len(new) > len(old), "fix should restore bars the old band truncated"
 
 
+@requires_canonical(CANON_SPY)
 def test_spy_has_full_depth():
     """GAP 3: SPY must reach back to its 1993 inception (covers the 16yr/26yr
     windows), not be truncated to ~6yr."""
@@ -97,6 +100,7 @@ def test_spy_has_full_depth():
     assert len(df) > 8000, f"SPY only {len(df)} rows — truncated?"
 
 
+@requires_canonical(CANON_SPY)
 def test_spy_recent_portion_unchanged_basis():
     """The 2020+ portion must remain on the same (total-return) basis as before
     so the recent canon every prior anchor used is preserved: monotonic Close
@@ -119,6 +123,7 @@ def test_full_universe_no_load_truncation():
     tail at load time (the 90/109 silent truncation is gone)."""
     import json
     from engines.data_manager.data_manager import DataManager
+    skip_unless_canonical(CANON_SPY)   # before the constructor: it mkdirs data/processed
     dm = DataManager()
     cfg = json.loads((ROOT / "config/backtest_settings.json").read_text())
     truncated = []

@@ -52,6 +52,10 @@ DEFAULT_BENCHMARK_TICKER = "SPY"
 # the fallback for tickers it does not carry (it holds the 39 ETFs only).
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
 TR_RECONCILED_DIR = DEFAULT_DATA_DIR / "tr_reconciled"
+# The raw-CSV fallback root, read at CALL time like DEFAULT_DATA_DIR so a test can redirect it
+# (2026-10-22: the fallback test wrote its fixture INTO the repo's data/raw, which in an agent
+# worktree is a symlink into the main tree's pinned data).
+DEFAULT_RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 # 60/40 portfolio composition. TLT (20+ year treasuries) substitutes for
 # the canonical AGG (aggregate bond) since AGG is not in the cache. TLT
@@ -143,7 +147,7 @@ def _load_benchmark_prices(ticker: str, data_dir: Optional[Path] = None) -> pd.D
     path = _resolve_path(ticker, data_dir)
     if not path.exists():
         # Processed file sometimes has only the latest row. Fall back to raw.
-        raw = Path(__file__).resolve().parents[1] / "data" / "raw" / f"{ticker}_1d.csv"
+        raw = DEFAULT_RAW_DIR / f"{ticker}_1d.csv"
         if raw.exists():
             df = pd.read_csv(raw)
             # raw format has lowercase columns + 'timestamp'

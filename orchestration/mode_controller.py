@@ -65,6 +65,15 @@ from cockpit.metrics import PerformanceMetrics
 from engines.engine_e_regime.regime_detector import RegimeDetector
 # --- EdgeRegistry for dynamic edge loading ---
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
+
+
+class EdgeLoadRefusal(RuntimeError):
+    """The run REFUSES to load its edges (the edges.yml single-writer unit, 2026-10-22, ruling (c)):
+    default mode found no tradeable edge, isolation mode was asked for an id the registry lacks, or
+    no requested edge could be imported. Before this an empty or absent registry let
+    `AlphaEngine.__init__` fall back to its default edges (rsi_bounce + xsec_momentum) and a
+    missing isolation id printed `not found` and ran with fewer edges — both measured the wrong
+    thing silently (scripts/run_per_edge_isolation.py's docstring records the 2026-05-10 case)."""
 # --- StrategyGovernor ---
 from engines.engine_f_governance.governor import StrategyGovernor
 # T-2026-06-15-169 (PR-4): `from brokers.alpaca_broker import AlpacaBroker`
@@ -601,18 +610,28 @@ class ModeController:
         Load edges using EdgeRegistry (new approach).
         Supports isolation mode (exact_edge_ids) and override_params injection.
         """
-        registry = EdgeRegistry()
+        registry = EdgeRegistry()          # fail-closed: an unreadable registry raises RegistryUnreadableError
         loaded_edges: Dict[str, object] = {}
         specs_to_load: Dict[str, object] = {}
+        _sync_hint = ("run `python scripts/sync_edge_registry.py` to persist the edge modules' "
+                      "registrations (a fresh checkout refuses until the sync has run once)")
 
         if exact_edge_ids and len(exact_edge_ids) > 0:
             print(f"[RUN_BACKTEST] Isolation Mode: Loading exact edges {exact_edge_ids}")
+            missing: List[str] = []
             for eid in exact_edge_ids:
                 spec = registry.get(eid)
                 if spec:
                     specs_to_load[eid] = spec
                 else:
-                    print(f"[RUN_BACKTEST] Edge ID {eid} not found in registry.")
+                    missing.append(eid)
+            if missing:
+                # R §3.2 (ruled): every requested id resolves or the run refuses. It used to print
+                # `not found` and continue with fewer edges — a silent degradation of its own.
+                raise EdgeLoadRefusal(
+                    f"isolation mode: {missing} not in the registry at {registry.path} "
+                    f"({len(registry.get_all_specs())} edges) — every requested id must resolve; "
+                    f"a run with fewer edges than asked measures the wrong thing. Check the id, or {_sync_hint}.")
         else:
             # Default Mode: Load tradeable (active + paused).
             # Phase α v2 soft-pause: paused edges trade at reduced weight
@@ -642,9 +661,21 @@ class ModeController:
                         print(f"[RUN_BACKTEST] Injecting candidate/override edge {spec.edge_id} for testing.")
                         specs_to_load[spec.edge_id] = spec
 
+            if not specs_to_load:
+                # Ruled 2026-10-14 (brief (c)): an empty registry is REFUSED in default mode. Before
+                # this, an empty or absent registry produced an empty spec map and AlphaEngine fell
+                # back to its default edges silently — "measured the wrong edge".
+                _statuses = sorted({s.status for s in registry.get_all_specs()})
+                raise EdgeLoadRefusal(
+                    f"default mode: the registry at {registry.path} holds no tradeable (active/paused) "
+                    f"edge ({len(registry.get_all_specs())} edge(s), statuses {_statuses}) — refusing to "
+                    f"run; AlphaEngine's default edges are NOT a fallback. A fresh checkout: {_sync_hint}; "
+                    f"otherwise the lifecycle has paused or retired every edge and that is the measurement.")
+
         print(f"[RUN_BACKTEST] Loading {len(specs_to_load)} edges: {list(specs_to_load.keys())}")
 
         # Import and register
+        load_errors: Dict[str, str] = {}
         for edge_id, spec in specs_to_load.items():
             mod_name = spec.module
             params = spec.params.copy() if spec.params else {}
@@ -695,8 +726,13 @@ class ModeController:
                 print(f"[ALPHA] Loaded edge '{edge_id}' with params: {params}")
 
             except Exception as e:
+                load_errors[edge_id] = f"{type(e).__name__}: {e}"
                 print(f"[ALPHA][ERROR] Could not import edge module '{mod_name}': {e}")
 
+        if not loaded_edges:
+            raise EdgeLoadRefusal(
+                f"none of the {len(specs_to_load)} edge(s) to load could be imported: {load_errors} — "
+                f"refusing to run with no edges (the default-edge fallback is not a measurement).")
         return loaded_edges
 
     def _ensure_data_map(self, fetch_start: Optional[str] = None) -> Dict[str, pd.DataFrame]:
@@ -1064,6 +1100,32 @@ class ModeController:
                 print(f"[RUN_BACKTEST] Per-ticker scores: "
                       f"{per_ticker_logger.n_rows():,} rows → {out_path}")
 
+        return self._post_run(
+            mode=mode, start=start, end=end, tickers=tickers, loaded_edges=loaded_edges,
+            governor=governor, no_governor=no_governor, apply_journal_at_end=apply_journal_at_end,
+            cockpit=cockpit, discover=discover, data_map=data_map, regime_detector=regime_detector,
+        )
+
+    def _post_run(self, *, mode: str, start: str, end: str, tickers: List[str],
+                  loaded_edges: Dict[str, object], governor: StrategyGovernor, no_governor: bool,
+                  apply_journal_at_end: bool, cockpit: CockpitLogger, discover: bool,
+                  data_map: Dict[str, pd.DataFrame], regime_detector: RegimeDetector) -> dict:
+        """Everything after the controller's run: metrics, the governor's save path (weights,
+        lifecycle, tiers, the journal apply), the Discovery cycle, the summary, the diary.
+
+        HOLD-THEN-RAISE (the edges.yml single-writer unit, 2026-10-22; R §4.3 ruled: ONE failure
+        shape for both post-run paths). A registry READ or SAVE failure in the governor's path, or a
+        Discovery cycle failure, no longer ends as a WARN line or vanishes before the summary: the
+        failure is HELD, `performance_summary.json` (the research copy AND the run-scoped copy the
+        census gate reads) is written carrying `post_run_failure: {stage, error_type, message}`,
+        `assert_census` marks the run NON-CANONICAL on it, THEN the failure is re-raised. The run's
+        own artifacts exist with the failure stated instead of a clean-looking summary beside a
+        registry that was never updated.
+        """
+        from core.edge_registry_io import RegistryUnreadableError, RegistryWriteError
+        post_run_failure: Optional[Dict[str, Any]] = None
+        held: Optional[BaseException] = None
+
         # --- Calculate Metrics ---
         metrics = None
         try:
@@ -1117,19 +1179,44 @@ class ModeController:
                               f"status={_result.n_status_changes} "
                               f"tier={_result.n_tier_changes} "
                               f"unknown_edge={_result.n_skipped_unknown_edge}")
+                    except (RegistryUnreadableError, RegistryWriteError):
+                        raise                      # the journal apply IS the registry save on this path
                     except Exception as _je:
                         print(f"[JOURNAL][APPLY][WARN] {_je}")
+        except (RegistryUnreadableError, RegistryWriteError) as e:
+            # The governor's own save path failed to read or write edges.yml. HELD, not swallowed:
+            # the summary is written with the failure stated, then it re-raises (brief, Engine F).
+            post_run_failure = {"stage": "governor", "error_type": type(e).__name__, "message": str(e)}
+            held = e
+            print(f"[GOVERNOR][FAIL] registry read/save failed in the post-run — held until the summary "
+                  f"is written, then re-raised: {type(e).__name__}: {e}")
         except Exception as e:
             print(f"[GOVERNOR][WARN] Could not update governor: {e}")
 
         # --- POST-BACKTEST DISCOVERY CYCLE (Engine D) ---
-        if discover:
-            self._run_discovery_cycle(data_map, regime_detector)
+        if discover and held is not None:
+            print("[DISCOVERY] skipped — the governor's registry save failed; the registry was never updated")
+        elif discover:
+            try:
+                self._run_discovery_cycle(data_map, regime_detector)
+            except Exception as e:
+                # R §4.3 (ruled): the cycle's failure follows Engine F's shape — held, the summary
+                # written with `post_run_failure.stage == "discovery"`, THEN re-raised. It used to
+                # raise BEFORE the summary existed (RR-6a's accepted consequence, superseded).
+                post_run_failure = {"stage": "discovery", "error_type": type(e).__name__, "message": str(e),
+                                    "notes": list(getattr(e, "__notes__", []) or [])}
+                held = e
+                print(f"[DISCOVERY][FAIL] held until the summary is written, then re-raised: "
+                      f"{type(e).__name__}: {e}")
 
         # --- Return summary stats ---
+        import json
+        from datetime import datetime
         summary: dict = {}
         if metrics:
             summary = metrics.summary_dict if hasattr(metrics, "summary_dict") else metrics.summary()
+        if post_run_failure is not None:
+            summary["post_run_failure"] = post_run_failure
 
         # Persist performance summary to file
         try:
@@ -1138,8 +1225,12 @@ class ModeController:
             summary["timestamp"] = datetime.utcnow().isoformat() + "Z"
             with open(perf_path, "w") as f:
                 json.dump(summary, f, indent=2)
-        except Exception:
-            pass
+        except Exception as _pe:
+            print(f"[RUN_BACKTEST][WARN] could not write {self.root / 'data' / 'research' / 'performance_summary.json'}: {_pe!r}")
+        # The run-scoped summary is what the census gate reads (run_isolated, the cloud entrypoint):
+        # a held post-run failure lands there too, so the gate says NON-CANONICAL.
+        if post_run_failure is not None:
+            self._record_post_run_failure(cockpit, post_run_failure)
 
         # --- Decision Diary: structured measurement_run record ---
         # Append-only JSONL audit of every backtest. Wrapped in try/except
@@ -1181,7 +1272,34 @@ class ModeController:
             # could not be written.
             print(f"[DECISION_DIARY][WARN] Could not append measurement_run: {e}")
 
+        if held is not None:
+            # The run's own artifacts exist with the failure stated; now the failure is the result.
+            raise held
         return summary
+
+    def _record_post_run_failure(self, cockpit: CockpitLogger, post_run_failure: Dict[str, Any]) -> None:
+        """Write `post_run_failure` into the run-scoped `performance_summary.json` the census gate
+        reads (`data/trade_logs/<run_id>/`), atomically; create a minimal one if the controller never
+        wrote it (a run with no trades), so the record exists either way."""
+        import json
+        import os
+        run_id = getattr(cockpit, "run_id", None)
+        if not run_id:
+            print("[RUN_BACKTEST][WARN] no run_id — the run-scoped summary cannot carry post_run_failure")
+            return
+        perf = self.root / "data" / "trade_logs" / str(run_id) / "performance_summary.json"
+        try:
+            doc = json.loads(perf.read_text()) if perf.exists() else {}
+            if not isinstance(doc, dict):
+                doc = {"malformed_summary": True}
+            doc["post_run_failure"] = post_run_failure
+            perf.parent.mkdir(parents=True, exist_ok=True)
+            tmp = perf.with_name(perf.name + ".tmp")
+            tmp.write_text(json.dumps(doc, indent=2))
+            os.replace(tmp, perf)
+            print(f"[RUN_BACKTEST] post_run_failure recorded in {perf}")
+        except Exception as _re:
+            print(f"[RUN_BACKTEST][WARN] could not record post_run_failure in {perf}: {_re!r}")
 
     def _run_discovery_cycle(self, data_map: Dict[str, pd.DataFrame], regime_detector: RegimeDetector) -> None:
         """
@@ -1574,6 +1692,12 @@ class ModeController:
                 state_path=str(self.root / "data" / "governor" / "edge_weights.json"),
             )
         except Exception as e:
+            from core.edge_registry_io import RegistryUnreadableError, RegistryWriteError
+            if isinstance(e, (RegistryUnreadableError, RegistryWriteError)):
+                # The single-writer unit: the lifecycle's registry read/save failure RAISES, after
+                # the paper run's own artifacts (the cockpit logs) are closed.
+                self.cockpit.close()
+                raise
             print(f"[EDGE_FEEDBACK][WARN] Could not update edge weights after paper run: {e}")
 
         self.cockpit.close()

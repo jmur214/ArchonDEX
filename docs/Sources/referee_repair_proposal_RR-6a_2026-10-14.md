@@ -141,7 +141,10 @@ cycle no longer raises BEFORE the summary. `run_backtest` holds the failure, wri
 carrying `post_run_failure: {stage: "discovery", error_type, message}`, `assert_census` marks the run
 NON-CANONICAL on that field, and THEN it re-raises. This is the same hold-then-raise shape, and the same census
 rule, as an Engine-F registry-save failure. See `docs/Sources/edge_registry_single_writer_brief_2026-10-14.md`.
-Not yet built.
+**Built 2026-10-22** (the single-writer unit): `ModeController._post_run` holds either failure, writes the
+research AND run-scoped summaries with `post_run_failure`, then re-raises; `assert_census` invariant 10; locked by
+`tests/test_edge_registry_single_writer.py::test_RUN_BACKTEST_a_discovery_cycle_failure_takes_the_same_shape`
+(reverting to raise-before-summary → no summary file).
 
 **All 50 test files touching a changed module:** 681 passed / 1 skipped / 3 deselected / 11 xfailed / 0 failed.
 

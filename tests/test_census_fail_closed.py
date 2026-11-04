@@ -12,6 +12,8 @@ some other invariant and the lock would hold vacuously.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 
@@ -54,6 +56,8 @@ def _controller(alpha, *, counters=True, regime_detector=object()):
     ctrl.data_map = {"SPY": pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2025-12-31"]))}
     ctrl._census_window = ("2025-12-31", "2025-12-31")      # as run() records it (the stale_files guard)
     ctrl.regime_detector = regime_detector
+    # L4 (2026-10-22): the risk engine's per-sizing basis counter, as a real run leaves it
+    ctrl.risk = SimpleNamespace(share_price_basis_counts={"total_return": 3})
     if counters:
         ctrl._census_n_resolved = 1
         ctrl._census_regime_total_bars, ctrl._census_regime_unknown_bars = 40, 3
@@ -188,7 +192,8 @@ def test_a_GATE1_candidate_census_is_not_asked_for_backtest_counters():
 
     class _C:
         nonzero_calls, errors = 5, 0
-    block = candidate_census_block("cand_v1", _C(), n_trades=50, data_map=_CLEAN_MAP, window=_WINDOW)
+    block = candidate_census_block("cand_v1", _C(), n_trades=50, data_map=_CLEAN_MAP, window=_WINDOW,
+                                   share_basis_counts={"total_return": 50})   # L4: the run's counter
     v = _verdict(block)
     assert v.canonical, v.failures          # the consequence first: an undeclared block is refused
     assert block.get("census_kind") == "candidate" and "n_resolved" not in block

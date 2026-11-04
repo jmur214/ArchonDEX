@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from tests._canonical_inputs import CANON_SPY, CANON_STOOQ_DBMF, requires_canonical
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,7 @@ def test_score_matches_metrics_engine():
     assert np.isclose(row.sharpe, round(float(MetricsEngine.sharpe_ratio(r)), 4), atol=1e-3)
 
 
+@requires_canonical(CANON_SPY)
 def test_cash_sleeve_adds_drag_not_vol():
     # schwab_like has a cash sleeve; its vol must be < an all-risk blend's intuition:
     r = robo_proxy_returns("schwab_like", rf_annual=0.04)
@@ -75,6 +77,7 @@ def test_cash_sleeve_adds_drag_not_vol():
     assert r.std() > 0
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_build_scorecard_blocks_are_internally_aligned():
     base = _ret_series(n=900, seed=7)
     blocks = build_scorecard(base, robo=("60_40", "schwab_like"), n_boot=200)
@@ -87,6 +90,7 @@ def test_build_scorecard_blocks_are_internally_aligned():
         assert rows[0].start == rows[2].start and rows[0].end == rows[2].end
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_blocks_can_have_different_windows_across_proxies():
     # 60_40 (long history) should not be truncated to schwab_like's GLD start
     base = _ret_series(n=1200, seed=8)
@@ -94,6 +98,7 @@ def test_blocks_can_have_different_windows_across_proxies():
     assert blocks["60_40"][0].n_days >= blocks["schwab_like"][0].n_days
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_format_and_json_roundtrip():
     base = _ret_series(n=700, seed=9)
     blocks = build_scorecard(base, robo="60_40", n_boot=100)
@@ -144,6 +149,7 @@ def test_higher_realization_means_more_tax():
     assert high < low  # realizing more of the gain each year → more tax → less wealth
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_roth_block_equals_pretax_taxable_block_is_worse():
     base = _multiyear(seed=7)
     roth = build_scorecard(base, robo="60_40", account="roth", n_boot=100)
@@ -164,6 +170,7 @@ def test_default_profiles_encode_the_indictment():
     assert DEFAULT_TAX_PROFILES["robo"].st_fraction < DEFAULT_TAX_PROFILES["base"].st_fraction
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_format_taxable_states_assumptions():
     base = _multiyear()
     blocks = build_scorecard(base, robo="60_40", account="taxable", n_boot=80)
@@ -183,6 +190,7 @@ def _equity_from_returns(r: pd.Series) -> pd.Series:
     return 100_000 * (1 + r).cumprod()
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_deploy_verdict_shape_and_accessors():
     idx = pd.bdate_range("2019-06-01", periods=252 * 6)
     rng = np.random.default_rng(1)
@@ -194,6 +202,7 @@ def test_deploy_verdict_shape_and_accessors():
     assert "DEPLOY GATE" in format_deploy_verdict(v)
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_window_bias_blocks_deploy_when_tail_unverified():
     # base spans 2006-2025 with a -45% 2008 crash; the DBMF window (2019+) misses
     # it → full-cycle tail UNVERIFIED → cannot certify deploy even if it beats.
@@ -209,6 +218,7 @@ def test_window_bias_blocks_deploy_when_tail_unverified():
     assert abs(v.base_full_maxdd_pct) > abs(v.window_maxdd_pct)  # full tail deeper
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_mdd_does_not_carry_a_window_flattered_verdict():
     # Same window-biased base: every proxy's MDD-improvement is discounted, so a
     # comparison only "beats" on ci_low (never on the window-flattered MDD alone).
@@ -222,6 +232,7 @@ def test_mdd_does_not_carry_a_window_flattered_verdict():
         assert c.beats == c.sharpe_ci_low_beats
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_taxable_is_weaker_than_roth():
     idx = pd.bdate_range("2019-06-01", periods=252 * 6)
     rng = np.random.default_rng(7)
@@ -233,6 +244,7 @@ def test_taxable_is_weaker_than_roth():
         assert tax.comparisons[name].sharpe_cand <= roth.comparisons[name].sharpe_cand + 1e-9
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_require_any_vs_all():
     idx = pd.bdate_range("2019-06-01", periods=252 * 6)
     rng = np.random.default_rng(9)
@@ -244,6 +256,7 @@ def test_require_any_vs_all():
         assert not (v_all.passed and not v_any.passed)
 
 
+@requires_canonical(CANON_SPY, CANON_STOOQ_DBMF)
 def test_gate_uses_ci_low_not_point_estimate():
     # the comparison stores ci_low for both sides and gates on it (CLAUDE.md `[NN-SHARPE-CI]`)
     idx = pd.bdate_range("2019-06-01", periods=252 * 6)

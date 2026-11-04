@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._canonical_inputs import CANON_RUN_REGISTRY, requires_canonical
+
 from core.oos_lock import (
     load_oos_lock, assert_not_tuning_in_oos, OOSLockViolation, DEFAULT_LOCK_PATH,
 )
@@ -49,12 +51,14 @@ def test_no_false_positive_before_the_window():
                              lock=load_oos_lock())
 
 
+@requires_canonical(CANON_RUN_REGISTRY)
 def test_registry_backfill_is_idempotent_and_raises_n():
     """T-336(a): compute_n_effective must reflect the refreshed registry."""
     from core.measurement.mbl_gate import compute_n_effective
     assert compute_n_effective() > 125, "registry still frozen at the 2026-05-08 count"
 
 
+@requires_canonical(CANON_RUN_REGISTRY)
 def test_gate8_default_now_resolves_to_honest_n():
     """T-336(b): Gate 8's default was a hardcoded 1 — i.e. the multiple-testing
     correction was SILENTLY OFF in every default run. It must now resolve to the

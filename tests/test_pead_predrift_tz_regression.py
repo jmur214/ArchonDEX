@@ -15,6 +15,16 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
+
+from tests._canonical_inputs import redirect_earnings_manager
+
+
+@pytest.fixture(autouse=True)
+def _redirect_earnings_cache(tmp_path, monkeypatch):
+    """The PEAD edges build `EarningsDataManager()` (data/earnings; its constructor mkdirs) on
+    first use. Pinned dir when this tree holds it, tmp_path otherwise (2026-10-22)."""
+    redirect_earnings_manager(monkeypatch, tmp_path)
 
 from engines.engine_a_alpha.edges.pead_predrift_edge import PEADPreDriftEdge
 

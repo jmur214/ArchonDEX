@@ -58,7 +58,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ..edge_base import EdgeBase
+from engines.engine_a_alpha.edge_base import EdgeBase  # absolute since the 2026-10-22 archive (was `from ..edge_base`)
 
 log = logging.getLogger("VolatilityRiskPremiumEdge")
 

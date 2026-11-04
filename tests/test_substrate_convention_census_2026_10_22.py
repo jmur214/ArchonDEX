@@ -190,7 +190,8 @@ def test_the_canonical_cache_is_labelled_whole_with_575_pre_seam_drip_files():
 # stale-record witness and labelled every merge-record name anyway — 38 tests passed with the
 # controller mutated to pass None. The ruled behaviour, built here: without the frame the name is
 # UNLABELLED with the reason "UNWITNESSED … unmeasured", the record says `witness: "unmeasured"`
-# and counts `n_unwitnessed`, and the gate fails the run under invariant 10. The write record and
+# and counts `n_unwitnessed`, and the gate fails the run under invariant 13 (10 on the cutover branch,
+# renumbered at the merge onto main). The write record and
 # a declared override describe the file itself and need no witness.
 
 def test_R9_a_merge_record_label_with_NO_frames_is_UNWITNESSED_unmeasured_and_the_gate_fails(tmp_path):

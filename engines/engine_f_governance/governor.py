@@ -660,6 +660,14 @@ class StrategyGovernor:
                     + (f" [journaled run={journal_run_id}]" if journal is not None else "")
                 )
         except Exception as e:
+            # The single-writer unit (2026-10-22): a registry READ or SAVE failure is never
+            # swallowed — edges.yml is the sole edge authority, and a save that failed after
+            # the run's own artifacts were written must RAISE (run_backtest holds it across the
+            # summary write, records `post_run_failure`, then re-raises). Every other lifecycle
+            # failure keeps the feedback loop alive, as before.
+            from core.edge_registry_io import RegistryUnreadableError, RegistryWriteError
+            if isinstance(e, (RegistryUnreadableError, RegistryWriteError)):
+                raise
             log.warning(f"[Governor] Lifecycle evaluation failed: {e}")
 
     def evaluate_tiers(
@@ -738,6 +746,10 @@ class StrategyGovernor:
                 )
             return decisions
         except Exception as e:
+            # The single-writer unit: a registry read or save failure RAISES (see evaluate_lifecycle).
+            from core.edge_registry_io import RegistryUnreadableError, RegistryWriteError
+            if isinstance(e, (RegistryUnreadableError, RegistryWriteError)):
+                raise
             log.warning(f"[Governor] Tier reclassification failed: {e}")
             return []
 

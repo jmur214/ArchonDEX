@@ -539,6 +539,10 @@ EXEMPT: Dict[str, str] = {
     # day held. This exemption is a statement about WHERE the clock lives, not a
     # claim that the record needs no clock.
     "data/state/llm_analyst_tracking.json": "acct-3 (ai-trader) file, populated only in that account's container; gated there by its own canonical/heartbeat + dead-man's-switch",
+    # 2026-10-22 — the campaign submit gate's substrate VERIFY STAMP (B's half; the stamp
+    # proposal §4 asked for this registration). Same container-scoping as the fleet files
+    # above, with the alarm living where the stall BITES instead of here.
+    "data/state/substrate_verify_stamp.json": "HOST-SIDE file in the MAIN tree's data/state, written only by the nightly janitor (check_substrate_verify) and the re-pin step after a FULL substrate verify; this census runs in account-1's container, which never holds it, so a clock here could only report a MISS it cannot diagnose. Its stall is alarmed where it bites: the submit gate refuses any stamp older than core.substrate_stamp.FRESHNESS (48 h), so a dead nightly blocks every cloud submit within two nights and the refusal names the fix",
     "data/state/TRADING_HALT": "an OPERATOR CONTROL, not a forward record — its healthy state is ABSENT, so 'did not advance' is correct and a clock would invert the meaning",
     "data/intel/llm_raw": "diagnostic archive of raw LLM responses — written only when a call is MADE, so a no-call day is healthy; the calls themselves are clocked by analyst_note_written and scan_filed_when_due",
 }

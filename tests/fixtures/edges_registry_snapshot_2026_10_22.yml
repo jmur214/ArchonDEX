@@ -1,0 +1,2414 @@
+edges:
+- edge_id: rsi_bounce_v1
+  category: technical
+  module: rsi_bounce
+  version: 1.0.0
+  params: {}
+  status: paused
+  tier: feature
+- edge_id: atr_breakout_v1
+  category: technical
+  module: atr_breakout
+  version: 1.0.0
+  params: {}
+  status: retired
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: value_trap_v1
+  category: fundamental
+  module: fundamental_value
+  version: 1.0.0
+  params:
+    max_pe: 20.0
+    min_market_cap_B: 10.0
+  status: paused
+  tier: feature
+- edge_id: value_deep_v1
+  category: fundamental
+  module: fundamental_ratio
+  version: 1.0.0
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 10.0
+    enable_rsi: true
+    max_rsi: 40.0
+  status: paused
+  tier: feature
+- edge_id: growth_sales_v1
+  category: fundamental
+  module: fundamental_ratio
+  version: 1.0.0
+  params:
+    metric: PS_Ratio
+    operator: less
+    threshold: 2.0
+    enable_rsi: false
+  status: paused
+  tier: feature
+- edge_id: bollinger_reversion_v1
+  category: technical
+  module: bollinger_reversion
+  version: 1.0.0
+  params: {}
+  status: paused
+  tier: feature
+- edge_id: momentum_edge_v1
+  category: technical
+  module: engines.engine_a_alpha.edges.momentum_edge
+  version: 1.0.0
+  params:
+    lookback: 10
+    vol_pct: 11.58
+    top_n: 1.0
+    bottom_n: 1.0
+    vol_window: 15.0
+    vol_target: 0.08
+    neutralize: dollar
+  status: paused
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: rsi_bounce_v1_mut_ce1d
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 40
+    buy_threshold: 21.52
+    sell_threshold: 58.29
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_542e
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 20.89
+    sell_threshold: 75.9
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_958f
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 37
+    buy_threshold: 42.55
+    sell_threshold: 70.95
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_8d87
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 44
+    buy_threshold: 21.27
+    sell_threshold: 78.62
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_06c9
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 26
+    buy_threshold: 44.41
+    sell_threshold: 69.88
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_113c
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 28
+    buy_threshold: 29.62
+    sell_threshold: 56.23
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_53d9
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 33
+    buy_threshold: 20.75
+    sell_threshold: 77.82
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_78c2
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 44
+    buy_threshold: 34.88
+    sell_threshold: 57.93
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_d48b
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 48
+    buy_threshold: 22.11
+    sell_threshold: 60.39
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_17d5
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 9
+    buy_threshold: 34.21
+    sell_threshold: 63.92
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_b3b9
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 13
+    buy_threshold: 38.22
+    sell_threshold: 78.94
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_dddf
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 25
+    buy_threshold: 25.48
+    sell_threshold: 58.4
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_7106
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 15
+    buy_threshold: 36.5
+    sell_threshold: 61.68
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_1e64
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 13
+    buy_threshold: 27.77
+    sell_threshold: 63.86
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_7831
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 19
+    buy_threshold: 40.07
+    sell_threshold: 77.6
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_9884
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 12
+    buy_threshold: 44.24
+    sell_threshold: 65.6
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6ac4
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 14
+    buy_threshold: 38.49
+    sell_threshold: 68.85
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_9608
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 9
+    buy_threshold: 25.06
+    sell_threshold: 69.57
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_0cdc
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 42.43
+    sell_threshold: 64.62
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_68a0
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 13
+    buy_threshold: 46.03
+    sell_threshold: 76.26
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_f5ee
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 19
+    buy_threshold: 40.43
+    sell_threshold: 66.1
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6ed4
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 18
+    buy_threshold: 39.17
+    sell_threshold: 71.9
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_5a26
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 6
+    buy_threshold: 36.07
+    sell_threshold: 77.63
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2c85
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 25
+    buy_threshold: 47.27
+    sell_threshold: 78.87
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_f8ba
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 6
+    buy_threshold: 41.06
+    sell_threshold: 71.89
+    trend_window: 140
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6a06
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 34.11
+    sell_threshold: 60.45
+    trend_window: 192
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_54e3
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 48.38
+    sell_threshold: 75.35
+    trend_window: 88
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_73e2
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 15
+    buy_threshold: 29.35
+    sell_threshold: 73.52
+    trend_window: 115
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_c494
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 43.02
+    sell_threshold: 75.06
+    trend_window: 181
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_817d
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 15
+    buy_threshold: 44.24
+    sell_threshold: 57.29
+    trend_window: 234
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6f12
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 27.13
+    sell_threshold: 60.01
+    trend_window: 144
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_08b9
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 10
+    buy_threshold: 28.29
+    sell_threshold: 62.34
+    trend_window: 188
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_d374
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 21
+    buy_threshold: 46.61
+    sell_threshold: 65.16
+    trend_window: 108
+  status: archived
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_d77d
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 19
+    buy_threshold: 35.37
+    sell_threshold: 78.62
+    trend_window: 195
+  status: error
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_3535
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 39.95
+    sell_threshold: 71.25
+    trend_window: 248
+  status: error
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6acd
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 25.34
+    sell_threshold: 65.01
+    trend_window: 93
+  status: error
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2a34
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 24
+    buy_threshold: 48.82
+    sell_threshold: 64.69
+    trend_window: 57
+  status: error
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_b108
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 15
+    buy_threshold: 48.87
+    sell_threshold: 61.44
+    trend_window: 71
+  status: error
+  tier: feature
+- edge_id: value_trap_v1_mut_3dbd
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 12.47
+    min_market_cap_B: 95.95
+  status: error
+  tier: feature
+- edge_id: value_trap_v1_mut_8615
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.84
+    min_market_cap_B: 59.68
+  status: error
+  tier: feature
+- edge_id: value_trap_v1_mut_8843
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 23.47
+    min_market_cap_B: 167.25
+  status: error
+  tier: feature
+- edge_id: value_trap_v1_mut_0352
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 8.84
+    min_market_cap_B: 59.46
+  status: error
+  tier: feature
+- edge_id: value_trap_v1_mut_bd1c
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.13
+    min_market_cap_B: 138.12
+  status: error
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_260a
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PFCF_Ratio
+    operator: greater
+    threshold: 8.44
+    max_rsi: 66.4
+    enable_rsi: true
+  status: error
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_5292
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 4.69
+    max_rsi: 69.59
+    enable_rsi: false
+  status: error
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_5ffa
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: less
+    threshold: 47.76
+    max_rsi: 42.67
+    enable_rsi: true
+  status: error
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_8317
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 36.29
+    max_rsi: 34.93
+    enable_rsi: true
+  status: error
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_ec4b
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PB_Ratio
+    operator: less
+    threshold: 21.69
+    max_rsi: 43.46
+    enable_rsi: false
+  status: error
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_8769
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 19
+    buy_threshold: 29.21
+    sell_threshold: 62.53
+    trend_window: 154
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_f7d5
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 14
+    buy_threshold: 35.11
+    sell_threshold: 77.49
+    trend_window: 187
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2f6c
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 12
+    buy_threshold: 48.72
+    sell_threshold: 69.15
+    trend_window: 136
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_1585
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 5
+    buy_threshold: 41.02
+    sell_threshold: 73.78
+    trend_window: 83
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_68c3
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 5
+    buy_threshold: 45.04
+    sell_threshold: 63.03
+    trend_window: 152
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_3545
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 21.04
+    min_market_cap_B: 33.49
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_a2fe
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 12.96
+    min_market_cap_B: 198.93
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_468e
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 21.95
+    min_market_cap_B: 132.52
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_cabc
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 16.89
+    min_market_cap_B: 166.04
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_fdce
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.34
+    min_market_cap_B: 115.1
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_7e09
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 40.05
+    max_rsi: 64.39
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_7a70
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 44.03
+    max_rsi: 49.42
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_e2ee
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: less
+    threshold: 15.79
+    max_rsi: 44.88
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_8184
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 9.95
+    max_rsi: 68.84
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_1f88
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: greater
+    threshold: 49.22
+    max_rsi: 54.59
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_8d78
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 8
+    buy_threshold: 39.4
+    sell_threshold: 59.4
+    trend_window: 102
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_86b8
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 21
+    buy_threshold: 45.47
+    sell_threshold: 68.72
+    trend_window: 225
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_5c31
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 16
+    buy_threshold: 35.07
+    sell_threshold: 72.36
+    trend_window: 196
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_b192
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 35.95
+    sell_threshold: 63.5
+    trend_window: 214
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_7066
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 6
+    buy_threshold: 49.74
+    sell_threshold: 71.9
+    trend_window: 148
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_3d7a
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 5.22
+    min_market_cap_B: 73.87
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_fe69
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 9.27
+    min_market_cap_B: 87.04
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_d219
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.6
+    min_market_cap_B: 152.03
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_79a0
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.25
+    min_market_cap_B: 156.92
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_d9de
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 13.87
+    min_market_cap_B: 172.92
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_03c5
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 30.72
+    max_rsi: 56.23
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_47e0
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: less
+    threshold: 5.42
+    max_rsi: 58.92
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_955f
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 17.49
+    max_rsi: 44.72
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_62e8
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: less
+    threshold: 41.12
+    max_rsi: 67.2
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_7545
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PFCF_Ratio
+    operator: less
+    threshold: 37.49
+    max_rsi: 53.71
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_e76e
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 6
+    buy_threshold: 28.88
+    sell_threshold: 58.88
+    trend_window: 94
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_d0d7
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 13
+    buy_threshold: 32.87
+    sell_threshold: 70.76
+    trend_window: 123
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_460e
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 25
+    buy_threshold: 26.18
+    sell_threshold: 70.64
+    trend_window: 85
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2740
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 25
+    buy_threshold: 25.67
+    sell_threshold: 69.24
+    trend_window: 189
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_acfc
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 22
+    buy_threshold: 25.49
+    sell_threshold: 78.48
+    trend_window: 114
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_8e42
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.91
+    min_market_cap_B: 34.37
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_e0ca
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 16.03
+    min_market_cap_B: 11.65
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_4b87
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 7.11
+    min_market_cap_B: 66.24
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_0767
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 10.29
+    min_market_cap_B: 167.27
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_ebbb
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 13.8
+    min_market_cap_B: 95.47
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_7dc9
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PFCF_Ratio
+    operator: greater
+    threshold: 13.75
+    max_rsi: 61.15
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_587c
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 13.36
+    max_rsi: 45.84
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_3b21
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: less
+    threshold: 10.91
+    max_rsi: 41.6
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_2a2c
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 41.04
+    max_rsi: 43.23
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_e2eb
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 27.11
+    max_rsi: 64.94
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_bebb
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 7
+    buy_threshold: 31.98
+    sell_threshold: 57.06
+    trend_window: 101
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_0bc0
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 12
+    buy_threshold: 39.13
+    sell_threshold: 71.14
+    trend_window: 176
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_eddd
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 9
+    buy_threshold: 29.94
+    sell_threshold: 66.22
+    trend_window: 215
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_a54f
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 11
+    buy_threshold: 30.66
+    sell_threshold: 57.27
+    trend_window: 89
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_9f96
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 11
+    buy_threshold: 25.42
+    sell_threshold: 64.02
+    trend_window: 164
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_4f4a
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 18.09
+    min_market_cap_B: 48.18
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_cc2f
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 7.26
+    min_market_cap_B: 78.86
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_0e1b
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.91
+    min_market_cap_B: 156.12
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_22c9
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 8.19
+    min_market_cap_B: 134.64
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_3a21
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.66
+    min_market_cap_B: 86.87
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_ef9f
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: greater
+    threshold: 34.98
+    max_rsi: 43.35
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_7b83
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 18.39
+    max_rsi: 62.13
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_e45f
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PB_Ratio
+    operator: less
+    threshold: 47.98
+    max_rsi: 58.57
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_5603
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PB_Ratio
+    operator: less
+    threshold: 2.8
+    max_rsi: 38.24
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_4afd
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 45.2
+    max_rsi: 68.93
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_6f50
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 5
+    buy_threshold: 27.58
+    sell_threshold: 70.36
+    trend_window: 120
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_5e72
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 49.04
+    sell_threshold: 69.99
+    trend_window: 244
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2ff4
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 47.92
+    sell_threshold: 72.57
+    trend_window: 195
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_e210
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.63
+    min_market_cap_B: 126.15
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_3177
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 17.25
+    min_market_cap_B: 88.58
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_2d2b
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 19.72
+    min_market_cap_B: 158.18
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_e9f4
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: less
+    threshold: 40.43
+    max_rsi: 69.99
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_4027
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PFCF_Ratio
+    operator: greater
+    threshold: 10.05
+    max_rsi: 66.13
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_0f6f
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: greater
+    threshold: 47.35
+    max_rsi: 62.26
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_eb68
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 8
+    buy_threshold: 29.07
+    sell_threshold: 79.62
+    trend_window: 159
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_458d
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 19
+    buy_threshold: 49.9
+    sell_threshold: 63.26
+    trend_window: 188
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_e1ef
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 10
+    buy_threshold: 26.61
+    sell_threshold: 62.35
+    trend_window: 116
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_187b
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 12.55
+    min_market_cap_B: 163.15
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_6a03
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 10.36
+    min_market_cap_B: 152.54
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_dd2d
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 13.09
+    min_market_cap_B: 55.56
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_149c
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 43.96
+    max_rsi: 60.98
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_b832
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 29.73
+    max_rsi: 50.18
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_9243
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: greater
+    threshold: 2.98
+    max_rsi: 37.26
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_fa30
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 12
+    buy_threshold: 47.08
+    sell_threshold: 69.49
+    trend_window: 189
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_ea85
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 16
+    buy_threshold: 41.33
+    sell_threshold: 74.18
+    trend_window: 79
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_5f3d
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 8
+    buy_threshold: 34.83
+    sell_threshold: 70.18
+    trend_window: 202
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_8d5a
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 9.58
+    min_market_cap_B: 78.48
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_e5f8
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 9.27
+    min_market_cap_B: 94.95
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_bce6
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.29
+    min_market_cap_B: 167.53
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_e29d
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 8.24
+    max_rsi: 67.12
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_6fbd
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 49.32
+    max_rsi: 63.8
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_4843
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PFCF_Ratio
+    operator: less
+    threshold: 21.21
+    max_rsi: 49.72
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_88db
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 15
+    buy_threshold: 29.35
+    sell_threshold: 72.69
+    trend_window: 233
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_64c2
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 24
+    buy_threshold: 49.74
+    sell_threshold: 67.26
+    trend_window: 94
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_da34
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 10
+    buy_threshold: 40.19
+    sell_threshold: 60.58
+    trend_window: 141
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_c53b
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 18.49
+    min_market_cap_B: 21.57
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_1c34
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 17.38
+    min_market_cap_B: 156.27
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_4574
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 23.47
+    min_market_cap_B: 147.39
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_c9b8
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PB_Ratio
+    operator: greater
+    threshold: 10.36
+    max_rsi: 57.89
+    enable_rsi: true
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_6e65
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: less
+    threshold: 39.35
+    max_rsi: 56.73
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_4931
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: less
+    threshold: 1.69
+    max_rsi: 34.04
+    enable_rsi: false
+  status: failed
+  tier: feature
+- edge_id: hunter_88e3f21d
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: ATR_Pct <= 0.0229 AND ATR_Pct <= 0.0174 AND ATR_Pct <= 0.0119 AND
+      MACD_Hist > -0.1009
+    target_class: 0
+    probability: 0.6022289660949449
+    description: Target STABLE (60.2%)
+  status: failed
+  tier: feature
+- edge_id: hunter_69ebc157
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: ATR_Pct > 0.0229 AND ATR_Pct > 0.0319 AND trade_count <= 181184.0000
+      AND MACD <= -1.7412
+    target_class: 2
+    probability: 0.4733031740579309
+    description: Target EXPLODE (47.3%)
+  status: failed
+  tier: feature
+- edge_id: hunter_872e47f1
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: ATR_Pct > 0.0229 AND ATR_Pct > 0.0319 AND trade_count > 181184.0000
+      AND BB_Width > 0.3414
+    target_class: -2
+    probability: 0.5016429674976249
+    description: Target CRASH (50.2%)
+  status: failed
+  tier: feature
+- edge_id: hunter_c0e25f93
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: ATR_Pct > 0.0229 AND ATR_Pct > 0.0315 AND ATR_Pct > 0.0376 AND ATR
+      <= 4.6355
+    target_class: 2
+    probability: 0.5928443135709225
+    description: Target EXPLODE (59.3%)
+  status: failed
+  tier: feature
+- edge_id: hunter_539f6c57
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: ATR_Pct > 0.0229 AND ATR_Pct > 0.0319 AND SMA_50 <= 118.4589 AND
+      ATR_Pct > 0.0373
+    target_class: 2
+    probability: 0.6084446988699101
+    description: Target EXPLODE (60.8%)
+  status: failed
+  tier: feature
+- edge_id: seasonality_v1
+  category: seasonality
+  module: engines.engine_a_alpha.edges.seasonality_edge
+  version: 1.0.0
+  params:
+    mode: day_of_week
+    min_win_rate: 0.6
+    min_avg_return: 0.001
+    lookback_years: 5
+  status: retired
+  tier: feature
+- edge_id: gap_fill_v1
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.gap_edge
+  version: 1.0.0
+  params:
+    atr_mult: 1.0
+    atr_window: 14
+    require_volume_spike: false
+    vol_z_threshold: 2.0
+  status: active
+  tier: feature
+- edge_id: volume_anomaly_v1
+  category: volume
+  module: engines.engine_a_alpha.edges.volume_anomaly_edge
+  version: 1.0.0
+  params:
+    mode: spike_reversal
+    vol_z_threshold: 2.0
+    vol_lookback: 20
+    bb_window: 20
+    bb_squeeze_pct: 0.03
+  status: active
+  tier: alpha
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+  combination_role: standalone
+- edge_id: panic_v1
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.panic_edge
+  version: 1.0.0
+  params:
+    rsi_threshold: 20.0
+    rsi_window: 14
+    vol_z_threshold: 2.5
+    vol_lookback: 20
+    bb_window: 20
+    bb_std: 2.0
+    atr_expansion_pct: 1.3
+  status: paused
+  tier: feature
+- edge_id: herding_v1
+  category: contrarian
+  module: engines.engine_a_alpha.edges.herding_edge
+  version: 1.0.0
+  params:
+    breadth_threshold: 0.8
+    extreme_pctile: 90.0
+    min_universe_size: 10
+  status: paused
+  tier: alpha
+  tier_last_updated: '2026-05-09T00:00:00+00:00'
+  combination_role: standalone
+  failure_reason: universe_too_small
+- edge_id: earnings_vol_v1
+  category: event_driven
+  module: engines.engine_a_alpha.edges.earnings_vol_edge
+  version: 1.0.0
+  params:
+    mode: pre_earnings
+    bb_window: 20
+    squeeze_pct: 0.03
+    pre_days: 5
+    post_days: 3
+    drift_threshold: 0.02
+  status: paused
+  tier: feature
+- edge_id: momentum_factor_v1
+  category: factor
+  module: engines.engine_a_alpha.edges.momentum_factor_edge
+  version: 1.0.0
+  params:
+    long_lookback: 252
+    short_lookback: 21
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 5
+    validation_note: 'Failed 3-split walk-forward: in-sample +0.13 Sharpe but OOS
+      -0.19 (Split B) and -0.62 (Split C). 39-ticker universe too narrow for cross-sectional
+      factor work; revisit after universe expansion to S&P 500.'
+  status: failed
+  tier: feature
+- edge_id: macro_yield_curve_v1
+  category: macro
+  module: engines.engine_a_alpha.edges.macro_yield_curve_edge
+  version: 1.0.0
+  params:
+    spread_series: T10Y2Y
+    normal_threshold: 0.5
+    inversion_threshold: 0.0
+    bullish_score: 0.3
+    bearish_score: -0.3
+  status: retired
+  tier: feature
+- edge_id: pead_v1
+  category: event_driven
+  module: engines.engine_a_alpha.edges.pead_edge
+  version: 1.0.0
+  params:
+    hold_calendar_days: 84
+    min_surprise_pct: 0.05
+    surprise_clip_pct: 0.3
+    long_score_max: 0.4
+    decay_mode: linear
+  status: paused
+  tier: feature
+- edge_id: low_vol_factor_v1
+  category: factor
+  module: engines.engine_a_alpha.edges.low_vol_factor_edge
+  version: 1.0.0
+  params:
+    vol_lookback: 30
+    bottom_quantile: 0.2
+    long_score: 1.0
+    min_universe: 10
+  status: paused
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: insider_cluster_v1
+  category: event_driven
+  module: engines.engine_a_alpha.edges.insider_cluster_edge
+  version: 1.0.0
+  params:
+    lookback_days: 60
+    min_distinct_insiders: 3
+    hold_days: 90
+    value_clip_low_usd: 50000.0
+    value_clip_high_usd: 50000000.0
+    long_score_max: 0.4
+  status: paused
+  tier: feature
+- edge_id: macro_credit_spread_v1
+  category: macro_regime
+  module: engines.engine_a_alpha.edges.macro_credit_spread_edge
+  version: 1.0.0
+  params:
+    baa_series: BAA10Y
+    aaa_series: AAA10Y
+    stdev_threshold: 1.0
+    lookback_days: 1825
+    min_window_samples: 252
+    stress_score: -0.3
+    riskon_score: 0.3
+  status: retired
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: macro_unemployment_momentum_v1
+  category: macro_regime
+  module: engines.engine_a_alpha.edges.macro_unemployment_momentum_edge
+  version: 1.0.0
+  params:
+    unrate_series: UNRATE
+    lookback_months: 3
+    stdev_threshold: 1.0
+    rising_score: -0.2
+    falling_score: 0.2
+  status: retired
+  tier: feature
+- edge_id: macro_real_rate_v1
+  category: macro_regime
+  module: engines.engine_a_alpha.edges.macro_real_rate_edge
+  version: 1.0.0
+  params:
+    real_rate_series: DFII10
+    scale: 0.15
+    max_tilt: 0.3
+  status: paused
+  tier: feature
+- edge_id: macro_dollar_regime_v1
+  category: macro_regime
+  module: engines.engine_a_alpha.edges.macro_dollar_regime_edge
+  version: 1.0.0
+  params:
+    dollar_series: DTWEXBGS
+    level_window_days: 252
+    momentum_window_days: 63
+    strong_score: -0.2
+    weak_score: 0.2
+  status: retired
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: pead_short_v1
+  category: event_driven
+  module: engines.engine_a_alpha.edges.pead_short_edge
+  version: 1.0.0
+  params:
+    hold_calendar_days: 63
+    min_surprise_pct: 0.05
+    surprise_clip_pct: 0.3
+    short_score_max: 0.3
+    decay_mode: linear
+  status: paused
+  tier: feature
+- edge_id: pead_predrift_v1
+  category: event_driven
+  module: engines.engine_a_alpha.edges.pead_predrift_edge
+  version: 1.0.0
+  params:
+    hold_calendar_days: 84
+    min_surprise_pct: 0.05
+    surprise_clip_pct: 0.3
+    long_score_max: 0.5
+    decay_mode: linear
+    predrift_threshold: 0.05
+    predrift_days: 20
+  status: paused
+  tier: retire-eligible
+  tier_last_updated: '2026-04-29T05:00:28+00:00'
+- edge_id: hunter_84c8d186
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: QEnd_Proximity <= 34.5000 AND QEnd_Proximity <= 1.5000 AND SPY_Ret_20d
+      <= -0.0789 AND SPY_Ret_5d <= -0.0298
+    target_class: 2
+    probability: 0.615842909886698
+    description: Target EXPLODE (61.6%)
+    validation_sharpe: 0.0
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: hunter_212155b7
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: QEnd_Proximity <= 34.5000 AND QEnd_Proximity <= 1.5000 AND SPY_Ret_20d
+      <= -0.0789 AND SPY_Ret_5d > -0.0298
+    target_class: 2
+    probability: 0.8392191831827261
+    description: Target EXPLODE (83.9%)
+    validation_sharpe: 0.0
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: hunter_ad093c5d
+  category: discovered_rule
+  module: engines.engine_a_alpha.edges.rule_based_edge
+  version: 1.0.0-auto
+  params:
+    rule_string: QEnd_Proximity <= 34.5000 AND QEnd_Proximity > 1.5000 AND Month_Sin
+      <= -0.9330 AND OpEx_Proximity > 20.5000
+    target_class: -2
+    probability: 0.5724528851093513
+    description: Target CRASH (57.2%)
+    validation_sharpe: 0.0
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_9187
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 17
+    buy_threshold: 43.95
+    sell_threshold: 65.51
+    trend_window: 116
+    validation_sharpe: 0.6547717120324876
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_2e63
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 20
+    buy_threshold: 33.95
+    sell_threshold: 77.29
+    trend_window: 105
+    validation_sharpe: 0.7647878060258414
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: rsi_bounce_v1_mut_68e5
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.rsi_bounce
+  version: 1.0.0-mut
+  params:
+    window: 13
+    buy_threshold: 49.68
+    sell_threshold: 68.31
+    trend_window: 230
+    validation_sharpe: 0.5993081594617127
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_1b03
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 22.98
+    min_market_cap_B: 139.96
+    validation_sharpe: 0.3132707790013351
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_17e6
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 23.26
+    min_market_cap_B: 193.66
+    validation_sharpe: 0.1942142702789055
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: value_trap_v1_mut_5074
+  category: value
+  module: engines.engine_a_alpha.edges.fundamental_value
+  version: 1.0.0-mut
+  params:
+    max_pe: 15.97
+    min_market_cap_B: 12.67
+    validation_sharpe: 0.4641005932432168
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_5b8d
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PE_Ratio
+    operator: greater
+    threshold: 41.49
+    max_rsi: 43.33
+    enable_rsi: false
+    validation_sharpe: -0.0733865671600307
+    fitness_score: 0.0
+    wfo_oos_sharpe: 0.0
+  status: failed
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_b252
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: PS_Ratio
+    operator: greater
+    threshold: 5.02
+    max_rsi: 69.73
+    enable_rsi: false
+  status: candidate
+  tier: feature
+- edge_id: fundamental_ratio_v1_mut_1303
+  category: generic
+  module: engines.engine_a_alpha.edges.fundamental_ratio
+  version: 1.0.0-mut
+  params:
+    metric: Debt_to_Equity
+    operator: less
+    threshold: 48.21
+    max_rsi: 54.13
+    enable_rsi: false
+  status: candidate
+  tier: feature
+- edge_id: seasonality_v1_mut_a9eb
+  category: seasonality
+  module: engines.engine_a_alpha.edges.seasonality_edge
+  version: 1.0.0-mut
+  params:
+    min_win_rate: 0.61
+    min_avg_return: 0.0
+    lookback_years: 4
+  status: candidate
+  tier: feature
+- edge_id: seasonality_v1_mut_8788
+  category: seasonality
+  module: engines.engine_a_alpha.edges.seasonality_edge
+  version: 1.0.0-mut
+  params:
+    min_win_rate: 0.69
+    min_avg_return: 0.0
+    lookback_years: 4
+  status: candidate
+  tier: feature
+- edge_id: seasonality_v1_mut_e678
+  category: seasonality
+  module: engines.engine_a_alpha.edges.seasonality_edge
+  version: 1.0.0-mut
+  params:
+    min_win_rate: 0.66
+    min_avg_return: 0.0
+    lookback_years: 10
+  status: candidate
+  tier: feature
+- edge_id: gap_fill_v1_mut_1498
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.gap_edge
+  version: 1.0.0-mut
+  params:
+    atr_mult: 1.97
+    atr_window: 23
+    vol_z_threshold: 2.16
+  status: candidate
+  tier: feature
+- edge_id: gap_fill_v1_mut_b3fd
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.gap_edge
+  version: 1.0.0-mut
+  params:
+    atr_mult: 2.48
+    atr_window: 12
+    vol_z_threshold: 1.65
+  status: candidate
+  tier: feature
+- edge_id: gap_fill_v1_mut_d6f7
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.gap_edge
+  version: 1.0.0-mut
+  params:
+    atr_mult: 0.54
+    atr_window: 18
+    vol_z_threshold: 1.23
+  status: candidate
+  tier: feature
+- edge_id: volume_anomaly_v1_mut_3824
+  category: volume
+  module: engines.engine_a_alpha.edges.volume_anomaly_edge
+  version: 1.0.0-mut
+  params:
+    vol_z_threshold: 1.7
+    vol_lookback: 19
+    bb_window: 22
+    bb_squeeze_pct: 0.01
+  status: candidate
+  tier: feature
+- edge_id: volume_anomaly_v1_mut_30f9
+  category: volume
+  module: engines.engine_a_alpha.edges.volume_anomaly_edge
+  version: 1.0.0-mut
+  params:
+    vol_z_threshold: 1.55
+    vol_lookback: 35
+    bb_window: 21
+    bb_squeeze_pct: 0.03
+  status: candidate
+  tier: feature
+- edge_id: volume_anomaly_v1_mut_cbd6
+  category: volume
+  module: engines.engine_a_alpha.edges.volume_anomaly_edge
+  version: 1.0.0-mut
+  params:
+    vol_z_threshold: 1.57
+    vol_lookback: 15
+    bb_window: 21
+    bb_squeeze_pct: 0.05
+  status: candidate
+  tier: feature
+- edge_id: panic_v1_mut_be0a
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.panic_edge
+  version: 1.0.0-mut
+  params:
+    rsi_threshold: 29.05
+    rsi_window: 5
+    vol_z_threshold: 2.59
+    vol_lookback: 34
+    bb_window: 18
+    bb_std: 2.75
+    atr_expansion_pct: 1.16
+  status: candidate
+  tier: feature
+- edge_id: panic_v1_mut_1835
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.panic_edge
+  version: 1.0.0-mut
+  params:
+    rsi_threshold: 22.01
+    rsi_window: 8
+    vol_z_threshold: 2.9
+    vol_lookback: 27
+    bb_window: 21
+    bb_std: 1.89
+    atr_expansion_pct: 1.91
+  status: candidate
+  tier: feature
+- edge_id: panic_v1_mut_31c1
+  category: mean_reversion
+  module: engines.engine_a_alpha.edges.panic_edge
+  version: 1.0.0-mut
+  params:
+    rsi_threshold: 18.05
+    rsi_window: 6
+    vol_z_threshold: 3.08
+    vol_lookback: 20
+    bb_window: 20
+    bb_std: 2.01
+    atr_expansion_pct: 1.33
+  status: candidate
+  tier: feature
+- edge_id: herding_v1_mut_8404
+  category: contrarian
+  module: engines.engine_a_alpha.edges.herding_edge
+  version: 1.0.0-mut
+  params:
+    breadth_threshold: 0.8
+    extreme_pctile: 92.4
+    min_universe_size: 26
+  status: candidate
+  tier: feature
+- edge_id: herding_v1_mut_5fae
+  category: contrarian
+  module: engines.engine_a_alpha.edges.herding_edge
+  version: 1.0.0-mut
+  params:
+    breadth_threshold: 0.74
+    extreme_pctile: 93.98
+    min_universe_size: 24
+  status: candidate
+  tier: feature
+- edge_id: herding_v1_mut_3438
+  category: contrarian
+  module: engines.engine_a_alpha.edges.herding_edge
+  version: 1.0.0-mut
+  params:
+    breadth_threshold: 0.76
+    extreme_pctile: 97.39
+    min_universe_size: 21
+  status: candidate
+  tier: feature
+- edge_id: earnings_vol_v1_mut_b35c
+  category: event_driven
+  module: engines.engine_a_alpha.edges.earnings_vol_edge
+  version: 1.0.0-mut
+  params:
+    bb_window: 19
+    squeeze_pct: 0.04
+    pre_days: 9
+    post_days: 4
+    drift_threshold: 0.04
+  status: candidate
+  tier: feature
+- edge_id: earnings_vol_v1_mut_a736
+  category: event_driven
+  module: engines.engine_a_alpha.edges.earnings_vol_edge
+  version: 1.0.0-mut
+  params:
+    bb_window: 22
+    squeeze_pct: 0.04
+    pre_days: 9
+    post_days: 5
+    drift_threshold: 0.04
+  status: candidate
+  tier: feature
+- edge_id: earnings_vol_v1_mut_1883
+  category: event_driven
+  module: engines.engine_a_alpha.edges.earnings_vol_edge
+  version: 1.0.0-mut
+  params:
+    bb_window: 16
+    squeeze_pct: 0.02
+    pre_days: 4
+    post_days: 3
+    drift_threshold: 0.04
+  status: candidate
+  tier: feature
+- edge_id: value_earnings_yield_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.value_earnings_yield_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+  status: active
+  tier: feature
+- edge_id: value_book_to_market_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.value_book_to_market_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+  status: active
+  tier: feature
+- edge_id: quality_roic_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.quality_roic_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+    tax_rate: 0.21
+  status: failed
+  tier: feature
+  failure_reason: universe_too_small
+- edge_id: quality_gross_profitability_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.quality_gross_profitability_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+  status: failed
+  tier: feature
+  failure_reason: universe_too_small
+- edge_id: accruals_inv_sloan_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.accruals_inv_sloan_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+  status: active
+  tier: feature
+- edge_id: accruals_inv_asset_growth_v1
+  category: fundamental
+  module: engines.engine_a_alpha.edges.accruals_inv_asset_growth_edge
+  version: 1.0.0
+  params:
+    top_quantile: 0.2
+    long_score: 1.0
+    min_universe: 30
+  status: active
+  tier: feature
+- edge_id: momentum_12_1_v1
+  category: cross_sectional_momentum
+  module: engines.engine_a_alpha.edges.momentum_12_1_v1
+  version: 1.0.0
+  params:
+    lookback_days: 252
+    skip_days: 21
+    long_quantile: 0.8
+    min_universe_size: 50
+    long_score: 1.0
+  status: paused
+  tier: feature
+- edge_id: short_term_reversal_v1
+  category: cross_sectional_reversal
+  module: engines.engine_a_alpha.edges.short_term_reversal_v1
+  version: 1.0.0
+  params:
+    lookback_days: 21
+    long_quantile: 0.1
+    short_quantile: 0.9
+    min_universe_size: 50
+    long_score: 1.0
+    short_score: -1.0
+  status: paused
+  tier: feature
+- edge_id: dividend_initiation_drift_v1
+  category: event_driven_drift
+  module: engines.engine_a_alpha.edges.dividend_initiation_drift_v1
+  version: 1.0.0
+  params:
+    initiation_gap_years: 3
+    drift_window_days: 60
+    skip_first_day: true
+    long_score_max: 0.5
+  status: paused
+  tier: feature
+- edge_id: calendar_anomaly_v1
+  category: calendar
+  module: engines.engine_a_alpha.edges.calendar_anomaly_edge
+  version: 1.0.0
+  params:
+    dow_tilts:
+      0: -0.05
+      1: 0.0
+      2: 0.05
+      3: 0.05
+      4: 0.1
+    tom_tilt: 0.1
+    tilt_ceiling: 0.2
+    tilt_floor: -0.1
+  status: paused
+  tier: feature
+- edge_id: cot_positioning_v1
+  category: macro_positioning
+  module: engines.engine_a_alpha.edges.cot_positioning_edge
+  version: 1.0.0
+  params:
+    zscore_window_weeks: 52
+    z_long_threshold: -1.5
+    z_short_threshold: 1.5
+    long_tilt: 0.5
+    short_tilt: -0.5
+  status: paused
+  tier: feature
+- edge_id: momentum_6_1_v1
+  category: cross_sectional_momentum
+  module: engines.engine_a_alpha.edges.momentum_6_1_v1
+  version: 1.0.0
+  params:
+    lookback_days: 126
+    skip_days: 21
+    long_quantile: 0.8
+    min_universe_size: 50
+    long_score: 1.0
+  status: paused
+  tier: feature
+- edge_id: leaps_catalyst_v1
+  category: asymmetric_upside
+  module: engines.engine_a_alpha.edges.leaps_catalyst_edge
+  version: 1.0.0-phase0
+  params:
+    catalyst_horizon_days: 540
+    min_days_to_event: 7
+    iv_proxy_multiplier: 1.2
+    realized_vol_window_days: 63
+    tilt_long: 0.6
+    earnings_min_surprise_pct: 5.0
+  status: paused
+  tier: feature
+- edge_id: pairs_trading_MA_V_v1
+  category: pairs_trading
+  module: engines.engine_a_alpha.edges.pairs_trading_v1
+  version: 1.0.0
+  params:
+    ticker_x: MA
+    ticker_y: V
+    beta: 0.890104802648772
+    pair_id: MA_V
+    lookback_days: 60
+    z_entry: 2.0
+    z_exit: 0.5
+    z_stop: 4.0
+    min_history_bars: 60
+    long_score: 1.0
+    short_score: -1.0
+  status: paused
+  tier: feature
+- edge_id: spinoff_reversion_v1
+  category: event_driven_structural
+  module: engines.engine_a_alpha.edges.spinoff_reversion_v1
+  version: 1.0.0
+  params:
+    entry_offset_days: 3
+    holding_period_days: 90
+    in_window_score: 1.0
+    linear_decay: false
+  status: paused
+  tier: feature

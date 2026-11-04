@@ -155,6 +155,13 @@ COPY --chown=archondex:archondex data/governor/ ./data/governor/
 # Root-level Python modules imported by the backtest harness
 COPY --chown=archondex:archondex debug_config.py ./
 
+# The edges.yml single-writer unit (2026-10-22, R §2): imports never write the registry, so the
+# image carries the last SYNCED state of the building machine. This check writes nothing and
+# fails the build when the baked registry disagrees with its own code (an edge module registers
+# something the file lacks, or a code-owned field drifted) — an image cannot ship a registry its
+# code disagrees with. Network dead-ended by construction while the edge modules import.
+RUN python scripts/sync_edge_registry.py --check
+
 # Pre-create the trade_logs mount point so a runtime volume mount succeeds
 # even when the host hasn't pre-created the directory. Empty in image.
 RUN mkdir -p /app/data/trade_logs /app/data/observability \

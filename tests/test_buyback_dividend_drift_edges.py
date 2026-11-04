@@ -51,8 +51,13 @@ def _make_data_map(tickers: list[str]) -> dict[str, pd.DataFrame]:
 # Registration
 # ---------------------------------------------------------------------------
 
-def test_dividend_initiation_drift_registers_at_paused_feature():
-    reg = EdgeRegistry()
+def test_dividend_initiation_drift_registers_at_paused_feature(tmp_path):
+    """Through the explicit sync on a tmp registry (since the single-writer unit imports never
+    write; this used to read — and mutate — the REAL, CWD-relative registry)."""
+    from scripts.sync_edge_registry import sync
+    reg_path = tmp_path / "edges.yml"
+    sync(reg_path, modules=["dividend_initiation_drift_v1"])
+    reg = EdgeRegistry(store_path=reg_path)
     spec = next(
         (s for s in reg.get_all_specs() if s.edge_id == "dividend_initiation_drift_v1"),
         None,

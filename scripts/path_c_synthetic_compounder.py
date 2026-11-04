@@ -267,7 +267,8 @@ BOND_BUFFER_TICKER = "IEF"
 BOND_BUFFER_WEIGHT = 0.30  # 30% IEF / 70% compounder
 
 DATA_CACHE = Path(__file__).resolve().parents[1] / "data" / "research" / "path_c_cache"
-DATA_CACHE.mkdir(parents=True, exist_ok=True)
+# Created at WRITE time (fetch_prices), never at import: importing this module from a test
+# created data/research/path_c_cache/ in every tree the suite ran in (2026-10-22).
 
 
 # ----------------------------------------------------------------------
@@ -315,6 +316,7 @@ def fetch_prices(tickers: List[str], start: str, end: str) -> pd.DataFrame:
     prices.index = pd.to_datetime(prices.index).tz_localize(None)
     prices = prices.dropna(how="all")
 
+    DATA_CACHE.mkdir(parents=True, exist_ok=True)
     prices.to_parquet(cache_path)
     print(f"[fetch] cached {prices.shape} to {cache_path.name}")
     return prices

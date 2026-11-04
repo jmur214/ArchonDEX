@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 import os
-import yaml
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -84,22 +83,16 @@ class EvolutionController:
         log.info(f"Evolution Cycle Complete. Processed {updated_count} candidates.")
 
     def load_edges(self):
-        if not self.registry_path.exists():
-            return []
-        try:
-            with open(self.registry_path, "r") as f:
-                data = yaml.safe_load(f) or {}
-                return data.get("edges", [])
-        except Exception as e:
-            log.error(f"Error loading edges: {e}")
-            return []
+        """FAIL CLOSED through the ONE reader: an unreadable registry RAISES (it used to log and
+        return [] — a cycle that silently found no candidates). An absent file is the only empty."""
+        from core.edge_registry_io import read_registry
+        return read_registry(self.registry_path)["edges"]
 
     def save_edges(self, edges):
-        try:
-            with open(self.registry_path, "w") as f:
-                yaml.dump({"edges": edges}, f, sort_keys=False)
-        except Exception as e:
-            log.error(f"Error saving edges: {e}")
+        """Through the ONE atomic writer; a failure RAISES `RegistryWriteError` with the registry's
+        bytes untouched (it used to `open("w")` — truncating first — inside an `except: log`)."""
+        from core.edge_registry_io import write_registry_atomic
+        write_registry_atomic(self.registry_path, {"edges": edges})
 
     def _ensure_data_and_wfo(self):
         """Lazy-load data_map and WalkForwardOptimizer. Called only when validating."""
