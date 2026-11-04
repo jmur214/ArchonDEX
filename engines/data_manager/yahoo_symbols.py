@@ -31,6 +31,13 @@ _SHARE_CLASS_RE = re.compile(r"^([A-Z]+)\.([A-Z])$")
 YAHOO_OVERRIDES: dict[str, str] = {
     "BF.B": "BF-B",
     "BRK.B": "BRK-B",
+    # BK -> BNY (Bank of New York Mellon's ticker change). A RENAME: an identity claim, landed WITH
+    # the declared class at cutover step 1 (2026-10-22; the cutover proposal §2b). The evidence:
+    # Yahoo BK is empty; Alpaca has no BK and BNY is ACTIVE; log(BNY TR / BK cache) is constant at
+    # −0.0088 from 2018 through 2025 with no step. The entry enables NO write by itself — the
+    # writer's span and overlap rails still decide (measured 2026-10-15: DIFFERENT_CONVENTION over
+    # 252 bars, two +0.042% steps on 2026-01-20 and 2026-02-06; the rail is not loosened).
+    "BK": "BNY",
     # Old-name -> last Yahoo-known symbol while listed
     "FRC": "FRCB",       # First Republic Bank — OTC pink sheet after FDIC
     "SIVB": "SIVBQ",     # SVB Financial Group — chapter 11 ticker

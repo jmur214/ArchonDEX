@@ -154,6 +154,13 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 
 *This section is automatically built by `scripts/sync_docs.py`. Do not edit manually.*
 
+### `convention.py`
+**Module Docstring:** The UNIVERSAL convention label (option (a), the user's cutover ruling, 2026-10-22).
+- **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
+- **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the
+- **Function `substrate_convention_record()`**: The `substrate_convention` census block over `run_names` (the panel; every name in the merge
+- **Function `drip_spans()`**: Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
+
 ### `coverage.py`
 **Module Docstring:** The stale/holed-files guard (adopted 2026-10-15; docs/Sources/proposal_stale_and_holed_files_guard_2026-10-15.md).
 - **Function `load_data_gaps()`**: The declared data gaps, validated. An absent file means no declarations; a malformed one
@@ -260,7 +267,13 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `load_level_declarations()`**: The hand-set facts the identity cannot establish: per name, `kind` (`scale_defect` — a level
 - **Function `level_identity()`**: The cache's last bar against the level the provider says it SHOULD hold. The cache was
 - **Function `substrate_level_declarations()`**: The census block (`level_declarations`): every file in this substrate whose CURRENT version
-- **Function `full_refetch()`**: Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
+- **Function `load_convention_declarations()`**: `config/convention_declarations.json`: `seams` (per name: `seam_date`, `pre_seam`,
+- **Function `load_merge_meta()`**: The T-082b merge record's `per_ticker` map under this cache, or None when the cache has
+- **Function `seam_for()`**: Where this file's seam is, and who says so. A DECLARED seam (classes (iii)/(iv)) wins, and
+- **Function `seam_ratio()`**: The provider/cache ratio AT the seam: the first bar on or after the seam both series hold.
+- **Function `verify_split_only_cache()`**: The declared check for a SPLIT-ONLY cache (the backfill_t052 trio): the cached tail must
+- **Function `verify_mixed_convention()`**: The declared check for a MIXED cache (AMCR: total return, then two missed ex-dates): the
+- **Function `full_refetch()`**: Replace `<ticker>_1d` with a total-return re-fetch from THE universe provider — or refuse.
 - **Function `yfinance_provider()`**: yfinance: auto_adjust=True -> total return; False -> split-adjusted Close.
 - **Function `yfinance_actions()`**: yfinance's corporate-actions record (dividends and split factors), tz-naive.
 

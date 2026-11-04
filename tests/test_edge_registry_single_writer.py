@@ -302,7 +302,9 @@ def _real_gauntlet(monkeypatch, registry_text: str, tmp_path: Path, *, bootstrap
     disc.registry_path = reg
     return disc.validate_candidate(
         g78._make_cand_spec(), data_map, significance_threshold=0.05, alpha_config={}, n_trials_for_dsr=2,
-        data_map_substrate_b={"SUBSTRATEB": data_map["AAA"]},
+        # "AAPL", the substrate name gates_7_8's helper now returns (merged 2026-11-04: option (a)'s
+        # universal convention label refuses a synthetic name the canonical cache cannot label)
+        data_map_substrate_b={"SUBSTRATEB": data_map["AAPL"]},
         start_date=idx[0].isoformat(), end_date=idx[-1].isoformat())
 
 
@@ -332,7 +334,9 @@ def test_LOCK4b_bootstrap_mode_promotes_from_an_empty_book_and_the_census_carrie
     # the candidate census carries the label (it is the record of the seeding, not failed on it);
     # the same label on a BACKTEST census is NON-CANONICAL — never a performance claim
     idx = pd.bdate_range("2025-01-02", periods=20)
-    clean = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA")}
+    # substrate names (merged 2026-11-04): the candidate census labels every name from the canonical
+    # cache and refuses a synthetic "AAA" as unlabelled — the cutover unit's own rule
+    clean = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAPL")}
     block = candidate_census_block("cand_v1", SimpleNamespace(nonzero_calls=1, errors=0), n_trades=3,
                                    data_map=clean, window=(str(idx[0].date()), str(idx[-1].date())),
                                    # L4 (merged 2026-11-04): a clean candidate block supplies its sizing

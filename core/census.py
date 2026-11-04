@@ -24,7 +24,8 @@ the audit's invariants fail:
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
-     level_declarations / stale_files record
+     level_declarations / stale_files / fundamentals_misses / substrate_convention /
+     share_price_basis record
   9. stale_files: any UNDECLARED live name that ends before its required end (the earlier of the
      window end and its exit) or is holed inside its required spans, or a reference calendar that
      is holed or unverified — `coverage_defects`, shared with the measured-run admission
@@ -42,6 +43,11 @@ the audit's invariants fail:
       substrate carries close_unadj, `mixed` with counts per basis). A total_return basis is a
       census fact until the cutover lands; only an ERRORED record fails (the basis was not measured).
       A summary without the record warns (it predates the field).
+  13. substrate_convention: any name in the panel with NO convention label (option (a)'s universal
+      drip label, 2026-10-22 — a label is read from the write record / override / merge record,
+      never defaulted); an errored record fails under 8. Numbered 10 on the cutover branch;
+      renumbered 13 at its merge onto main (2026-11-04), behind the single-writer unit's 10/11 and
+      the sizing unit's 12 — the semantics unchanged.
 
 Plus a WARNING (not a hard fail) if the summary shipped with neither a
 bootstrap CI nor an explicit skip reason (the CLAUDE.md ci_low rule).
@@ -105,8 +111,13 @@ def coverage_defects(sf: Dict[str, Any]) -> List[str]:
                    f"write-time band class: {', '.join(bad[:10])}")
     if sf.get("n_holed"):
         bad = sorted(t for t, v in (sf.get("names") or {}).items() if v.get("undeclared_missing_days"))
+        # Why the pre_seam_drip_gap class (2026-11-04) did not excuse them — post-seam, a kept count
+        # that no longer matches, a hole the file does not have, no label, or the class off.
+        why = (sf.get("pre_seam_drip_gaps") or {}).get("not_excused") or {}
+        reasons = "; ".join(f"{t}: {why[t]}" for t in bad[:5] if t in why)
         out.append(f"stale_files: {sf['n_holed']} name(s) HOLED inside their required spans beyond "
-                   f"their declarations: {', '.join(bad[:10])}")
+                   f"their declarations: {', '.join(bad[:10])}"
+                   + (f" — not excused as pre_seam_drip_gap because {reasons}" if reasons else ""))
     cal = sf.get("calendar") or {}
     if not cal.get("checked_against"):
         out.append("stale_files: the reference calendar is UNVERIFIED — no SPY in the run's data to "
@@ -162,7 +173,7 @@ def assert_census(
         if k.endswith("_error") and k != "census_error":
             failures.append(f"census block errored ({k}): {census[k]} — that invariant was never measured")
     for key in ("data_exclusions", "ticker_exclusions", "level_declarations", "stale_files",
-                "fundamentals_misses", "share_price_basis"):
+                "fundamentals_misses", "substrate_convention", "share_price_basis"):
         excl = census.get(key)
         if isinstance(excl, dict) and "error" in excl:
             failures.append(f"{key} record errored: {excl['error']} — what was withheld is unknown")
@@ -174,6 +185,24 @@ def assert_census(
     sf = census.get("stale_files")
     if isinstance(sf, dict) and "error" not in sf:
         failures.extend(coverage_defects(sf))
+    # 13 — option (a)'s UNIVERSAL convention label (2026-10-22; invariant 10 on the cutover branch,
+    # renumbered at the merge onto main behind 10 post_run_failure / 11 bootstrap_book /
+    # 12 share_price_basis): every name in the panel carries
+    # what each span of its file IS (the pre-seam drip vs exact total return). A name with no label
+    # — no write record, no override, no merge record, or a merge record the run's own frame proves
+    # stale — is a measurement on an unknown convention, never a default; the run is non-canonical.
+    sc = census.get("substrate_convention")
+    if isinstance(sc, dict) and "error" not in sc:
+        if sc.get("unlabelled"):
+            bad = sc["unlabelled"]
+            names = sorted(bad)
+            failures.append(
+                f"substrate_convention: {len(names)} name(s) in the panel carry NO convention label "
+                f"(the pre-seam drip is labelled, never defaulted): "
+                f"{', '.join(f'{n} ({bad[n]})' for n in names[:5])}{' …' if len(names) > 5 else ''}")
+    elif sc is None:
+        warnings.append("census has no substrate_convention record (summary predates 2026-10-22) — "
+                        "the pre-seam drip is unlabelled")
 
     dormant = set(expected_dormant or set()) | _env_set("CENSUS_EXPECTED_DORMANT")
     panel_allow = panel_allowlist if panel_allowlist is not None else _env_int("CENSUS_PANEL_ALLOWLIST", 0)

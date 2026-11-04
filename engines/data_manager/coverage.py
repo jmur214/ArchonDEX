@@ -27,6 +27,22 @@ DECLARATIONS (`config/data_gaps.json`) excuse exactly what they declare, facet b
   * `ends_at_delisting` — `{"last_bar": date}`: the file's last bar is the security's last print.
     It excuses an early END only when the file's last bar IS that date. It never excuses a hole, and
     a `holed_inside` declaration never excuses an early end.
+
+THE `pre_seam_drip_gap` CLASS (ruled 2026-10-23, built 2026-11-04; option (a) of the cutover): the
+kept pre-seam DRIP carries the pre-T-167 band's own holes (on the candidate: 215 names, 380 days,
+one to four per name, mostly 2000–2002 and 2011), and option (a) keeps them with it. They are a
+DECLARED, COUNTED class keyed to the convention LABEL, never a tolerance: a hole is excused under it
+only when (1) the name's label carries a drip pre-seam span (`convention.drip_spans` — the same
+resolution as the census label, so the class can never excuse a hole on a span the label does not
+call drip); (2) the hole falls strictly BEFORE the seam; (3) the file under `cache_dir` IS the kept
+drip — its bars before the seam number exactly what the write record (`n_pre_seam_bars_kept`) or
+the merge record (`n_stooq_pre_seam`) says were kept; and (4) the file lacks the bar too (a hole
+the frame has and the file does not is NOT the drip's). A post-seam hole, a pre-seam hole on a
+file whose kept count no longer matches, a hole the file does not have, an unlabelled name, or a
+call with no `cache_dir` (the class is then OFF — fail closed) all stay UNDECLARED and fail. The
+record counts the excused days per name and in total (`pre_seam_drip_gaps`), and says per name why
+the class did not excuse what remains (`not_excused`). Both census producers and the measured-run
+admission pass the canonical cache; the pass driver's `guard` passes the copy it reads.
 """
 from __future__ import annotations
 
@@ -51,6 +67,47 @@ MAJORITY = 0.5
 FORMATION_FLOOR = 0.80
 CALENDAR_REFERENCE = "SPY"
 DECLARATION_FACETS = ("holed_inside", "ends_at_delisting")
+#: The declared, counted class for the kept drip's own pre-seam holes (keyed to the convention
+#: label, never a `data_gaps.json` facet; module docstring).
+PRE_SEAM_DRIP_GAP = "pre_seam_drip_gap"
+DRIP_GAP_RULE = ("a missing trading day is excused under pre_seam_drip_gap only when the name's "
+                 "convention label carries a drip pre-seam span, the day is strictly before the seam, "
+                 "the file's bars before the seam number exactly the kept count its record carries, and "
+                 "the file lacks the day too; counted per name and in total; anything else stays "
+                 "undeclared and fails")
+
+
+def _file_dates(cache_dir: Path, ticker: str) -> Optional[pd.DatetimeIndex]:
+    """The bar dates of the cache's own file for the name (parquet first, then csv), or None when
+    the cache holds neither — the witness for the kept drip (never the frame, which may be clipped
+    to the run window or truncated by a declared exclusion)."""
+    pq = Path(cache_dir) / "parquet" / f"{ticker}_1d.parquet"
+    if pq.exists():
+        return _dates(pd.read_parquet(pq, columns=["Close"]))
+    csv = Path(cache_dir) / f"{ticker}_1d.csv"
+    if csv.exists():
+        return _dates(pd.read_csv(csv, usecols=[0], index_col=0))
+    return None
+
+
+def _witness_pre_seam(cache_dir: Path, ticker: str, seam: pd.Timestamp, n_kept: Optional[int],
+                      holes: List[pd.Timestamp]) -> Optional[str]:
+    """None when the pre-seam `holes` in the frame are the kept drip's own; else why not."""
+    if n_kept is None:
+        return "the record carries no kept pre-seam bar count — the kept drip cannot be witnessed"
+    fd = _file_dates(cache_dir, ticker)
+    if fd is None:
+        return f"no {ticker}_1d file under {cache_dir} — the kept drip cannot be witnessed"
+    n_file = int((fd < seam).sum())
+    if n_file != n_kept:
+        return (f"the file's pre-seam span is NOT the kept drip: {n_file} bars before {seam.date()} vs "
+                f"{n_kept} kept in the record")
+    fset = set(fd)
+    not_in_file = [d for d in holes if d in fset]
+    if not_in_file:
+        return (f"{len(not_in_file)} pre-seam hole(s) in the frame that the file does not have — not the "
+                f"kept drip's: {', '.join(str(d.date()) for d in not_in_file[:5])}")
+    return None
 
 
 def load_data_gaps(path: Path = DATA_GAPS_PATH) -> Dict[str, dict]:
@@ -182,13 +239,16 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
                        intervals: Optional[pd.DataFrame] = None,
                        universe: Optional[Iterable[str]] = None,
                        declared: Optional[Dict[str, dict]] = None,
-                       formation_dates: Optional[Iterable] = None) -> dict:
+                       formation_dates: Optional[Iterable] = None,
+                       cache_dir: Optional[Path] = None) -> dict:
     """The `stale_files` census block. Per name: first/last bar, the REQUIRED end (the earlier of
     the window end and the member's exit), `ends_before_required` (stale), missing trading days
     inside the required spans (holes) and how many of them no declaration covers, the longest run,
     and the declared facets. Plus the calendar's proof against SPY and `formation_coverage` — rows
     FORMED on each formation date over every MEMBER on the date (`intervals` under PIT; `universe`,
-    the static list, otherwise), never a file on disk."""
+    the static list, otherwise), never a file on disk. `cache_dir` is the cache the frames were
+    loaded from: with it the `pre_seam_drip_gap` class (module docstring) excuses and COUNTS the
+    kept drip's own pre-seam holes; without it the class is OFF and every such hole fails."""
     start, end = pd.Timestamp(start), pd.Timestamp(end)
     declared = load_data_gaps() if declared is None else declared
     cal = majority_calendar(data_map, start, end)
@@ -200,6 +260,12 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
             continue
         idx = _dates(df)
         pre[t] = (idx, set(idx), _required_spans(t, start, end, intervals))
+    drip: Dict[str, dict] = {}
+    if cache_dir is not None:
+        from engines.data_manager.convention import drip_spans
+        drip = drip_spans(cache_dir, sorted(pre), data_map)
+    drip_per_name: Dict[str, int] = {}
+    not_excused: Dict[str, str] = {}
     for t in sorted(pre):
         idx, present, (spans, req_end, exited) = pre[t]
         if req_end is None:          # no membership inside the window: nothing was required of it
@@ -217,6 +283,33 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
         decl = declared.get(t) or {}
         runs = _runs(decl)
         undeclared = [d for d in missing if not any(lo <= d <= hi for lo, hi in runs)]
+        # The pre_seam_drip_gap class, after the explicit declarations: only the holes those left.
+        drip_days = 0
+        if undeclared:
+            spec = drip.get(t)
+            if cache_dir is None:
+                not_excused[t] = "no cache_dir given — the pre_seam_drip_gap class is off (fail closed)"
+            elif spec is None or "seam_date" not in spec:
+                not_excused[t] = (spec or {}).get("refused", "the name was not resolved")
+            else:
+                seam = pd.Timestamp(spec["seam_date"])
+                pre_holes = [d for d in undeclared if d < seam]
+                post_holes = [d for d in undeclared if d >= seam]
+                why = (_witness_pre_seam(cache_dir, t, seam, spec.get("n_pre_seam_kept"), pre_holes)
+                       if pre_holes else None)
+                if pre_holes and why is None:
+                    drip_days = len(pre_holes)
+                    undeclared = post_holes
+                    if post_holes:
+                        not_excused[t] = (f"{len(post_holes)} hole(s) on or after the seam {seam.date()} — "
+                                          f"post-seam, never the kept drip's")
+                elif pre_holes:
+                    not_excused[t] = why
+                else:
+                    not_excused[t] = (f"{len(post_holes)} hole(s) on or after the seam {seam.date()} — "
+                                      f"post-seam, never the kept drip's")
+        if drip_days:
+            drip_per_name[t] = drip_days
         delisting = (decl.get("ends_at_delisting") or {}).get("last_bar")
         end_excused = bool(stale and delisting is not None and pd.Timestamp(delisting) == last)
         stale_open = stale and not end_excused
@@ -232,8 +325,12 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
                         "end_declared_as_delisting": end_excused,
                         "missing_trading_days": len(missing),
                         "undeclared_missing_days": len(undeclared),
+                        "pre_seam_drip_gap_days": drip_days,
                         "longest_missing_run": _longest_run(missing, cal),
-                        "declared": [f for f in DECLARATION_FACETS if f in decl]}
+                        "declared": ([f for f in DECLARATION_FACETS if f in decl]
+                                     + ([PRE_SEAM_DRIP_GAP] if drip_days else []))}
+            if t in not_excused:
+                names[t]["pre_seam_drip_gap_not_excused"] = not_excused[t]
     # The calendar's proof, both directions, against SPY (never trusted as the calendar itself).
     checked_against, spy_missing, cal_missing = None, [], []
     if CALENDAR_REFERENCE in pre:
@@ -253,4 +350,11 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
             "membership": ("pit intervals" if intervals is not None
                            else "none (every name live to the window end)"),
             "names": names, "n_stale": n_stale, "n_holed": n_holed, "n_declared": n_declared,
-            "n_exited_in_window": n_exits, "formation_coverage": cov}
+            "n_exited_in_window": n_exits, "formation_coverage": cov,
+            # The kept drip's own pre-seam holes, excused under the declared class and COUNTED —
+            # per name and in total — with, per name, why the class did not excuse what remains.
+            "pre_seam_drip_gaps": {"class": PRE_SEAM_DRIP_GAP, "rule": DRIP_GAP_RULE,
+                                   "cache_dir": str(cache_dir) if cache_dir is not None else None,
+                                   "n_names": len(drip_per_name),
+                                   "n_days": int(sum(drip_per_name.values())),
+                                   "per_name": drip_per_name, "not_excused": not_excused}}

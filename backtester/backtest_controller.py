@@ -1463,12 +1463,15 @@ class BacktestController:
         # undeclared stale or holed names; an errored or unmeasurable record fails too.
         try:
             from engines.data_manager.coverage import stale_files_record
+            from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
             _window = getattr(self, "_census_window", None)
             if _window is None:
                 raise RuntimeError("no run window recorded — coverage not measured")
+            # cache_dir (2026-11-04): the cache the frames came from, so the kept drip's own
+            # pre-seam holes are excused under the COUNTED pre_seam_drip_gap class (never silently).
             census["stale_files"] = stale_files_record(
                 self.data_map, *_window, intervals=getattr(self, "_membership_intervals", None),
-                universe=getattr(self, "_census_universe", None))
+                universe=getattr(self, "_census_universe", None), cache_dir=_coverage_cache)
         except Exception as e:
             census["stale_files"] = {"error": repr(e)}
         # The LEVEL rail's declarations (2026-10-15): substrate files whose CURRENT version was
@@ -1479,6 +1482,18 @@ class BacktestController:
             census["level_declarations"] = substrate_level_declarations(CANONICAL_CACHE_DIR)
         except Exception as e:
             census["level_declarations"] = {"error": repr(e)}
+        # OPTION (a)'s UNIVERSAL convention label (2026-10-22): what each span of every name in the
+        # panel IS — the pre-seam drip vs exact total return — from the pinned write records, the
+        # declared overrides and the merge record under the canonical cache, witnessed against the
+        # run's own frames. Never a default: an unlabelled name fails the gate, as does an errored
+        # record.
+        try:
+            from engines.data_manager.convention import substrate_convention_record
+            from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _cache_dir
+            census["substrate_convention"] = substrate_convention_record(
+                _cache_dir, run_names=sorted(self.data_map), data_map=self.data_map)
+        except Exception as e:
+            census["substrate_convention"] = {"error": repr(e)}
         try:
             from engines.data_manager.data_manager import data_feed_summary
             census["data_feed"] = data_feed_summary()
@@ -1510,7 +1525,9 @@ class BacktestController:
                 f"panel={census.get('n_in_panel')}/{census.get('n_resolved')} "
                 f"regime_unknown={census.get('regime_unknown_frac')} "
                 f"edges_blind={len(census.get('edges_blind', []))} "
-                f"fund_blind={census.get('fundamentals_blind')}"
+                f"fund_blind={census.get('fundamentals_blind')} "
+                f"drip_gaps={(census.get('stale_files') or {}).get('pre_seam_drip_gaps', {}).get('n_days')}"
+                f"/{(census.get('stale_files') or {}).get('pre_seam_drip_gaps', {}).get('n_names')}"
             )
         except Exception:
             pass

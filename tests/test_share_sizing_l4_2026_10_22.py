@@ -295,7 +295,9 @@ def test_lock3_both_producers_write_share_price_basis_from_the_one_summary_funct
     class _C:
         nonzero_calls, errors = 1, 0
     idx = pd.bdate_range("2025-01-02", periods=20)
-    clean = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA")}
+    # substrate names (merged 2026-11-04): the candidate census labels every name from the canonical
+    # cache and refuses a synthetic "AAA" as unlabelled — the cutover unit's own rule
+    clean = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAPL")}
     window = (str(idx[0].date()), str(idx[-1].date()))
     block = candidate_census_block("cand_v1", _C(), n_trades=4, data_map=clean, window=window,
                                    share_basis_counts={"unadjusted": 3, "total_return": 1})

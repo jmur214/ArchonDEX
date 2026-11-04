@@ -41,6 +41,19 @@ What the writer proves, rather than assumes (R's C-3/C-4):
     says "symbol mapped: X -> Y (kind)". No other symbol is ever tried.
 The guard primitives (overlap classification at the rounding floor, the seam-return rail) live
 here too, so the writer and the guard share one definition of "same convention".
+
+OPTION (a) — the SEAM-preserving write (the user's cutover ruling, 2026-10-22). The pre-seam drip
+(T-082b's constant-yield approximation of the Stooq years) STAYS for every file, labelled; only
+the POST-seam span is rewritten exact. So for a file the merge record (`_merge_meta.json`) shows
+as `both` with pre-seam bars, the writer KEEPS the cached bars before the seam — scaled by the
+ratio measured AT the seam bar, so the seam-day return is unchanged and the file sits at the
+provider's level — and takes the provider's exact total return from the seam on. The provider
+need only cover the post-seam span (that is what admits the class (iii)/(iv) names whose Stooq
+history is deeper than the provider's), and the ratio must be the SAME constant at the seam as
+over the last-year tail: a mid-span step is a convention change the cache made (AMCR missed two
+ex-dates), refused unless a `cache_convention_defects` declaration names it. A file with no
+pre-seam span is replaced whole, as before. The write record carries `seam` and `convention`
+(what each span IS), which is what the census's universal label reads back.
 """
 from __future__ import annotations
 
@@ -49,7 +62,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -72,6 +85,12 @@ OVERLAP_MIN_BARS = 10
 #: a 40-bar tail reads EFA and VNQ as RESCALED.
 OVERLAP_TAIL_BARS = 252
 COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+#: The SPLIT-ONLY close (the provider's unadjusted mode — the price that traded, split-adjusted) as
+#: a second column on every written file, named EXACTLY this (ruled 2026-10-15, the dollar-ADV HIGH:
+#: every dollar-ADV, slippage and borrow bucket, and the Engine B share-sizing unit, read it; a file
+#: without the column is read as total-return basis). NaN on bars the provider does not hold (the
+#: kept pre-seam bars before a class (iii)/(iv) provider's first bar) — never derived.
+CLOSE_UNADJ = "close_unadj"
 
 # ── the LEVEL rail (adopted 2026-10-15; docs/Sources/proposal_level_rail_last_bar_identity_2026-10-15.md)
 #: |ln residual| tolerance for the last-bar level identity. Measured: legitimate files sit within
@@ -87,6 +106,28 @@ LEGACY_ADJUSTED_AS_OF = pd.Timestamp("2026-04-25")
 WRITE_RECORDS_DIR = "_write_records"
 LEVEL_DECLARATIONS_PATH = Path(__file__).resolve().parents[2] / "config" / "level_declarations.json"
 CANONICAL_CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+
+# ── OPTION (a): seams and conventions (the user's cutover ruling, 2026-10-22) ──────
+#: The T-082b merge record, pinned under the cache: per file, `merge_case` (`both` / `alpaca_only`),
+#: `seam_date` and `n_stooq_pre_seam`. It is the ONLY source for "where is this file's seam", so a
+#: cache without it has no seams the writer can keep (every write is then whole-file) — and the
+#: census's convention label cannot be produced from it at all (fail closed, convention.py).
+MERGE_META_NAME = "_merge_meta.json"
+#: The declared seams (classes (iii)/(iv)), the whole-file overrides (SPY, regenerated after the
+#: merge) and the cache-convention defects (the split-only trio, the mixed AMCR).
+CONVENTION_DECLARATIONS_PATH = (Path(__file__).resolve().parents[2] / "config"
+                                / "convention_declarations.json")
+CONVENTION_SECTIONS = ("seams", "whole_file_overrides", "cache_convention_defects")
+DEFECT_KINDS = ("split_only_cache", "mixed_convention_cache")
+#: The two conventions a span can carry. "drip": T-082b's `apply_dividend_strip` — Stooq bars
+#: scaled by a fitted exp(a + b·t), a constant-yield APPROXIMATION of total return (every ex-date
+#: step smeared into a drift). "exact_tr": the provider's ex-date total return.
+DRIP = "drip"
+EXACT_TR = "exact_tr"
+#: The seam-ratio rail: |ln r_seam − ln r_tail| may not exceed this many rounding floors (the
+#: floor at the seam bar plus the tail's median floor). A dividend the cache missed is ~1e-2;
+#: the floor at $100 is 5e-5.
+SEAM_RATIO_FLOORS = 3
 
 #: symbol -> DataFrame indexed by date with columns "Dividends" and "Stock Splits" (the provider's
 #: corporate-actions record, in the same split basis as its unadjusted closes).
@@ -122,6 +163,10 @@ class WriteRecord:
     level: Optional[dict] = None   # the last-bar identity (None for a new ticker)
     level_declared: Optional[dict] = None   # the declaration a level change was written under
     adjusted_as_of: Optional[str] = None    # the date this file's total-return adjustment is as of
+    seam: Optional[dict] = None             # option (a): the kept pre-seam span and the seam ratio
+    convention: Optional[dict] = None       # what each span of the written file IS (drip / exact_tr)
+    convention_declared: Optional[dict] = None   # the cache-convention defect a write was made under
+    close_unadj: Optional[dict] = None      # the split-only column: its span and the bars it lacks
 
 
 # ── pure primitives ───────────────────────────────────────────────────────────────
@@ -321,6 +366,138 @@ def substrate_level_declarations(cache_dir: Path) -> dict:
     return out
 
 
+# ── OPTION (a): seams and cache-convention declarations ───────────────────────────
+
+def load_convention_declarations(path: Path = CONVENTION_DECLARATIONS_PATH) -> Dict[str, dict]:
+    """`config/convention_declarations.json`: `seams` (per name: `seam_date`, `pre_seam`,
+    `post_seam` — the classes (iii)/(iv) ruled to keep their deep history behind a declared seam),
+    `whole_file_overrides` (per name: `convention` — a file regenerated whole after the merge,
+    whose merge record is stale), `cache_convention_defects` (per name: `kind` in DEFECT_KINDS —
+    the cache itself is on the wrong convention, and the declared check must verify it before a
+    whole-span re-fetch replaces it). An absent file means no declarations; a malformed one or an
+    unknown kind RAISES (a declaration that cannot be read must never license anything)."""
+    path = Path(path)
+    if not path.exists():
+        return {s: {} for s in CONVENTION_SECTIONS}
+    raw = json.loads(path.read_text())
+    out = {s: dict(raw.get(s, {})) for s in CONVENTION_SECTIONS}
+    for t, d in out["seams"].items():
+        pd.Timestamp(d["seam_date"])
+        if d.get("pre_seam") not in (DRIP, EXACT_TR) or d.get("post_seam") not in (DRIP, EXACT_TR):
+            raise ValueError(f"convention_declarations.seams[{t}]: pre_seam/post_seam must be "
+                             f"{DRIP!r} or {EXACT_TR!r}")
+    for t, d in out["whole_file_overrides"].items():
+        if d.get("convention") not in (DRIP, EXACT_TR):
+            raise ValueError(f"convention_declarations.whole_file_overrides[{t}]: convention must be "
+                             f"{DRIP!r} or {EXACT_TR!r}")
+    for t, d in out["cache_convention_defects"].items():
+        if d.get("kind") not in DEFECT_KINDS:
+            raise ValueError(f"convention_declarations.cache_convention_defects[{t}]: kind must be "
+                             f"one of {DEFECT_KINDS}")
+        if d["kind"] == "mixed_convention_cache":
+            steps = d.get("declared_steps") or []
+            if not steps:
+                raise ValueError(f"convention_declarations.cache_convention_defects[{t}]: a mixed "
+                                 f"convention declares the ex-dates the cache missed")
+            [pd.Timestamp(s) for s in steps]
+    return out
+
+
+def load_merge_meta(cache_dir: Path) -> Optional[Dict[str, dict]]:
+    """The T-082b merge record's `per_ticker` map under this cache, or None when the cache has
+    none. Never fabricated: a cache with no record has no seams the writer can keep."""
+    p = Path(cache_dir) / MERGE_META_NAME
+    if not p.exists():
+        return None
+    return json.loads(p.read_text()).get("per_ticker", {})
+
+
+def seam_for(cache_dir: Path, ticker: str,
+             conventions: Optional[Dict[str, dict]] = None) -> Optional[dict]:
+    """Where this file's seam is, and who says so. A DECLARED seam (classes (iii)/(iv)) wins, and
+    must agree with the merge record when both exist (a disagreement is refused, never resolved
+    silently). Otherwise the merge record: a `both` file with pre-seam bars has its seam at
+    `seam_date`; anything else has no seam (a whole-file write). None = no seam."""
+    conventions = load_convention_declarations() if conventions is None else conventions
+    meta = load_merge_meta(cache_dir) or {}
+    entry = meta.get(ticker)
+    decl = conventions["seams"].get(ticker)
+    if decl is not None:
+        if entry and entry.get("seam_date") and pd.Timestamp(entry["seam_date"]) != pd.Timestamp(decl["seam_date"]):
+            raise WriterRefusal(f"{ticker}: the declared seam {decl['seam_date']} disagrees with the "
+                                f"merge record's {entry['seam_date']} — re-rule it; not writing")
+        return {"date": pd.Timestamp(decl["seam_date"]), "source": "declared",
+                "pre_seam": decl["pre_seam"], "post_seam": decl["post_seam"], "declared": dict(decl)}
+    if entry and entry.get("merge_case") == "both" and int(entry.get("n_stooq_pre_seam") or 0) > 0 \
+            and entry.get("seam_date"):
+        return {"date": pd.Timestamp(entry["seam_date"]), "source": "merge_meta",
+                "pre_seam": DRIP, "post_seam": EXACT_TR, "declared": None}
+    return None
+
+
+def seam_ratio(cached_close: pd.Series, fetched_close: pd.Series, seam_date: pd.Timestamp) -> dict:
+    """The provider/cache ratio AT the seam: the first bar on or after the seam both series hold.
+    It is the factor the kept pre-seam bars are scaled by, so the seam-day return is unchanged."""
+    j = pd.concat([cached_close.rename("c"), fetched_close.rename("f")], axis=1, join="inner").dropna()
+    j = j[j.index >= pd.Timestamp(seam_date)]
+    if j.empty:
+        raise WriterRefusal(f"no common bar at or after the seam {pd.Timestamp(seam_date).date()} — "
+                            f"the seam ratio cannot be measured; not writing")
+    c, f = float(j["c"].iloc[0]), float(j["f"].iloc[0])
+    return {"date": str(j.index[0].date()), "ratio": f / c, "log_ratio": float(np.log(f / c)),
+            "floor": float(_floor(pd.Series([c])).iloc[0])}
+
+
+def verify_split_only_cache(cached_tail: pd.Series, unadjusted_tail: pd.Series,
+                            adjusted_overlap: dict) -> dict:
+    """The declared check for a SPLIT-ONLY cache (the backfill_t052 trio): the cached tail must
+    agree with the provider's split-only mode up to a rescale, AND must read a different
+    convention against the total-return mode (the defect must be present, or the declaration no
+    longer matches the data). Only then may a whole-span total-return re-fetch replace it."""
+    against_split_only = classify_overlap(cached_tail, unadjusted_tail)
+    if against_split_only["verdict"] not in ("APPEND", "RESCALED"):
+        raise WriterRefusal(
+            f"declared split_only_cache, but the cached tail reads {against_split_only['verdict']} "
+            f"against the provider's SPLIT-ONLY mode too — the declaration does not explain the "
+            f"cache; not writing",
+            detail={"against_split_only": against_split_only, "against_total_return": adjusted_overlap})
+    if adjusted_overlap["verdict"] != "DIFFERENT_CONVENTION":
+        raise WriterRefusal(
+            f"declared split_only_cache, but the cached tail reads {adjusted_overlap['verdict']} "
+            f"against the TOTAL-RETURN mode — the declared defect is not present; re-rule it",
+            detail={"against_split_only": against_split_only, "against_total_return": adjusted_overlap})
+    return {"kind": "split_only_cache", "against_split_only": against_split_only,
+            "against_total_return": adjusted_overlap}
+
+
+def verify_mixed_convention(cached_close: pd.Series, fetched_close: pd.Series,
+                            declared_steps) -> dict:
+    """The declared check for a MIXED cache (AMCR: total return, then two missed ex-dates): the
+    log ratio provider/cache over the common span must be piecewise CONSTANT with a step at EVERY
+    declared date and at NO other. An undeclared step, or a declared date with no step, refuses."""
+    j = pd.concat([cached_close.rename("c"), fetched_close.rename("f")], axis=1, join="inner").dropna()
+    if len(j) < OVERLAP_MIN_BARS:
+        raise WriterRefusal("declared mixed_convention_cache, but too few common bars to verify it",
+                            detail={"n": int(len(j))})
+    lr = np.log(j["f"] / j["c"])
+    floor = _floor(j["c"])
+    d = lr.diff().dropna()
+    steps = d[d.abs() > 3 * floor.reindex(d.index)]
+    declared = {pd.Timestamp(s) for s in declared_steps}
+    found = set(steps.index)
+    undeclared = sorted(str(x.date()) for x in found - declared)
+    absent = sorted(str(x.date()) for x in declared - found)
+    detail = {"kind": "mixed_convention_cache", "n": int(len(j)),
+              "declared_steps": sorted(str(x.date()) for x in declared),
+              "steps_found": {str(k.date()): float(v) for k, v in steps.items()},
+              "undeclared_steps": undeclared, "declared_steps_absent": absent}
+    if undeclared or absent:
+        raise WriterRefusal(
+            f"declared mixed_convention_cache does not match the data — undeclared steps "
+            f"{undeclared}, declared steps absent {absent}; not writing", detail=detail)
+    return detail
+
+
 # ── the writer ────────────────────────────────────────────────────────────────────
 
 def _read_cached(cache_dir: Path, ticker: str) -> Optional[pd.DataFrame]:
@@ -337,17 +514,28 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                  today: pd.Timestamp, new_ticker_start: Optional[pd.Timestamp] = None,
                  write: bool = True, log_path: Optional[Path] = None,
                  actions: Optional[Actions] = None,
-                 declarations: Optional[Dict[str, dict]] = None) -> WriteRecord:
-    """Replace `<ticker>_1d` whole with a total-return re-fetch from THE universe provider — or refuse.
+                 declarations: Optional[Dict[str, dict]] = None,
+                 seam: Any = "auto",
+                 conventions: Optional[Dict[str, dict]] = None) -> WriteRecord:
+    """Replace `<ticker>_1d` with a total-return re-fetch from THE universe provider — or refuse.
 
-    Never writes unless: the provider covers the cached span, the basis is not anomalous, the
-    re-fetch agrees with the cached tail up to a rescale (APPEND or RESCALED — DIFFERENT_CONVENTION,
-    and an overlap too short to measure when a cache exists, are refused), the cache's LAST BAR
-    equals the provider's true print up to the dividends its own adjustment applied (the LEVEL rail;
-    a level change outside it needs a matching declaration, and a declared reused ticker is never
-    written), and the pair can be written atomically. `actions` (the provider's dividend/split
-    record) is REQUIRED when a cache exists: without it the identity cannot be checked, and the
-    writer refuses. `write=False` measures and returns the record only (the proof-on-a-copy mode).
+    Never writes unless: the provider covers the span it replaces, the basis is not anomalous, the
+    re-fetch agrees with the cached tail up to a rescale (APPEND or RESCALED — DIFFERENT_CONVENTION
+    is refused unless a `cache_convention_defects` declaration names this file AND its declared
+    check verifies; an overlap too short to measure when a cache exists is refused), the cache's
+    LAST BAR equals the provider's true print up to the dividends its own adjustment applied (the
+    LEVEL rail; a level change outside it needs a matching declaration, and a declared reused
+    ticker is never written), and the pair can be written atomically. `actions` (the provider's
+    dividend/split record) is REQUIRED when a cache exists: without it the identity cannot be
+    checked, and the writer refuses. `write=False` measures and returns the record only (the
+    proof-on-a-copy mode).
+
+    OPTION (a) — `seam`: "auto" (the default) resolves the file's seam through `seam_for` (a
+    declared seam, else the merge record under `cache_dir`); None forces a whole-file write; a dict
+    from `seam_for` is used as given. With a seam, the cached bars BEFORE it are KEPT (the drip),
+    scaled by the ratio measured at the seam bar; the provider must cover the POST-seam span only;
+    and the seam ratio must equal the tail's rescale (the seam-ratio rail) unless a mixed-convention
+    declaration explains the difference. The record says what each span IS (`convention`).
     """
     cache_dir = Path(cache_dir)
     cached = _read_cached(cache_dir, ticker)
@@ -367,28 +555,81 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         raise WriterRefusal(f"{who}: declared a REUSED TICKER (class (i): {decl.get('source', '')}) — "
                             f"the cached file is another entity; never written",
                             detail={"level_declared": decl, "symbol_mapped": mapped})
-    start = cached_start if cached_start is not None else new_ticker_start
+    if decl and decl.get("kind") == "symbol_reused_by_later_entity":   # before any provider call
+        # The MIRROR of class (i) (ruled 2026-10-23): the cached file IS the PIT entity and is KEPT;
+        # the provider's series under the symbol (from `provider_series_start`) is a later company.
+        # Never re-fetched under this symbol — a writer-side declaration, not a universe exclusion.
+        raise WriterRefusal(f"{who}: declared SYMBOL REUSED BY A LATER ENTITY — the cached file is the "
+                            f"PIT entity and is kept; the provider's series under this symbol (from "
+                            f"{decl.get('provider_series_start')}) is another company; never re-fetched "
+                            f"under this symbol ({decl.get('source', '')})",
+                            detail={"level_declared": decl, "symbol_mapped": mapped})
+    conventions = load_convention_declarations() if conventions is None else conventions
+    defect = conventions["cache_convention_defects"].get(ticker)
+    # OPTION (a): the seam. The kept span is the cached bars before it; the provider must cover the
+    # rest. A seam with no cached bars on one side of it is a declaration that does not match.
+    seam_spec = seam_for(cache_dir, ticker, conventions) if isinstance(seam, str) and seam == "auto" else seam
+    pre, post = None, cached
+    if seam_spec is not None:
+        if cached is None or cached.empty:
+            raise WriterRefusal(f"{who}: a seam is declared but there is no cached file to keep "
+                                f"bars from; not writing", detail={"seam": seam_spec})
+        seam_date = pd.Timestamp(seam_spec["date"])
+        pre, post = cached[cached.index < seam_date], cached[cached.index >= seam_date]
+        if pre.empty or post.empty:
+            raise WriterRefusal(f"{who}: the seam {seam_date.date()} is not inside the cached span "
+                                f"({cached_start.date()} → {cached.index.max().date()}) — the seam "
+                                f"record does not match the file; not writing",
+                                detail={"seam": {k: str(v) for k, v in seam_spec.items()}})
+        start = seam_date
+    else:
+        start = cached_start if cached_start is not None else new_ticker_start
     fetched = providers[provider](symbol, start, today, True)
-    ok, why = covers_span(fetched, cached)
+    ok, why = covers_span(fetched, post)
     if not ok:
-        raise WriterRefusal(f"{who}: {why}", detail={"symbol_mapped": mapped})
+        raise WriterRefusal(f"{who}: {why}" + ("" if seam_spec is None else
+                                               f" (the post-seam span, seam {start.date()})"),
+                            detail={"symbol_mapped": mapped})
     tail_start = today - pd.Timedelta(days=BASIS_WINDOW_DAYS)
     unadjusted = providers[provider](symbol, tail_start, today, False)
     basis = measure_basis(fetched["Close"][fetched.index >= tail_start], unadjusted["Close"])
     if basis["basis"].startswith("anomalous"):
         raise WriterRefusal(f"{who}: {basis['basis']} — not writing",
                             detail={"basis": basis, "symbol_mapped": mapped})
-    overlap = None
+    overlap, convention_declared = None, None
     if cached is not None and not cached.empty:
         cached_tail = cached["Close"].iloc[-OVERLAP_TAIL_BARS:]
         overlap = classify_overlap(cached_tail,
                                    fetched["Close"][fetched.index >= cached_tail.index.min()])
-        if overlap["verdict"] not in ("APPEND", "RESCALED"):
+        if overlap["verdict"] == "INSUFFICIENT":
+            raise WriterRefusal(
+                f"{who}: the re-fetch reads INSUFFICIENT against the last {len(cached_tail)} cached "
+                f"bars — an overlap too short to measure; not writing",
+                detail={"overlap": overlap, "basis": basis, "symbol_mapped": mapped})
+        if defect is not None and defect["kind"] == "mixed_convention_cache":
+            # The declared MIXED cache (AMCR): verified over the whole post-seam span — every declared
+            # step present, no other — whatever the tail reads (a missed ex-date older than the
+            # tail reads RESCALED there; the seam-ratio rail would catch it below).
+            convention_declared = verify_mixed_convention(
+                cached["Close"] if seam_spec is None else post["Close"], fetched["Close"],
+                defect["declared_steps"])
+        elif defect is not None and overlap["verdict"] == "DIFFERENT_CONVENTION":
+            # The declared SPLIT-ONLY cache (the trio): verified against the provider's two modes.
+            unadjusted_tail = providers[provider](symbol, cached_tail.index.min(), today, False)
+            convention_declared = verify_split_only_cache(cached_tail, unadjusted_tail["Close"], overlap)
+        elif defect is not None:
+            raise WriterRefusal(
+                f"{who}: a cache-convention defect ({defect['kind']}) is DECLARED but the re-fetch "
+                f"reads {overlap['verdict']} against the cached tail — the declaration no longer "
+                f"matches the data; re-rule it", detail={"overlap": overlap, "declaration": defect})
+        elif overlap["verdict"] not in ("APPEND", "RESCALED"):
             raise WriterRefusal(
                 f"{who}: the re-fetch reads {overlap['verdict']} against the last "
                 f"{len(cached_tail)} cached bars (basis {basis['basis']!r}) — a whole-file "
                 f"replacement must agree with the cache up to a rescale; not writing",
                 detail={"overlap": overlap, "basis": basis, "symbol_mapped": mapped})
+        if convention_declared is not None:
+            convention_declared = {**convention_declared, "declaration": dict(defect)}
     level, level_declared = None, None
     if cached is not None and not cached.empty:
         if actions is None:
@@ -423,7 +664,48 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                 f"{level['residual']:.4f} after the provider's dividends; a level change outside the "
                 f"identity needs a declaration; not writing",
                 detail={"level": level, "symbol_mapped": mapped})
-    out = with_derived_columns(fetched)
+    # OPTION (a): keep the pre-seam span, scaled by the ratio AT the seam. The seam-ratio rail: that
+    # ratio must be the tail's rescale — a difference is a step the cache made between the seam and
+    # the tail, a convention change, refused unless the mixed-convention declaration explains it.
+    seam_record, convention = None, {"whole": EXACT_TR}
+    if seam_spec is not None:
+        sr = seam_ratio(post["Close"], fetched["Close"], seam_spec["date"])
+        tail_log = float(overlap.get("median_log_ratio", 0.0)) if overlap else 0.0
+        tol = SEAM_RATIO_FLOORS * (sr["floor"] + float(overlap.get("floor_median", sr["floor"])))
+        gap = abs(sr["log_ratio"] - tail_log)
+        explained = convention_declared is not None and convention_declared.get("kind") == "mixed_convention_cache"
+        if gap > tol and not explained:
+            raise WriterRefusal(
+                f"{who}: the provider/cache ratio at the seam ({sr['ratio']:.6f} on {sr['date']}) is "
+                f"not the tail's rescale ({float(np.exp(tail_log)):.6f}; gap {gap:.2e} > {tol:.2e}) — "
+                f"the cache changed convention between the seam and the tail; an undeclared "
+                f"mid-span step; not writing",
+                detail={"seam_ratio": sr, "overlap": overlap, "symbol_mapped": mapped})
+        kept = pre[COLUMNS].copy()
+        for col in ("Open", "High", "Low", "Close"):
+            kept[col] = kept[col] * sr["ratio"]
+        out = with_derived_columns(pd.concat([kept, fetched[fetched.index >= seam_spec["date"]][COLUMNS]]))
+        seam_record = {"date": str(pd.Timestamp(seam_spec["date"]).date()), "source": seam_spec["source"],
+                       "declared": seam_spec.get("declared"), "n_pre_seam_bars_kept": int(len(kept)),
+                       "pre_seam_span": [str(kept.index.min().date()), str(kept.index.max().date())],
+                       "seam_ratio": sr, "tail_log_ratio": tail_log, "gap": gap, "tolerance": tol,
+                       "gap_explained_by_declaration": bool(explained and gap > tol)}
+        convention = {"pre_seam": seam_spec["pre_seam"], "seam_date": seam_record["date"],
+                      "post_seam": seam_spec["post_seam"]}
+    else:
+        out = with_derived_columns(fetched)
+    # The SPLIT-ONLY close as a second column (ruled 2026-10-15; CLOSE_UNADJ): the provider's
+    # unadjusted mode over the file's whole span, NaN on bars the provider does not hold — measured,
+    # never derived from the total-return close.
+    file_start = cached_start if cached_start is not None else new_ticker_start
+    unadj_full = providers[provider](symbol, file_start, today, False)
+    out[CLOSE_UNADJ] = (unadj_full["Close"].astype(float).reindex(out.index)
+                        if not unadj_full.empty else np.nan)
+    have = out[CLOSE_UNADJ].notna()
+    close_unadj = {"column": CLOSE_UNADJ, "mode": "unadjusted (split-only; the provider's auto_adjust=False)",
+                   "n_bars": int(have.sum()), "n_missing": int((~have).sum()),
+                   "span": ([str(out.index[have].min().date()), str(out.index[have].max().date())]
+                            if have.any() else None)}
     record = WriteRecord(
         ticker=ticker, provider=provider, symbol_mapped=mapped, mode="adjusted",
         span_start=str(out.index.min().date()), span_end=str(out.index.max().date()),
@@ -431,7 +713,9 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         cached_span=(None if cached is None or cached.empty
                      else [str(cached.index.min().date()), str(cached.index.max().date())]),
         written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        level=level, level_declared=level_declared, adjusted_as_of=str(pd.Timestamp(today).date()))
+        level=level, level_declared=level_declared, adjusted_as_of=str(pd.Timestamp(today).date()),
+        seam=seam_record, convention=convention, convention_declared=convention_declared,
+        close_unadj=close_unadj)
     if write:
         write_pair_atomically(out, cache_dir / "parquet" / f"{ticker}_1d.parquet",
                               cache_dir / f"{ticker}_1d.csv")

@@ -31,6 +31,9 @@ def _clean_census() -> dict:
         "regime_total_bars": 6000,
         # ruling C-2 (2026-10-15): a modern census carries the data-feed record
         "data_feed": {"n_network_fetched": 0, "by_source": {}, "yfinance_tickers": []},
+        # option (a) (2026-10-22): a modern census carries the universal convention label
+        "substrate_convention": {"merge_meta_present": True, "n_names": 109, "n_labelled": 109,
+                                 "unlabelled": {}},
         "config_provenance": {"degraded": False,
                               "risk": {"exists": True, "n_keys": 11}},
         # the edges.yml single-writer unit (2026-10-22): a modern census carries the labelled

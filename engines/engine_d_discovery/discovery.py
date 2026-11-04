@@ -81,6 +81,9 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
       * stale_files (2026-10-15, the stale/holed-files guard): BARS, never file presence, over the
         candidate's own data_map and window. Without them the record is an ERROR, which fails the
         gate — coverage that was not measured is never a pass;
+      * substrate_convention (2026-10-22, option (a)'s universal label): drip vs exact_tr per span
+        for every name in the candidate's data_map, from the write records / overrides / merge
+        record under the canonical cache; an unlabelled name fails the gate, never a default;
       * share_price_basis (L4, 2026-10-22): which price basis sized the with-candidate run's
         integer shares (the risk engine's counter, carried on the pure result). total_return on
         the pre-cutover cache is a recorded fact; counts not supplied is an ERROR record."""
@@ -132,11 +135,25 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
     except Exception as e:   # recorded, never omitted
         block["level_declarations"] = {"error": repr(e)}
     try:
+        # OPTION (a)'s universal convention label (2026-10-22), over the CANDIDATE's own names —
+        # drip vs exact_tr per span, from the write records / overrides / merge record; an
+        # unlabelled name fails the gate. Without the candidate's data_map the names are unknown.
+        from engines.data_manager.convention import substrate_convention_record
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _cache_dir
+        if data_map is None:
+            raise RuntimeError("no data_map given — the candidate's names are unknown; convention not labelled")
+        block["substrate_convention"] = substrate_convention_record(
+            _cache_dir, run_names=sorted(data_map), data_map=data_map)
+    except Exception as e:   # recorded, never omitted
+        block["substrate_convention"] = {"error": repr(e)}
+    try:
         from engines.data_manager.coverage import stale_files_record
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
         if data_map is None or window is None:
             raise RuntimeError("no data_map/window given — coverage not measured")
+        # cache_dir (2026-11-04): the kept drip's own pre-seam holes under the COUNTED class.
         block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals,
-                                                  universe=universe)
+                                                  universe=universe, cache_dir=_coverage_cache)
     except Exception as e:   # recorded, never omitted
         block["stale_files"] = {"error": repr(e)}
     try:

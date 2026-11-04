@@ -351,6 +351,10 @@ CENSUS_GATING_KEYS = {
     # fundamentals_misses (2026-10-15, re-pin #1's decision): the gate fails a cache miss FETCHED
     # mid-run (an unpinned input entered the pinned scope) and an errored record.
     "fundamentals_misses",
+    # substrate_convention (2026-10-22, option (a)'s universal drip label): the gate fails a name
+    # in the panel with NO convention label (drip vs exact_tr per span, never defaulted) and an
+    # errored record.
+    "substrate_convention",
     # bootstrap_book (2026-10-22, the edges.yml single-writer unit): the labelled bootstrap mode's
     # record; the gate fails a BACKTEST census carrying true (a seeded empty book is never canonical
     # for a performance claim) and an errored record. Written by BOTH producers.
@@ -366,6 +370,9 @@ CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_exclusions": "exclusions_applied",
                         "stale_files": "stale_files_record",
                         "fundamentals_misses": "fundamentals_miss_summary",
+                        # option (a)'s universal drip label (2026-10-22; listed here at the merge
+                        # 2026-11-04 — a strict tightening: both Layer-2d locks hold with it)
+                        "substrate_convention": "substrate_convention_record",
                         "bootstrap_book": "bootstrap_book_declared",
                         "share_price_basis": "share_price_basis_summary"}
 
@@ -1631,6 +1638,8 @@ CENSUS_PROVENANCE_KEYS = {"data_feed": "data_feed_summary", "data_exclusions": "
                           "level_declarations": "substrate_level_declarations",
                           "stale_files": "stale_files_record",
                           "fundamentals_misses": "fundamentals_miss_summary",
+                          # option (a)'s universal drip label (2026-10-22): drip vs exact_tr per span
+                          "substrate_convention": "substrate_convention_record",
                           # bootstrap_book (2026-10-22): the labelled bootstrap mode, from its one reader
                           "bootstrap_book": "bootstrap_book_declared",
                           # L4 (2026-10-22): the price basis that sized integer shares — the risk
@@ -1681,6 +1690,54 @@ def test_layer2d_provenance_fields_are_written_by_BOTH_producers():
     errored = {k: block[k] for k in CENSUS_PROVENANCE_KEYS
                if isinstance(block[k], dict) and "error" in block[k]}
     assert not errored, f"candidate_census_block did not PRODUCE these (error records): {errored}"
+
+
+# The pre_seam_drip_gap class (ruled 2026-10-23, built 2026-11-04): the kept drip's own pre-seam
+# holes are excused and COUNTED inside the `stale_files` record — only when the producer hands the
+# guard the cache the frames came from (`cache_dir`). Without it the class is OFF (fail closed) and
+# a canonical run reads red on 215 names; so BOTH producers and the measured-run admission must
+# pass it, and the count must reach the census from both.
+CENSUS_STALE_FILES_SUBKEYS = ("pre_seam_drip_gaps",)
+
+
+def _call_keyword_values(path, func: str, callee: str) -> dict:
+    """keyword -> unparsed value, over every call to `callee` inside `func` (AST, never text)."""
+    import ast
+    tree = ast.parse(Path(path).read_text())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == func)
+    out = {}
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Call) and (getattr(n.func, "id", None) or getattr(n.func, "attr", None)) == callee:
+            out.update({k.arg: ast.unparse(k.value) for k in n.keywords})
+    return out
+
+
+def test_the_pre_seam_drip_gap_count_is_PRODUCED_by_both_producers_and_the_admission():
+    """AST: `_build_census`, `candidate_census_block` and `run_backtest` each call
+    `stale_files_record` with `cache_dir=` bound to the canonical cache (never None). Executed:
+    the candidate block's `stale_files` carries `pre_seam_drip_gaps` (class, counts, per_name,
+    not_excused) with the canonical cache named — the count reaches the census."""
+    import pandas as pd
+    from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR
+    from engines.engine_d_discovery.discovery import candidate_census_block
+    for path, func in ((REPO / "backtester" / "backtest_controller.py", "_build_census"),
+                       (REPO / "engines" / "engine_d_discovery" / "discovery.py", "candidate_census_block"),
+                       (REPO / "orchestration" / "mode_controller.py", "run_backtest")):
+        kws = _call_keyword_values(path, func, "stale_files_record")
+        assert kws.get("cache_dir") not in (None, "None"), f"{path.name}:{func} calls the guard without cache_dir"
+
+    class _C:
+        nonzero_calls, errors = 1, 0
+    idx = pd.bdate_range("2025-01-02", periods=20)
+    clean_map = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA", "BBB")}
+    block = candidate_census_block("cand_v1", _C(), n_trades=10, data_map=clean_map,
+                                   window=(str(idx[0].date()), str(idx[-1].date())))
+    sf = block["stale_files"]
+    assert "error" not in sf and set(CENSUS_STALE_FILES_SUBKEYS) <= set(sf)
+    dg = sf["pre_seam_drip_gaps"]
+    assert dg["class"] == "pre_seam_drip_gap" and dg["cache_dir"] == str(CANONICAL_CACHE_DIR)
+    assert {"rule", "n_names", "n_days", "per_name", "not_excused"} <= set(dg)
+    assert dg["n_names"] == 0 and dg["n_days"] == 0 and dg["per_name"] == {}      # clean frames: nothing to excuse
 
 
 # The per-ticker fundamentals cache (re-pin #1's decision, R's condition, 2026-10-15): every edge

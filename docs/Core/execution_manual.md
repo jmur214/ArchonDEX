@@ -788,6 +788,22 @@ python3 scripts/gen_substrate_manifest.py verify --root /path/to/data-root --man
 # (fix: investigate; the writer sets an unreadable file aside, never deletes it).
 # `FRESHNESS` = 48 h: a stamp older than that — a LOCAL re-pin never pushed, or two
 # dead nightlies — is refused at the gate (ruled a FEATURE; the refusal names relay_gap).
+
+# The cutover's write pass on a COPY (option (a), 2026-10-22; scripts/cutover_step1_pass.py).
+# The WRITING subcommands (fresh-copy, pass, stage) REFUSE a path that resolves to any repo's
+# data/processed; a copy lives under Dev/_substrate_candidates/. guard and label are READ-ONLY on
+# any --cache, including the canonical one (which label exists to lock). The real-cache write is
+# cutover day, a separate approved act.
+python -m scripts.cutover_step1_pass fresh-copy --to /Users/jacksonmurphy/Dev/_substrate_candidates/<copy>   # from the canonical; refuses an existing target
+python -m scripts.cutover_step1_pass pass --copy <copy> --today YYYY-MM-DD --tag <tag> [--only A,B]   # resumable; pass_<tag>.jsonl, write_log_<tag>.jsonl, provider_<tag>.log (UNFILTERED) beside the copy
+python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 --out x.json   # the stale/holed-files guard's reading (exit 3 on defects); read-only on <dir>
+python -m scripts.cutover_step1_pass label --cache <dir> --out x.json                                      # the universal convention label over every file (exit 3 if any unlabelled)
+python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
+python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
+# --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
+# regardless of --root, so without it the candidate's PASS stamp lands in the real
+# data/state/substrate_verify_stamp.json — harmless to the gate (it keys on the committed manifest's
+# digest) but never to be written; the verify-stamp block above documents the flag.
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
