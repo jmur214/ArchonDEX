@@ -4,9 +4,15 @@ import os
 from pathlib import Path
 import dash
 from dash import dcc, html
-from dotenv import load_dotenv
+from core.env import load_local_env
 
-load_dotenv()
+# The repo's OWN .env by explicit path (2026-10-22). The bare `load_dotenv()` this replaced
+# searched UPWARD from this file and, from an agent worktree under .claude/worktrees/, loaded the
+# MAIN tree's .env into a test session (the keys appeared during
+# tests/test_feature_foundry.py::test_feature_foundry_layout_renders, whose import chain reaches
+# this module). Still at import because the dashboard's callbacks read keys at module level; a
+# worktree has no .env, so there it is a no-op. The entry-time move is owed with those reads.
+load_local_env()
 
 # Load Alpaca keys
 ALPACA_API_KEY = os.environ.get("APCA_API_KEY_ID", "")

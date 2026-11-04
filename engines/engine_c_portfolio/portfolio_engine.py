@@ -486,6 +486,25 @@ class PortfolioEngine:
                 prices[tkr] = last_close
         return prices
 
+    @staticmethod
+    def _last_close_unadj_map(
+        weights: Dict[str, float],
+        price_data: Dict[str, pd.DataFrame],
+    ) -> Dict[str, float]:
+        """{ticker: last close_unadj} for the weighted names whose bar carries the column (L4),
+        read through ``core.share_sizing.read_close_unadj`` — the same reader, and the same
+        measured-mode halt on a hole, as Engine B's sizing. Empty on today's cache."""
+        from core.share_sizing import read_close_unadj
+        out: Dict[str, float] = {}
+        for tkr in sorted(weights.keys()):
+            df = price_data.get(tkr)
+            if df is None or df.empty:
+                continue
+            v = read_close_unadj(df.iloc[-1], tkr)
+            if v is not None and np.isfinite(v):
+                out[tkr] = float(v)
+        return out
+
     def _apply_position_buffering(
         self,
         weights: Dict[str, float],
@@ -551,6 +570,9 @@ class PortfolioEngine:
         lookback = int(getattr(cfg, "dynopt_cov_lookback", 60))
 
         prices = self._last_close_map(weights, price_data)
+        # L4 (2026-10-22): the bars' unadjusted closes through the ONE reader Engine B uses, so
+        # the optimizer knows which lattice Engine B truncates on (it refuses the real-share one).
+        prices_unadj = self._last_close_unadj_map(weights, price_data)
         returns_map: Dict[str, pd.Series] = {}
         for tkr in sorted(weights.keys()):
             df = price_data.get(tkr)
@@ -590,6 +612,7 @@ class PortfolioEngine:
             equity=equity,
             covariance=covariance,
             cfg=dyn_cfg,
+            prices_unadj=prices_unadj,
         )
         # Kept for observability/cockpit consumption; not read by engines.
         self.last_dynopt_result = result

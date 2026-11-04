@@ -36,6 +36,7 @@ from engines.engine_a_alpha.edges.accruals_inv_asset_growth_edge import (
     AccrualsInvAssetGrowthEdge,
 )
 from engines.engine_a_alpha.edge_registry import EdgeRegistry
+from tests._canonical_inputs import CANON_SIMFIN_PANEL, REPO, skip_unless_canonical
 
 
 _ALL_EDGE_CLASSES = [
@@ -54,11 +55,18 @@ _ALL_EDGE_CLASSES = [
 
 @pytest.fixture(scope="module")
 def panel() -> pd.DataFrame:
-    """Real SimFin panel. Skips dependent tests if parquet isn't available."""
-    panel = fh.get_panel()
-    if panel is None:
-        pytest.skip("SimFin panel not available")
-    return panel
+    """The pinned SimFin panel, READ-ONLY; a declared skip when this tree lacks it.
+
+    2026-10-22: this fixture reached `get_panel()` -> `load_panel()`, which had a REBUILD behind
+    it: with the panel absent the simfin library refreshed the six pinned raw files (through a
+    worktree's data/raw symlink) and the rebuild rewrote the pinned panel. The read is now the
+    parquet itself; the edges' `get_panel()` is served from the same frame."""
+    skip_unless_canonical(CANON_SIMFIN_PANEL)
+    panel = pd.read_parquet(REPO / CANON_SIMFIN_PANEL)
+    fh.reset_panel_cache()
+    fh._PANEL_CACHE = panel
+    yield panel
+    fh.reset_panel_cache()
 
 
 def _fake_close_df(price: float = 100.0) -> pd.DataFrame:

@@ -334,7 +334,10 @@ def test_LOCK4b_bootstrap_mode_promotes_from_an_empty_book_and_the_census_carrie
     idx = pd.bdate_range("2025-01-02", periods=20)
     clean = {t: pd.DataFrame({"Close": 1.0}, index=idx) for t in ("SPY", "AAA")}
     block = candidate_census_block("cand_v1", SimpleNamespace(nonzero_calls=1, errors=0), n_trades=3,
-                                   data_map=clean, window=(str(idx[0].date()), str(idx[-1].date())))
+                                   data_map=clean, window=(str(idx[0].date()), str(idx[-1].date())),
+                                   # L4 (merged 2026-11-04): a clean candidate block supplies its sizing
+                                   # counts — unsupplied is an ERRORED share_price_basis record by design
+                                   share_basis_counts={"total_return": 3})
     assert block["bootstrap_book"] is True
     assert assert_census({"census": block, "bootstrap_ci_skip_reason": "t"}).canonical
     from tests.test_contracts import _CANONICAL_CENSUS

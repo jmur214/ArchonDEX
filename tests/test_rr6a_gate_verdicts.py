@@ -269,7 +269,9 @@ def test_gates_5_and_7_with_arms_never_replay_universe_A_signals(monkeypatch):
                                         "Sortino": 1.0},
                                trade_log=pd.DataFrame({"pnl": [1.0, -0.5, 2.0]}),
                                equity_curve=(1.0 + daily).cumprod() * 100_000.0,
-                               daily_returns=daily, attributed_pnl_per_edge={}, fingerprint="x")
+                               daily_returns=daily, attributed_pnl_per_edge={}, fingerprint="x",
+                               # L4: a real result carries the risk engine's sizing-basis counter
+                               share_price_basis_counts={"total_return": 3})
 
     monkeypatch.setattr("orchestration.run_backtest_pure.run_backtest_pure", fake_run_backtest_pure)
     monkeypatch.setattr(DiscoveryEngine, "_build_production_edges",

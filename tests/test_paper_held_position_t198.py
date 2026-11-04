@@ -201,12 +201,14 @@ class _RecordingCloud:
 
 
 class TestDriverNonTradingBranch:
-    def test_juneteenth_drives_happened_canonical_return0(self):
+    def test_juneteenth_drives_happened_canonical_return0(self, tmp_path):
         import scripts.run_paper_cloud_day as drv
         fake = FakePaperClient()                  # no trading_days → offline fallback
         cloud = _RecordingCloud()
         juneteenth = datetime(2026, 6, 19, 8, 0, tzinfo=ET)   # a market holiday
+        # root=tmp_path: the driver's state surfaces (the heartbeat under data/state) are
+        # root-relative; the module default is the repo (2026-10-22).
         rc = drv.main(["--allocator", "mean_variance"],
-                      now=juneteenth, client=fake, cloud=cloud)
+                      now=juneteenth, client=fake, cloud=cloud, root=str(tmp_path))
         assert rc == 0
         assert cloud.metrics == [(True, True)]    # happened=True, canonical=True

@@ -28,6 +28,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from engines.engine_d_discovery.discovery import DiscoveryEngine  # noqa: E402
+from tests._canonical_inputs import CANON_AAPL, REPO  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _stub_composite_data_manager(tmp_path, monkeypatch):
+    """CompositeEdge's constructor builds `DataManager()` (data/processed; its constructor
+    mkdirs). Pinned dir when this tree holds it, tmp_path otherwise (2026-10-22)."""
+    from engines.data_manager.data_manager import DataManager
+    from engines.engine_a_alpha.edges import composite_edge as ce
+    cache = (REPO / "data" / "processed") if (REPO / CANON_AAPL).exists() else tmp_path / "processed"
+    monkeypatch.setattr(ce, "DataManager", lambda *a, **k: DataManager(cache_dir=cache))
 from engines.engine_a_alpha.edges.composite_edge import CompositeEdge  # noqa: E402
 from core.feature_foundry import get_feature_registry  # noqa: E402
 import core.feature_foundry.features  # noqa: F401, E402  trigger registration

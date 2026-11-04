@@ -1,0 +1,525 @@
+ticker,first_in_index,last_in_index,intervals,wanted_because,in_window_2000_2025,priority,fr_delisted,fr_delisted_start,fr_delisted_name,fr_active_start,fr_active_name,covered
+AAMRQ,1996-01-02,2003-03-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AAMRQ-DELISTED,2000-01-03,Amr Corporation,,,True
+ABI,1996-01-02,2008-11-24,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ABI-DELISTED,2007-04-30,Safety First Trust Series 2009-,2025-07-01,Safety First Trust Series 2009-,True
+ABX,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ABX-DELISTED,2000-01-03,Barrick Gold Corporation,2023-07-05,Abacus Global Management Inc,True
+ACKH,1996-01-02,2000-11-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ACV,1996-01-02,2006-11-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2015-05-26,Alberto-Culver Co.,True
+AET,1996-01-02,2018-11-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AET-DELISTED,2004-01-02,Aetna,,,True
+AGC,1996-01-02,2001-08-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AGC-DELISTED,2007-05-25,Advent Claymore Convertible Sec,,,True
+AGN,1996-01-02,2020-05-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AL,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2011-04-19,Air Lease Corporation,True
+AM,1996-01-02,2004-05-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2017-05-04,Antero Midstream Corporation,True
+ANDW,1996-01-02,2006-10-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ARC,1996-01-02,2000-04-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ARC-DELISTED,2005-02-04,Arc Document Solutions,,,True
+ARNC,1996-01-02,2020-04-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ARNC-DELISTED,2020-04-01,Arconic,,,True
+ASH,1996-01-02,2008-11-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Ashland Global Holdings,True
+AT,1996-01-02,2007-11-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AVP,1996-01-02,2015-03-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AVP-DELISTED,2004-01-02,Avon Products,,,True
+AZA-A,1996-01-02,2001-06-25,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BCR,1996-01-02,2017-12-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BCR-DELISTED,2004-01-02,C.R. Bard,,,True
+BDK,1996-01-02,2010-03-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BDK-DELISTED,2000-01-03,Black & Decker Corp,,,True
+BFO,1996-01-02,2000-10-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BFO-DELISTED,2003-09-29,Blackrock Florida Municipal 2020 Term Trust,,,True
+BGG,1996-01-02,2001-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BGG-DELISTED,2000-01-03,Briggs & Stratton Corporation,,,True
+BHGE,1996-01-02,2019-10-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BHGE-DELISTED,2017-07-05,Baker Hughes,,,True
+BHMSQ,1996-01-02,2000-12-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BLL,1996-01-02,2022-05-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BLL-DELISTED,2000-01-03,Ball Corporation,,,True
+BLS,1996-01-02,2007-01-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BMET,1996-01-02,2007-07-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BMET-DELISTED,2000-01-03,Biomet Inc,,,True
+BMS,1996-01-02,2014-12-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BMS-DELISTED,2004-01-02,Bemis Company Common Stoc,,,True
+BNI,1996-01-02,2010-02-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BNI-DELISTED,2000-01-03,Burlington Northern Santa Fe/Llc,,,True
+BOL,1996-01-02,2007-10-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BOL-DELISTED,2000-01-03,Bausch & Lomb Inc,,,True
+CAR,1996-01-02,2006-08-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2006-09-06,Avis Budget,True
+CBS,1996-01-02,2019-12-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CBS-DELISTED,2006-01-03,Cbs Corporation,,,True
+CCTYQ,1996-01-02,2008-03-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CEN,1996-01-02,2001-04-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CEN-DELISTED,2013-09-26,Center Coast Brookfield Mlp & Energy Infrastructure Fund,,,True
+CG,1996-01-02,2000-11-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2012-05-04,The Carlyle,True
+CGP,1996-01-02,2001-01-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CHA,1996-01-02,2000-06-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CHA-DELISTED,2002-11-14,China Telecom Ltd,2025-04-17,Chagee Holdings Limited,True
+CIN,1996-01-02,2006-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CNG,1996-01-02,2000-01-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+COMS,1996-01-02,2000-07-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",COMS-DELISTED,2021-01-22,Comsovereign Holding,2021-01-22,3Com Corp,True
+COV,1996-01-02,2015-01-27,3,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",COV-DELISTED,2007-07-02,Covidien Plc. Ordinary Shares,,,True
+CPQ,1996-01-02,2002-05-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CR,1996-01-02,2004-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2023-04-03,Crane Co.,True
+CSR,1996-01-02,2000-06-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2007-10-29,Centerspace,True
+CTB,1996-01-02,2006-07-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CTX,1996-01-02,2009-08-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CTX-DELISTED,2012-04-03,Centex Corp,,,True
+DALRQ,1996-01-02,2005-08-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+DCNAQ,1996-01-02,2006-03-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+DDS,1996-01-02,2008-10-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Dillard's,True
+DJ,1996-01-02,2007-12-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+DLX,1996-01-02,2004-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Deluxe,True
+EC,1996-01-02,2006-06-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2008-09-19,Ecopetrol S.A.,True
+EFU,1996-01-02,2000-11-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+EKDKQ,1996-01-02,2010-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",EKDKQ-DELISTED,2000-01-03,Eastman Kodak Co.,,,True
+ENRNQ,1996-01-02,2001-11-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ETS,1996-01-02,2001-08-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2025-08-21,Elite Express Holding,True
+FBF,1996-01-02,2004-04-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FDC,1996-01-02,2007-09-25,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FDC-DELISTED,2000-01-03,First Data Corp,,,True
+FJ,1996-01-02,2000-11-24,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FL,1996-01-02,2019-08-09,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2003-03-31,Foot Locker Inc,True
+FLTWQ,1996-01-02,2000-01-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FMCC,1996-01-02,2008-09-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FNMA,1996-01-02,2008-09-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FWLT,1996-01-02,2000-01-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FWLT-DELISTED,2005-06-03,Foster Wheeler Ag,,,True
+G,1996-01-02,2005-10-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2007-08-03,Genpact Limited,True
+GAPTQ,1996-01-02,2000-08-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GAS,1996-01-02,2016-07-01,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",GAS-DELISTED,2009-02-09,Agl Resources Common Stoc,,,True
+GDW,1996-01-02,2006-10-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GLK,1996-01-02,2005-07-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",GLK-DELISTED,2006-06-01,Great Lakes Chemical,,,True
+GP,1996-01-02,2005-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-08-31,Georgia-Pacific,True
+GPU,1996-01-02,2001-11-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GRA,1996-01-02,2000-12-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",GRA-DELISTED,2000-01-03,W.R. Grace & Co.,,,True
+GTE,1996-01-02,2000-07-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2008-04-09,Gran Tierra Energy,True
+H,1996-01-02,2007-04-10,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2009-11-06,Hyatt Hotels Corporation,True
+HET,1996-01-02,2008-01-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HET-DELISTED,2000-01-03,Caesars Entertainment Corp,,,True
+HI,1996-01-02,2003-03-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2008-04-01,Hillenbrand,True
+HM,1996-01-02,2001-12-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+HNZ,1996-01-02,2013-06-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HNZ-DELISTED,2000-01-03,H.J. Heinz Company,,,True
+HPC,1996-01-02,2008-11-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HPC-DELISTED,2000-01-03,Hercules Inc,,,True
+HRS,1996-01-02,2019-06-01,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HRS-DELISTED,2000-01-03,Harris Corporation,,,True
+HSH,1996-01-02,2012-06-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HSH-DELISTED,2000-01-03,Hillshire Brands Company,,,True
+IKN,1996-01-02,2000-06-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",IKN-DELISTED,2000-01-03,Ikon Office Solutions Inc,,,True
+INCLF,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+JAVA,1996-01-02,2010-01-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2021-10-05,Sun Microsystems/Inc,True
+JCP,1996-01-02,2013-12-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+JOS,1996-01-02,2000-05-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+JP,1996-01-02,2006-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",JP-DELISTED,2015-07-16,Jefferson-Pilot,,,True
+JWN,1996-01-02,2020-06-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Nordstrom,True
+KATE,1996-01-02,2008-12-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+KM,1996-01-02,2002-01-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+KMG,1996-01-02,2006-08-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+KRB,1996-01-02,2006-01-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+KRI,1996-01-02,2006-06-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+LB,1996-01-02,2021-08-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LB-DELISTED,2007-04-27,L Brands,2024-06-28,Landbridge Company Llc,True
+LDG,1996-01-02,2001-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LDG-DELISTED,2005-08-01,Longs Drug Stores Corp,,,True
+LPX,1996-01-02,2006-11-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Louisiana-Pacific Corporation,True
+LSI,1996-01-02,2014-05-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LSI-DELISTED,2016-08-15,Life Storage,,,True
+MAY,1996-01-02,2005-08-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MDP,1996-01-02,2011-01-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MDP-DELISTED,2005-01-03,Meredith Corporation,,,True
+MDR,1996-01-02,2003-08-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MDR-DELISTED,2000-01-03,Mcdermott International,,,True
+MEA,1996-01-02,2002-01-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MEA-DELISTED,2005-08-17,Metalico,,,True
+MEE,1996-01-02,2011-06-02,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MEL,1996-01-02,2007-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MER,1996-01-02,2009-01-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MIL,1996-01-02,2010-07-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MKG,1996-01-02,2000-10-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MMC,1996-01-02,2026-01-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MTLQQ,1996-01-02,2009-06-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MWV,1996-01-02,2015-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MWV-DELISTED,2004-01-02,Meadwestvaco Common,,,True
+MYG,1996-01-02,2006-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MZIAQ,1996-01-02,2000-06-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NAV,1996-01-02,2006-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",NAV-DELISTED,2008-06-30,Navistar International Corporation,,,True
+NC,1996-01-02,2000-06-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Nacco Industries,True
+NMK,1996-01-02,2002-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NOVL,1996-01-02,2011-04-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NRTLQ,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NSI,1996-01-02,2001-12-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+OAT,1996-01-02,2001-08-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+OMX,1996-01-02,2008-06-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ONE,1996-01-02,2004-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ONE-DELISTED,2010-06-17,Bank One,,,True
+OWENQ,1996-01-02,2000-10-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PBY,1996-01-02,2000-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PBY-DELISTED,2000-01-03,Prospect Capital Corporation,,,True
+PCH,1996-01-02,2001-07-09,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Potlatchdeltic Corporation,True
+PD,1996-01-02,2007-03-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2019-04-12,Pagerduty,True
+PDG,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PGL,1996-01-02,2007-02-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PGN,1996-01-02,2012-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PGN-DELISTED,2000-12-11,Progress Energy Common St,,,True
+PHA,1996-01-02,2003-04-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PHA-DELISTED,2006-06-19,Pultegroup,,,True
+PKI,1996-01-02,2023-05-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PKI-DELISTED,2000-01-03,Perkinelmer,,,True
+PLL,1996-01-02,2015-08-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2018-05-07,Piedmont Lithium Limited,True
+PNU,1996-01-02,2000-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PNU-DELISTED,2004-01-02,Pnc Financial Services,,,True
+PRD,1996-01-02,2000-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PVN,1996-01-02,2005-10-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PX,1996-01-02,2018-10-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PX-DELISTED,2004-01-02,Praxair,,,True
+RAD,1996-01-02,2000-07-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RAD-DELISTED,2000-01-03,Rite Aid Corporation,,,True
+RAL,1996-01-02,2001-12-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2025-06-30,Ralliant Corp,True
+RBK,1996-01-02,2006-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+RDC,1996-01-02,2014-08-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RDC-DELISTED,2004-01-02,Rowan Companies Common St,,,True
+RDS-A,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+RLM,1996-01-02,2000-05-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+RML,1996-01-02,2000-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2026-09-09,Resolution Materials,True
+RNB,1996-01-02,2000-01-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ROH,1996-01-02,2009-04-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+RRD,1996-01-02,2012-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RRD-DELISTED,2005-01-03,R.R. Donnelley & Sons Company,,,True
+RSHCQ,1996-01-02,2011-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RSHCQ-DELISTED,2000-05-31,,,,True
+RTN,1996-01-02,2020-04-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SAF,1996-01-02,2008-09-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SAF-DELISTED,2018-08-29,Safeco,,,True
+SCI,1996-01-02,2000-03-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2004-08-30,Service International,True
+SFA,1996-01-02,2006-02-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SGID,1996-01-02,2000-06-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SIAL,1996-01-02,2015-11-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SIAL-DELISTED,2004-01-02,Sigma-Aldrich Corporation,,,True
+SMI,1996-01-02,2000-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SMS,1996-01-02,2000-06-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SMS-DELISTED,2008-03-17,Sims Metal Management Spons,,,True
+STJ,1996-01-02,2017-01-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",STJ-DELISTED,2004-01-02,St. Jude Medical Common S,,,True
+TEK,1996-01-02,2007-11-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TIN,1996-01-02,2007-12-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TKR,1996-01-02,2001-08-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,The Timken Company,True
+TLAB,1996-01-02,2011-12-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TLAB-DELISTED,2004-01-02,Tellabs,,,True
+TMC-A,1996-01-02,2000-06-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TMK,1996-01-02,2019-08-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TMK-DELISTED,2004-01-02,Torchmark,,,True
+TNB,1996-01-02,2004-08-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TOY,1996-01-02,2005-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TRB,1996-01-02,2007-12-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TRW,1996-01-02,2002-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TRW-DELISTED,2004-02-03,Trw Automotive Holdings,,,True
+TWX,1996-01-02,2018-06-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TWX-DELISTED,2004-01-02,Time Warner New Common Sto,,,True
+TX,1996-01-02,2001-10-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2006-02-02,Ternium S.A.,True
+TXU,1996-01-02,2007-10-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UAWGQ,1996-01-02,2002-05-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UCL,1996-01-02,2005-08-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-06-10,Unocal Co,True
+UCM,1996-01-02,2000-10-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UIS,1996-01-02,2008-11-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Unisys,True
+UK,1996-01-02,2001-02-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2019-11-07,Ucommune International Ordinary Shares,True
+UMG,1996-01-02,2000-06-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UN,1996-01-02,2002-07-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",UN-DELISTED,2000-01-03,Unilever Nv,,,True
+UST,1996-01-02,2009-01-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+USW,1996-01-02,2000-07-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UTX,1996-01-02,2020-04-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+VO,1996-01-02,2000-12-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WEN,1996-01-02,2008-09-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,The Wendy's Company,True
+WLA,1996-01-02,2000-06-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WLL,1996-01-02,2002-02-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WLL-DELISTED,2020-09-02,Whiting Petroleum,,,True
+WNDXQ,1996-01-02,2004-12-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WOR,1996-01-02,2004-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-04-19,Worthington Industries,True
+WWY,1996-01-02,2008-10-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WYE,1996-01-02,2009-10-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WYE-DELISTED,2003-01-27,Wyeth,,,True
+X,1996-01-02,2014-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,United States Steel Corporation,True
+NLV,1996-04-01,2000-01-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WCOEQ,1996-04-01,2002-05-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TUP,1996-05-31,2004-03-25,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MTG,1996-07-19,2008-10-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Mgic Investment Corporation,True
+SEG,1996-08-16,2000-11-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2024-08-01,Seaport Entertainment Inc,True
+LU,1996-10-01,2006-12-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-11-03,Lucent Technology,True
+UPR,1996-10-16,2000-07-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GDT,1996-12-19,2006-04-24,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+EHC,1997-01-08,2003-03-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2007-05-08,Encompass Health Corporation,True
+WAMUQ,1997-07-02,2008-09-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MIR,1997-08-07,2003-07-17,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-08-20,"Mirion Technologies,",True
+CCU,1997-09-02,2008-07-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Compania Cervecerias Unidas S.A.,True
+SNV,1997-12-01,2008-01-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Synovus Financial,True
+BBT,1997-12-04,2019-12-09,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BBT-DELISTED,2004-01-02,Bb&T Corporation,2005-10-26,Beacon Financial Corp,True
+LEHMQ,1998-01-12,2008-09-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LEHMQ-DELISTED,2000-01-03,Lehman Bros Hld,,,True
+BIG,1998-01-20,2013-02-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BIG-DELISTED,2006-08-18,Big Lots,,,True
+SUB,1998-01-28,2001-03-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NXTL,1998-04-01,2005-08-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AFS-A,1998-04-08,2000-12-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GTW,1998-04-27,2006-08-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BSC,1998-07-01,2008-06-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+EDS,1998-08-11,2008-08-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",EDS-DELISTED,2009-10-19,Exceed Company Ltd.,,,True
+NGH,1998-09-16,2000-12-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+HCR,1998-09-28,2007-11-09,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UPC,1998-10-01,2004-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2021-03-23,Union Planters,True
+PSFT,1998-10-02,2004-12-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PSFT-DELISTED,2008-10-07,People Soft,,,True
+NCE,1998-11-03,2000-08-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SWY,1998-11-13,2015-01-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SWY-DELISTED,2004-01-02,Safeway,,,True
+SLR,1998-12-31,2007-10-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SLR-DELISTED,2004-01-02,Solectron,,,True
+SOTR,1999-03-01,2004-11-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ASO,1999-03-10,2006-11-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-10-05,Amsouth Ban,True
+CTL,1999-03-25,2020-09-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+DPHIQ,1999-05-28,2005-10-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PWJ,1999-06-04,2000-11-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WLP,1999-06-09,2004-12-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WLP-DELISTED,2001-10-30,Wellpoint,,,True
+FPC,1999-06-22,2000-12-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ODP,1999-06-24,2010-12-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Office Depot,True
+AW,1999-08-02,2008-12-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AW-DELISTED,2000-01-03,Allied Waste Industries Inc,,,True
+COC-B,1999-08-09,2002-09-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+LXK,1999-08-13,2012-10-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LXK-DELISTED,2004-01-02,Lexmark International Com,,,True
+TOS,1999-09-20,2001-09-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+GX,1999-09-29,2001-10-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SXCL,1999-10-01,2001-05-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SXCL-DELISTED,2000-01-03,Steel Excel,,,True
+CMVT,1999-10-27,2007-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PTV,1999-11-05,2010-11-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+QTRN,1999-11-16,2003-09-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+MOLX,1999-12-01,2013-12-09,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MOLX-DELISTED,2005-03-24,Molex Incorporated,,,True
+OK,1999-12-02,2001-04-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AABA,1999-12-08,2017-06-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AABA-DELISTED,2007-04-27,,,,True
+NCR,2000-01-04,2007-10-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",NCR-DELISTED,2007-01-03,Ncr Corporation,,,True
+YNR,2000-01-06,2000-10-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BGEN,2000-01-31,2003-11-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CNXT,2000-01-31,2002-06-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TSG,2000-03-16,2007-04-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TSG-DELISTED,2015-06-08,Sabre Holdings,,,True
+LLTC,2000-04-03,2017-03-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LLTC-DELISTED,2004-01-02,Linear Technology Corporation,,,True
+VRTS,2000-04-03,2005-07-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2009-01-02,Veritas Software,True
+ALTR,2000-04-18,2015-12-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2017-11-01,Altair Engineering,True
+SAPE,2000-05-05,2002-05-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SAPE-DELISTED,2000-01-03,Sapient,,,True
+SEBL,2000-05-05,2006-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+APCC,2000-06-01,2007-02-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CVG,2000-06-13,2009-12-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CVG-DELISTED,2004-01-02,Convergys Common St,,,True
+MEDI,2000-06-16,2007-06-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NVLS,2000-06-19,2012-06-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SANM,2000-06-21,2007-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Sanmina,True
+MERQ,2000-06-29,2006-01-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+VSTNQ,2000-06-29,2006-01-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BRCM,2000-07-03,2016-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BRCM-DELISTED,2004-01-02,Broadcom,,,True
+JNS,2000-07-13,2011-11-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",JNS-DELISTED,2004-01-02,Janus Capital Cmn S,,,True
+CIT-A,2000-07-17,2001-06-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+VIAV,2000-07-27,2013-12-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-03-13,Viavi Solutions,True
+PALM,2000-07-28,2002-08-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PALM-DELISTED,2000-03-02,Pulmo Biotech,,,True
+KSE,2000-08-21,2007-08-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AV,2000-10-02,2007-10-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",AV-DELISTED,2009-10-20,Aviva Plc Unsponsored ADR,,,True
+PWER,2000-10-23,2005-03-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+BVSN,2000-11-06,2001-09-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BVSN-DELISTED,2006-03-08,Broadvision,,,True
+HOT,2000-11-17,2016-09-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HOT-DELISTED,2000-01-03,Starwood Hotels & Resorts World,,,True
+FRX,2000-11-22,2014-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FRX-DELISTED,2000-01-03,Forest Laboratories Class,,,True
+CHIR,2000-11-24,2006-04-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CPNLQ,2000-12-01,2005-12-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ABKFQ,2000-12-11,2008-06-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AYE,2000-12-11,2011-02-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SBL,2000-12-11,2007-01-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+QLGC,2000-12-12,2011-01-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",QLGC-DELISTED,2004-01-02,Qlogic Corporation,,,True
+VTSS,2000-12-12,2002-08-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",VTSS-DELISTED,2007-03-13,Vitesse Semiconductor,,,True
+AMCC,2001-01-02,2006-05-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+UVN,2001-02-07,2007-03-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FTR,2001-02-27,2017-03-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PBG,2001-05-14,2010-03-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PBG-DELISTED,2000-01-03,Pepsi Bottling Inc,,,True
+MWW,2001-06-04,2011-12-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MWW-DELISTED,2007-04-27,Monster Worldwide Common,,,True
+JHF,2001-06-29,2004-04-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+AWE,2001-07-09,2004-10-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PMCS,2001-08-03,2007-07-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FDO,2001-08-06,2015-07-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FDO-DELISTED,2000-01-03,Family Dollar Stores Comm,,,True
+ABC,2001-08-30,2023-08-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ABC-DELISTED,2001-08-30,Amerisourcebergen Corporation,,,True
+IGT,2001-09-04,2014-06-20,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+XL,2001-09-04,2018-09-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",XL-DELISTED,2004-01-02,Xl Plc,2019-09-03,Xl Fleet,True
+IMNX,2001-09-21,2002-07-16,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+EOP,2001-10-10,2007-02-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+HMA,2001-11-07,2007-03-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HMA-DELISTED,2000-01-03,Heartland Media Acquisition,,,True
+JNY,2001-12-17,2009-03-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",JNY-DELISTED,2004-01-02,Jones,,,True
+RATL,2002-02-01,2003-02-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+APOL,2002-05-15,2013-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",APOL-DELISTED,2004-01-02,Apollo Education,,,True
+BJS,2002-05-15,2010-04-29,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NFB,2002-07-17,2006-12-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SDS,2002-07-22,2005-08-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ANTM,2002-07-25,2022-06-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ANTM-DELISTED,2007-04-30,Anthem,,,True
+MON,2002-08-14,2018-06-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MON-DELISTED,2004-01-02,Monsanto Company,,,True
+RAI,2002-09-04,2017-07-25,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RAI-DELISTED,2004-08-02,Reynolds American Inc Common St,,,True
+SYMC,2003-03-31,2019-11-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SYMC-DELISTED,2018-01-02,Symantec,,,True
+FII,2003-04-16,2013-01-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FII-DELISTED,2000-01-03,Federated Investors,,,True
+CMX,2004-03-25,2007-03-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ETFC,2004-04-01,2020-10-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ACS,2004-04-02,2010-02-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ACS-DELISTED,2007-05-01,Acs Motion Control,,,True
+MYL,2004-04-23,2020-11-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+HSP,2004-05-03,2015-09-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HSP-DELISTED,2004-05-03,Hospira Inc,,,True
+SOV,2004-07-01,2009-01-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+FSH,2004-08-03,2006-11-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CITGQ,2004-10-27,2009-07-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+LLL,2004-12-01,2019-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LLL-DELISTED,2007-04-30,L-3 Communications Holdings,,,True
+FSL,2004-12-03,2006-12-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FSL-DELISTED,2011-05-26,Freescale Semiconductor,,,True
+ASN,2004-12-20,2007-10-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ASN-DELISTED,2000-01-03,Archstone,,,True
+CBSS,2004-12-20,2007-09-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CBSS-DELISTED,2000-01-03,,,,True
+XTO,2004-12-29,2010-06-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WFT,2005-07-22,2009-02-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CVH,2005-08-30,2013-05-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CVH-DELISTED,2004-01-02,Coventry Health Care Comm,,,True
+PDCO,2005-10-11,2018-03-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-03,Patterson Companies,True
+SSP,2005-12-20,2008-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,E. W. Scripps Co,True
+VIAB,2006-01-03,2019-12-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",VIAB-DELISTED,2007-04-30,Viacom,,,True
+WFM,2006-01-03,2017-08-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WFM-DELISTED,2007-04-27,Whole Foods Market,,,True
+BRL,2006-02-27,2008-12-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BRL-DELISTED,2000-01-03,Barr Pharmaceuticals Inc,,,True
+CHK,2006-03-03,2018-03-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CHK-DELISTED,2005-06-06,Chesapeake Energy Corp,,,True
+DF,2006-04-03,2013-05-24,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",DF-DELISTED,2000-01-03,Dean Foods Company,,,True
+LM,2006-04-24,2016-12-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+EQ,2006-05-18,2009-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2018-10-15,Equillium,True
+CBH,2006-06-06,2008-03-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CBH-DELISTED,2017-06-28,Allianzgi Convertible & Income 2024 Target Term Fund,,,True
+WIN,2006-07-18,2015-04-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WIN-DELISTED,2006-07-18,Windstream Corporation,,,True
+WYND,2006-08-01,2018-05-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CELG,2006-11-06,2019-11-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CELG-DELISTED,2004-01-02,Celgene,,,True
+BTUUQ,2006-11-20,2014-09-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+IAC,2006-12-01,2008-08-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+STR,2006-12-01,2010-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",STR-DELISTED,2004-01-02,Questar Common Stoc,2020-06-08,Sitio Royalties Class A,True
+DTV,2006-12-04,2015-07-27,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+TEX,2006-12-20,2008-11-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Terex,True
+ESV,2007-01-04,2016-03-30,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ESV-DELISTED,2000-01-03,Ensco Plc American Depositary S,,,True
+HCBK,2007-02-15,2015-11-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HCBK-DELISTED,2000-01-03,Hudson City Bancorp,,,True
+DDR,2007-03-23,2009-03-30,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",DDR-DELISTED,2000-01-03,Ddr,,,True
+SUNEQ,2007-05-31,2011-12-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+PCP,2007-06-01,2016-02-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PCP-DELISTED,2004-01-02,Precision Castparts Corporation,,,True
+GGP,2007-07-02,2018-08-28,2,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",GGP-DELISTED,2010-03-05,General Growth Properties,,,True
+ACAS,2007-07-09,2009-03-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ACAS-DELISTED,2004-01-02,American Capital,,,True
+ANDV,2007-09-27,2018-10-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ANDV-DELISTED,2007-04-30,Andeavor,,,True
+NBL,2007-10-08,2020-10-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+NYX,2007-10-25,2013-11-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",NYX-DELISTED,2006-03-08,Nyse Euronext,,,True
+JEC,2007-10-26,2019-12-10,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",JEC-DELISTED,2004-01-02,Jacobs Engineering,,,True
+MTW,2007-11-16,2009-09-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2000-01-04,Manitowoc Company,True
+TSS,2008-01-02,2019-09-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TSS-DELISTED,2004-01-02,Total System Services,,,True
+HCP,2008-03-31,2019-11-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",HCP-DELISTED,2004-01-02,Hcp,2021-12-09,Hashicorp,True
+SWN,2008-06-06,2017-04-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SWN-DELISTED,2000-01-03,Southwestern Energy Company,,,True
+LO,2008-06-11,2015-06-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LO-DELISTED,2008-06-10,Lorillard Inc,,,True
+AKS,2008-07-01,2011-12-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SNI,2008-07-01,2018-03-07,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SNI-DELISTED,2008-07-01,Scripps Networks Interactive I,,,True
+CEPH,2008-11-17,2011-10-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+DNB,2008-12-02,2017-04-05,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2020-07-01,Dun & Bradstreet Corporation,True
+MFE,2008-12-23,2011-03-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+SCG,2009-01-02,2019-01-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",SCG-DELISTED,2004-01-02,Scana,,,True
+DO,2009-02-26,2016-10-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",DO-DELISTED,2022-03-30,Diamond Offshore Drilling,,,True
+TWC,2009-03-30,2016-05-18,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",TWC-DELISTED,2007-03-01,Time Warner Cable Inc Common St,,,True
+DNR,2009-04-02,2015-03-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+ATGE,2009-06-09,2012-10-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+RHT,2009-07-27,2019-07-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",RHT-DELISTED,2007-05-14,Red Hat,,,True
+CFN,2009-09-01,2015-03-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CFN-DELISTED,2009-09-01,Carefusion Common S,,,True
+ARG,2009-09-09,2016-05-23,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ARG-DELISTED,2004-01-02,Airgas,,,True
+MJN,2009-12-21,2017-06-15,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",MJN-DELISTED,2009-02-11,Mead Johnson Nutrition Company,,,True
+QEP,2010-07-01,2015-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CVC,2010-12-20,2016-06-21,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CVC-DELISTED,2004-01-02,Cablevision Systems Corporation,,,True
+JOY,2011-02-28,2015-10-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",JOY-DELISTED,2007-04-30,Joy Global,,,True
+ANRZQ,2011-06-02,2012-10-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+WPX,2012-01-03,2014-03-24,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+KRFT,2012-10-02,2015-07-06,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",KRFT-DELISTED,2012-09-17,Kraft Foods,,,True
+PETM,2012-10-05,2015-03-12,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PETM-DELISTED,2004-01-02,Petsmart Inc,,,True
+KORS,2013-11-13,2018-09-19,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",KORS-DELISTED,2011-12-15,Michael Kors Holdings O,,,True
+ADS,2013-12-23,2020-06-22,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ADS-DELISTED,2005-01-03,Alliance Data Systems,,,True
+GMCR,2014-03-24,2016-03-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",GMCR-DELISTED,2000-01-03,Keurig Green Mountain,,,True
+XEC,2014-06-20,2020-03-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",XEC-DELISTED,2005-01-03,Cimarex Energy,,,True
+MNK,2014-08-19,2017-07-26,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+LVLT,2014-11-05,2017-10-13,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",LVLT-DELISTED,2004-01-02,Level 3 Communications Co,,,True
+ENDP,2015-01-27,2017-03-02,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",ENDP-DELISTED,2000-07-18,Endo International Plc,,,True
+BXLT,2015-07-01,2016-06-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",BXLT-DELISTED,2015-06-15,,,,True
+CPGX,2015-07-02,2016-07-01,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CPGX-DELISTED,2015-06-17,,,,True
+WRK,2015-07-02,2024-07-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,,,False
+CMCSK,2015-09-21,2015-12-14,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CMCSK-DELISTED,2004-01-02,Comcast Corporation,,,True
+FCPT,2015-11-10,2015-11-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2015-11-11,Four Corners Property Trust,True
+CSRA,2015-11-30,2018-04-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",CSRA-DELISTED,2015-11-16,,,,True
+CCEP,2016-01-04,2016-05-31,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2018-11-08,Coca-Cola European Partners Plc,True
+DWDP,2017-09-01,2019-06-03,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",DWDP-DELISTED,2007-04-27,Dowdupont,,,True
+WCG,2018-09-17,2020-01-28,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",WCG-DELISTED,2004-07-01,Wellcare,,,True
+NLOK,2019-11-05,2022-11-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",NLOK-DELISTED,2007-04-27,Nortonlifelock,,,True
+PEAK,2019-11-05,2024-03-04,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",PEAK-DELISTED,2007-04-30,Healthpeak Properties,,,True
+VIAC,2019-12-05,2022-02-17,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",VIAC-DELISTED,2007-04-30,Viacomcbs,,,True
+PARA,2022-02-17,2025-08-08,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",,,,2021-02-16,Banzai International Inc,True
+FI,2023-06-07,2025-11-11,1,NO FILE in cache (never served by yfinance),True,"P1 (in window, no file)",FI-DELISTED,2013-08-09,Franks International,,,True
+ABS,1996-01-02,2006-06-02,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",ABS-DELISTED,2004-01-02,Albertsons,,,True
+CA,1996-01-02,2018-11-06,1,reused ticker: cached file is the wrong or a mixed entity,True,"P2 (in window, identity problem)",CA-DELISTED,2004-01-02,Ca Technologies,,,True
+GR,1996-01-02,2012-07-27,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",GR-DELISTED,2000-01-03,Goodrich Corporation,,,True
+NCC,1996-01-02,2009-01-02,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",,,,,,False
+CFC,1997-06-18,2008-07-01,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",CFC-DELISTED,2002-11-13,Countrywide Financial Corp,,,True
+BMC,1998-10-01,2013-09-11,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",BMC-DELISTED,2004-01-02,Bmc Software,,,True
+CCE,1998-10-08,2016-05-31,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",CCE-DELISTED,2004-01-02,Coca-Cola Enterprises Com,,,True
+CPWR,1999-01-04,2012-01-03,1,reused ticker: cached file is the wrong or a mixed entity,True,"P2 (in window, identity problem)",,,,,,False
+BBBY,1999-10-01,2017-07-26,1,reused ticker: cached file is the wrong or a mixed entity,True,"P2 (in window, identity problem)",BBBY-DELISTED,2005-01-03,Bed Bath & Beyond,,,True
+LEG,1999-10-18,2021-12-20,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",True,"P2 (in window, identity problem)",,,,2000-01-04,Leggett & Platt,True
+MHS,2003-08-20,2012-04-02,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",MHS-DELISTED,2004-01-02,Medcohealth Solutions Inc Commo,,,True
+HAR,2006-02-01,2017-03-13,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",HAR-DELISTED,2000-01-03,Harman International Industries,,,True
+TEG,2007-02-22,2015-06-30,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",TEG-DELISTED,2007-02-22,Integrys Energy Com,,,True
+TIE,2007-10-29,2012-12-24,1,file is a LATER ENTITY under a reused ticker (need the original),True,"P2 (in window, identity problem)",TIE-DELISTED,2004-01-02,Titanium Metals Com,,,True
+POM,2007-11-09,2016-03-24,1,reused ticker: cached file is the wrong or a mixed entity,True,"P2 (in window, identity problem)",POM-DELISTED,2004-01-02,Pepco Holdings Inc,2025-10-08,Pomdoctor Limited,True
+NFX,2010-12-20,2019-02-15,1,reused ticker: cached file is the wrong or a mixed entity,True,"P2 (in window, identity problem)",NFX-DELISTED,2004-01-02,Newfield Exploration Company Co,,,True
+QRVO,2015-06-12,2024-12-23,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",True,"P2 (in window, identity problem)",,,,2015-01-05,Qorvo,True
+AHM,1996-01-02,1998-10-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+AIT,1996-01-02,1999-10-11,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2000-07-05,Applied Industrial Technologies,True
+AMH,1996-01-02,1997-09-15,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2013-08-02,American Homes 4 Rent,True
+ANV,1996-01-02,1999-04-12,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),ANV-DELISTED,2007-05-10,Allied Nevada Gold,,,True
+AR,1996-01-02,1999-10-27,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2013-10-11,Antero Resources Corp,True
+AS,1996-01-02,1998-11-24,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2024-02-02,Amer Sports,True
+ASC,1996-01-02,1999-06-24,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2013-08-02,Ardmore Shipping Corp,True
+BBI,1996-01-02,1998-01-12,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),BBI-DELISTED,2007-05-01,Brickell Biotech,,,True
+BCO,1996-01-02,1996-01-22,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2003-05-06,The Brink's Company,True
+BEV,1996-01-02,1997-12-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BF-B,1996-01-02,,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BFI,1996-01-02,1999-08-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BKB,1996-01-02,1999-10-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BLY,1996-01-02,1996-12-19,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BNL,1996-01-02,1998-07-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2020-09-18,Broadstone Net Lease,True
+BOAT,1996-01-02,1997-01-07,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+BT,1996-01-02,1999-06-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),BT-DELISTED,2004-11-15,Bt Plc,,,True
+CAL,1996-01-02,1996-07-22,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2007-04-30,Caleres,True
+CBB,1996-01-02,1998-01-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),CBB-DELISTED,2012-12-20,Cincinnati Bell,,,True
+CCB,1996-01-02,1996-02-12,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2018-07-18,Coastal Financial,True
+CFL,1996-01-02,1998-04-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),CFL-DELISTED,2008-11-03,Brink's Home Security Holdings/Inc,,,True
+CHRS,1996-01-02,1998-04-08,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2014-11-07,Coherus Biosciences Comm,True
+CMB,1996-01-02,1996-04-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+CNW,1996-01-02,1996-12-03,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),CNW-DELISTED,2006-04-19,Con-Way,,,True
+CRR,1996-01-02,1997-05-27,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),CRR-DELISTED,2000-05-24,Carbo Ceramics,,,True
+CYM,1996-01-02,1999-10-18,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+CYR,1996-01-02,1996-03-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+DEC,1996-01-02,1998-06-12,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2023-12-19,Diversified Energy Company Plc Ordinary Shares,True
+DGN,1996-01-02,1999-10-13,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+DI,1996-01-02,1998-09-30,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+DIGI,1996-01-02,1998-08-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+DWD,1996-01-02,1997-06-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+ECH,1996-01-02,1998-07-10,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+ECO,1996-01-02,1998-01-20,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2023-12-20,Okeanis Eco Tankers,True
+ENS,1996-01-02,1997-08-06,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2004-08-03,Enersys,True
+FBO,1996-01-02,1996-03-13,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+FCN,1996-01-02,1998-10-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2001-08-17,Fti Consulting,True
+FG,1996-01-02,1998-04-27,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2022-12-01,F&G Annuities & Life,True
+FLMIQ,1996-01-02,1997-12-24,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+FTL-A,1996-01-02,1999-10-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+GFS-A,1996-01-02,1998-07-16,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+GIDL,1996-01-02,1997-07-17,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+GSX,1996-01-02,1998-10-07,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2021-04-12,Gasco Energy,True
+GWF,1996-01-02,1997-07-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),GWF-DELISTED,2003-10-09,,,,True
+HDLM,1996-01-02,1996-03-08,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+HPH,1996-01-02,1999-06-09,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+I,1996-01-02,1996-04-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),I-DELISTED,2013-04-18,Intelsat S.A.,,,True
+INGR,1996-01-02,1997-07-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2004-01-02,Ingredion,True
+JH,1996-01-02,1998-04-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+KWP,1996-01-02,1999-11-16,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+LDW-B,1996-01-02,1999-12-08,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+LLX,1996-01-02,1997-10-23,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+LOR,1996-01-02,1996-04-23,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),LOR-DELISTED,2005-06-28,Lazard World Dividend & Income Fund,,,True
+LUB,1996-01-02,1997-01-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),LUB-DELISTED,2000-01-03,Luby's,,,True
+MCIC,1996-01-02,1998-09-15,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+MD,1996-01-02,1997-08-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2009-01-05,Mednax,True
+MII,1996-01-02,1999-06-22,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+MNR,1996-01-02,1998-09-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),MNR-DELISTED,2007-05-16,Monmouth Real Estate,2023-10-26,Mach Natural Resources Lp,True
+MOB,1996-01-02,1999-12-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2022-08-26,Mobilicom Ltd,True
+MST,1996-01-02,1998-08-14,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+MWI,1996-01-02,1999-05-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+NAE,1996-01-02,1997-08-07,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+NLC,1996-01-02,1999-08-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),NLC-DELISTED,2004-11-16,Nalco Holding Co,,,True
+NYN,1996-01-02,1997-08-15,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+OM,1996-01-02,1996-10-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2020-09-16,Outset Medical,True
+ORX,1996-01-02,1999-03-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+PAC,1996-01-02,1997-04-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2006-02-27,Grupo Aeroportuario Del Pacifico S.A. B. De C.V. Grupo Aeroportuario Del Pacifico S.A. De C.V.,True
+PAS,1996-01-02,1998-01-30,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),PAS-DELISTED,2000-01-03,Pepsiamericas Inc/Il,,,True
+PEL,1996-01-02,1997-06-19,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+PET,1996-01-02,1998-06-29,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+PHB,1996-01-02,1999-10-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+PMI,1996-01-02,1996-05-31,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),PMI-DELISTED,2000-01-03,,2025-08-29,Picard Medical,True
+PPW,1996-01-02,1999-11-30,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+PZE,1996-01-02,1998-12-31,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),PZE-DELISTED,2003-08-07,Petrobras Argentina Sa,,,True
+RBD,1996-01-02,1999-03-25,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+RYAN,1996-01-02,1997-01-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2021-07-23,Ryan Specialty,True
+RYC,1996-01-02,1999-08-13,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+RYI,1996-01-02,1998-07-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2014-08-11,Ryerson Holding,True
+SB,1996-01-02,1997-11-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2008-05-29,Safe Bulkers,True
+SFS,1996-01-02,1997-07-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),SFS-DELISTED,2014-09-24,Smart,,,True
+SHN,1996-01-02,1997-01-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+SK,1996-01-02,1998-04-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+SNT,1996-01-02,1999-10-26,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2008-01-02,Senstar Technologies Ordinary Shares,True
+SRR,1996-01-02,1997-10-07,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+STO,1996-01-02,1998-11-18,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),STO-DELISTED,2001-06-18,Statoil Asa,,,True
+TA,1996-01-02,1999-07-22,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),TA-DELISTED,2007-05-16,Travelcenters Of America Llc,,,True
+TCOMA,1996-01-02,1999-03-10,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+TDM,1996-01-02,1997-09-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+TEN,1996-01-02,1999-11-05,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),TEN-DELISTED,2007-05-01,Tenneco,2002-05-10,Tsakos Energy Navigation Ltd.,True
+THY,1996-01-02,1996-10-16,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+UCC,1996-01-02,1999-05-03,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+USBC,1996-01-02,1997-08-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2022-09-16,Usbc Inc,True
+USH,1996-01-02,1997-06-18,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+USHC,1996-01-02,1996-07-19,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+USS,1996-01-02,1998-10-02,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+VAT,1996-01-02,1996-09-06,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+WAI,1996-01-02,1998-08-11,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+WMX,1996-01-02,1998-07-17,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+YRCW,1996-01-02,1996-11-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),YRCW-DELISTED,2006-01-04,Yrc Worldwide,,,True
+CSE,1996-01-22,1999-11-15,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),CSE-DELISTED,2003-08-12,Capitalsource Inc,,,True
+BAY,1996-02-12,1998-08-31,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+GNT,1996-03-13,1998-07-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2011-01-28,Gamco Natural Resources Gold & Income Trust,True
+BMGCA,1996-07-22,1999-08-09,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+HFS,1996-08-16,1997-12-18,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+FRO,1997-01-02,1999-09-29,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2001-08-07,Frontline,True
+SAI,1997-07-17,1999-01-04,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+HBOC,1997-10-23,1999-01-13,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+MTL,1998-02-23,1999-09-20,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),MTL-DELISTED,2004-10-29,Mechel Pao,,,True
+ASND,1998-06-12,1999-06-25,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2015-01-28,Ascendis Pharma A/S American Depositary Shares,True
+FMY,1998-07-10,1999-05-28,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2005-05-27,First Trust Motgage Income Fund Common Shares Of Beneficial Interest,True
+PVT,1998-08-31,1999-07-01,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+EQR,2001-12-03,,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",False,P3 (left the index before 2000),,,,,,False
+EA,2002-07-22,,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",False,P3 (left the index before 2000),,,,2003-11-18,Electronic Arts,True
+AVB,2007-01-10,,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",False,P3 (left the index before 2000),,,,2000-01-04,Avalonbay Communities,True
+BRK-B,2010-02-16,,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,,,False
+WBD,2022-04-11,,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",False,P3 (left the index before 2000),,,,2022-04-04,Warner Bros Discovery,True
+PSKY,2025-08-08,,1,reused ticker: cached file is the wrong or a mixed entity,False,P3 (left the index before 2000),,,,,,False
+SATS,2026-03-23,,1,"relisted 2026 by a new entity; cached file is the original, cannot be refreshed",False,P3 (left the index before 2000),,,,,,False
+VEEV,2026-05-07,,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2013-10-16,Veeva Systems,True
+BNY,2026-05-21,,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2001-07-26,Bank Of New York Mellon,True
+FDXF,2026-06-01,,1,NO FILE in cache (never served by yfinance),False,P3 (left the index before 2000),,,,2026-05-27,Fedex Freight Holding Company,True

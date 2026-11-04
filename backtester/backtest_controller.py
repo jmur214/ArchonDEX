@@ -1429,6 +1429,17 @@ class BacktestController:
         # Invariant 6 — config provenance.
         census["config_provenance"] = self._census_config_provenance()
 
+        # L4 (approved 2026-10-22) — which price basis sized integer shares this run, from the
+        # risk engine's per-sizing counter. On the pre-cutover cache every sizing reads
+        # total_return: a RECORDED fact, not a failure, until the cutover lands; once the substrate
+        # carries close_unadj it reads unadjusted. An errored record fails the gate (never omitted).
+        try:
+            from core.share_sizing import share_price_basis_summary
+            census["share_price_basis"] = share_price_basis_summary(
+                getattr(getattr(self, "risk", None), "share_price_basis_counts", None))
+        except Exception as e:
+            census["share_price_basis"] = {"error": repr(e)}
+
         # Invariant 7 (ruling C-2, 2026-10-15) — data-feed provenance. Which source fed
         # every ticker the NETWORK supplied to this process. A yfinance-fed ticker is a
         # source + adjustment-basis switch; assert_census marks the run NON-CANONICAL.

@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_STOOQ_SPY, requires_canonical
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -32,6 +34,7 @@ def test_overlay_consumes_trendoverlay_no_inline_sma():
     assert "data/processed" not in src and "PROCESSED" not in src
 
 
+@requires_canonical(CANON_STOOQ_SPY)
 def test_overlay_degrosses_in_crises_from_stooq():
     # full STOOQ history (incl. GLD pre-2020) → EW SPY/AGG/GLD long/flat
     assert P._overlay_series(105, ("SPY", "AGG", "GLD")) is not None
@@ -39,6 +42,7 @@ def test_overlay_degrosses_in_crises_from_stooq():
     assert P._trend_exposure(pd.Timestamp("2020-03-23"), 105, ("SPY", "AGG", "GLD")) == 0.0
 
 
+@requires_canonical(CANON_STOOQ_SPY)
 def test_overlay_matches_trendoverlay_component_exactly():
     # the composition's per-asset signal IS TrendOverlay.exposure(close).shift(1)
     from core.trend_overlay import TrendOverlay
@@ -89,6 +93,7 @@ def test_fail_open_outside_measured_mode():
     assert out == w                                          # fails open (unmodified), no raise
 
 
+@requires_canonical(CANON_STOOQ_SPY, "data/raw/stooq/daily/us/nyse etfs/1/agg.us.txt", "data/raw/stooq/daily/us/nyse etfs/1/gld.us.txt")
 def test_composition_degrosses_to_cash_in_gfc():
     os.environ.pop("ARCHONDEX_MEASURED", None)
     idx = pd.bdate_range("2008-01-01", "2008-10-15")

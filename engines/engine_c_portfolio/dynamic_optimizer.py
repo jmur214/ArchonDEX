@@ -64,10 +64,20 @@ Deviations (each deliberate, each documented in the T-139 audit doc):
     raises. Tiny negatives within float tolerance clamp to 0.0 (the
     project's tolerance-not-equality guard discipline, T-061/T-065).
   * Output weights carry a ±1e-6-share directional nudge so Engine B's
-    Path A truncation ``int(delta_notional/price)`` lands exactly on the
-    chosen integers (see ``_engine_b_feasible_weights``). pysystemtrade
+    Path A truncation (``core.share_sizing.size_shares`` — on the
+    total-return basis ``trunc(delta_notional / Close)``) lands exactly on
+    the chosen integers (see ``_engine_b_feasible_weights``). pysystemtrade
     emits contract counts directly; we must round-trip through the
     existing weight pipe without touching Engine B.
+  * L4 (2026-10-22): this lattice is ADJUSTED UNITS (one step = Close /
+    equity). Where the substrate carries ``close_unadj``, Engine B's
+    integer constraint is on REAL shares (the same helper: ``shares =
+    trunc(notional / close_unadj)``, carried as units) — a lattice this walk
+    does not step on. Until the walk is rebuilt on it, a bar whose names
+    carry ``close_unadj`` HALTS a measured run and passes the weights
+    through (``skip_reason = unadjusted_basis_lattice_unsupported``)
+    otherwise. The production-parity baseline ``naive_rounded_positions``
+    reads the helper, so it IS Engine B's arithmetic on both bases.
 
 Engine boundary: this is Engine C (portfolio construction). It consumes
 Engine C target weights + portfolio state downstream of the allocator and
@@ -86,6 +96,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+from core.measured import halt_or_degrade
+# L4 (2026-10-22): the ONE integer-share arithmetic, shared with Engine B's sizing.
+from core.share_sizing import trunc_shares
 
 __all__ = [
     "DynamicOptimizationConfig",
@@ -160,14 +174,18 @@ def naive_rounded_positions(
     prices: np.ndarray,
     current_qty: np.ndarray,
     equity: float,
+    prices_unadj: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Production-parity naive rounding: Engine B Path A truncates the
-    DELTA notional toward zero (``add_qty = int(delta_notional / price)``),
-    so the naive baseline is ``current + trunc((w*·E − cur·p)/p)`` —
-    not round-half-even of the target.
+    DELTA notional toward zero through ``core.share_sizing`` (on the
+    total-return basis ``trunc(delta_notional / price)``; on the unadjusted
+    basis real shares at ``close_unadj`` carried as units), so the naive
+    baseline is ``current + units(w*·E − cur·p)`` — not round-half-even of
+    the target. ``prices_unadj`` (NaN = absent per name) selects the basis
+    per element exactly as Engine B does; None is today's cache.
     """
-    delta_shares = (target_weights * equity - current_qty * prices) / prices
-    return current_qty + np.trunc(delta_shares).astype(np.int64)
+    units, _ = trunc_shares(target_weights * equity - current_qty * prices, prices, prices_unadj)
+    return current_qty + units.astype(np.int64)
 
 
 def _greedy_search(
@@ -360,6 +378,7 @@ def optimize_integer_positions(
     equity: float,
     covariance: pd.DataFrame,
     cfg: Optional[DynamicOptimizationConfig] = None,
+    prices_unadj: Optional[Dict[str, float]] = None,
 ) -> DynamicOptimizationResult:
     """Choose integer positions approximating the unrounded target book.
 
@@ -374,6 +393,11 @@ def optimize_integer_positions(
     covariance : DAILY returns covariance (tickers × tickers DataFrame),
         e.g. from ``HRPOptimizer._estimate_cov``. Annualized internally.
     cfg : tunables; defaults are the Carver-parity values.
+    prices_unadj : last ``close_unadj`` per ticker where the bar carries it
+        (L4). A name that carries it puts Engine B on the real-share
+        lattice this walk cannot step on: a measured run HALTS, otherwise
+        the weights pass through with ``skip_reason`` set (see the module
+        docstring). None / empty is today's cache — byte-identical.
 
     Fail-open contract: any input that can't be optimized (bad equity,
     missing/invalid prices, no covariance overlap) degrades to passing the
@@ -421,6 +445,23 @@ def optimize_integer_positions(
         (tickers if valid else dropped).append(t)
     if not tickers:
         return _passthrough("no_optimizable_tickers")
+
+    # L4 (2026-10-22): a name carrying close_unadj puts Engine B's integer constraint on REAL
+    # shares; this lattice is adjusted units, and the nudge below cannot land on the other one.
+    # Measured run: HALT (an active, load-bearing capability on an input it cannot honour);
+    # otherwise pass through, the reason recorded — never a silent walk on the wrong lattice.
+    unadj_names = sorted(
+        t for t in tickers
+        if (prices_unadj or {}).get(t) is not None
+        and np.isfinite(float(prices_unadj[t])) and float(prices_unadj[t]) > 0.0
+    )
+    if unadj_names:
+        halt_or_degrade(
+            "dynamic_optimizer", load_bearing=True, active=True,
+            reason=f"close_unadj present for {unadj_names[:5]} — the optimizer's unit lattice is "
+                   f"not Engine B's real-share lattice; rebuild the walk before enabling it here",
+        )
+        return _passthrough("unadjusted_basis_lattice_unsupported")
 
     w_star = np.array([float(target_weights[t]) for t in tickers])
     px = np.array([float(prices[t]) for t in tickers])
@@ -478,9 +519,10 @@ def optimize_integer_positions(
         te_opt = tracking_error_std(n_final.astype(float) * pcv, w_star, sigma)
 
     # Engine-B-feasible output weights: ±1e-6-share directional nudge so
-    # Path A's int(delta_notional/price) truncation lands exactly on
-    # n_final - cur (truncation is toward zero; the nudge keeps the FP
-    # quotient strictly on the far side of the intended integer).
+    # Path A's total-return-basis truncation (core.share_sizing: trunc of
+    # delta_notional / Close) lands exactly on n_final - cur (truncation is
+    # toward zero; the nudge keeps the FP quotient strictly on the far side
+    # of the intended integer).
     trade = n_final - cur
     nudge = np.sign(trade) * _NUDGE_SHARES
     w_out = (n_final.astype(float) + nudge) * pcv

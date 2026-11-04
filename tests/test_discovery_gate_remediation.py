@@ -132,6 +132,7 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
             daily_returns=rets,
             attributed_pnl_per_edge={},
             fingerprint="fake",
+            share_price_basis_counts={"total_return": 3},  # L4: a real result carries the counter
         )
 
     def fake_run_backtest_pure(**kwargs):
@@ -303,6 +304,7 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
             daily_returns=rets,
             attributed_pnl_per_edge={},
             fingerprint="fake",
+            share_price_basis_counts={"total_return": 3},  # L4: a real result carries the counter
         )
 
     def fake_run_backtest_pure(**kwargs):
