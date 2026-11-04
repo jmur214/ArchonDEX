@@ -1285,6 +1285,7 @@ class RiskEngine:
 
             if risk_budget <= 0:
                 self._fail(ticker, "non_positive_risk_budget")
+                return None
                 
             # ... rest of sizing logic ...
             raw_qty = risk_budget / stop_dist
