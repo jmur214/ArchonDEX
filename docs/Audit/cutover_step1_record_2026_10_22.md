@@ -95,6 +95,19 @@ seam-ratio gap over the 563 seam writes: max 8.7e-7 (PVH), none needing a declar
 75 unfetchable are today 57 unfetchable + 7 relisted (span) + 11 now served (the provider's coverage
 moved; every served file passed the rails).
 
+> **Correction (a), 2026-11-04 (the follow-up builder; the three lines above kept as written):** "11 now
+> served … every served file passed the rails" is FALSE. Of the 18 names that explain 75 → 57, NONE was
+> served or written: **ABS, BMC, CCE, CFC, GR, HAR, MHS, NCC, TEG, TIE** (10) are class (i) by declaration,
+> refused BEFORE any provider call (§4; on 10-15 the provider was asked for them and returned nothing);
+> **AVB, EA, EQR, LEG, QRVO, SATS, WBD** (7) are span refusals — a later entity under the symbol — now
+> DECLARED writer-side at `dd64793` (`symbol_reused_by_later_entity`; §11.2 note); **FRC → FRCB** (1)
+> is DIFFERENT_CONVENTION under the rename table. 10 + 7 + 1 = 18 = 75 − 57. The written count moved
+> **632 → 648 = +13 declared seams** (C, INTC, JPM, ELV, MAR, PLD, AXP, WMT; CHTR, KDP, TDC, UAL, WU — the
+> 10-15 span refusals) **+ DAL** (class (ii), seam mode) **+ 4 cache-convention defects** (AGG, EFA, VNQ,
+> AMCR — the 10-15 DIFFERENT_CONVENTION refusals) **− SLE − POM** (written on 10-15, class (i) by
+> declaration today): 632 + 18 − 2 = 648. CPWR and BK stay refused on both passes. No provider coverage
+> "moved"; reconciled against `pass_step1_2026_10_22.jsonl` and the proposal's §2b table.
+
 **The five LEGACY-W residuals** (the rail proposal §8, ruled to be quoted beside the pass's own):
 
 | file | 2026-10-15 ln residual | pass 1 | pass 2 |
@@ -142,6 +155,45 @@ director: declare the 388 pre-seam holes mechanically (`holed_inside`, as the fi
 was built), or rule a declared hole-fill of the drip span from the provider's series (a mixed-source
 pre-seam span: a ruling, not a default). Nothing above was tuned. The per-name records are in
 `guard_candidate_2000_2025.json` / `guard_candidate_2018_2025.json` beside the copy.
+
+> **Correction (b), 2026-11-04 (the paragraph above kept as written):** "388 missing trading days" does
+> not reproduce — `guard_candidate_2000_2025.json` (the guard's own record beside the copy) sums **380**
+> undeclared missing days over the 215 non-SLE holed names; a count over each file's WHOLE span gives
+> 393; `hole_split.py`'s 388 was measured against the 10-15 copy's provider series (a different
+> calendar). **ONE defined computation, stated and locked** (`tests/test_pre_seam_drip_gaps_2026_11_04.py::
+> test_the_real_COPY_reads_215_names_and_380_days_under_the_class_holed_1_stale_3`): the guard's own
+> rule — a missing day of the MAJORITY calendar (the dates on which at least half of the names active
+> that day have a bar; 6,539 days 2000-01-03 → 2025-12-31, proven against SPY both ways), inside each
+> name's PIT-required spans (`data/universe/sp500_membership_pit.parquet`, clipped to the window and to
+> the file's own span), counted per name, PRE-SEAM when strictly before the name's seam (the write
+> record's `seam.date`, else the merge record's `seam_date`). Computed by the builder on the copy
+> (`pre_seam_split.py`, read-only, 2026-11-04 20:36 UTC): **384 pre-seam missing days over 218
+> drip-labelled names** (118 names with 1, 66 with 2, 25 with 3, 4 with 4, 2 with 5, one each with 6, 9
+> and 18; the first hole falls in 2000–2003 for 117 names and in 2011 for 91), of which **4 days on 3
+> names (AVB 1, BBBY 1, LEG 2) were already declared `holed_inside` on 10-15**, leaving **380 undeclared
+> over 215 names — the guard's red count, and exactly what the `pre_seam_drip_gap` class now excuses
+> and reports (§6a)**. The 27 names with POST-seam holes (557 days) are SLE 428 (undeclared; class (i)),
+> CCR 64 and FISV 1 (declared) and 24 exact_tr-whole files with 1–4 declared days each; no name has both.
+> The guard's reading on the copy BEFORE this unit (2026-11-04 20:33 UTC, HEAD `dd64793`) reproduced the
+> table exactly: stale 3 (CCR, DLPH, FSR), holed 216, 808 undeclared days (380 + SLE's 428).
+
+### 6a. The guard's reading AFTER the `pre_seam_drip_gap` class (2026-11-04; `3ef4034`)
+
+The class (ruled 2026-10-23; `engines/data_manager/coverage.py`, the module docstring): the kept drip's
+own pre-seam holes are excused and COUNTED, keyed to the convention label — only a hole strictly before
+the seam, on a file whose bars before the seam number exactly the kept count its record carries, that
+the file lacks too. Read-only, the pass driver's `guard` (exit 3 on any defect):
+
+| substrate | window | stale | holed | `pre_seam_drip_gaps` | what remains |
+|---|---|---|---|---|---|
+| **the candidate (pass 2)** | 2000 → 2025 | 3 (CCR, DLPH, FSR) | **216 → 1** | **215 names / 380 days** | SLE (428 post-seam holes; class (i), a non-member required to the window end in a cache-wide read) and the three stale names of the membership identity defect (§11.5 note) |
+| the candidate (pass 2) | 2018 → 2025 | 3 | 1 (SLE) | 0 / 0 (no pre-seam bars in the window) | unchanged from §6 |
+| the canonical cache | 2000 → 2025 | 30 | **254 → 52** | 215 / 380 — the SAME holes, the same count | the 52 are the pre-T-167 band's POST-seam holes (the files the cutover restores); the 30 stale are the band's early ends plus the three |
+
+So under option (a) the copy reads green over 2000 → 2025 but for SLE (a withheld class (i) name) and
+CCR/DLPH/FSR (a membership defect, not a file defect) — with the 380 excused days VISIBLE in every
+census (`stale_files.pre_seam_drip_gaps`, both producers, the `[CENSUS]` line). Any NEW hole — post-seam,
+or pre-seam but absent from the file, or on a file whose kept count moved — still fails, by lock.
 
 ## 7. The universal label on the candidate
 
@@ -207,9 +259,11 @@ real `parquet/` (plus read-only symlinks for `_merge_meta.json`, the two top-lev
 
 1. **A suite run writes into the pinned scope** (§10): the non-canonical miss branch fetches and writes; propose-first fix in the HIGH row.
 2. **Seven more reused symbols** (§5): AVB, EA, EQR, LEG, QRVO, SATS, WBD need class (i) `reused_ticker` declarations (today the span rail refuses them; a declaration makes the refusal a ruling, and withholds them from a static universe as SLE/POM are). FRC → FRCB refuses DIFFERENT_CONVENTION under the rename table.
+   > **Note, 2026-11-04 (the item above kept as written):** built differently from its wording, by ruling (2026-10-23, `dd64793`): the seven carry a WRITER-SIDE declaration of kind `symbol_reused_by_later_entity` in `config/level_declarations.json` — kept, never re-fetched, refused before any provider call (with a provider that raises if invoked, by lock) — NOT a class (i) `reused_ticker` universe exclusion. Their cached files ARE the PIT names' own series, so the resolver still resolves them and nothing is withheld from a static universe; SLE and POM remain the only `reused_ticker` exclusions. The proposal's "class (i)" wording for these seven is superseded by that kind.
 3. **The merge record is the only seam source, and it is stale for any file regenerated after the merge** (SPY: declared). Every future whole-file regeneration outside the writer would be unlabelled until declared — which is the gate's job now (invariant 10), but the record itself should be regenerated or retired at cutover day.
 4. **The 10-15 copy is the option (b) form** (whole-file exact, no records); it is a record, not a candidate.
 5. **The guard's three stale names on the 10-15 copy** (CCR, DLPH, FSR) read differently from the proposal's 0: their `ends_at_delisting` declarations no longer excuse the end — the declaration or the membership clip moved; the guard's owner should re-read.
+   > **Correction (c), 2026-11-04 (the item above kept as written):** NOT a declaration-regeneration gap, and not `ends_at_delisting` either — none of the three carries that facet (CCR and FSR carry `holed_inside` only; DLPH has no declaration at all). They read stale on the CANONICAL cache too (the guard over 2000 → 2025 on `data/processed`, 2026-11-04: 30 stale, the three among them, `required_end` 2025-12-31 for each) for one reason: `data/universe/sp500_membership_pit.parquet` — the PIT intervals the guard and the resolver read — carries NO interval for any of the three, so the guard treats each as outside the membership and requires it to the window end; and `data/universe/sp500_membership.parquet` (universe.py's table) carries **Countrywide Credit Industries (CCR, from 1997-06-17), Delphi Automotive (DLPH, from 2012-12-21) and Firstar (FSR, from 1998-12-11) with `included_until = NaT`** — "currently in the index" — although the names left in 2008, 2017 and 2001 and the symbols were later reused by CONSOL Coal Resources (the cached file: 2020-07-28 → 2020-12-29), Delphi Technologies (2020-07-27 → 2020-10-01) and Fisker (2020-07-27 → 2024-03-25). A pre-existing membership/identity defect; why the proposal read 0 on 10-15 is not re-derived here. Recorded as a MEDIUM row in `docs/State/health_check.md` (2026-11-04); the fix is a membership-table correction with the delisting dates from the exchange status — a DECLARED act, later; until then the guard reads them stale, correctly.
 6. **51 `both` files have 0 pre-seam bars** (AMCR's shape): the merge record calls them `both`, the label calls them `exact_tr` whole — consistent, but the record's `merge_case` is misleading for them.
 7. **The worktree layout:** harness worktrees carry no `data/`; the setup script's plain `data/processed` symlink is the write hazard of §10 — the script should build the per-file layout.
 8. **Option (a) keeps the drip's holes** (§6): 215 names, 388 pre-seam missing days; the guard stays red over 2000 → 2025 until they are declared or a hole-fill is ruled. The proposal's green reading was the option (b) form's.
@@ -255,3 +309,4 @@ the other `data/*` symlinks as in L1.
 - **The 2024–2025 verdict re-runs, B-1 as a new pre-registered run, the (c) pricing** — after cutover.
 - **The dollar-ADV / slippage / borrow readers' switch to `close_unadj`** — their own unit; the column now exists on every written file.
 - **Class (i) declarations for the seven relisted symbols** (§11.2) — a config ruling for the director.
+  > **Note, 2026-11-04 (the bullet above kept as written):** DONE at `dd64793`, as the writer-side kind `symbol_reused_by_later_entity` (kept, never re-fetched; the resolver still resolves them) — not as class (i) `reused_ticker` exclusions; see the §11.2 note.
