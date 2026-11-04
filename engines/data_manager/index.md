@@ -157,7 +157,9 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 ### `convention.py`
 **Module Docstring:** The UNIVERSAL convention label (option (a), the user's cutover ruling, 2026-10-22).
 - **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
+- **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the
 - **Function `substrate_convention_record()`**: The `substrate_convention` census block over `run_names` (the panel; every name in the merge
+- **Function `drip_spans()`**: Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
 
 ### `coverage.py`
 **Module Docstring:** The stale/holed-files guard (adopted 2026-10-15; docs/Sources/proposal_stale_and_holed_files_guard_2026-10-15.md).
