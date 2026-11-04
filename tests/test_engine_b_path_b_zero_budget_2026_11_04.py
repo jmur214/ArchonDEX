@@ -12,7 +12,7 @@ True}` while `last_skip_by_ticker` read "rejected". The fix is the one `return N
 Every lock drives the REAL `RiskEngine.prepare_order` — never a text match; the AST lock reads the
 method's own body so a later edit cannot silently drop the return. Each was REVERSION-PROVEN: the
 `return None` after the `_fail` was deleted, the lock failed (the positive control kept passing, as
-a control must), the file was restored by `git checkout` (results in
+a control must), the committed file was written back and the locks passed again (results in
 `docs/Sessions/2026-10/2026-10-22_session_agent_l4_share_sizing.md`, the 2026-11-04 entry).
 """
 from __future__ import annotations
