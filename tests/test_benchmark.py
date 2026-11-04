@@ -253,11 +253,11 @@ def test_falls_back_to_raw_when_processed_missing(tmp_path, monkeypatch):
         "open": close, "high": close, "low": close,
         "close": close, "volume": [1_000_000] * n,
     })
-    # The fallback path uses ROOT/data/raw — patch ROOT_DIR resolution
-    # by monkeypatching __file__ logic. Easier: write a stub directly to
-    # the parents[1] data/raw path that benchmark.py expects.
-    fallback_root = Path(bench.__file__).resolve().parents[1]
-    actual_raw = fallback_root / "data" / "raw"
+    # 2026-10-22: redirect the fallback root (read at call time, like DEFAULT_DATA_DIR) instead
+    # of writing the fixture into the repo's data/raw — a symlink into the pinned cache in agent
+    # worktrees.
+    monkeypatch.setattr(bench, "DEFAULT_RAW_DIR", tmp_path / "data" / "raw")
+    actual_raw = bench.DEFAULT_RAW_DIR
     actual_raw.mkdir(parents=True, exist_ok=True)
     actual_raw_path = actual_raw / "_TEST_FALLBACK_1d.csv"
     raw_df.to_csv(actual_raw_path, index=False)

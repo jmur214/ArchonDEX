@@ -280,6 +280,15 @@ python scripts/update_data.py
 python -m scripts.rebake_fundamentals --tickers CVNA,KG
 python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.json   # the census's refused set
 
+# SimFin panel RE-BAKE (2026-10-22): the ONE declared entrypoint that rebuilds
+# data/processed/fundamentals_simfin.parquet, and with --download refreshes data/raw/simfin from
+# SimFin first (needs SIMFIN_API_KEY). A READ of the panel (simfin_adapter.load_panel) never
+# rebuilds and never downloads; raw files newer than the panel are recorded, not acted on.
+# Refused under ARCHONDEX_REFUSE_YFINANCE_FALLBACK, ARCHONDEX_MEASURED and ARCHONDEX_HERMETIC.
+# The manifest's verify then reads red until a re-pin. Exit: 0 = written; 2 = refused.
+python -m scripts.rebake_simfin_panel
+python -m scripts.rebake_simfin_panel --download
+
 # Fetch entire universe history (defined in config/backtest_settings.json)
 python scripts/fetch_all.py
 

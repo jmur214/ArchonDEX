@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 import core.feature_foundry.features  # noqa: F401  populate the registry
+from tests._canonical_inputs import CANON_AAPL, REPO, skip_unless_canonical
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,8 +29,22 @@ TICKERS = ["AAPL", "MSFT", "KO", "JPM", "XOM", "GILD", "CVX", "HD", "PG", "JNJ",
 AS_OF = pd.Timestamp("2024-06-03")
 
 
+@pytest.fixture(autouse=True)
+def _stub_composite_data_manager(tmp_path, monkeypatch):
+    """CompositeEdge's constructor builds `DataManager()` (data/processed; its constructor
+    mkdirs) before any test here reaches `_data_map()`'s skip. Point it at the pinned dir when
+    this tree holds it (nothing is created) and at tmp_path otherwise (2026-10-22)."""
+    from engines.data_manager.data_manager import DataManager
+    from engines.engine_a_alpha.edges import autogen_phase3_long as ap3
+    from engines.engine_a_alpha.edges import composite_edge as ce
+    cache = (REPO / "data" / "processed") if (REPO / CANON_AAPL).exists() else tmp_path / "processed"
+    for mod in (ce, ap3):          # both import DataManager by name and build it in __init__
+        monkeypatch.setattr(mod, "DataManager", lambda *a, **k: DataManager(cache_dir=cache))
+
+
 def _data_map():
     from engines.data_manager.data_manager import DataManager
+    skip_unless_canonical(CANON_AAPL)   # before the constructor: it mkdirs data/processed
     dm = DataManager()
     out = {}
     for t in TICKERS:

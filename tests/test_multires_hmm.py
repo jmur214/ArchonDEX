@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_MACRO_HY_OAS, CANON_MACRO_VIX, requires_canonical
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -99,6 +101,7 @@ def test_resample_empty_panel_returns_empty():
     assert weekly.empty
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_build_multires_panels_returns_three_keys():
     """build_multires_panels returns daily, weekly, monthly."""
     panels = build_multires_panels(start="2024-01-01", end="2024-12-31")
@@ -107,7 +110,8 @@ def test_build_multires_panels_returns_three_keys():
     assert len(panels["daily"]) > len(panels["weekly"]) > len(panels["monthly"])
 
 
-def test_multires_orchestrator_loads_all_three_artifacts():
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)   # builds the feature panels
+def test_multires_orchestrator_loads_all_three_artifacts():   # (MacroDataManager mkdir)
     """MultiResolutionHMM loads all three persisted artifacts."""
     from engines.engine_e_regime.multires_hmm import MultiResolutionHMM
 
@@ -122,6 +126,7 @@ def test_multires_orchestrator_loads_all_three_artifacts():
     assert set(m.loaded_cadences) == {"daily", "weekly", "monthly"}
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_multires_classify_returns_three_results():
     """classify_at returns one CadenceResult per cadence."""
     from engines.engine_e_regime.multires_hmm import MultiResolutionHMM
@@ -143,6 +148,7 @@ def test_multires_classify_returns_three_results():
         assert abs(s - 1.0) < 1e-6
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_multires_to_advisory_dict_schema():
     """Advisory dict schema: regime_<cadence> keys present."""
     from engines.engine_e_regime.multires_hmm import MultiResolutionHMM
@@ -164,6 +170,7 @@ def test_multires_to_advisory_dict_schema():
         assert "bar_timestamp" in val
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_multires_monthly_lags_daily():
     """The monthly bar boundary should lag the daily bar (slower cadence,
     less temporal precision — this is the documented tradeoff)."""

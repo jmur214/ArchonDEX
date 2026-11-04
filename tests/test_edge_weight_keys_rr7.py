@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._canonical_inputs import CANON_GOVERNOR
+
 REPO = Path(__file__).resolve().parent.parent
 PROD_CFG = REPO / "config/alpha_settings.prod.json"
 # EdgeRegistry's own default (`data/governor/edges.yml`), resolved against the repo
@@ -33,11 +35,13 @@ REGISTRY = REPO / "data/governor/edges.yml"
 
 
 def _registry_edge_ids() -> set:
-    if not REGISTRY.exists():
-        # Without the registry, a parametrised edge cannot be told from a typo. A
-        # verdict produced on half the evidence would be a confident wrong answer.
-        pytest.skip("data/governor/edges.yml is not on disk in this environment — "
-                    "cannot evaluate the registry half of the rule honestly")
+    if not REGISTRY.exists() or not (REPO / CANON_GOVERNOR).exists():
+        # Without the PINNED registry, a parametrised edge cannot be told from a typo. A
+        # verdict produced on half the evidence would be a confident wrong answer. In a tree
+        # without the pinned governor dir, edges.yml is the import-time regeneration from the
+        # edge modules — module edges only, no parametrised instances (2026-10-22).
+        pytest.skip("declared skip: the pinned data/governor registry is not on disk in this "
+                    "tree — cannot evaluate the registry half of the rule honestly")
     from engines.engine_a_alpha.edge_registry import EdgeRegistry
     return {s.edge_id for s in EdgeRegistry(REGISTRY).get_all_specs()}
 

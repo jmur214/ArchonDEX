@@ -178,9 +178,18 @@ def _drive_pulse(tmp_path):
         def trading_days(self, start, end):
             return {today}
 
-    _drv.main(["--allocator", "mean_variance", "--strategy", "trend_sleeve",
-               "--sleeve-notional-cap", "10000"],
-              now=now, client=_C(), cloud=_Cloud(), root=str(tmp_path))
+    # 2026-10-22: the eval harness the pulse runs writes data/intel/analyst_eval_summary.json
+    # and analyst_predictions.jsonl at module-constant paths (bound as `run`'s defaults, not
+    # root-relative) — redirect both under tmp_path so the suite never writes into data/.
+    from functools import partial as _partial
+    from unittest import mock as _mock
+    from intelligence.analyst import eval_harness as _eh
+    _redirected = _partial(_eh.run, pred_log=tmp_path / "data/intel/analyst_predictions.jsonl",
+                           summary=tmp_path / "data/intel/analyst_eval_summary.json")
+    with _mock.patch.object(_eh, "run", _redirected):
+        _drv.main(["--allocator", "mean_variance", "--strategy", "trend_sleeve",
+                   "--sleeve-notional-cap", "10000"],
+                  now=now, client=_C(), cloud=_Cloud(), root=str(tmp_path))
 
 
 def test_the_pulse_RUNS_BOTH_ARMS_not_just_the_constrained_one(tmp_path, capsys):

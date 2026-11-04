@@ -12,6 +12,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_MACRO_VIX, skip_unless_canonical
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -19,7 +21,8 @@ def test_vix_input_loads_when_macro_present():
     """The regime detector's actual input (VIX family) loads non-empty from the
     on-disk panel — i.e. a live regime is computable when macro is baked."""
     from engines.data_manager import MacroDataManager
-    mgr = MacroDataManager()
+    skip_unless_canonical(CANON_MACRO_VIX, "data/macro/VIXCLS.parquet", "data/macro/VIX3M.parquet")
+    mgr = MacroDataManager()   # the pinned dir exists here: its constructor's mkdir creates nothing
     for series in ("VIX", "VIXCLS", "VIX3M"):
         df = mgr.load_cached(series)
         assert df is not None and not df.empty, f"{series} should load non-empty"

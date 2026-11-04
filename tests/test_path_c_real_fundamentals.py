@@ -26,6 +26,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_SIMFIN_PANEL, REPO, skip_unless_canonical
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scripts import path_c_synthetic_compounder as pcs
@@ -37,12 +39,14 @@ from scripts import path_c_synthetic_compounder as pcs
 
 @pytest.fixture(scope="module")
 def panel() -> pd.DataFrame:
-    """Real SimFin panel. Skips the test if the parquet isn't available."""
-    try:
-        from engines.data_manager.fundamentals.simfin_adapter import load_panel
-        return load_panel()
-    except Exception as exc:
-        pytest.skip(f"SimFin panel not available: {exc}")
+    """The pinned SimFin panel, READ-ONLY; a declared skip when this tree lacks it.
+
+    2026-10-22: `load_panel()` had a REBUILD behind it — with the panel absent (a worktree with an
+    empty data/processed) the simfin library refreshed the six pinned raw files through the
+    worktree's data/raw symlink, and the rebuild rewrote the pinned panel; the old "skip if not
+    available" caught an exception, not a rebuild."""
+    skip_unless_canonical(CANON_SIMFIN_PANEL)
+    return pd.read_parquet(REPO / CANON_SIMFIN_PANEL)
 
 
 @pytest.fixture(scope="module")

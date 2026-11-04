@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests._canonical_inputs import CANON_MACRO_HY_OAS, CANON_MACRO_VIX, requires_canonical
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -173,6 +175,7 @@ def test_hmm_windowed_predict_smooths_posterior():
     # we can't assert direction without overconstraining).
 
 
+@requires_canonical(CANON_MACRO_VIX, CANON_MACRO_HY_OAS)
 def test_macro_feature_panel_schema():
     """Smoke test the regime-input feature panel builds with the canonical schema."""
     from engines.engine_e_regime.macro_features import (

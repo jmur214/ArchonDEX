@@ -23,6 +23,8 @@ from engines.engine_a_alpha.edges.dividend_initiation_drift_v1 import (  # noqa:
     DividendInitiationDriftEdge,
 )
 from engines.engine_a_alpha.edge_registry import EdgeRegistry  # noqa: E402
+from engines.engine_a_alpha.edges import dividend_initiation_drift_v1 as _did_module  # noqa: E402
+from tests._edge_registration import registry_from_reimport  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -51,8 +53,10 @@ def _make_data_map(tickers: list[str]) -> dict[str, pd.DataFrame]:
 # Registration
 # ---------------------------------------------------------------------------
 
-def test_dividend_initiation_drift_registers_at_paused_feature():
-    reg = EdgeRegistry()
+def test_dividend_initiation_drift_registers_at_paused_feature(monkeypatch, tmp_path):
+    # The module's own registration, observed in a tmp registry — not the live
+    # data/governor/edges.yml (an import-time side effect a separate unit retires; 2026-10-22).
+    reg = registry_from_reimport(monkeypatch, tmp_path, _did_module)
     spec = next(
         (s for s in reg.get_all_specs() if s.edge_id == "dividend_initiation_drift_v1"),
         None,

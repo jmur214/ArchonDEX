@@ -167,10 +167,19 @@ def _drive(tmp_path):
         def trading_days(self, start, end):
             return {today}
 
-    _drv.main(["--allocator", "mean_variance", "--strategy", "trend_sleeve",
-               "--sleeve-notional-cap", "10000"],
-              now=_dt.datetime(2026, 9, 17, 9, 45, tzinfo=_dt.timezone.utc),
-              client=_C(), cloud=_Cloud(), root=str(tmp_path))
+    # 2026-10-22: the eval harness the pulse runs writes data/intel/analyst_eval_summary.json
+    # and analyst_predictions.jsonl at module-constant paths (bound as `run`'s defaults, not
+    # root-relative) — redirect both under tmp_path so the suite never writes into data/.
+    from functools import partial as _partial
+    from unittest import mock as _mock
+    from intelligence.analyst import eval_harness as _eh
+    _redirected = _partial(_eh.run, pred_log=tmp_path / "data/intel/analyst_predictions.jsonl",
+                           summary=tmp_path / "data/intel/analyst_eval_summary.json")
+    with _mock.patch.object(_eh, "run", _redirected):
+        _drv.main(["--allocator", "mean_variance", "--strategy", "trend_sleeve",
+                   "--sleeve-notional-cap", "10000"],
+                  now=_dt.datetime(2026, 9, 17, 9, 45, tzinfo=_dt.timezone.utc),
+                  client=_C(), cloud=_Cloud(), root=str(tmp_path))
     return tmp_path / "data/state/fleet_mirror_slice.json"
 
 

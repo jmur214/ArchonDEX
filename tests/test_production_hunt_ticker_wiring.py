@@ -51,7 +51,7 @@ def _synthetic_data_map(n_tickers: int = 3, n_bars: int = 300) -> dict:
     return out
 
 
-def test_production_hunt_passes_ticker_to_compute_all_features():
+def test_production_hunt_passes_ticker_to_compute_all_features(tmp_path):
     """Every `compute_all_features` call from `hunt()` must carry `ticker=`."""
     calls: List[dict] = []
     orig = FeatureEngineer.compute_all_features
@@ -65,7 +65,7 @@ def test_production_hunt_passes_ticker_to_compute_all_features():
 
     FeatureEngineer.compute_all_features = spy
     try:
-        de = DiscoveryEngine()
+        de = DiscoveryEngine(registry_path=str(tmp_path / "edges.yml"))   # not data/governor
         de.hunt(data_map=_synthetic_data_map(n_tickers=3))
     finally:
         FeatureEngineer.compute_all_features = orig
@@ -83,7 +83,7 @@ def test_production_hunt_passes_ticker_to_compute_all_features():
         )
 
 
-def test_foundry_feature_columns_populated_post_fix():
+def test_foundry_feature_columns_populated_post_fix(tmp_path):
     """After the fix, `hunt()` produces feature DataFrames with `Foundry_*` columns."""
     seen_columns: List[List[str]] = []
     orig = FeatureEngineer.compute_all_features
@@ -95,7 +95,7 @@ def test_foundry_feature_columns_populated_post_fix():
 
     FeatureEngineer.compute_all_features = spy
     try:
-        de = DiscoveryEngine()
+        de = DiscoveryEngine(registry_path=str(tmp_path / "edges.yml"))   # not data/governor
         de.hunt(data_map=_synthetic_data_map(n_tickers=2))
     finally:
         FeatureEngineer.compute_all_features = orig
