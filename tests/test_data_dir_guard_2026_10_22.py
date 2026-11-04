@@ -126,3 +126,160 @@ def test_the_allowance_does_not_cover_a_test_that_writes_edges_yml(layout):
     assert r.returncode != 0, out[-2000:]
     assert "tests/test_plant.py::test_plant_writes_under_data" in out
     assert "data/governor/edges.yml" in out
+
+
+# ── 2026-11-04: MODIFIED, REMOVED and create-then-unlink (review of the 2026-10-22 unit) ──────
+# The first guard caught only CREATED paths. Review proved by planted probes that an in-place
+# replacement (os.replace; DataFrame.to_parquet over an existing path — the incident's own
+# shape), a deletion and a create-then-unlink inside one test all passed unreported. Each case
+# below SEEDS the layout with baseline files before pytest starts, so they are in the guard's
+# baseline walk, and plants one writer per shape. Attribution is asserted per nodeid from the
+# summary table: the rename and the deletion are caught by the per-test directory poll; the two
+# in-place rewrites move no directory mtime and are attributed at session end by the file's
+# ctime against the test's recorded window; the create-then-unlink leaves a directory whose
+# mtime moved with an unchanged listing (TRANSIENT).
+
+SEEDED = {
+    "data/processed/existing_1d.csv": "a,b\n1,2\n",
+    "data/processed/other_1d.csv": "a,b\n3,4\n",
+    "data/processed/doomed_1d.csv": "a,b\n5,6\n",
+    "data/governor/edges.yml": "edges: [seeded]\n",
+}
+
+WRITERS = '''
+import os
+from pathlib import Path
+import pandas as pd
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+def test_plant_replaces_by_rename():
+    tmp = DATA / "processed" / "existing_1d.csv.tmp"
+    tmp.write_text("a,b\\n9,9\\n")
+    os.replace(tmp, DATA / "processed" / "existing_1d.csv")
+
+def test_plant_rewrites_in_place_same_size():
+    (DATA / "processed" / "other_1d.csv").write_text("a,b\\n7,7\\n")
+
+def test_plant_to_parquet_over_the_pinned_panel():
+    pd.DataFrame({"a": [2]}).to_parquet(DATA / "processed" / "parquet" / "pinned.parquet")
+
+def test_plant_deletes():
+    (DATA / "processed" / "doomed_1d.csv").unlink()
+
+def test_plant_creates_then_unlinks():
+    p = DATA / "processed" / "scratch.tmp"
+    p.write_text("x")
+    p.unlink()
+
+def test_clean():
+    assert True
+'''
+
+EDGES_YML_REWRITER = '''
+from pathlib import Path
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+def test_plant_rewrites_edges_yml():
+    (DATA / "governor" / "edges.yml").write_text("edges: []\\n")
+
+def test_clean():
+    assert True
+'''
+
+
+@pytest.fixture
+def seeded(layout):
+    """The throwaway layout with BASELINE files under data/ (present before pytest starts)."""
+    import pandas as pd
+    for rel, text in SEEDED.items():
+        p = layout / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    pq = layout / "data" / "processed" / "parquet" / "pinned.parquet"
+    pq.parent.mkdir(parents=True)
+    pd.DataFrame({"a": [1]}).to_parquet(pq)
+    return layout
+
+
+def _table(out: str) -> dict:
+    """The FAILED section of the terminal summary as {nodeid: [entry lines]}."""
+    body = out.split("data/ write guard: FAILED", 1)[1]
+    table, node = {}, None
+    for line in body.splitlines()[1:]:
+        if line.startswith("      "):
+            table.setdefault(node, []).append(line.strip())
+        elif line.startswith("  ") and not line.startswith("   "):
+            node = line.strip()
+            table.setdefault(node, [])
+        elif line.startswith(("=", "-")):
+            break
+    return table
+
+
+def test_without_the_guard_every_planted_writer_is_green(seeded):
+    """Reversion arm: no conftest -> all six pass and the files show the writes landed."""
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded)
+    assert r.returncode == 0 and "6 passed" in r.stdout, (r.stdout + r.stderr)[-2000:]
+    assert (seeded / "data/processed/existing_1d.csv").read_text() == "a,b\n9,9\n"
+    assert (seeded / "data/processed/other_1d.csv").read_text() == "a,b\n7,7\n"
+    assert not (seeded / "data/processed/doomed_1d.csv").exists()
+
+
+def test_with_the_live_conftest_every_planted_shape_fails_the_session_and_is_named(seeded):
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    assert "6 passed" in r.stdout, "the guard fails the SESSION; the tests themselves still ran"
+    assert "data/ write guard: FAILED" in out, out[-3000:]
+    t = _table(out)
+    P = "tests/test_plant.py::"
+    assert any(e.startswith("MODIFIED") and "data/processed/existing_1d.csv" in e
+               for e in t.get(P + "test_plant_replaces_by_rename", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/other_1d.csv" in e
+               for e in t.get(P + "test_plant_rewrites_in_place_same_size", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/parquet/pinned.parquet" in e
+               for e in t.get(P + "test_plant_to_parquet_over_the_pinned_panel", [])), t
+    assert any(e.startswith("REMOVED") and "data/processed/doomed_1d.csv" in e
+               for e in t.get(P + "test_plant_deletes", [])), t
+    assert any(e.startswith("TRANSIENT") and "data/processed/" in e
+               for e in t.get(P + "test_plant_creates_then_unlinks", [])), t
+    assert P + "test_clean" not in t, "the clean test is not blamed"
+    assert not any("unattributed" in n for n in t), f"every write is attributed to its test: {t}"
+
+
+def test_a_pre_existing_edges_yml_rewritten_at_collection_is_tolerated_and_said(seeded):
+    """The main tree's shape: edges.yml EXISTS and every edge module's import-time ensure()
+    rewrites it in place. That is the declared allowance — attributed to collection by the
+    file's ctime, listed, and green."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_importer.py").write_text(IMPORT_TIME_WRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode == 0, out[-3000:]
+    assert "tolerated at collection time" in out
+    assert "MODIFIED" in out and "data/governor/edges.yml" in out
+    assert "data/ write guard: FAILED" not in out
+
+
+def test_the_allowance_does_not_cover_a_test_that_rewrites_edges_yml(seeded):
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(EDGES_YML_REWRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    t = _table(out)
+    assert any(e.startswith("MODIFIED") and "data/governor/edges.yml" in e
+               for e in t.get("tests/test_plant.py::test_plant_rewrites_edges_yml", [])), t
+    assert "tests/test_plant.py::test_clean" not in t
+
+
+def test_with_the_live_conftest_a_seeded_layout_left_alone_is_green(seeded):
+    """Negative control for the extension: baseline files that nobody touches raise nothing."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(WRITERS)
+    r = _run(seeded, "-k", "test_clean")
+    assert r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+    assert "data/ write guard" not in r.stdout + r.stderr
