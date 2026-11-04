@@ -72,13 +72,19 @@ SHORT_WINDOW_START = "2021-07"
 MAIN_FEATURES = ["mom_12_1", "mom_6_1", "reversal_1m", "dist_52w_high", "realized_vol_60d",
                  "beta_252d", "skew_60d", "high_minus_low_60d", "drawdown_60d",
                  "ma_cross_50_200", "moving_avg_distance_50d", "vol_regime_5_60"]
-MAIN_EDGES = {"overnight_intraday_v1": ("overnight_intraday_edge", "OvernightIntradayEdge"),
+# A bare module name resolves under `engines.engine_a_alpha.edges`; a DOTTED one is imported as given.
+# overnight_intraday_v1 and betting_against_beta_v1 were ARCHIVED 2026-10-22 (REFUTED: T-135/T-157 and
+# T-123/T-129; Archive/engines/engine_a_alpha/edges_refuted_2026_10/README.md). The inventory is a frozen
+# pre-registration (§4, §5.2), so the entries stay and resolve from the archive path.
+_ARCHIVED_EDGES = "Archive.engines.engine_a_alpha.edges_refuted_2026_10"
+MAIN_EDGES = {"overnight_intraday_v1": (f"{_ARCHIVED_EDGES}.overnight_intraday_edge", "OvernightIntradayEdge"),
               "volume_anomaly_v1": ("volume_anomaly_edge", "VolumeAnomalyEdge")}
 SENSITIVITY_EDGES = {"momentum_12_1_v1": ("momentum_12_1_v1", "Momentum12_1Edge"),
                      "momentum_6_1_v1": ("momentum_6_1_v1", "Momentum6_1Edge"),
                      "short_term_reversal_v1": ("short_term_reversal_v1", "ShortTermReversalEdge"),
                      "low_vol_factor_v1": ("low_vol_factor_edge", "LowVolFactorEdge"),
-                     "betting_against_beta_v1": ("betting_against_beta_edge", "BettingAgainstBetaEdge")}
+                     "betting_against_beta_v1": (f"{_ARCHIVED_EDGES}.betting_against_beta_edge",
+                                                 "BettingAgainstBetaEdge")}
 SHORT_FEATURES: List[str] = []
 SHORT_EDGES = {"value_book_to_market_v1": ("value_book_to_market_edge", "ValueBookToMarketEdge"),
                "value_earnings_yield_v1": ("value_earnings_yield_edge", "ValueEarningsYieldEdge"),
@@ -214,7 +220,7 @@ def make_edges(spec: Dict[str, Tuple[str, str]]) -> Dict[str, object]:
     import importlib
     edges = {}
     for eid, (mod, cls) in spec.items():
-        m = importlib.import_module(f"engines.engine_a_alpha.edges.{mod}")
+        m = importlib.import_module(mod if "." in mod else f"engines.engine_a_alpha.edges.{mod}")
         e = getattr(m, cls)()
         if getattr(e, "EDGE_ID", eid) != eid:
             raise RuntimeError(f"{mod}.{cls}.EDGE_ID != {eid}")

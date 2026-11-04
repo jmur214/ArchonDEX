@@ -231,6 +231,21 @@ rm -rf data/research/*
 
 ### EVOLUTION & OPTIMIZATION (DARWIN)
 ```bash
+# EDGE REGISTRY SYNC — the ONE explicit step that persists what the edge modules register
+# (the edges.yml single-writer unit, 2026-10-22). Importing an edge module NEVER writes
+# data/governor/edges.yml any more; this does, through the one atomic writer, key-wise
+# (code-owned fields and params keys take the code value; every other key, status and tier
+# are preserved). STEP ONE on a fresh checkout: every consumer REFUSES an absent or empty
+# registry until this has run once (ModeController: EdgeLoadRefusal naming this command).
+python scripts/sync_edge_registry.py                 # sync; prints the four classes: never registered,
+                                                     # drift applied, type changes, registry-only keys preserved
+python scripts/sync_edge_registry.py --check         # write nothing; exit 1 if a sync WOULD change the file
+                                                     # (the image build runs this; exit 2 = unreadable registry)
+python scripts/sync_edge_registry.py --registry PATH # another registry (an isolated run's); --json for the report
+# Reversion proof for the unit's locks (revert ONE fix, run ONLY its locks, require FAIL; ~10 min):
+python scripts/registry_single_writer_reversion_proof.py
+python scripts/registry_single_writer_reversion_proof.py R5 R12   # only the cases whose name starts with a token
+
 # FULL DISCOVERY CYCLE (Recommended — post-backtest)
 # Runs: regime detection → feature hunt (LightGBM+DTree) → GA evolution →
 #       4-gate validation (backtest → PBO → WFO → significance) → auto-promote

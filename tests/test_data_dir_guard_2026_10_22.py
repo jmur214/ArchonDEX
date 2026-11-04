@@ -106,18 +106,22 @@ def test_import_time_writes_are_attributed_to_collection_and_fail(layout):
     assert "<collection/import time>" in out and "data/intel/panel.parquet" in out
 
 
-def test_the_declared_edge_registry_allowance_is_collection_time_only(layout):
-    """data/governor/edges.yml at IMPORT is tolerated and SAID so (the import-time EdgeRegistry
-    writer a separate unit retires; the allowance goes with it)."""
+def test_an_import_time_edges_yml_write_fails_the_session_at_collection(layout):
+    """No allowance for data/governor/edges.yml at IMPORT any more. Until the edges.yml
+    single-writer unit (2026-10-22) every edge module's import-time `EdgeRegistry().ensure()`
+    wrote that file, and the guard tolerated it at collection time only; `ensure()` now records in
+    memory and never writes (proven at the merge, 2026-11-04: collecting the whole suite on a tree
+    with no data/ created nothing), so an import-time write of the file fails like any other."""
     shutil.copy(LIVE_CONFTEST, layout / "tests" / "conftest.py")
     (layout / "tests" / "test_importer.py").write_text(IMPORT_TIME_WRITER)
     r = _run(layout)
     out = r.stdout + r.stderr
-    assert r.returncode == 0, out[-2000:]
-    assert "tolerated at collection time" in out and "data/governor/edges.yml" in out
+    assert r.returncode != 0, out[-2000:]
+    assert "<collection/import time>" in out and "data/governor/edges.yml" in out
+    assert "tolerated" not in out
 
 
-def test_the_allowance_does_not_cover_a_test_that_writes_edges_yml(layout):
+def test_a_test_that_writes_edges_yml_fails_the_session(layout):
     shutil.copy(LIVE_CONFTEST, layout / "tests" / "conftest.py")
     (layout / "tests" / "test_plant.py").write_text(
         PLANTED.replace('"planted" / "x.txt"', '"governor" / "edges.yml"'))

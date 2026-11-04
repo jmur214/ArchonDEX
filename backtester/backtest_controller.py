@@ -1493,6 +1493,16 @@ class BacktestController:
         except Exception as e:  # recorded, never omitted
             census["fundamentals_misses"] = {"error": repr(e)}
 
+        # bootstrap_book (the edges.yml single-writer unit, 2026-10-22): the labelled bootstrap mode's
+        # record, from its ONE source of truth — written by BOTH producers (here and Discovery's
+        # `candidate_census_block`). A run whose Discovery may seed an EMPTY book on purpose is
+        # labelled, and a backtest census carrying true is never canonical for a performance claim.
+        try:
+            from engines.engine_d_discovery.thresholds import bootstrap_book_declared
+            census["bootstrap_book"] = bootstrap_book_declared()
+        except Exception as e:  # recorded, never omitted: the gate fails an errored record
+            census["bootstrap_book_error"] = repr(e)
+
         # One-line operator summary (visibility; the gate runs at publish).
         try:
             print(

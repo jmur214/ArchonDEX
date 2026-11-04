@@ -76,12 +76,13 @@ _REPO = Path(__file__).resolve().parent.parent
 _DATA_DIR = _REPO / "data"
 _COLLECTION_NODEID = "<collection/import time>"
 _UNATTRIBUTED_NODEID = "<unattributed: session-fixture teardown or after the last test>"
-# Created at IMPORT by engines/engine_a_alpha/edges/*.py: every edge module builds
-# `EdgeRegistry()` (store_path "data/governor/edges.yml") and `.ensure()`s itself, so merely
-# COLLECTING the suite writes the file in any tree. A separate unit retires that writer;
-# until it lands these paths are tolerated at COLLECTION time only — a TEST that creates
-# them still fails. Remove this allowance with that unit.
-_COLLECTION_TIME_ALLOWED = frozenset({"data/", "data/governor/", "data/governor/edges.yml"})
+# NO collection-time allowance. Until the edges.yml single-writer unit (2026-10-22) every edge
+# module's import-time `EdgeRegistry().ensure()` wrote data/governor/edges.yml, so merely
+# COLLECTING the suite created data/, data/governor/ and the file, and those three paths were
+# tolerated at collection time only. `ensure()` now records in memory and never writes — proven
+# at the merge (2026-11-04): collecting the whole suite (4553 tests) on a tree with NO data/
+# created nothing. A path created at collection is attributed to _COLLECTION_NODEID and fails
+# the session like any other.
 
 
 class _DataDirGuardState:
@@ -200,14 +201,8 @@ def pytest_runtest_protocol(item, nextitem):
 
 
 def _offending() -> dict[str, list[str]]:
-    """The attributed table minus the declared collection-time allowance."""
-    out: dict[str, list[str]] = {}
-    for nodeid, paths in _GUARD.attributed.items():
-        if nodeid == _COLLECTION_NODEID:
-            paths = [p for p in paths if p not in _COLLECTION_TIME_ALLOWED]
-        if paths:
-            out[nodeid] = paths
-    return out
+    """The attributed table: every nodeid (collection time included) with the paths it created."""
+    return {nodeid: paths for nodeid, paths in _GUARD.attributed.items() if paths}
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -227,21 +222,14 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     if not _GUARD.armed:
         return
     offending = _offending()
-    tolerated = [p for p in _GUARD.attributed.get(_COLLECTION_NODEID, [])
-                 if p in _COLLECTION_TIME_ALLOWED]
-    if not offending and not tolerated:
+    if not offending:
         return
     tr = terminalreporter
-    if offending:
-        tr.section("data/ write guard: FAILED — the suite created paths under data/", sep="=", red=True)
-        tr.write_line("A test that writes into the data layer must stub it (tmp_path cache dirs, a "
-                      "stubbed provider, a monkeypatched DataManager cache root). Session exit status "
-                      "forced to 1 ([NN-FAIL-CLOSED]).")
-        for nodeid, paths in offending.items():
-            tr.write_line(f"  {nodeid}")
-            for p in paths:
-                tr.write_line(f"      {p}")
-    if tolerated:
-        tr.section("data/ write guard: tolerated at collection time (declared allowance)", sep="-")
-        for p in tolerated:
-            tr.write_line(f"      {p}   (import-time EdgeRegistry writer; retire with its fix)")
+    tr.section("data/ write guard: FAILED — the suite created paths under data/", sep="=", red=True)
+    tr.write_line("A test that writes into the data layer must stub it (tmp_path cache dirs, a "
+                  "stubbed provider, a monkeypatched DataManager cache root). Session exit status "
+                  "forced to 1 ([NN-FAIL-CLOSED]).")
+    for nodeid, paths in offending.items():
+        tr.write_line(f"  {nodeid}")
+        for p in paths:
+            tr.write_line(f"      {p}")

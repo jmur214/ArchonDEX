@@ -14,6 +14,7 @@
 
 ### `mode_controller.py`
 **Module Docstring:** ModeController
+- **Class `EdgeLoadRefusal`**: The run REFUSES to load its edges (the edges.yml single-writer unit, 2026-10-22, ruling (c)):
 - **Class `Mode`**: No docstring
 - **Class `ExecutionAdapter`**: Base interface for live execution. Implement for Alpaca, IBKR, etc.
   - `def __init__()`

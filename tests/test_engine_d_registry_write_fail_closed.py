@@ -17,6 +17,7 @@ import hashlib
 import pytest
 import yaml
 
+from core.edge_registry_io import RegistryWriteError, serialise
 from engines.engine_d_discovery.discovery import DiscoveryEngine, RegistryUnreadableError
 
 GOOD = {"edges": [
@@ -71,51 +72,58 @@ def test_an_absent_registry_is_an_empty_one(tmp_path):
     eng = _engine(reg)
     assert eng.get_queued_candidates("candidate") == []
     eng.save_candidates([NEW])
-    assert yaml.safe_load(reg.read_text()) == {"edges": [NEW]}
+    # The ONE canonical form (the single-writer unit, 2026-10-22): the row comes back with the
+    # Engine-A defaults materialised (category/version/tier) — identical bytes from every writer.
+    assert reg.read_text() == serialise({"edges": [NEW]})
+    assert [e["edge_id"] for e in yaml.safe_load(reg.read_text())["edges"]] == ["cand_new"]
 
 
 def test_a_serialisation_failure_never_truncates_the_registry(tmp_path, monkeypatch):
     """The old code opened edges.yml with open("w") — truncating it — BEFORE yaml.dump ran,
     so a dump error left an EMPTY registry. Serialising first means the file is never
     touched. Revert → the file is empty after the error."""
-    import engines.engine_d_discovery.discovery as dmod
+    import core.edge_registry_io as io_mod       # the ONE serialiser lives here since 2026-10-22
     reg = tmp_path / "edges.yml"
     reg.write_text(yaml.dump(GOOD, sort_keys=False))
     before = _sha(reg)
 
     def _boom(*a, **kw):
         raise yaml.representer.RepresenterError("cannot represent an object")
-    monkeypatch.setattr(dmod.yaml, "dump", _boom)
-    with pytest.raises(yaml.representer.RepresenterError):
+    monkeypatch.setattr(io_mod.yaml, "safe_dump", _boom)
+    with pytest.raises(RegistryWriteError, match="cannot represent an object"):
         _engine(reg).save_candidates([NEW])
     assert _sha(reg) == before
 
 
 def test_a_failed_rename_leaves_the_registry_untouched(tmp_path, monkeypatch):
     """Atomicity at the last step: if the rename fails, edges.yml is the old file, whole."""
-    import engines.engine_d_discovery.discovery as dmod
+    import core.edge_registry_io as io_mod       # the ONE atomic writer lives here since 2026-10-22
     reg = tmp_path / "edges.yml"
     reg.write_text(yaml.dump(GOOD, sort_keys=False))
     before = _sha(reg)
 
     def _no_rename(src, dst):
         raise OSError("disk full")
-    monkeypatch.setattr(dmod.os, "replace", _no_rename)
-    with pytest.raises(OSError, match="disk full"):
+    monkeypatch.setattr(io_mod.os, "replace", _no_rename)
+    with pytest.raises(RegistryWriteError, match="disk full"):
         _engine(reg).save_candidates([NEW])
     assert _sha(reg) == before
 
 
-def test_POSITIVE_CONTROL_a_healthy_save_merges_and_is_byte_identical_to_the_old_format(tmp_path):
+def test_POSITIVE_CONTROL_a_healthy_save_merges_and_is_byte_identical_to_the_one_canonical_form(tmp_path):
     """The fix must not change a healthy write: same merge (new appended, existing kept,
-    duplicate id replaced), same bytes as the old `yaml.dump({"edges": ...}, sort_keys=False)`,
-    and no temp file left behind."""
+    duplicate id replaced), the bytes of the ONE canonical serialiser every writer uses
+    (`core.edge_registry_io.serialise` — Engine A's row form; since 2026-10-22, before which
+    Discovery wrote raw `yaml.dump` and the format flipped with the last writer), and no temp
+    file left behind."""
     reg = tmp_path / "edges.yml"
     reg.write_text(yaml.dump(GOOD, sort_keys=False))
     updated = dict(GOOD["edges"][2], status="failed")
     _engine(reg).save_candidates([NEW, updated])
     expected = {"edges": [GOOD["edges"][0], GOOD["edges"][1], updated, NEW]}
-    assert reg.read_text() == yaml.dump(expected, sort_keys=False)
+    assert reg.read_text() == serialise(expected)
+    assert [e["edge_id"] for e in yaml.safe_load(reg.read_text())["edges"]] == [
+        "momentum_edge_v1", "rsi_bounce_v1", "cand_old", "cand_new"]
     assert sorted(p.name for p in tmp_path.iterdir()) == ["edges.yml"]
 
 

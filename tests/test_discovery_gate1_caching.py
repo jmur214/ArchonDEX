@@ -281,7 +281,7 @@ def _prepare_engine_with_fake_pipeline(monkeypatch, idx):
     baseline_a = CountingEdge(edge_id="bedge_a")
     baseline_b = CountingEdge(edge_id="bedge_b")
 
-    def fake_build_production_edges(self, *, registry_path, alpha_config, exclude_edge_ids=None):
+    def fake_build_production_edges(self, *, registry_path, alpha_config, exclude_edge_ids=None, stats=None):
         edges = {"bedge_a": baseline_a, "bedge_b": baseline_b}
         weights = {"bedge_a": 1.0, "bedge_b": 1.0}
         for eid in (exclude_edge_ids or set()):

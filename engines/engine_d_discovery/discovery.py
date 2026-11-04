@@ -1,8 +1,5 @@
 from __future__ import annotations
-import os
 import random
-import stat
-import yaml
 import pandas as pd
 import logging
 from pathlib import Path
@@ -23,7 +20,13 @@ from engines.engine_a_alpha.edges.earnings_vol_edge import EarningsVolEdge
 
 # Research Modules
 from core.census import assert_census
+from core.edge_registry_io import (  # the ONE fail-closed reader and ONE atomic writer (single-writer unit, 2026-10-22)
+    RegistryUnreadableError,
+    read_registry,
+    write_registry_atomic,
+)
 from engines.engine_d_discovery import gate_verdicts as gv
+from engines.engine_d_discovery.thresholds import bootstrap_book_declared
 from engines.engine_d_discovery.gate1_signal_cache import (
     CandidateSignalCensus,
     DiscoveryCandidateCensusError,
@@ -32,10 +35,9 @@ from engines.engine_d_discovery.tree_scanner import DecisionTreeScanner
 from engines.engine_d_discovery.feature_engineering import FeatureEngineer
 
 
-class RegistryUnreadableError(RuntimeError):
-    """edges.yml exists but cannot be read as an edge registry. Discovery REFUSES — it never
-    rewrites a registry it could not read (that is how a parse failure wiped every edge)."""
-
+# `RegistryUnreadableError` (edges.yml exists but cannot be read as an edge registry; Discovery
+# REFUSES, it never rewrites a registry it could not read) lives in `core.edge_registry_io` since
+# the single-writer unit (2026-10-22) and is re-exported from here for its existing importers.
 
 # T-2026-05-12-052 targeted seed list — one Gen-0 single-gene long
 # candidate per new regime-ensemble feature. Without this, the
@@ -94,6 +96,13 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         "n_trades": n_trades,
         "data_feed": data_feed_summary(),
     }
+    # bootstrap_book (the single-writer unit, 2026-10-22): the labelled bootstrap mode's record, read
+    # from its one source of truth by BOTH producers (here and `_build_census`). A seeded empty book
+    # is never canonical for a performance claim; an unreadable declaration is an error record.
+    try:
+        block["bootstrap_book"] = bootstrap_book_declared()
+    except Exception as e:   # recorded, never omitted
+        block["bootstrap_book_error"] = repr(e)
     try:
         from engines.data_manager.data_manager import (fundamentals_miss_summary,
                                                        ticker_fundamentals_blind)
@@ -825,39 +834,15 @@ class DiscoveryEngine:
         Treating it as empty is how `save_candidates` used to wipe edges.yml: a read
         failure fell back to `{"edges": []}` and the write-back then replaced every edge
         in the sole edge-status authority with the handful of candidates being saved."""
-        if not self.registry_path.exists():
-            return {"edges": []}
-        try:
-            data = yaml.safe_load(self.registry_path.read_text())
-        except yaml.YAMLError as exc:
-            raise RegistryUnreadableError(
-                f"{self.registry_path} is not parseable YAML ({exc}); refusing — the file is untouched"
-            ) from exc
-        if isinstance(data, list):              # legacy format: a bare edge list at the root
-            data = {"edges": data}
-        if not isinstance(data, dict) or not isinstance(data.get("edges"), list):
-            raise RegistryUnreadableError(
-                f"{self.registry_path} exists but holds no edge registry "
-                f"(root {type(data).__name__}{'' if not isinstance(data, dict) else ', keys ' + str(sorted(data))}); "
-                f"refusing — the file is untouched")
-        return data
+        return read_registry(self.registry_path)        # the ONE fail-closed reader (core/edge_registry_io.py)
 
     def _write_registry(self, registry: Dict[str, Any]) -> None:
-        """ATOMIC write: serialise first, write a sibling temp file, fsync, then rename over
-        edges.yml. The old `open("w")` truncated the registry BEFORE yaml.dump ran, so a dump
-        error or a crash mid-write left it empty or partial. A failed attempt leaves the temp
-        file in place as evidence and never touches edges.yml."""
-        text = yaml.dump(registry, sort_keys=False)
-        tmp = self.registry_path.with_name(f".{self.registry_path.name}.tmp-{os.getpid()}")
-        with tmp.open("w") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        if self.registry_path.exists():
-            # R's note: keep the registry's permissions across the replace (a 600 file was
-            # becoming 644 — the temp file's umask default — after a single save).
-            os.chmod(tmp, stat.S_IMODE(self.registry_path.stat().st_mode))
-        os.replace(tmp, self.registry_path)
+        """Through the ONE atomic writer (core/edge_registry_io.py): serialise first — every row in
+        the one canonical form, so a row Discovery wrote first is byte-identical to the same row
+        saved by Engine A or F — a sibling temp file, fsync, the registry's mode kept, `os.replace`.
+        A failure raises `RegistryWriteError` with edges.yml untouched (the old `open("w")`
+        truncated it BEFORE yaml.dump ran)."""
+        write_registry_atomic(self.registry_path, registry)
 
     def get_queued_candidates(self, status: str = "candidate") -> List[Dict[str, Any]]:
         """
@@ -962,8 +947,16 @@ class DiscoveryEngine:
         registry_path: Path,
         alpha_config: Optional[Dict[str, Any]],
         exclude_edge_ids: Optional[set] = None,
+        stats: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, Any], Dict[str, float]]:
         """Construct the production-equivalent edges_dict + edge_weights.
+
+        FAIL CLOSED (R's F3, the single-writer unit): an UNREADABLE registry raises
+        `RegistryUnreadableError` from `EdgeRegistry` — a hard refusal, never an empty book
+        measured against without saying so. A READABLE registry with no tradeable edge returns an
+        empty dict; `validate_candidate` renders that as Gate 1 NOT_EVALUATED(empty baseline).
+        `stats`, when given, is filled with `n_tradeable` / `n_loaded` / `import_failures` so the
+        caller can say WHY the baseline is what it is.
 
         Mirrors `ModeController.run_backtest`'s edge-loading + soft-pause
         logic exactly:
@@ -985,15 +978,15 @@ class DiscoveryEngine:
 
         from engines.engine_a_alpha.edge_registry import EdgeRegistry
 
-        # Load registry from the same path the orchestrator uses
+        # Load registry from the same path the orchestrator uses — fail-closed: unreadable RAISES
         registry = EdgeRegistry(store_path=str(registry_path))
         excluded = set(exclude_edge_ids or set())
+        tradeable = [s for s in registry.list_tradeable() if s.edge_id not in excluded]
+        import_failures: Dict[str, str] = {}
 
         loaded_edges: Dict[str, Any] = {}
         spec_status_by_id: Dict[str, str] = {}
-        for spec in registry.list_tradeable():
-            if spec.edge_id in excluded:
-                continue
+        for spec in tradeable:
             mod_name = spec.module
             params = (spec.params or {}).copy()
             try:
@@ -1023,8 +1016,12 @@ class DiscoveryEngine:
                     loaded_edges[spec.edge_id] = edge_class()
                 spec_status_by_id[spec.edge_id] = spec.status
             except Exception as e:
+                import_failures[spec.edge_id] = f"{type(e).__name__}: {e}"
                 print(f"[VALIDATE] Could not import {mod_name} for {spec.edge_id}: {e}")
                 continue
+        if stats is not None:
+            stats.update({"n_tradeable": len(tradeable), "n_loaded": len(loaded_edges),
+                          "import_failures": import_failures})
 
         # Build edge_weights from alpha config (matches mode_controller)
         config_ew = (alpha_config or {}).get("edge_weights", {}) if alpha_config else {}
@@ -1420,12 +1417,37 @@ class DiscoveryEngine:
                 except Exception:
                     alpha_config = {}
 
-            # Build the baseline ensemble (production minus this candidate)
+            # Build the baseline ensemble (production minus this candidate). An UNREADABLE registry
+            # raises out of here (RegistryUnreadableError, propagated below — a hard refusal).
+            _baseline_stats: Dict[str, Any] = {}
             baseline_edges, baseline_weights = self._build_production_edges(
                 registry_path=self.registry_path,
                 alpha_config=alpha_config,
                 exclude_edge_ids={cand_id},
+                stats=_baseline_stats,
             )
+            # The EMPTY book (R §3.1, ruled): a readable registry with no tradeable edge renders
+            # Gate 1 NOT_EVALUATED(empty baseline) — the required gate then refuses promotion, the
+            # cycle completes, and the record says why. A hard refusal here would deadlock
+            # Discovery on an empty book forever. The ONE labelled exception is the bootstrap mode
+            # (config `bootstrap_book`, carried in the census, never canonical for a performance
+            # claim), which lets a standalone gauntlet seed an empty book ON PURPOSE.
+            _bootstrap = bool(bootstrap_book_declared())
+            result["bootstrap_book"] = _bootstrap
+            if not baseline_edges and not _bootstrap:
+                _n_trade = _baseline_stats.get("n_tradeable", 0)
+                _fails = _baseline_stats.get("import_failures") or {}
+                why = (f"empty baseline — the registry at {self.registry_path} holds {_n_trade} tradeable "
+                       f"edge(s) besides the candidate"
+                       + (f", {len(_fails)} of which failed to load: {_fails}" if _fails else "")
+                       + "; a contribution against nothing is not a measurement. To seed an empty book on "
+                         "purpose set discovery_settings.bootstrap_book=true (labelled in the census, "
+                         "never canonical)")
+                print(f"[DISCOVERY] {cand_id}: Gate 1 NOT_EVALUATED — {why}")
+                gv.not_evaluated(verdicts, "gate_1", why)
+                gv.not_reached(verdicts, "gate_1", "the baseline is empty")
+                _diag_error = "empty_baseline"
+                return _finish()
 
             # Gate 1 signal-collector caching (T-2026-05-11-023).
             # Wrap baseline edges with memoizing wrappers so subsequent
@@ -1477,19 +1499,25 @@ class DiscoveryEngine:
             )
 
             _g1_t0 = _time.time()
-            baseline_result = local_cache.get_or_run(
-                edges=wrapped_baseline,
-                edge_weights=baseline_weights,
-                **run_kwargs,
-            )
-            # T-2026-06-17-197: fail LOUD if the wrapped baseline ensemble is
-            # structurally degenerate (a swallowed edge crash → empty signals →
-            # a silent fake Sharpe-0, T-195). Only meaningful when the signal
-            # cache is active (use_signal_cache=True); a degenerate baseline
-            # makes every candidate's contribution meaningless, so this raises a
-            # named DiscoveryBaselineError instead of publishing a fake 0.
-            if use_signal_cache:
-                self._get_gate1_signal_cache().assert_baseline_healthy()
+            if _bootstrap and not baseline_edges:
+                # The labelled bootstrap: Gate 1 measures the candidate against a ZERO baseline, on
+                # purpose; the census carries bootstrap_book=true and the run is never canonical.
+                print(f"[DISCOVERY] {cand_id}: bootstrap_book — Gate 1 against an EMPTY baseline (labelled)")
+                baseline_result = None
+            else:
+                baseline_result = local_cache.get_or_run(
+                    edges=wrapped_baseline,
+                    edge_weights=baseline_weights,
+                    **run_kwargs,
+                )
+                # T-2026-06-17-197: fail LOUD if the wrapped baseline ensemble is
+                # structurally degenerate (a swallowed edge crash → empty signals →
+                # a silent fake Sharpe-0, T-195). Only meaningful when the signal
+                # cache is active (use_signal_cache=True); a degenerate baseline
+                # makes every candidate's contribution meaningless, so this raises a
+                # named DiscoveryBaselineError instead of publishing a fake 0.
+                if use_signal_cache:
+                    self._get_gate1_signal_cache().assert_baseline_healthy()
             with_candidate_result = run_backtest_pure(
                 edges=with_edges,
                 edge_weights=with_weights,
@@ -1531,8 +1559,13 @@ class DiscoveryEngine:
                     f"the harness, not the edge, so it is not a verdict."
                 )
 
-            # Pull Sharpes
-            baseline_sharpe = float(baseline_result.metrics.get("Sharpe Ratio", 0.0))
+            # Pull Sharpes (a bootstrap run's empty baseline is a zero baseline, by declaration)
+            if baseline_result is None:
+                baseline_sharpe = 0.0
+                _baseline_daily = with_candidate_result.daily_returns * 0.0
+            else:
+                baseline_sharpe = float(baseline_result.metrics.get("Sharpe Ratio", 0.0))
+                _baseline_daily = baseline_result.daily_returns
             with_candidate_sharpe = float(
                 with_candidate_result.metrics.get("Sharpe Ratio", 0.0)
             )
@@ -1552,7 +1585,7 @@ class DiscoveryEngine:
             # Attribution stream = with - baseline (treatment effect).
             attribution = treatment_effect_returns(
                 with_candidate_result.daily_returns,
-                baseline_result.daily_returns,
+                _baseline_daily,
             )
 
             # ---- T-347: the SECOND cause, kept DISTINCT from blindness ----
@@ -2065,8 +2098,10 @@ class DiscoveryEngine:
             gv.not_reached(verdicts, _diag_gates_run[-1] if _diag_gates_run else "setup",
                            f"{type(e).__name__}: {e}")
             _diag_error = f"{type(e).__name__}: {e}"
+            # RegistryUnreadableError (the single-writer unit): an UNREADABLE registry is a HARD
+            # refusal of the cycle, never "this candidate failed".
             if isinstance(e, (TypeError, AttributeError, NameError, AssertionError, ImportError,
-                              HonestNUnavailableError)):
+                              HonestNUnavailableError, RegistryUnreadableError)):
                 _seal(result)
                 _emit_diag()
                 # RR-6a fixup (ruling (c)): the error that fails the cycle names WHICH

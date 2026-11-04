@@ -10,3 +10,10 @@ the machine actually produces rather than against a hand-written idea of it.
   eye and failed `validate_note` with 10 errors, which is how a fixture quietly
   stops testing the real thing. No secrets (model ids, prompt hashes, token
   counts).
+- `edges_registry_snapshot_2026_10_22.yml` — the real `data/governor/edges.yml`
+  (218 rows, 59,244 bytes, sha256 `edf1ffaf…4380`) as it stood when the
+  edges.yml single-writer unit cut over (2026-10-22). Used by
+  `test_edge_registry_single_writer.py`: the byte-level migration lock (the one
+  canonical serialiser, every writer and a sync all reproduce these bytes
+  exactly) and the pure-import lock's "healthy registry" case. A hand-written
+  registry would not carry the real file's key order, params and extras.
