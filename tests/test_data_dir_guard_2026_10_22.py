@@ -138,15 +138,22 @@ def test_a_test_that_writes_edges_yml_fails_the_session(layout):
 # shape), a deletion and a create-then-unlink inside one test all passed unreported. Each case
 # below SEEDS the layout with baseline files before pytest starts, so they are in the guard's
 # baseline walk, and plants one writer per shape. Attribution is asserted per nodeid from the
-# summary table: the rename and the deletion are caught by the per-test directory poll; the two
+# summary table: the rename and the deletion are caught by the per-test directory poll; the
 # in-place rewrites move no directory mtime and are attributed at session end by the file's
 # ctime against the test's recorded window; the create-then-unlink leaves a directory whose
 # mtime moved with an unchanged listing (TRANSIENT).
+# Review findings applied at the merge onto main (2026-11-04): a same-size rewrite that RESTORES
+# its mtime (os.utime after the write) differs from the baseline only in ctime, so the guard
+# compares the full (size, mtime_ns, ctime_ns) triple — the reversion arm proves the planted
+# writer leaves size and mtime equal and moves ctime alone, so only the triple can catch it; and
+# a SESSION-fixture teardown write is attributed to the LAST test, never unattributed, because
+# pytest tears session fixtures down inside the last item's runtest protocol.
 
 SEEDED = {
     "data/processed/existing_1d.csv": "a,b\n1,2\n",
     "data/processed/other_1d.csv": "a,b\n3,4\n",
     "data/processed/doomed_1d.csv": "a,b\n5,6\n",
+    "data/processed/restored_1d.csv": "a,b\n3,3\n",
     "data/governor/edges.yml": "edges: [seeded]\n",
 }
 
@@ -175,7 +182,30 @@ def test_plant_creates_then_unlinks():
     p.write_text("x")
     p.unlink()
 
+def test_plant_rewrites_same_size_and_restores_mtime():
+    p = DATA / "processed" / "restored_1d.csv"
+    st = p.stat()
+    p.write_text("a,b\\n8,8\\n")
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+
 def test_clean():
+    assert True
+'''
+
+SESSION_TEARDOWN_WRITER = '''
+from pathlib import Path
+import pytest
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+@pytest.fixture(scope="session", autouse=True)
+def _session_scoped():
+    yield
+    (DATA / "processed" / "existing_1d.csv").write_text("a,b\\n0,0\\n")
+
+def test_first():
+    assert True
+
+def test_last():
     assert True
 '''
 
@@ -221,13 +251,22 @@ def _table(out: str) -> dict:
 
 
 def test_without_the_guard_every_planted_writer_is_green(seeded):
-    """Reversion arm: no conftest -> all six pass and the files show the writes landed."""
+    """Reversion arm: no conftest -> all seven pass and the files show the writes landed. The
+    mtime-restoring writer's INPUT CONDITION is proven here: size and mtime_ns equal the seeded
+    file's, ctime_ns moved — the shape only the full triple can catch."""
+    restored = seeded / "data/processed/restored_1d.csv"
+    before = restored.stat()
     (seeded / "tests" / "test_plant.py").write_text(WRITERS)
     r = _run(seeded)
-    assert r.returncode == 0 and "6 passed" in r.stdout, (r.stdout + r.stderr)[-2000:]
+    assert r.returncode == 0 and "7 passed" in r.stdout, (r.stdout + r.stderr)[-2000:]
     assert (seeded / "data/processed/existing_1d.csv").read_text() == "a,b\n9,9\n"
     assert (seeded / "data/processed/other_1d.csv").read_text() == "a,b\n7,7\n"
     assert not (seeded / "data/processed/doomed_1d.csv").exists()
+    after = restored.stat()
+    assert restored.read_text() == "a,b\n8,8\n"
+    assert (after.st_size, after.st_mtime_ns) == (before.st_size, before.st_mtime_ns), \
+        "the planted writer must leave size and mtime exactly as seeded"
+    assert after.st_ctime_ns != before.st_ctime_ns, "only ctime moved"
 
 
 def test_with_the_live_conftest_every_planted_shape_fails_the_session_and_is_named(seeded):
@@ -236,12 +275,14 @@ def test_with_the_live_conftest_every_planted_shape_fails_the_session_and_is_nam
     r = _run(seeded)
     out = r.stdout + r.stderr
     assert r.returncode != 0, out[-3000:]
-    assert "6 passed" in r.stdout, "the guard fails the SESSION; the tests themselves still ran"
+    assert "7 passed" in r.stdout, "the guard fails the SESSION; the tests themselves still ran"
     assert "data/ write guard: FAILED" in out, out[-3000:]
     t = _table(out)
     P = "tests/test_plant.py::"
     assert any(e.startswith("MODIFIED") and "data/processed/existing_1d.csv" in e
                for e in t.get(P + "test_plant_replaces_by_rename", [])), t
+    assert any(e.startswith("MODIFIED") and "data/processed/restored_1d.csv" in e
+               for e in t.get(P + "test_plant_rewrites_same_size_and_restores_mtime", [])), t
     assert any(e.startswith("MODIFIED") and "data/processed/other_1d.csv" in e
                for e in t.get(P + "test_plant_rewrites_in_place_same_size", [])), t
     assert any(e.startswith("MODIFIED") and "data/processed/parquet/pinned.parquet" in e
@@ -252,6 +293,25 @@ def test_with_the_live_conftest_every_planted_shape_fails_the_session_and_is_nam
                for e in t.get(P + "test_plant_creates_then_unlinks", [])), t
     assert P + "test_clean" not in t, "the clean test is not blamed"
     assert not any("unattributed" in n for n in t), f"every write is attributed to its test: {t}"
+
+
+def test_a_session_fixture_teardown_write_is_attributed_to_the_last_test(seeded):
+    """pytest tears session fixtures down inside the LAST item's runtest protocol
+    (`pytest_runtest_teardown(item, nextitem=None)` -> `teardown_exact(None)`), so the window the
+    guard records for the last test holds the teardown write: it is MODIFIED by `test_last`,
+    never unattributed, and `test_first` is not blamed."""
+    shutil.copy(LIVE_CONFTEST, seeded / "tests" / "conftest.py")
+    (seeded / "tests" / "test_plant.py").write_text(SESSION_TEARDOWN_WRITER)
+    r = _run(seeded)
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out[-3000:]
+    assert "2 passed" in r.stdout
+    t = _table(out)
+    P = "tests/test_plant.py::"
+    assert any(e.startswith("MODIFIED") and "data/processed/existing_1d.csv" in e
+               for e in t.get(P + "test_last", [])), t
+    assert P + "test_first" not in t, t
+    assert not any("unattributed" in n for n in t), t
 
 
 def test_a_pre_existing_edges_yml_rewritten_in_place_at_collection_fails_and_is_named(seeded):

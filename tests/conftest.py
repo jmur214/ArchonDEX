@@ -59,18 +59,19 @@ def _no_real_secrets(monkeypatch):
 # suite: any path CREATED, MODIFIED or REMOVED under <repo>/data during the session FAILS the
 # session (exit status 1, never a warning) and is attributed to a test by nodeid.
 #
-# Mechanism, chosen for cost in the main tree (data/ holds ~32k files in ~2.7k dirs; one stat
-# per path is ~0.2 s, so a per-test stat of every FILE — ~0.14 s x ~4.4k tests, ~10 min — is not
-# acceptable; a per-test stat of every DIR is ~15 ms and stays):
-#   sessionstart       one full walk, ONE stat per path -> every file's (size, mtime_ns), every
-#                      dir's mtime_ns and its listing;
+# Mechanism, chosen for cost in the main tree (data/ holds ~32k files in ~2.7k dirs; measured at
+# review 2026-11-04: the baseline walk 0.17 s warm / 0.57 s cold; the per-test DIRECTORY poll
+# 9.8 ms median ≈ 44 s over a 4,448-test suite, and stays; a per-test stat of every FILE 0.05 s
+# ≈ 3.7 min per suite — rejected):
+#   sessionstart       one full walk, ONE stat per path -> every file's (size, mtime_ns,
+#                      ctime_ns), every dir's mtime_ns and its listing;
 #   each test          stat every known dir; a dir whose mtime moved is re-listed against its
 #                      known listing: a new entry is CREATED (a new dir is walked whole), a
 #                      missing baseline entry is REMOVED (with everything beneath it), a baseline
-#                      file whose (size, mtime_ns) changed is MODIFIED (the rename-over shape:
-#                      os.replace, a temp file renamed onto the target), and a dir whose mtime
-#                      moved while its listing and every baseline entry's stat are unchanged is
-#                      TRANSIENT — something was created and removed inside it during the test;
+#                      file whose (size, mtime_ns, ctime_ns) changed is MODIFIED (the rename-over
+#                      shape: os.replace, a temp file renamed onto the target), and a dir whose
+#                      mtime moved while its listing and every baseline entry's stat are unchanged
+#                      is TRANSIENT — something was created and removed inside it during the test;
 #   collection_finish  the same poll, attributed to "<collection/import time>";
 #   sessionfinish      one full walk vs the baseline. An IN-PLACE rewrite of a baseline file
 #                      (open(path, "w"), DataFrame.to_parquet over an existing path: the
@@ -79,9 +80,20 @@ def _no_real_secrets(monkeypatch):
 #                      ctime_ns (set by the kernel on every change; user code cannot set it,
 #                      unlike mtime) is matched against each test's recorded protocol window
 #                      [start_ns, end_ns] (time.time_ns(), the same CLOCK_REALTIME the
-#                      filesystem stamps with; nanosecond on APFS/ext4). A path whose ctime
-#                      falls in no window (session-fixture teardown after the last test) is
-#                      reported unattributed. The LAST writer is the one named.
+#                      filesystem stamps with; nanosecond on APFS/ext4). The LAST writer is the
+#                      one named.
+# The FULL triple is compared, everywhere a signature is compared. Size and mtime alone miss a
+# rewrite that restores its mtime (os.utime after the write, or a tool that preserves
+# timestamps): only ctime, which the kernel sets on every inode change and no user code can set
+# back, still differs — so that shape is MODIFIED too (review finding, 2026-11-04; locked).
+# Attribution of a teardown write: pytest tears EVERY fixture down — session-scoped ones
+# included — inside the LAST item's runtest protocol (`pytest_runtest_teardown(item,
+# nextitem=None)` -> `SetupState.teardown_exact(None)`), and the window recorded below wraps the
+# whole protocol, so a session-fixture teardown write lands in the last test's window and is
+# attributed to THAT test — never unattributed (locked). The unattributed bucket is reached only
+# by a change whose ctime falls outside every recorded window: after the last protocol ended and
+# before this guard's session-end walk (another plugin's sessionfinish hook that runs first), or
+# a removal only the session-end walk sees.
 # Top-level data/ symlinks ARE followed: in agent worktrees data/processed and data/raw point
 # into main's canonical cache, and a write through the link is exactly the defect. A per-file
 # symlink is stat'ed through to its target, so an in-place write through it is MODIFIED, and
@@ -97,8 +109,10 @@ import time as _time
 _REPO = Path(__file__).resolve().parent.parent
 _DATA_DIR = _REPO / "data"
 _COLLECTION_NODEID = "<collection/import time>"
-_UNATTRIBUTED_NODEID = ("<unattributed: changed outside every test's window — session-fixture "
-                        "teardown after the last test, or a copy that preserved its timestamps>")
+_UNATTRIBUTED_NODEID = ("<unattributed: changed outside every test's window — after the last test's "
+                        "protocol ended, before this guard's session-end walk (another plugin's "
+                        "sessionfinish hook); NOT session-fixture teardown, which pytest runs inside "
+                        "the last test's protocol and is attributed to that test>")
 # NO collection-time allowance. Until the edges.yml single-writer unit (2026-10-22) every edge
 # module's import-time `EdgeRegistry().ensure()` wrote data/governor/edges.yml, so merely
 # COLLECTING the suite created data/, data/governor/ and the file (or REWROTE it in place in the
@@ -249,7 +263,7 @@ def _poll_data_dir(current: str) -> list[tuple[str, str, str, str]]:
                 base = g.baseline.get(rel_e)
                 if base is not None and rel_e not in g.seen:
                     sig = _sig(e.path)
-                    if sig[:2] != base[:2]:
+                    if sig != base:          # the full (size, mtime_ns, ctime_ns) triple
                         g.seen.add(rel_e)
                         owner = _attribute(sig[2])
                         found.append((_MODIFIED, rel_e, "(attributed by the file's ctime)", owner))
@@ -341,7 +355,7 @@ def pytest_sessionfinish(session, exitstatus):
         base = g.baseline.get(p, _MISSING) if p in g.baseline else None
         if p not in g.baseline:
             kind, note = _CREATED, ""
-        elif base is not None and sig is not None and sig[:2] != base[:2]:
+        elif base is not None and sig is not None and sig != base:    # the full triple
             kind, note = _MODIFIED, "(in place; attributed by the file's ctime to this window)"
         else:
             continue
