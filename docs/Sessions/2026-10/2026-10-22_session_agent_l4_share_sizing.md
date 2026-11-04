@@ -170,3 +170,40 @@ tests/test_share_sizing_l4_2026_10_22.py
 ## Subagents invoked
 
 None — the unit was built directly in the isolated worktree.
+
+## 2026-11-04 — the Path B fail-open fix (follow-up (2) above; the HIGH row's one line, approved 2026-10-23)
+
+- **Branch `engine-b-fail-open-fix`, from `d9770c5` (this unit's tip) so the two merge together.**
+  Commit `4433360`: the one `return None` after `self._fail(ticker, "non_positive_risk_budget")`
+  (`risk_engine.py:1288`); nothing else in `prepare_order` changed. The user approved exactly this
+  line on 2026-10-23 ("1. yes"); the propose-first gate is satisfied, the independent review and
+  the full suite on the staged merge still stand.
+- **Locks `tests/test_engine_b_path_b_zero_budget_2026_11_04.py` (16 cases), each driving the REAL
+  `RiskEngine.prepare_order` on all three Path B entries** (no weight dict; the policy's `{}`; the
+  name absent from the dict — the gaps the row names), the forced one-share probe ON by
+  construction: (1) `risk_per_trade_pct 0` → `None`, `last_skip_by_ticker` and `last_skip_reason`
+  = `non_positive_risk_budget`; (2) `governor_weight 0.0` (a killed edge) → `None`, same reason;
+  (3) positive control — the same setup with a positive budget (governor absent / 1.0 / 0.25) sizes
+  an order on Path B (`sizing_mode atr_risk`, `risk_budget > 0`, no `forced_min_qty`, the skip
+  channel clean); (4) AST — in the LAST `prepare_order` def the `_fail(..., "non_positive_risk_budget")`
+  statement is IMMEDIATELY followed by `return None` (the very next line).
+- **Reversion proof (the return deleted by `sed`, the diff shown; the committed file written back
+  from `HEAD` — the harness denies a working-tree discard, so the restore is a write of the committed
+  content, verified by an empty diff):** 7 failed / 9 passed — locks (1) ×3, (2) ×3 and (4) ×1
+  failed; the 9 passing are the control (3), as a control must. The reverted engine emitted
+  `{ticker: ZZB, side: long, qty: 1, meta: {forced_min_qty: True, risk_budget: 0.0, raw_qty: 0.0,
+  target_qty: 0.0, sizing_mode: atr_risk}}` with the skip channel reading rejected — the reviewer's
+  artifact, byte for byte in shape; the AST lock failed as "the last statement of its block —
+  nothing returns". Restored: 16 passed.
+- **Targeted runs on the fixed engine:** this file 16 passed; `tests/test_share_sizing_l4_2026_10_22.py`
+  15 passed. No full suite (another agent runs suites on this Mac). Data layout per the brief:
+  730 per-file `*_1d.csv` symlinks in a REAL `data/processed/`, `tr_reconciled` and `stooq`
+  symlinks, EMPTY real `parquet/`, `simfin/download/`, `state/`, `governor/`; the targeted runs
+  wrote nothing into them.
+- **Health row:** closed per the lint's recipe — `[HIGH → RESOLVED 2026-11-04]`, `- Resolved:
+  2026-11-04 (4433360)`, moved to the top of `## Resolved (last 90 days)`; the `:1287` anchor still
+  holds (the `_fail` line is unchanged; the insertion is at `:1288`) and no other open row anchors
+  a `risk_engine.py` line past 1287. NOT done: the fleet's Path-B order count from the journals
+  (`sizing_mode == "atr_risk"`) — unmeasured, for the director.
+- Files: `engines/engine_b_risk/risk_engine.py` (+1 line), `tests/test_engine_b_path_b_zero_budget_2026_11_04.py`
+  (new), `docs/State/health_check.md`, this record. `paper_trader/` and `live_trader/` untouched.
