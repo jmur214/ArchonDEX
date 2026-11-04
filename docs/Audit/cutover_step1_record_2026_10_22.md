@@ -10,6 +10,16 @@
 > identical before and after (§3). The real-cache write is cutover day, a separate approved act.
 > **N_trials: 0** (no measurement was run on the candidate).
 
+> **Status, 2026-11-04 (the follow-up builder, on `dd64793`; the record above and below kept as written,
+> every change a dated note):** the five follow-ups the 10-23 review asked for are built — three prose
+> corrections (§5 (a), §6 (b), §11.5 (c); §11.2/§13 brought to the shipped kind), the R9 lock (a
+> merge-record label with no frame is UNMEASURED; `9d10dc9`), the kept drip's pre-seam holes as the
+> DECLARED, COUNTED `pre_seam_drip_gap` class (`3ef4034`; §6a), the MEDIUM membership-identity row
+> (`docs/State/health_check.md`). **The guard on the candidate over 2000 → 2025 now reads stale 3 / holed
+> 1 with 215 names / 380 days excused and visible** (§6a) — green but for SLE (class (i)) and the three
+> stale names of the membership defect, each a declared act still to come. The real cache remains
+> unwritten (§3 stands; the copy is read-only to this unit). N_trials still 0.
+
 ## 1. What the ruling required that did not yet exist, and what was built
 
 The 2026-10-15 write pass on `processed_exact_tr_2026-10-15/` replaced files WHOLE — the provider's
@@ -144,6 +154,11 @@ class (i). FRC (→ FRCB, the rename table) is refused DIFFERENT_CONVENTION.
 | **the candidate (pass 2)** | 2000 → 2025 | 3 (CCR, DLPH, FSR) | **216** | proven (6,539 days) | the five (iii)/(iv) holes ARE filled; the 216 are the kept DRIP's own holes — see below |
 | **the candidate (pass 2)** | 2018 → 2025 | 3 (CCR, DLPH, FSR) | 1 (SLE) | proven (2,011 days) | the post-seam span is green: the 33 truncated and the 81 holed post-seam files are restored; SLE is class (i), never written, and a cache-wide reading requires a non-member to the window end (a real run withholds it at resolution) |
 
+> **Note, 2026-11-04 (the table above kept as written; the readings of 10-22, pre-class):** the "216" and
+> "254" holed counts are the readings WITHOUT the `pre_seam_drip_gap` class. With it (§6a) the
+> candidate reads holed **1** (SLE) and the canonical **52**, each with 215 names / 380 days excused and
+> counted; the stale counts are unchanged (the three are the membership defect, §11.5 note).
+
 **What the 216 are (measured, `hole_split.py`, against the 10-15 copy's complete provider series):**
 215 of the 216 have holes ONLY before their seam — 388 missing trading days in all, one to four per
 name, mostly 2000–2002 (the Stooq years) — and SLE alone has post-seam holes (428). That is option
@@ -239,6 +254,33 @@ never to `config/substrate_manifest.sha256` (re-pin #2 is cutover day's separate
 
 The tree was clean (`git status`) after every restore.
 
+### 9a. The follow-ups' locks and reversions (2026-11-04; `9d10dc9`, `3ef4034`)
+
+Every lock drives the real entrypoint (`substrate_convention_record`, `stale_files_record`, the real
+`_build_census`, `candidate_census_block` and `ModeController.run_backtest`); each reverted by `sed`
+on the working tree, run, restored by file (`cp` of the saved new version), `grep -c REVERSION` 0
+after each:
+
+| reversion | what was reverted | locks that FAILED | restored |
+|---|---|---|---|
+| R9-a | the merge-record witness skipped when no frame is given (`if first is None` → `if False`) | 3: the no-frames lock, the absent-frame lock, the first-bar witness lock | yes |
+| R9-b | the controller passing `data_map=None` (R's probe) | 1: the executed backtest-producer lock (`witness == "frames"`); the AST lock now rejects a `None` constant too | yes |
+| R9-c | the pass driver's `label` without frames | 1: the every-caller AST lock | yes |
+| R9-d | `cache_first_bar_frames` reading nothing | 2: the first-bar lock, the canonical data lock (730 / 575) | yes |
+| D1 | the class excusing nothing | 7: counted, post-seam, frame-hole, holed_inside-first, the real copy (215 / 380), the canonical name (A), the measured admission | yes |
+| D2 | the post-seam bound (`d < seam` → `True`) | 1: a planted post-seam hole excused | yes |
+| D3 | the frame-vs-file witness | 1: a planted pre-seam hole the file lacks excused | yes |
+| D4 | the kept-count identity | 1: a file whose kept count moved excused | yes |
+| D5 / D5b | the controller / Discovery calling the guard without `cache_dir` | the two-producer-plus-admission lock (AST; the executed candidate block) | yes |
+| D6 | the admission without `cache_dir` | 2: the AST lock; the REAL measured admission halting on A instead of admitting | yes |
+
+**No full suite** (another agent's suites on the shared Mac; targeted runs only, each from this
+worktree under the per-file data layout — a REAL `data/processed/` of csv symlinks, a copied
+`_merge_meta.json`, an EMPTY real `parquet/`, an EMPTY real `raw/simfin/download/`; nothing written):
+the convention lock file + the two-producer lock + Gate-1 census (37 passed); the drip-gap lock file +
+the guard, convention, contracts (two), census, census-fail-closed and Gate-1 files (102 passed, the
+real-copy lock run alone: 1 passed in 14 s); `doc_lint` exit 0 after each docs edit.
+
 ## 10. Incident: a suite run WROTE into the canonical cache (not this unit's code; quarantined)
 
 Between the BEFORE digest (22:05) and the first fresh copy (22:33), `data/processed/parquet/
@@ -267,6 +309,7 @@ real `parquet/` (plus read-only symlinks for `_merge_meta.json`, the two top-lev
 6. **51 `both` files have 0 pre-seam bars** (AMCR's shape): the merge record calls them `both`, the label calls them `exact_tr` whole — consistent, but the record's `merge_case` is misleading for them.
 7. **The worktree layout:** harness worktrees carry no `data/`; the setup script's plain `data/processed` symlink is the write hazard of §10 — the script should build the per-file layout.
 8. **Option (a) keeps the drip's holes** (§6): 215 names, 388 pre-seam missing days; the guard stays red over 2000 → 2025 until they are declared or a hole-fill is ruled. The proposal's green reading was the option (b) form's.
+   > **Note, 2026-11-04 (the item above kept as written):** 380, not 388 (§6 correction (b): 384 over 218 drip names, 4 on 3 names already declared). RULED 2026-10-23 and BUILT at `3ef4034`: the declared, counted `pre_seam_drip_gap` class (§6a) — the guard now reads the candidate holed 1 (SLE) over 2000 → 2025 with the 380 days excused and reported in every census; no hole-fill, no tuning, any new hole still fails by lock.
 9. **53 written files have NaN `close_unadj` bars, all in the kept PRE-SEAM drip span** (`close_unadj_single_missing_2026_10_22.txt` beside the copy): 18 are the declared-seam names' bars before their provider's first bar (C, ELV, DAL, AXP, CHTR, …); 35 lack exactly ONE bar — six of them 1985-09-27 (AAPL, ADSK, AMAT, AMGN, …), a day the exchange was CLOSED (Hurricane Gloria) that the Stooq drip carries as a bar and the provider rightly does not; the rest single pre-seam days the provider lacks (AVGO 2009-08-05, AWK 2008-04-22, …). None is post-seam. The drip carrying bars on closed days is a drip-span data fact for the guard's owner; the dollar-ADV readers must treat a NaN `close_unadj` as "no print", never as zero.
 10. **The cache-wide guard reading requires a non-member to the window end** (SLE over 2018 → 2025): a quirk of reading every file; a real run never puts a withheld name in the map.
 11. **The second fundamentals write of the night** (`fundamentals_simfin.parquet` replaced at 23:49 by a sibling suite's SimFin panel rebuild through a raw symlink): the coordinator's finding, recorded here because it is why the canonical whole-tree digest moved (§3) while the price files did not.
