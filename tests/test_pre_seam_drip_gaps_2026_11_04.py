@@ -35,6 +35,19 @@ SEAM = pd.Timestamp("2018-01-02")
 DRIP_HOLES = [pd.Timestamp("2017-03-15"), pd.Timestamp("2017-09-20")]       # the kept drip's own
 
 
+@pytest.fixture(autouse=True)
+def _isolate_the_per_process_membership_exclusion_log(monkeypatch):
+    """This file loads the REAL PIT membership (the COPY lock below), and `exclusions.py` keeps
+    `_MEMBERSHIP_APPLIED` / `_TICKER_MEMBERSHIP_APPLIED` PER PROCESS (`reset_exclusion_log` skips
+    them by design: membership loads once). In suite order the dal_pre2007 / MTD / NVR records that
+    load wrote leaked into test_price_levels_item_d (…served_whole) and
+    test_ticker_exclusion_scale_defect (…KEEP_BOTH_reasons) — both pass alone. Each test here gets
+    fresh dicts; the module's own are restored untouched (found at the merge, 2026-11-04)."""
+    from engines.data_manager import exclusions
+    monkeypatch.setattr(exclusions, "_MEMBERSHIP_APPLIED", {})
+    monkeypatch.setattr(exclusions, "_TICKER_MEMBERSHIP_APPLIED", {})
+
+
 def _csv(path: Path, dates) -> None:
     rows = ["Date,Open,High,Low,Close,Volume"] + [f"{d.date()},1,1,1,1,1" for d in dates]
     path.write_text("\n".join(rows) + "\n")
