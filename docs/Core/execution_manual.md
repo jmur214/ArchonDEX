@@ -797,7 +797,11 @@ python -m scripts.cutover_step1_pass pass --copy <copy> --today YYYY-MM-DD --tag
 python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 --out x.json   # the stale/holed-files guard's reading (exit 3 on defects); read-only on <dir>
 python -m scripts.cutover_step1_pass label --cache <dir> --out x.json                                      # the universal convention label over every file (exit 3 if any unlabelled)
 python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
-python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
+python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
+# --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
+# regardless of --root, so without it the candidate's PASS stamp lands in the real
+# data/state/substrate_verify_stamp.json — harmless to the gate (it keys on the committed manifest's
+# digest) but never to be written; the verify-stamp block above documents the flag.
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
