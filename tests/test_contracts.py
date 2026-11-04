@@ -370,6 +370,9 @@ CENSUS_KEY_PRODUCERS = {"config_provenance": "_census_config_provenance",
                         "data_exclusions": "exclusions_applied",
                         "stale_files": "stale_files_record",
                         "fundamentals_misses": "fundamentals_miss_summary",
+                        # option (a)'s universal drip label (2026-10-22; listed here at the merge
+                        # 2026-11-04 — a strict tightening: both Layer-2d locks hold with it)
+                        "substrate_convention": "substrate_convention_record",
                         "bootstrap_book": "bootstrap_book_declared",
                         "share_price_basis": "share_price_basis_summary"}
 
