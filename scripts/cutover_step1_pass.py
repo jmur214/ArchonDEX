@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Cutover step 1 (the user's OPTION (a) ruling, 2026-10-22): drive the total-return writer over a
 COPY of the processed cache, read the stale/holed-files guard and the convention label on it, and
-stage a root for the candidate manifest. NEVER the canonical cache: every subcommand refuses a target
-that resolves to any repo's `data/processed`, and only a path under `Dev/_substrate_candidates/` is
-accepted as a copy. The real-cache write is cutover day, a separate approved act.
+stage a root for the candidate manifest. The WRITING subcommands (fresh-copy, pass, stage) refuse a
+target that resolves to any repo's `data/processed`, and only a path under `Dev/_substrate_candidates/`
+is accepted as a copy; guard and label are READ-ONLY on any --cache, including the canonical one,
+which label exists to lock. The real-cache write is cutover day, a separate approved act.
 
     python -m scripts.cutover_step1_pass fresh-copy --to <copy>        # from the canonical cache; refuses an existing <to>
     python -m scripts.cutover_step1_pass pass --copy <copy> [--only A,B] [--today YYYY-MM-DD] [--sleep 0.4]
@@ -171,8 +172,8 @@ def cmd_pass(args) -> int:
     pass_path = out_dir / f"pass_{tag}.jsonl"
     write_log = out_dir / f"write_log_{tag}.jsonl"
     provider_log_path = out_dir / f"provider_{tag}.log"
-    # ticker-exclusions: bypassed — the pass driver reads EVERY file of the COPY by design (never
-    # the canonical cache: every subcommand refuses a repo's data/processed) and resolves no universe
+    # ticker-exclusions: bypassed — the pass reads EVERY file of the COPY by design (a WRITING
+    # subcommand: assert_is_a_copy above refuses a repo's data/processed) and resolves no universe
     names = sorted(p.name[:-7] for p in copy.glob("*_1d.csv"))
     if args.only:
         wanted = [t.strip() for t in args.only.split(",") if t.strip()]
@@ -246,9 +247,9 @@ def cmd_pass(args) -> int:
 
 def _dates_map(cache: Path) -> Dict[str, pd.DataFrame]:
     out = {}
-    # The guard and the label read EVERY file of the COPY (or the --cache dir given, never a repo's
-    # data/processed) by design: a cache-wide, read-only reading of what the files hold.
-    # ticker-exclusions: bypassed — a cache-wide read of the COPY; nothing is resolved or served to a run
+    # The guard and the label read EVERY file of any --cache dir by design — the COPY or the canonical
+    # cache itself (which label exists to lock): a cache-wide, READ-ONLY reading of what the files hold.
+    # ticker-exclusions: bypassed — a cache-wide read-only reading; nothing is resolved or served to a run
     for p in sorted(cache.glob("*_1d.csv")):
         t = p.name[:-7]
         pq = cache / "parquet" / f"{t}_1d.parquet"   # ticker-exclusions: bypassed — the file's parquet twin, the same cache-wide read
