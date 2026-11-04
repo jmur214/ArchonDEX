@@ -262,11 +262,16 @@ def cmd_guard(args) -> int:
     cache = Path(args.cache).resolve()
     dm = _dates_map(cache)
     intervals = None if args.static else load_membership()
+    # cache_dir = the cache being read (2026-11-04): the kept drip's own pre-seam holes are excused
+    # under the COUNTED pre_seam_drip_gap class, witnessed against this cache's own files and records.
     rec = stale_files_record(dm, args.start, args.end, intervals=intervals,
-                             universe=(sorted(dm) if args.static else None))
+                             universe=(sorted(dm) if args.static else None), cache_dir=cache)
     defects = coverage_defects(rec)
+    dg = rec["pre_seam_drip_gaps"]
     summary = {"cache": str(cache), "n_files": len(dm), "window": rec["window"], "membership": rec["membership"],
                "n_stale": rec["n_stale"], "n_holed": rec["n_holed"], "n_declared": rec["n_declared"],
+               "pre_seam_drip_gaps": {"n_names": dg["n_names"], "n_days": dg["n_days"],
+                                      "n_not_excused": len(dg["not_excused"])},
                "calendar": {k: (v if not isinstance(v, list) else len(v)) for k, v in rec["calendar"].items()},
                "formation_coverage": rec["formation_coverage"], "defects": defects,
                "stale_names": sorted(t for t, v in rec["names"].items()

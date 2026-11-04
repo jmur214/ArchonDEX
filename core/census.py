@@ -96,8 +96,13 @@ def coverage_defects(sf: Dict[str, Any]) -> List[str]:
                    f"write-time band class: {', '.join(bad[:10])}")
     if sf.get("n_holed"):
         bad = sorted(t for t, v in (sf.get("names") or {}).items() if v.get("undeclared_missing_days"))
+        # Why the pre_seam_drip_gap class (2026-11-04) did not excuse them — post-seam, a kept count
+        # that no longer matches, a hole the file does not have, no label, or the class off.
+        why = (sf.get("pre_seam_drip_gaps") or {}).get("not_excused") or {}
+        reasons = "; ".join(f"{t}: {why[t]}" for t in bad[:5] if t in why)
         out.append(f"stale_files: {sf['n_holed']} name(s) HOLED inside their required spans beyond "
-                   f"their declarations: {', '.join(bad[:10])}")
+                   f"their declarations: {', '.join(bad[:10])}"
+                   + (f" — not excused as pre_seam_drip_gap because {reasons}" if reasons else ""))
     cal = sf.get("calendar") or {}
     if not cal.get("checked_against"):
         out.append("stale_files: the reference calendar is UNVERIFIED — no SPY in the run's data to "

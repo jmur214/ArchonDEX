@@ -1452,12 +1452,15 @@ class BacktestController:
         # undeclared stale or holed names; an errored or unmeasurable record fails too.
         try:
             from engines.data_manager.coverage import stale_files_record
+            from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
             _window = getattr(self, "_census_window", None)
             if _window is None:
                 raise RuntimeError("no run window recorded — coverage not measured")
+            # cache_dir (2026-11-04): the cache the frames came from, so the kept drip's own
+            # pre-seam holes are excused under the COUNTED pre_seam_drip_gap class (never silently).
             census["stale_files"] = stale_files_record(
                 self.data_map, *_window, intervals=getattr(self, "_membership_intervals", None),
-                universe=getattr(self, "_census_universe", None))
+                universe=getattr(self, "_census_universe", None), cache_dir=_coverage_cache)
         except Exception as e:
             census["stale_files"] = {"error": repr(e)}
         # The LEVEL rail's declarations (2026-10-15): substrate files whose CURRENT version was
@@ -1501,7 +1504,9 @@ class BacktestController:
                 f"panel={census.get('n_in_panel')}/{census.get('n_resolved')} "
                 f"regime_unknown={census.get('regime_unknown_frac')} "
                 f"edges_blind={len(census.get('edges_blind', []))} "
-                f"fund_blind={census.get('fundamentals_blind')}"
+                f"fund_blind={census.get('fundamentals_blind')} "
+                f"drip_gaps={(census.get('stale_files') or {}).get('pre_seam_drip_gaps', {}).get('n_days')}"
+                f"/{(census.get('stale_files') or {}).get('pre_seam_drip_gaps', {}).get('n_names')}"
             )
         except Exception:
             pass

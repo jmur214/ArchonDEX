@@ -135,10 +135,12 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         block["substrate_convention"] = {"error": repr(e)}
     try:
         from engines.data_manager.coverage import stale_files_record
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
         if data_map is None or window is None:
             raise RuntimeError("no data_map/window given — coverage not measured")
+        # cache_dir (2026-11-04): the kept drip's own pre-seam holes under the COUNTED class.
         block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals,
-                                                  universe=universe)
+                                                  universe=universe, cache_dir=_coverage_cache)
     except Exception as e:   # recorded, never omitted
         block["stale_files"] = {"error": repr(e)}
     return block

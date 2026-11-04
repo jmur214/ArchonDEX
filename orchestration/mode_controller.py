@@ -885,9 +885,12 @@ class ModeController:
         from core.census import coverage_defects
         from core.measured import halt_or_degrade
         from engines.data_manager.coverage import stale_files_record
+        from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
         _census_universe = None if use_historical_universe else list(tickers)
+        # cache_dir (2026-11-04): the admission reads the SAME pre_seam_drip_gap class as the census
+        # (the kept drip's own pre-seam holes, counted), so the two cannot disagree on a run.
         _cov = stale_files_record(data_map, start, end, intervals=_membership_intervals,
-                                  universe=_census_universe)
+                                  universe=_census_universe, cache_dir=_coverage_cache)
         _defects = coverage_defects(_cov)
         if _defects:
             _msg = " | ".join(_defects)
