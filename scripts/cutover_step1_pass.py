@@ -171,6 +171,8 @@ def cmd_pass(args) -> int:
     pass_path = out_dir / f"pass_{tag}.jsonl"
     write_log = out_dir / f"write_log_{tag}.jsonl"
     provider_log_path = out_dir / f"provider_{tag}.log"
+    # ticker-exclusions: bypassed — the pass driver reads EVERY file of the COPY by design (never
+    # the canonical cache: every subcommand refuses a repo's data/processed) and resolves no universe
     names = sorted(p.name[:-7] for p in copy.glob("*_1d.csv"))
     if args.only:
         wanted = [t.strip() for t in args.only.split(",") if t.strip()]
@@ -244,10 +246,14 @@ def cmd_pass(args) -> int:
 
 def _dates_map(cache: Path) -> Dict[str, pd.DataFrame]:
     out = {}
+    # The guard and the label read EVERY file of the COPY (or the --cache dir given, never a repo's
+    # data/processed) by design: a cache-wide, read-only reading of what the files hold.
+    # ticker-exclusions: bypassed — a cache-wide read of the COPY; nothing is resolved or served to a run
     for p in sorted(cache.glob("*_1d.csv")):
         t = p.name[:-7]
-        pq = cache / "parquet" / f"{t}_1d.parquet"
+        pq = cache / "parquet" / f"{t}_1d.parquet"   # ticker-exclusions: bypassed — the file's parquet twin, the same cache-wide read
         if pq.exists():
+            # ticker-exclusions: bypassed — the same cache-wide read, from the file's own parquet
             df = pd.read_parquet(pq, columns=["Close"])
         else:
             df = pd.read_csv(p, usecols=["Date", "Close"], parse_dates=["Date"]).set_index("Date")
