@@ -70,7 +70,9 @@ def _signalling_candidate():
     Gate-1 candidate census correctly reports it blind and refuses to publish a
     contribution. The stub is made faithful; the guard is not relaxed."""
     m = MagicMock()
-    m.compute_signals.return_value = {"AAA": 0.5, "BBB": 0.0}
+    # "AAPL" (merged 2026-11-04): the name the data_map below carries — a substrate name the
+    # canonical cache labels (option (a)'s universal convention label refuses a synthetic "AAA")
+    m.compute_signals.return_value = {"AAPL": 0.5, "BBB": 0.0}
     return m
 
 
@@ -118,7 +120,9 @@ def test_gate_6_fails_on_factor_decomposition_exception(monkeypatch):
         index=idx,
     )
     # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
-    data_map = {"AAA": df, "SPY": df}
+    # "AAPL" (merged 2026-11-04): a name the canonical cache labels — option (a)'s universal
+    # convention label refuses a synthetic "AAA" as unlabelled (gate_4_passed False, never a pass)
+    data_map = {"AAPL": df, "SPY": df}
 
     # ---- Synthetic backtest result with a measurable contribution ----
     def _fake_result(daily_offset: float):
@@ -291,7 +295,9 @@ def test_programmer_errors_propagate_through_gates_2_4_5(monkeypatch):
         index=idx,
     )
     # SPY as in production: the Gate-1 census proves the calendar against it (the guard, 10-15)
-    data_map = {"AAA": df, "SPY": df}
+    # "AAPL" (merged 2026-11-04): a name the canonical cache labels — option (a)'s universal
+    # convention label refuses a synthetic "AAA" as unlabelled (gate_4_passed False, never a pass)
+    data_map = {"AAPL": df, "SPY": df}
 
     def _fake_result(daily_offset: float):
         rets = pd.Series(0.0005 + daily_offset, index=idx[1:])
