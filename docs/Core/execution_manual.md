@@ -782,7 +782,8 @@ python3 scripts/gen_substrate_manifest.py verify --stamp-writer janitor_nightly 
 # tree's committed manifest against the MAIN tree's data this way):
 python3 scripts/gen_substrate_manifest.py generate --root /tmp/x --stamp-root /tmp/x
 python3 scripts/gen_substrate_manifest.py verify --root /path/to/data-root --manifest /abs/manifest.sha256 --stamp-root /tmp/x
-# Exit codes: 0 PASS · 1 FAIL (drift; true counts + first paths on stderr) · 2 no manifest · 3 ERROR.
+# Exit codes: 0 PASS · 1 FAIL (drift; true counts + first paths on stderr) · 2 no manifest · 3 ERROR
+# · 4 REFUSED (generate: a --manifest other than the committed default with no --stamp-root; nothing written).
 # Reading: `core.substrate_stamp.read_stamp(manifest_digest(path))` — None is ABSENT
 # (fix: run the nightly or re-pin); `StampUnreadable` is a torn write or a writer bug
 # (fix: investigate; the writer sets an unreadable file aside, never deletes it).
@@ -801,9 +802,13 @@ python -m scripts.cutover_step1_pass label --cache <dir> --out x.json           
 python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
 python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 # --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
-# regardless of --root, so without it the candidate's PASS stamp lands in the real
+# regardless of --root, so without it the candidate's PASS stamp would land in the real
 # data/state/substrate_verify_stamp.json — harmless to the gate (it keys on the committed manifest's
-# digest) but never to be written; the verify-stamp block above documents the flag.
+# digest) but never to be written. ENFORCED since re-pin #1 (T-375 C3, 2026-11-05): `generate` REFUSES
+# (exit 4, BEFORE any write, naming --stamp-root and the hazard) any --manifest that does not resolve to
+# the MAIN tree's committed config/substrate_manifest.sha256 when --stamp-root is absent — a candidate
+# manifest, a worktree's own config/, a scratch file all refuse. The one bare `generate` is the
+# director's re-pin in the MAIN tree; the verify-stamp block above documents the flag.
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh

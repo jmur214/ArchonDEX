@@ -29,7 +29,10 @@ The stamp (``core/substrate_stamp.py``) lives at the MAIN tree's
 ``data/state/substrate_verify_stamp.json`` by default; ``--stamp-root``
 points a scratch run elsewhere. PASS only on missing = extra = changed = 0
 from a COMPLETE ``build_manifest()``; FAIL with the true counts; ERROR —
-never PASS — when the verify could not run (exit 3).
+never PASS — when the verify could not run (exit 3). Re-pin #1 C3
+(2026-11-05): without ``--stamp-root``, ``generate`` REFUSES (exit 4, before
+any write) a ``--manifest`` that is not the committed default under the main
+tree — a candidate's PASS must never land in the real stamp file.
 
 When the substrate legitimately changes (new data vintage, governor seed
 update), regenerate + commit the manifest in the same PR — that turns a
@@ -330,7 +333,32 @@ def generate(root: Path, manifest_path: Path, stamp_root: Optional[Path]) -> int
     return 0
 
 
-def main() -> int:
+def foreign_manifest_refusal(manifest_path: Path) -> Optional[str]:
+    """Re-pin #1 C3 (2026-11-05): with no `--stamp-root`, `generate` stamps the MAIN tree's real
+    stamp file (`canonical_root()` resolves it regardless of `--root`), so it may run only for
+    the COMMITTED default manifest there. Any other `--manifest` — a candidate beside a cutover
+    copy, a worktree's own config/, a scratch file — is refused BEFORE any write; the hazard,
+    recorded 2026-11-04: a candidate's PASS stamp landing in the real
+    data/state/substrate_verify_stamp.json. Returns the refusal text, or None to proceed. A main
+    tree that cannot be resolved is refused too — "could not prove it is the default" is a
+    refusal, never a pass (`[NN-FAIL-CLOSED]`)."""
+    try:
+        expected = (stamp.canonical_root() / DEFAULT_MANIFEST).resolve()
+    except stamp.CanonicalRootUnresolved as exc:
+        return (f"REFUSED: generate without --stamp-root could not resolve the MAIN tree ({exc}), so "
+                f"it cannot prove --manifest {manifest_path} is the committed default; pass "
+                f"--stamp-root <dir> for a scratch or candidate manifest. Nothing was written.")
+    actual = manifest_path.resolve()
+    if actual == expected:
+        return None
+    return (f"REFUSED: generate --manifest {manifest_path} (resolves to {actual}) is not the committed "
+            f"default {expected} and no --stamp-root was given. Without --stamp-root the PASS stamp "
+            f"would land in the MAIN tree's real {stamp.STAMP_REL} — a candidate's or scratch "
+            f"manifest's verdict in the real stamp file, the hazard recorded 2026-11-04. Pass "
+            f"--stamp-root <dir> (a candidate manifest ALWAYS carries it). Nothing was written.")
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("mode", choices=["generate", "verify"])
     ap.add_argument("--root", default=".", help="repo root holding data/ (symlinked subdirs are followed)")
@@ -342,14 +370,20 @@ def main() -> int:
     ap.add_argument("--stamp-root", default=None,
                     help="where the stamp file lives (default: the MAIN tree, via the git "
                          "common dir). Point a scratch generate/verify here so it never "
-                         "touches the real stamp")
-    args = ap.parse_args()
+                         "touches the real stamp. generate REFUSES (exit 4, before any write) a "
+                         "--manifest other than the committed default when this is absent")
+    args = ap.parse_args(argv)
 
     root = Path(args.root)
     manifest_path = root / args.manifest
     stamp_root = Path(args.stamp_root) if args.stamp_root else None
 
     if args.mode == "generate":
+        if stamp_root is None:
+            refusal = foreign_manifest_refusal(manifest_path)       # C3: before ANY write
+            if refusal:
+                print(refusal, file=sys.stderr)
+                return 4
         return generate(root, manifest_path, stamp_root)
 
     # verify

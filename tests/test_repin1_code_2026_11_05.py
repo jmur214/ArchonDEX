@@ -187,3 +187,99 @@ def test_LOCK_C2_the_footer_is_exactly_the_hidden_count(capsys, m, e, c, hidden)
         assert f"  … and {hidden} more" in err
     else:
         assert "more" not in err.split("Either restore")[0]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C3 — generate REFUSES a foreign --manifest without --stamp-root, before any write
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _fake_main(tmp_path: Path, monkeypatch) -> Path:
+    """A planted MAIN tree: a complete substrate, the committed default manifest, and a stamp file
+    with KNOWN bytes. `canonical_root` resolves here for the test, so a stamp written "to the main
+    tree" lands in this file — exactly where the reversion of C3 would write."""
+    main = tmp_path / "main"
+    _plant(main)
+    m = main / gm.DEFAULT_MANIFEST
+    m.parent.mkdir(exist_ok=True)
+    m.write_text("\n".join(gm.build_manifest(main)) + "\n")
+    rec = st.make_record("PASS", "repin", None, "0" * 32,
+                         {"pinned": 1, "host": 1, "missing": 0, "extra": 0, "changed": 0}, [])
+    st.write_stamp("f" * 64, rec, root=main)
+    monkeypatch.setattr(st, "canonical_root", lambda start=None: main)
+    return main
+
+
+def test_LOCK_C3_a_foreign_manifest_without_stamp_root_is_REFUSED_before_any_write(tmp_path, monkeypatch, capsys):
+    main = _fake_main(tmp_path, monkeypatch)
+    stamp_file = main / st.STAMP_REL
+    stamp_before = stamp_file.read_bytes()
+    scratch = tmp_path / "scratch"
+    _plant(scratch)
+    cand = tmp_path / "candidate.sha256"
+    rc = gm.main(["generate", "--root", str(scratch), "--manifest", str(cand)])
+    err = capsys.readouterr().err
+    assert rc == 4, err
+    assert err.startswith("REFUSED") and "--stamp-root" in err and "real" in err and st.STAMP_REL in err
+    assert "2026-11-04" in err                                     # the hazard, named
+    assert not cand.exists() and not list(tmp_path.glob("*.tmp.*")) and not list(scratch.rglob("*.tmp.*"))
+    assert stamp_file.read_bytes() == stamp_before, "the real stamp file was WRITTEN"
+    assert not (scratch / st.STAMP_REL).exists()
+    # a worktree's OWN config/ default is foreign too: only the main tree's committed file passes
+    rc = gm.main(["generate", "--root", str(scratch)])
+    assert rc == 4 and "REFUSED" in capsys.readouterr().err
+    assert not (scratch / gm.DEFAULT_MANIFEST).exists()
+    assert stamp_file.read_bytes() == stamp_before
+
+
+def test_LOCK_C3_with_stamp_root_a_candidate_manifest_PROCEEDS_and_the_real_stamp_is_untouched(
+        tmp_path, monkeypatch, capsys):
+    main = _fake_main(tmp_path, monkeypatch)
+    stamp_before = (main / st.STAMP_REL).read_bytes()
+    scratch = tmp_path / "scratch"
+    _plant(scratch)
+    cand = tmp_path / "candidate.sha256"
+    rc = gm.main(["generate", "--root", str(scratch), "--manifest", str(cand), "--stamp-root", str(scratch)])
+    out = capsys.readouterr()
+    assert rc == 0, out.err
+    assert cand.exists() and "stamped PASS" in out.out and "by repin" in out.out
+    assert st.read_stamp(st.manifest_digest(cand), root=scratch)["result"] == "PASS"
+    assert (main / st.STAMP_REL).read_bytes() == stamp_before
+
+
+def test_C3_the_committed_default_under_the_main_tree_still_generates_without_stamp_root(
+        tmp_path, monkeypatch, capsys):
+    """The director's D2 invocation (`generate` in the MAIN tree, no --stamp-root) is exactly the
+    one case the refusal lets through — and it stamps the main tree's file, as before."""
+    main = _fake_main(tmp_path, monkeypatch)
+    rc = gm.main(["generate", "--root", str(main)])
+    out = capsys.readouterr()
+    assert rc == 0, out.err
+    digest = st.manifest_digest(main / gm.DEFAULT_MANIFEST)
+    assert st.read_stamp(digest, root=main)["result"] == "PASS"
+    assert st.read_stamp("f" * 64, root=main)["result"] == "PASS"          # the other entry survives
+
+
+def test_C3_an_unresolvable_main_tree_is_a_refusal_not_a_pass(tmp_path, monkeypatch, capsys):
+    def _unresolved(start=None):
+        raise st.CanonicalRootUnresolved("no git here")
+    monkeypatch.setattr(st, "canonical_root", _unresolved)
+    scratch = tmp_path / "scratch"
+    _plant(scratch)
+    cand = tmp_path / "candidate.sha256"
+    assert gm.main(["generate", "--root", str(scratch), "--manifest", str(cand)]) == 4
+    err = capsys.readouterr().err
+    assert "could not resolve the MAIN tree" in err and "--stamp-root" in err
+    assert not cand.exists()
+
+
+def test_C3_verify_is_not_gated_by_the_refusal(tmp_path, monkeypatch):
+    """The refusal is generate's: the janitor and the build script run verify on absolute,
+    non-default manifests without --stamp-root's writer (they pass --stamp-root or stamp nothing)."""
+    main = _fake_main(tmp_path, monkeypatch)
+    scratch = tmp_path / "scratch"
+    _plant(scratch)
+    cand = tmp_path / "candidate.sha256"
+    cand.write_text("\n".join(gm.build_manifest(scratch)) + "\n")
+    assert gm.main(["verify", "--root", str(scratch), "--manifest", str(cand), "--stamp-root", str(scratch)]) == 0
+    assert gm.main(["verify", "--root", str(scratch), "--manifest", str(cand)]) == 0   # a bare verify never stamps
+    assert not (scratch / st.STAMP_REL).exists()
