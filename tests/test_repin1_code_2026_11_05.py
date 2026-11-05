@@ -598,3 +598,15 @@ def test_LOCK_C6_TEXT_dockerignore_re_includes_exactly_the_two_files_and_the_bui
         assert f in sh, f                                                      # from the scope (reviewer F1, 2026-11-05)
     for d in gm.SUBSTRATE_DIRS:                                                # every substrate dir is staged
         assert d.split("/", 1)[1].split("/")[0] in sh or d in sh, d
+
+
+def test_LOCK_D5_TEXT_the_image_registry_check_targets_the_ANCHOR_registry_the_cell_executes_from():
+    """2026-11-05: run_isolated restores data/governor/ from _isolated_anchor/ on entry, and the live
+    edges.yml is not baked (T-133), so the build-time check must read the anchor's registry — the one
+    the container runs with — or it certifies an absent file."""
+    df = DOCKERFILE.read_text()
+    lines = [l for l in df.splitlines() if l.startswith("RUN python scripts/sync_edge_registry.py")]
+    assert lines == ["RUN python scripts/sync_edge_registry.py --check --registry data/governor/_isolated_anchor/edges.yml"], lines
+    sh = BUILD_SH.read_text()
+    assert "--exclude='/governor/edges.yml'" in sh                                # T-133 still excludes the live file
+    assert "data/governor/_isolated_anchor/edges.yml" in (ROOT / "config/substrate_manifest.sha256").read_text()  # the anchor is pinned

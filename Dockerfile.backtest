@@ -175,7 +175,15 @@ COPY --chown=archondex:archondex debug_config.py ./
 # fails the build when the baked registry disagrees with its own code (an edge module registers
 # something the file lacks, or a code-owned field drifted) — an image cannot ship a registry its
 # code disagrees with. Network dead-ended by construction while the edge modules import.
-RUN python scripts/sync_edge_registry.py --check
+# RE-TARGETED 2026-11-05 (re-pin #1 D5, the first CI run that reached this step with the new prefix): the
+# registry a cell EXECUTES from is `data/governor/_isolated_anchor/edges.yml` — run_isolated restores the
+# whole governor set from the anchor ON ENTRY — and the live `data/governor/edges.yml` is deliberately NOT
+# baked (T-133; build_backtest_image.sh excludes it), so a check against the default path read an absent file
+# (0 rows) and could never pass in CI, while certifying nothing about the file that runs. The anchor's
+# registry is pinned in the substrate manifest; a code/anchor disagreement here is a REAL defect (the
+# anchor needs `run_isolated --save-anchor` + a re-pin — a canon change, director-coordinated), never a
+# reason to loosen this line.
+RUN python scripts/sync_edge_registry.py --check --registry data/governor/_isolated_anchor/edges.yml
 
 # Pre-create the trade_logs mount point so a runtime volume mount succeeds
 # even when the host hasn't pre-created the directory. trade_logs is empty in
