@@ -283,3 +283,173 @@ def test_C3_verify_is_not_gated_by_the_refusal(tmp_path, monkeypatch):
     assert gm.main(["verify", "--root", str(scratch), "--manifest", str(cand), "--stamp-root", str(scratch)]) == 0
     assert gm.main(["verify", "--root", str(scratch), "--manifest", str(cand)]) == 0   # a bare verify never stamps
     assert not (scratch / st.STAMP_REL).exists()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C4 — build_pit_cap_history_t219.py: --write-snapshot (network, recorded) / --from-snapshot (hermetic)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import ast
+import sys
+import types
+
+import pandas as pd
+
+from scripts import build_pit_cap_history_t219 as t219
+
+_BDAYS = pd.bdate_range("2019-01-01", "2020-12-31")
+
+
+def _t219_root(tmp_path: Path) -> Path:
+    """A synthetic checkout: a membership panel (AAA, BBB, CCC, DDD delisted; EEE live), price csvs
+    for AAA/BBB/CCC (Close 10.0 through 2019, 20.0 through 2020), and a tiers file with one
+    current-snapshot entry (ZZZ) that the recompute must leave alone."""
+    root = tmp_path / "root"
+    (root / "data/universe").mkdir(parents=True)
+    (root / "data/processed").mkdir(parents=True)
+    pd.DataFrame({"ticker": ["AAA", "BBB", "CCC", "DDD", "EEE"], "name": ["a", "b", "c", "d", "e"],
+                  "sector": ["x"] * 5,
+                  "included_from": pd.to_datetime(["2010-01-01"] * 5),
+                  "included_until": pd.to_datetime(["2020-12-31", "2020-12-31", "2020-06-30", "2012-01-01", None]),
+                  }).to_parquet(root / t219.MEMBERSHIP_REL, index=False)
+    close = [10.0 if d.year == 2019 else 20.0 for d in _BDAYS]
+    for t in ("AAA", "BBB", "CCC"):
+        pd.DataFrame({"Date": _BDAYS, "Open": close, "Close": close, "Volume": 1}).to_csv(
+            root / f"data/processed/{t}_1d.csv", index=False)
+    (root / t219.TIERS_REL).write_text(json.dumps(
+        {"ZZZ": {"marketCap": 5e9, "tier": "mid", "asof": "2026-06-18", "source": "fast_info"}}, indent=0))
+    return root
+
+
+def _install_yfinance_stub(monkeypatch, behaviour):
+    """`behaviour` maps ticker -> a Series, an empty Series, or an Exception to raise; None means
+    the Ticker must never be constructed (the --from-snapshot lock)."""
+    stub = types.ModuleType("yfinance")
+    calls = []
+
+    class Ticker:
+        def __init__(self, t):
+            if behaviour is None:
+                raise AssertionError(f"yfinance.Ticker({t!r}) constructed on a path that must NEVER fetch")
+            self.t = t
+
+        def get_shares_full(self, start=None):
+            calls.append((self.t, start))
+            r = behaviour[self.t]
+            if isinstance(r, Exception):
+                raise r
+            return r
+    stub.Ticker = Ticker
+    monkeypatch.setitem(sys.modules, "yfinance", stub)
+    return calls
+
+
+def test_LOCK_C4_write_snapshot_records_fetched_empty_and_failed_never_a_silent_None(tmp_path, monkeypatch, capsys):
+    root = _t219_root(tmp_path)
+    series = pd.Series([1e9, 1e9], index=pd.DatetimeIndex(["2019-01-02", "2020-12-31"]).tz_localize("America/New_York"))
+    calls = _install_yfinance_stub(monkeypatch, {"AAA": series, "BBB": pd.Series(dtype="float64"),
+                                                 "CCC": RuntimeError("boom")})
+    snap = tmp_path / "out" / "delist_shares_snapshot.parquet"
+    rc = t219.main(["--write-snapshot", str(snap), "--root", str(root)])
+    assert rc == 0, capsys.readouterr()
+    assert sorted(calls) == [("AAA", "2010-01-01"), ("BBB", "2010-01-01"), ("CCC", "2010-01-01")]   # ONCE each; DDD has no price file
+    long = pd.read_parquet(snap)
+    assert list(long.columns) == ["ticker", "date", "shares"]
+    assert long["ticker"].tolist() == ["AAA", "AAA"] and long["shares"].tolist() == [1e9, 1e9]
+    assert long["date"].dt.tz is None and str(long["date"].iloc[0].date()) == "2019-01-02"
+    meta = json.loads(t219.snapshot_meta_path(snap).read_text())
+    assert meta["counts"] == {"fetched": 1, "empty": 1, "failed": 1}
+    assert meta["cohort_delisted"] == 4 and meta["cohort_with_price"] == 3 and meta["rows"] == 2
+    assert meta["written_on"] and meta["shares_start"] == "2010-01-01"
+    by = {s["ticker"]: s for s in meta["statuses"]}
+    assert by["AAA"]["status"] == "fetched" and by["AAA"]["rows"] == 2
+    assert by["BBB"] == {"ticker": "BBB", "status": "empty", "reason": "get_shares_full returned an empty series"}
+    assert by["CCC"] == {"ticker": "CCC", "status": "failed", "reason": "RuntimeError: boom"}
+    assert "DDD" not in by
+    assert (root / t219.TIERS_REL).read_text().startswith('{\n"ZZZ"')          # the tiers file is not touched
+
+
+def test_C4_a_snapshot_with_nothing_fetched_is_written_WITH_its_reasons_and_exits_1(tmp_path, monkeypatch, capsys):
+    root = _t219_root(tmp_path)
+    _install_yfinance_stub(monkeypatch, {"AAA": None, "BBB": pd.Series(dtype="float64"), "CCC": OSError("down")})
+    snap = tmp_path / "s.parquet"
+    assert t219.main(["--write-snapshot", str(snap), "--root", str(root)]) == 1
+    assert "nothing fetched" in capsys.readouterr().err
+    meta = json.loads(t219.snapshot_meta_path(snap).read_text())
+    assert meta["counts"] == {"fetched": 0, "empty": 2, "failed": 1}
+    assert {s["ticker"]: s["reason"] for s in meta["statuses"]}["AAA"] == "get_shares_full returned None"
+    assert pd.read_parquet(snap).empty
+
+
+def _plant_snapshot(path: Path) -> None:
+    """AAA: 1e9 shares across the whole price span; BBB: 4e8; CCC: a single point in 2012, before
+    any price bar — no overlap, the wall."""
+    pd.DataFrame({"ticker": ["AAA", "AAA", "BBB", "BBB", "CCC"],
+                  "date": pd.to_datetime(["2019-01-02", "2020-12-31", "2019-01-02", "2020-12-31", "2012-01-01"]),
+                  "shares": [1e9, 1e9, 4e8, 4e8, 7e7]}).to_parquet(path, index=False)
+
+
+def test_LOCK_C4_from_snapshot_NEVER_imports_yfinance_and_reproduces_the_cap_arithmetic(tmp_path, monkeypatch, capsys):
+    """The stub's Ticker RAISES if constructed; the recompute runs with it installed. The window is
+    the last 12 months of overlap ending 2020-12-31 — one 2019-12-31 bar at Close 10 and every 2020
+    bar at Close 20 — so the median of Close × shares is 20 × shares exactly."""
+    root = _t219_root(tmp_path)
+    _install_yfinance_stub(monkeypatch, None)
+    snap = tmp_path / "delist_shares_snapshot.parquet"
+    _plant_snapshot(snap)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(t219.tempfile, "gettempdir", lambda: str(scratch))
+    tiers_before = (root / t219.TIERS_REL).read_bytes()
+    rc = t219.main(["--from-snapshot", str(snap), "--root", str(root)])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    written = [p for p in scratch.iterdir()]
+    assert len(written) == 1 and written[0].name.startswith("market_cap_tiers_from_snapshot_"), written
+    assert str(written[0]) in out and "SCRATCH default" in out
+    new = json.loads(written[0].read_text())
+    assert new["AAA"] == {"marketCap": 2e10, "tier": "large", "asof": "2020-12-31", "source": "delist_shares"}
+    assert new["BBB"] == {"marketCap": 8e9, "tier": "mid", "asof": "2020-12-31", "source": "delist_shares"}
+    assert "CCC" not in new                                                  # the wall: no overlap, left null
+    assert new["ZZZ"] == {"marketCap": 5e9, "tier": "mid", "asof": "2026-06-18", "source": "fast_info"}
+    assert (root / t219.TIERS_REL).read_bytes() == tiers_before, "the real tiers file was written"
+    assert "'resolved': 2" in out and "'wall': 1" in out and "'new_vs_current': 2" in out
+    # --out names the target explicitly
+    explicit = tmp_path / "explicit.json"
+    assert t219.main(["--from-snapshot", str(snap), "--root", str(root), "--out", str(explicit)]) == 0
+    assert json.loads(explicit.read_text())["AAA"]["marketCap"] == 2e10
+    assert (root / t219.TIERS_REL).read_bytes() == tiers_before
+
+
+def test_LOCK_C4_the_only_yfinance_import_is_inside_the_fetch_and_the_bare_call_is_retired(monkeypatch, capsys):
+    tree = ast.parse(Path(t219.__file__).read_text())
+    imports = [n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))
+               and any("yfinance" in (a.name if isinstance(n, ast.Import) else (n.module or "")) for a in n.names)]
+    owners = []
+    for n in imports:
+        owner = next(f.name for f in ast.walk(tree) if isinstance(f, ast.FunctionDef)
+                     and f.lineno <= n.lineno <= f.end_lineno)
+        owners.append(owner)
+    assert owners == ["fetch_shares_snapshot"], owners
+    assert "yf" not in vars(t219) and "yfinance" not in vars(t219)
+    _install_yfinance_stub(monkeypatch, None)
+    with pytest.raises(SystemExit) as e:                                      # no mode = usage error, no fetch
+        t219.main([])
+    assert e.value.code == 2
+    with pytest.raises(SystemExit):
+        t219.main(["--write-snapshot", "x", "--from-snapshot", "y"])
+    assert not hasattr(t219, "OUT")                                           # the in-place real-file writer is gone
+
+
+def test_C4_the_tier_arithmetic_is_unchanged_and_the_meta_sits_beside_the_parquet():
+    assert t219.TIERS == [(200e9, "mega"), (10e9, "large"), (2e9, "mid"), (300e6, "small")]
+    assert [t219._tier(c) for c in (200e9, 199e9, 10e9, 9e9, 2e9, 1e9, 300e6, 1.0)] == \
+        ["mega", "large", "large", "mid", "mid", "small", "small", "micro"]
+    assert t219.snapshot_meta_path(Path("x/delist_shares_snapshot.parquet")) == Path("x/delist_shares_snapshot.meta.json")
+    assert t219.SHARES_START == "2010-01-01"
+    # the arithmetic on a hand-checkable case: a single shares point ends the window at that point
+    px = pd.DataFrame({"Close": [1.0, 2.0, 3.0, 4.0]}, index=pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"]))
+    sh = pd.Series([100.0, 100.0], index=pd.DatetimeIndex(["2020-01-02", "2020-01-02"]))   # a duplicated date
+    cap, end = t219.cap_at_delist(px, sh)
+    assert cap == 200.0 and str(end.date()) == "2020-01-02"                   # only 2020-01-02 has shares: 2 × 100
+    assert t219.cap_at_delist(px, pd.Series([5.0], index=pd.DatetimeIndex(["2019-01-01"]))) is None   # no overlap

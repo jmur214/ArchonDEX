@@ -1399,6 +1399,22 @@ reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; t
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
 
+## T-219 cap-at-delist — the shares snapshot and the hermetic recompute (re-pin #1, added 2026-11-05)
+
+`scripts/build_pit_cap_history_t219.py` has two EXPLICIT modes (T-375 C4); the bare live-fetch `main()` that
+fetched and rewrote `data/universe/market_cap_tiers.json` in place is retired. `_tier` and the cap arithmetic
+(`cap_at_delist`: late-period median of Close × ffilled shares over the last 12 months of overlap) are unchanged.
+
+```bash
+python scripts/build_pit_cap_history_t219.py --write-snapshot data/universe/delist_shares_snapshot.parquet   # NETWORK, ONCE (re-pin #1 D1): one get_shares_full(start="2010-01-01") per delisted-cohort name with a price file; long (ticker, date, shares) parquet + <stem>.meta.json {fetched, empty, failed} with every per-name reason; exit 1 if nothing fetched
+python scripts/build_pit_cap_history_t219.py --from-snapshot data/universe/delist_shares_snapshot.parquet     # HERMETIC (re-pin #2's recompute): caps from the snapshot + the price cache into a COPY of the tiers, written to a SCRATCH file under the system temp dir (the path is printed); never fetches, never imports yfinance
+python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --out <path>                           # the same, to an explicit path; the real data/universe/market_cap_tiers.json only when named here (re-pin #2's act)
+python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --root <dir>                           # a scratch/test checkout holding data/ (default: this one)
+```
+
+The snapshot is substrate-pinned by name (`gen_substrate_manifest.py` SUBSTRATE_FILES), so re-pin #2's recompute is
+deterministic; its meta beside it (`delist_shares_snapshot.meta.json`) is the record of what was and was not fetched.
+
 ## Gate verdicts — PASSED | FAILED | NOT_EVALUATED (RR-6a, added 2026-10-14)
 
 Every `validate_candidate` result carries `gate_verdicts` (gates 0–8, each `{"verdict", "reason"}`) and
