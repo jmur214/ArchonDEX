@@ -609,4 +609,4 @@ def test_LOCK_D5_TEXT_the_image_registry_check_targets_the_ANCHOR_registry_the_c
     assert lines == ["RUN python scripts/sync_edge_registry.py --check --registry data/governor/_isolated_anchor/edges.yml"], lines
     sh = BUILD_SH.read_text()
     assert "--exclude='/governor/edges.yml'" in sh                                # T-133 still excludes the live file
-    assert "data/governor/_isolated_anchor/edges.yml" in (ROOT / "config/substrate_manifest.sha256").read_text()  # the anchor is pinned
+    assert "data/governor/_isolated_anchor/edges.yml" in (REPO / "config/substrate_manifest.sha256").read_text()  # the anchor is pinned
