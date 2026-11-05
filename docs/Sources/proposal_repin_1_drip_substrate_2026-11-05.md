@@ -148,6 +148,16 @@ re-pinned, a canon change scheduled with cutover day's re-anchor (health_check M
 `sha-2e65544` image exists in ECR; **D7's provenance cell is DEFERRED to the first image that builds.** The
 registry companion in the prefix is moot for the image (not baked) and harmless.
 
+**THE RETARGET'S FIRST ARTIFACT (CI run 42119858573 on the close push `9f44039`, 22:43Z):** the new prefix synced,
+`PIN OK` in-image, then the RETARGETED line ran and failed for the real reason: `_isolated_anchor/edges.yml (209 rows)`,
+`never registered (additions): 8`. Eight in the image versus nine locally: the image imports 27 auto-registering
+modules but records 26 registrations — `pairs_trading_v1` is data-driven, registering `pairs_trading_MA_V_v1` from
+`data/research/cointegrated_pairs_2026_05_09.json`, which exists locally (11,191 bytes), is NOT in the manifest and is
+NOT baked (`data/research/` is not an image COPY). **For the re-anchor runbook:** an anchor re-saved from the local
+synced registry will carry `pairs_trading_MA_V_v1` while the in-image code cannot register it — either pin and bake
+that pairs manifest by name (the same discipline as the honest-N files) or the in-image check must be shown to
+tolerate a registry-only row; decide and lock BEFORE the re-anchor, or the image build fails again after it.
+
 D6. Tonight's janitor row: `substrate_verify PASS` with the stamp written by `janitor_nightly` — the stamp's first
 artifact from its second writer.
 
