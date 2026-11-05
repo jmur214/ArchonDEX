@@ -594,6 +594,7 @@ def test_LOCK_C6_TEXT_dockerignore_re_includes_exactly_the_two_files_and_the_bui
     for n in names.values():
         assert f"data/observability/{n}" in sh, n
     assert '"data/external/base_curve" "$STAGE/data/external/"' in sh
-    assert "data/universe/delist_shares_snapshot.parquet" in sh
+    for f in gm.SUBSTRATE_FILES:                                               # every curated file is staged — derived
+        assert f in sh, f                                                      # from the scope (reviewer F1, 2026-11-05)
     for d in gm.SUBSTRATE_DIRS:                                                # every substrate dir is staged
         assert d.split("/", 1)[1].split("/")[0] in sh or d in sh, d

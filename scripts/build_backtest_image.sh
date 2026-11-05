@@ -100,9 +100,14 @@ rsync -aL \
 # Re-pin #1 (T-375 C1): the T-219 shares snapshot, pinned by name. Absent until the
 # data half writes it, so staged when present — the manifest verify is the judge
 # (MISSING once the manifest pins it and the host lacks it).
-if [ -f "data/universe/delist_shares_snapshot.parquet" ]; then
-    rsync -aL "data/universe/delist_shares_snapshot.parquet" "$STAGE/data/universe/"
-fi
+# Both files `--write-snapshot` writes: the parquet and its .meta.json (the per-name fetch record,
+# pinned beside it — reviewer F2/F1 2026-11-05: a pinned file the staging does not mirror is
+# MISSING at every staged verify, the T-215/T-219 class recorded above).
+for f in data/universe/delist_shares_snapshot.parquet data/universe/delist_shares_snapshot.meta.json; do
+    if [ -f "$f" ]; then
+        rsync -aL "$f" "$STAGE/data/universe/"
+    fi
+done
 # Re-pin #1 (T-375 C6): the honest-N gate's two inputs, by NAME — never
 # data/observability/ — the files config/honest_n_pin.json names; the Dockerfile
 # COPYs exactly these and runs `scripts.honest_n_pin --verify` at build. An absent
