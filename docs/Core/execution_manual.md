@@ -767,7 +767,7 @@ scripts/build_backtest_image.sh <ref> archondex-backtest:<tag>
 # Substrate manifest (pins data/processed + data/raw + data/macro + governor ANCHORS;
 # the 9 live mutable governor files are excluded — T-131 policy). SCOPE since re-pin #1
 # (T-375 C1, 2026-11-05): SUBSTRATE_DIRS += data/external/base_curve (the frozen 26-yr
-# arm0 curve); SUBSTRATE_FILES += data/universe/delist_shares_snapshot.parquet (the T-219
+# arm0 curve); SUBSTRATE_FILES += data/universe/delist_shares_snapshot.parquet + its .meta.json (the T-219
 # shares snapshot; absent until written — WARNed and skipped, MISSING once pinned) and the
 # honest-N gate's two inputs BY NAME, never the directory: data/observability/
 # n_effective_2026-09-30.json + run_registry.sqlite — the names config/honest_n_pin.json
@@ -1432,7 +1432,7 @@ python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --root <
 ```
 
 The snapshot is substrate-pinned by name (`gen_substrate_manifest.py` SUBSTRATE_FILES), so re-pin #2's recompute is
-deterministic; its meta beside it (`delist_shares_snapshot.meta.json`) is the record of what was and was not fetched.
+deterministic; its meta beside it (`delist_shares_snapshot.meta.json`), the record of what was and was not fetched, is pinned by name too.
 
 ## Gate verdicts — PASSED | FAILED | NOT_EVALUATED (RR-6a, added 2026-10-14)
 

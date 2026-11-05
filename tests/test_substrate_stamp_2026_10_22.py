@@ -85,10 +85,10 @@ def test_the_guards_against_the_real_stamp_FIRE(tmp_path):
 
 # ── a planted, COMPLETE substrate ───────────────────────────────────────────────
 
-#: What `_plant` pins: one file per substrate dir (five since re-pin #1 added
-#: data/external/base_curve) plus every curated file — derived, never a literal, so the
-#: count follows the generator's scope.
-N_PLANTED = 5 + len(gm.SUBSTRATE_FILES)
+#: What `_plant` pins: exactly one file per SUBSTRATE_DIRS entry plus every curated file —
+#: both terms derived from the generator's scope (reviewer F5, 2026-11-05): a dir added to the
+#: scope without a planted file fails here loudly instead of tracking silently.
+N_PLANTED = len(gm.SUBSTRATE_DIRS) + len(gm.SUBSTRATE_FILES)
 
 
 def _plant(root: Path) -> Path:

@@ -94,6 +94,9 @@ SUBSTRATE_FILES = [
     # `iter_substrate_files` WARNs and skips an absent curated file, so before `generate`
     # it simply has no manifest line; once pinned, an absent file is MISSING at verify.
     "data/universe/delist_shares_snapshot.parquet",
+    # Its meta (reviewer F2, 2026-11-05): the per-name fetched/empty/failed record of what was
+    # and was not fetched — the provenance of the snapshot, pinned beside it by name.
+    "data/universe/delist_shares_snapshot.meta.json",
     *HONEST_N_FILES,
 ]
 JUNK_NAMES = {".DS_Store"}
