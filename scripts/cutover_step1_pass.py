@@ -10,7 +10,7 @@ which label exists to lock. The real-cache write is cutover day, a separate appr
     python -m scripts.cutover_step1_pass pass --copy <copy> [--only A,B] [--today YYYY-MM-DD] [--sleep 0.4]
     python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 [--out x.json]
     python -m scripts.cutover_step1_pass label --cache <dir> [--out x.json]
-    python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>   # then gen_substrate_manifest.py --root
+    python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>   # then gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root> (a bare --root REFUSES since re-pin #1)
 
 `pass` is RESUMABLE (one jsonl row per file; a file with a terminal row is skipped), writes the
 writer's own log (`write_log.jsonl`, the per-file records) and the PROVIDER's output UNFILTERED
@@ -312,7 +312,8 @@ def cmd_label(args) -> int:
 
 def cmd_stage(args) -> int:
     """A root whose data/processed IS the copy and whose other substrate dirs are the main tree's,
-    so `gen_substrate_manifest.py generate --root <root>` pins the copy (never the canonical)."""
+    so `gen_substrate_manifest.py generate --root <root> --manifest ../<candidate>.sha256 --stamp-root <root>`
+    pins the copy (never the canonical); without --manifest/--stamp-root `generate` REFUSES (exit 4, re-pin #1 C3)."""
     copy = assert_is_a_copy(Path(args.copy))
     root = Path(args.root)
     if root.exists():

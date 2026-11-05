@@ -29,7 +29,10 @@ The stamp (``core/substrate_stamp.py``) lives at the MAIN tree's
 ``data/state/substrate_verify_stamp.json`` by default; ``--stamp-root``
 points a scratch run elsewhere. PASS only on missing = extra = changed = 0
 from a COMPLETE ``build_manifest()``; FAIL with the true counts; ERROR —
-never PASS — when the verify could not run (exit 3).
+never PASS — when the verify could not run (exit 3). Re-pin #1 C3
+(2026-11-05): without ``--stamp-root``, ``generate`` REFUSES (exit 4, before
+any write) a ``--manifest`` that is not the committed default under the main
+tree — a candidate's PASS must never land in the real stamp file.
 
 When the substrate legitimately changes (new data vintage, governor seed
 update), regenerate + commit the manifest in the same PR — that turns a
@@ -51,7 +54,16 @@ from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core import substrate_stamp as stamp                      # noqa: E402
 
-SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
+SUBSTRATE_DIRS = [
+    "data/processed", "data/raw", "data/governor", "data/macro",
+    # Re-pin #1 (2026-11-05, T-375 C1): the frozen 26-yr arm0 base curve
+    # (t118r_v1_26yr_arm0_3b403882.csv) read by T-171/T-178/T-174 — a controller
+    # product that had ZERO manifest lines (director's ruling 2026-10-15). NOT
+    # regenerated at re-pin #2. `full_verify` requires every dir here to EXIST under
+    # --root, so scripts/build_backtest_image.sh stages it too (verify only; the
+    # Dockerfile does not COPY it — no in-image reader).
+    "data/external/base_curve",
+]
 # T-2026-06-13-164: curated individual files pinned WITHOUT walking their whole
 # parent dir. sp500_membership.parquet drives the resolved universe and is
 # gitignored — its silent regeneration (T-154) broke historical-universe runs
@@ -59,11 +71,33 @@ SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
 # (the T-131 discipline). We pin the file only, NOT data/universe/ — that dir
 # also holds the bulky Wikipedia/Clenow scrape cache (raw_membership_sources/)
 # which is rebuildable and must NOT bloat the image.
+# Re-pin #1 (2026-11-05, T-375 C1; the record's §0 second blocker): the honest-N gate's
+# two inputs (`core/measurement/mbl_gate.py` DEFAULT_ARTIFACT_DIR / DEFAULT_PIN_PATH),
+# pinned BY NAME — never data/observability/, which also holds run logs and S3 mirrors.
+# The names MUST equal `config/honest_n_pin.json`'s (locked in
+# tests/test_repin1_code_2026_11_05.py; the lock fails naming both files), so a future
+# `honest_n_pin --pin --replace` forces a manifest edit in the same reviewed act. The
+# image COPYs exactly these two and verifies the pin at build (Dockerfile.backtest), and
+# the CI's S3 sync carries them under the content-addressed prefix because they are here.
+HONEST_N_FILES = (
+    "data/observability/n_effective_2026-09-30.json",
+    "data/observability/run_registry.sqlite",
+)
 SUBSTRATE_FILES = [
     "data/universe/sp500_membership.parquet",
     # T-2026-06-18-210/215: the realistic-retail cap-tier join. Baked +
     # pinned so realistic_retail_costs=true is not silently inert on the cloud.
     "data/universe/market_cap_tiers.json",
+    # Re-pin #1 (T-375 C1): the T-219 shares histories fetched ONCE
+    # (`scripts/build_pit_cap_history_t219.py --write-snapshot`), so re-pin #2's cohort
+    # recompute is deterministic and never fetches. ABSENT until the data half writes it:
+    # `iter_substrate_files` WARNs and skips an absent curated file, so before `generate`
+    # it simply has no manifest line; once pinned, an absent file is MISSING at verify.
+    "data/universe/delist_shares_snapshot.parquet",
+    # Its meta (reviewer F2, 2026-11-05): the per-name fetched/empty/failed record of what was
+    # and was not fetched — the provenance of the snapshot, pinned beside it by name.
+    "data/universe/delist_shares_snapshot.meta.json",
+    *HONEST_N_FILES,
 ]
 JUNK_NAMES = {".DS_Store"}
 JUNK_SUFFIXES = {".pyc"}
@@ -230,17 +264,30 @@ def _stamp(digest: str, manifest_path: Path, writer: str, stamp_root: Optional[P
     return p
 
 
+#: Paths printed per drift class before the footer counts the rest.
+DRIFT_SHOWN_PER_CLASS = 20
+
+
+def drift_hidden(res: VerifyResult) -> int:
+    """The footer's number: total − shown, shown = Σ min(20, len(class)) over the three classes.
+    Re-pin #1 C2 (2026-11-05): the footer used to subtract a flat 60, so today's 0 / 134 / 5
+    printed "… and 79 more" while 114 paths were hidden (RR-7 D3; R confirmed)."""
+    classes = (res.missing, res.extra, res.changed)
+    shown = sum(min(DRIFT_SHOWN_PER_CLASS, len(c)) for c in classes)
+    return sum(len(c) for c in classes) - shown
+
+
 def _print_drift(res: VerifyResult) -> None:
     print("FAIL: substrate has DRIFTED from the committed manifest:", file=sys.stderr)
-    for p in res.missing[:20]:
+    for p in res.missing[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  MISSING : {p}", file=sys.stderr)
-    for p in res.extra[:20]:
+    for p in res.extra[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  EXTRA   : {p}", file=sys.stderr)
-    for p in res.changed[:20]:
+    for p in res.changed[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  CHANGED : {p}", file=sys.stderr)
-    total = len(res.missing) + len(res.extra) + len(res.changed)
-    if total > 60:
-        print(f"  … and {total - 60} more", file=sys.stderr)
+    hidden = drift_hidden(res)
+    if hidden > 0:
+        print(f"  … and {hidden} more", file=sys.stderr)
     print(
         "Either restore the canonical substrate, or — if the change is deliberate — "
         "regenerate + COMMIT the manifest in the same PR.",
@@ -289,7 +336,32 @@ def generate(root: Path, manifest_path: Path, stamp_root: Optional[Path]) -> int
     return 0
 
 
-def main() -> int:
+def foreign_manifest_refusal(manifest_path: Path) -> Optional[str]:
+    """Re-pin #1 C3 (2026-11-05): with no `--stamp-root`, `generate` stamps the MAIN tree's real
+    stamp file (`canonical_root()` resolves it regardless of `--root`), so it may run only for
+    the COMMITTED default manifest there. Any other `--manifest` — a candidate beside a cutover
+    copy, a worktree's own config/, a scratch file — is refused BEFORE any write; the hazard,
+    recorded 2026-11-04: a candidate's PASS stamp landing in the real
+    data/state/substrate_verify_stamp.json. Returns the refusal text, or None to proceed. A main
+    tree that cannot be resolved is refused too — "could not prove it is the default" is a
+    refusal, never a pass (`[NN-FAIL-CLOSED]`)."""
+    try:
+        expected = (stamp.canonical_root() / DEFAULT_MANIFEST).resolve()
+    except stamp.CanonicalRootUnresolved as exc:
+        return (f"REFUSED: generate without --stamp-root could not resolve the MAIN tree ({exc}), so "
+                f"it cannot prove --manifest {manifest_path} is the committed default; pass "
+                f"--stamp-root <dir> for a scratch or candidate manifest. Nothing was written.")
+    actual = manifest_path.resolve()
+    if actual == expected:
+        return None
+    return (f"REFUSED: generate --manifest {manifest_path} (resolves to {actual}) is not the committed "
+            f"default {expected} and no --stamp-root was given. Without --stamp-root the PASS stamp "
+            f"would land in the MAIN tree's real {stamp.STAMP_REL} — a candidate's or scratch "
+            f"manifest's verdict in the real stamp file, the hazard recorded 2026-11-04. Pass "
+            f"--stamp-root <dir> (a candidate manifest ALWAYS carries it). Nothing was written.")
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("mode", choices=["generate", "verify"])
     ap.add_argument("--root", default=".", help="repo root holding data/ (symlinked subdirs are followed)")
@@ -301,14 +373,20 @@ def main() -> int:
     ap.add_argument("--stamp-root", default=None,
                     help="where the stamp file lives (default: the MAIN tree, via the git "
                          "common dir). Point a scratch generate/verify here so it never "
-                         "touches the real stamp")
-    args = ap.parse_args()
+                         "touches the real stamp. generate REFUSES (exit 4, before any write) a "
+                         "--manifest other than the committed default when this is absent")
+    args = ap.parse_args(argv)
 
     root = Path(args.root)
     manifest_path = root / args.manifest
     stamp_root = Path(args.stamp_root) if args.stamp_root else None
 
     if args.mode == "generate":
+        if stamp_root is None:
+            refusal = foreign_manifest_refusal(manifest_path)       # C3: before ANY write
+            if refusal:
+                print(refusal, file=sys.stderr)
+                return 4
         return generate(root, manifest_path, stamp_root)
 
     # verify

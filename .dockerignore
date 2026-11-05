@@ -48,6 +48,13 @@ data/coordination/
 # --- Runtime output (regenerable; do NOT bake into image) ---
 data/trade_logs/
 data/observability/
+# Re-pin #1 (2026-11-05, T-375 C6): the two honest-N inputs config/honest_n_pin.json names
+# are the ONLY files re-included from data/observability/ (Dockerfile.backtest COPYs them by
+# name and verifies the pin at build). Everything else there (run logs, S3 mirrors) stays
+# excluded by the line above. Docker descends an excluded directory only to honour a `!`
+# pattern beneath it (moby/patternmatcher: last matching pattern wins).
+!data/observability/n_effective_2026-09-30.json
+!data/observability/run_registry.sqlite
 
 # --- Substrate-extension backups (one per swap; can grow large) ---
 # Backup dirs created when activating a new substrate via T-082b-style

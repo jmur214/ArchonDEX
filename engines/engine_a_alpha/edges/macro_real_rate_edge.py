@@ -2,11 +2,25 @@
 engines/engine_a_alpha/edges/macro_real_rate_edge.py
 ====================================================
 
-DEPRECATED 2026-05-02 — RECLASSIFIED AS REGIME INPUT.
-DFII10 10y real rate now feeds Engine E's HMM regime classifier as an
-auxiliary feature (engines.engine_e_regime.macro_features.real_rate_level)
-rather than generating per-ticker tilts. Code retained for historical
-reference; auto-register writes status='retired'.
+DEPRECATED 2026-05-02 — RECLASSIFIED AS REGIME INPUT; PAUSED. Code retained
+for historical reference; auto-register writes status='retired', and the
+registry (data/governor/edges.yml) carries the edge as status: paused.
+
+THE FACTS, corrected 2026-11-05 (re-pin #1, T-375 C5). The earlier claim here —
+"DFII10 now feeds Engine E's HMM regime classifier as an auxiliary feature" —
+was wrong on both counts:
+- DFII10 is ABSENT from the substrate: no file anywhere under data/ (the macro
+  cache is data/macro/<series_id>.parquet, `MacroDataManager._series_path`;
+  RR-7 D3, 2026-09-30). It was NOT fetched at re-pin #1 — a new macro series
+  pulled at pin time would be an unreviewed input entering the substrate in
+  the act that certifies it; fetch it as its own declared act when a consumer
+  is live.
+- `real_rate_level` is an AUX column the production 7-feature HMM does NOT
+  read: engines/engine_e_regime/macro_features.py:100-104 lists it under
+  AUX_COLUMNS ("not used by default 7-feature HMM but computed and exposed");
+  it is NaN there while the series is absent.
+- This edge is paused and, with the series absent, abstains (zeros for every
+  ticker). Nothing downstream consumes a real-rate signal today.
 
 Macro regime-tilt based on the level of the 10-year real (TIPS-derived)
 Treasury yield (FRED ``DFII10``).
@@ -32,11 +46,13 @@ Tilt mapping (continuous):
 - At ~2 stdev above the mean, tilt saturates at -0.3; at ~2 stdev
   below, +0.3.
 
-Cache behavior: reads `DFII10` via `MacroDataManager.load_cached`.
-DFII10 is not in the curated registry yet, so on a fresh clone the
-parquet file does not exist and the edge emits zeros for every ticker
-(abstains entirely). No crash. Edge ships as `active` in code; it
-activates the moment the cache is populated.
+Cache behavior: reads `DFII10` via `MacroDataManager.load_cached`, which
+returns an EMPTY frame silently for an absent series (the always-empty-
+channel class; its own LOW row, re-pin #1 record §4). The parquet exists on
+NO tree — not only a fresh clone — so the edge emits zeros for every ticker
+(abstains entirely). No crash. The edge does NOT ship active: it is retired
+in code and paused in the registry, and populating the cache alone would
+not activate it.
 """
 from __future__ import annotations
 

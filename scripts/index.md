@@ -354,7 +354,15 @@
 - **Function `main()`**: No docstring
 
 ### `build_pit_cap_history_t219.py`
-**Module Docstring:** T-2026-06-18-219 — close the T-210/T-215 cap-join under-count: give the DELISTED
+**Module Docstring:** T-2026-06-18-219 — cap-AT-DELISTING for the delisted PIT cohort, in two EXPLICIT modes.
+- **Function `cap_at_delist()`**: THE T-219 ARITHMETIC, UNCHANGED from the June live-fetch main(): align shares to price
+- **Function `tier_entry()`**: No docstring
+- **Function `fetch_shares_snapshot()`**: ONE `get_shares_full(start=...)` per name. Returns the LONG frame (ticker, date, shares; the
+- **Function `snapshot_meta_path()`**: `<same stem>.meta.json` beside the parquet.
+- **Function `write_snapshot()`**: No docstring
+- **Function `load_snapshot()`**: No docstring
+- **Function `recompute_from_snapshot()`**: Every snapshot name with a price file → `cap_at_delist` on the snapshot's series + the
+- **Function `default_scratch_out()`**: Where `--from-snapshot` writes when `--out` is absent: the system temp dir, never data/.
 - **Function `main()`**: No docstring
 
 ### `build_rate_path_history_t295.py`
@@ -846,7 +854,9 @@
 - **Function `build_manifest()`**: No docstring
 - **Function `diff_manifest()`**: No docstring
 - **Function `full_verify()`**: The COMPLETE verify: every substrate dir must exist and walk, every file must hash.
+- **Function `drift_hidden()`**: The footer's number: total − shown, shown = Σ min(20, len(class)) over the three classes.
 - **Function `generate()`**: R2, the re-pin step: build, write the manifest to a TEMP path beside the target, run
+- **Function `foreign_manifest_refusal()`**: Re-pin #1 C3 (2026-11-05): with no `--stamp-root`, `generate` stamps the MAIN tree's real
 - **Function `main()`**: No docstring
 
 ### `gen_t118_campaign_spec.py`

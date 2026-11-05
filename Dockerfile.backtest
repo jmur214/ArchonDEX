@@ -152,6 +152,21 @@ COPY --chown=archondex:archondex data/macro/ ./data/macro/
 # the in-image copy is the seed state, not mutated state)
 COPY --chown=archondex:archondex data/governor/ ./data/governor/
 
+# Re-pin #1 (2026-11-05, T-375 C6; the record's §0 second blocker). The honest-N gate
+# (core/measurement/mbl_gate.py: DEFAULT_ARTIFACT_DIR / DEFAULT_PIN_PATH ->
+# config/honest_n_pin.json) reads its two inputs from data/observability/, which this
+# image created EMPTY — so Discovery's Gate 0 raised HonestNUnavailableError on every
+# cloud run (the right fail-closed answer; this is the fix). COPY exactly the two files
+# the pin names, BY NAME — never data/observability/ (run logs, S3 mirrors; the
+# directory stays .dockerignored, with `!` exceptions for exactly these two) — then
+# verify the pin: exit 3 fails the build, so the image cannot ship an N its pin
+# disagrees with. Both files are substrate-pinned by name (scripts/
+# gen_substrate_manifest.py SUBSTRATE_FILES, C1), so the CI's S3 sync of the
+# content-addressed prefix carries them and build_backtest_image.sh stages them.
+COPY --chown=archondex:archondex data/observability/n_effective_2026-09-30.json ./data/observability/n_effective_2026-09-30.json
+COPY --chown=archondex:archondex data/observability/run_registry.sqlite ./data/observability/run_registry.sqlite
+RUN python -m scripts.honest_n_pin --verify
+
 # Root-level Python modules imported by the backtest harness
 COPY --chown=archondex:archondex debug_config.py ./
 
@@ -163,7 +178,10 @@ COPY --chown=archondex:archondex debug_config.py ./
 RUN python scripts/sync_edge_registry.py --check
 
 # Pre-create the trade_logs mount point so a runtime volume mount succeeds
-# even when the host hasn't pre-created the directory. Empty in image.
+# even when the host hasn't pre-created the directory. trade_logs is empty in
+# the image; data/observability already holds the two pinned honest-N files
+# COPYd above — `mkdir -p` leaves an existing directory and its files in place
+# (it never clobbers), and the chown -R re-owns them to archondex (idempotent).
 RUN mkdir -p /app/data/trade_logs /app/data/observability \
     && chown -R archondex:archondex /app/data/trade_logs /app/data/observability
 

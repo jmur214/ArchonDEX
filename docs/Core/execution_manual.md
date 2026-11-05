@@ -757,11 +757,25 @@ junk, uncommitted files); the T-125→T-127 saga came from exactly that.
 # data substrate against the committed manifest, label provenance:
 scripts/build_backtest_image.sh HEAD                      # → :dev + :sha-<short>
 scripts/build_backtest_image.sh <ref> archondex-backtest:<tag>
+# Inside the build (Dockerfile.backtest), after the data COPYs: the two pinned honest-N files
+# are COPYd by name into /app/data/observability/ and `python -m scripts.honest_n_pin --verify`
+# runs — exit 3 (PIN INVALID) fails the build, so the image cannot ship an N its pin disagrees
+# with (re-pin #1, T-375 C6); then `scripts/sync_edge_registry.py --check`. The staging mirrors
+# the manifest scope: base_curve (verify only), the snapshot when present, the two files
+# (absent = a named exit 65).
 
-# Substrate manifest (pins data/processed + data/raw + governor ANCHORS;
-# the 9 live mutable governor files are excluded — T-131 policy):
+# Substrate manifest (pins data/processed + data/raw + data/macro + governor ANCHORS;
+# the 9 live mutable governor files are excluded — T-131 policy). SCOPE since re-pin #1
+# (T-375 C1, 2026-11-05): SUBSTRATE_DIRS += data/external/base_curve (the frozen 26-yr
+# arm0 curve); SUBSTRATE_FILES += data/universe/delist_shares_snapshot.parquet + its .meta.json (the T-219
+# shares snapshot; absent until written — WARNed and skipped, MISSING once pinned) and the
+# honest-N gate's two inputs BY NAME, never the directory: data/observability/
+# n_effective_2026-09-30.json + run_registry.sqlite — the names config/honest_n_pin.json
+# carries (a `--pin --replace` must edit the manifest scope, the Dockerfile COPYs, the
+# .dockerignore exceptions and build_backtest_image.sh's staging in the same act; locked).
+# The drift footer counts hidden = total − shown (shown = up to 20 per class).
 python3 scripts/gen_substrate_manifest.py verify           # check current state
-python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE change; commit in same PR
+python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE change; commit in same PR — the MAIN tree, the committed default manifest, no --stamp-root (anything else REFUSES, exit 4: see below)
 
 # Anchor update (deliberate, director-coordinated, 3 steps):
 python -m scripts.run_isolated --save-anchor               # writes + chmods anchors 0o444
@@ -782,7 +796,8 @@ python3 scripts/gen_substrate_manifest.py verify --stamp-writer janitor_nightly 
 # tree's committed manifest against the MAIN tree's data this way):
 python3 scripts/gen_substrate_manifest.py generate --root /tmp/x --stamp-root /tmp/x
 python3 scripts/gen_substrate_manifest.py verify --root /path/to/data-root --manifest /abs/manifest.sha256 --stamp-root /tmp/x
-# Exit codes: 0 PASS · 1 FAIL (drift; true counts + first paths on stderr) · 2 no manifest · 3 ERROR.
+# Exit codes: 0 PASS · 1 FAIL (drift; true counts + first paths on stderr) · 2 no manifest · 3 ERROR
+# · 4 REFUSED (generate: a --manifest other than the committed default with no --stamp-root; nothing written).
 # Reading: `core.substrate_stamp.read_stamp(manifest_digest(path))` — None is ABSENT
 # (fix: run the nightly or re-pin); `StampUnreadable` is a torn write or a writer bug
 # (fix: investigate; the writer sets an unreadable file aside, never deletes it).
@@ -801,9 +816,13 @@ python -m scripts.cutover_step1_pass label --cache <dir> --out x.json           
 python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
 python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 # --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
-# regardless of --root, so without it the candidate's PASS stamp lands in the real
+# regardless of --root, so without it the candidate's PASS stamp would land in the real
 # data/state/substrate_verify_stamp.json — harmless to the gate (it keys on the committed manifest's
-# digest) but never to be written; the verify-stamp block above documents the flag.
+# digest) but never to be written. ENFORCED since re-pin #1 (T-375 C3, 2026-11-05): `generate` REFUSES
+# (exit 4, BEFORE any write, naming --stamp-root and the hazard) any --manifest that does not resolve to
+# the MAIN tree's committed config/substrate_manifest.sha256 when --stamp-root is absent — a candidate
+# manifest, a worktree's own config/, a scratch file all refuse. The one bare `generate` is the
+# director's re-pin in the MAIN tree; the verify-stamp block above documents the flag.
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
@@ -1386,6 +1405,11 @@ python -m scripts.rr3b_population_pass --s3-mirror <dir>   # Option B population
 python -m scripts.honest_n_pin --pin n_effective_<date>.json --note "why" --replace   # re-pin BOTH files; refuses without --replace if a pin exists; takes effect only when COMMITTED
 ```
 
+Since re-pin #1 (T-375, 2026-11-05) both files are also substrate-pinned BY NAME (`gen_substrate_manifest.py`
+SUBSTRATE_FILES, locked equal to the pin's names), ride the content-addressed S3 prefix, are COPYd by name into the
+backtest image, and `python -m scripts.honest_n_pin --verify` runs at image build (exit 3 fails it) — before this the
+image created `data/observability/` EMPTY and Discovery's Gate 0 raised `HonestNUnavailableError` on every cloud run.
+
 **Neither a re-run of `rr3_empirical_rho` nor a registry rebuild or backfill changes the gate.** A new artifact is
 ignored until pinned; a registry whose bytes changed (rebuilt, backfilled, recreated after loss) makes the gate
 REFUSE until re-pinned. Before 2026-10-13 the gate took the newest artifact by filename and read the registry
@@ -1393,6 +1417,22 @@ unpinned — a rebuild after loss would have handed it a smaller N with no alarm
 reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; the referee module
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
+
+## T-219 cap-at-delist — the shares snapshot and the hermetic recompute (re-pin #1, added 2026-11-05)
+
+`scripts/build_pit_cap_history_t219.py` has two EXPLICIT modes (T-375 C4); the bare live-fetch `main()` that
+fetched and rewrote `data/universe/market_cap_tiers.json` in place is retired. `_tier` and the cap arithmetic
+(`cap_at_delist`: late-period median of Close × ffilled shares over the last 12 months of overlap) are unchanged.
+
+```bash
+python scripts/build_pit_cap_history_t219.py --write-snapshot data/universe/delist_shares_snapshot.parquet   # NETWORK, ONCE (re-pin #1 D1): one get_shares_full(start="2010-01-01") per delisted-cohort name with a price file; long (ticker, date, shares) parquet + <stem>.meta.json {fetched, empty, failed} with every per-name reason; exit 1 if nothing fetched
+python scripts/build_pit_cap_history_t219.py --from-snapshot data/universe/delist_shares_snapshot.parquet     # HERMETIC (re-pin #2's recompute): caps from the snapshot + the price cache into a COPY of the tiers, written to a SCRATCH file under the system temp dir (the path is printed); never fetches, never imports yfinance
+python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --out <path>                           # the same, to an explicit path; the real data/universe/market_cap_tiers.json only when named here (re-pin #2's act)
+python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --root <dir>                           # a scratch/test checkout holding data/ (default: this one)
+```
+
+The snapshot is substrate-pinned by name (`gen_substrate_manifest.py` SUBSTRATE_FILES), so re-pin #2's recompute is
+deterministic; its meta beside it (`delist_shares_snapshot.meta.json`), the record of what was and was not fetched, is pinned by name too.
 
 ## Gate verdicts — PASSED | FAILED | NOT_EVALUATED (RR-6a, added 2026-10-14)
 

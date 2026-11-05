@@ -88,6 +88,38 @@ rsync -aL "data/universe/sp500_membership.parquet" "$STAGE/data/universe/"
 # -> realistic_retail_costs silently inert (the T-215 fail-open, reintroduced at the
 # build layer).
 rsync -aL "data/universe/market_cap_tiers.json" "$STAGE/data/universe/"
+# Re-pin #1 (2026-11-05, T-375 C1): data/external/base_curve joined the manifest's
+# SUBSTRATE_DIRS (the frozen 26-yr arm0 curve). gen_substrate_manifest's full_verify
+# requires EVERY substrate dir to exist under --root, so the staging MUST carry it or
+# the staged verify is ERROR (exit 3) — never a FAIL of partial counts. Staged for the
+# verify only: the Dockerfile does not COPY it (no in-image reader).
+mkdir -p "$STAGE/data/external"
+rsync -aL \
+    --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' \
+    "data/external/base_curve" "$STAGE/data/external/"
+# Re-pin #1 (T-375 C1): the T-219 shares snapshot, pinned by name. Absent until the
+# data half writes it, so staged when present — the manifest verify is the judge
+# (MISSING once the manifest pins it and the host lacks it).
+# Both files `--write-snapshot` writes: the parquet and its .meta.json (the per-name fetch record,
+# pinned beside it — reviewer F2/F1 2026-11-05: a pinned file the staging does not mirror is
+# MISSING at every staged verify, the T-215/T-219 class recorded above).
+for f in data/universe/delist_shares_snapshot.parquet data/universe/delist_shares_snapshot.meta.json; do
+    if [ -f "$f" ]; then
+        rsync -aL "$f" "$STAGE/data/universe/"
+    fi
+done
+# Re-pin #1 (T-375 C6): the honest-N gate's two inputs, by NAME — never
+# data/observability/ — the files config/honest_n_pin.json names; the Dockerfile
+# COPYs exactly these and runs `scripts.honest_n_pin --verify` at build. An absent
+# file here is a NAMED failure, not a silently empty observability dir in the image.
+mkdir -p "$STAGE/data/observability"
+for f in data/observability/n_effective_2026-09-30.json data/observability/run_registry.sqlite; do
+    if [ ! -f "$f" ]; then
+        echo "[build] ERROR: honest-N input $f is absent — the image cannot carry an N its pin cannot verify" >&2
+        exit 65
+    fi
+    rsync -aL "$f" "$STAGE/data/observability/"
+done
 # T-2026-06-10-133: LIVE mutable governor files are NOT baked. T-131
 # proved they are canon-irrelevant (isolated() restores every scoped
 # file from _isolated_anchor/ ON ENTRY; edge_metrics/decision_diary are

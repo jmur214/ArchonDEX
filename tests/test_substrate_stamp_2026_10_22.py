@@ -85,17 +85,24 @@ def test_the_guards_against_the_real_stamp_FIRE(tmp_path):
 
 # ── a planted, COMPLETE substrate ───────────────────────────────────────────────
 
+#: What `_plant` pins: exactly one file per SUBSTRATE_DIRS entry plus every curated file —
+#: both terms derived from the generator's scope (reviewer F5, 2026-11-05): a dir added to the
+#: scope without a planted file fails here loudly instead of tracking silently.
+N_PLANTED = len(gm.SUBSTRATE_DIRS) + len(gm.SUBSTRATE_FILES)
+
+
 def _plant(root: Path) -> Path:
-    """All four substrate dirs and both curated files, so `full_verify` can run COMPLETELY,
+    """Every substrate dir and every curated file, so `full_verify` can run COMPLETELY,
     and the manifest the generator's own `build_manifest()` writes for them."""
     for d in gm.SUBSTRATE_DIRS:
         (root / d).mkdir(parents=True, exist_ok=True)
-    (root / "data/universe").mkdir(parents=True, exist_ok=True)
     (root / "data/processed/AAA_1d.csv").write_text("a,b\n1,2\n")
     (root / "data/raw/r.txt").write_text("raw")
     (root / "data/governor/seed.yml").write_text("g: 1\n")
     (root / "data/macro/VIX.parquet").write_bytes(b"vix")
+    (root / "data/external/base_curve/t118r.csv").write_text("d,v\n1,2\n")
     for f in gm.SUBSTRATE_FILES:
+        (root / f).parent.mkdir(parents=True, exist_ok=True)   # data/universe, data/observability
         (root / f).write_bytes(b"x")
     m = root / "config/substrate_manifest.sha256"
     m.parent.mkdir(exist_ok=True)
@@ -128,7 +135,7 @@ def test_LOCK_clean_an_exact_match_stamps_PASS_and_the_check_is_GREEN(tmp_path, 
     assert digest[:12] in c.detail and "janitor_nightly" in c.detail
     rec = st.read_stamp(digest, root=tmp_path)
     assert rec["result"] == "PASS" and rec["writer"] == "janitor_nightly"
-    assert rec["counts"] == {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}
+    assert rec["counts"] == {"pinned": N_PLANTED, "host": N_PLANTED, "missing": 0, "extra": 0, "changed": 0}
     assert rec["first_paths"] == [] and rec["error"] is None
     assert rec["s3_prefix_md5"] == hashlib.md5(m.read_bytes()).hexdigest()
     assert rec["tree_head"] is None                  # a scratch tree is no checkout: stated, not invented
@@ -153,7 +160,7 @@ def test_LOCK_drift_stamps_FAIL_with_the_TRUE_counts_and_the_row_names_the_fix(t
     assert "B-7" not in c.detail                     # not the June-18 manifest: not that blocker
     rec = st.read_stamp(digest, root=tmp_path)
     assert rec["result"] == "FAIL"
-    assert rec["counts"] == {"pinned": 6, "host": 6, "missing": 1, "extra": 1, "changed": 1}
+    assert rec["counts"] == {"pinned": N_PLANTED, "host": N_PLANTED, "missing": 1, "extra": 1, "changed": 1}
     assert rec["first_paths"] == ["MISSING data/raw/r.txt", "CHANGED data/processed/AAA_1d.csv",
                                   "EXTRA data/macro/NEW.parquet"]
 
@@ -230,7 +237,7 @@ def test_LOCK_fail_closed_a_verify_that_DIES_without_stamping_gets_an_ERROR_stam
     _janitor_on(monkeypatch, tmp_path, m)
     digest = st.manifest_digest(m)
     old = st.make_record("PASS", "janitor_nightly", None, "0" * 32,
-                         {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}, [],
+                         {"pinned": N_PLANTED, "host": N_PLANTED, "missing": 0, "extra": 0, "changed": 0}, [],
                          verified_at=st.utc_now_iso(datetime.now(timezone.utc) - timedelta(hours=1)))
     st.write_stamp(digest, old, root=tmp_path)
     monkeypatch.setattr(jn, "_run", lambda cmd, **kw: subprocess.CompletedProcess(
@@ -250,7 +257,7 @@ def test_LOCK_a_PASS_stamped_SECONDS_before_a_verify_that_died_is_NOT_tonights(t
     _janitor_on(monkeypatch, tmp_path, m)
     digest = st.manifest_digest(m)
     just_now = st.make_record("PASS", "janitor_nightly", None, "0" * 32,
-                              {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}, [])
+                              {"pinned": N_PLANTED, "host": N_PLANTED, "missing": 0, "extra": 0, "changed": 0}, [])
     st.write_stamp(digest, just_now, root=tmp_path)
     monkeypatch.setattr(jn, "_run", lambda cmd, **kw: subprocess.CompletedProcess(
         cmd, -9, "", "Killed: 9\n"))
@@ -468,7 +475,7 @@ def test_LOCK_generate_stamps_PASS_as_repin_after_its_OWN_full_verify(tmp_path):
     assert doc["schema"] == st.SCHEMA and list(doc["stamps"]) == [digest]
     rec = st.read_stamp(digest, root=tmp_path)
     assert rec["result"] == "PASS" and rec["writer"] == "repin"
-    assert rec["counts"] == {"pinned": 6, "host": 6, "missing": 0, "extra": 0, "changed": 0}
+    assert rec["counts"] == {"pinned": N_PLANTED, "host": N_PLANTED, "missing": 0, "extra": 0, "changed": 0}
     assert rec["s3_prefix_md5"] == hashlib.md5(m.read_bytes()).hexdigest()
     assert not list(m.parent.glob("*.tmp.*"))                            # the temp was renamed, not left
 
