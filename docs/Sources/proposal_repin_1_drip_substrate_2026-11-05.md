@@ -123,6 +123,9 @@ tree: no `--stamp-root`) → the manifest diff reviewed class by class against �
 record and the ledger row.
 
 D3. Push under the delegated checks (ls-remote unchanged, secrets scan, no blobs over 5 MB, fast-forward).
+**ORDER CORRECTED at execution (2026-11-05): D4 runs BEFORE D3.** The push fires the CI image build, whose first
+step syncs the prefix keyed by the committed manifest's md5 — if the prefix is published after the push, that
+build fails at the sync with nothing to fetch; published first, the push's own build is D5's artifact.
 
 D4. S3: `_director_tools/repin1_s3_publish.sh stage` hardlinks EXACTLY the manifest's files outside the repo and verifies
 the stage with the generator (0/0/0); `upload` syncs it to `substrate/<new md5>/data/` (refusing a non-empty prefix),
