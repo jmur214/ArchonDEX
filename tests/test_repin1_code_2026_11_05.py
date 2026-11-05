@@ -300,10 +300,17 @@ from scripts import build_pit_cap_history_t219 as t219
 _BDAYS = pd.bdate_range("2019-01-01", "2020-12-31")
 
 
+_LIVE_BDAYS = pd.bdate_range("2019-01-01", "2022-12-30")
+
+
 def _t219_root(tmp_path: Path) -> Path:
     """A synthetic checkout: a membership panel (AAA, BBB, CCC, DDD delisted; EEE live), price csvs
     for AAA/BBB/CCC (Close 10.0 through 2019, 20.0 through 2020), and a tiers file with one
-    current-snapshot entry (ZZZ) that the recompute must leave alone."""
+    current-snapshot entry (ZZZ) that the recompute must leave alone. Since the selection rule
+    (tests/test_t219_selection_rule_2026_11_05.py) the cache needs an END the delisted files end
+    before: four LIVE files (EEE, SPY, LV1, LV2) run to 2022-12-30 — the majority (4 of 7), so
+    AAA/BBB/CCC, ending 2020-12-31, are delisted by the cache. EEE is live in the membership
+    (never fetched); SPY/LV1/LV2 are not members."""
     root = tmp_path / "root"
     (root / "data/universe").mkdir(parents=True)
     (root / "data/processed").mkdir(parents=True)
@@ -315,6 +322,9 @@ def _t219_root(tmp_path: Path) -> Path:
     close = [10.0 if d.year == 2019 else 20.0 for d in _BDAYS]
     for t in ("AAA", "BBB", "CCC"):
         pd.DataFrame({"Date": _BDAYS, "Open": close, "Close": close, "Volume": 1}).to_csv(
+            root / f"data/processed/{t}_1d.csv", index=False)
+    for t in ("EEE", "SPY", "LV1", "LV2"):
+        pd.DataFrame({"Date": _LIVE_BDAYS, "Open": 30.0, "Close": 30.0, "Volume": 1}).to_csv(
             root / f"data/processed/{t}_1d.csv", index=False)
     (root / t219.TIERS_REL).write_text(json.dumps(
         {"ZZZ": {"marketCap": 5e9, "tier": "mid", "asof": "2026-06-18", "source": "fast_info"}}, indent=0))
