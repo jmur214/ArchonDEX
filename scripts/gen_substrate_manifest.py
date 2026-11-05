@@ -258,17 +258,30 @@ def _stamp(digest: str, manifest_path: Path, writer: str, stamp_root: Optional[P
     return p
 
 
+#: Paths printed per drift class before the footer counts the rest.
+DRIFT_SHOWN_PER_CLASS = 20
+
+
+def drift_hidden(res: VerifyResult) -> int:
+    """The footer's number: total − shown, shown = Σ min(20, len(class)) over the three classes.
+    Re-pin #1 C2 (2026-11-05): the footer used to subtract a flat 60, so today's 0 / 134 / 5
+    printed "… and 79 more" while 114 paths were hidden (RR-7 D3; R confirmed)."""
+    classes = (res.missing, res.extra, res.changed)
+    shown = sum(min(DRIFT_SHOWN_PER_CLASS, len(c)) for c in classes)
+    return sum(len(c) for c in classes) - shown
+
+
 def _print_drift(res: VerifyResult) -> None:
     print("FAIL: substrate has DRIFTED from the committed manifest:", file=sys.stderr)
-    for p in res.missing[:20]:
+    for p in res.missing[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  MISSING : {p}", file=sys.stderr)
-    for p in res.extra[:20]:
+    for p in res.extra[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  EXTRA   : {p}", file=sys.stderr)
-    for p in res.changed[:20]:
+    for p in res.changed[:DRIFT_SHOWN_PER_CLASS]:
         print(f"  CHANGED : {p}", file=sys.stderr)
-    total = len(res.missing) + len(res.extra) + len(res.changed)
-    if total > 60:
-        print(f"  … and {total - 60} more", file=sys.stderr)
+    hidden = drift_hidden(res)
+    if hidden > 0:
+        print(f"  … and {hidden} more", file=sys.stderr)
     print(
         "Either restore the canonical substrate, or — if the change is deliberate — "
         "regenerate + COMMIT the manifest in the same PR.",

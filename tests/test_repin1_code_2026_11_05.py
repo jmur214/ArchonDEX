@@ -148,3 +148,42 @@ def test_C1_an_absent_curated_file_is_WARNED_and_skipped_before_generate_and_MIS
     _aside(snap)
     res = gm.full_verify(tmp_path, m)
     assert res.missing == ["data/universe/delist_shares_snapshot.parquet"] and not res.extra and not res.changed
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C2 — the drift footer: hidden = total − shown, shown = Σ min(20, len(class))
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _drift(n_missing: int, n_extra: int, n_changed: int) -> gm.VerifyResult:
+    return gm.VerifyResult(pinned=14120, host=14254,
+                           missing=[f"data/raw/m{i}" for i in range(n_missing)],
+                           extra=[f"data/processed/e{i}" for i in range(n_extra)],
+                           changed=[f"data/macro/c{i}" for i in range(n_changed)])
+
+
+def test_LOCK_C2_todays_drift_0_134_5_prints_and_114_more(capsys):
+    """shown = 0 + 20 + 5 = 25; hidden = 139 − 25 = 114. The flat "− 60" footer said 79."""
+    gm._print_drift(_drift(0, 134, 5))
+    err = capsys.readouterr().err
+    assert "  … and 114 more" in err, err
+    assert "79 more" not in err
+    assert err.count("  EXTRA   : ") == 20 and err.count("  CHANGED : ") == 5 and "MISSING" not in err.replace(
+        "FAIL: substrate has DRIFTED", "")
+    assert gm.drift_hidden(_drift(0, 134, 5)) == 114
+
+
+@pytest.mark.parametrize("m, e, c, hidden", [
+    (0, 25, 0, 5),        # total 25 ≤ 60: the old footer printed NOTHING while 5 were hidden
+    (20, 20, 20, 0),      # every path shown: no footer
+    (21, 0, 0, 1),
+    (0, 0, 0, 0),
+    (100, 100, 100, 240),
+])
+def test_LOCK_C2_the_footer_is_exactly_the_hidden_count(capsys, m, e, c, hidden):
+    gm._print_drift(_drift(m, e, c))
+    err = capsys.readouterr().err
+    assert gm.drift_hidden(_drift(m, e, c)) == hidden
+    if hidden:
+        assert f"  … and {hidden} more" in err
+    else:
+        assert "more" not in err.split("Either restore")[0]
