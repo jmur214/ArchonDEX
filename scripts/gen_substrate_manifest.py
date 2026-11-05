@@ -51,7 +51,16 @@ from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core import substrate_stamp as stamp                      # noqa: E402
 
-SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
+SUBSTRATE_DIRS = [
+    "data/processed", "data/raw", "data/governor", "data/macro",
+    # Re-pin #1 (2026-11-05, T-375 C1): the frozen 26-yr arm0 base curve
+    # (t118r_v1_26yr_arm0_3b403882.csv) read by T-171/T-178/T-174 — a controller
+    # product that had ZERO manifest lines (director's ruling 2026-10-15). NOT
+    # regenerated at re-pin #2. `full_verify` requires every dir here to EXIST under
+    # --root, so scripts/build_backtest_image.sh stages it too (verify only; the
+    # Dockerfile does not COPY it — no in-image reader).
+    "data/external/base_curve",
+]
 # T-2026-06-13-164: curated individual files pinned WITHOUT walking their whole
 # parent dir. sp500_membership.parquet drives the resolved universe and is
 # gitignored — its silent regeneration (T-154) broke historical-universe runs
@@ -59,11 +68,30 @@ SUBSTRATE_DIRS = ["data/processed", "data/raw", "data/governor", "data/macro"]
 # (the T-131 discipline). We pin the file only, NOT data/universe/ — that dir
 # also holds the bulky Wikipedia/Clenow scrape cache (raw_membership_sources/)
 # which is rebuildable and must NOT bloat the image.
+# Re-pin #1 (2026-11-05, T-375 C1; the record's §0 second blocker): the honest-N gate's
+# two inputs (`core/measurement/mbl_gate.py` DEFAULT_ARTIFACT_DIR / DEFAULT_PIN_PATH),
+# pinned BY NAME — never data/observability/, which also holds run logs and S3 mirrors.
+# The names MUST equal `config/honest_n_pin.json`'s (locked in
+# tests/test_repin1_code_2026_11_05.py; the lock fails naming both files), so a future
+# `honest_n_pin --pin --replace` forces a manifest edit in the same reviewed act. The
+# image COPYs exactly these two and verifies the pin at build (Dockerfile.backtest), and
+# the CI's S3 sync carries them under the content-addressed prefix because they are here.
+HONEST_N_FILES = (
+    "data/observability/n_effective_2026-09-30.json",
+    "data/observability/run_registry.sqlite",
+)
 SUBSTRATE_FILES = [
     "data/universe/sp500_membership.parquet",
     # T-2026-06-18-210/215: the realistic-retail cap-tier join. Baked +
     # pinned so realistic_retail_costs=true is not silently inert on the cloud.
     "data/universe/market_cap_tiers.json",
+    # Re-pin #1 (T-375 C1): the T-219 shares histories fetched ONCE
+    # (`scripts/build_pit_cap_history_t219.py --write-snapshot`), so re-pin #2's cohort
+    # recompute is deterministic and never fetches. ABSENT until the data half writes it:
+    # `iter_substrate_files` WARNs and skips an absent curated file, so before `generate`
+    # it simply has no manifest line; once pinned, an absent file is MISSING at verify.
+    "data/universe/delist_shares_snapshot.parquet",
+    *HONEST_N_FILES,
 ]
 JUNK_NAMES = {".DS_Store"}
 JUNK_SUFFIXES = {".pyc"}
