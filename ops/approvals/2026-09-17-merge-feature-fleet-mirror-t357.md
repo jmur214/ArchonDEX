@@ -1,6 +1,6 @@
 ---
 id: merge-feature-fleet-mirror-t357
-status: pending
+status: withdrawn
 kind: merge
 asked_by: director_pass
 asked_on: 2026-09-17
@@ -19,3 +19,6 @@ A merge decision is ready for `feature/fleet-mirror-t357`.
 ## To answer
 Set `status:` to `approved` or `declined` in the frontmatter above and commit.
 The pass that raised this never acts on it — answering is the action.
+
+## Withdrawn
+On 2026-09-18 the branch was no longer ahead of origin/main — merged, deleted, or rebased away. The decision this asked for is no longer open; the record of having asked stands.

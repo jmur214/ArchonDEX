@@ -1,6 +1,6 @@
 ---
 id: merge-feature-doc-anchor-lint
-status: pending
+status: withdrawn
 kind: merge
 asked_by: agent_b
 asked_on: 2026-09-30
@@ -61,3 +61,6 @@ Commits `2ed7704` (check, janitor guard, 27 tests), `0221f95` (four seeded ancho
 
 ## To answer
 Set `status:` to `approved` or `declined` in the frontmatter above and commit.
+
+## Withdrawn
+On 2026-10-15 the branch was no longer ahead of origin/main — merged, deleted, or rebased away. The decision this asked for is no longer open; the record of having asked stands.
