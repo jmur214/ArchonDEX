@@ -760,7 +760,10 @@ scripts/build_backtest_image.sh <ref> archondex-backtest:<tag>
 # Inside the build (Dockerfile.backtest), after the data COPYs: the two pinned honest-N files
 # are COPYd by name into /app/data/observability/ and `python -m scripts.honest_n_pin --verify`
 # runs — exit 3 (PIN INVALID) fails the build, so the image cannot ship an N its pin disagrees
-# with (re-pin #1, T-375 C6); then `scripts/sync_edge_registry.py --check`. The staging mirrors
+# with (re-pin #1, T-375 C6); then `scripts/sync_edge_registry.py --check --registry
+# data/governor/_isolated_anchor/edges.yml` — the ANCHOR's registry, the one run_isolated restores and a cell
+# executes from (the live edges.yml is not baked, T-133); it FAILS while the anchor disagrees with the code
+# (2026-11-05: 9 code-registered edges absent from the May anchor — the re-anchor is a canon change). The staging mirrors
 # the manifest scope: base_curve (verify only), the snapshot when present, the two files
 # (absent = a named exit 65).
 
