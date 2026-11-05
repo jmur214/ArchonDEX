@@ -137,6 +137,17 @@ D5. `gh workflow run` "Build & push backtest image" at the pushed commit. First 
 `honest_n_pin --verify` both run inside the build. The step may still exit 1 on the trailing `ecr:BatchGetImage` denial
 (§0b) — that is recorded, not a failure of this unit; the IAM fix is the user's.
 
+**D5 OUTCOME (2026-11-05 16:01):** the CI run fired by the push `2e65544` is the first since May to reach the
+registry step with the right substrate: `substrate manifest md5: 44d3be53b1f59377abfae9ed66840116` synced; in-image
+`honest_n_pin --verify` → `PIN OK` (C6's first artifact); then `sync_edge_registry.py --check` → `data/governor/edges.yml
+(0 rows)`, exit 1. The live registry is not baked by design (T-133) and `run_isolated` restores the governor set from
+`_isolated_anchor/` on entry — the default-path check certified an absent file. Re-targeted to the anchor's registry
+(branch `repin-1-anchor-check`, reviewed by diff, merged behind this record), and against the anchor a sync WOULD
+CHANGE it: 9 code-registered edges absent — so the build fails for the REAL reason until the anchor is re-saved and
+re-pinned, a canon change scheduled with cutover day's re-anchor (health_check MEDIUM row, 2026-11-05). No
+`sha-2e65544` image exists in ECR; **D7's provenance cell is DEFERRED to the first image that builds.** The
+registry companion in the prefix is moot for the image (not baked) and harmless.
+
 D6. Tonight's janitor row: `substrate_verify PASS` with the stamp written by `janitor_nightly` — the stamp's first
 artifact from its second writer.
 
