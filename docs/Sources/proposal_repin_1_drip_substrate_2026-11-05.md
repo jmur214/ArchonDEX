@@ -66,7 +66,7 @@ VM was the largest process in the 10-18 memory-pressure kills).
 | EXTRA, `data/processed/tr_reconciled` | 39 csv + `_tr_manifest.json` (40) | T-256 reconcile; read by `core/benchmark.py`, `engine_e_regime/macro_features.py`, two foundry features; baked into the paper image UNPINNED today | PIN |
 | EXTRA, `data/raw/cboe` | 6 `_cdn.csv` + the wayback `.xls` (7) | T-256/T-274 | PIN |
 | NEW SCOPE | `data/external/base_curve/t118r_v1_26yr_arm0_3b403882.csv` (1) | the frozen 26-yr arm0 curve read by T-171/T-178/T-174; a controller product with zero manifest lines | PIN — director's ruling 2026-10-15; NOT regenerated at re-pin #2 |
-| NEW FILE | `data/universe/delist_shares_snapshot.parquet` (1) | the T-219 shares histories fetched ONCE (§3 D1) | PIN — so re-pin #2's cohort recompute is deterministic and never fetches |
+| NEW FILES | `data/universe/delist_shares_snapshot.parquet` + `delist_shares_snapshot.meta.json` (2) | the T-219 shares histories fetched ONCE (§3 D1) and the per-name fetched/empty/failed record of that fetch (reviewer F2: the snapshot's provenance, pinned beside it by name) | PIN — so re-pin #2's cohort recompute is deterministic and never fetches |
 | NEW SCOPE | `data/observability/n_effective_2026-09-30.json`, `data/observability/run_registry.sqlite` (2) | the honest-N gate's two inputs, already pinned by `config/honest_n_pin.json` | PIN by name (never the directory) — §0's second blocker |
 | ABSENT, recorded | DFII10 | no file anywhere under `data/` (RR-7 D3); `macro_real_rate_v1` is paused; `real_rate_level` is an AUX column the production 7-feature HMM does not read | NOT fetched. A new macro series pulled at pin time would be an unreviewed input entering the substrate in the act that certifies it. Fetch it as its own declared act when a consumer is live. The edge docstring's "now feeds Engine E's HMM" is corrected to the fact |
 
@@ -111,9 +111,12 @@ the worktree before posting.
 ## 3. The DATA half — the director, in the main tree, after the code merges
 
 D1. `--write-snapshot data/universe/delist_shares_snapshot.parquet` (network). Then `--from-snapshot` into a scratch
-path and DIFF against the current file's 138 `delist_shares` entries — the recompute's FIRST ARTIFACT. Equal caps
-prove the snapshot reproduces June's live fetch; differences (shares revisions, late delistings) are LISTED, never
-hidden. `market_cap_tiers.json` is NOT rewritten at re-pin #1; it is pinned as-is.
+path and DIFF THE WHOLE recomputed file against the current one — the recompute's FIRST ARTIFACT (reviewer F1: the
+recompute writes every snapshot name with a positive cap, so it would also replace the 55 cohort names that carry a
+current-snapshot cap today, not only the 138 `delist_shares` entries; `cap_at_delist` keys its window on the price
+file's LAST BAR, so for a still-trading name it is the current cap). Equal caps on the 138 prove the snapshot
+reproduces June's live fetch; every difference and every would-be replacement is LISTED, never hidden.
+`market_cap_tiers.json` is NOT rewritten at re-pin #1; it is pinned as-is.
 
 D2. `gen_substrate_manifest.py verify` (expect §1's counts) → `generate` (stamps PASS, writer `repin`, in the MAIN
 tree: no `--stamp-root`) → the manifest diff reviewed class by class against §1 → commit the manifest with this
@@ -148,6 +151,14 @@ registry rows, artifact date — observability proposal step 5). RR-3's halt lif
   `archondex-github-ci-role` for `repository/archondex-backtest` (§0b). Not an action the director takes on the account.
 - Whether `data/governor/edges.yml` should instead be TRACKED (the build-time check then certifies the committed
   state; Engine D's promotion writes would churn git) — a decision for the registry's owner, not this unit.
+- OWED before re-pin #2 (reviewer F1, MINOR): the recompute's SELECTION rule — June's `main()` skipped names already
+  carrying a cap; `--from-snapshot` overwrites them. Rule to build and lock: write cap-at-delist only for names whose
+  price file ENDS before the recompute date (truly delisted); leave a still-trading name's current-snapshot cap. The
+  D1 whole-file diff is the evidence that sizes it.
+- EXPECTED after this merge (reviewer F6): the CI image build fires on the push (`engines/**`, `Dockerfile.backtest`
+  are trigger paths) and fails at STAGING — the runner's data is the still-committed June prefix, which has no
+  `data/external/base_curve` and no observability files — until D2–D4 publish the new manifest and prefix. Not this
+  unit's defect; recorded so the first red run is read correctly.
 - Re-pin #2 and everything on cutover day.
 
 ## 5. What the reviewer must see FAIL under reversion
