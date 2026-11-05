@@ -453,3 +453,147 @@ def test_C4_the_tier_arithmetic_is_unchanged_and_the_meta_sits_beside_the_parque
     cap, end = t219.cap_at_delist(px, sh)
     assert cap == 200.0 and str(end.date()) == "2020-01-02"                   # only 2020-01-02 has shares: 2 × 100
     assert t219.cap_at_delist(px, pd.Series([5.0], index=pd.DatetimeIndex(["2019-01-01"]))) is None   # no overlap
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C6 — the image carries the two pinned honest-N files and verifies the pin at build
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import shutil
+import subprocess
+
+import core.measurement.mbl_gate as mbl
+from scripts.honest_n_pin import main as pin_main, write_pin
+
+DOCKERFILE = REPO / "Dockerfile.backtest"
+DOCKERIGNORE = REPO / ".dockerignore"
+BUILD_SH = REPO / "scripts" / "build_backtest_image.sh"
+REAL_OBS = REPO / "data" / "observability"
+
+
+def _pin_names() -> dict:
+    pin = json.loads(PIN.read_text())
+    return {"artifact": pin["artifact"]["file"], "registry": pin["registry"]["file"]}
+
+
+def _synthetic_pair(d: Path):
+    """A pinned pair the gate accepts (the honest_n tests' shape): a 231-row registry and a ρ̄ artifact."""
+    import sqlite3
+    reg = d / "run_registry.sqlite"
+    c = sqlite3.connect(reg)
+    c.execute("CREATE TABLE runs (run_id TEXT PRIMARY KEY)")
+    c.executemany("INSERT INTO runs VALUES (?)", [(f"r{i}",) for i in range(231)])
+    c.commit(); c.close()
+    art = d / "n_effective_2026-09-30.json"
+    art.write_text(json.dumps({"rho_bar": 0.43, "onc_compression": 0.16,
+                               "gate_inputs": {"rho_bar": 0.43, "onc_compression": 0.16}}))
+    pin = d / "honest_n_pin.json"
+    write_pin(art.name, artifact_dir=d, db_path=reg, pin_path=pin)
+    return reg, art, pin
+
+
+def _image_like(src_dir: Path, names: dict, image: Path) -> Path:
+    """What the Dockerfile's two COPY lines produce: exactly the two files under
+    <image>/data/observability/, nothing else from the source directory."""
+    obs = image / "data" / "observability"
+    obs.mkdir(parents=True)
+    for n in names.values():
+        shutil.copyfile(src_dir / n, obs / n)
+    return obs
+
+
+def _verify_at(obs: Path, names: dict, pin: Path, monkeypatch) -> int:
+    """`python -m scripts.honest_n_pin --verify` against `obs`: the real main(), its three
+    defaults redirected the way tests/test_honest_n_pin.py redirects them."""
+    monkeypatch.setattr(mbl, "DEFAULT_ARTIFACT_DIR", obs)
+    monkeypatch.setattr(mbl, "DEFAULT_DB_PATH", obs / names["registry"])
+    monkeypatch.setattr(mbl, "DEFAULT_PIN_PATH", pin)
+    return pin_main(["--verify"])
+
+
+def _plant_byte(p: Path) -> None:
+    b = bytearray(p.read_bytes())
+    b[len(b) // 2] ^= 0x01
+    p.write_bytes(bytes(b))
+
+
+def test_LOCK_C6_verify_passes_on_the_copied_pair_and_exits_3_after_one_planted_byte(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "host"
+    src.mkdir()
+    _, _, pin = _synthetic_pair(src)
+    names = {"artifact": "n_effective_2026-09-30.json", "registry": "run_registry.sqlite"}
+    obs = _image_like(src, names, tmp_path / "image")
+    assert sorted(x.name for x in obs.iterdir()) == sorted(names.values())
+    assert _verify_at(obs, names, pin, monkeypatch) == 0 and "PIN OK" in capsys.readouterr().out
+    for role in ("artifact", "registry"):                      # one byte in either file fails the build step
+        good = (obs / names[role]).read_bytes()
+        _plant_byte(obs / names[role])
+        assert _verify_at(obs, names, pin, monkeypatch) == 3, role
+        assert "PIN INVALID" in capsys.readouterr().out
+        (obs / names[role]).write_bytes(good)
+    assert _verify_at(obs, names, pin, monkeypatch) == 0
+
+
+def test_C6_the_REAL_pin_verifies_the_REAL_files_copied_as_the_image_copies_them_and_a_planted_byte_fails(
+        tmp_path, monkeypatch, capsys):
+    """The build step's own inputs: the committed pin against copies of the two real files. Skipped
+    where the files are not on the host (a bare CI checkout has no data/)."""
+    names = _pin_names()
+    missing = [n for n in names.values() if not (REAL_OBS / n).is_file()]
+    if missing:
+        pytest.skip(f"the pinned honest-N files are not on this host: {missing}")
+    obs = _image_like(REAL_OBS, names, tmp_path / "image")
+    assert _verify_at(obs, names, PIN, monkeypatch) == 0, capsys.readouterr().out
+    _plant_byte(obs / names["registry"])
+    assert _verify_at(obs, names, PIN, monkeypatch) == 3
+    assert "run registry" in capsys.readouterr().out
+
+
+def test_C6_the_exact_build_command_runs_on_this_tree():
+    """`python -m scripts.honest_n_pin --verify` as the Dockerfile runs it (a subprocess, the real
+    defaults): PIN OK where the two files are on the host; skipped otherwise."""
+    names = _pin_names()
+    if any(not (REAL_OBS / n).is_file() for n in names.values()):
+        pytest.skip("the pinned honest-N files are not on this host")
+    r = subprocess.run([sys.executable, "-m", "scripts.honest_n_pin", "--verify"], cwd=REPO,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0 and "PIN OK" in r.stdout, r.stdout + r.stderr
+
+
+def test_LOCK_C6_TEXT_the_image_copies_exactly_the_pins_two_files_by_name_and_verifies_before_the_registry_check():
+    """A text check, labelled as such: the subject IS the Dockerfile. The two COPY lines name the
+    pin's files (so a `--pin --replace` must edit the Dockerfile too), sit after the governor COPY
+    and before the sync_edge_registry check, the verify RUN follows them, and the later mkdir -p
+    cannot clobber them. The directory is never COPYd."""
+    df = DOCKERFILE.read_text()
+    names = _pin_names()
+    copies = [f"COPY --chown=archondex:archondex data/observability/{n} ./data/observability/{n}" for n in names.values()]
+    for line in copies:
+        assert df.count(line) == 1, line
+    verify = "RUN python -m scripts.honest_n_pin --verify"
+    assert df.count(verify) == 1
+    governor = "COPY --chown=archondex:archondex data/governor/ ./data/governor/"
+    registry_check = "RUN python scripts/sync_edge_registry.py --check"
+    mkdir = "RUN mkdir -p /app/data/trade_logs /app/data/observability"
+    order = [df.index(governor), min(df.index(c) for c in copies), max(df.index(c) for c in copies),
+             df.index(verify), df.index(registry_check), df.index(mkdir)]
+    assert order == sorted(order), order
+    assert "data/observability/ ./data/observability/" not in df            # by name, never the directory
+    assert "substrate-pinned" in df or "SUBSTRATE_FILES" in df                # the comment says why the S3 sync carries them
+
+
+def test_LOCK_C6_TEXT_dockerignore_re_includes_exactly_the_two_files_and_the_build_script_stages_the_new_scope():
+    names = _pin_names()
+    di = DOCKERIGNORE.read_text().splitlines()
+    assert "data/observability/" in di
+    excl = di.index("data/observability/")
+    bangs = [l for l in di if l.startswith("!data/observability/")]
+    assert sorted(bangs) == sorted(f"!data/observability/{n}" for n in names.values()), bangs
+    assert all(di.index(b) > excl for b in bangs)                             # the exception follows the exclusion
+    sh = BUILD_SH.read_text()
+    for n in names.values():
+        assert f"data/observability/{n}" in sh, n
+    assert '"data/external/base_curve" "$STAGE/data/external/"' in sh
+    assert "data/universe/delist_shares_snapshot.parquet" in sh
+    for d in gm.SUBSTRATE_DIRS:                                                # every substrate dir is staged
+        assert d.split("/", 1)[1].split("/")[0] in sh or d in sh, d
