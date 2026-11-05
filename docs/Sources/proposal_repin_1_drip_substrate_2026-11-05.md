@@ -140,8 +140,25 @@ D5. `gh workflow run` "Build & push backtest image" at the pushed commit. First 
 D6. Tonight's janitor row: `substrate_verify PASS` with the stamp written by `janitor_nightly` — the stamp's first
 artifact from its second writer.
 
-D7. The first `--discover` cell on the new image, a SHORT window: the cycle records its N with provenance (source,
-registry rows, artifact date — observability proposal step 5). RR-3's halt lifting is OBSERVED there, not assumed.
+D7. ~~The first `--discover` cell on the new image~~ — **WITHDRAWN at execution (2026-11-05), by the director's own
+RR-3B ruling of 2026-10-13:** "Cloud `--discover` stays halted until Option B's rebuilt registry exists … shipping
+Option A's registry into the image would end the halt by feeding the cloud a count that structurally omits its own
+runs." C6 ships exactly those files, so the brake that was ACCIDENTAL (absent files → `HonestNUnavailableError`)
+is gone from the image and the halt is now a RULING with no mechanism behind it. Today no cloud launcher runs
+`--discover` (`cloud_entrypoint.sh` runs `run_isolated --task q1` only), so nothing runs loosened; but the
+mechanism is owed — PROPOSED (referee code, never autonomously modifiable): the discovery path refuses on a cloud
+cell (`ARCHONDEX_CELL_ID` set) while the pinned artifact is not the Option B population. **D7 as executed:** a
+one-off PROVENANCE cell on the new image — `gen_substrate_manifest.py verify` inside the container (the baked
+substrate against the committed manifest), `honest_n_pin --verify`, and `resolve_cycle_n_trials` printing its
+source and N — the observability step-5 artifact without a cycle. A registered-then-deregistered job definition
+pinned to the `sha-` tag, as the 10-22 image audit did.
+
+D8. **Found at D7 (2026-11-05): the default Batch job definition `archondex-backtest` (rev 3, the one
+`submit_substrate_run.py` picks) points at `archondex-backtest:dev`, and `:dev` is the image pushed 2026-06-10
+(tag `t118-3953085`)** — CI never retags it (§0b). Every MEASURED campaign used a campaign jobdef pinned to a
+`sha-` tag (t215, foundry-t196, the re-anchors), so no quoted verdict ran on it; but the default is a June image
+and `docs/Cloud/CLOUD_USAGE.md`'s `imageTag=dev` line points at it. The re-run campaign MUST register its jobdef
+revision against the `sha-` tag of the commit it measures, never `:dev`; the doc line is corrected in this unit.
 
 ## 4. Not in this unit (recorded so nothing reads as forgotten)
 

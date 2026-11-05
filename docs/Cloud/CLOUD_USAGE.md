@@ -17,11 +17,15 @@ aws batch describe-job-queues --profile archondex --region us-east-1 \
   --job-queues archondex-backtest-queue --query 'jobQueues[0].state' --output text
 # Expected: ENABLED
 
-# 3. ECR image fresh? (compare to git HEAD)
-aws ecr describe-images --repository-name archondex-backtest --image-ids imageTag=dev \
+# 3. ECR image fresh? — by the SHA TAG of the commit you will measure, NEVER `:dev`
+#    (re-pin #1 finding, 2026-11-05: `:dev` is the image pushed 2026-06-10 — the CI build has failed
+#    after its sha-tag push on every main push since 2026-05-24, so the retag never runs; the default
+#    job definition `archondex-backtest` points at `:dev` and is therefore a JUNE image — register a
+#    campaign job definition pinned to the sha tag, as every measured campaign has).
+aws ecr describe-images --repository-name archondex-backtest --image-ids imageTag=sha-$(git rev-parse --short HEAD) \
   --profile archondex --region us-east-1 \
   --query 'imageDetails[0].imagePushedAt' --output text
-# Expected: a date >= the most recent main commit. If staler, see "Refreshing the image" below.
+# Expected: a date; an ImageNotFoundException means the commit has no image — see "Refreshing the image" below.
 ```
 
 If any check fails: STOP. Don't submit jobs against broken infra. Surface the failure to the director with the error text.
