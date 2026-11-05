@@ -757,11 +757,25 @@ junk, uncommitted files); the T-125→T-127 saga came from exactly that.
 # data substrate against the committed manifest, label provenance:
 scripts/build_backtest_image.sh HEAD                      # → :dev + :sha-<short>
 scripts/build_backtest_image.sh <ref> archondex-backtest:<tag>
+# Inside the build (Dockerfile.backtest), after the data COPYs: the two pinned honest-N files
+# are COPYd by name into /app/data/observability/ and `python -m scripts.honest_n_pin --verify`
+# runs — exit 3 (PIN INVALID) fails the build, so the image cannot ship an N its pin disagrees
+# with (re-pin #1, T-375 C6); then `scripts/sync_edge_registry.py --check`. The staging mirrors
+# the manifest scope: base_curve (verify only), the snapshot when present, the two files
+# (absent = a named exit 65).
 
-# Substrate manifest (pins data/processed + data/raw + governor ANCHORS;
-# the 9 live mutable governor files are excluded — T-131 policy):
+# Substrate manifest (pins data/processed + data/raw + data/macro + governor ANCHORS;
+# the 9 live mutable governor files are excluded — T-131 policy). SCOPE since re-pin #1
+# (T-375 C1, 2026-11-05): SUBSTRATE_DIRS += data/external/base_curve (the frozen 26-yr
+# arm0 curve); SUBSTRATE_FILES += data/universe/delist_shares_snapshot.parquet (the T-219
+# shares snapshot; absent until written — WARNed and skipped, MISSING once pinned) and the
+# honest-N gate's two inputs BY NAME, never the directory: data/observability/
+# n_effective_2026-09-30.json + run_registry.sqlite — the names config/honest_n_pin.json
+# carries (a `--pin --replace` must edit the manifest scope, the Dockerfile COPYs, the
+# .dockerignore exceptions and build_backtest_image.sh's staging in the same act; locked).
+# The drift footer counts hidden = total − shown (shown = up to 20 per class).
 python3 scripts/gen_substrate_manifest.py verify           # check current state
-python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE change; commit in same PR
+python3 scripts/gen_substrate_manifest.py generate         # after a DELIBERATE change; commit in same PR — the MAIN tree, the committed default manifest, no --stamp-root (anything else REFUSES, exit 4: see below)
 
 # Anchor update (deliberate, director-coordinated, 3 steps):
 python -m scripts.run_isolated --save-anchor               # writes + chmods anchors 0o444
@@ -1390,6 +1404,11 @@ python -m scripts.rr3_empirical_rho --s3-mirror <dir>      # measure ρ̄ / ONC 
 python -m scripts.rr3b_population_pass --s3-mirror <dir>   # Option B population numbers -> data/observability/rr3b_population_<today>.json (never n_effective_*)
 python -m scripts.honest_n_pin --pin n_effective_<date>.json --note "why" --replace   # re-pin BOTH files; refuses without --replace if a pin exists; takes effect only when COMMITTED
 ```
+
+Since re-pin #1 (T-375, 2026-11-05) both files are also substrate-pinned BY NAME (`gen_substrate_manifest.py`
+SUBSTRATE_FILES, locked equal to the pin's names), ride the content-addressed S3 prefix, are COPYd by name into the
+backtest image, and `python -m scripts.honest_n_pin --verify` runs at image build (exit 3 fails it) — before this the
+image created `data/observability/` EMPTY and Discovery's Gate 0 raised `HonestNUnavailableError` on every cloud run.
 
 **Neither a re-run of `rr3_empirical_rho` nor a registry rebuild or backfill changes the gate.** A new artifact is
 ignored until pinned; a registry whose bytes changed (rebuilt, backfilled, recreated after loss) makes the gate
