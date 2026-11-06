@@ -863,7 +863,11 @@ the FIX; the first refusal is the whole output:
   `anchors_registry.py add` writes history, a submit never does; restore config/anchors.json from git
   if it is missing". The rule for a registry path given explicitly (`anchors_path`, the locks' hook):
   it must lie INSIDE the checkout and is checked by its path relative to the tree; a registry outside
-  the checkout is "not a pin", however sound its content.
+  the checkout is "not a pin", however sound its content. The path is taken LEXICALLY — no symlink is
+  followed — and a symlink at or above `config/anchors.json` on disk ("… is a symlink (→ target) — the
+  registry must be a regular committed file"), a non-regular file, or a symlink blob (mode 120000) at
+  that path in HEAD each refuse, so a link cannot re-point the check at another committed file's blob
+  (review F11).
 - **(e) the anchor** — then a spec `anchor` block must be in the registry: matched by `canon_md5`
   (the SHORTER of the two lowercase hex strings is a prefix of the longer, both ≥ 8 hex; so the
   recorded prefix `158fe678` matches), on the SAME image (a full ECR ref reduces to its `sha-<short>`
