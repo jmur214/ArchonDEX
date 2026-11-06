@@ -192,10 +192,12 @@ revision against the `sha-` tag of the commit it measures, never `:dev`; the doc
   `archondex-github-ci-role` for `repository/archondex-backtest` (§0b). Not an action the director takes on the account.
 - Whether `data/governor/edges.yml` should instead be TRACKED (the build-time check then certifies the committed
   state; Engine D's promotion writes would churn git) — a decision for the registry's owner, not this unit.
-- OWED before re-pin #2 (reviewer F1, MINOR): the recompute's SELECTION rule — June's `main()` skipped names already
-  carrying a cap; `--from-snapshot` overwrites them. Rule to build and lock: write cap-at-delist only for names whose
-  price file ENDS before the recompute date (truly delisted); leave a still-trading name's current-snapshot cap. The
-  D1 whole-file diff is the evidence that sizes it.
+- ~~OWED before re-pin #2 (reviewer F1, MINOR): the recompute's SELECTION rule~~ — **LANDED 2026-11-05 at `7c1a240`
+  (T-378)**: rule (2) a current-snapshot cap is never replaced; rule (1) the file's last bar before the majority cache
+  end − 5 trading days. The identity holds on today's cache AND on the step-1 copy (re-pin #2's diff is EMPTY by
+  construction). Still owed, found by its review: a DECLARED-list guard (the pass record's classes) before any
+  RE-FETCHED snapshot; the `included_until`-keyed window for the 88 frozen trailing medians; a declaration or null for
+  POM/SLE (capped reused tickers).
 - EXPECTED after this merge (reviewer F6): the CI image build fires on the push (`engines/**`, `Dockerfile.backtest`
   are trigger paths) and fails at STAGING — the runner's data is the still-committed June prefix, which has no
   `data/external/base_curve` and no observability files — until D2–D4 publish the new manifest and prefix. Not this
