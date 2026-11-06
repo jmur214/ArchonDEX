@@ -144,8 +144,11 @@
 ### `anchors_registry.py`
 **Module Docstring:** The canon-anchor REGISTRY — `config/anchors.json`, D's half of the campaign submit gate (2026-11-05).
 - **Class `AnchorsDefect`**: `config/anchors.json` cannot be trusted (unparseable, wrong schema, a malformed entry).
+- **Class `NotCommitted`**: A tracked file in the tree is not a pin — uncommitted (staged or not), absent at HEAD,
 - **Class `ManifestNotCommitted`**: P2: the tree's manifest is not a pin — uncommitted, absent at HEAD, or not a checkout.
-- **Function `committed_manifest_digest()`**: sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` — HEAD's manifest bytes.
+- **Function `committed_file_sha256()`**: sha256 of `git show HEAD:<rel>` in `tree` — HEAD's bytes of one tracked file.
+- **Function `check_file_committed()`**: The on-disk file's sha256 (`core.substrate_stamp.manifest_digest`, the one identity
+- **Function `committed_manifest_digest()`**: sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` (`ManifestNotCommitted`
 - **Function `check_manifest_committed()`**: P2 as the gate and `add` apply it: the on-disk manifest's digest, REQUIRED equal to HEAD's.
 - **Function `image_tag()`**: The tag of an image reference, lowercase: `sha-3863ef8`, `archondex-backtest:sha-3863ef8`
 - **Function `normalize_canon()`**: A spec's or an entry's canon md5 as lowercase hex of 8..32 chars; ValueError otherwise.

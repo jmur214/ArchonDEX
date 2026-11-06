@@ -73,11 +73,18 @@ STEP and its FIX:
   (d) it must be fresh: older than FRESHNESS (48 h) refuses with "stamp
       expired; is the re-pin pushed? (the relay_gap row)"; future-dated
       refuses;
-  (e) a spec `anchor` block must be in config/anchors.json (by canon_md5,
+  (e) a spec `anchor` block: first the registry itself must be COMMITTED
+      (the on-disk config/anchors.json hashes equal to `git show HEAD:` —
+      an uncommitted or staged edit, a file absent at HEAD or on disk, or a
+      registry outside the checkout refuses: "(e: anchor registry
+      committed)", review F3); then the anchor must be in it (by canon_md5,
       the registry's prefix rule), on the SAME image, and measured under
-      the CURRENT manifest's digest — else refuse naming the anchor and
-      both digests. A multi-arm spec with no anchor block passes (e) by
-      the T-140 baseline-arm rule; (a)-(d) still apply.
+      the CURRENT manifest's digest — else refuse naming EVERY same-image
+      candidate with its digest beside the current one (F2); more than one
+      candidate under the current digest refuses as AMBIGUOUS naming each
+      id (F1: cite a longer canon_md5 or the full value). A multi-arm spec
+      with no anchor block passes (e) by the T-140 baseline-arm rule;
+      (a)-(d) still apply.
 The gate never writes the stamp or the registry. Its record (digest,
 stamp verdict, the anchor entry) is stored on the spec as
 `_substrate_gate` and written into the campaign JSON summary as
@@ -412,15 +419,62 @@ def _gate_stamp_is_fresh(rec: Dict, digest: str, now: Optional[datetime]) -> Non
                   "check the writer host's clock, then run the nightly or re-pin")
 
 
-def _gate_anchor(spec: Dict, digest: str, anchors_path: Path) -> Optional[Dict]:
-    """(e) the registry: the spec's anchor must be registered, on the same image, measured
-    under the CURRENT manifest's digest. No anchor block → None (the T-140 rule decides)."""
+def _gate_registry_committed(tree: Path, anchors_path: Path) -> None:
+    """(e, first) F3: the registry a submit honours is the COMMITTED one. The rule: `anchors_path`
+    must lie INSIDE the checkout `tree` (resolved; outside is "not a pin"), and its on-disk bytes
+    must hash equal to `git show HEAD:<its path relative to tree>` — uncommitted or staged edits,
+    absent at HEAD, absent on disk each refuse, named."""
+    step = "e: anchor registry committed"
+    fix = ("commit the registry — `anchors_registry.py add` writes history, a submit never does; "
+           "restore config/anchors.json from git if it is missing")
+    try:
+        rel = Path(anchors_path).resolve().relative_to(Path(tree).resolve()).as_posix()
+    except ValueError:
+        raise _refuse(step, f"{anchors_path} lies outside the checkout {tree} — a registry outside "
+                            f"the checkout is not a pin",
+                      "use the checkout's committed config/anchors.json") from None
+    try:
+        ar.check_file_committed(tree, rel)
+    except ar.NotCommitted as exc:
+        raise _refuse(step, f"{exc} — an uncommitted registry is not a pin", fix) from exc
+
+
+def _no_current_refusal(same_image: List[Dict], canon: str, want: str, digest: str) -> "SystemExit":
+    """F2: when no same-image entry was measured under the current digest, name EVERY candidate
+    (id → the digest it was measured under) beside the current digest — never just the last."""
+    cands = "; ".join(f"{e['anchor_id']} → {e['substrate_manifest_digest']}" for e in same_image)
+    return _refuse(
+        "e: anchor substrate",
+        f"no registered anchor for canon {canon} on image {want} was measured under the current "
+        f"pinned manifest's digest {digest}; the {len(same_image)} candidate(s) and the digest each "
+        f"was measured under: {cands} — a new substrate means new canons",
+        "re-run the anchor on this substrate (N≥3 bitwise-unanimous arm0); "
+        "`python scripts/anchors_registry.py add` a NEW entry; the old stays as history")
+
+
+def _choose_anchor(current: List[Dict], canon: str, want: str) -> Dict:
+    """F1: exactly one candidate under the current digest; more than one is AMBIGUOUS and refuses
+    naming every id — file order must never pick."""
+    if len(current) > 1:
+        ids = [e["anchor_id"] for e in current]
+        raise _refuse("e: anchor ambiguous",
+                      f"canon_md5 {canon} on image {want} matches {len(current)} registered anchors "
+                      f"under the current digest: {ids}",
+                      "cite a longer canon_md5 or the full value, so exactly one entry matches")
+    return current[0]
+
+
+def _gate_anchor(spec: Dict, digest: str, anchors_path: Path, tree: Path) -> Optional[Dict]:
+    """(e) the registry: COMMITTED (F3), then the spec's anchor must be registered, on the same
+    image, measured under the CURRENT manifest's digest, unambiguously. No anchor block → None
+    (the T-140 rule decides)."""
     anchor = spec.get("anchor")
     if anchor is None:
         return None
     if not isinstance(anchor, dict) or not anchor.get("canon_md5"):
         raise _refuse("e: anchor registered", f"the spec's 'anchor' block carries no canon_md5: {anchor!r}",
                       "give {canon_md5, source, image} (see _enforce_canon_anchor_gate)")
+    _gate_registry_committed(tree, anchors_path)
     try:
         doc = ar.load_anchors(anchors_path)
     except FileNotFoundError:
@@ -454,15 +508,8 @@ def _gate_anchor(spec: Dict, digest: str, anchors_path: Path) -> Optional[Dict]:
             "`anchors_registry.py add` a NEW entry")
     current = [e for e in same_image if e["substrate_manifest_digest"] == digest]
     if not current:
-        e = same_image[-1]
-        raise _refuse(
-            "e: anchor substrate",
-            f"anchor {e['anchor_id']} (canon {canon}, image {want}) was measured under substrate "
-            f"manifest digest {e['substrate_manifest_digest']} but the current pinned manifest's "
-            f"digest is {digest} — a new substrate means new canons",
-            "re-run the anchor on this substrate (N≥3 bitwise-unanimous arm0); "
-            "`python scripts/anchors_registry.py add` a NEW entry; the old stays as history")
-    return current[0]
+        raise _no_current_refusal(same_image, canon, want, digest)
+    return _choose_anchor(current, canon, want)
 
 
 def enforce_substrate_gate(spec: Dict, *, tree: Path, now: Optional[datetime] = None,
@@ -479,7 +526,7 @@ def enforce_substrate_gate(spec: Dict, *, tree: Path, now: Optional[datetime] = 
     rec = _gate_stamp_present(digest, tree)                                   # (b)
     _gate_stamp_is_pass(rec, digest)                                          # (c)
     _gate_stamp_is_fresh(rec, digest, now)                                    # (d)
-    entry = _gate_anchor(spec, digest, anchors_path)                          # (e)
+    entry = _gate_anchor(spec, digest, anchors_path, tree)                    # (e)
     return {
         "manifest_digest": digest,
         "manifest_s3_prefix_md5": st.manifest_s3_prefix_md5(tree / ar.MANIFEST_REL),

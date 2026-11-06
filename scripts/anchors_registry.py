@@ -44,8 +44,13 @@ CLI (exit codes: 0 ok · 2 usage · 3 the registry is DEFECTIVE (`verify`) · 4 
 `add` computes `substrate_manifest_digest` from the CURRENT committed manifest (P2: the on-disk
 `config/substrate_manifest.sha256` must equal `git show HEAD:config/substrate_manifest.sha256`; an
 uncommitted manifest is not a pin, exit 4; a tree that is not a checkout or whose HEAD has no
-manifest refuses the same way), refuses an existing id (exit 4), writes atomically, and never
-touches another entry. Nothing here hashes the data: the digest is the MANIFEST file's.
+manifest refuses the same way), appends to an EXISTING registry only (an absent `--anchors` path is
+exit 4, "restore config/anchors.json from git" — the bootstrap was this unit's hand transcription and
+is over; review F4), refuses an existing id (exit 4), writes atomically (an unwritable directory is
+exit 4 with the message, never a traceback), and never touches another entry. Nothing here hashes
+the data: the digest is the MANIFEST file's. The same committed-ness discipline guards the registry
+itself at the gate (`check_file_committed`, review F3): a submit honours only the COMMITTED
+`config/anchors.json`, so an on-disk edit — however plausible its digest — is not a pin.
 """
 from __future__ import annotations
 
@@ -94,22 +99,28 @@ class AnchorsDefect(ValueError):
     The gate refuses on it; the fix is `anchors_registry.py verify` and a deliberate edit."""
 
 
-class ManifestNotCommitted(RuntimeError):
+class NotCommitted(RuntimeError):
+    """A tracked file in the tree is not a pin — uncommitted (staged or not), absent at HEAD,
+    absent on disk, or the tree is not a checkout. The message names which, and both sha256s
+    when they differ."""
+
+
+class ManifestNotCommitted(NotCommitted):
     """P2: the tree's manifest is not a pin — uncommitted, absent at HEAD, or not a checkout."""
 
 
-# ── the pin's identity (P2) ──────────────────────────────────────────────────────
+# ── the pin's identity (P2), for the manifest AND the registry ──────────────────
 
-def committed_manifest_digest(tree: Path) -> str:
-    """sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` — HEAD's manifest bytes.
+def committed_file_sha256(tree: Path, rel: str) -> str:
+    """sha256 of `git show HEAD:<rel>` in `tree` — HEAD's bytes of one tracked file.
 
-    Raises `ManifestNotCommitted` when the tree is not a git checkout, HEAD has no copy of the
-    file, or git cannot run — a "committed" that cannot be resolved is not a pin (fail closed)."""
+    Raises `NotCommitted` when the tree is not a git checkout, HEAD has no copy of the file, or
+    git cannot run — a "committed" that cannot be resolved is not a pin (fail closed)."""
     try:
-        r = subprocess.run(["git", "-C", str(tree), "show", f"HEAD:{MANIFEST_REL}"],
+        r = subprocess.run(["git", "-C", str(tree), "show", f"HEAD:{rel}"],
                            capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
-        raise ManifestNotCommitted(f"git could not run in {tree}: {exc}") from exc
+        raise NotCommitted(f"git could not run in {tree}: {exc}") from exc
     if r.returncode != 0:
         err = r.stderr.decode("utf-8", "replace").strip()
         low = err.lower()
@@ -117,28 +128,47 @@ def committed_manifest_digest(tree: Path) -> str:
             why = "not a git checkout"
         elif ("does not exist in" in low or "exists on disk, but not in" in low
               or "invalid object name" in low):
-            why = f"HEAD has no {MANIFEST_REL}"
+            why = f"HEAD has no {rel}"
         else:
             why = "git show failed"
-        raise ManifestNotCommitted(f"{why} ({tree}): {err or f'git exit {r.returncode}'}")
+        raise NotCommitted(f"{why} ({tree}): {err or f'git exit {r.returncode}'}")
     return hashlib.sha256(r.stdout).hexdigest()
+
+
+def check_file_committed(tree: Path, rel: str) -> str:
+    """The on-disk file's sha256 (`core.substrate_stamp.manifest_digest`, the one identity
+    function), REQUIRED equal to HEAD's. Returns it. Raises `NotCommitted` naming both sha256s
+    when they differ (staged-not-committed differs too), or why HEAD's / the disk copy could not
+    be read."""
+    committed = committed_file_sha256(tree, rel)
+    on_disk = Path(tree) / rel
+    try:
+        digest = st.manifest_digest(on_disk)
+    except FileNotFoundError as exc:
+        raise NotCommitted(f"{rel} is absent on disk in {tree} (HEAD has it)") from exc
+    except OSError as exc:
+        raise NotCommitted(f"{rel} cannot be read ({on_disk}): {exc}") from exc
+    if digest != committed:
+        raise NotCommitted(f"uncommitted {rel}: on-disk sha256 {digest} != HEAD's {committed}")
+    return digest
+
+
+def committed_manifest_digest(tree: Path) -> str:
+    """sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` (`ManifestNotCommitted`
+    when it cannot be resolved)."""
+    try:
+        return committed_file_sha256(tree, MANIFEST_REL)
+    except NotCommitted as exc:
+        raise ManifestNotCommitted(str(exc)) from exc
 
 
 def check_manifest_committed(tree: Path) -> str:
     """P2 as the gate and `add` apply it: the on-disk manifest's digest, REQUIRED equal to HEAD's.
-
-    Returns the digest. Raises `ManifestNotCommitted` naming both digests when they differ (an
-    uncommitted manifest is not a pin), or the reason HEAD's could not be resolved."""
-    committed = committed_manifest_digest(tree)
-    on_disk = Path(tree) / MANIFEST_REL
+    Returns the digest; raises `ManifestNotCommitted` naming both when they differ."""
     try:
-        digest = st.manifest_digest(on_disk)
-    except OSError as exc:
-        raise ManifestNotCommitted(f"the on-disk manifest cannot be read ({on_disk}): {exc}") from exc
-    if digest != committed:
-        raise ManifestNotCommitted(
-            f"uncommitted manifest: on-disk {MANIFEST_REL} sha256 {digest} != HEAD's {committed}")
-    return digest
+        return check_file_committed(tree, MANIFEST_REL)
+    except NotCommitted as exc:
+        raise ManifestNotCommitted(str(exc)) from exc
 
 
 # ── images and canons ───────────────────────────────────────────────────────────
@@ -354,6 +384,26 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _require_registry(p: Path) -> Optional[str]:
+    """F4: `add` appends to an EXISTING registry only — the bootstrap (this unit's hand
+    transcription) is over. The refusal message, or None when the file is there."""
+    if p.is_file():
+        return None
+    return (f"REFUSED: {p} is absent — `add` appends to an existing registry, never creates one; "
+            f"nothing written\n  FIX: restore config/anchors.json from git")
+
+
+def _write_or_refuse(p: Path, doc: Dict[str, Any]) -> Optional[str]:
+    """The atomic write, or the contract's refusal message on an OSError (an unwritable
+    directory, a full disk) — never a traceback. Nothing is written on a refusal."""
+    try:
+        write_anchors(p, doc)
+    except OSError as exc:
+        return (f"REFUSED: cannot write {p} ({type(exc).__name__}: {exc}); nothing written\n"
+                f"  FIX: make the registry's directory writable, then re-run `add`")
+    return None
+
+
 def _cmd_add(args: argparse.Namespace) -> int:
     tree = Path(args.tree)
     p = Path(args.anchors)
@@ -364,10 +414,12 @@ def _cmd_add(args: argparse.Namespace) -> int:
               f"  FIX: commit the re-pin (`gen_substrate_manifest.py generate`, committed in the same "
               f"PR) and run `add` from that checkout; nothing written", file=sys.stderr)
         return EXIT_REFUSED
+    absent = _require_registry(p)
+    if absent:
+        print(absent, file=sys.stderr)
+        return EXIT_REFUSED
     try:
         doc = load_anchors(p)
-    except FileNotFoundError:
-        doc = {"schema": SCHEMA, "anchors": []}
     except AnchorsDefect as exc:
         print(f"REFUSED: the registry is defective, fix it first (`verify`): {exc}", file=sys.stderr)
         return EXIT_REFUSED
@@ -408,7 +460,10 @@ def _cmd_add(args: argparse.Namespace) -> int:
     except AnchorsDefect as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return EXIT_REFUSED
-    write_anchors(p, new)
+    unwritable = _write_or_refuse(p, new)
+    if unwritable:
+        print(unwritable, file=sys.stderr)
+        return EXIT_REFUSED
     print(f"ADDED {entry['anchor_id']} → {p}: canon {canon}{' (prefix)' if is_prefix else ''}, image "
           f"{image_tag(args.image)}, window {args.label}, substrate {digest}")
     return 0
