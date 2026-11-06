@@ -49,8 +49,13 @@ step with its command of record, its artifact, its refusal, and what it waits on
   regenerated; `PRE_RR1_GOLDEN` RETIRED with the reason in the test and RR-1's §4 (the number stays in the
   record); the DAL declaration re-declared with the ruling; the T-219 recompute from the pinned snapshot INTO
   the real file — `build_pit_cap_history_t219.py --from-snapshot data/universe/delist_shares_snapshot.parquet
-  --out data/universe/market_cap_tiers.json` with the selection rule in force (T-378), its whole-file diff
-  recorded as the artifact; the T-306 SPY leg and `ohlc_features_t150` re-labelled per §3.2. B-1's "must
+  --out data/universe/market_cap_tiers.json` with the selection rule in force (T-378). **Its whole-file diff on the
+  step-1 copy is EMPTY by construction** (the T-219 reviewer's measurement, 2026-11-05, locked: the writer wrote only
+  what the provider served, so every cohort name it wrote ends at the bulk and is kept, and every one it did not
+  write is June's input, rewritten identically) — the EMPTY diff is the correct artifact; a non-empty one is a
+  finding. The DECLARED-list guard (names the pass refused as `span`/`convention`/class (i) must never be written
+  as "delisted by the cache") is owed before any RE-FETCHED snapshot is ever used, not for this step. The T-306 SPY
+  leg and `ohlc_features_t150` re-labelled per §3.2. B-1's "must
   reproduce" md5s are re-recorded by B-1's own re-run (§5 — after the day, not on it).
 - **S5 The RE-ANCHOR (T-376).** `sync_edge_registry.py --check` exit 0 on the live registry first; then
   `python -m scripts.run_isolated --save-anchor` (writes + chmods the anchor 0o444) — the anchor now carries the
