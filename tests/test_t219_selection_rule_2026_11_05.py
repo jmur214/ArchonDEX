@@ -282,9 +282,10 @@ def test_REAL_DATA_the_recompute_on_the_pinned_snapshot_EQUALS_the_pinned_tiers_
     `data/universe/market_cap_tiers.json` exactly (json-equal: 0 changed, 0 new) — every one of D1's
     55 + 8 is skipped, and what is written rewrites identically. The pinned files are read through
     the checkout's data/ (read-only: their bytes are asserted unchanged); the output goes to tmp_path.
-    EXPECTED TO FAIL once the cache changes (cutover day) until re-pin #2 rewrites the tiers file with
-    this script — after which the identity holds again by construction. Skipped where the pinned
-    files are not on the host."""
+    NOT a cutover detector: the identity also holds on the step-1 cutover copy (the next test) —
+    the writer writes only what the provider serves, so what it wrote ends at the bulk (kept) and
+    what it did not write is June's input (rewritten identically). Skipped where the pinned files
+    are not on the host."""
     missing = [p for p in (PINNED_SNAPSHOT, PINNED_TIERS) if not p.is_file()]
     if missing:
         pytest.skip(f"the pinned T-219 files are not on this host: {[str(p) for p in missing]}")
@@ -337,3 +338,29 @@ def test_POSITIVE_CONTROL_reverting_rule_2_OVERWRITES_the_current_snapshot_caps(
     assert new["DCS"] == _written("DCS", DELISTED_END) and new["DCS"] != CURRENT["DCS"]
     assert "skipped current_snapshot_kept (0): -" in out
     assert new["TRD"] == CURRENT["TRD"]                                           # rule 1 still holds alone
+
+
+CUTOVER_COPY = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/cutover_copy_2026_10_22")
+
+
+def test_REAL_DATA_the_recompute_on_the_CUTOVER_COPY_also_EQUALS_the_pinned_tiers_file(tmp_path):
+    """The reviewer's measurement of 2026-11-05, locked: on the step-1 cutover copy (648 of 730 files
+    rewritten by the pass, ending 2026-10-22) the recompute from the pinned snapshot still reproduces the
+    pinned tiers file exactly — 0 changed, 0 new — so re-pin #2's whole-file diff is EMPTY by construction.
+    A scratch root whose data/processed IS the copy (a symlink; read-only) and whose data/universe is the
+    pinned dir. Skipped where the copy or the pinned files are absent (another host)."""
+    missing = [p for p in (PINNED_SNAPSHOT, PINNED_TIERS) if not p.is_file()]
+    if missing or not CUTOVER_COPY.is_dir() or not list(CUTOVER_COPY.glob("*_1d.csv")):
+        pytest.skip("the cutover copy or the pinned T-219 files are not on this host")
+    root = tmp_path / "root"
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "processed").symlink_to(CUTOVER_COPY, target_is_directory=True)
+    (root / "data" / "universe").symlink_to(PINNED_TIERS.parent, target_is_directory=True)
+    before = (PINNED_TIERS.read_bytes(), PINNED_SNAPSHOT.read_bytes())
+    new, stats = t219.recompute_from_snapshot(PINNED_SNAPSHOT, root=root)
+    pinned = json.loads(PINNED_TIERS.read_text())
+    assert new == pinned, {"changed": stats["changed_vs_current"], "new": stats["new_vs_current"]}
+    assert list(new.keys()) == list(pinned.keys())
+    assert stats["changed_vs_current"] == 0 and stats["new_vs_current"] == 0
+    assert str(stats["cache_end"]).startswith("2026-10-22"), stats["cache_end"]   # the copy's bulk end, not April's
+    assert (PINNED_TIERS.read_bytes(), PINNED_SNAPSHOT.read_bytes()) == before    # read-only on the pinned files
