@@ -1437,6 +1437,55 @@ python scripts/build_pit_cap_history_t219.py --from-snapshot <snapshot> --root <
 The snapshot is substrate-pinned by name (`gen_substrate_manifest.py` SUBSTRATE_FILES), so re-pin #2's recompute is
 deterministic; its meta beside it (`delist_shares_snapshot.meta.json`), the record of what was and was not fetched, is pinned by name too.
 
+**The SELECTION rule (added 2026-11-05, owed before re-pin #2; reviewer F1).** `cap_at_delist` keys its window on the
+price file's LAST BAR, so for a name that still trades it is a trailing median, not a cap at leaving the index — the
+bare recompute would have replaced the 55 cohort names carrying a current-snapshot cap and moved the 8 still-trading
+`delist_shares` entries whose shares history grew (the D1 diff, `docs/Measurements/2026-11/repin1_d1_shares_snapshot_recompute_diff_2026-11-05.md`).
+**What rule (1) measures is CACHE STALENESS, not listing status** (reviewer F2, 2026-11-05): a file that ends early
+reads as "delisted by the cache" whether the name died or the cache simply stopped — on the 2026-11-05 cache 7 of the 48
+written names are LIVE (JBL, MCK, R, SII, SNDK, TER, TMC: the cutover pass served every one through 2026-10-22), and on
+the step-1 copy LEG and QRVO (span-refused, live) and POM and SLE (class (i)) read as delisted too. Harmless today
+(identity: what is written rewrites identically), but a RE-FETCHED snapshot would give such names fresh trailing medians
+under `source: delist_shares`. The guard is a DECLARED list from the pass record's classes (`unfetchable` → delisted;
+`span` / `convention` / `class_i_declared` → declared, never written) — OWED before any re-fetch; not needed for re-pin #2.
+`--from-snapshot` WRITES a snapshot name only when BOTH hold, else SKIPS it and prints the reason:
+
+- `current_snapshot_kept` — rule (2), checked FIRST: the current tiers entry must be absent, this script's own
+  (`source: "delist_shares"`), or a null placeholder (`marketCap` None — no cap to keep; June's rule). An entry with a cap
+  and no `source` (the T-210/T-215 current-snapshot shape) is kept byte-for-byte, even for a name the cache says is
+  delisted. A current-snapshot cap is never replaced by this script.
+- `still_trading` — rule (1): the name's last bar must be STRICTLY before `cache_end − 5` trading days
+  (`CACHE_END_TOLERANCE_BDAYS`, the stale-files guard's slack). `cache_end` is the last-bar date shared by the MAJORITY
+  of `data/processed/*_1d.csv` (the bulk refresh's date; ≥ 50% of files or the run REFUSES with exit 2 — the cache has no
+  established end). Not the literal maximum: on the 2026-11-05 cache five files end after the bulk (AGG/EFA/VNQ
+  2026-05-21, BF.B/BRK.B 2026-05-07) while 492/730 end 2026-04-24, and the maximum would class the whole bulk as
+  delisted. Not SPY: it ends 2026-04-17 there, itself an early-ender. The evidence prints both ways (the majority's
+  share, the latest end and its holders, SPY's own last bar). A LIVE name whose file ends early (the 33 files ending at
+  their ATHs) looks delisted under (1) alone — (2) is what keeps its current-snapshot cap.
+
+Names the snapshot lacks stay as they are (the wall); a `delist_shares` entry among them is counted under
+`kept_absent_from_snapshot` (COL, ESRX: June-fetched, `empty` in the November meta) — the D1 reading "resolved 191 vs 193
+in the file" was those two, not a counter defect. `resolved` is exactly the entries WRITTEN; the skipped names are listed
+per reason. **The invariant on an UNCHANGED cache:** the recompute on the pinned snapshot reproduces the pinned
+`market_cap_tiers.json` exactly — 0 changed, 0 new (2026-11-05: written 48, all identical; `still_trading` 95;
+`current_snapshot_kept` 55; wall 1 (SRCL); kept absent 2), locked by
+`tests/test_t219_selection_rule_2026_11_05.py::test_REAL_DATA_the_recompute_on_the_pinned_snapshot_EQUALS_the_pinned_tiers_file`.
+**The identity ALSO holds on the step-1 cutover copy** (measured by the reviewer 2026-11-05, locked by
+`::test_REAL_DATA_the_recompute_on_the_CUTOVER_COPY_also_EQUALS_the_pinned_tiers_file`, skipped where the copy is absent):
+`cache_end 2026-10-22` (648/730), written 45 — every one a file the pass did NOT write, rewritten identically; 7 names flip
+delisted → still_trading (JBL, MCK, R, SII, SNDK, TER, TMC) and 4 flip the other way (LEG, POM, QRVO, SLE); 0 changed, 0
+new. It is structural, not luck: the writer writes only what the provider serves, so every cohort name it wrote now ends
+at the bulk (kept), and every one it did not write is byte-identical to June's input (written identically). So the lock is
+NOT a cutover detector, and re-pin #2's whole-file diff on the step-1 copy is EMPTY — that empty diff IS the artifact.
+**What the rule FREEZES, stated plainly:** 88 of the 138 `delist_shares` entries are trailing medians at June's window for
+names the cache says still trade (`still_trading` 95 = delist_shares 88 + absent 4 + null 3); rule (1) keeps them until
+the name actually delists, when the rule self-corrects at the true last bar. The honest cap-at-leaving-the-index is a
+window keyed on `included_until` — a follow-up, not this unit. Nine delisted-cohort names carry a REUSED ticker's file
+(first bar 2019–2026, ending with the bulk): CA, CAM, EMC, INFO, PCL, SHLD, SPLS are `still_trading` by the file and
+never cappable from this cache (no overlap with the old entity's shares); POM (Pepco, delisted 2016) and SLE (Sara Lee,
+2012) DO carry caps — the reused entity's shares × price as their "cap at delist", a pre-existing June defect this rule
+affirms rather than fixes: owed a declaration or a null.
+
 ## Gate verdicts — PASSED | FAILED | NOT_EVALUATED (RR-6a, added 2026-10-14)
 
 Every `validate_candidate` result carries `gate_verdicts` (gates 0–8, each `{"verdict", "reason"}`) and

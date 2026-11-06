@@ -355,13 +355,19 @@
 
 ### `build_pit_cap_history_t219.py`
 **Module Docstring:** T-2026-06-18-219 — cap-AT-DELISTING for the delisted PIT cohort, in two EXPLICIT modes.
+- **Class `CacheEndUnresolved`**: The price cache has no established end (no files, or no last-bar date shared by
 - **Function `cap_at_delist()`**: THE T-219 ARITHMETIC, UNCHANGED from the June live-fetch main(): align shares to price
 - **Function `tier_entry()`**: No docstring
 - **Function `fetch_shares_snapshot()`**: ONE `get_shares_full(start=...)` per name. Returns the LONG frame (ticker, date, shares; the
 - **Function `snapshot_meta_path()`**: `<same stem>.meta.json` beside the parquet.
 - **Function `write_snapshot()`**: No docstring
 - **Function `load_snapshot()`**: No docstring
-- **Function `recompute_from_snapshot()`**: Every snapshot name with a price file → `cap_at_delist` on the snapshot's series + the
+- **Function `last_bar_date()`**: The date on the file's last line — the cache's last bar for the name — read from the file's
+- **Function `price_cache_ends()`**: ticker → last bar for EVERY `data/processed/*_1d.csv` (the same glob as `_names_with_price`).
+- **Function `cache_end_from()`**: `cache_end` = the last-bar date shared by the MAJORITY of the price files — the bulk refresh's
+- **Function `delisted_by_cache()`**: Rule (1): the name's last bar is STRICTLY earlier than `cache_end` less the tolerance in
+- **Function `may_overwrite()`**: Rule (2): this script may write over an ABSENT entry, its OWN (`source == "delist_shares"`),
+- **Function `recompute_from_snapshot()`**: A snapshot name with a price file that passes the SELECTION RULE (module docstring: (2) the
 - **Function `default_scratch_out()`**: Where `--from-snapshot` writes when `--out` is absent: the system temp dir, never data/.
 - **Function `main()`**: No docstring
 
