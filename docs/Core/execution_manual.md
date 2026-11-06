@@ -856,13 +856,24 @@ the FIX; the first refusal is the whole output:
 - **(d) stamp fresh** — older than `FRESHNESS` (48 h): "stamp expired; is the re-pin pushed? (the
   relay_gap row)" — an unpushed LOCAL re-pin's PASS cannot license cloud submits for long (ruled a
   FEATURE, R3); dated more than 5 min in the future → refuse (a stamp cannot extend its own freshness).
-- **(e) the anchor** — a spec `anchor` block must be in `config/anchors.json`: matched by `canon_md5`
+- **(e: anchor registry committed)** — FIRST, the registry a submit honours is the COMMITTED one
+  (review F3): the on-disk `config/anchors.json` must hash equal to `git show HEAD:config/anchors.json`.
+  An uncommitted edit (both sha256s named — a forged digest on disk is not a pin), a staged-not-
+  committed edit, a file absent at HEAD, or absent on disk → refuse. FIX: "commit the registry —
+  `anchors_registry.py add` writes history, a submit never does; restore config/anchors.json from git
+  if it is missing". The rule for a registry path given explicitly (`anchors_path`, the locks' hook):
+  it must lie INSIDE the checkout and is checked by its path relative to the tree; a registry outside
+  the checkout is "not a pin", however sound its content.
+- **(e) the anchor** — then a spec `anchor` block must be in the registry: matched by `canon_md5`
   (the SHORTER of the two lowercase hex strings is a prefix of the longer, both ≥ 8 hex; so the
   recorded prefix `158fe678` matches), on the SAME image (a full ECR ref reduces to its `sha-<short>`
   tag), measured under the CURRENT manifest's digest. Absent → named with the registered ids; image
-  mismatch → both named; digest mismatch → the anchor and BOTH digests named. FIX: re-run the anchor
-  on this substrate (N≥3 bitwise-unanimous arm0), `anchors_registry.py add` a NEW entry; the old
-  stays as history. A spec with NO anchor block passes (e); the T-140 baseline-arm rule then decides.
+  mismatch → both named; digest mismatch → "(e: anchor substrate)" names EVERY same-image candidate
+  (`id → the digest it was measured under`) beside the current digest (review F2), FIX: re-run the
+  anchor on this substrate (N≥3 bitwise-unanimous arm0), `anchors_registry.py add` a NEW entry; the
+  old stays as history. More than ONE candidate under the current digest → "(e: anchor ambiguous)"
+  names every id — file order never picks (review F1); FIX: cite a longer `canon_md5` or the full
+  value. A spec with NO anchor block passes (e); the T-140 baseline-arm rule then decides.
   (a)–(d) apply to every spec, single-arm included.
 
 The record `{manifest_digest, manifest_s3_prefix_md5, tree_head, stamp: {result, writer, verified_at,
@@ -879,8 +890,11 @@ python scripts/anchors_registry.py add --anchor-id <id> --canon-md5 <32 hex> [--
     --source "<doc path:line>" --measured-on YYYY-MM-DD [--status current|history] [--job-definition ...] [--notes ...] \
     [--anchors <path>] [--tree <checkout>]
 # add: substrate_manifest_digest = the CURRENT committed manifest's, P2-checked (uncommitted / absent at HEAD /
-# not a checkout → exit 4, nothing written); an existing id → exit 4; a prefix without the flag → exit 4; never
-# edits another entry; atomic write; records the S3-prefix md5 beside the digest. Run it ONLY after an N≥3
+# not a checkout → exit 4, nothing written); an ABSENT --anchors path → exit 4 ("restore config/anchors.json from
+# git" — add appends to an existing registry, never creates one; the bootstrap is over, review F4); an existing
+# id → exit 4; a prefix without the flag → exit 4; an unwritable directory → exit 4 with the message, never a
+# traceback; never edits another entry; atomic write; records the S3-prefix md5 beside the digest. COMMIT the
+# result in the same PR — the gate honours only the committed registry. Run it ONLY after an N≥3
 # bitwise-unanimous arm0 run on THIS substrate + image — never from a submit, never by hand-editing the file.
 # Exit codes: 0 ok · 2 usage · 3 defective registry (verify) · 4 refused (add).
 ```
