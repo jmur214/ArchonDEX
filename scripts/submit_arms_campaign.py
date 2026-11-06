@@ -53,6 +53,36 @@ Cost
 ----
 Fargate Spot ~$0.02/hour per cell; typical cell ~10-30 min on extended
 substrate. A 75-cell campaign runs ~$0.40-1.20 total.
+
+The substrate gate (D's half, 2026-11-05)
+-----------------------------------------
+`load_spec` runs `enforce_substrate_gate` BEFORE the T-140 canon-anchor
+rule and before any AWS call — under `--dry-run` too. The agreed
+interface is docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md
+§7 (P2/P3/P5 are this side); the ruling is the HIGH row in
+docs/State/health_check.md ("the campaign submit gate checks only that
+the anchor KEYS exist"). Refusal order, each a SystemExit naming its
+STEP and its FIX:
+  (a) the on-disk config/substrate_manifest.sha256 must hash equal to
+      `git show HEAD:` — an uncommitted manifest is not a pin; a tree that
+      is not a checkout or whose HEAD lacks the file refuses too;
+  (b) a verify stamp must exist for that digest (core.substrate_stamp,
+      written only by the nightly and the re-pin step) — ABSENT, an
+      unknown schema and an unreadable file each refuse, named;
+  (c) its result must be PASS (FAIL/ERROR refuse with writer + counts);
+  (d) it must be fresh: older than FRESHNESS (48 h) refuses with "stamp
+      expired; is the re-pin pushed? (the relay_gap row)"; future-dated
+      refuses;
+  (e) a spec `anchor` block must be in config/anchors.json (by canon_md5,
+      the registry's prefix rule), on the SAME image, and measured under
+      the CURRENT manifest's digest — else refuse naming the anchor and
+      both digests. A multi-arm spec with no anchor block passes (e) by
+      the T-140 baseline-arm rule; (a)-(d) still apply.
+The gate never writes the stamp or the registry. Its record (digest,
+stamp verdict, the anchor entry) is stored on the spec as
+`_substrate_gate` and written into the campaign JSON summary as
+`substrate_gate`, so a post-run reader sees which substrate the cells
+ran under. Locks: tests/test_submit_gate_d_half_2026_11_05.py.
 """
 from __future__ import annotations
 
@@ -70,6 +100,9 @@ from typing import Dict, List, Optional
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
+
+from core import substrate_stamp as st  # noqa: E402  (the reader, FRESHNESS, manifest_digest — B's module)
+from scripts import anchors_registry as ar  # noqa: E402  (config/anchors.json + the P2 check)
 
 ACCOUNT_ID = "407539788432"
 REGION = "us-east-1"
@@ -184,8 +217,9 @@ class Cell:
         return self.job_id
 
 
-def load_spec(spec_path: Path) -> Dict:
-    """Load + validate the campaign spec JSON.
+def load_spec(spec_path: Path, *, tree: Optional[Path] = None, now: Optional[datetime] = None,
+              anchors_path: Optional[Path] = None) -> Dict:
+    """Load + validate the campaign spec JSON, then run the two gates.
 
     Schema (post-T-053b):
         campaign_id: str
@@ -197,6 +231,12 @@ def load_spec(spec_path: Path) -> Dict:
     Exactly one of `windows` or `years` must be present. `years` is
     desugared in build_cells() to single-year windows so the rest of
     the launcher uses the unified Cell shape.
+
+    Gates, in order, BEFORE any AWS call: `enforce_substrate_gate` (the
+    substrate stamp + the anchor registry; its record lands on the spec
+    as `_substrate_gate`) then `_enforce_canon_anchor_gate` (T-140).
+    `tree` is the checkout whose committed manifest is the pin (default:
+    this repo); `now` and `anchors_path` exist for the locks.
     """
     spec = json.loads(spec_path.read_text())
     has_windows = "windows" in spec
@@ -223,6 +263,8 @@ def load_spec(spec_path: Path) -> Dict:
         for w in spec["windows"]:
             if not isinstance(w, dict) or "start" not in w or "end" not in w:
                 raise SystemExit(f"Each window must be {{start, end, label?}}; got {w}")
+    spec["_substrate_gate"] = enforce_substrate_gate(
+        spec, tree=tree if tree is not None else REPO, now=now, anchors_path=anchors_path)
     _enforce_canon_anchor_gate(spec)
     return spec
 
@@ -278,6 +320,175 @@ def _enforce_canon_anchor_gate(spec: Dict) -> None:
             "anchor are uninterpretable (see "
             "docs/Audit/spot_sleeve_closeout_t128_2026_06_10.md)."
         )
+
+
+# ── The substrate gate (D's half, 2026-11-05) ─────────────────────────────────
+# Each step is its own function so a lock can be proven non-vacuous by reverting
+# ONE step in-process (the reversion list is in the unit's report). Every refusal
+# is a SystemExit whose message names the STEP and the FIX. Nothing here writes.
+
+GATE = "SUBSTRATE GATE"
+
+
+def _refuse(step: str, what: str, fix: str) -> "SystemExit":
+    return SystemExit(f"{GATE} ({step}) REFUSED: {what}\n  FIX: {fix}")
+
+
+def _gate_manifest_committed(tree: Path) -> str:
+    """(a) P2: the on-disk manifest's digest, equal to `git show HEAD:`'s — else refuse."""
+    try:
+        return ar.check_manifest_committed(tree)
+    except ar.ManifestNotCommitted as exc:
+        raise _refuse(
+            "a: manifest committed", f"{exc} — a 'committed' that cannot be resolved is not a pin",
+            "run from a git checkout whose HEAD carries config/substrate_manifest.sha256 and whose "
+            "on-disk copy equals it: commit the re-pin (`gen_substrate_manifest.py generate`, in the "
+            "same PR) or restore the committed file") from exc
+
+
+def _stamp_digests_present(root: Path) -> List[str]:
+    """Best effort, for the ABSENT message only: the digests the stamp file does carry."""
+    try:
+        doc = json.loads(st.stamp_path(root).read_bytes())
+        return sorted(k[:12] + "…" for k in (doc.get("stamps") or {}))
+    except Exception:
+        return []
+
+
+def _gate_stamp_present(digest: str, tree: Path) -> Dict:
+    """(b) P3: the verify stamp for this digest, read from the MAIN tree — ABSENT, an unknown
+    schema, an unreadable file and an unresolvable location each refuse, named."""
+    try:
+        root = st.canonical_root(tree)
+    except st.CanonicalRootUnresolved as exc:
+        raise _refuse("b: stamp present", f"the stamp's location cannot be resolved: {exc}",
+                      "run from a worktree of the main tree (the stamp lives in its data/state)") from exc
+    try:
+        rec = st.read_stamp(digest, root=root)
+    except st.StampSchemaUnknown as exc:
+        raise _refuse("b: stamp present", f"StampSchemaUnknown — {exc}",
+                      "a reader never guesses a schema: investigate the writer "
+                      "(core/substrate_stamp.py SCHEMA) before any submit") from exc
+    except st.StampUnreadable as exc:
+        raise _refuse("b: stamp present", f"StampUnreadable — {exc}",
+                      "investigate a writer bug or a torn write (the writer sets an unreadable "
+                      "file aside, never deletes it); then run the nightly or re-pin") from exc
+    if rec is None:
+        present = _stamp_digests_present(root)
+        raise _refuse(
+            "b: stamp present",
+            f"no verify stamp for manifest digest {digest} at {st.stamp_path(root)} (ABSENT"
+            + (f"; the file carries only {present} — a stamp for another manifest is not a "
+               f"verdict on this one" if present else "; no stamp file") + ")",
+            "run the nightly (`gen_substrate_manifest.py verify --stamp-writer janitor_nightly`) "
+            "or re-pin (`generate`), so a FULL verify of THIS manifest is on record")
+    return rec
+
+
+def _gate_stamp_is_pass(rec: Dict, digest: str) -> None:
+    """(c) P3: result == PASS, else refuse naming result, writer, counts."""
+    if rec["result"] != "PASS":
+        raise _refuse(
+            "c: stamp PASS",
+            f"the stamp for {digest[:12]}… is {rec['result']} by {rec['writer']} at "
+            f"{rec['verified_at']}: counts {rec['counts']}, first paths {rec['first_paths'][:5]}, "
+            f"error {rec['error']!r}",
+            "FAIL = the data drifted from the pin: re-pin (`gen_substrate_manifest.py generate`, "
+            "committed) or restore the data; ERROR = the verify could not run: fix that first "
+            "(an ERROR is never a PASS)")
+
+
+def _gate_stamp_is_fresh(rec: Dict, digest: str, now: Optional[datetime]) -> None:
+    """(d) P3: within FRESHNESS and not future-dated (core.substrate_stamp.freshness_verdict)."""
+    verdict = st.freshness_verdict(rec, now)
+    if verdict is None:
+        return
+    if verdict.startswith("stale"):
+        raise _refuse("d: stamp fresh",
+                      f"stamp expired; is the re-pin pushed? (the relay_gap row) — {verdict}",
+                      "push the re-pin so the nightly (which certifies origin/main) verifies it, "
+                      "or run the nightly, or re-pin")
+    raise _refuse("d: stamp fresh", verdict,
+                  "check the writer host's clock, then run the nightly or re-pin")
+
+
+def _gate_anchor(spec: Dict, digest: str, anchors_path: Path) -> Optional[Dict]:
+    """(e) the registry: the spec's anchor must be registered, on the same image, measured
+    under the CURRENT manifest's digest. No anchor block → None (the T-140 rule decides)."""
+    anchor = spec.get("anchor")
+    if anchor is None:
+        return None
+    if not isinstance(anchor, dict) or not anchor.get("canon_md5"):
+        raise _refuse("e: anchor registered", f"the spec's 'anchor' block carries no canon_md5: {anchor!r}",
+                      "give {canon_md5, source, image} (see _enforce_canon_anchor_gate)")
+    try:
+        doc = ar.load_anchors(anchors_path)
+    except FileNotFoundError:
+        raise _refuse("e: anchor registered", f"{anchors_path} is absent",
+                      "restore config/anchors.json from git; anchors are added only by "
+                      "`anchors_registry.py add`") from None
+    except ar.AnchorsDefect as exc:
+        raise _refuse("e: anchor registered", f"the registry is defective: {exc}",
+                      "`python scripts/anchors_registry.py verify`, then a deliberate edit") from exc
+    try:
+        matches = ar.find_anchors(doc, anchor["canon_md5"])
+    except ValueError as exc:
+        raise _refuse("e: anchor registered", str(exc), "give the anchor's md5 (32 hex) or its recorded prefix") from exc
+    canon = ar.normalize_canon(anchor["canon_md5"])
+    if not matches:
+        ids = [e["anchor_id"] for e in doc["anchors"]]
+        raise _refuse(
+            "e: anchor registered",
+            f"anchor canon_md5 {canon} is not in {anchors_path} (registered: {ids})",
+            "an anchor is an N≥3 bitwise-unanimous arm0 run on THIS substrate and image, then "
+            "`python scripts/anchors_registry.py add ...` — never a hand edit, never a submit")
+    want = ar.image_tag(anchor.get("image"))
+    same_image = [e for e in matches if ar.image_tag(e["image"]) == want]
+    if not same_image:
+        have = {e["anchor_id"]: ar.image_tag(e["image"]) for e in matches}
+        raise _refuse(
+            "e: anchor image",
+            f"anchor {sorted(have)} (canon {canon}) was measured on image {sorted(set(have.values()))} "
+            f"but the spec names image {anchor.get('image')!r} (tag {want!r})",
+            "name the image the anchor was produced on, or re-run the anchor on this image and "
+            "`anchors_registry.py add` a NEW entry")
+    current = [e for e in same_image if e["substrate_manifest_digest"] == digest]
+    if not current:
+        e = same_image[-1]
+        raise _refuse(
+            "e: anchor substrate",
+            f"anchor {e['anchor_id']} (canon {canon}, image {want}) was measured under substrate "
+            f"manifest digest {e['substrate_manifest_digest']} but the current pinned manifest's "
+            f"digest is {digest} — a new substrate means new canons",
+            "re-run the anchor on this substrate (N≥3 bitwise-unanimous arm0); "
+            "`python scripts/anchors_registry.py add` a NEW entry; the old stays as history")
+    return current[0]
+
+
+def enforce_substrate_gate(spec: Dict, *, tree: Path, now: Optional[datetime] = None,
+                           anchors_path: Optional[Path] = None) -> Dict:
+    """The substrate gate (P2/P3 + the anchor registry), in the agreed order (a)→(e).
+
+    `tree` is the checkout whose COMMITTED manifest is the pin; the stamp is read from the
+    main tree that `tree` belongs to (`core.substrate_stamp.canonical_root`). Returns the
+    record the campaign summary carries. Raises SystemExit naming the step and the fix.
+    NEVER writes the stamp or the registry; makes no AWS call."""
+    tree = Path(tree)
+    anchors_path = Path(anchors_path) if anchors_path is not None else tree / ar.ANCHORS_REL
+    digest = _gate_manifest_committed(tree)                                   # (a)
+    rec = _gate_stamp_present(digest, tree)                                   # (b)
+    _gate_stamp_is_pass(rec, digest)                                          # (c)
+    _gate_stamp_is_fresh(rec, digest, now)                                    # (d)
+    entry = _gate_anchor(spec, digest, anchors_path)                          # (e)
+    return {
+        "manifest_digest": digest,
+        "manifest_s3_prefix_md5": st.manifest_s3_prefix_md5(tree / ar.MANIFEST_REL),
+        "tree_head": st.git_head(tree),
+        "stamp": {k: rec[k] for k in ("result", "writer", "verified_at", "counts", "tree_head")},
+        "anchor": entry,
+        "anchors_path": str(anchors_path),
+        "checked_at": st.utc_now_iso(now),
+    }
 
 
 def _window_label(start: str, end: str, override: Optional[str] = None) -> str:
@@ -480,7 +691,10 @@ def fetch_manifests(cells: List[Cell]) -> None:
             print(f"  manifest parse failed for {cell.cell_id}: {exc}", file=sys.stderr)
 
 
-def write_summary(cells: List[Cell], campaign_id: str, launch_ts: str) -> None:
+def write_summary(cells: List[Cell], campaign_id: str, launch_ts: str,
+                  substrate_gate: Optional[Dict] = None) -> None:
+    """The CSV + JSON summary; the JSON carries the substrate gate's record (`substrate_gate`:
+    the manifest digest the cells ran under, the stamp verdict, the anchor entry)."""
     out_dir = REPO / "data/cloud_runs"
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"{campaign_id}_{launch_ts}.csv"
@@ -502,6 +716,7 @@ def write_summary(cells: List[Cell], campaign_id: str, launch_ts: str) -> None:
     json_path.write_text(json.dumps({
         "campaign_id": campaign_id,
         "launch_ts": launch_ts,
+        "substrate_gate": substrate_gate,
         "n_cells": len(cells),
         "n_succeeded": sum(1 for c in cells if c.status == "SUCCEEDED"),
         "n_failed": sum(1 for c in cells if c.status == "FAILED"),
@@ -555,7 +770,12 @@ def main() -> int:
 
     n_windows = (len(spec["windows"]) if "windows" in spec
                  else len(spec.get("years", [])))
+    gate = spec.get("_substrate_gate") or {}
     print(f"[campaign] {spec['campaign_id']}")
+    print(f"[gate] substrate manifest {gate.get('manifest_digest')} — stamp "
+          f"{(gate.get('stamp') or {}).get('result')} by {(gate.get('stamp') or {}).get('writer')} at "
+          f"{(gate.get('stamp') or {}).get('verified_at')}; anchor "
+          f"{(gate.get('anchor') or {}).get('anchor_id') or 'none (T-140 baseline-arm rule)'}")
     print(f"[campaign] {len(cells)} cells "
           f"({len(spec['arms'])} arms × {n_windows} windows × {spec['reps']} reps)"
           + (f" + {len(canary_cells)} canary" if canary_cells else " (canary SKIPPED)"))
@@ -572,7 +792,7 @@ def main() -> int:
     submit_all(all_cells, args.job_def, timeout_seconds=args.job_timeout)
     poll_until_terminal(all_cells, args.poll_interval, args.timeout)
     fetch_manifests(all_cells)
-    write_summary(all_cells, spec["campaign_id"], launch_ts)
+    write_summary(all_cells, spec["campaign_id"], launch_ts, substrate_gate=spec.get("_substrate_gate"))
 
     canary_ok = check_canary(canary_cells) if canary_cells else True
     n_failed = sum(1 for c in all_cells if c.status == "FAILED")

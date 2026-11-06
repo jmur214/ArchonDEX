@@ -31,6 +31,16 @@ from scripts.submit_arms_campaign import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _stub_the_substrate_gate(monkeypatch):
+    """These tests are about spec PARSING. Since 2026-11-05 `load_spec` runs the substrate gate
+    (the verify stamp + config/anchors.json) first, which has its own reversion-proven locks in
+    tests/test_submit_gate_d_half_2026_11_05.py and would refuse here — and a test must never
+    read the REAL stamp. The stub returns a marker, never a plausible record."""
+    import scripts.submit_arms_campaign as sac
+    monkeypatch.setattr(sac, "enforce_substrate_gate", lambda spec, **kw: {"stubbed_for_parsing_tests": True})
+
+
 def _spec_to_disk(spec: dict) -> Path:
     p = Path(tempfile.mktemp(suffix=".json"))
     p.write_text(json.dumps(spec))
