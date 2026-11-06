@@ -77,7 +77,8 @@ STEP and its FIX:
       (the on-disk config/anchors.json hashes equal to `git show HEAD:` —
       an uncommitted or staged edit, a file absent at HEAD or on disk, or a
       registry outside the checkout refuses: "(e: anchor registry
-      committed)", review F3); then the anchor must be in it (by canon_md5,
+      committed)", F3; the path is taken LEXICALLY and a symlink on disk or
+      a 120000 blob in HEAD refuses, F11); then the anchor must be in it (by canon_md5,
       the registry's prefix rule), on the SAME image, and measured under
       the CURRENT manifest's digest — else refuse naming EVERY same-image
       candidate with its digest beside the current one (F2); more than one
@@ -96,6 +97,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import subprocess
 import sys
 import time
@@ -419,24 +421,61 @@ def _gate_stamp_is_fresh(rec: Dict, digest: str, now: Optional[datetime]) -> Non
                   "check the writer host's clock, then run the nightly or re-pin")
 
 
+_REGISTRY_STEP = "e: anchor registry committed"
+_REGULAR_FIX = ("the registry must be a regular committed file: put the file's bytes at config/anchors.json "
+                "(`git checkout HEAD -- config/anchors.json` restores the committed one) and commit; a link "
+                "re-points the check at some other blob")
+
+
+def _registry_rel(tree: Path, anchors_path: Path) -> str:
+    """F11: the registry's path relative to the checkout, derived LEXICALLY — the absolute path
+    normalized WITHOUT following links — so a symlink at (or above) config/anchors.json cannot
+    re-point the committed-ness check at another committed file's blob. The tree is matched
+    resolved or lexical (a symlinked tmp prefix); a path under neither is outside the checkout."""
+    p = Path(os.path.normpath(os.path.abspath(anchors_path)))
+    for base in (Path(tree).resolve(), Path(os.path.normpath(os.path.abspath(tree)))):
+        try:
+            return p.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    raise _refuse(_REGISTRY_STEP, f"{anchors_path} lies outside the checkout {tree} — a registry outside "
+                                  f"the checkout is not a pin",
+                  "use the checkout's committed config/anchors.json")
+
+
+def _refuse_unless_regular_file(tree: Path, rel: str) -> None:
+    """F11: every component of `rel` on disk must be a non-symlink and the file a regular file,
+    and HEAD's entry at `rel` must be a regular blob — a 120000 (symlink) blob's content is the
+    link target, which `git show` would print as if it were the registry."""
+    parts = Path(rel).parts
+    for i in range(1, len(parts) + 1):
+        comp = Path(tree) / Path(*parts[:i])
+        if comp.is_symlink():
+            raise _refuse(_REGISTRY_STEP, f"{Path(*parts[:i]).as_posix()} is a symlink (→ {os.readlink(comp)}) "
+                                          f"— the registry must be a regular committed file", _REGULAR_FIX)
+    on_disk = Path(tree) / rel
+    if on_disk.exists() and not on_disk.is_file():
+        raise _refuse(_REGISTRY_STEP, f"{rel} is not a regular file — the registry must be a regular "
+                                      f"committed file", _REGULAR_FIX)
+    if ar.head_blob_mode(tree, rel) == "120000":
+        raise _refuse(_REGISTRY_STEP, f"HEAD's blob at {rel} is a symlink (mode 120000) — the registry must "
+                                      f"be a regular committed file", _REGULAR_FIX)
+
+
 def _gate_registry_committed(tree: Path, anchors_path: Path) -> None:
     """(e, first) F3: the registry a submit honours is the COMMITTED one. The rule: `anchors_path`
-    must lie INSIDE the checkout `tree` (resolved; outside is "not a pin"), and its on-disk bytes
-    must hash equal to `git show HEAD:<its path relative to tree>` — uncommitted or staged edits,
-    absent at HEAD, absent on disk each refuse, named."""
-    step = "e: anchor registry committed"
+    must lie INSIDE the checkout `tree` (outside is "not a pin"), its path taken lexically (F11:
+    no symlink followed; a link on disk or a symlink blob in HEAD refuses), and its on-disk bytes
+    must hash equal to `git show HEAD:<that relative path>` — uncommitted or staged edits, absent
+    at HEAD, absent on disk each refuse, named."""
     fix = ("commit the registry — `anchors_registry.py add` writes history, a submit never does; "
            "restore config/anchors.json from git if it is missing")
-    try:
-        rel = Path(anchors_path).resolve().relative_to(Path(tree).resolve()).as_posix()
-    except ValueError:
-        raise _refuse(step, f"{anchors_path} lies outside the checkout {tree} — a registry outside "
-                            f"the checkout is not a pin",
-                      "use the checkout's committed config/anchors.json") from None
+    rel = _registry_rel(tree, anchors_path)
+    _refuse_unless_regular_file(tree, rel)
     try:
         ar.check_file_committed(tree, rel)
     except ar.NotCommitted as exc:
-        raise _refuse(step, f"{exc} — an uncommitted registry is not a pin", fix) from exc
+        raise _refuse(_REGISTRY_STEP, f"{exc} — an uncommitted registry is not a pin", fix) from exc
 
 
 def _no_current_refusal(same_image: List[Dict], canon: str, want: str, digest: str) -> "SystemExit":

@@ -147,6 +147,7 @@
 - **Class `NotCommitted`**: A tracked file in the tree is not a pin — uncommitted (staged or not), absent at HEAD,
 - **Class `ManifestNotCommitted`**: P2: the tree's manifest is not a pin — uncommitted, absent at HEAD, or not a checkout.
 - **Function `committed_file_sha256()`**: sha256 of `git show HEAD:<rel>` in `tree` — HEAD's bytes of one tracked file.
+- **Function `head_blob_mode()`**: HEAD's tree-entry mode at `rel` — `100644`/`100755` a regular blob, `120000` a SYMLINK blob
 - **Function `check_file_committed()`**: The on-disk file's sha256 (`core.substrate_stamp.manifest_digest`, the one identity
 - **Function `committed_manifest_digest()`**: sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` (`ManifestNotCommitted`
 - **Function `check_manifest_committed()`**: P2 as the gate and `add` apply it: the on-disk manifest's digest, REQUIRED equal to HEAD's.

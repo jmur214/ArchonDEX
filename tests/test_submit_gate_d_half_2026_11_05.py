@@ -674,3 +674,67 @@ def test_LOCK_NOTE_add_into_an_unwritable_directory_exits_4_with_the_contracts_m
     assert rc == ar.EXIT_REFUSED, err
     assert "REFUSED: cannot write" in err and "nothing written" in err and "Traceback" not in err
     assert a.read_bytes() == before and not list(ro.glob("*.tmp"))
+
+
+# ── F11: a symlink swap of the registry ─────────────────────────────────────────
+
+def _symlink_over(path: Path, target: str) -> None:
+    """Put a symlink to `target` at `path` (built beside it, renamed over the regular file)."""
+    lnk = path.with_name(path.name + ".lnk")
+    os.symlink(target, lnk)
+    os.replace(lnk, path)
+
+
+def _head_mode(tree: Path, rel: str) -> str:
+    return subprocess.run(["git", "-C", str(tree), "ls-tree", "HEAD", "--", rel], capture_output=True,
+                          text=True, env=_GIT_ENV).stdout.split()[0]
+
+
+@pytest.mark.parametrize("arm", ["i-uncommitted-symlink", "ii-committed-symlink", "ii-head-mode-120000",
+                                 "iv-symlinked-dir", "iii-regular-file-allows"])
+def test_LOCK_F11_a_symlink_swap_of_the_registry_refuses_on_disk_and_in_HEAD(planted, arm):
+    """A COMMITTED in-tree decoy (config/alt.json, carrying the CURRENT digest) must not be reachable
+    through a link at config/anchors.json — on disk (uncommitted, `git status` = T), committed as a
+    120000 blob, or through a symlinked directory component. A regular committed file still allows."""
+    d = _digest(planted)
+    _stamp(planted, d)
+    decoy = _anchors(planted, _entry(d), rel="config/alt.json")
+    a = _anchors(planted, _entry(OTHER))                       # the real registry: history only
+    _refused(_spec(), planted, a, "(e: anchor substrate)")
+    step = "(e: anchor registry committed)"
+    if arm == "iii-regular-file-allows":
+        a = _anchors(planted, _entry(d))
+        assert _gate(_spec(), planted, a)["anchor"]["anchor_id"] == "t215-gfc"
+        return
+    if arm == "iv-symlinked-dir":
+        decoy_dir = planted / "cfg_decoy"                      # holds the decoy AND the manifest, so (a) passes
+        decoy_dir.mkdir()
+        (decoy_dir / "anchors.json").write_bytes(decoy.read_bytes())
+        (decoy_dir / "substrate_manifest.sha256").write_bytes((planted / ar.MANIFEST_REL).read_bytes())
+        _git(planted, "add", "cfg_decoy")
+        _git(planted, "commit", "-q", "-m", "decoy dir")
+        os.replace(planted / "config", planted / "config_aside")
+        os.symlink("cfg_decoy", planted / "config")
+        assert (planted / ar.MANIFEST_REL).read_bytes() == MANIFEST_TEXT.encode()
+        _refused(_spec(), planted, a, step, "config is a symlink (→ cfg_decoy)", "regular committed file")
+        return
+    _symlink_over(a, "alt.json")                               # (i): on disk only — `git status` = T config/anchors.json
+    assert a.is_symlink() and a.read_bytes() == decoy.read_bytes()
+    status = subprocess.run(["git", "-C", str(planted), "status", "--porcelain", "--", ar.ANCHORS_REL],
+                            capture_output=True, text=True, env=_GIT_ENV).stdout
+    assert status.startswith(" T") or status.startswith("T"), status
+    if arm == "i-uncommitted-symlink":
+        _refused(_spec(), planted, a, step, "config/anchors.json is a symlink (→ alt.json)", "regular committed file")
+        return
+    _git(planted, "add", ar.ANCHORS_REL)                       # (ii): the symlink itself committed
+    _git(planted, "commit", "-q", "-m", "symlink")
+    assert _head_mode(planted, ar.ANCHORS_REL) == "120000"
+    if arm == "ii-committed-symlink":
+        _refused(_spec(), planted, a, step, "config/anchors.json is a symlink (→ alt.json)", "regular committed file")
+        return
+    regular = a.with_name("regular.json")                      # (ii-b): on disk regular again, HEAD still a symlink blob
+    regular.write_bytes(decoy.read_bytes())
+    os.replace(regular, a)
+    assert not a.is_symlink() and a.is_file()
+    _refused(_spec(), planted, a, step, "HEAD's blob at config/anchors.json is a symlink (mode 120000)",
+             "regular committed file")

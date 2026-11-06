@@ -135,6 +135,19 @@ def committed_file_sha256(tree: Path, rel: str) -> str:
     return hashlib.sha256(r.stdout).hexdigest()
 
 
+def head_blob_mode(tree: Path, rel: str) -> Optional[str]:
+    """HEAD's tree-entry mode at `rel` — `100644`/`100755` a regular blob, `120000` a SYMLINK blob
+    (its content is the link target, which `git show HEAD:<rel>` prints as if it were the file),
+    `040000` a tree — or None when HEAD has no entry there or git cannot answer (review F11)."""
+    try:
+        r = subprocess.run(["git", "-C", str(tree), "ls-tree", "HEAD", "--", rel],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out = r.stdout.strip()
+    return out.split()[0] if r.returncode == 0 and out else None
+
+
 def check_file_committed(tree: Path, rel: str) -> str:
     """The on-disk file's sha256 (`core.substrate_stamp.manifest_digest`, the one identity
     function), REQUIRED equal to HEAD's. Returns it. Raises `NotCommitted` naming both sha256s
