@@ -141,6 +141,27 @@
 - **Function `analyze_cell()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `anchors_registry.py`
+**Module Docstring:** The canon-anchor REGISTRY — `config/anchors.json`, D's half of the campaign submit gate (2026-11-05).
+- **Class `AnchorsDefect`**: `config/anchors.json` cannot be trusted (unparseable, wrong schema, a malformed entry).
+- **Class `NotCommitted`**: A tracked file in the tree is not a pin — uncommitted (staged or not), absent at HEAD,
+- **Class `ManifestNotCommitted`**: P2: the tree's manifest is not a pin — uncommitted, absent at HEAD, or not a checkout.
+- **Function `committed_file_sha256()`**: sha256 of `git show HEAD:<rel>` in `tree` — HEAD's bytes of one tracked file.
+- **Function `head_blob_mode()`**: HEAD's tree-entry mode at `rel` — `100644`/`100755` a regular blob, `120000` a SYMLINK blob
+- **Function `check_file_committed()`**: The on-disk file's sha256 (`core.substrate_stamp.manifest_digest`, the one identity
+- **Function `committed_manifest_digest()`**: sha256 of `git show HEAD:config/substrate_manifest.sha256` in `tree` (`ManifestNotCommitted`
+- **Function `check_manifest_committed()`**: P2 as the gate and `add` apply it: the on-disk manifest's digest, REQUIRED equal to HEAD's.
+- **Function `image_tag()`**: The tag of an image reference, lowercase: `sha-3863ef8`, `archondex-backtest:sha-3863ef8`
+- **Function `normalize_canon()`**: A spec's or an entry's canon md5 as lowercase hex of 8..32 chars; ValueError otherwise.
+- **Function `canon_matches()`**: THE MATCH RULE: the shorter is a prefix of the longer (both already normalized).
+- **Function `find_anchors()`**: Every entry whose canon matches `canon_md5` under the match rule, in file order.
+- **Function `verify_anchors()`**: Every defect in a parsed registry document; [] when it is sound.
+- **Function `load_anchors()`**: The registry, validated. FileNotFoundError when absent; `AnchorsDefect` when untrustworthy.
+- **Function `write_anchors()`**: Atomic: a temp file in the same directory, fsync, `os.replace`. Validates first. On any
+- **Function `add_anchor()`**: A new document with `entry` appended; every existing entry is the same object, untouched.
+- **Function `build_parser()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `anon_historical_eval_t339.py`
 **Module Docstring:** scripts/anon_historical_eval_t339.py — RUN the frozen T-339 evaluation.
 - **Function `price()`**: No docstring
@@ -1838,14 +1859,15 @@
   - `def year_int_for_legacy()`: Return integer year iff the window is a single calendar year
   - `def submit()`: Submit one Batch job for this cell. Returns the AWS job ID.
 - **Function `aws()`**: Run an AWS CLI command via the `archondex` profile + `us-east-1`.
-- **Function `load_spec()`**: Load + validate the campaign spec JSON.
+- **Function `load_spec()`**: Load + validate the campaign spec JSON, then run the two gates.
+- **Function `enforce_substrate_gate()`**: The substrate gate (P2/P3 + the anchor registry), in the agreed order (a)→(e).
 - **Function `build_cells()`**: Build the list of cells from spec. Desugars `years` to single-year
 - **Function `build_canary_cells()`**: 3-rep single-year canary on the spec's first arm.
 - **Function `check_canary()`**: True if all canary canons are present and identical.
 - **Function `submit_all()`**: Submit cells in parallel (Batch handles N concurrent submits fine).
 - **Function `poll_until_terminal()`**: Poll Batch describe-jobs until all cells reach SUCCEEDED or FAILED.
 - **Function `fetch_manifests()`**: Pull per-cell manifest.json from S3 for cells that SUCCEEDED.
-- **Function `write_summary()`**: No docstring
+- **Function `write_summary()`**: The CSV + JSON summary; the JSON carries the substrate gate's record (`substrate_gate`:
 - **Function `main()`**: No docstring
 
 ### `submit_foundry_eval_t196.py`

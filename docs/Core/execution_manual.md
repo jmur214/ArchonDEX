@@ -833,6 +833,83 @@ does this for new worktrees; the 4 existing ones were converted
 2026-06-10). Cloud `--job-timeout`: 26-yr cells = 21600 (6h), never
 14400 — see CLOUD_USAGE.md timeout table.
 
+### THE CAMPAIGN SUBMIT GATE — D's half: the stamp read + the anchor registry (2026-11-05)
+
+`scripts/submit_arms_campaign.py` runs `enforce_substrate_gate` inside `load_spec`, BEFORE the
+T-140 canon-anchor rule and before ANY AWS call — under `--dry-run` too. The agreed interface is
+`docs/Sources/proposal_substrate_verify_stamp_janitor_2026-10-15.md` §7 (P2/P3/P5 are this side);
+the ruling is the HIGH row in `docs/State/health_check.md` ("the campaign submit gate checks only
+that the anchor KEYS exist"). Refusal order — each a `SystemExit` whose message names the STEP and
+the FIX; the first refusal is the whole output:
+
+- **(a) manifest committed** — the on-disk `config/substrate_manifest.sha256` must hash
+  (`core.substrate_stamp.manifest_digest`) equal to `git show HEAD:config/substrate_manifest.sha256`.
+  Uncommitted (both digests named), absent at HEAD, not a git checkout → refuse. FIX: commit the
+  re-pin (`gen_substrate_manifest.py generate`, in the same PR) or run from the pinned checkout.
+- **(b) stamp present** — `read_stamp(digest)` in the MAIN tree's `data/state/substrate_verify_stamp.json`
+  (resolved via the git common dir, so a worktree reads the one real stamp). ABSENT (no file, or
+  only other digests — named) → "run the nightly or re-pin"; `StampSchemaUnknown` / `StampUnreadable`
+  → named (a torn write or a writer bug; the writer sets an unreadable file aside); an unresolvable
+  location → refuse.
+- **(c) stamp PASS** — FAIL or ERROR refuse naming result, writer, verified_at, counts, first paths
+  (FAIL = drift: re-pin or restore; ERROR = the verify could not run: fix that first, never a PASS).
+- **(d) stamp fresh** — older than `FRESHNESS` (48 h): "stamp expired; is the re-pin pushed? (the
+  relay_gap row)" — an unpushed LOCAL re-pin's PASS cannot license cloud submits for long (ruled a
+  FEATURE, R3); dated more than 5 min in the future → refuse (a stamp cannot extend its own freshness).
+- **(e: anchor registry committed)** — FIRST, the registry a submit honours is the COMMITTED one
+  (review F3): the on-disk `config/anchors.json` must hash equal to `git show HEAD:config/anchors.json`.
+  An uncommitted edit (both sha256s named — a forged digest on disk is not a pin), a staged-not-
+  committed edit, a file absent at HEAD, or absent on disk → refuse. FIX: "commit the registry —
+  `anchors_registry.py add` writes history, a submit never does; restore config/anchors.json from git
+  if it is missing". The rule for a registry path given explicitly (`anchors_path`, the locks' hook):
+  it must lie INSIDE the checkout and is checked by its path relative to the tree; a registry outside
+  the checkout is "not a pin", however sound its content. The path is taken LEXICALLY — no symlink is
+  followed — and a symlink at or above `config/anchors.json` on disk ("… is a symlink (→ target) — the
+  registry must be a regular committed file"), a non-regular file, or a symlink blob (mode 120000) at
+  that path in HEAD each refuse, so a link cannot re-point the check at another committed file's blob
+  (review F11).
+- **(e) the anchor** — then a spec `anchor` block must be in the registry: matched by `canon_md5`
+  (the SHORTER of the two lowercase hex strings is a prefix of the longer, both ≥ 8 hex; so the
+  recorded prefix `158fe678` matches), on the SAME image (a full ECR ref reduces to its `sha-<short>`
+  tag), measured under the CURRENT manifest's digest. Absent → named with the registered ids; image
+  mismatch → both named; digest mismatch → "(e: anchor substrate)" names EVERY same-image candidate
+  (`id → the digest it was measured under`) beside the current digest (review F2), FIX: re-run the
+  anchor on this substrate (N≥3 bitwise-unanimous arm0), `anchors_registry.py add` a NEW entry; the
+  old stays as history. More than ONE candidate under the current digest → "(e: anchor ambiguous)"
+  names every id — file order never picks (review F1); FIX: cite a longer `canon_md5` or the full
+  value. A spec with NO anchor block passes (e); the T-140 baseline-arm rule then decides.
+  (a)–(d) apply to every spec, single-arm included.
+
+The record `{manifest_digest, manifest_s3_prefix_md5, tree_head, stamp: {result, writer, verified_at,
+counts, tree_head}, anchor: <the registry entry or null>, anchors_path, checked_at}` is printed as
+`[gate] …`, stored on the spec as `_substrate_gate`, and written into
+`data/cloud_runs/<campaign>_<launch_ts>.json` as `substrate_gate`, so a post-run reader sees which
+substrate the cells ran under. The gate NEVER writes the stamp or the registry and makes no AWS call.
+
+```bash
+python -m scripts.submit_arms_campaign --spec <spec.json> --dry-run   # the gate runs first; a refusal is the whole output
+python scripts/anchors_registry.py verify                              # schema + every digest hex + no duplicate ids; exit 3 on a defect
+python scripts/anchors_registry.py add --anchor-id <id> --canon-md5 <32 hex> [--canon-md5-is-prefix] \
+    --window-start YYYY-MM-DD --window-end YYYY-MM-DD --label <label> --image sha-<short> \
+    --source "<doc path:line>" --measured-on YYYY-MM-DD [--status current|history] [--job-definition ...] [--notes ...] \
+    [--anchors <path>] [--tree <checkout>]
+# add: substrate_manifest_digest = the CURRENT committed manifest's, P2-checked (uncommitted / absent at HEAD /
+# not a checkout → exit 4, nothing written); an ABSENT --anchors path → exit 4 ("restore config/anchors.json from
+# git" — add appends to an existing registry, never creates one; the bootstrap is over, review F4); an existing
+# id → exit 4; a prefix without the flag → exit 4; an unwritable directory → exit 4 with the message, never a
+# traceback; never edits another entry; atomic write; records the S3-prefix md5 beside the digest. COMMIT the
+# result in the same PR — the gate honours only the committed registry. Run it ONLY after an N≥3
+# bitwise-unanimous arm0 run on THIS substrate + image — never from a submit, never by hand-editing the file.
+# Exit codes: 0 ok · 2 usage · 3 defective registry (verify) · 4 refused (add).
+```
+
+State on 2026-11-05: the four registered anchors are `history` — the three T-167 anchors (2022
+`eb48742e`, 16yr `3e9ea427`, 26yr `158fe678`; image `sha-4c0fc16`) were measured under the T-167
+manifest `a4767e20…` (md5 `be219d7f`, proven from the image's commit and the T-175 doc), the T-215
+GFC anchor (`67784c1b…`, `sha-3863ef8`) under the T-219 manifest `4b34ea82…` (md5 `9fe5c27e`) — so
+every multi-arm submit citing one REFUSES at (e) under re-pin #1's manifest (`48da855e…`) until
+cutover day's re-anchor adds new entries. Locks: `tests/test_submit_gate_d_half_2026_11_05.py`.
+
 ### PAPER CLOUD LOOP — build / deploy / fire the sleeve (T-186 / T-238)
 
 The daily paper loop is a SEPARATE lean image (`Dockerfile.paper`, ~600MB,
