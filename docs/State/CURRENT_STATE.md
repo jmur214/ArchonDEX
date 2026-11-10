@@ -165,10 +165,10 @@
 
 ## In flight (max 5)
 
-- Deploy-candidate record accrual — 60-day gate → first evaluable read ~mid-Nov; the single most decision-relevant stream.
+- Deploy-candidate record — **VOID after 2026-11-04** (an unhandled MTUM split: a spurious buy, a paper-broker windfall, halted since 11-06; 36 clean sessions stand). The record restarts only after split handling deploys and the account is recovered — the user's word (health_check HIGH, 2026-11-10).
 - Wash-guard recorder on account-1 (E; phase 1 approved) → sibling pulls + liveness check (phase 2).
 - Post-audit structure work: `main()` extraction into an ordered step registry with ONE strategy pipeline + the five text-assertion wiring tests converted to execution tests (E, C rider; branch) — sequenced BEFORE the collar/pre-trade gate and journal checkpoint (director YES, pending the user's word).
-- CEF forward shadow book on the T-334 daily panel (C, after Friday; report-only, 0 N, falsifiers pre-stated) — the only t_HAC>2 alpha ever found, parked on backtest history a forward book does not need.
+- ~~CEF forward shadow book~~ — **CLOSED 2026-11-10:** T-379 (the wide universe with a one-day execution skip) fails post-2011 and fails the wealth test; the panel's source has blocked automated requests since 2026-10-20. Retire the clock.
 - Referee repairs (B, after the director pass's first artifact): HMM backfill repoint; legacy-HMM production load.
 
 ## Next decision (exactly 1)
