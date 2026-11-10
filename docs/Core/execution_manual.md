@@ -1646,3 +1646,29 @@ python -m scripts.rescore_b1_ey_exposure \
   --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_value_ex3/
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
+
+### Corporate-action (split) feed, and the live-book split repair (added 2026-11-10)
+The daily paper run (`scripts.run_paper_cloud_day`) now asks Alpaca's corporate-actions DATA
+endpoint about every ticker the account holds or has ever ordered, on every run — no new flag.
+A confirmed split is journaled into the ledger once (`split:<TICKER>:<ex_date>:ratio=<r>`); a
+ticker whose share basis or price basis cannot be proven consistent FREEZES the book for the day
+(nothing staged, exit 70, the reason in the heartbeat's `corporate_actions` block). The design
+and the one decision it makes are in `paper_trader/corporate_actions.py`.
+
+The repair script restates a LOCAL COPY of a `live_book/v1` state file across a split it missed.
+It derives the pre-split share state from the last clean day's recorded nav, PROVES that by
+replaying the recorded (wrong) days to within `--tol`, then replays them with the split applied.
+It writes to a NEW path, refuses to overwrite, refuses any path under this repo's `data/`, and
+never touches S3. `--closes` is a JSON file `{"YYYY-MM-DD": {"SYM": px}}` covering the last clean
+pre-split day (in that day's pre-split basis) and every recorded day from the ex-date on.
+
+```bash
+python -m scripts.repair_live_book_split_2026_11_05 \
+  --state /path/to/copy/book_momentum_satellite.json --book momentum_satellite \
+  --split MTUM:2026-11-05:4 --closes /path/to/closes.json \
+  --out /path/to/book_momentum_satellite.restated.json
+python -m pytest tests/test_corporate_action_feed_2026_11_10.py -q
+```
+
+Exit 2 = REFUSED (the reason is printed; nothing was written). Publishing a restated file to the
+live S3 prefix is a separate, manual, propose-first step — this script cannot do it.

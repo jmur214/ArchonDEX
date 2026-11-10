@@ -139,7 +139,7 @@ def _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts):
 
 def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
                          client, om, cfg, today, broker_positions, cap,
-                         stream=None, stage_orders=True):
+                         stream=None, stage_orders=True, ca_gate=None):
     """Shared sleeve-FAMILY pipeline (T-288 fleet — offense_sso, sleeve_btc, and
     the future Stage-2 LLM account). Byte-for-byte the same steps the live
     trend_sleeve block runs, parameterised only by the constructor + universe:
@@ -164,15 +164,32 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
         raise _FailClosed(68, f"price data missing/stale for {stale}")
     equity = float(client.get_account().get("equity", 0.0))
     sizing_equity = min(equity, cap) if cap else equity
-    plan = constructor.construct(sizing_equity, broker_positions, closes)
+    # 2026-11-10 corporate-action gate. A confirmed split the broker has not
+    # applied yet is sized in the POST-split share basis the (vendor-adjusted)
+    # price series is already in — the 2026-11-05 run sized 5 pre-split MTUM at
+    # a post-split price and bought 18 shares it did not need.
+    sizing_positions = (ca_gate.positions_for_sizing(broker_positions)
+                        if ca_gate is not None else broker_positions)
+    plan = constructor.construct(sizing_equity, sizing_positions, closes)
     closes_latest = {t: float(closes[t].iloc[-1]) for t in tracking_universe
                      if t in closes and not closes[t].empty}
+    # The price-basis guard and the screen: any FROZEN ticker stands the whole
+    # book down — the plan above is kept (it is the record of what was
+    # prevented) but nothing is staged.
+    stageable = list(plan.orders)
+    if ca_gate is not None:
+        ca_gate.check_prices(
+            closes_latest,
+            held=[t for t, q in sizing_positions.items() if int(q) != 0],
+            traded=list(getattr(plan, "target_qty", {}) or {})
+                   + [o.ticker for o in plan.orders])
+        stageable = ca_gate.screen(plan.orders)
     # Stamp WHEN we captured arrival: gate-(b) may only measure fills that
     # happened after this instant (see _fresh_fill_slippage_bps).
     import datetime as _dt
     arrival_ts = _dt.datetime.now(_dt.timezone.utc)
-    arrival_px = (client.fetch_latest_prices([o.ticker for o in plan.orders])
-                  if plan.orders else {})
+    arrival_px = (client.fetch_latest_prices([o.ticker for o in stageable])
+                  if stageable else {})
     # T-329: ``stage_orders=False`` (a TRADING HALT) still CONSTRUCTS and returns
     # the plan but stages nothing. Constructing under a halt is deliberate: the
     # record then shows what the halt prevented, which is the only evidence that
@@ -181,7 +198,7 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
     # submit, and submit() re-checks the halt anyway (defence in depth).
     staged = ([om.stage(str(today), s.ticker, s.side, s.qty,
                         s.stage_args()["tif"], cfg.config_hash(), stream=stream)
-               for s in plan.orders] if stage_orders else [])
+               for s in stageable] if stage_orders else [])
     # Freshest completed bar in the panel — the econ-health stale-data tripwire.
     latest_bar_date = max(
         (closes[t].index[-1].date() for t in fetch_universe
@@ -361,7 +378,8 @@ def _digest_streams(root) -> dict:
     return streams
 
 
-def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
+def main(argv=None, *, now=None, client=None, cloud=None, root=None,
+         ca_fetch=None) -> int:
     """Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
     for tests (drive a non-trading day, a held position, etc. without a
     real broker); production passes none and they are constructed live.
@@ -603,9 +621,48 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     broker_positions = {p["symbol"]: int(p["qty"]) for p in client.list_positions()}
     broker_cash = client.get_account()["cash"]
     journal_orders = list(om.orders.values())
+
+    # --- 2026-11-10 CORPORATE-ACTION GATE, before the ledger converges and
+    # before preflight. Ask the split feed about every ticker this account
+    # holds or has ever ordered; journal each CONFIRMED split into the ledger
+    # exactly once; then compare the ledger's share basis with the broker's.
+    # `ca_fetch` is injectable; production uses the client's read-only data-API
+    # call. A feed that cannot be asked is UNAVAILABLE-with-a-reason, never an
+    # empty list (paper_trader/corporate_actions.py states the full decision).
+    from paper_trader.corporate_actions import (
+        MARKS_REL, CorporateActionGate, fetch_splits, gate_query_window)
+    from paper_trader.held_reconcile import journal_net_positions
+    ca_feed = fetch_splits(
+        ca_fetch if ca_fetch is not None
+        else getattr(client, "fetch_corporate_actions", None),
+        set(led.positions()) | set(broker_positions)
+        | {o.ticker.upper() for o in journal_orders},
+        gate_query_window(led.last_event_date(), today), today)
+    ca_gate = CorporateActionGate(today=today, feed=ca_feed,
+                                  marks_path=root / MARKS_REL)
+    ca_gate.apply_to_ledger(led, journal_orders)
+    ca_splits = led.applied_splits()
+    ca_gate.assess_broker(led.positions(), broker_positions)
+    print(f"   CORP-ACT   feed={'OK' if ca_feed.available else 'UNAVAILABLE'}"
+          + (f" ({ca_feed.reason})" if ca_feed.reason else "")
+          + f" window=({ca_feed.start}..{ca_feed.end}] "
+          f"splits={[e.to_dict() for e in ca_feed.events]} "
+          f"journaled-now={ca_gate.applied}")
+    for _t, _why in sorted(ca_gate.frozen.items()):
+        print(f"   CORP-ACT   FROZEN {_t}: {_why}", file=sys.stderr)
+
     account_explained = adopt_explained_broker_truth(
         led, broker_positions, broker_cash, journal_orders,
-        reason=f"cloud cycle {today}")
+        reason=f"cloud cycle {today}", splits=ca_splits)
+    if not account_explained and ca_gate.sizing_overrides:
+        # A confirmed split the broker has not applied yet is EXPLAINED (by the
+        # feed) — the ledger is still not adopted on it, and the day is
+        # non-canonical through the gate's stand-down, with the true reason.
+        try:
+            account_explained = ca_gate.explained_modulo_lag(
+                broker_positions, journal_net_positions(journal_orders, ca_splits))
+        except ValueError:
+            account_explained = False
     ktickers = known_tickers_for(journal_orders, led.positions())
     print(f"   RECONCILE  broker_positions={broker_positions} "
           f"account_explained={account_explained} (adopted into ledger)"
@@ -621,13 +678,18 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
         # position_drift → non-canonical. Explained-ONLY: a genuine UNEXPLAINED
         # position stays unadopted and is still flagged as drift (safety intact).
         adopt_explained_broker_truth(led, bpos, bcash, list(om.orders.values()),
-                                     reason=f"cloud cycle {today} reconcile")
+                                     reason=f"cloud cycle {today} reconcile",
+                                     splits=ca_splits)
         return ReconcileInputs(
             ledger_positions=led.positions(), ledger_cash=led.cash(),
             broker_positions=bpos, broker_cash=bcash,
             orders=list(om.orders.values()),
             known_tickers=ktickers,
             window_closed=False,
+            # T-163 crit-5's explicit feed, FED for the first time (2026-11-10):
+            # only tickers whose ledger-vs-broker morph MATCHES a feed-confirmed
+            # split. Anything else still HALTs as position_drift.
+            corporate_action_tickers=(set(ca_gate.reconcile_tickers) or None),
         )
 
     # --- content layer: reconcile-only pulse OR the trend sleeve (T-238) -- #
@@ -695,22 +757,33 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                   f"{sleeve_tif!r} (want day|opg).", file=sys.stderr)
             cloud.emit_metrics(happened=True, canonical=False); cloud.push()
             return 69
+        # 2026-11-10 corporate-action gate (same three calls as the family
+        # pipeline): size on the split-consistent share basis, run the
+        # price-basis guard, screen. With no split in play and consistent marks
+        # all three are the identity — this account's orders are unchanged.
+        _sizing_pos = ca_gate.positions_for_sizing(broker_positions)
         plan = SleeveOrderConstructor(tif=sleeve_tif).construct(
-            sizing_equity, broker_positions, closes)
+            sizing_equity, _sizing_pos, closes)
         sleeve_closes = {t: float(closes[t].iloc[-1]) for t in SLEEVE_UNIVERSE}
+        ca_gate.check_prices(
+            sleeve_closes,
+            held=[t for t, q in _sizing_pos.items() if int(q) != 0],
+            traded=list(getattr(plan, "target_qty", {}) or {})
+                   + [o.ticker for o in plan.orders])
+        _stageable = ca_gate.screen(plan.orders)
         latest_bar_date = max((closes[t].index[-1].date() for t in SLEEVE_UNIVERSE
                                if t in closes and not closes[t].empty), default=None)
         # Arrival price (latest trade) captured BEFORE submission = the gate-(b)
         # slippage reference (paper controls |fill − arrival| on a DAY order).
         # arrival_ts stamps WHEN: only fills after it are this run's execution.
-        if plan.orders:
+        if _stageable:
             import datetime as _dt
             arrival_ts = _dt.datetime.now(_dt.timezone.utc)
-            arrival_px = client.fetch_latest_prices([o.ticker for o in plan.orders])
+            arrival_px = client.fetch_latest_prices([o.ticker for o in _stageable])
         print(f"   SLEEVE     tif={sleeve_tif} signals={plan.signals} "
               f"targets={plan.targets} → {len(plan.orders)} order(s): "
               f"{[(o.ticker, o.side, o.qty) for o in plan.orders]}")
-        for spec in plan.orders:
+        for spec in _stageable:
             staged.append(om.stage(str(today), spec.ticker, spec.side, spec.qty,
                                    spec.stage_args()["tif"], cfg.config_hash()))
 
@@ -857,7 +930,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                     cap=(deploy_cap if deploy_cap is not None
                          else args.sleeve_notional_cap),
                     stream=STREAM_TOKEN.get(args.strategy),
-                    stage_orders=not halt.halted)
+                    stage_orders=not halt.halted, ca_gate=ca_gate)
             staged.extend(staged2)
         except _FailClosed as fc:
             print(f"FATAL: [NN-FAIL-CLOSED] {args.strategy} {fc.msg} — refusing "
@@ -890,6 +963,25 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
     print(f"3. CYCLE     reconcile {summary.reconcile_clean_cycles}/"
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
+
+    # --- 2026-11-10: the corporate-action gate's verdict. AFTER record_run
+    # (which replaces the status file). A STAND-DOWN — any ticker whose share or
+    # price basis could not be proven consistent — is an integrity failure of
+    # the run's inputs, so it flips the verdict, exactly like a denied read. The
+    # block itself is written whether or not anything was frozen: "the feed was
+    # asked and said nothing" has to be visible to be told apart from "the feed
+    # was never asked". ------------------------------------------------------ #
+    if ca_gate.stand_down:
+        canonical = False
+        print("FATAL: [NN-FAIL-CLOSED] corporate-action gate STOOD THE BOOK DOWN — "
+              f"{len(ca_gate.refused_orders)} order(s) refused, nothing staged: "
+              + "; ".join(f"{t}: {r}" for t, r in sorted(ca_gate.frozen.items())),
+              file=sys.stderr)
+    try:
+        hb.record_corporate_actions(ca_gate.to_block())
+    except Exception as exc:   # noqa: BLE001 — the verdict above already stands
+        print(f"   CORP-ACT   heartbeat-record WARN {type(exc).__name__}",
+              file=sys.stderr)
 
     # --- T-329: the STREAM's own daily verdict. AFTER record_run, like every other
     # heartbeat block — record_run REPLACES the status file, so anything stamped
@@ -1139,9 +1231,21 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None) -> int:
                 if args.strategy == "offense_sso":
                     for _t, _e in (getattr(plan, "signals", {}) or {}).items():
                         _bpx[f"_offense_expo_{_t}"] = float(_e)
+                # 2026-11-10: the books hold SHARES and are marked at split-ADJUSTED
+                # closes, so they need the split feed too (MTUM's 4-for-1 printed
+                # momentum_satellite at −76%, degraded: False). 30 days back, so a
+                # book parked on an unconfirmed move is released when the feed
+                # finally confirms. An UNAVAILABLE feed is passed through AS
+                # unavailable — the book then parks on a split-shaped move.
+                import datetime as _dtb
+                _bsplits = fetch_splits(
+                    ca_fetch if ca_fetch is not None
+                    else getattr(client, "fetch_corporate_actions", None),
+                    [s for bk in ALL_BOOKS for s in bk.symbols],
+                    today - _dtb.timedelta(days=30), today)
                 for _spec in ALL_BOOKS:
                     _lb = LiveBook(_spec, root=str(root))
-                    _ls = _lb.record(str(today), _bpx)
+                    _ls = _lb.record(str(today), _bpx, splits=_bsplits)
                     print(f"   LIVE-BOOK[{_spec.name}] days_accrued={_ls.get('days_accrued')} "
                           f"nav={_ls.get('book_nav')} twin={_ls.get('twin_nav')}"
                           + (f" excess_growth={_ls.get('excess_growth')}"

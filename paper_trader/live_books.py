@@ -40,6 +40,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
+from paper_trader.corporate_actions import price_split_ratio
+
 ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness rate)
 
 # --- T-332a CASH-DRAG ANNOTATION (measurement-side only; NEVER a restatement) --- #
@@ -320,9 +322,22 @@ class LiveBook:
                 "cash": round(cash, 4), "nav": round(cash + invested, 4)}
 
     # ---------- the daily record ----------
-    def record(self, trade_date: str, closes: Dict[str, float]) -> Dict[str, Any]:
+    def record(self, trade_date: str, closes: Dict[str, float],
+               splits: Optional[Any] = None) -> Dict[str, Any]:
         """One session. Idempotent per date. REPORT-ONLY; parks fail-closed when a needed
-        price or a strategy stance is missing (never fabricates either)."""
+        price or a strategy stance is missing (never fabricates either).
+
+        ``splits`` — a ``corporate_actions.SplitFeedResult`` (2026-11-10). A book holds
+        SHARES and is marked at the vendor's split-ADJUSTED closes, so on a split's
+        ex-date the price falls to 1/ratio while the share count does not move: MTUM's
+        4-for-1 printed momentum_satellite at −76% and quality_satellite at −16% on
+        2026-11-05, ``degraded: False``. Two defences, in order:
+          1. a CONFIRMED split with ex-date in (last clean day, trade_date] scales BOTH
+             sides' share counts (and the stored mark) before the book is marked —
+             exactly once, keyed in ``splits_applied``;
+          2. a held symbol whose mark moved by a near-clean split ratio WITHOUT that
+             confirmation PARKS the day (``degraded: True`` + reason). ``None`` means no
+             feed was supplied and is treated as feed-unavailable."""
         st = self._state()
         if any(d["date"] == trade_date for d in st["days"]):
             return self.summary()
@@ -335,6 +350,9 @@ class LiveBook:
             reason = f"missing prices {missing} → parked (no fabricated marks)"
         elif not w_book or not w_twin:
             reason = "strategy stance unavailable → parked (no fabricated exposure)"
+        applied_now: List[Dict[str, Any]] = []
+        if not reason:
+            reason, applied_now = self._corporate_actions(st, trade_date, closes, splits)
         if reason:
             st["days"].append({"date": trade_date, "degraded": True, "reason": reason,
                                "book_nav": (st["side"]["book"] or {}).get("nav"),
@@ -348,6 +366,8 @@ class LiveBook:
         # `cash_rate_missing_days`; a missing rate is never silently treated as 0%.
         _bil = closes.get(CASH_RATE_TICKER)
         _bil_prev = st.get("cash_rate_prev_px")
+        if price_split_ratio(_bil_prev, _bil) is not None:
+            _bil_prev = None      # a split-shaped move in the RATE ticker is not a rate
         prev_cash_book = (st["side"]["book"] or {}).get("cash", 0.0)
         prev_cash_twin = (st["side"]["twin"] or {}).get("cash", 0.0)
 
@@ -378,8 +398,63 @@ class LiveBook:
             "cash_adj_book": st.get("cash_adj_book"),
             "cash_adj_twin": st.get("cash_adj_twin"),
             "cash_rate_available": _rate is not None})
+        if applied_now:
+            st["days"][-1]["splits_applied"] = applied_now
+        # the mark the NEXT session's price-basis guard reads against
+        st["last_px"] = {**(st.get("last_px") or {}),
+                         **{s_: float(closes[s_]) for s_ in self.spec.symbols if s_ in closes}}
         self._write(st)
         return self.summary()
+
+    # ---------- corporate actions: share basis must follow the price basis ----------
+    @staticmethod
+    def _corporate_actions(st: Dict[str, Any], trade_date: str, closes: Dict[str, float],
+                           splits: Optional[Any]) -> "tuple[Optional[str], List[Dict[str, Any]]]":
+        """Apply confirmed splits to both sides IN PLACE; return ``(park_reason,
+        applied)``. ``park_reason`` is None when the day may be marked."""
+        sides = [sd for sd in (st["side"].get("book"), st["side"].get("twin")) if sd]
+        held = sorted({s_ for sd in sides for s_, q in (sd.get("shares") or {}).items() if q})
+        last_px: Dict[str, float] = dict(st.get("last_px") or {})
+        keys: List[str] = list(st.get("splits_applied") or [])
+        clean = [d["date"] for d in st["days"] if not d.get("degraded")]
+        last_clean = max(clean) if clean else None
+        feed_ok = bool(splits is not None and getattr(splits, "available", False))
+        applied: List[Dict[str, Any]] = []
+        if feed_ok and last_clean:
+            for ev in splits.events:
+                if ev.ticker not in held or ev.key in keys:
+                    continue
+                if not (last_clean < ev.ex_date.isoformat() <= trade_date):
+                    continue
+                for sd in sides:
+                    sh = sd.get("shares") or {}
+                    if sh.get(ev.ticker):
+                        sh[ev.ticker] = round(float(sh[ev.ticker]) * ev.ratio, 6)
+                if ev.ticker in last_px:
+                    last_px[ev.ticker] = last_px[ev.ticker] / ev.ratio
+                keys.append(ev.key)
+                applied.append(ev.to_dict())
+        st["splits_applied"], st["last_px"] = keys, last_px
+        why = ("the split feed answered and reports no split" if feed_ok else
+               "the split feed is UNAVAILABLE"
+               + (f" ({splits.reason})" if splits is not None else " (none supplied)"))
+        tripped: List[str] = []
+        for s_ in held:
+            if s_ not in closes:
+                continue
+            prev = last_px.get(s_)
+            if prev is None:
+                if not feed_ok:
+                    tripped.append(f"{s_} has no prior mark and {why}")
+                continue
+            r = price_split_ratio(prev, closes[s_])
+            if r is not None:
+                tripped.append(f"{s_} mark {prev:.4f} → {float(closes[s_]):.4f} is a "
+                               f"~{r:g}:1 split-shaped move and {why}")
+        if tripped:
+            return ("share basis unverified → parked (no mark on an unconfirmed split): "
+                    + "; ".join(tripped)), applied
+        return None, applied
 
     # ---------- reporting: days-accrued is ALWAYS displayed ----------
     def summary(self) -> Dict[str, Any]:

@@ -286,6 +286,21 @@ class PaperHeartbeat:
                                   "checked_at": _utcnow_iso()}
         self._atomic_write(self.status_path, status)
 
+    def record_corporate_actions(self, block: Dict[str, Any]) -> None:
+        """2026-11-10 — the corporate-action gate's verdict for this run: what the
+        split feed said (OK vs UNAVAILABLE + why), which splits were journaled
+        into the ledger, which tickers are FROZEN and why, and every order the
+        gate refused. A stand-down fires the notify channel: the machine is
+        deliberately not trading and an operator must be told, with the reason.
+        Must be called AFTER record_run (which replaces the status file)."""
+        status = self._read_status() or {}
+        status["corporate_actions"] = {**block, "ts": _utcnow_iso()}
+        self._atomic_write(self.status_path, status)
+        if block.get("stand_down"):
+            self._notify("[CORPORATE-ACTION] book STOOD DOWN — no orders staged: "
+                         + "; ".join(f"{t}: {r}" for t, r in
+                                     sorted((block.get("frozen") or {}).items())))
+
     def record_stream(self, label: str, block: Dict[str, Any]) -> None:
         """T-329: stamp a decision-STREAM's own daily verdict onto the status file
         under ``streams.<label>`` (account-3 day-1: the LLM analyst). Report-only —

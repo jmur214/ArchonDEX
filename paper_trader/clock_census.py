@@ -543,6 +543,7 @@ EXEMPT: Dict[str, str] = {
     # proposal §4 asked for this registration). Same container-scoping as the fleet files
     # above, with the alarm living where the stall BITES instead of here.
     "data/state/substrate_verify_stamp.json": "HOST-SIDE file in the MAIN tree's data/state, written only by the nightly janitor (check_substrate_verify) and the re-pin step after a FULL substrate verify; this census runs in account-1's container, which never holds it, so a clock here could only report a MISS it cannot diagnose. Its stall is alarmed where it bites: the submit gate refuses any stamp older than core.substrate_stamp.FRESHNESS (48 h), so a dead nightly blocks every cloud submit within two nights and the refusal names the fix",
+    "data/state/price_basis_marks.json": "the corporate-action gate's reference marks (2026-11-10), written per ACCOUNT in each account's own container on every run that reaches the content layer; not a forward record but a guard's input, and its absence is not silent — a held ticker with no mark while the split feed is unavailable FREEZES the book and the run goes non-canonical with that reason (heartbeat `corporate_actions` block)",
     "data/state/TRADING_HALT": "an OPERATOR CONTROL, not a forward record — its healthy state is ABSENT, so 'did not advance' is correct and a clock would invert the meaning",
     "data/intel/llm_raw": "diagnostic archive of raw LLM responses — written only when a call is MADE, so a no-call day is healthy; the calls themselves are clocked by analyst_note_written and scan_filed_when_due",
 }
