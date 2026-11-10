@@ -333,6 +333,39 @@ def price_ratio_bands() -> List[Dict[str, Any]]:
     return out
 
 
+def near_basis(expected_px: Optional[float], px: Optional[float]) -> bool:
+    """Is ``px`` NEAR ``expected_px`` — closer than the lower edge of the first
+    ratio band (the smallest move the guard would read as a split)? This, and
+    not "the price is not split-shaped", is what releases a ``basis_lag``
+    freeze: "not split-shaped" is also true in every GAP between the bands, so
+    an unadjusted 276.56 drifting to 240.00 read as "arrived" (expected 69.14)
+    and the freeze released on drift."""
+    try:
+        a, b = float(expected_px), float(px)      # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    if not (math.isfinite(a) and math.isfinite(b)) or a <= 0 or b <= 0:
+        return False
+    first = min(_CLEAN_RATIOS)
+    return max(a / b, b / a) < first * (1.0 - _tol_for(first))
+
+
+def confirmed_ratio_explains(confirmed_ratio: float, ref_px: Optional[float],
+                             px: Optional[float]) -> bool:
+    """Does a feed-confirmed split of ``confirmed_ratio`` explain the observed
+    move ``ref_px → px``? Only if the OBSERVED ratio sits inside that ratio's
+    own band. (Dividing the reference by the confirmed ratio and asking "is
+    what remains split-shaped?" let a 3:1 confirmation explain a 4:1 move —
+    4/3 falls in a gap between bands.)"""
+    try:
+        a, b, c = float(ref_px), float(px), float(confirmed_ratio)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) and v > 0 for v in (a, b, c)):
+        return False
+    return abs((a / b) / c - 1.0) <= _tol_for(c)
+
+
 def releases_on_feed_silence(ratio: Optional[float]) -> bool:
     """May an UNCONFIRMED freeze of this matched ratio release when the feed
     answers "no split" three sessions running? Only below 2:1 (1.25, 1.5 and
@@ -466,6 +499,9 @@ class GateState:
     # None from then on) and the run date that count was last stepped on
     seed_sessions: Optional[int] = None
     seed_step_date: Optional[str] = None
+    # which account this file belongs to (written on the first save); the ack
+    # tool refuses to stamp a file for a different, or an unnamed, account
+    account: Optional[str] = None
 
     @classmethod
     def load(cls, path: Optional[Path]) -> "GateState":
@@ -507,6 +543,7 @@ class GateState:
         st.feed_streak_date = d.get("feed_streak_date") if isinstance(
             d.get("feed_streak_date"), str) else None
         st.journal = [j for j in (d.get("journal") or []) if isinstance(j, dict)][-200:]
+        st.account = d.get("account") if isinstance(d.get("account"), str) else None
         ss = d.get("seed_sessions")
         st.seed_sessions = ss if isinstance(ss, int) and not isinstance(ss, bool) else None
         st.seed_step_date = d.get("seed_step_date") if isinstance(
@@ -521,7 +558,8 @@ class GateState:
         tmp = path.with_name(path.name + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
             fh.write(json.dumps({
-                "_schema": MARKS_SCHEMA, "marks": self.marks, "frozen": self.frozen,
+                "_schema": MARKS_SCHEMA, "account": self.account,
+                "marks": self.marks, "frozen": self.frozen,
                 "feed_unavailable_streak": self.feed_unavailable_streak,
                 "feed_streak_date": self.feed_streak_date,
                 "seed_sessions": self.seed_sessions,
@@ -580,6 +618,7 @@ class CorporateActionGate:
     marks_path: Optional[Path] = None
     state: Optional[GateState] = None
     window_capped: bool = False
+    account: Optional[str] = None
     run_frozen: Dict[str, str] = field(default_factory=dict)      # this run only
     applied: List[str] = field(default_factory=list)              # journaled THIS run
     in_play: Dict[str, List[SplitEvent]] = field(default_factory=dict)
@@ -593,11 +632,19 @@ class CorporateActionGate:
     future_events: List[str] = field(default_factory=list)
     notices: List[str] = field(default_factory=list)
     _acked: set = field(default_factory=set)
+    foreign: bool = False
 
     def __post_init__(self) -> None:
         if self.state is None:
             self.state = GateState.load(self.marks_path)
         st, day = self.state, self.today.isoformat()
+        if self.account:
+            if st.account is None:
+                st.account = self.account
+            elif st.account != self.account:
+                st.problems.append(f"marks file belongs to account {st.account!r}; "
+                                   f"this run is {self.account!r}")
+                self.foreign = True
         # a mark too old to be a witness is not a mark
         for t in list(st.marks):
             v = _valid_mark(st.marks[t])
@@ -644,8 +691,16 @@ class CorporateActionGate:
                         ratio: Optional[float] = None) -> None:
         """A freeze that must SURVIVE the run. Written once; never rewritten by
         a later day's price."""
-        if ticker in self.state.frozen:
-            return
+        prior = self.state.frozen.get(ticker)
+        ack_only = (KIND_LEDGER, KIND_ACTION, KIND_BLIND_SPLIT)
+        if prior is not None:
+            if not (kind in ack_only and prior.get("kind") not in ack_only):
+                return
+            # an ACK-ONLY freeze must not be swallowed by a weaker one already on
+            # the ticker: the weaker one can release by rule (a matching split, an
+            # arriving price) and would take this reason with it.
+            reason = f"{reason} [supersedes the earlier {prior.get('kind')} freeze of " \
+                     f"{prior.get('frozen_on')}: {prior.get('reason')}]"
         self.state.frozen[ticker] = {
             "kind": kind, "reason": reason, "frozen_on": self.today.isoformat(),
             "ref_px": ref_px, "ref_date": ref_date, "ratio": ratio,
@@ -669,11 +724,15 @@ class CorporateActionGate:
     @property
     def stand_down(self) -> bool:
         """True ⇒ nothing may be staged today and the run is non-canonical."""
-        return bool(self.frozen) or bool(self.seeding) or self.state.unreadable
+        return (bool(self.frozen) or bool(self.seeding) or self.state.unreadable
+                or self.foreign)
 
     @property
     def noncanonical_reasons(self) -> List[str]:
         out = [f"FROZEN {t}: {r}" for t, r in sorted(self.frozen.items())]
+        if self.foreign:
+            out.append("price-basis marks belong to ANOTHER account — "
+                       + "; ".join(self.state.problems))
         if self.state.unreadable:
             out.append("price-basis marks unreadable — operator must restore or "
                        "acknowledge (" + "; ".join(self.state.problems) + ")")
@@ -693,13 +752,25 @@ class CorporateActionGate:
         ex-date. A position built entirely on/after the ex-date needs nothing. A
         MIXED position (fills on both sides — the 2026-11-05 account-2 state) is
         never auto-scaled: it is frozen, persistently, for manual review."""
-        done = set(ledger.applied_split_keys())
+        journaled = {s.key: s.ratio for s in ledger.applied_splits()}
+        done = set(journaled)
         for ev in dict.fromkeys(self.feed.events):
             if ev.ex_date > self.today:          # the gate's OWN date check
                 self.future_events.append(ev.key)
                 continue
             held = int(ledger.positions().get(ev.ticker, 0))
             if ev.key in done:
+                was = journaled.get(ev.key)
+                if was is not None and abs(was - ev.ratio) > 1e-9:
+                    # the feed CORRECTED a ratio the ledger already acted on. The
+                    # ledger is never re-scaled automatically on a second opinion.
+                    self._persist_freeze(
+                        ev.ticker, KIND_LEDGER,
+                        f"{ev.ticker} split ex {ev.ex_date} was journaled into the ledger "
+                        f"at {was:g}:1 and the feed now confirms {ev.ratio:g}:1 for the "
+                        "same ex-date — the ledger is NOT re-scaled automatically; "
+                        "manual review")
+                    continue
                 self.in_play.setdefault(ev.ticker, []).append(ev)
                 continue
             if held == 0:
@@ -801,7 +872,7 @@ class CorporateActionGate:
         ref = fz.get("ref_px")
         if kind == KIND_UNCONFIRMED and ref:
             match = [e for e in confirmed
-                     if price_split_ratio(float(ref) / e.ratio, px) is None]
+                     if confirmed_ratio_explains(e.ratio, ref, px)]
             if match:
                 self._release(t, f"feed-confirmed split {match[0].ratio:g}:1 ex "
                                  f"{match[0].ex_date} matches the observed move "
@@ -824,7 +895,7 @@ class CorporateActionGate:
             else:
                 fz["no_split_streak"] = 0      # consecutive means consecutive
         elif kind == KIND_BASIS_LAG and ref:
-            if price_split_ratio(float(ref), px) is None:
+            if near_basis(ref, px):
                 self._release(t, f"price {px:.4f} is now in the confirmed split's basis "
                                  f"(expected ≈ {float(ref):.4f})")
                 self._mark(t, px)
@@ -854,7 +925,7 @@ class CorporateActionGate:
         * a split-shaped move → fine if a feed-confirmed split's RATIO explains
           it (matched by ratio, not by which date the mark carries); otherwise
           FROZEN, persistently, with the reference mark it was measured from."""
-        if self.state.unreadable:
+        if self.state.unreadable or self.foreign:
             return                    # no marks laid, nothing written over the file
         held_set = {str(t).upper() for t in held}
         check = held_set | {str(t).upper() for t in traded}
@@ -899,7 +970,7 @@ class CorporateActionGate:
             now = [e for e in confirmed if e.key in self.applied]
             if now:
                 exp = prev / math.prod(e.ratio for e in now)
-                if price_split_ratio(exp, px) is None:
+                if near_basis(exp, px):
                     self._mark(t, px)
                 else:
                     self._persist_freeze(
@@ -911,7 +982,7 @@ class CorporateActionGate:
                         ref_px=exp, ref_date=seen.isoformat())
                 continue
             r = price_split_ratio(prev, px)
-            if r is None or any(price_split_ratio(prev / e.ratio, px) is None
+            if r is None or any(confirmed_ratio_explains(e.ratio, prev, px)
                                 for e in confirmed):
                 self._mark(t, px)
                 continue
@@ -931,7 +1002,7 @@ class CorporateActionGate:
     def save(self) -> None:
         """Write the state — unless the file on disk was UNREADABLE: that file
         is left exactly as it is until an operator restores or resets it."""
-        if self.marks_path is None or self.state.unreadable:
+        if self.marks_path is None or self.state.unreadable or self.foreign:
             return
         self.state.save(Path(self.marks_path))
 

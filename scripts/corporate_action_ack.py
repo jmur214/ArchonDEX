@@ -35,10 +35,35 @@ from typing import Optional, Sequence
 from paper_trader.corporate_actions import GateState
 
 MIN_REASON_CHARS = 12
+# Releasing one of these lets ORDERS trade in the ticker again on the next run, so
+# the operator must say they looked at the split feed first. (`ledger` and `action`
+# freezes are re-frozen by the next run while their condition still holds.)
+KINDS_NEEDING_FEED_CHECK = ("unconfirmed", "basis_lag", "blind", "blind_split")
+
+
+def describe(ticker: str, entry: dict) -> str:
+    """The freeze an operator is about to acknowledge, in full."""
+    return (f"{ticker}: kind={entry.get('kind')} frozen_on={entry.get('frozen_on')}\n"
+            f"    reference mark: {entry.get('ref_px')} on {entry.get('ref_date')}\n"
+            f"    matched ratio : {entry.get('ratio')}\n"
+            f"    reason        : {entry.get('reason')}")
+
+
+def _check_account(st: GateState, account: str, path: Path) -> None:
+    if not account or not account.strip():
+        raise ValueError("--account is required: name the account this file belongs to")
+    if st.account is None:
+        raise ValueError(f"{path} carries no account identifier — it cannot be shown to "
+                         "be the file you think it is (a run of the daily driver "
+                         "stamps it)")
+    if st.account != account.strip():
+        raise ValueError(f"{path} belongs to account {st.account!r}, not "
+                         f"{account.strip()!r}")
 
 
 def ack(marks_path: Path, ticker: str, who: str, reason: str,
-        now: Optional[_dt.datetime] = None) -> str:
+        now: Optional[_dt.datetime] = None, *, account: str = "",
+        checked_feed: bool = False) -> str:
     """Stamp the acknowledgement; return the line that was journaled. Raises
     ``ValueError`` (nothing written) on any refusal."""
     raw = str(marks_path).strip()
@@ -54,11 +79,19 @@ def ack(marks_path: Path, ticker: str, who: str, reason: str,
     st = GateState.load(Path(marks_path))
     if any("marks file unreadable" in p for p in st.problems):
         raise ValueError(f"{marks_path} is unreadable: {st.problems}")
+    _check_account(st, account, Path(marks_path))
     t = ticker.upper()
     if t not in st.frozen:
         raise ValueError(f"{t} is not frozen in this file (frozen: {sorted(st.frozen)})")
+    print("ACKNOWLEDGING THIS FREEZE:\n" + describe(t, st.frozen[t]))
+    if st.frozen[t].get("kind") in KINDS_NEEDING_FEED_CHECK and not checked_feed:
+        raise ValueError(
+            f"a {st.frozen[t].get('kind')!r} freeze, once released, lets orders trade in "
+            f"{t} on the next run — re-run with --i-have-checked-the-feed after looking "
+            "at the split feed for this ticker")
     at = (now or _dt.datetime.now(_dt.timezone.utc)).isoformat()
-    st.frozen[t]["ack"] = {"who": who.strip(), "why": reason.strip(), "at": at}
+    # the FIRST signer stays on the entry; a later ack is appended to the journal
+    st.frozen[t].setdefault("ack", {"who": who.strip(), "why": reason.strip(), "at": at})
     line = {"date": at[:10], "ticker": t, "event": "ack", "who": who.strip(),
             "why": reason.strip(), "at": at, "freeze": st.frozen[t].get("reason")}
     st.journal.append(line)
@@ -67,7 +100,7 @@ def ack(marks_path: Path, ticker: str, who: str, reason: str,
 
 
 def reset_unreadable(marks_path: Path, who: str, reason: str,
-                     now: Optional[_dt.datetime] = None) -> str:
+                     now: Optional[_dt.datetime] = None, *, account: str = "") -> str:
     """The operator's answer to a marks file that EXISTS but cannot be parsed.
 
     The gate stands the book down on every run while that file is there — the
@@ -87,6 +120,8 @@ def reset_unreadable(marks_path: Path, who: str, reason: str,
         raise ValueError(f"a reason of at least {MIN_REASON_CHARS} characters is required")
     if not who or not who.strip():
         raise ValueError("--who is required: a reset is signed")
+    if not account or not account.strip():
+        raise ValueError("--account is required: the fresh file is stamped with it")
     if not GateState.load(p).unreadable:
         raise ValueError(f"{marks_path} is READABLE — nothing to reset; its freezes are "
                          "released one ticker at a time with --ticker")
@@ -95,7 +130,7 @@ def reset_unreadable(marks_path: Path, who: str, reason: str,
     if aside.exists():
         raise ValueError(f"{aside} already exists")
     p.replace(aside)
-    fresh = GateState()
+    fresh = GateState(account=account.strip())
     fresh.journal.append({"date": at.date().isoformat(), "ticker": None,
                           "event": "reset_unreadable", "who": who.strip(),
                           "why": reason.strip(), "at": at.isoformat(),
@@ -113,6 +148,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     help="the marks file exists but cannot be parsed: move it aside and "
                          "leave an empty valid one (needs --who and --reason)")
     ap.add_argument("--ticker")
+    ap.add_argument("--account", help="the account the marks file must belong to")
+    ap.add_argument("--i-have-checked-the-feed", action="store_true",
+                    help="required to acknowledge a freeze whose release lets orders trade")
     ap.add_argument("--who")
     ap.add_argument("--reason")
     a = ap.parse_args(argv)
@@ -123,6 +161,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             st = GateState.load(Path(a.marks))
             for p in st.problems:
                 print(f"PROBLEM: {p}")
+            print(f"account: {st.account}")
             for t, e in sorted(st.frozen.items()):
                 print(f"{t}: kind={e.get('kind')} frozen_on={e.get('frozen_on')} "
                       f"ref={e.get('ref_px')}@{e.get('ref_date')} "
@@ -132,11 +171,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                   f"{st.feed_unavailable_streak}")
             return 0
         if a.reset_unreadable:
-            print(reset_unreadable(Path(a.marks), a.who or "", a.reason or ""))
+            print(reset_unreadable(Path(a.marks), a.who or "", a.reason or "",
+                                   account=a.account or ""))
             return 0
         if not a.ticker:
             raise ValueError("--ticker is required (or --list / --reset-unreadable)")
-        print(ack(Path(a.marks), a.ticker, a.who or "", a.reason or ""))
+        print(ack(Path(a.marks), a.ticker, a.who or "", a.reason or "",
+                  account=a.account or "", checked_feed=a.i_have_checked_the_feed))
         return 0
     except ValueError as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)

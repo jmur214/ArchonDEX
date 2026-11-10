@@ -40,7 +40,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
-from paper_trader.corporate_actions import price_split_ratio, releases_on_feed_silence
+from paper_trader.corporate_actions import (near_basis, price_split_ratio,
+                                            releases_on_feed_silence)
 
 ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness rate)
 
@@ -487,7 +488,7 @@ class LiveBook:
             fz = frozen.get(s_)
             if fz is not None:
                 ref = fz.get("ref_px")
-                if ref and price_split_ratio(float(ref), px) is None and (
+                if ref and near_basis(ref, px) and (
                         fz.get("kind") == "basis_lag" or s_ in applied_syms):
                     released.append(f"{s_}: price is in the confirmed split's basis")
                     del frozen[s_]
@@ -502,11 +503,21 @@ class LiveBook:
             if prev is None:
                 if not feed_ok:
                     blind.append(f"{s_} has no prior mark and {why}")
-                continue
-            r = price_split_ratio(prev, px)
-            if r is None:
+                else:
+                    # a HELD symbol with no mark: there is nothing to measure
+                    # today's price against (the real 2026-11-04 file, no
+                    # `last_px`, marked the split day at 0.2201 as a clean day).
+                    # Lay the mark and park this one session.
+                    last_px[s_] = px
+                    blind.append(f"seeding last_px for {s_} (first session with the "
+                                 "price-basis guard; no prior mark to measure against)")
                 continue
             lag = s_ in applied_syms
+            r = price_split_ratio(prev, px)
+            if lag and r is None and not near_basis(prev, px):
+                r = round(prev / px, 4)      # in a band GAP: still not the split's basis
+            if r is None:
+                continue
             frozen[s_] = {
                 "kind": "basis_lag" if lag else "unconfirmed",
                 "reason": (f"{s_} mark {prev:.4f} → {px:.4f} on {trade_date} is a ~{r:g}:1 "

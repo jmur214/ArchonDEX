@@ -487,12 +487,16 @@ def test_live_book_without_confirmation_PARKS_instead_of_marking_minus_76(tmp_pa
 
 
 def test_live_book_legacy_state_without_marks(tmp_path):
-    """The live files have no ``last_px`` yet. With a feed that answers, the day
-    is marked and the mark is laid down; with none, the book parks (blind)."""
+    """The live files have no ``last_px`` yet. With a feed that answers, the mark
+    is laid and that ONE session parks (seeding); with none, the book parks
+    blind and lays nothing."""
     a = _momentum_through_11_04(tmp_path / "a", with_marks=False)
     a.record("2026-11-05", {"MTUM": 276.0, "SPY": 756.61}, splits=SplitFeedResult.ok())
-    assert a._state()["days"][-1]["degraded"] is False
+    assert a._state()["days"][-1]["degraded"] is True          # round 4: a seeding session
+    assert "seeding last_px" in a._state()["days"][-1]["reason"]
     assert a._state()["last_px"]["MTUM"] == 276.0
+    a.record("2026-11-06", {"MTUM": 275.0, "SPY": 756.61}, splits=SplitFeedResult.ok())
+    assert a._state()["days"][-1]["degraded"] is False
     b = _momentum_through_11_04(tmp_path / "b", with_marks=False)
     b.record("2026-11-05", {"MTUM": 276.0, "SPY": 756.61}, splits=None)
     assert b._state()["days"][-1]["degraded"] is True
@@ -566,6 +570,9 @@ def test_repair_never_in_place_never_over_an_existing_file_never_live_state(tmp_
 #    Each scenario was reproduced from the reviewer's scripts before the fix.
 # =========================================================================== #
 import scripts.corporate_action_ack as ack_tool  # noqa: E402
+
+# every driver run in this file stamps its marks file with the fake cloud prefix "x"
+_ACC = ["--account", "x", "--i-have-checked-the-feed"]
 from paper_trader.clock_census import EXEMPT  # noqa: E402
 from paper_trader.corporate_actions import (  # noqa: E402
     UnhandledAction, gate_query_window, price_ratio_bands)
@@ -640,18 +647,18 @@ def test_F1b_operator_ack_releases_is_signed_and_is_journaled(tmp_path, capsys):
     w = _World(tmp_path, broker_mtum=5, mtum_px=193.59)          # a genuine −30% session
     assert w.run(D(5), _raises).rc == 70
     m, why = str(w.marks_path), "a real -30% session, checked against the tape"
-    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op"]) == 2      # no reason
-    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op",
+    assert ack_tool.main(_ACC + ["--marks", m, "--ticker", "MTUM", "--who", "op"]) == 2      # no reason
+    assert ack_tool.main(_ACC + ["--marks", m, "--ticker", "MTUM", "--who", "op",
                           "--reason", "ok"]) == 2                                      # not a reason
-    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--reason", why]) == 2     # unsigned
-    assert ack_tool.main(["--marks", m, "--ticker", "VOO", "--who", "op",
+    assert ack_tool.main(_ACC + ["--marks", m, "--ticker", "MTUM", "--reason", why]) == 2     # unsigned
+    assert ack_tool.main(_ACC + ["--marks", m, "--ticker", "VOO", "--who", "op",
                           "--reason", why]) == 2                                       # not frozen
-    assert ack_tool.main(["--marks", "S3://bucket/marks.json", "--ticker", "MTUM",
+    assert ack_tool.main(_ACC + ["--marks", "S3://bucket/marks.json", "--ticker", "MTUM",
                           "--who", "op", "--reason", why]) == 2                        # never S3
     assert "ack" not in w.marks_file()["frozen"]["MTUM"], "a refusal writes nothing"
-    assert ack_tool.main(["--marks", m, "--list"]) == 0 and "MTUM: kind=unconfirmed" in \
+    assert ack_tool.main(_ACC + ["--marks", m, "--list"]) == 0 and "MTUM: kind=unconfirmed" in \
         capsys.readouterr().out
-    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op", "--reason", why]) == 0
+    assert ack_tool.main(_ACC + ["--marks", m, "--ticker", "MTUM", "--who", "op", "--reason", why]) == 0
     r6 = w.run(D(6), _raises)
     assert "MTUM" not in r6.block["frozen"] and r6.rc == 0 and r6.client.submitted
     assert "operator acknowledgement by op" in r6.block["released"][0]["why"]
@@ -1057,17 +1064,17 @@ def test_RB_an_unreadable_marks_file_stands_down_EVERY_run_until_an_operator_res
             "an order WAS constructed (an ordinary −8% day) and the stand-down refused it"
         assert w.marks_path.read_text() == raw, "the bad file is left exactly as it is"
     m, why = str(w.marks_path), "file truncated by a failed sync; no freezes were open"
-    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op"]) == 2
-    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--reason", why]) == 2
-    assert ack_tool.main(["--marks", "s3://b/marks.json", "--reset-unreadable", "--who", "op",
+    assert ack_tool.main(_ACC + ["--marks", m, "--reset-unreadable", "--who", "op"]) == 2
+    assert ack_tool.main(_ACC + ["--marks", m, "--reset-unreadable", "--reason", why]) == 2
+    assert ack_tool.main(_ACC + ["--marks", "s3://b/marks.json", "--reset-unreadable", "--who", "op",
                           "--reason", why]) == 2
     assert w.marks_path.read_text() == raw, "a refusal moves nothing"
-    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op", "--reason", why]) == 0
+    assert ack_tool.main(_ACC + ["--marks", m, "--reset-unreadable", "--who", "op", "--reason", why]) == 0
     kept = list(w.marks_path.parent.glob("price_basis_marks.json.unreadable-*"))
     assert len(kept) == 1 and kept[0].read_text() == raw, "moved aside, not deleted"
     j = w.marks_file()["journal"]
     assert [(x["event"], x["who"], x["why"]) for x in j] == [("reset_unreadable", "op", why)]
-    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op",
+    assert ack_tool.main(_ACC + ["--marks", m, "--reset-unreadable", "--who", "op",
                           "--reason", why]) == 2, "a READABLE file is not reset"
     # the next run is an ordinary seeding day; then the account trades
     r10 = w.run(D(10), _silent)
@@ -1083,3 +1090,232 @@ def test_RB_an_ABSENT_marks_file_is_still_an_ordinary_seeding_day(tmp_path):
     r = w.run(D(5), _silent)
     assert r.rc == 70 and r.block["marks_unreadable"] is False and r.block["seeding"]
     assert w.run(D(6), _silent).rc == 0
+
+
+# =========================================================================== #
+# 9. round 4 — the re-review of abb7719 (N1 required, N2–N6 minor)
+# =========================================================================== #
+from paper_trader.corporate_actions import near_basis  # noqa: E402
+
+EXPECTED = PRE_PX / 4.0                         # 69.14: MTUM's post-split basis
+_BANDS = price_ratio_bands()
+# one price in the middle of every GAP between adjacent ratio bands, measured from
+# the EXPECTED basis — except the central gap, which is "near" and must release
+GAP_PRICES = sorted(round(EXPECTED * (1.0 + (a["ret_hi"] + b["ret_lo"]) / 2.0), 4)
+                    for a, b in zip(_BANDS, _BANDS[1:]) if not (a["ret_hi"] < 0 < b["ret_lo"]))
+
+
+def _lag_file(path: Path) -> Path:
+    path.write_text(json.dumps({"marks": {}, "frozen": {"MTUM": {
+        "kind": "basis_lag", "reason": "MTUM split 4:1 … not yet in the split's basis",
+        "frozen_on": "2026-11-05", "ref_px": EXPECTED, "ref_date": "2026-11-04",
+        "ratio": None, "no_split_streak": 0, "streak_date": None}}}))
+    return path
+
+
+# ---- N1 (REQUIRED): basis_lag releases on ARRIVAL, never on drift ------------ #
+def test_N1_the_gap_table_is_what_the_reviewer_found():
+    assert len(GAP_PRICES) >= 6 and any(235 < p < 245 for p in GAP_PRICES), GAP_PRICES
+    assert all(price_split_ratio(EXPECTED, p) is None for p in GAP_PRICES), \
+        "every one of these is 'not split-shaped' against the expected basis — the old test"
+    assert not any(near_basis(EXPECTED, p) for p in GAP_PRICES)
+
+
+@pytest.mark.parametrize("px", GAP_PRICES + [240.0, PRE_PX])
+def test_N1_basis_lag_stays_frozen_at_any_price_in_a_band_gap(tmp_path, px):
+    feed = SplitFeedResult.ok([MTUM_4_1], tickers=["MTUM"], start=D(1), end=D(6))
+    g = CorporateActionGate(today=D(6), feed=feed, marks_path=_lag_file(tmp_path / "m.json"))
+    g.check_prices({"MTUM": px}, held=["MTUM"])
+    assert "MTUM" in g.frozen and g.released == [] and g.stand_down, px
+    assert "MTUM" not in g.state.marks
+
+
+@pytest.mark.parametrize("px", [EXPECTED, 65.59, 60.0, 80.0])
+def test_N1_basis_lag_releases_only_when_the_price_ARRIVES_near_the_basis(tmp_path, px):
+    feed = SplitFeedResult.ok([MTUM_4_1], tickers=["MTUM"], start=D(1), end=D(6))
+    g = CorporateActionGate(today=D(6), feed=feed, marks_path=_lag_file(tmp_path / "m.json"))
+    g.check_prices({"MTUM": px}, held=["MTUM"])
+    assert g.frozen == {} and g.state.marks["MTUM"]["px"] == px
+
+
+def test_N1_driver_x1_the_unadjusted_price_drifting_to_240_stays_frozen(tmp_path):
+    """r2_deg x1: split confirmed and journaled, broker 20, vendor price NOT
+    adjusted. 11-06 at 240.00 (still unadjusted): released, rc 0, `MTUM sell 14`
+    and `SGOV buy 33` submitted."""
+    w = _World(tmp_path, broker_mtum=20, mtum_px=PRE_PX)
+    assert w.run(D(5), _real).rc == 70
+    assert w.marks_file()["frozen"]["MTUM"]["kind"] == "basis_lag"
+    w.px["MTUM"] = 240.0
+    r6 = w.run(D(6), _real)
+    assert r6.rc == 70 and r6.client.submitted == [] and r6.new_orders == []
+    assert r6.block["released"] == [] and _mtum(r6.block["refused_orders"])
+    w.px["MTUM"] = POST_PX
+    r9 = w.run(D(9), _real)
+    assert r9.rc == 0 and [x["ticker"] for x in r9.block["released"]] == ["MTUM"]
+
+
+def test_N1_driver_a_split_journaled_today_with_the_price_in_a_band_gap_is_frozen(tmp_path):
+    """The same hole at CREATION: 276.56 → 240.00 on the day the split is
+    journaled is "not split-shaped" against the expected 69.14 either."""
+    w = _World(tmp_path, broker_mtum=20, mtum_px=240.0)
+    r = w.run(D(5), _real)
+    assert r.rc == 70 and r.client.submitted == []
+    assert w.marks_file()["frozen"]["MTUM"]["kind"] == "basis_lag"
+
+
+def test_N1_book_basis_lag_does_not_release_on_drift(tmp_path):
+    """r2_booklag: 11-05 at 262.40 parked; 11-06 at 240.00 recorded growth 3.198."""
+    lb = _momentum_through_11_04(tmp_path)
+
+    def feed(day: int) -> SplitFeedResult:
+        return fetch_splits(_real, ["MTUM", "SPY"], dt.date(2026, 10, 6), D(day))
+    lb.record("2026-11-05", {"MTUM": 262.4, "SPY": 756.61}, splits=feed(5))
+    st = lb._state()
+    assert st["days"][-1]["degraded"] is True and st["frozen"]["MTUM"]["kind"] == "basis_lag"
+    assert st["side"]["book"]["shares"] == {"MTUM": 1332.0}, "the split itself IS applied"
+    for day, px in ((6, 240.0), (9, GAP_PRICES[-1])):
+        lb.record(D(day).isoformat(), {"MTUM": px, "SPY": 739.87}, splits=feed(day))
+        st = lb._state()
+        assert st["days"][-1]["degraded"] is True and "book_growth" not in st["days"][-1], px
+    lb.record("2026-11-10", {"MTUM": 64.75, "SPY": 739.87}, splits=feed(10))
+    st = lb._state()
+    assert st["days"][-1]["degraded"] is False and st["frozen"] == {}
+    assert st["days"][-1]["book_growth"] == pytest.approx(0.864, abs=2e-3)
+
+
+def test_N1_book_a_split_applied_today_with_the_price_in_a_gap_is_parked(tmp_path):
+    lb = _momentum_through_11_04(tmp_path)
+    lb.record("2026-11-05", {"MTUM": 240.0, "SPY": 756.61},
+              splits=fetch_splits(_real, ["MTUM", "SPY"], dt.date(2026, 10, 6), D(5)))
+    st = lb._state()
+    assert st["days"][-1]["degraded"] is True and st["frozen"]["MTUM"]["kind"] == "basis_lag"
+
+
+# ---- N2: a confirmation explains a move only inside ITS OWN band ------------- #
+@pytest.mark.parametrize("ratio, released", [(3.0, False), (4.0, True), (5.0, False)])
+def test_N2_a_wrong_ratio_confirmation_does_not_match_through_a_band_gap(tmp_path, ratio,
+                                                                         released):
+    """r2_misc: observed 4:1, the feed confirms 3:1 → RELEASED (276.56/3 → 69.14
+    is 1.333, a gap between bands)."""
+    feed = SplitFeedResult.ok([SplitEvent("MTUM", EX, ratio)], tickers=["MTUM"],
+                              start=D(4), end=D(6))
+    g = CorporateActionGate(today=D(6), feed=feed, marks_path=_frozen_file(tmp_path / "m.json"))
+    g.check_prices({"MTUM": POST_PX}, held=["MTUM"])
+    assert (g.frozen == {}) is released and bool(g.released) is released
+    # …and with NO prior freeze: the same-day move is explained only by the right ratio
+    mp = tmp_path / "fresh.json"
+    mp.write_text(json.dumps({"marks": {"MTUM": {"px": PRE_PX, "run_date": "2026-11-05"}}}))
+    g2 = CorporateActionGate(today=D(6), feed=feed, marks_path=mp)
+    g2.check_prices({"MTUM": POST_PX}, held=[], traded=["MTUM"])
+    assert ("MTUM" not in g2.frozen) is released
+
+
+# ---- N3: a book's first session with the guard is a seeding session ---------- #
+def test_N3_the_real_production_book_file_parks_its_first_session_and_lays_last_px(tmp_path):
+    """r2_hi h3: a book file with no `last_px` and a silent feed marked its first
+    day clean, whatever the price had done."""
+    real = json.loads(REAL_BOOK.read_text())
+    assert "last_px" not in real, "the production file predates the guard"
+    lb = LiveBook(MOMENTUM_SAT, root=str(tmp_path))
+    lb._write(real)
+    silent = SplitFeedResult.ok(tickers=["MTUM", "SPY"], start=D(1), end=D(11))
+    lb.record("2026-11-11", {"MTUM": 66.5, "SPY": 752.0}, splits=silent)
+    st = lb._state()
+    assert st["days"][-1]["degraded"] is True and "seeding last_px" in st["days"][-1]["reason"]
+    assert st["last_px"] == {"MTUM": 66.5, "SPY": 752.0}
+    assert st["side"]["book"]["shares"] == {"MTUM": 335.0}
+    lb.record("2026-11-12", {"MTUM": 66.9, "SPY": 753.0}, splits=silent)
+    assert lb._state()["days"][-1]["degraded"] is False
+
+
+# ---- N4: a corrected ratio is never applied on top of a journaled one -------- #
+def test_N4_a_corrected_ratio_for_a_journaled_ex_date_freezes_the_ticker(tmp_path):
+    """r2_abc a1: the feed says 2:1, then 4:1 for the same ex-date → the ledger
+    silently stayed at 10 against a broker at 20."""
+    led, mp = _ledger(tmp_path / "a"), tmp_path / "m.json"
+    two = SplitFeedResult.ok([SplitEvent("MTUM", EX, 2.0)], tickers=["MTUM"], start=D(1), end=D(6))
+    g = CorporateActionGate(today=D(6), feed=two, marks_path=mp)
+    g.apply_to_ledger(led, _pre_split_fill())
+    g.save()
+    assert led.positions()["MTUM"] == 10 and g.frozen == {}
+    four = SplitFeedResult.ok([MTUM_4_1], tickers=["MTUM"], start=D(1), end=D(9))
+    g2 = CorporateActionGate(today=D(9), feed=four, marks_path=mp)
+    g2.apply_to_ledger(led, _pre_split_fill())
+    assert led.positions()["MTUM"] == 10, "never re-scaled automatically"
+    assert "2:1" in g2.frozen["MTUM"] and "4:1" in g2.frozen["MTUM"] and g2.stand_down
+    assert g2.state.frozen["MTUM"]["kind"] == "ledger" and g2.applied == []
+    # the SAME ratio again is not a correction
+    g3 = CorporateActionGate(today=D(9), feed=two, marks_path=tmp_path / "other.json")
+    g3.apply_to_ledger(led, _pre_split_fill())
+    assert g3.frozen == {}
+
+
+def test_N4_the_correction_freeze_is_not_swallowed_by_an_unconfirmed_one(tmp_path):
+    """r2_abc a1, as it ran AFTER the first N4 fix: MTUM already carried an
+    `unconfirmed` freeze, so the correction freeze was a no-op — and the
+    corrected 4:1 then RELEASED the unconfirmed one by ratio match."""
+    led = _ledger(tmp_path / "a")
+    led.apply_split("MTUM", 2.0, EX)                    # journaled at the wrong ratio
+    mp = _frozen_file(tmp_path / "m.json")              # unconfirmed, ref 276.56
+    four = SplitFeedResult.ok([MTUM_4_1], tickers=["MTUM"], start=D(1), end=D(9))
+    g = CorporateActionGate(today=D(9), feed=four, marks_path=mp)
+    g.apply_to_ledger(led, _pre_split_fill())
+    g.check_prices({"MTUM": POST_PX}, held=["MTUM"])
+    assert g.state.frozen["MTUM"]["kind"] == "ledger" and g.released == [] and g.stand_down
+    assert "supersedes the earlier unconfirmed freeze" in g.frozen["MTUM"]
+    assert led.positions()["MTUM"] == 10
+
+
+# ---- N6: the ack tool -------------------------------------------------------- #
+def test_N6_ack_needs_the_right_account_the_feed_check_and_keeps_the_first_signer(tmp_path,
+                                                                                capsys):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=193.59)
+    assert w.run(D(5), _raises).rc == 70
+    assert w.marks_file()["account"] == "x", "the run stamps the file with its account"
+    m, why = str(w.marks_path), "a real -30% session, checked against the tape"
+    base = ["--marks", m, "--ticker", "MTUM", "--who", "op", "--reason", why]
+    assert ack_tool.main(base + ["--i-have-checked-the-feed"]) == 2               # no account
+    assert ack_tool.main(base + ["--account", "paper_state",
+                                 "--i-have-checked-the-feed"]) == 2                # wrong one
+    assert "belongs to account 'x'" in capsys.readouterr().err
+    assert ack_tool.main(base + ["--account", "x"]) == 2                           # no feed check
+    io = capsys.readouterr()
+    assert "ACKNOWLEDGING THIS FREEZE" in io.out and "matched ratio : 1.5" in io.out
+    assert "reference mark: 276.56 on 2026-11-04" in io.out and "kind=unconfirmed" in io.out
+    assert "--i-have-checked-the-feed" in io.err
+    assert "ack" not in w.marks_file()["frozen"]["MTUM"]
+    assert ack_tool.main(base + _ACC) == 0
+    second = ["--marks", m, "--ticker", "MTUM", "--who", "second", "--reason",
+              "countersigned after a second look"] + _ACC
+    assert ack_tool.main(second) == 0
+    mf = w.marks_file()
+    assert mf["frozen"]["MTUM"]["ack"]["who"] == "op", "the first signer is not overwritten"
+    assert [(j["event"], j.get("who")) for j in mf["journal"]] == [
+        ("freeze", None), ("ack", "op"), ("ack", "second")]
+    # a file that carries NO account cannot be acknowledged at all
+    bare = _frozen_file(tmp_path / "bare.json")
+    assert ack_tool.main(["--marks", str(bare), "--ticker", "MTUM", "--who", "op",
+                          "--reason", why] + _ACC) == 2
+    assert "carries no account identifier" in capsys.readouterr().err
+
+
+def test_N6_a_marks_file_from_another_account_stands_the_book_down(tmp_path):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=254.44)
+    d = w.marks_file()
+    d["account"] = "paper_state_other"
+    w.marks_path.write_text(json.dumps(d))
+    before = w.marks_path.read_text()
+    r = w.run(D(5), _silent)
+    assert r.rc == 70 and r.client.submitted == [] and r.block["refused_orders"]
+    assert "belong to ANOTHER account" in r.hb["last_run"]["reason"]
+    assert w.marks_path.read_text() == before, "a foreign file is not written over"
+
+
+# ---- the heartbeat write: a verdict that left no trace is not certified ------ #
+def test_a_failed_heartbeat_write_makes_even_a_clean_day_non_canonical(tmp_path, monkeypatch):
+    def boom(self, block):
+        raise OSError("disk full")
+    monkeypatch.setattr(PaperHeartbeat, "record_corporate_actions", boom)
+    r = _replay(tmp_path, broker_mtum=5, feed=_silent, mtum_px=254.44)   # the positive control
+    assert r.block == {} and r.client.submitted, "the day itself was clean and traded"
+    assert r.rc == 70 and r.cloud.metrics[-1] == (True, False)

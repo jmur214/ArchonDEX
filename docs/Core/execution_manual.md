@@ -1691,8 +1691,30 @@ repaired by an operator (the park reason says so).
 ```bash
 python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json --list
 python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
-  --ticker MTUM --who <name> --reason "why this freeze may be lifted (12+ characters)"
+  --account <the account's S3 prefix name, e.g. paper_state_offense_sso> \
+  --ticker MTUM --who <name> --reason "why this freeze may be lifted (12+ characters)" \
+  --i-have-checked-the-feed
 ```
+
+`--account` is required and must equal the `account` the daily run stamped into the file (the
+run's S3 prefix name); a file for another account, or one carrying no account, is refused. The
+tool prints the freeze being acknowledged (kind, reason, reference mark, matched ratio) before it
+stamps anything. `--i-have-checked-the-feed` is required for the kinds whose release lets orders
+trade in the ticker on the next run (`unconfirmed`, `basis_lag`, `blind`, `blind_split`). A
+second ack is appended to the journal; the first signer stays on the entry. `--reset-unreadable`
+takes `--account` too and stamps the fresh file with it.
+
+**A live BOOK parked on a ≥2:1 unconfirmed move** (no ack tool). Preferred route: the repair
+script above (`scripts.repair_live_book_split_2026_11_05`) on a local copy with the corroborating
+feed payload. If that is not possible, the exact manual edit of the book's state file, all four
+fields together, for a split of ratio R (new shares per old) on symbol S:
+1. `side.book.shares[S]` and `side.twin.shares[S]` — multiply each by R (where S is held);
+2. `last_px[S]` — divide by R (it is the pre-split mark the park was measured from);
+3. `splits_applied` — append `"S:<ex-date YYYY-MM-DD>"`, so the feed can never apply it again;
+4. `frozen` — delete the `S` entry.
+Deleting `frozen` alone does nothing: the next session re-parks against the unchanged `last_px`.
+If the move was real and NOT a split, change nothing but `last_px[S]` (set it to the current
+price) and delete the `frozen` entry — the book then records the move as a return.
 
 It stamps `ack: {who, why, at}` on the freeze and appends to the file's journal; the next daily
 run reads it, releases, journals the release and lays a fresh mark. It refuses without a reason

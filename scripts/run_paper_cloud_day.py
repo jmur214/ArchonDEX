@@ -646,7 +646,11 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
         _ca_since, today)
     ca_gate = CorporateActionGate(today=today, feed=ca_feed,
                                   marks_path=root / MARKS_REL, state=ca_state,
-                                  window_capped=_ca_capped)
+                                  window_capped=_ca_capped,
+                                  # the account this marks file belongs to — the ack
+                                  # tool refuses a file stamped for another account
+                                  account=str(getattr(cloud.cfg, "prefix", None)
+                                              or args.strategy))
     ca_gate.apply_to_ledger(led, journal_orders)
     ca_splits = led.applied_splits()
     ca_gate.assess_broker(led.positions(), broker_positions)
@@ -994,6 +998,10 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
     # The gate's verdict also flips the local variable directly — belt and
     # braces with the heartbeat rewrite above, so a failed heartbeat write can
     # never let a stood-down run exit 0.
+    # INTENDED, and locked: if the gate's block could NOT be written to the
+    # heartbeat, even an otherwise clean day exits 70. The block is the only
+    # place "the feed was asked and what it said" is recorded; a run whose
+    # corporate-action verdict left no trace is not a certified run.
     if ca_gate.noncanonical_reasons or not ca_recorded:
         canonical = False
         print("FATAL: [NN-FAIL-CLOSED] corporate-action gate — NON-CANONICAL"
