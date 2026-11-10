@@ -630,16 +630,23 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
     # call. A feed that cannot be asked is UNAVAILABLE-with-a-reason, never an
     # empty list (paper_trader/corporate_actions.py states the full decision).
     from paper_trader.corporate_actions import (
-        MARKS_REL, CorporateActionGate, fetch_splits, gate_query_window)
+        MARKS_REL, CorporateActionGate, GateState, fetch_splits, gate_query_window)
     from paper_trader.held_reconcile import journal_net_positions
+    # The gate's durable state FIRST: a persisted freeze widens the window back
+    # to the mark it was measured from, so the split that explains it is asked
+    # about however long ago it was (capped; the cap is stated in the block).
+    ca_state = GateState.load(root / MARKS_REL)
+    _ca_since, _ca_capped = gate_query_window(
+        led.last_event_date(), today, ca_state.oldest_reference())
     ca_feed = fetch_splits(
         ca_fetch if ca_fetch is not None
         else getattr(client, "fetch_corporate_actions", None),
-        set(led.positions()) | set(broker_positions)
+        set(led.positions()) | set(broker_positions) | set(ca_state.frozen)
         | {o.ticker.upper() for o in journal_orders},
-        gate_query_window(led.last_event_date(), today), today)
+        _ca_since, today)
     ca_gate = CorporateActionGate(today=today, feed=ca_feed,
-                                  marks_path=root / MARKS_REL)
+                                  marks_path=root / MARKS_REL, state=ca_state,
+                                  window_capped=_ca_capped)
     ca_gate.apply_to_ledger(led, journal_orders)
     ca_splits = led.applied_splits()
     ca_gate.assess_broker(led.positions(), broker_positions)
@@ -953,6 +960,26 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
     summary = sched.run_trading_day(str(today), staged, inputs_fn,
                                     account_explained=account_explained)
 
+    # --- 2026-11-10: the corporate-action gate's verdict goes INTO the heartbeat
+    # before the verdict is read back. AFTER record_run (which replaces the
+    # status file) and BEFORE check(): a stand-down, a seeding day or a feed
+    # dead for three runs rewrites last_run.canonical / reason / alert, so the
+    # file, the metric and the exit code cannot disagree. (They did: a
+    # price-guard stand-down exited 70 with the heartbeat reading
+    # canonical/clean/no-alert.) The block is written whether or not anything
+    # was frozen — "the feed was asked and said nothing" must be visible to be
+    # told apart from "the feed was never asked". ------------------------- #
+    ca_recorded = False
+    try:
+        ca_gate.save()
+        hb.record_corporate_actions(ca_gate.to_block())
+        ca_recorded = True
+    except Exception as exc:   # noqa: BLE001 — the verdict below still stands
+        print(f"   CORP-ACT   heartbeat-record WARN {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+    for _n in ca_gate.notices:
+        print(f"   CORP-ACT   {_n}")
+
     # --- 3. heartbeat verdict → metrics + exit code ------------------- #
     v = hb.check(today, is_trading_day=True)
     # T-327j: a DENIED durable read is an integrity failure of the same class as a
@@ -964,23 +991,16 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
           f"{summary.reconcile_total_cycles} clean | halted={summary.halted}")
     print(f"4. HEARTBEAT alive={v.alive} alert={v.alert} | {v.reason}")
 
-    # --- 2026-11-10: the corporate-action gate's verdict. AFTER record_run
-    # (which replaces the status file). A STAND-DOWN — any ticker whose share or
-    # price basis could not be proven consistent — is an integrity failure of
-    # the run's inputs, so it flips the verdict, exactly like a denied read. The
-    # block itself is written whether or not anything was frozen: "the feed was
-    # asked and said nothing" has to be visible to be told apart from "the feed
-    # was never asked". ------------------------------------------------------ #
-    if ca_gate.stand_down:
+    # The gate's verdict also flips the local variable directly — belt and
+    # braces with the heartbeat rewrite above, so a failed heartbeat write can
+    # never let a stood-down run exit 0.
+    if ca_gate.noncanonical_reasons or not ca_recorded:
         canonical = False
-        print("FATAL: [NN-FAIL-CLOSED] corporate-action gate STOOD THE BOOK DOWN — "
-              f"{len(ca_gate.refused_orders)} order(s) refused, nothing staged: "
-              + "; ".join(f"{t}: {r}" for t, r in sorted(ca_gate.frozen.items())),
-              file=sys.stderr)
-    try:
-        hb.record_corporate_actions(ca_gate.to_block())
-    except Exception as exc:   # noqa: BLE001 — the verdict above already stands
-        print(f"   CORP-ACT   heartbeat-record WARN {type(exc).__name__}",
+        print("FATAL: [NN-FAIL-CLOSED] corporate-action gate — NON-CANONICAL"
+              + (f"; book STOOD DOWN, {len(ca_gate.refused_orders)} order(s) refused, "
+                 "nothing staged" if ca_gate.stand_down else "") + ": "
+              + (" || ".join(ca_gate.noncanonical_reasons)
+                 or "the gate's verdict could not be written to the heartbeat"),
               file=sys.stderr)
 
     # --- T-329: the STREAM's own daily verdict. AFTER record_run, like every other
@@ -1238,11 +1258,20 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 # finally confirms. An UNAVAILABLE feed is passed through AS
                 # unavailable — the book then parks on a split-shaped move.
                 import datetime as _dtb
+                # …and back to the oldest mark a PARKED book is still frozen
+                # against (capped at 60 days), so its split is still asked about.
+                _bfirst = today - _dtb.timedelta(days=30)
+                for _spec in ALL_BOOKS:
+                    _ref = LiveBook(_spec, root=str(root)).oldest_reference()
+                    if _ref:
+                        _bfirst = min(_bfirst, _dtb.date.fromisoformat(_ref[:10])
+                                      - _dtb.timedelta(days=1))
+                _bfirst = max(_bfirst, today - _dtb.timedelta(days=60))
                 _bsplits = fetch_splits(
                     ca_fetch if ca_fetch is not None
                     else getattr(client, "fetch_corporate_actions", None),
                     [s for bk in ALL_BOOKS for s in bk.symbols],
-                    today - _dtb.timedelta(days=30), today)
+                    _bfirst, today)
                 for _spec in ALL_BOOKS:
                     _lb = LiveBook(_spec, root=str(root))
                     _ls = _lb.record(str(today), _bpx, splits=_bsplits)

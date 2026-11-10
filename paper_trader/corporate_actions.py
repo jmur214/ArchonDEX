@@ -60,10 +60,22 @@ SETTLE_LOOKBACK_DAYS = 7
 # |observed/clean − 1| tolerance for the PRICE guard. A split-day price is the
 # clean ratio times an ordinary daily move, so this must be wider than a normal
 # day and far narrower than the gap between ratios: 0.12 flags a 4-for-1 across
-# a ±12% session and leaves an ordinary −8% day (ratio 1.087) untouched.
+# a ±12% session. The SMALL ratios (5-for-4, 3-for-2) sit close to 1, where a
+# 12% band would swallow ordinary bad days (1.25 ± 12% reaches a −9% session),
+# so below 2:1 the band is 6%. `price_ratio_bands()` prints the resulting table.
 PRICE_RATIO_TOL = 0.12
+PRICE_RATIO_TOL_SMALL = 0.06
 _CLEAN_RATIOS: Tuple[float, ...] = tuple(
-    [1.5] + [float(n) for n in range(2, 21)])
+    [1.25, 1.5, 2.5] + [float(n) for n in range(2, 21)] + [25.0, 30.0, 40.0, 50.0])
+# A mark older than this many trading days is not a witness (treated as no mark).
+MARK_MAX_AGE_TRADING_DAYS = 10
+# Feed AVAILABLE and silent on this many consecutive sessions releases an
+# UNCONFIRMED price freeze as a real move. Never with the feed unavailable.
+NO_SPLIT_RELEASE_SESSIONS = 3
+# This many consecutive runs with the feed UNAVAILABLE make the run non-canonical.
+FEED_DEAD_ALARM_RUNS = 3
+# The feed query never reaches further back than this (stated in the block).
+WINDOW_CAP_DAYS = 60
 _QTY_TOL = 1e-9
 
 # fetch(symbols, start_inclusive, end_inclusive) -> the provider's raw mapping
@@ -180,6 +192,10 @@ def parse_alpaca_corporate_actions(
     "the feed could not be read", never "there was no split"."""
     if not isinstance(raw, Mapping):
         raise ValueError(f"corporate-actions payload is {type(raw).__name__}, not a mapping")
+    if raw.get("next_page_token"):
+        # a PARTIAL page: the split may be on the page we were not given
+        raise ValueError("response is paginated (next_page_token set); a partial "
+                         "page is not an answer")
     body = raw.get("corporate_actions", raw)
     if body is None:
         body = {}
@@ -252,8 +268,11 @@ def fetch_splits(fetch_fn: Optional[FetchFn], tickers: Iterable[str],
         return SplitFeedResult.unavailable(
             f"unparseable response: {exc}", tickers=syms, start=start, end=today)
     want = set(syms)
-    events = [e for e in events if e.ticker in want and start <= e.ex_date <= today]
-    unhandled = [u for u in unhandled if u.ticker in want]
+    # one event per (ticker, ex_date, ratio): a provider that repeats a row has
+    # not announced two splits. Nothing dated after `today` is an event yet.
+    events = list(dict.fromkeys(
+        e for e in events if e.ticker in want and start <= e.ex_date <= today))
+    unhandled = list(dict.fromkeys(u for u in unhandled if u.ticker in want))
     return SplitFeedResult.ok(events, unhandled, tickers=syms, start=start, end=today)
 
 
@@ -278,7 +297,32 @@ def price_split_ratio(prev_px: Optional[float], px: Optional[float],
     # first one inside it: 10× sits within 12% of both 1/9 and 1/10.
     cands = [c for c in _CLEAN_RATIOS] + [1.0 / c for c in _CLEAN_RATIOS]
     best = min(cands, key=lambda c: abs(r / c - 1.0))
-    return best if abs(r / best - 1.0) <= tol else None
+    return best if abs(r / best - 1.0) <= _tol_for(best, tol) else None
+
+
+def _tol_for(ratio: float, tol: float = PRICE_RATIO_TOL) -> float:
+    """The band for one clean ratio: ``tol`` from 2:1 up, the narrow band below."""
+    return tol if max(ratio, 1.0 / ratio) >= 2.0 else min(tol, PRICE_RATIO_TOL_SMALL)
+
+
+def price_ratio_bands() -> List[Dict[str, Any]]:
+    """The false-positive table: for each clean ratio, the one-session price
+    move (as a return) that the guard reads as that split. Merged where bands
+    touch. A reviewer reads THIS, not the constants."""
+    spans = []
+    for c in list(_CLEAN_RATIOS) + [1.0 / c for c in _CLEAN_RATIOS]:
+        t = _tol_for(c)
+        # prev/px = r in [c(1−t), c(1+t)]  →  return = 1/r − 1
+        spans.append((1.0 / (c * (1 + t)) - 1.0, 1.0 / (c * (1 - t)) - 1.0, c))
+    spans.sort()
+    out: List[Dict[str, Any]] = []
+    for lo, hi, c in spans:
+        if out and lo <= out[-1]["ret_hi"] + 1e-12:
+            out[-1]["ret_hi"] = max(out[-1]["ret_hi"], hi)
+            out[-1]["ratios"].append(round(c, 4))
+        else:
+            out.append({"ret_lo": lo, "ret_hi": hi, "ratios": [round(c, 4)]})
+    return out
 
 
 def split_qty(qty: float, ratio: float) -> Optional[int]:
@@ -334,39 +378,266 @@ def split_adjusted_journal_net(orders: Iterable[Any],
 
 
 # --------------------------------------------------------------------------- #
-# the gate
+# the gate's durable state: marks, FREEZES, the feed-outage count, a journal
 # --------------------------------------------------------------------------- #
 MARKS_REL = "data/state/price_basis_marks.json"
-MARKS_SCHEMA = "price_basis_marks/v1"
+MARKS_SCHEMA = "price_basis_marks/v2"
+
+# Freeze kinds and the ONLY ways each one releases. None of them releases
+# because the price drifted out of a band — that was the 2026-11-10 blocker.
+KIND_UNCONFIRMED = "unconfirmed"   # split-shaped move, no feed confirmation
+#   → a feed-confirmed split whose ratio MATCHES the observed move, or the feed
+#     answering "no split" on NO_SPLIT_RELEASE_SESSIONS consecutive sessions, or an ack
+KIND_BASIS_LAG = "basis_lag"       # split confirmed + journaled, price not adjusted yet
+#   → the price arriving in the confirmed basis, or an ack
+KIND_BLIND = "blind"               # held, no mark, feed unavailable
+#   → the feed answering (then: seed, or blind_split if it reports a split)
+KIND_BLIND_SPLIT = "blind_split"   # held, no mark, a confirmed split in the window → ack only
+KIND_LEDGER = "ledger"             # share basis not provable from the journal → ack only
+KIND_ACTION = "action"             # an unmodelled corporate action → ack only
 
 
+def _prev_business_day(d: _dt.date) -> _dt.date:
+    d -= _dt.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= _dt.timedelta(days=1)
+    return d
+
+
+def _business_days_between(a: _dt.date, b: _dt.date) -> int:
+    """Weekdays in (a, b]. The gate has no exchange calendar; weekdays over-count
+    a holiday week by a day, which errs toward calling a mark stale."""
+    n, d = 0, a
+    while d < b:
+        d += _dt.timedelta(days=1)
+        if d.weekday() < 5:
+            n += 1
+    return n
+
+
+def _valid_mark(entry: Any) -> Optional[Tuple[float, _dt.date]]:
+    try:
+        px = float(entry["px"])
+        day = _as_date(entry["run_date"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (px, day) if math.isfinite(px) and px > 0 else None
+
+
+@dataclass
+class GateState:
+    """The marks file, validated entry by entry. An invalid MARK is "no mark"
+    and is named in ``problems``; an invalid FREEZE entry stays a freeze (a
+    freeze must never be lost to a parse error)."""
+    marks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    frozen: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    feed_unavailable_streak: int = 0
+    feed_streak_date: Optional[str] = None
+    journal: List[Dict[str, Any]] = field(default_factory=list)
+    problems: List[str] = field(default_factory=list)
+
+    @classmethod
+    def load(cls, path: Optional[Path]) -> "GateState":
+        st = cls()
+        if path is None or not Path(path).exists():
+            return st
+        try:
+            d = json.loads(Path(path).read_text())
+            if not isinstance(d, dict):
+                raise ValueError(f"top level is {type(d).__name__}, not an object")
+        except (OSError, ValueError) as exc:
+            st.problems.append(f"marks file unreadable ({type(exc).__name__}: {exc}) — "
+                               "every ticker treated as having NO mark")
+            return st
+        marks = d.get("marks")
+        if marks is not None and not isinstance(marks, dict):
+            st.problems.append("marks is not an object — treated as empty")
+            marks = {}
+        for t, e in (marks or {}).items():
+            v = _valid_mark(e)
+            if v is None:
+                st.problems.append(f"invalid mark for {t} ({e!r}) — treated as NO mark")
+            else:
+                st.marks[str(t).upper()] = {"px": v[0], "run_date": v[1].isoformat()}
+        frozen = d.get("frozen")
+        if frozen is not None and not isinstance(frozen, dict):
+            st.problems.append("frozen is not an object — cannot be read")
+            frozen = {}
+        for t, e in (frozen or {}).items():
+            if not isinstance(e, dict) or not e.get("reason"):
+                st.problems.append(f"unreadable freeze entry for {t} — kept FROZEN")
+                e = {"kind": KIND_LEDGER, "reason": f"{t} freeze entry was unreadable; "
+                     "kept frozen (acknowledge to release)", "frozen_on": None}
+            st.frozen[str(t).upper()] = dict(e)
+        try:
+            st.feed_unavailable_streak = max(0, int(d.get("feed_unavailable_streak") or 0))
+        except (TypeError, ValueError):
+            st.problems.append("feed_unavailable_streak unreadable — reset to 0")
+        st.feed_streak_date = d.get("feed_streak_date") if isinstance(
+            d.get("feed_streak_date"), str) else None
+        st.journal = [j for j in (d.get("journal") or []) if isinstance(j, dict)][-200:]
+        return st
+
+    def save(self, path: Path) -> None:
+        """Atomic: write a temp file beside it, fsync, rename over."""
+        import os
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "_schema": MARKS_SCHEMA, "marks": self.marks, "frozen": self.frozen,
+                "feed_unavailable_streak": self.feed_unavailable_streak,
+                "feed_streak_date": self.feed_streak_date,
+                "journal": self.journal[-200:]}, indent=1, sort_keys=True))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+
+    def oldest_reference(self) -> Optional[_dt.date]:
+        """The earliest date any persisted freeze still refers to — the feed
+        window must reach back to it or the split that explains it is invisible."""
+        days: List[_dt.date] = []
+        for e in self.frozen.values():
+            for k in ("ref_date", "frozen_on"):
+                try:
+                    if e.get(k):
+                        days.append(_as_date(e[k]))
+                except ValueError:
+                    continue
+        return min(days) if days else None
+
+
+def gate_query_window(last_ledger_date: Optional[_dt.date], today: _dt.date,
+                      oldest_reference: Optional[_dt.date] = None
+                      ) -> Tuple[_dt.date, bool]:
+    """``(since, capped)`` — ``since`` is the EXCLUSIVE lower bound handed to
+    ``fetch_splits``. The window's first day is the EARLIEST of:
+      * the trading day BEFORE the ledger's last dated event (the last event
+        can itself be the ex-date — an exclusive bound there blinded the gate
+        to account 2's own split from 2026-11-12);
+      * ``SETTLE_LOOKBACK_DAYS`` ago;
+      * the oldest date a persisted freeze refers to.
+    Never more than ``WINDOW_CAP_DAYS`` back; ``capped`` says when that bit."""
+    first = today - _dt.timedelta(days=SETTLE_LOOKBACK_DAYS - 1)
+    if last_ledger_date:
+        first = min(first, _prev_business_day(last_ledger_date))
+    if oldest_reference:
+        first = min(first, oldest_reference)
+    cap = today - _dt.timedelta(days=WINDOW_CAP_DAYS)
+    capped = first < cap
+    return max(first, cap) - _dt.timedelta(days=1), capped
+
+
+# --------------------------------------------------------------------------- #
+# the gate
+# --------------------------------------------------------------------------- #
 @dataclass
 class CorporateActionGate:
     """One run's corporate-action verdict. Build it, then call, in order:
     ``apply_to_ledger`` → ``assess_broker`` → (construct the plan on
-    ``positions_for_sizing``) → ``check_prices`` → ``screen``. ``to_block`` is the
-    record that rides the heartbeat."""
+    ``positions_for_sizing``) → ``check_prices`` → ``screen`` → ``save``.
+    ``to_block`` is the record that rides the heartbeat."""
     today: _dt.date
     feed: SplitFeedResult
     marks_path: Optional[Path] = None
-    frozen: Dict[str, str] = field(default_factory=dict)          # ticker → reason
+    state: Optional[GateState] = None
+    window_capped: bool = False
+    run_frozen: Dict[str, str] = field(default_factory=dict)      # this run only
     applied: List[str] = field(default_factory=list)              # journaled THIS run
-    in_play: Dict[str, SplitEvent] = field(default_factory=dict)  # journaled, in window
+    in_play: Dict[str, List[SplitEvent]] = field(default_factory=dict)
     unjournaled: Dict[str, SplitEvent] = field(default_factory=dict)
     reconcile_tickers: set = field(default_factory=set)
     sizing_overrides: Dict[str, int] = field(default_factory=dict)
     refused_orders: List[Dict[str, Any]] = field(default_factory=list)
     price_checked: List[str] = field(default_factory=list)
+    seeding: List[str] = field(default_factory=list)
+    released: List[Dict[str, Any]] = field(default_factory=list)
+    future_events: List[str] = field(default_factory=list)
+    notices: List[str] = field(default_factory=list)
+    _acked: set = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        if self.state is None:
+            self.state = GateState.load(self.marks_path)
+        st, day = self.state, self.today.isoformat()
+        # a mark too old to be a witness is not a mark
+        for t in list(st.marks):
+            v = _valid_mark(st.marks[t])
+            if v and _business_days_between(v[1], self.today) > MARK_MAX_AGE_TRADING_DAYS \
+                    and t not in st.frozen:
+                st.problems.append(f"mark for {t} is from {v[1]} (> "
+                                   f"{MARK_MAX_AGE_TRADING_DAYS} trading days) — NO mark")
+                del st.marks[t]
+        # the consecutive-outage count, one step per run DATE
+        if st.feed_streak_date != day:
+            st.feed_unavailable_streak = (0 if self.feed.available
+                                          else st.feed_unavailable_streak + 1)
+            st.feed_streak_date = day
+        # an operator acknowledgement releases a freeze — and is journaled
+        for t in list(st.frozen):
+            ack = st.frozen[t].get("ack")
+            if isinstance(ack, dict) and ack.get("why"):
+                self._release(t, f"operator acknowledgement by {ack.get('who') or 'unnamed'}: "
+                                 f"{ack['why']}")
+                self._acked.add(t)
 
     # ------------------------------------------------------------------ #
+    @property
+    def frozen(self) -> Dict[str, str]:
+        """ticker → reason: every PERSISTED freeze plus this run's own."""
+        out = {t: str(e.get("reason")) for t, e in self.state.frozen.items()}
+        for t, why in self.run_frozen.items():
+            out[t] = f"{out[t]} | {why}" if t in out else why
+        return out
+
     def _freeze(self, ticker: str, reason: str) -> None:
-        prev = self.frozen.get(ticker)
-        self.frozen[ticker] = f"{prev} | {reason}" if prev else reason
+        """A freeze that is a function of THIS run's facts (a lagging broker)."""
+        prev = self.run_frozen.get(ticker)
+        self.run_frozen[ticker] = f"{prev} | {reason}" if prev else reason
+
+    def _persist_freeze(self, ticker: str, kind: str, reason: str,
+                        ref_px: Optional[float] = None,
+                        ref_date: Optional[str] = None) -> None:
+        """A freeze that must SURVIVE the run. Written once; never rewritten by
+        a later day's price."""
+        if ticker in self.state.frozen:
+            return
+        self.state.frozen[ticker] = {
+            "kind": kind, "reason": reason, "frozen_on": self.today.isoformat(),
+            "ref_px": ref_px, "ref_date": ref_date,
+            "no_split_streak": 0, "streak_date": None}
+        self.state.journal.append({"date": self.today.isoformat(), "ticker": ticker,
+                                   "event": "freeze", "kind": kind, "why": reason})
+
+    def _release(self, ticker: str, why: str) -> None:
+        entry = self.state.frozen.pop(ticker, None)
+        rec = {"date": self.today.isoformat(), "ticker": ticker, "event": "release",
+               "why": why, "was": entry}
+        self.state.journal.append(rec)
+        self.released.append({"ticker": ticker, "why": why})
+        self.notices.append(f"[CORPORATE-ACTION] {ticker} RELEASED — {why}")
+
+    def _confirmed(self, ticker: str) -> List[SplitEvent]:
+        """Feed-confirmed splits for a ticker, none dated after today."""
+        return [e for e in dict.fromkeys(self.feed.confirmed(ticker))
+                if e.ex_date <= self.today]
 
     @property
     def stand_down(self) -> bool:
         """True ⇒ nothing may be staged today and the run is non-canonical."""
-        return bool(self.frozen)
+        return bool(self.frozen) or bool(self.seeding)
+
+    @property
+    def noncanonical_reasons(self) -> List[str]:
+        out = [f"FROZEN {t}: {r}" for t, r in sorted(self.frozen.items())]
+        if self.seeding:
+            out.append("seeding price-basis marks (first run) for "
+                       + ", ".join(sorted(self.seeding)))
+        if self.state.feed_unavailable_streak >= FEED_DEAD_ALARM_RUNS:
+            out.append(f"split feed UNAVAILABLE on {self.state.feed_unavailable_streak} "
+                       f"consecutive runs ({self.feed.reason})")
+        return out
 
     # ---- 1. ledger: apply confirmed splits, exactly once ---------------- #
     def apply_to_ledger(self, ledger: Any, orders: Sequence[Any]) -> None:
@@ -375,12 +646,15 @@ class CorporateActionGate:
         PRE-split basis: every observed fill in that ticker predates the
         ex-date. A position built entirely on/after the ex-date needs nothing. A
         MIXED position (fills on both sides — the 2026-11-05 account-2 state) is
-        never auto-scaled: it is frozen for manual review."""
+        never auto-scaled: it is frozen, persistently, for manual review."""
         done = set(ledger.applied_split_keys())
-        for ev in self.feed.events:
+        for ev in dict.fromkeys(self.feed.events):
+            if ev.ex_date > self.today:          # the gate's OWN date check
+                self.future_events.append(ev.key)
+                continue
             held = int(ledger.positions().get(ev.ticker, 0))
             if ev.key in done:
-                self.in_play[ev.ticker] = ev
+                self.in_play.setdefault(ev.ticker, []).append(ev)
                 continue
             if held == 0:
                 continue
@@ -388,35 +662,43 @@ class CorporateActionGate:
                      if str(o.ticker).upper() == ev.ticker
                      and int(getattr(o, "filled_qty", 0) or 0) > 0]
             if not dates or any(d is None for d in dates):
-                self._freeze(ev.ticker,
-                             f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} on the feed "
-                             f"but the journal cannot date the held {held} shares — "
-                             "share basis unknown; manual review")
+                self._persist_freeze(
+                    ev.ticker, KIND_LEDGER,
+                    f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} on the feed but "
+                    f"the journal cannot date the held {held} shares — share basis "
+                    "unknown; manual review")
                 self.unjournaled[ev.ticker] = ev
                 continue
             pre = [d for d in dates if d < ev.ex_date]
             if not pre:
                 continue                      # bought post-split: already new basis
             if len(pre) != len(dates):
-                self._freeze(ev.ticker,
-                             f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} was never "
-                             f"applied to the ledger and the held {held} shares mix "
-                             "pre- and post-split fills — NOT auto-scaled; manual review")
+                self._persist_freeze(
+                    ev.ticker, KIND_LEDGER,
+                    f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} was never applied "
+                    f"to the ledger and the held {held} shares mix pre- and post-split "
+                    "fills — NOT auto-scaled; manual review")
                 self.unjournaled[ev.ticker] = ev
                 continue
             try:
-                ledger.apply_split(ev.ticker, ev.ratio, ev.ex_date)
+                did = ledger.apply_split(ev.ticker, ev.ratio, ev.ex_date)
             except ValueError as exc:
-                self._freeze(ev.ticker, f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} "
-                                        f"could not be applied ({exc}); manual review")
+                self._persist_freeze(
+                    ev.ticker, KIND_LEDGER,
+                    f"{ev.ticker} split {ev.ratio:g}:1 ex {ev.ex_date} could not be "
+                    f"applied ({exc}); manual review")
                 self.unjournaled[ev.ticker] = ev
                 continue
-            self.applied.append(ev.key)
-            self.in_play[ev.ticker] = ev
+            done.add(ev.key)
+            if did:
+                self.applied.append(ev.key)
+            self.in_play.setdefault(ev.ticker, []).append(ev)
         for u in self.feed.unhandled:
             if int(ledger.positions().get(u.ticker, 0)) != 0:
-                self._freeze(u.ticker, f"{u.ticker} has an unmodelled corporate action "
-                                       f"on the feed ({u.kind}, {u.date}); manual review")
+                self._persist_freeze(
+                    u.ticker, KIND_ACTION,
+                    f"{u.ticker} has an unmodelled corporate action on the feed "
+                    f"({u.kind}, {u.date}); manual review")
 
     def ledger_splits(self, ledger: Any) -> List[SplitEvent]:
         """Every split the ledger has journaled (all time) — what the
@@ -426,19 +708,23 @@ class CorporateActionGate:
     # ---- 2. broker: is the broker in the same share basis? -------------- #
     def assess_broker(self, ledger_positions: Mapping[str, int],
                       broker_positions: Mapping[str, int]) -> None:
-        for t, ev in self.in_play.items():
+        for t, evs in self.in_play.items():
             lq, bq = int(ledger_positions.get(t, 0)), int(broker_positions.get(t, 0))
             if lq == bq:
                 continue                                   # settled
-            if abs(lq / ev.ratio - bq) < _QTY_TOL:
-                self._freeze(t, f"{t} split {ev.ratio:g}:1 ex {ev.ex_date} CONFIRMED by the "
-                                f"feed; ledger {lq} is post-split, broker still shows {bq} "
-                                "(pre-split) — broker has not applied it yet")
+            now = [e.ratio for e in evs if e.key in self.applied]
+            cands = [math.prod(now)] if now else (
+                [e.ratio for e in evs] + [math.prod(e.ratio for e in evs)])
+            names = ", ".join(f"{e.ratio:g}:1 ex {e.ex_date}" for e in evs)
+            if any(abs(lq / c - bq) < _QTY_TOL for c in cands):
+                self._freeze(t, f"{t} split {names} CONFIRMED by the feed; ledger {lq} is "
+                                f"post-split, broker still shows {bq} (pre-split) — broker "
+                                "has not applied it yet")
                 self.reconcile_tickers.add(t)
                 self.sizing_overrides[t] = lq
             else:
                 self._freeze(t, f"{t} ledger {lq} vs broker {bq} matches NEITHER side of the "
-                                f"confirmed {ev.ratio:g}:1 split — position drift stands")
+                                f"confirmed split ({names}) — position drift stands")
         for t, ev in self.unjournaled.items():
             lq, bq = int(ledger_positions.get(t, 0)), int(broker_positions.get(t, 0))
             if lq != bq and split_qty(lq, ev.ratio) == bq:
@@ -458,68 +744,147 @@ class CorporateActionGate:
         b = {t: q for t, q in self.positions_for_sizing(broker_positions).items() if q}
         return b == {t: int(q) for t, q in journal_net.items() if int(q)}
 
-    # ---- 3. prices: did a mark move by a split ratio? ------------------- #
-    def _load_marks(self) -> Dict[str, Dict[str, Any]]:
-        if self.marks_path is None or not self.marks_path.exists():
-            return {}
-        try:
-            d = json.loads(self.marks_path.read_text())
-            m = d.get("marks")
-            return dict(m) if isinstance(m, dict) else {}
-        except (OSError, ValueError):
-            return {}                    # unreadable == no reference (handled as blind)
+    # ---- 3. prices -------------------------------------------------------- #
+    def _mark(self, ticker: str, px: float) -> None:
+        self.state.marks[ticker] = {"px": px, "run_date": self.today.isoformat()}
+
+    def _review_freeze(self, t: str, fz: Dict[str, Any], px: float, held: bool) -> None:
+        """A persisted freeze, looked at again. It releases ONLY by its kind's
+        named rule — today's price being 'not split-shaped any more' is not one."""
+        kind, confirmed = fz.get("kind"), self._confirmed(t)
+        ref = fz.get("ref_px")
+        if kind == KIND_UNCONFIRMED and ref:
+            match = [e for e in confirmed
+                     if price_split_ratio(float(ref) / e.ratio, px) is None]
+            if match:
+                self._release(t, f"feed-confirmed split {match[0].ratio:g}:1 ex "
+                                 f"{match[0].ex_date} matches the observed move "
+                                 f"{float(ref):.4f} → {px:.4f}")
+                self._mark(t, px)
+                return
+            day = self.today.isoformat()
+            if fz.get("streak_date") == day:
+                return
+            fz["streak_date"] = day
+            covers = (self.feed.start is not None and fz.get("frozen_on")
+                      and self.feed.start <= _as_date(fz["frozen_on"]))
+            if self.feed.available and not confirmed and covers:
+                fz["no_split_streak"] = int(fz.get("no_split_streak") or 0) + 1
+                if fz["no_split_streak"] >= NO_SPLIT_RELEASE_SESSIONS:
+                    self._release(t, f"feed answered no-split ×{fz['no_split_streak']} — "
+                                     f"treated as a real move ({float(ref):.4f} → {px:.4f})")
+                    self._mark(t, px)
+            else:
+                fz["no_split_streak"] = 0      # consecutive means consecutive
+        elif kind == KIND_BASIS_LAG and ref:
+            if price_split_ratio(float(ref), px) is None:
+                self._release(t, f"price {px:.4f} is now in the confirmed split's basis "
+                                 f"(expected ≈ {float(ref):.4f})")
+                self._mark(t, px)
+        elif kind == KIND_BLIND and self.feed.available:
+            if held and confirmed:
+                fz["kind"] = KIND_BLIND_SPLIT
+                fz["reason"] = (f"{t} has NO price mark and the feed confirms a split "
+                                f"({confirmed[0].ratio:g}:1 ex {confirmed[0].ex_date}) in the "
+                                "window — the price basis cannot be witnessed; acknowledge "
+                                "to release")
+            else:
+                self._release(t, "the feed answered; the mark is seeded today")
+                self._mark(t, px)
+                self.seeding.append(t)
 
     def check_prices(self, closes: Mapping[str, float], held: Iterable[str],
                      traded: Iterable[str] = ()) -> None:
-        """Compare today's mark with the mark the PREVIOUS run recorded, for
-        every held or to-be-traded ticker. A near-clean split ratio that the
-        feed does not explain FREEZES the ticker. A HELD ticker with no prior
-        mark while the feed is unavailable is BLIND — no witness at all — and is
-        frozen too. Marks of tickers that pass are advanced; a frozen ticker's
-        mark is left where it was, so it stays frozen until explained."""
-        marks = self._load_marks()
+        """The price-basis witness, for every held or to-be-traded ticker.
+
+        * NO valid mark → a SEEDING day for that ticker: the mark is recorded
+          and the book stands down today. (Held + feed unavailable → BLIND, no
+          mark is laid until the feed answers. Held + a confirmed split in the
+          window → frozen: there is no witness for the basis.)
+        * a split the gate journaled THIS run → the price must have moved by
+          that ratio; if it has not, the vendor has not adjusted yet (frozen
+          until it does).
+        * a split-shaped move → fine if a feed-confirmed split's RATIO explains
+          it (matched by ratio, not by which date the mark carries); otherwise
+          FROZEN, persistently, with the reference mark it was measured from."""
         held_set = {str(t).upper() for t in held}
         check = held_set | {str(t).upper() for t in traded}
+        feed_why = ("feed UNAVAILABLE: " + self.feed.reason if not self.feed.available
+                    else "feed answered and reports NO matching split")
         for t in sorted(closes):
-            px = closes.get(t)
             try:
-                px_f = float(px)                 # type: ignore[arg-type]
+                px = float(closes[t])                # type: ignore[arg-type]
             except (TypeError, ValueError):
                 continue
-            if not math.isfinite(px_f) or px_f <= 0:
+            if not math.isfinite(px) or px <= 0:
                 continue
-            m = marks.get(t)
-            ok = True
-            if t in check:
-                self.price_checked.append(t)
-                if m is None:
-                    if t in held_set and not self.feed.available:
-                        ok = False
-                        self._freeze(t, f"{t} share/price basis UNVERIFIABLE: no prior price "
-                                        f"mark and the feed is UNAVAILABLE ({self.feed.reason})")
+            if t in self._acked:
+                self._mark(t, px)
+                continue
+            if t in self.state.frozen:
+                self._review_freeze(t, self.state.frozen[t], px, t in held_set)
+                continue
+            if t not in check:
+                self._mark(t, px)                    # benchmarks: keep the mark fresh
+                continue
+            self.price_checked.append(t)
+            confirmed = self._confirmed(t)
+            v = _valid_mark(self.state.marks.get(t))
+            if v is None:
+                if t in held_set and not self.feed.available:
+                    self._persist_freeze(
+                        t, KIND_BLIND,
+                        f"{t} share/price basis UNVERIFIABLE: no valid price mark and the "
+                        f"feed is UNAVAILABLE ({self.feed.reason})")
+                elif t in held_set and confirmed:
+                    self._persist_freeze(
+                        t, KIND_BLIND_SPLIT,
+                        f"{t} has NO valid price mark and the feed confirms a split "
+                        f"({confirmed[0].ratio:g}:1 ex {confirmed[0].ex_date}) in the window — "
+                        "the price basis cannot be witnessed; acknowledge to release")
                 else:
-                    prev = float(m["px"])
-                    seen = _as_date(m["run_date"])
-                    confirmed = [e for e in self.feed.confirmed(t) if e.ex_date > seen]
-                    for ev in confirmed:
-                        prev /= ev.ratio
-                    r = price_split_ratio(prev, px_f)
-                    if r is not None:
-                        ok = False
-                        why = ("price is NOT in the confirmed split's basis"
-                               if confirmed else
-                               ("feed UNAVAILABLE: " + self.feed.reason
-                                if not self.feed.available else
-                                "feed answered and reports NO split"))
-                        self._freeze(t, f"{t} mark moved {float(m['px']):.4f} ({m['run_date']}) "
-                                        f"→ {px_f:.4f}: a ~{r:g}:1 split-shaped move, "
-                                        f"UNCONFIRMED ({why})")
-            if ok:
-                marks[t] = {"px": px_f, "run_date": self.today.isoformat()}
-        if self.marks_path is not None:
-            self.marks_path.parent.mkdir(parents=True, exist_ok=True)
-            self.marks_path.write_text(json.dumps(
-                {"_schema": MARKS_SCHEMA, "marks": marks}, indent=1, sort_keys=True))
+                    self.seeding.append(t)
+                    self._mark(t, px)
+                continue
+            prev, seen = v
+            now = [e for e in confirmed if e.key in self.applied]
+            if now:
+                exp = prev / math.prod(e.ratio for e in now)
+                if price_split_ratio(exp, px) is None:
+                    self._mark(t, px)
+                else:
+                    self._persist_freeze(
+                        t, KIND_BASIS_LAG,
+                        f"{t} split {now[0].ratio:g}:1 ex {now[0].ex_date} is CONFIRMED and "
+                        f"journaled, but the price ({px:.4f}; mark {prev:.4f} on {seen}) is "
+                        f"NOT yet in the split's basis (expected ≈ {exp:.4f}) — the vendor "
+                        "has not adjusted the series",
+                        ref_px=exp, ref_date=seen.isoformat())
+                continue
+            r = price_split_ratio(prev, px)
+            if r is None or any(price_split_ratio(prev / e.ratio, px) is None
+                                for e in confirmed):
+                self._mark(t, px)
+                continue
+            self._persist_freeze(
+                t, KIND_UNCONFIRMED,
+                f"{t} mark moved {prev:.4f} ({seen}) → {px:.4f} on {self.today}: a "
+                f"~{r:g}:1 split-shaped move, UNCONFIRMED ({feed_why})",
+                ref_px=prev, ref_date=seen.isoformat())
+            self._review_freeze(t, self.state.frozen[t], px, t in held_set)
+        self.save()
+
+    def save(self) -> None:
+        if self.marks_path is None:
+            return
+        p = Path(self.marks_path)
+        if p.exists() and any("unreadable" in x and "marks file" in x
+                              for x in self.state.problems):
+            # [NN-ARCHIVE]: the file we could not read is kept, not overwritten
+            keep = p.with_name(f"{p.name}.unreadable-{self.today.isoformat()}")
+            if not keep.exists():
+                p.replace(keep)
+        self.state.save(p)
 
     # ---- 4. orders -------------------------------------------------------- #
     def screen(self, orders: Sequence[Any]) -> List[Any]:
@@ -535,21 +900,22 @@ class CorporateActionGate:
         return []
 
     def to_block(self) -> Dict[str, Any]:
-        return {"_schema": "paper_corporate_actions/v1",
+        st = self.state
+        return {"_schema": "paper_corporate_actions/v2",
                 "feed": self.feed.to_dict(),
+                "feed_unavailable_streak": st.feed_unavailable_streak,
+                "window_capped_at_days": WINDOW_CAP_DAYS if self.window_capped else None,
                 "applied_this_run": list(self.applied),
+                "future_events_ignored": list(self.future_events),
                 "frozen": dict(self.frozen),
+                "frozen_persisted": {t: dict(e) for t, e in st.frozen.items()},
+                "seeding": sorted(self.seeding),
+                "released": list(self.released),
                 "stand_down": self.stand_down,
+                "noncanonical_reasons": self.noncanonical_reasons,
                 "reconcile_tickers": sorted(self.reconcile_tickers),
                 "refused_orders": list(self.refused_orders),
                 "price_checked": sorted(set(self.price_checked)),
-                "degraded": bool(self.frozen) or not self.feed.available}
-
-
-def gate_query_window(last_ledger_date: Optional[_dt.date],
-                      today: _dt.date) -> _dt.date:
-    """The exclusive lower bound of the feed query: the last dated ledger event
-    or ``SETTLE_LOOKBACK_DAYS`` ago, whichever is EARLIER — so a late-applying
-    broker is still classified, and a long gap between runs is still covered."""
-    floor = today - _dt.timedelta(days=SETTLE_LOOKBACK_DAYS)
-    return min(last_ledger_date, floor) if last_ledger_date else floor
+                "marks_problems": list(st.problems),
+                "degraded": bool(self.noncanonical_reasons) or not self.feed.available
+                            or bool(st.problems)}

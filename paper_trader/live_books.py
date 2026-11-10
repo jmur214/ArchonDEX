@@ -407,21 +407,43 @@ class LiveBook:
         return self.summary()
 
     # ---------- corporate actions: share basis must follow the price basis ----------
+    def oldest_reference(self) -> Optional[str]:
+        """The earliest date a persisted freeze in this book refers to (the split
+        feed's window must reach back to it), or None."""
+        days = [str(v) for e in (self._state().get("frozen") or {}).values()
+                for v in (e.get("ref_date"), e.get("frozen_on")) if v]
+        return min(days) if days else None
+
     @staticmethod
     def _corporate_actions(st: Dict[str, Any], trade_date: str, closes: Dict[str, float],
                            splits: Optional[Any]) -> "tuple[Optional[str], List[Dict[str, Any]]]":
         """Apply confirmed splits to both sides IN PLACE; return ``(park_reason,
-        applied)``. ``park_reason`` is None when the day may be marked."""
+        applied)``. ``park_reason`` is None when the day may be marked.
+
+        A freeze is PERSISTED in ``st["frozen"]`` with the mark it was measured
+        from, and releases only by rule — never because a later price drifted out
+        of the split-shaped band (that marked a 4-for-1 as a clean −71% day):
+          * ``unconfirmed`` → a confirmed split whose ratio matches the move
+            (shares are scaled, then it releases), or the feed AVAILABLE and
+            silent about the symbol on 3 consecutive sessions (a real move —
+            the book then records it);
+          * ``basis_lag`` (split applied, vendor price not adjusted yet) → the
+            price arriving in the split's basis."""
         sides = [sd for sd in (st["side"].get("book"), st["side"].get("twin")) if sd]
         held = sorted({s_ for sd in sides for s_, q in (sd.get("shares") or {}).items() if q})
         last_px: Dict[str, float] = dict(st.get("last_px") or {})
         keys: List[str] = list(st.get("splits_applied") or [])
+        frozen: Dict[str, Dict[str, Any]] = {k: dict(v) for k, v in
+                                             (st.get("frozen") or {}).items()}
         clean = [d["date"] for d in st["days"] if not d.get("degraded")]
         last_clean = max(clean) if clean else None
         feed_ok = bool(splits is not None and getattr(splits, "available", False))
+        events = [e for e in dict.fromkeys(splits.events)
+                  if e.ex_date.isoformat() <= trade_date] if feed_ok else []
         applied: List[Dict[str, Any]] = []
-        if feed_ok and last_clean:
-            for ev in splits.events:
+        applied_syms: set = set()
+        if last_clean:
+            for ev in events:
                 if ev.ticker not in held or ev.key in keys:
                     continue
                 if not (last_clean < ev.ex_date.isoformat() <= trade_date):
@@ -432,28 +454,74 @@ class LiveBook:
                         sh[ev.ticker] = round(float(sh[ev.ticker]) * ev.ratio, 6)
                 if ev.ticker in last_px:
                     last_px[ev.ticker] = last_px[ev.ticker] / ev.ratio
+                if ev.ticker in frozen and frozen[ev.ticker].get("ref_px"):
+                    frozen[ev.ticker]["ref_px"] = frozen[ev.ticker]["ref_px"] / ev.ratio
                 keys.append(ev.key)
                 applied.append(ev.to_dict())
-        st["splits_applied"], st["last_px"] = keys, last_px
+                applied_syms.add(ev.ticker)
         why = ("the split feed answered and reports no split" if feed_ok else
                "the split feed is UNAVAILABLE"
                + (f" ({splits.reason})" if splits is not None else " (none supplied)"))
-        tripped: List[str] = []
+        covers = lambda day: bool(feed_ok and splits.start is not None  # noqa: E731
+                                  and day and splits.start.isoformat() <= str(day))
+
+        def count_no_split(fz: Dict[str, Any], sym: str) -> bool:
+            """One step of the 'feed answered no-split' count; True on release."""
+            if fz.get("streak_date") == trade_date:
+                return False
+            fz["streak_date"] = trade_date
+            if feed_ok and not any(e.ticker == sym for e in events) and covers(fz.get("frozen_on")):
+                fz["no_split_streak"] = int(fz.get("no_split_streak") or 0) + 1
+                return fz["no_split_streak"] >= 3
+            fz["no_split_streak"] = 0
+            return False
+
+        released: List[str] = []
+        blind: List[str] = []
         for s_ in held:
             if s_ not in closes:
+                continue
+            px = float(closes[s_])
+            fz = frozen.get(s_)
+            if fz is not None:
+                ref = fz.get("ref_px")
+                if ref and price_split_ratio(float(ref), px) is None and (
+                        fz.get("kind") == "basis_lag" or s_ in applied_syms):
+                    released.append(f"{s_}: price is in the confirmed split's basis")
+                    del frozen[s_]
+                elif fz.get("kind") == "unconfirmed" and s_ in applied_syms:
+                    fz["kind"] = "basis_lag"       # split now applied; price still not adjusted
+                elif fz.get("kind") == "unconfirmed" and count_no_split(fz, s_):
+                    released.append(f"{s_}: feed answered no-split ×{fz['no_split_streak']} — "
+                                    "treated as a real move")
+                    del frozen[s_]
                 continue
             prev = last_px.get(s_)
             if prev is None:
                 if not feed_ok:
-                    tripped.append(f"{s_} has no prior mark and {why}")
+                    blind.append(f"{s_} has no prior mark and {why}")
                 continue
-            r = price_split_ratio(prev, closes[s_])
-            if r is not None:
-                tripped.append(f"{s_} mark {prev:.4f} → {float(closes[s_]):.4f} is a "
-                               f"~{r:g}:1 split-shaped move and {why}")
-        if tripped:
+            r = price_split_ratio(prev, px)
+            if r is None:
+                continue
+            lag = s_ in applied_syms
+            frozen[s_] = {
+                "kind": "basis_lag" if lag else "unconfirmed",
+                "reason": (f"{s_} mark {prev:.4f} → {px:.4f} on {trade_date} is a ~{r:g}:1 "
+                           "split-shaped move and "
+                           + ("the confirmed split is applied but the price is not in its "
+                              "basis yet" if lag else why)),
+                "frozen_on": trade_date, "ref_px": prev, "ref_date": last_clean,
+                "no_split_streak": 0, "streak_date": None}
+            if not lag:
+                count_no_split(frozen[s_], s_)
+        st["splits_applied"], st["last_px"], st["frozen"] = keys, last_px, frozen
+        if released:
+            st.setdefault("freeze_journal", []).append(
+                {"date": trade_date, "released": released})
+        if frozen or blind:
             return ("share basis unverified → parked (no mark on an unconfirmed split): "
-                    + "; ".join(tripped)), applied
+                    + "; ".join([str(e["reason"]) for e in frozen.values()] + blind)), applied
         return None, applied
 
     # ---------- reporting: days-accrued is ALWAYS displayed ----------

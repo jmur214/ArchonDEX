@@ -211,90 +211,118 @@ class _Cloud:
         return None
 
 
-def _replay(tmp_path, *, broker_mtum: int, feed, mtum_px: float = POST_PX,
-            mark: float = PRE_PX, today: dt.date = EX):
-    """Account 2 as the 2026-11-05 run found it: the REAL journal and ledger
-    (12 VOO / 5 MTUM / 9 SGOV), yesterday's MTUM mark, today's close, and a
-    broker showing ``broker_mtum`` shares."""
-    state = tmp_path / "data/paper_state"
-    state.mkdir(parents=True)
-    shutil.copy(FIX / "acct2_orders_thru_2026_11_03.jsonl", state / "orders.jsonl")
-    shutil.copy(FIX / "acct2_ledger_2026_11_04.jsonl", state / "ledger.jsonl")
-    (tmp_path / "config").mkdir()
-    for f in ("deploy_candidate.json", "substantially_identical.json"):
-        shutil.copy(Path("config") / f, tmp_path / "config" / f)
-    (tmp_path / "config/llm_settings.json").write_text(json.dumps(
-        {"llm": {"kill_switch": False, "trading_kill_switch": False,
-                 "monthly_budget_usd": 30.0, "max_output_tokens": 1500}}))
-    px = {"VOO": 692.0, "MTUM": mtum_px, "SGOV": 100.45,
-          "SPY": 754.35, "AGG": 95.94, "GLD": 359.26}
-    marks = {t: {"px": v, "run_date": "2026-11-04"} for t, v in px.items()}
-    marks["MTUM"]["px"] = mark
-    mp = tmp_path / MARKS_REL
-    mp.parent.mkdir(parents=True, exist_ok=True)
-    mp.write_text(json.dumps({"_schema": "price_basis_marks/v1", "marks": marks}))
-    idx = pd.bdate_range(end=pd.Timestamp(today) - pd.Timedelta(days=1), periods=80)
-    series = {t: pd.Series([v] * len(idx), index=idx) for t, v in px.items()}
-    positions = {"VOO": 12, "MTUM": broker_mtum, "SGOV": 9}
+_NO_MARKS = object()
 
-    acct = {"cash": 89_598.74}
-    now = dt.datetime(today.year, today.month, today.day, 14, 51, tzinfo=dt.timezone.utc)
 
-    class _C(FakePaperClient):
-        """A paper broker that FILLS a market DAY order at the quoted price, so
-        a staged order runs the whole submit → fill → adopt → reconcile path."""
-        def __init__(self) -> None:
-            super().__init__()
-            self.filled: dict = {}
+class _World:
+    """Account 2 as the 2026-11-05 run found it — the REAL journal and ledger
+    (12 VOO / 5 MTUM / 9 SGOV) — with a broker and a state root that PERSIST
+    across run days, so a freeze can be followed from one session to the next."""
 
-        def get_clock(self):
-            return types.SimpleNamespace(is_open=True)     # the regular session
+    def __init__(self, root: Path, *, broker_mtum: int, mtum_px: float = POST_PX,
+                 mark=PRE_PX) -> None:
+        self.root = Path(root)
+        state = self.root / "data/paper_state"
+        state.mkdir(parents=True)
+        shutil.copy(FIX / "acct2_orders_thru_2026_11_03.jsonl", state / "orders.jsonl")
+        shutil.copy(FIX / "acct2_ledger_2026_11_04.jsonl", state / "ledger.jsonl")
+        (self.root / "config").mkdir()
+        for f in ("deploy_candidate.json", "substantially_identical.json"):
+            shutil.copy(Path("config") / f, self.root / "config" / f)
+        (self.root / "config/llm_settings.json").write_text(json.dumps(
+            {"llm": {"kill_switch": False, "trading_kill_switch": False,
+                     "monthly_budget_usd": 30.0, "max_output_tokens": 1500}}))
+        self.px = {"VOO": 692.0, "MTUM": mtum_px, "SGOV": 100.45,
+                   "SPY": 754.35, "AGG": 95.94, "GLD": 359.26}
+        self.positions = {"VOO": 12, "MTUM": broker_mtum, "SGOV": 9}
+        self.cash = 89_598.74
+        self.marks_path = self.root / MARKS_REL
+        if mark is not _NO_MARKS:
+            marks = {t: {"px": v, "run_date": "2026-11-04"} for t, v in self.px.items()}
+            marks["MTUM"]["px"] = mark
+            self.marks_path.parent.mkdir(parents=True, exist_ok=True)
+            self.marks_path.write_text(json.dumps({"marks": marks}))
 
-        def get_account(self):
-            return {"equity": 100_346.57, "cash": acct["cash"], "status": "ACTIVE"}
+    def marks_file(self) -> dict:
+        return json.loads(self.marks_path.read_text())
 
-        def list_positions(self):
-            return [{"symbol": s, "qty": q} for s, q in positions.items() if q]
+    def run(self, today: dt.date, feed):
+        w, px = self, dict(self.px)
+        idx = pd.bdate_range(end=pd.Timestamp(today) - pd.Timedelta(days=1), periods=80)
+        series = {t: pd.Series([v] * len(idx), index=idx) for t, v in px.items()}
+        now = dt.datetime(today.year, today.month, today.day, 14, 51, tzinfo=dt.timezone.utc)
 
-        def submit_order(self, client_order_id, symbol, qty, side, tif):
-            super().submit_order(client_order_id, symbol, qty, side, tif)
-            sign = 1 if side == "buy" else -1
-            positions[symbol] = positions.get(symbol, 0) + sign * qty
-            acct["cash"] = round(acct["cash"] - sign * qty * px[symbol], 2)
-            self.filled[client_order_id] = {
-                "broker_order_id": f"bkr-{client_order_id[-8:]}",
-                "client_order_id": client_order_id, "status": "filled",
-                "symbol": symbol, "qty": qty, "filled_qty": qty,
-                "filled_avg_price": px[symbol], "filled_at": now.isoformat(),
-                "side": side, "tif": tif}
-            return dict(self.filled[client_order_id])
+        class _C(FakePaperClient):
+            """A paper broker that FILLS a market DAY order at the quoted price, so
+            a staged order runs the whole submit → fill → adopt → reconcile path."""
+            def __init__(self) -> None:
+                super().__init__()
+                self.filled: dict = {}
 
-        def get_order(self, client_order_id):
-            if client_order_id in self.filled:
+            def get_clock(self):
+                return types.SimpleNamespace(is_open=True)     # the regular session
+
+            def get_account(self):
+                return {"equity": 100_346.57, "cash": w.cash, "status": "ACTIVE"}
+
+            def list_positions(self):
+                return [{"symbol": s, "qty": q} for s, q in w.positions.items() if q]
+
+            def submit_order(self, client_order_id, symbol, qty, side, tif):
+                super().submit_order(client_order_id, symbol, qty, side, tif)
+                sign = 1 if side == "buy" else -1
+                w.positions[symbol] = w.positions.get(symbol, 0) + sign * qty
+                w.cash = round(w.cash - sign * qty * px[symbol], 2)
+                self.filled[client_order_id] = {
+                    "broker_order_id": f"bkr-{client_order_id[-8:]}",
+                    "client_order_id": client_order_id, "status": "filled",
+                    "symbol": symbol, "qty": qty, "filled_qty": qty,
+                    "filled_avg_price": px[symbol], "filled_at": now.isoformat(),
+                    "side": side, "tif": tif}
                 return dict(self.filled[client_order_id])
-            return super().get_order(client_order_id)
 
-        def fetch_daily_closes(self, tickers, lookback_days=400):
-            return {t: series[t] for t in tickers if t in series}
+            def get_order(self, client_order_id):
+                if client_order_id in self.filled:
+                    return dict(self.filled[client_order_id])
+                return super().get_order(client_order_id)
 
-        def fetch_latest_prices(self, tickers):
-            return {t: px[t] for t in tickers if t in px}
+            def fetch_daily_closes(self, tickers, lookback_days=400):
+                return {t: series[t] for t in tickers if t in series}
 
-        def trading_days(self, start, end):
-            return {today}
+            def fetch_latest_prices(self, tickers):
+                return {t: px[t] for t in tickers if t in px}
 
-    client, cloud = _C(), _Cloud()
-    rc = drv.main(["--allocator", "mean_variance", "--strategy", "deploy_candidate",
-                   "--sleeve-notional-cap", "10000"],
-                  now=now, client=client, cloud=cloud, root=str(tmp_path), ca_fetch=feed)
-    hb = json.loads((tmp_path / "data/state/paper_heartbeat.json").read_text())
-    led = LedgerStore(str(state / "ledger.jsonl"))
-    recon = [json.loads(l) for l in (state / "recon.jsonl").read_text().splitlines()]
-    journal = [json.loads(l) for l in (state / "orders.jsonl").read_text().splitlines()]
-    new_orders = [o for o in journal if o["trade_date"] == str(today)]
-    return types.SimpleNamespace(rc=rc, client=client, cloud=cloud, hb=hb, led=led,
-                                 recon=recon, new_orders=new_orders,
-                                 block=hb.get("corporate_actions", {}))
+            def trading_days(self, start, end):
+                return {today}
+
+        client, cloud = _C(), _Cloud()
+        state = self.root / "data/paper_state"
+        rc = drv.main(["--allocator", "mean_variance", "--strategy", "deploy_candidate",
+                       "--sleeve-notional-cap", "10000"],
+                      now=now, client=client, cloud=cloud, root=str(self.root), ca_fetch=feed)
+        hb = json.loads((self.root / "data/state/paper_heartbeat.json").read_text())
+        led = LedgerStore(str(state / "ledger.jsonl"))
+        recon = [r for r in (json.loads(l) for l in
+                             (state / "recon.jsonl").read_text().splitlines())
+                 if r["trade_date"] == str(today)]
+        journal = [json.loads(l) for l in (state / "orders.jsonl").read_text().splitlines()]
+        new_orders = [o for o in journal if o["trade_date"] == str(today)]
+        return types.SimpleNamespace(rc=rc, client=client, cloud=cloud, hb=hb, led=led,
+                                     recon=recon, new_orders=new_orders,
+                                     block=hb.get("corporate_actions", {}))
+
+
+def _replay(tmp_path, *, broker_mtum: int, feed, mtum_px: float = POST_PX,
+            mark=PRE_PX, today: dt.date = EX):
+    """One run of ``_World`` on the ex-date."""
+    w = _World(tmp_path, broker_mtum=broker_mtum, mtum_px=mtum_px, mark=mark)
+    r = w.run(today, feed)
+    r.world = w
+    return r
+
+
+def D(day: int) -> dt.date:
+    return dt.date(2026, 11, day)
 
 
 def _mtum(orders) -> list:
@@ -367,7 +395,7 @@ def test_replay_feed_answers_NO_split_the_price_guard_still_refuses(tmp_path):
     r = _replay(tmp_path, broker_mtum=5, feed=lambda *a: {})
     assert r.block["feed"]["available"] is True and r.block["feed"]["events"] == []
     assert _mtum(r.block["refused_orders"]) and r.client.submitted == [] and r.rc == 70
-    assert "reports NO split" in r.block["frozen"]["MTUM"]
+    assert "reports NO matching split" in r.block["frozen"]["MTUM"]
 
 
 def test_POSITIVE_CONTROL_an_ordinary_minus_8pct_day_trades_normally(tmp_path):
@@ -390,10 +418,8 @@ def test_blind_no_mark_and_no_feed_freezes_a_held_ticker(tmp_path):
                                marks_path=tmp_path / "marks.json")
     gate.check_prices({"MTUM": POST_PX, "SPY": 754.0}, held=["MTUM"])
     assert "UNVERIFIABLE" in gate.frozen["MTUM"] and "SPY" not in gate.frozen
-    # with a feed that ANSWERED, a first-ever mark is simply recorded
-    ok = CorporateActionGate(today=EX, feed=_feed_ok(), marks_path=tmp_path / "m2.json")
-    ok.check_prices({"MTUM": POST_PX}, held=["MTUM"])
-    assert ok.frozen == {}
+    assert json.loads((tmp_path / "marks.json").read_text())["marks"].get("MTUM") is None, \
+        "no mark is laid while nobody can witness the basis"
 
 
 # =========================================================================== #
@@ -485,6 +511,7 @@ def test_live_book_ordinary_day_is_untouched_by_the_guard(tmp_path):
 # =========================================================================== #
 REAL_BOOK = FIX / "book_momentum_satellite_real_2026_11_10.json"
 CLOSES = FIX / "momentum_closes_derived_from_recorded_navs.json"
+FEED_FILE = FIX / "alpaca_corporate_actions_2026_11_05.json"
 
 
 def test_repair_restates_the_real_momentum_record(tmp_path, capsys):
@@ -492,7 +519,7 @@ def test_repair_restates_the_real_momentum_record(tmp_path, capsys):
     before = REAL_BOOK.read_bytes()
     rc = repair.main(["--state", str(REAL_BOOK), "--book", "momentum_satellite",
                       "--split", "MTUM:2026-11-05:4", "--closes", str(CLOSES),
-                      "--out", str(out)])
+                      "--feed-json", str(FEED_FILE), "--out", str(out)])
     assert rc == 0 and REAL_BOOK.read_bytes() == before, "the input is never modified"
     new, old = json.loads(out.read_text()), json.loads(before)
     by = {d["date"]: d for d in new["days"]}
@@ -512,14 +539,15 @@ def test_repair_REFUSES_closes_that_do_not_reproduce_the_record(tmp_path):
     bad = json.loads(CLOSES.read_text())
     bad["2026-11-06"]["MTUM"] = 66.00                             # not what the run saw
     with pytest.raises(repair.RepairRefused, match="verification FAILED on 2026-11-06"):
-        repair.restate(json.loads(REAL_BOOK.read_text()), MOMENTUM_SAT, [MTUM_4_1], bad)
+        repair.restate(json.loads(REAL_BOOK.read_text()), MOMENTUM_SAT, [MTUM_4_1], bad,
+                       feed_events=[MTUM_4_1])
 
 
 def test_repair_never_in_place_never_over_an_existing_file_never_live_state(tmp_path):
     copy = tmp_path / "copy.json"
     shutil.copy(REAL_BOOK, copy)
     base = ["--book", "momentum_satellite", "--split", "MTUM:2026-11-05:4",
-            "--closes", str(CLOSES)]
+            "--closes", str(CLOSES), "--feed-json", str(FEED_FILE)]
     assert repair.main(["--state", str(copy), "--out", str(copy)] + base) == 2
     exists = tmp_path / "exists.json"
     exists.write_text("{}")
@@ -531,3 +559,419 @@ def test_repair_never_in_place_never_over_an_existing_file_never_live_state(tmp_
     assert repair.main(["--state", "s3://bucket/x.json", "--out", str(tmp_path / "o.json")]
                        + base) == 2
     assert copy.read_bytes() == REAL_BOOK.read_bytes()
+
+
+# =========================================================================== #
+# 7. the 2026-11-10 independent review of cf7ae05 — one lock per finding.
+#    Each scenario was reproduced from the reviewer's scripts before the fix.
+# =========================================================================== #
+import scripts.corporate_action_ack as ack_tool  # noqa: E402
+from paper_trader.clock_census import EXEMPT  # noqa: E402
+from paper_trader.corporate_actions import (  # noqa: E402
+    UnhandledAction, gate_query_window, price_ratio_bands)
+from paper_trader.heartbeat import PaperHeartbeat  # noqa: E402
+
+
+def _silent(*_a, **_k) -> dict:
+    return {}
+
+
+def _real(*_a, **_k) -> dict:
+    return REAL_FEED
+
+
+def _sub(r) -> list:
+    return [(o["symbol"], o["side"], o["qty"]) for o in r.client.submitted]
+
+
+# ---- finding 1 (BLOCKER): a freeze is persisted and never releases on drift -- #
+def test_F1_a_freeze_PERSISTS_and_never_releases_on_price_drift(tmp_path):
+    """c_driver C5: frozen 11-05 at 69.14; 11-06 the price is 80.00 — 276.56/80
+    = 3.457, outside every band. The old gate re-derived the freeze from that
+    day's price, found nothing, and SUBMITTED `MTUM buy 14`."""
+    w = _World(tmp_path, broker_mtum=5)
+    r5 = w.run(D(5), _raises)
+    assert r5.rc == 70 and "UNCONFIRMED" in r5.block["frozen"]["MTUM"]
+    fz = w.marks_file()["frozen"]["MTUM"]
+    assert (fz["kind"], fz["frozen_on"], fz["ref_px"], fz["ref_date"]) == (
+        "unconfirmed", "2026-11-05", PRE_PX, "2026-11-04")
+    w.px["MTUM"] = 80.0
+    assert price_split_ratio(PRE_PX, 80.0) is None, "today's price alone is NOT split-shaped"
+    r6 = w.run(D(6), _raises)
+    assert r6.client.submitted == [] and r6.new_orders == [] and r6.rc == 70
+    assert _mtum(r6.block["refused_orders"]), "the spurious buy is constructed and REFUSED"
+    assert r6.block["frozen"]["MTUM"] == r5.block["frozen"]["MTUM"], "the reason is not rewritten"
+    assert w.marks_file()["marks"]["MTUM"] == {"px": PRE_PX, "run_date": "2026-11-04"}
+
+
+def test_F1a_release_by_a_feed_confirmed_split_whose_RATIO_matches(tmp_path):
+    w = _World(tmp_path, broker_mtum=5)
+    w.run(D(5), _raises)
+    w.positions["MTUM"] = 20                       # the broker applies the split
+    r = w.run(D(6), _real)
+    assert r.rc == 0 and ("MTUM", "buy", HONEST_TOPUP) in _sub(r), _sub(r)
+    assert [x["ticker"] for x in r.block["released"]] == ["MTUM"]
+    assert "matches the observed move" in r.block["released"][0]["why"]
+    mf = w.marks_file()
+    assert mf["frozen"] == {} and mf["marks"]["MTUM"]["px"] == POST_PX
+    assert [j["event"] for j in mf["journal"] if j["ticker"] == "MTUM"] == ["freeze", "release"]
+
+
+def _frozen_file(path: Path) -> Path:
+    path.write_text(json.dumps({"marks": {"MTUM": {"px": PRE_PX, "run_date": "2026-11-04"}},
+                                "frozen": {"MTUM": {
+                                    "kind": "unconfirmed", "reason": "MTUM mark moved …",
+                                    "frozen_on": "2026-11-05", "ref_px": PRE_PX,
+                                    "ref_date": "2026-11-04", "no_split_streak": 0,
+                                    "streak_date": None}}}))
+    return path
+
+
+def test_F1a_a_confirmed_split_of_the_WRONG_ratio_does_not_release(tmp_path):
+    mp = _frozen_file(tmp_path / "m.json")
+    two = SplitFeedResult.ok([SplitEvent("MTUM", EX, 2.0)], tickers=["MTUM"],
+                             start=D(4), end=D(6))
+    g = CorporateActionGate(today=D(6), feed=two, marks_path=mp)
+    g.check_prices({"MTUM": POST_PX}, held=["MTUM"])
+    assert "MTUM" in g.frozen and g.released == [] and g.stand_down
+
+
+def test_F1b_operator_ack_releases_is_signed_and_is_journaled(tmp_path, capsys):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=193.59)          # a genuine −30% session
+    assert w.run(D(5), _raises).rc == 70
+    m, why = str(w.marks_path), "a real -30% session, checked against the tape"
+    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op"]) == 2      # no reason
+    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op",
+                          "--reason", "ok"]) == 2                                      # not a reason
+    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--reason", why]) == 2     # unsigned
+    assert ack_tool.main(["--marks", m, "--ticker", "VOO", "--who", "op",
+                          "--reason", why]) == 2                                       # not frozen
+    assert ack_tool.main(["--marks", "S3://bucket/marks.json", "--ticker", "MTUM",
+                          "--who", "op", "--reason", why]) == 2                        # never S3
+    assert "ack" not in w.marks_file()["frozen"]["MTUM"], "a refusal writes nothing"
+    assert ack_tool.main(["--marks", m, "--list"]) == 0 and "MTUM: kind=unconfirmed" in \
+        capsys.readouterr().out
+    assert ack_tool.main(["--marks", m, "--ticker", "MTUM", "--who", "op", "--reason", why]) == 0
+    r6 = w.run(D(6), _raises)
+    assert "MTUM" not in r6.block["frozen"] and r6.rc == 0 and r6.client.submitted
+    assert "operator acknowledgement by op" in r6.block["released"][0]["why"]
+    mf = w.marks_file()
+    assert [j["event"] for j in mf["journal"]] == ["freeze", "ack", "release"]
+    assert mf["journal"][1]["who"] == "op" and mf["journal"][1]["why"] == why
+    assert mf["marks"]["MTUM"] == {"px": 193.59, "run_date": "2026-11-06"}
+
+
+def test_F1_book_freeze_persists_and_never_releases_on_drift(tmp_path):
+    """f_books F6: parked 11-05..11-10, then at 80.00 the book recorded growth
+    0.290 as a clean day."""
+    lb = _momentum_through_11_04(tmp_path)
+    dead = SplitFeedResult.unavailable("403")
+    lb.record("2026-11-05", CLOSE_11_05, splits=dead)
+    lb.record("2026-11-06", {"MTUM": 80.0, "SPY": 739.87}, splits=dead)
+    st = lb._state()
+    assert [d["degraded"] for d in st["days"][-2:]] == [True, True]
+    assert "book_growth" not in st["days"][-1]
+    fz = st["frozen"]["MTUM"]
+    assert (fz["kind"], fz["frozen_on"], fz["ref_px"], fz["ref_date"]) == (
+        "unconfirmed", "2026-11-05", 276.56, "2026-11-04")
+    assert st["side"]["book"]["shares"] == {"MTUM": 333.0} and st["last_px"]["MTUM"] == 276.56
+
+
+# ---- finding 2: a real move is released by the FEED, never by time alone ---- #
+def test_F2_feed_no_split_x3_releases_a_real_move(tmp_path):
+    """c_driver C3: a genuine −30% session froze the book for 12 sessions."""
+    w = _World(tmp_path, broker_mtum=5, mtum_px=193.59)
+    r5 = w.run(D(5), _silent)
+    assert w.run(D(5), _silent).rc == 70          # a same-day re-run is not a second session
+    assert w.marks_file()["frozen"]["MTUM"]["no_split_streak"] == 1
+    r6 = w.run(D(6), _silent)
+    assert r5.rc == r6.rc == 70 and r6.client.submitted == []
+    assert w.marks_file()["frozen"]["MTUM"]["no_split_streak"] == 2
+    r9 = w.run(D(9), _silent)
+    assert r9.rc == 0 and r9.client.submitted and r9.block["frozen"] == {}
+    assert "feed answered no-split ×3 — treated as a real move" in r9.block["released"][0]["why"]
+    assert "RELEASED" in (tmp_path / "data/state/paper_alerts.log").read_text()
+    assert w.marks_file()["journal"][-1]["event"] == "release"
+
+
+def test_F2_with_the_feed_UNAVAILABLE_it_stays_frozen_and_a_gap_resets_the_count(tmp_path):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=193.59)
+    for d in (5, 6, 9, 10, 11):
+        r = w.run(D(d), _raises)
+    assert r.rc == 70 and "MTUM" in r.block["frozen"] and r.client.submitted == []
+    assert w.marks_file()["frozen"]["MTUM"]["no_split_streak"] == 0
+    for d, feed in ((12, _silent), (13, _silent), (16, _raises), (17, _silent), (18, _silent)):
+        r = w.run(D(d), feed)
+    assert r.rc == 70 and w.marks_file()["frozen"]["MTUM"]["no_split_streak"] == 2, \
+        "consecutive means consecutive: silent, silent, DEAD, silent, silent is 2, not 4"
+    assert w.run(D(19), _silent).rc == 0
+
+
+def test_F2_a_mark_older_than_ten_trading_days_is_not_a_witness(tmp_path):
+    mp = tmp_path / "m.json"
+    mp.write_text(json.dumps({"marks": {"MTUM": {"px": PRE_PX, "run_date": "2026-10-20"}}}))
+    g = CorporateActionGate(today=D(5), feed=_feed_ok(), marks_path=mp)    # 12 weekdays on
+    g.check_prices({"MTUM": POST_PX}, held=[], traded=["MTUM"])
+    assert g.frozen == {} and g.seeding == ["MTUM"] and g.stand_down
+    assert any("trading days" in p for p in g.state.problems)
+    fresh = tmp_path / "f.json"
+    fresh.write_text(json.dumps({"marks": {"MTUM": {"px": PRE_PX, "run_date": "2026-10-22"}}}))
+    g2 = CorporateActionGate(today=D(5), feed=_feed_ok(), marks_path=fresh)  # exactly 10
+    g2.check_prices({"MTUM": POST_PX}, held=[], traded=["MTUM"])
+    assert "MTUM" in g2.frozen and g2.seeding == []
+
+
+# ---- finding 3: the feed window ------------------------------------------- #
+def test_F3_window_includes_an_ex_date_that_is_the_ledgers_last_event():
+    one = dt.timedelta(days=1)
+    since, capped = gate_query_window(EX, D(12))
+    assert since + one <= D(4) and not capped, "first day = the trading day BEFORE the last event"
+    since, _ = gate_query_window(dt.date(2026, 11, 9), dt.date(2026, 11, 9))   # a Monday…
+    assert since + one == dt.date(2026, 11, 3), "…today−6 is earlier than the Friday before"
+    since, _ = gate_query_window(dt.date(2026, 10, 26), D(12))    # a Monday → that Friday
+    assert since + one == dt.date(2026, 10, 23)
+    since, _ = gate_query_window(D(11), D(12), oldest_reference=dt.date(2026, 10, 20))
+    assert since + one == dt.date(2026, 10, 20), "…and back to the oldest frozen mark"
+    since, capped = gate_query_window(dt.date(2026, 7, 1), D(12))
+    assert capped and since + one == D(12) - dt.timedelta(days=60)
+
+
+def test_F3_the_split_is_recovered_after_a_feed_outage_longer_than_the_lookback(tmp_path):
+    """c_driver C6: feed dead 11-05..11-12, back on 11-13 with a provider that
+    answers ONLY for the window it is asked about."""
+    w = _World(tmp_path, broker_mtum=5)
+    w.run(D(5), _raises)
+    w.positions["MTUM"] = 20
+    for d in (6, 9, 10, 11, 12):
+        r = w.run(D(d), _raises)
+    assert r.rc == 70 and r.led.positions()["MTUM"] == 5
+    asked: list = []
+
+    def honest(syms, start, end):
+        asked.append((start, end))
+        return {"forward_splits": [x for x in REAL_FEED["forward_splits"]
+                                   if str(start) <= x["ex_date"] <= str(end)]}
+    r = w.run(D(13), honest)
+    assert asked[0][0] <= D(4), asked
+    assert r.block["applied_this_run"] == ["MTUM:2026-11-05"] and r.block["frozen"] == {}
+    assert r.rc == 0 and r.led.positions()["MTUM"] >= 20
+
+
+# ---- finding 4 / 10: no mark is a seeding day; a bad file is not a crash ---- #
+def test_F4_a_first_run_without_marks_is_a_SEEDING_day(tmp_path):
+    """a_replay A4b: no marks file, feed alive and silent → `MTUM buy 17`
+    submitted, rc 0."""
+    w = _World(tmp_path, broker_mtum=5, mark=_NO_MARKS)
+    r = w.run(D(5), _silent)
+    assert r.rc == 70 and r.client.submitted == [] and r.new_orders == []
+    assert r.block["seeding"] == ["MTUM", "SGOV", "VOO"] and r.block["frozen"] == {}
+    assert _mtum(r.block["refused_orders"])
+    assert "seeding price-basis marks (first run)" in r.hb["last_run"]["reason"]
+    mf = w.marks_file()
+    assert mf["_schema"] == "price_basis_marks/v2" and mf["marks"]["MTUM"]["px"] == POST_PX
+    assert not list(w.marks_path.parent.glob("*.tmp")), "the temp file is renamed, not left"
+
+
+def test_F4_no_mark_plus_a_confirmed_split_in_the_window_is_FROZEN(tmp_path):
+    """e_edges E3b: broker 20, vendor price not adjusted, no marks → `MTUM sell 15`."""
+    w = _World(tmp_path, broker_mtum=20, mtum_px=PRE_PX, mark=_NO_MARKS)
+    r = w.run(D(5), _real)
+    assert r.rc == 70 and r.client.submitted == []
+    assert w.marks_file()["frozen"]["MTUM"]["kind"] == "blind_split"
+    assert "MTUM" not in w.marks_file()["marks"]
+    r6 = w.run(D(6), _real)
+    assert r6.rc == 70 and r6.client.submitted == [] and "acknowledge" in r6.block["frozen"]["MTUM"]
+
+
+@pytest.mark.parametrize("raw", ['{"marks": {"MTUM": {"px": 276.56}}}', "[1]", "{not json",
+                                 '{"marks": {"VOO": {"px": null, "run_date": "2026-11-04"}}}',
+                                 '{"marks": {"VOO": {"px": 0, "run_date": "2026-11-04"}}}',
+                                 '{"marks": {"VOO": {"px": NaN, "run_date": "2026-11-04"}}}'],
+                         ids=["no-run_date", "top-level-list", "not-json", "px-null", "px-zero",
+                              "px-nan"])
+def test_F4_F10_an_invalid_marks_file_is_degraded_and_seeds_never_crashes(tmp_path, raw):
+    """c_driver C4: KeyError / AttributeError / TypeError out of main(), no
+    heartbeat, no metric, every day."""
+    w = _World(tmp_path, broker_mtum=5, mtum_px=PRE_PX)
+    w.marks_path.write_text(raw)
+    r = w.run(D(5), _silent)
+    assert r.rc == 70 and r.cloud.metrics == [(True, False)] and r.client.submitted == []
+    assert r.block["marks_problems"] and r.block["seeding"] and r.block["degraded"] is True
+    assert r.hb["last_run"]["run_date"] == "2026-11-05"
+    assert set(w.marks_file()["marks"]) >= {"MTUM", "SGOV", "VOO"}
+    if raw in ("[1]", "{not json"):      # the unreadable file is KEPT, beside the new one
+        assert (w.marks_path.parent / "price_basis_marks.json.unreadable-2026-11-05"
+                ).read_text() == raw
+    assert w.run(D(6), _silent).rc == 0
+
+
+# ---- finding 5: matched by ratio, not by which date the mark carries -------- #
+def test_F5_a_mark_laid_ON_the_ex_date_in_the_pre_split_basis_is_not_a_false_freeze(tmp_path):
+    """e_edges E4: ex-date run sees the UNADJUSTED price with the feed dead; the
+    next day everything is right — and the old gate froze forever."""
+    w = _World(tmp_path, broker_mtum=5, mtum_px=PRE_PX)
+    r5 = w.run(D(5), _raises)
+    assert r5.rc == 0 and w.marks_file()["marks"]["MTUM"] == {"px": PRE_PX,
+                                                              "run_date": "2026-11-05"}
+    w.positions["MTUM"], w.px["MTUM"] = 20, POST_PX
+    r6 = w.run(D(6), _real)
+    assert r6.block["frozen"] == {} and r6.rc == 0
+    assert ("MTUM", "buy", HONEST_TOPUP) in _sub(r6) and w.run(D(9), _real).rc == 0
+
+
+def test_F5_vendor_not_adjusted_yet_is_frozen_until_the_price_arrives(tmp_path):
+    """e_edges E3: feed confirms, broker already 20, price still 276.56."""
+    w = _World(tmp_path, broker_mtum=20, mtum_px=PRE_PX)
+    r5 = w.run(D(5), _real)
+    assert r5.rc == 70 and r5.client.submitted == []
+    assert "vendor has not adjusted" in r5.block["frozen"]["MTUM"]
+    assert w.marks_file()["frozen"]["MTUM"]["kind"] == "basis_lag"
+    w.px["MTUM"] = 150.0                                       # neither basis: stays frozen
+    assert w.run(D(6), _real).rc == 70
+    w.px["MTUM"] = POST_PX
+    r9 = w.run(D(9), _real)
+    assert r9.rc == 0 and "now in the confirmed split's basis" in r9.block["released"][0]["why"]
+
+
+# ---- finding 6: the heartbeat FILE carries the gate's verdict --------------- #
+def test_F6_the_heartbeat_file_itself_says_non_canonical_on_a_stand_down(tmp_path):
+    """d_misc D2: rc 70 while last_run.canonical True / reason clean / alert False."""
+    r = _replay(tmp_path, broker_mtum=5, feed=_raises)
+    hb = json.loads((tmp_path / "data/state/paper_heartbeat.json").read_text())
+    assert hb["last_run"]["canonical"] is False
+    assert hb["last_run"]["reason"].startswith("corporate actions: FROZEN MTUM")
+    assert hb["alert"] is True and "NON-CANONICAL" in hb["alert_reason"]
+    v = PaperHeartbeat(root=str(tmp_path)).check(EX, is_trading_day=True)
+    assert v.alert and not v.alive and r.rc == 70
+    assert "book STOOD DOWN" in (tmp_path / "data/state/paper_alerts.log").read_text()
+
+
+# ---- finding 7: a dead feed alarms; the ratio set ---------------------------- #
+def test_F7_a_feed_unavailable_three_runs_running_is_NON_CANONICAL(tmp_path):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=PRE_PX)            # ordinary days throughout
+    r5, r6 = w.run(D(5), _raises), w.run(D(6), _raises)
+    assert r5.rc == r6.rc == 0 and r6.block["feed_unavailable_streak"] == 2
+    assert w.run(D(6), _raises).block["feed_unavailable_streak"] == 2, "per run DATE"
+    r9 = w.run(D(9), _raises)
+    assert r9.rc == 70 and r9.block["stand_down"] is False
+    assert "split feed UNAVAILABLE on 3 consecutive runs" in r9.hb["last_run"]["reason"]
+    assert r9.hb["last_run"]["canonical"] is False and r9.hb["alert"] is True
+    r10 = w.run(D(10), _silent)
+    assert r10.rc == 0 and r10.block["feed_unavailable_streak"] == 0
+
+
+def test_F7_the_ratio_set_and_its_false_positive_bands():
+    for prev, px, want in ((100, 80, 1.25), (100, 40, 2.5), (100, 4, 25.0), (100, 2, 50.0),
+                           (100, 3.3, 30.0), (100, 2.5, 40.0), (80, 100, 0.8), (2, 100, 0.02)):
+        assert price_split_ratio(prev, px) == pytest.approx(want), (prev, px)
+    for px in (92, 88, 86, 108, 115):                 # ordinary sessions, −14%..+15%
+        assert price_split_ratio(100, px) is None, px
+    bands = price_ratio_bands()
+    assert all(b["ret_hi"] < -0.148 or b["ret_lo"] > 0.178 for b in bands), bands
+    gaps = [(round(a["ret_hi"], 3), round(b["ret_lo"], 3)) for a, b in zip(bands, bands[1:])]
+    assert (-0.245, -0.371) not in gaps and (-0.291, -0.245) in gaps, gaps
+
+
+# ---- finding 9 / 12: the repair script -------------------------------------- #
+@pytest.mark.parametrize("split", ["MTUM:2026-11-05:2", "MTUM:2026-11-06:4", "SPY:2026-11-05:4"],
+                         ids=["wrong-ratio", "wrong-ex-date", "wrong-ticker"])
+def test_F9_repair_refuses_a_split_the_feed_does_not_corroborate(tmp_path, capsys, split):
+    """g_repair: all three were written, rc 0, labelled `verified`."""
+    out = tmp_path / "o.json"
+    rc = repair.main(["--state", str(REAL_BOOK), "--book", "momentum_satellite", "--split",
+                      split, "--closes", str(CLOSES), "--feed-json", str(FEED_FILE),
+                      "--out", str(out)])
+    assert rc == 2 and not out.exists()
+    assert "NOT in the feed payload" in capsys.readouterr().err
+
+
+def test_F9_repair_refuses_without_a_feed_an_unheld_ticker_and_a_split_shaped_result():
+    real, closes = json.loads(REAL_BOOK.read_text()), json.loads(CLOSES.read_text())
+    with pytest.raises(repair.RepairRefused, match="no feed payload"):
+        repair.restate(real, MOMENTUM_SAT, [MTUM_4_1], closes)
+    qual = SplitEvent("QUAL", EX, 4.0)
+    with pytest.raises(repair.RepairRefused, match="not held on either side"):
+        repair.restate(real, MOMENTUM_SAT, [qual], closes, feed_events=[qual])
+    two = SplitEvent("MTUM", EX, 2.0)       # even a (wrongly) corroborated 2:1 …
+    with pytest.raises(repair.RepairRefused, match="split-shaped day"):
+        repair.restate(real, MOMENTUM_SAT, [two], closes, feed_events=[two])
+
+
+def test_F12_repair_forbids_every_repo_data_root_and_any_spelling_of_s3(tmp_path):
+    copy = tmp_path / "copy.json"
+    shutil.copy(REAL_BOOK, copy)
+    roots = repair.forbidden_data_roots()
+    assert repair.REPO_DATA in roots
+    for root in roots:                       # this checkout, the main repo, every worktree
+        with pytest.raises(repair.RepairRefused, match="data/ root"):
+            repair._guard_paths(copy, root / "state" / "zz_restated.json")
+    with pytest.raises(repair.RepairRefused, match="data/ root"):      # an unregistered one
+        repair._guard_paths(copy, Path("/x/repo/.claude/worktrees/other/data/state/z.json"))
+    for bad in ("S3://bucket/x.json", "s3://bucket/x.json", " S3:/bucket/x.json"):
+        with pytest.raises(repair.RepairRefused, match="S3 paths"):
+            repair._guard_paths(copy, Path(bad))
+    repair._guard_paths(copy, tmp_path / "fine.json")                  # positive control
+
+
+# ---- finding 11: the small ones --------------------------------------------- #
+def _pre_split_fill() -> list:
+    return [OrderRecord("a", "2026-09-15", "MTUM", "buy", 5, "day", "filled",
+                        filled_qty=5, filled_at="2026-09-15T13:52:00+00:00")]
+
+
+def test_F11_duplicate_rows_future_dates_partial_pages_and_in_play_lists(tmp_path):
+    dup = {"forward_splits": REAL_FEED["forward_splits"][:1] * 2}
+    assert len(fetch_splits(lambda *a: dup, ["MTUM"], D(4), D(5)).events) == 1
+    led = _ledger(tmp_path / "a")
+    g = CorporateActionGate(today=EX, feed=SplitFeedResult(True, (MTUM_4_1, MTUM_4_1)))
+    g.apply_to_ledger(led, _pre_split_fill())
+    assert g.applied == ["MTUM:2026-11-05"] and led.positions()["MTUM"] == 20
+    assert g.in_play["MTUM"] == [MTUM_4_1], "a LIST per ticker"
+    led2 = _ledger(tmp_path / "b")
+    g2 = CorporateActionGate(today=EX, feed=SplitFeedResult(True, (SplitEvent("MTUM", D(12), 4.0),)))
+    g2.apply_to_ledger(led2, _pre_split_fill())
+    assert led2.positions()["MTUM"] == 5 and g2.future_events == ["MTUM:2026-11-12"]
+    paged = fetch_splits(lambda *a: {"forward_splits": [], "next_page_token": "abc"},
+                         ["MTUM"], D(4), D(5))
+    assert paged.available is False and "paginated" in paged.reason
+
+
+def test_F11_an_unmodelled_action_stays_frozen_after_it_leaves_the_feed_window(tmp_path):
+    mp = tmp_path / "m.json"
+    led = _ledger(tmp_path / "a")
+    feed = SplitFeedResult.ok([], [UnhandledAction("MTUM", "stock_dividends", EX)])
+    g = CorporateActionGate(today=EX, feed=feed, marks_path=mp)
+    g.apply_to_ledger(led, [])
+    g.save()
+    later = SplitFeedResult.ok(tickers=["MTUM"], start=D(13), end=D(20))   # it has aged out
+    g2 = CorporateActionGate(today=D(20), feed=later, marks_path=mp)
+    assert "unmodelled corporate action" in g2.frozen["MTUM"] and g2.stand_down
+    g2.check_prices({"MTUM": 276.0}, held=["MTUM"])
+    for _ in range(3):
+        assert "MTUM" in CorporateActionGate(today=D(20), feed=later, marks_path=mp).frozen
+
+
+def test_F2_book_a_real_move_is_released_by_the_feed_answering_no_split_x3(tmp_path):
+    """f_books F6b: a genuine −30% session parked the book until the price
+    happened to drift out of the band. Now: three sessions of a feed that
+    ANSWERS (and covers the frozen date), then the real move is recorded."""
+    lb = _momentum_through_11_04(tmp_path)
+
+    def answered(day: str) -> SplitFeedResult:
+        return SplitFeedResult.ok(tickers=["MTUM"], start=D(1), end=dt.date.fromisoformat(day))
+    for day, px in (("2026-11-05", 193.6), ("2026-11-06", 195.0)):
+        lb.record(day, {"MTUM": px, "SPY": 756.61}, splits=answered(day))
+        assert lb._state()["days"][-1]["degraded"] is True
+    lb.record("2026-11-09", {"MTUM": 190.0, "SPY": 756.61}, splits=answered("2026-11-09"))
+    st = lb._state()
+    assert st["days"][-1]["degraded"] is False and st["frozen"] == {}
+    assert st["days"][-1]["book_growth"] == pytest.approx(0.6344, abs=1e-3)   # 333 × 190 + cash
+    assert "treated as a real move" in st["freeze_journal"][-1]["released"][0]
+
+
+# ---- finding 13: the census exemption says what the code does ---------------- #
+def test_F13_the_marks_file_is_written_on_a_clean_run_and_the_exemption_says_so(tmp_path):
+    r = _replay(tmp_path, broker_mtum=5, feed=_silent, mtum_px=254.44)   # nothing frozen
+    assert r.rc == 0 and r.world.marks_file()["_schema"] == "price_basis_marks/v2"
+    text = EXEMPT[MARKS_REL]
+    assert "SEEDING" in text and "PERSISTED freezes" in text and "exit 70" in text

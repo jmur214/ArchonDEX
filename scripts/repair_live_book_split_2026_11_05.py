@@ -48,10 +48,51 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from paper_trader.corporate_actions import SplitEvent
+from paper_trader.corporate_actions import (SplitEvent, parse_alpaca_corporate_actions,
+                                            price_split_ratio)
 from paper_trader.live_books import ALL_BOOKS, BookSpec, LiveBook
 
 REPO_DATA = (Path(__file__).resolve().parents[1] / "data").resolve()
+
+
+def forbidden_data_roots() -> List[Path]:
+    """Every ``data/`` this script must never write under: this checkout's, the MAIN
+    repo's (found through git's common dir — a worktree's own ``data`` is not the
+    live one), and every other worktree's. Read-only git queries; if git cannot
+    answer, this checkout's alone (the pre-existing guard) still stands."""
+    import subprocess
+    here = Path(__file__).resolve().parents[1]
+    roots = {here}
+    try:
+        common = subprocess.run(["git", "-C", str(here), "rev-parse", "--git-common-dir"],
+                                capture_output=True, text=True, timeout=10).stdout.strip()
+        if common:
+            c = Path(common)
+            roots.add(((c if c.is_absolute() else here / c).resolve()).parent)
+        wl = subprocess.run(["git", "-C", str(here), "worktree", "list", "--porcelain"],
+                            capture_output=True, text=True, timeout=10).stdout
+        roots |= {Path(l.split(" ", 1)[1]).resolve() for l in wl.splitlines()
+                  if l.startswith("worktree ")}
+        # a worktree not yet registered still lives under <main>/.claude/worktrees/
+    except (OSError, subprocess.SubprocessError):
+        pass
+    out: List[Path] = []
+    for r in sorted(roots):
+        out += [r / "data", (r / "data").resolve()]
+    return list(dict.fromkeys(out))
+
+
+def _is_repo_data(p: Path) -> Optional[Path]:
+    roots = forbidden_data_roots()
+    for r in roots:
+        if p == r or r in p.parents:
+            return r
+    # ANY sibling worktree of the main repo, registered or not
+    parts = p.parts
+    for i in range(len(parts) - 3):
+        if parts[i:i + 2] == (".claude", "worktrees") and parts[i + 3] == "data":
+            return Path(*parts[:i + 4])
+    return None
 Closes = Dict[str, Dict[str, float]]
 
 
@@ -131,8 +172,20 @@ def _replay(spec: BookSpec, pre: Dict[str, Dict[str, Any]], days: Sequence[Dict[
     return out
 
 
+def load_feed_events(path: Path) -> List[SplitEvent]:
+    """The corroborating feed payload: the provider's corporate-actions response,
+    bare or wrapped as the captured fixture is (``{"response": {...}}``)."""
+    try:
+        raw = json.loads(Path(path).read_text())
+        events, _ = parse_alpaca_corporate_actions(raw.get("response", raw))
+    except (OSError, ValueError, AttributeError) as exc:
+        raise RepairRefused(f"--feed-json unreadable ({type(exc).__name__}: {exc})") from exc
+    return events
+
+
 def restate(state: Dict[str, Any], spec: BookSpec, splits: Sequence[SplitEvent],
-            closes: Closes, tol: float = 0.02) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+            closes: Closes, tol: float = 0.02,
+            feed_events: Optional[Sequence[SplitEvent]] = None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Pure: (recorded state, splits, closes) → (restated state, table rows).
     Raises ``RepairRefused`` when the derivation cannot be proven."""
     if state.get("_schema") != "live_book/v1":
@@ -143,6 +196,17 @@ def restate(state: Dict[str, Any], spec: BookSpec, splits: Sequence[SplitEvent],
         raise RepairRefused("this state file has already been restated")
     if not splits:
         raise RepairRefused("no split given")
+    # 9. a split the FEED does not corroborate is a parameter, not a fact: the
+    #    no-split replay below proves the closes, it cannot prove the split.
+    if feed_events is None:
+        raise RepairRefused("no feed payload supplied (--feed-json): the split must be "
+                            "corroborated by the provider's own record")
+    for e in splits:
+        if not any(f.ticker == e.ticker and f.ex_date == e.ex_date
+                   and abs(f.ratio - e.ratio) < 1e-9 for f in feed_events):
+            raise RepairRefused(
+                f"split {e.ticker} {e.ratio:g}:1 ex {e.ex_date} is NOT in the feed payload "
+                f"(feed has {[f.to_dict() for f in feed_events if f.ticker == e.ticker]})")
     ex = min(e.ex_date for e in splits).isoformat()
     days: List[Dict[str, Any]] = state["days"]
     pre_days = [d for d in days if d["date"] < ex]
@@ -159,6 +223,11 @@ def restate(state: Dict[str, Any], spec: BookSpec, splits: Sequence[SplitEvent],
            "twin": derive_side(anchor["twin_nav"],
                                spec.twin_weights_fn(px0, spec.twin_notional),
                                px0, spec.whole_shares)}
+
+    for e in splits:
+        if not any(float(pre[sd]["shares"].get(e.ticker) or 0) > 0 for sd in ("book", "twin")):
+            raise RepairRefused(f"{e.ticker} is not held on either side at the anchor "
+                                f"{anchor['date']} — there is nothing for this split to scale")
 
     # ---- 2. PROVE: without the split, the replay must BE the recorded record ----
     for d, b, t in _replay(spec, pre, post_days, closes, ()):
@@ -199,6 +268,17 @@ def restate(state: Dict[str, Any], spec: BookSpec, splits: Sequence[SplitEvent],
                      "book_growth_restated": nd["book_growth"],
                      "twin_growth_recorded": d.get("twin_growth"),
                      "twin_growth_restated": nd["twin_growth"]})
+    # the restated ex-date day must not ITSELF be split-shaped: a wrong ratio leaves
+    # (or creates) a clean-ratio jump from the anchor on a side that holds the ticker
+    first = next(d for d in new_days if d["date"] >= ex and not d.get("degraded"))
+    for sd, key in (("book", "book_nav"), ("twin", "twin_nav")):
+        if any(float(pre[sd]["shares"].get(e.ticker) or 0) > 0 for e in splits):
+            r = price_split_ratio(anchor[key], first[key])
+            if r is not None:
+                raise RepairRefused(
+                    f"the RESTATED {sd} nav still moves {anchor[key]} → {first[key]} on "
+                    f"{first['date']} — a ~{r:g}:1 split-shaped day. The ratio or ex-date "
+                    "is wrong; nothing written.")
     out = dict(state)
     out["days"] = new_days
     out["side"] = {"book": book, "twin": twin}
@@ -217,7 +297,7 @@ def restate(state: Dict[str, Any], spec: BookSpec, splits: Sequence[SplitEvent],
 
 def _guard_paths(state_p: Path, out_p: Path) -> None:
     for raw in (str(state_p), str(out_p)):
-        if raw.startswith("s3:"):
+        if raw.strip().lower().startswith("s3:"):
             raise RepairRefused("S3 paths are refused — this script works on local copies only")
     sp, op = state_p.resolve(), out_p.resolve()
     if op == sp:
@@ -225,8 +305,9 @@ def _guard_paths(state_p: Path, out_p: Path) -> None:
     if op.exists():
         raise RepairRefused(f"--out {op} already exists; refusing to overwrite")
     for p in (sp, op):
-        if p == REPO_DATA or REPO_DATA in p.parents:
-            raise RepairRefused(f"{p} is under this repo's data/ (the LIVE state layout) — "
+        hit = _is_repo_data(p) or _is_repo_data(Path(str(p)))
+        if hit is not None:
+            raise RepairRefused(f"{p} is under a repo data/ root ({hit}; the LIVE state layout) — "
                                 "work on a copy outside it")
 
 
@@ -237,6 +318,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--split", required=True, action="append",
                     help="TICKER:YYYY-MM-DD:RATIO (new shares per old); repeatable")
     ap.add_argument("--closes", required=True, help='JSON {"YYYY-MM-DD": {"SYM": px}}')
+    ap.add_argument("--feed-json", required=True,
+                    help="the provider's corporate-actions payload that CORROBORATES the "
+                         "split (the captured-fixture format, or the bare response)")
     ap.add_argument("--out", required=True, help="NEW output path (must not exist)")
     ap.add_argument("--tol", type=float, default=0.02, help="verification tolerance, dollars")
     args = ap.parse_args(argv)
@@ -245,7 +329,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _guard_paths(state_p, out_p)
         new, rows = restate(json.loads(state_p.read_text()), _spec(args.book),
                             [parse_split(s) for s in args.split],
-                            json.loads(Path(args.closes).read_text()), tol=args.tol)
+                            json.loads(Path(args.closes).read_text()), tol=args.tol,
+                            feed_events=load_feed_events(Path(args.feed_json)))
     except RepairRefused as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 2

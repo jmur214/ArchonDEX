@@ -1666,9 +1666,36 @@ pre-split day (in that day's pre-split basis) and every recorded day from the ex
 python -m scripts.repair_live_book_split_2026_11_05 \
   --state /path/to/copy/book_momentum_satellite.json --book momentum_satellite \
   --split MTUM:2026-11-05:4 --closes /path/to/closes.json \
+  --feed-json tests/fixtures/corporate_actions/alpaca_corporate_actions_2026_11_05.json \
   --out /path/to/book_momentum_satellite.restated.json
 python -m pytest tests/test_corporate_action_feed_2026_11_10.py -q
 ```
 
-Exit 2 = REFUSED (the reason is printed; nothing was written). Publishing a restated file to the
-live S3 prefix is a separate, manual, propose-first step — this script cannot do it.
+`--feed-json` is required: the provider's corporate-actions payload (the captured-fixture format
+or the bare response) must contain the exact split (ticker, ex-date, ratio), the ticker must be
+held at the anchor, and the restated ex-date day must not itself be split-shaped — otherwise
+REFUSED. Exit 2 = REFUSED (the reason is printed; nothing was written). It refuses any output
+under a `data/` of this checkout, the main repo, or any worktree, and any spelling of `s3:`.
+Publishing a restated file to the live S3 prefix is a separate, manual, propose-first step.
+
+#### Acknowledging a corporate-action freeze (added 2026-11-10)
+The gate persists every freeze in `data/state/price_basis_marks.json` (per account) and never
+releases one because the price drifted. A freeze releases by (a) a feed-confirmed split whose
+ratio matches the move, (b) the feed answering "no split" on 3 consecutive sessions (a real move),
+or (c) an operator acknowledgement — this tool, on a LOCAL copy of the marks file:
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json --list
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --ticker MTUM --who <name> --reason "why this freeze may be lifted (12+ characters)"
+```
+
+It stamps `ack: {who, why, at}` on the freeze and appends to the file's journal; the next daily
+run reads it, releases, journals the release and lays a fresh mark. It refuses without a reason
+or a name, on a ticker that is not frozen, and on any `s3:` path (exit 2, nothing written). An ack
+cannot make an unprovable share basis provable: a `ledger`-kind freeze (mixed pre/post-split
+fills) is re-frozen by the same run if the position is still mixed. Getting the file from and
+back to the account's S3 prefix is a separate, manual, propose-first step.
+
+An account's FIRST run after this deploys has no marks: it is a SEEDING day (marks recorded,
+nothing staged, exit 70, reason "seeding price-basis marks (first run)"). One per account.
