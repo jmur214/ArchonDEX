@@ -1288,6 +1288,30 @@ registry owner, never add a private list; (3) schedule-class ledger labels vs th
 The three rails are PROVEN in `tests/test_reviewer_liveness_sweep.py` (AST scan + tree hash
 + mutation of the guard itself).
 
+### FLEET HEALTH — read the paper fleet's own record (2026-11-10)
+
+```bash
+python -m scripts.fleet_health      # exit 0 healthy, 1 not; read-only (S3 GETs through the janitor's reader)
+```
+
+Reads each account's `paper_heartbeat.json` and every live book's state file and prints one
+verdict: an account NON-CANONICAL, HALTED or SILENT (> 4 days); a book carrying a one-day gap
+vs its twin beyond 10 pp recorded as clean (a split or a bad mark — the record is corrupt from
+that date); a book parked 5+ sessions. An unreadable object is a FAIL, never a pass. The
+nightly janitor runs the same function as its `fleet_health` check. Run it at the start of any
+session that will say anything about the fleet.
+
+### T-379 — CEF discount reversion, wide universe, one-day execution skip (2026-11-10)
+
+```bash
+python scripts/cef_wide_lagged_probe_t379.py --roster <cef_daily.parquet> --smoke   # counts only, first 12 signal months
+python scripts/cef_wide_lagged_probe_t379.py --roster <cef_daily.parquet> --out data/research/t379/result.json
+```
+
+Runs the frozen pre-registration `docs/Sources/prereg_cef_wide_lagged_t379_2026-11-10.md`. `--roster` is
+the archived CEFConnect panel (S3 `altdata/data/macro_data/alt/cef_daily.parquet`); the daily panel is
+fetched once from yfinance and cached at `data/research/cef_panel_t379.parquet`. Exploratory, survivor-only.
+
 ### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
 
 The autonomous-development pilot's first rung
