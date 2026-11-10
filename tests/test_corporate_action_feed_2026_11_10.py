@@ -833,6 +833,23 @@ def test_F5_vendor_not_adjusted_yet_is_frozen_until_the_price_arrives(tmp_path):
     assert r9.rc == 0 and "now in the confirmed split's basis" in r9.block["released"][0]["why"]
 
 
+def test_F5_a_confirmed_ratio_explains_a_move_whatever_date_the_mark_carries(tmp_path):
+    """The old test was `ex_date > mark date`: a mark laid ON the ex-date in the
+    pre-split basis could never be explained. Matched by RATIO instead — and a
+    confirmed split of a different ratio explains nothing."""
+    for name, ratio, frozen in (("match", 4.0, False), ("mismatch", 2.0, True)):
+        mp = tmp_path / f"{name}.json"
+        mp.write_text(json.dumps({"marks": {"MTUM": {"px": PRE_PX, "run_date": "2026-11-05"}}}))
+        feed = SplitFeedResult.ok([SplitEvent("MTUM", EX, ratio)], tickers=["MTUM"],
+                                  start=D(1), end=D(6))
+        g = CorporateActionGate(today=D(6), feed=feed, marks_path=mp)
+        g.check_prices({"MTUM": POST_PX}, held=[], traded=["MTUM"])
+        assert ("MTUM" in g.frozen) is frozen, name
+        if not frozen:      # explained outright — never frozen-then-released
+            assert g.released == [] and g.state.journal == []
+            assert g.state.marks["MTUM"] == {"px": POST_PX, "run_date": "2026-11-06"}
+
+
 # ---- finding 6: the heartbeat FILE carries the gate's verdict --------------- #
 def test_F6_the_heartbeat_file_itself_says_non_canonical_on_a_stand_down(tmp_path):
     """d_misc D2: rc 70 while last_run.canonical True / reason clean / alert False."""
