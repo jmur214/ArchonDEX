@@ -66,10 +66,52 @@ def ack(marks_path: Path, ticker: str, who: str, reason: str,
     return f"ACK {t} by {who.strip()} at {at}: {reason.strip()}"
 
 
+def reset_unreadable(marks_path: Path, who: str, reason: str,
+                     now: Optional[_dt.datetime] = None) -> str:
+    """The operator's answer to a marks file that EXISTS but cannot be parsed.
+
+    The gate stands the book down on every run while that file is there — the
+    freezes it held are unknowable, so it will neither trust it nor write over
+    it. This moves the bad file aside (kept, never deleted) and leaves a fresh,
+    valid, EMPTY marks file whose journal records who reset it and why. The
+    next run is then an ordinary seeding day. Refuses a file that is readable
+    (use a ticker ack), a missing reason or name, and any ``s3:`` path."""
+    raw = str(marks_path).strip()
+    if raw.lower().startswith("s3:"):
+        raise ValueError("S3 paths are refused — reset a LOCAL copy")
+    p = Path(marks_path)
+    if not p.is_file():
+        raise ValueError(f"{marks_path} does not exist (an ABSENT file needs no reset: "
+                         "the next run simply seeds)")
+    if not reason or len(reason.strip()) < MIN_REASON_CHARS:
+        raise ValueError(f"a reason of at least {MIN_REASON_CHARS} characters is required")
+    if not who or not who.strip():
+        raise ValueError("--who is required: a reset is signed")
+    if not GateState.load(p).unreadable:
+        raise ValueError(f"{marks_path} is READABLE — nothing to reset; its freezes are "
+                         "released one ticker at a time with --ticker")
+    at = now or _dt.datetime.now(_dt.timezone.utc)
+    aside = p.with_name(f"{p.name}.unreadable-{at.strftime('%Y%m%dT%H%M%SZ')}")
+    if aside.exists():
+        raise ValueError(f"{aside} already exists")
+    p.replace(aside)
+    fresh = GateState()
+    fresh.journal.append({"date": at.date().isoformat(), "ticker": None,
+                          "event": "reset_unreadable", "who": who.strip(),
+                          "why": reason.strip(), "at": at.isoformat(),
+                          "moved_to": aside.name})
+    fresh.save(p)
+    return (f"RESET by {who.strip()} at {at.isoformat()}: unreadable file kept as "
+            f"{aside.name}; the next run is a seeding day — {reason.strip()}")
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--marks", required=True, help="a LOCAL price_basis_marks.json")
     ap.add_argument("--list", action="store_true", help="print the freezes and exit")
+    ap.add_argument("--reset-unreadable", action="store_true",
+                    help="the marks file exists but cannot be parsed: move it aside and "
+                         "leave an empty valid one (needs --who and --reason)")
     ap.add_argument("--ticker")
     ap.add_argument("--who")
     ap.add_argument("--reason")
@@ -89,8 +131,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"{len(st.frozen)} frozen | feed_unavailable_streak="
                   f"{st.feed_unavailable_streak}")
             return 0
+        if a.reset_unreadable:
+            print(reset_unreadable(Path(a.marks), a.who or "", a.reason or ""))
+            return 0
         if not a.ticker:
-            raise ValueError("--ticker is required (or --list)")
+            raise ValueError("--ticker is required (or --list / --reset-unreadable)")
         print(ack(Path(a.marks), a.ticker, a.who or "", a.reason or ""))
         return 0
     except ValueError as exc:

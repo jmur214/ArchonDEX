@@ -40,7 +40,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
-from paper_trader.corporate_actions import price_split_ratio
+from paper_trader.corporate_actions import price_split_ratio, releases_on_feed_silence
 
 ETF_TXN_BPS = 0.00015          # 1.5 bps/side — liquid ETFs (the T-255 harness rate)
 
@@ -470,7 +470,9 @@ class LiveBook:
             if fz.get("streak_date") == trade_date:
                 return False
             fz["streak_date"] = trade_date
-            if feed_ok and not any(e.ticker == sym for e in events) and covers(fz.get("frozen_on")):
+            if (feed_ok and not any(e.ticker == sym for e in events)
+                    and covers(fz.get("frozen_on"))
+                    and releases_on_feed_silence(fz.get("ratio"))):
                 fz["no_split_streak"] = int(fz.get("no_split_streak") or 0) + 1
                 return fz["no_split_streak"] >= 3
             fz["no_split_streak"] = 0
@@ -510,8 +512,13 @@ class LiveBook:
                 "reason": (f"{s_} mark {prev:.4f} → {px:.4f} on {trade_date} is a ~{r:g}:1 "
                            "split-shaped move and "
                            + ("the confirmed split is applied but the price is not in its "
-                              "basis yet" if lag else why)),
-                "frozen_on": trade_date, "ref_px": prev, "ref_date": last_clean,
+                              "basis yet" if lag else why)
+                           + ("" if lag or releases_on_feed_silence(r) else
+                              " — 2:1 or more: this park releases ONLY on a ratio-matching "
+                              "confirmed split; feed silence never releases it and there "
+                              "is no book ack tool, so if the feed never confirms, an "
+                              "OPERATOR must repair this state file")),
+                "frozen_on": trade_date, "ref_px": prev, "ref_date": last_clean, "ratio": r,
                 "no_split_streak": 0, "streak_date": None}
             if not lag:
                 count_no_split(frozen[s_], s_)

@@ -767,6 +767,7 @@ def test_F4_a_first_run_without_marks_is_a_SEEDING_day(tmp_path):
     assert r.block["seeding"] == ["MTUM", "SGOV", "VOO"] and r.block["frozen"] == {}
     assert _mtum(r.block["refused_orders"])
     assert "seeding price-basis marks (first run)" in r.hb["last_run"]["reason"]
+    assert r.block["marks_age_sessions"] == 0, "the seeding day is flagged weakly witnessed"
     mf = w.marks_file()
     assert mf["_schema"] == "price_basis_marks/v2" and mf["marks"]["MTUM"]["px"] == POST_PX
     assert not list(w.marks_path.parent.glob("*.tmp")), "the temp file is renamed, not left"
@@ -783,15 +784,16 @@ def test_F4_no_mark_plus_a_confirmed_split_in_the_window_is_FROZEN(tmp_path):
     assert r6.rc == 70 and r6.client.submitted == [] and "acknowledge" in r6.block["frozen"]["MTUM"]
 
 
-@pytest.mark.parametrize("raw", ['{"marks": {"MTUM": {"px": 276.56}}}', "[1]", "{not json",
+@pytest.mark.parametrize("raw", ['{"marks": {"MTUM": {"px": 276.56}}}',
                                  '{"marks": {"VOO": {"px": null, "run_date": "2026-11-04"}}}',
                                  '{"marks": {"VOO": {"px": 0, "run_date": "2026-11-04"}}}',
                                  '{"marks": {"VOO": {"px": NaN, "run_date": "2026-11-04"}}}'],
-                         ids=["no-run_date", "top-level-list", "not-json", "px-null", "px-zero",
-                              "px-nan"])
+                         ids=["no-run_date", "px-null", "px-zero", "px-nan"])
 def test_F4_F10_an_invalid_marks_file_is_degraded_and_seeds_never_crashes(tmp_path, raw):
     """c_driver C4: KeyError / AttributeError / TypeError out of main(), no
-    heartbeat, no metric, every day."""
+    heartbeat, no metric, every day. A PARSEABLE file with invalid entries: each
+    bad entry is "no mark" for that ticker. (A file that cannot be parsed at all
+    is a different case — see the round-3 lock below.)"""
     w = _World(tmp_path, broker_mtum=5, mtum_px=PRE_PX)
     w.marks_path.write_text(raw)
     r = w.run(D(5), _silent)
@@ -799,9 +801,6 @@ def test_F4_F10_an_invalid_marks_file_is_degraded_and_seeds_never_crashes(tmp_pa
     assert r.block["marks_problems"] and r.block["seeding"] and r.block["degraded"] is True
     assert r.hb["last_run"]["run_date"] == "2026-11-05"
     assert set(w.marks_file()["marks"]) >= {"MTUM", "SGOV", "VOO"}
-    if raw in ("[1]", "{not json"):      # the unreadable file is KEPT, beside the new one
-        assert (w.marks_path.parent / "price_basis_marks.json.unreadable-2026-11-05"
-                ).read_text() == raw
     assert w.run(D(6), _silent).rc == 0
 
 
@@ -992,3 +991,95 @@ def test_F13_the_marks_file_is_written_on_a_clean_run_and_the_exemption_says_so(
     assert r.rc == 0 and r.world.marks_file()["_schema"] == "price_basis_marks/v2"
     text = EXEMPT[MARKS_REL]
     assert "SEEDING" in text and "PERSISTED freezes" in text and "exit 70" in text
+
+
+# =========================================================================== #
+# 8. round 3 — two rulings corrected on the evidence
+# =========================================================================== #
+TEN_SESSIONS = (5, 6, 9, 10, 11, 12, 13, 16, 17, 18)
+
+
+# ---- A: feed silence releases ONLY a sub-2:1 move ---------------------------- #
+def test_RA_a_4_to_1_shaped_move_with_a_SILENT_feed_is_still_frozen_on_session_10(tmp_path):
+    """The round-2 rule ("feed answered no-split ×3 → a real move") reopened the
+    original defect: a feed that simply never reports a real split released the
+    freeze on session 3 and the spurious buy was staged. A −30% move still
+    releases that way (test_F2_feed_no_split_x3_releases_a_real_move); a move of
+    2:1 or more never does."""
+    w = _World(tmp_path, broker_mtum=5)                      # mark 276.56 → 69.14
+    for d in TEN_SESSIONS:
+        r = w.run(D(d), _silent)
+        assert r.rc == 70 and r.client.submitted == [] and r.new_orders == [], d
+        assert _mtum(r.block["refused_orders"]), d
+    fz = w.marks_file()["frozen"]["MTUM"]
+    assert (fz["kind"], fz["ratio"], fz["frozen_on"], fz["no_split_streak"]) == (
+        "unconfirmed", 4.0, "2026-11-05", 0)
+    assert "never on feed silence" in fz["reason"]
+    assert w.marks_file()["marks"]["MTUM"] == {"px": PRE_PX, "run_date": "2026-11-04"}
+    # …and it is still releasable the right way: the feed confirms a matching split
+    w.positions["MTUM"] = 20
+    r = w.run(D(19), _real)
+    topup = [q for t, side, q in _sub(r) if t == "MTUM" and side == "buy"]
+    assert r.rc == 0 and len(topup) == 1 and topup[0] < 6, _sub(r)   # the honest one, vs 20
+    assert "matches the observed move" in r.block["released"][0]["why"]
+
+
+def test_RA_book_a_4_to_1_shaped_move_with_a_silent_feed_stays_parked(tmp_path):
+    lb = _momentum_through_11_04(tmp_path)
+    for d in TEN_SESSIONS:
+        day = D(d).isoformat()
+        lb.record(day, {"MTUM": 65.59, "SPY": 756.61},
+                  splits=SplitFeedResult.ok(tickers=["MTUM"], start=D(1), end=D(d)))
+        st = lb._state()
+        assert st["days"][-1]["degraded"] is True and "book_growth" not in st["days"][-1], day
+    fz = st["frozen"]["MTUM"]
+    assert (fz["ratio"], fz["no_split_streak"], fz["frozen_on"]) == (4.0, 0, "2026-11-05")
+    assert "OPERATOR must repair this state file" in st["days"][-1]["reason"]
+    assert st["side"]["book"]["shares"] == {"MTUM": 333.0} and st["last_px"]["MTUM"] == 276.56
+
+
+# ---- B: an unreadable marks file is never "seed and trade tomorrow" ---------- #
+@pytest.mark.parametrize("raw", ["[1]", "{not json"], ids=["top-level-list", "not-json"])
+def test_RB_an_unreadable_marks_file_stands_down_EVERY_run_until_an_operator_resets_it(
+        tmp_path, raw):
+    """A file that exists but cannot be parsed may have held freezes. Round 2
+    treated it as a first run: seed today, trade tomorrow — the freezes gone."""
+    w = _World(tmp_path, broker_mtum=5, mtum_px=254.44)     # the positive control's day
+    w.marks_path.write_text(raw)
+    for d in (5, 6, 9):
+        r = w.run(D(d), _silent)
+        assert r.rc == 70 and r.client.submitted == [] and r.new_orders == [], d
+        assert r.cloud.metrics == [(True, False)]
+        assert ("price-basis marks unreadable — operator must restore or acknowledge"
+                in r.hb["last_run"]["reason"])
+        assert r.block["marks_unreadable"] is True and r.block["seeding"] == []
+        assert r.block["stand_down"] is True and r.block["refused_orders"], \
+            "an order WAS constructed (an ordinary −8% day) and the stand-down refused it"
+        assert w.marks_path.read_text() == raw, "the bad file is left exactly as it is"
+    m, why = str(w.marks_path), "file truncated by a failed sync; no freezes were open"
+    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op"]) == 2
+    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--reason", why]) == 2
+    assert ack_tool.main(["--marks", "s3://b/marks.json", "--reset-unreadable", "--who", "op",
+                          "--reason", why]) == 2
+    assert w.marks_path.read_text() == raw, "a refusal moves nothing"
+    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op", "--reason", why]) == 0
+    kept = list(w.marks_path.parent.glob("price_basis_marks.json.unreadable-*"))
+    assert len(kept) == 1 and kept[0].read_text() == raw, "moved aside, not deleted"
+    j = w.marks_file()["journal"]
+    assert [(x["event"], x["who"], x["why"]) for x in j] == [("reset_unreadable", "op", why)]
+    assert ack_tool.main(["--marks", m, "--reset-unreadable", "--who", "op",
+                          "--reason", why]) == 2, "a READABLE file is not reset"
+    # the next run is an ordinary seeding day; then the account trades
+    r10 = w.run(D(10), _silent)
+    assert r10.rc == 70 and r10.block["seeding"] == ["MTUM", "SGOV", "VOO"]
+    assert r10.block["marks_unreadable"] is False and r10.block["marks_age_sessions"] == 0
+    r11 = w.run(D(11), _silent)
+    assert r11.rc == 0 and r11.block["marks_age_sessions"] == 1, "weakly witnessed: flagged"
+    assert w.run(D(12), _silent).block["marks_age_sessions"] is None
+
+
+def test_RB_an_ABSENT_marks_file_is_still_an_ordinary_seeding_day(tmp_path):
+    w = _World(tmp_path, broker_mtum=5, mtum_px=PRE_PX, mark=_NO_MARKS)
+    r = w.run(D(5), _silent)
+    assert r.rc == 70 and r.block["marks_unreadable"] is False and r.block["seeding"]
+    assert w.run(D(6), _silent).rc == 0

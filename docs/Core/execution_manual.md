@@ -1681,8 +1681,12 @@ Publishing a restated file to the live S3 prefix is a separate, manual, propose-
 #### Acknowledging a corporate-action freeze (added 2026-11-10)
 The gate persists every freeze in `data/state/price_basis_marks.json` (per account) and never
 releases one because the price drifted. A freeze releases by (a) a feed-confirmed split whose
-ratio matches the move, (b) the feed answering "no split" on 3 consecutive sessions (a real move),
-or (c) an operator acknowledgement — this tool, on a LOCAL copy of the marks file:
+ratio matches the move, (b) the feed answering "no split" on 3 consecutive sessions — ONLY when
+the move matched a ratio class below 2:1 (1.25, 1.5 and their reciprocals, where a real
+one-session move is plausible); a move of 2:1 or more NEVER releases on feed silence — or (c) an
+operator acknowledgement — this tool, on a LOCAL copy of the marks file. A live BOOK parked on a
+2:1-or-more unconfirmed move has no ack tool: if the feed never confirms, its state file must be
+repaired by an operator (the park reason says so).
 
 ```bash
 python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json --list
@@ -1698,4 +1702,20 @@ fills) is re-frozen by the same run if the position is still mixed. Getting the 
 back to the account's S3 prefix is a separate, manual, propose-first step.
 
 An account's FIRST run after this deploys has no marks: it is a SEEDING day (marks recorded,
-nothing staged, exit 70, reason "seeding price-basis marks (first run)"). One per account.
+nothing staged, exit 70, reason "seeding price-basis marks (first run)"). One per account. The
+seeding day and the run after it carry `corporate_actions.marks_age_sessions` 0 then 1 in the
+heartbeat: the price guard has no, or only a one-day-old, reference on those two sessions.
+
+A marks file that EXISTS but cannot be parsed is not a first run — it may have held freezes. The
+book stands down on every run (exit 70, "price-basis marks unreadable — operator must restore or
+acknowledge"), the file is left untouched and no marks are laid, until an operator either
+restores a valid file or resets it:
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --reset-unreadable --who <name> --reason "why it is safe to start over (12+ characters)"
+```
+
+The reset moves the bad file aside (`…json.unreadable-<UTC stamp>`, kept), leaves an empty valid
+file whose journal records who and why, and the next run is an ordinary seeding day. It refuses a
+readable file, a missing name or reason, and any `s3:` path (exit 2, nothing moved).

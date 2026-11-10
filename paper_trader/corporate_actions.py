@@ -35,6 +35,14 @@ THE DECISION (item 4 of the build brief), stated once:
   manufacture a cash-drift HALT of its own.
   When the split is CONFIRMED and only the broker lags, the plan is constructed
   on the split-adjusted quantity, so the recorded plan is the honest one.
+
+RESIDUAL RISK, stated and not designed away: the price guard compares today's
+mark with the PREVIOUS run's. On a seeding day there is no previous mark, and
+on the run after it the only reference is the mark laid the day before — in
+whatever basis the price happened to be in. If a split landed unreported by
+the feed just before the seed, nothing here can see it. Those two sessions are
+flagged in the heartbeat block (`marks_age_sessions` 0 then 1) as weakly
+witnessed; they are not protected.
 """
 from __future__ import annotations
 
@@ -325,6 +333,18 @@ def price_ratio_bands() -> List[Dict[str, Any]]:
     return out
 
 
+def releases_on_feed_silence(ratio: Optional[float]) -> bool:
+    """May an UNCONFIRMED freeze of this matched ratio release when the feed
+    answers "no split" three sessions running? Only below 2:1 (1.25, 1.5 and
+    their reciprocals), where a real one-session move is plausible. An unknown
+    ratio is treated as 2:1 or more — it does not release."""
+    try:
+        r = float(ratio)                 # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(r) and r > 0 and max(r, 1.0 / r) < 2.0
+
+
 def split_qty(qty: float, ratio: float) -> Optional[int]:
     """``qty × ratio`` as a whole number of shares, or None when the split
     leaves a fraction (cash-in-lieu — not something to round away)."""
@@ -386,8 +406,12 @@ MARKS_SCHEMA = "price_basis_marks/v2"
 # Freeze kinds and the ONLY ways each one releases. None of them releases
 # because the price drifted out of a band — that was the 2026-11-10 blocker.
 KIND_UNCONFIRMED = "unconfirmed"   # split-shaped move, no feed confirmation
-#   → a feed-confirmed split whose ratio MATCHES the observed move, or the feed
-#     answering "no split" on NO_SPLIT_RELEASE_SESSIONS consecutive sessions, or an ack
+#   → a feed-confirmed split whose ratio MATCHES the observed move, or an ack.
+#     ONLY when the move matched a ratio class BELOW 2:1 (1.25, 1.5 and their
+#     reciprocals — where a real one-session move is plausible) may it also release
+#     on the feed answering "no split" on NO_SPLIT_RELEASE_SESSIONS consecutive
+#     sessions. A move of 2:1 or more NEVER releases on feed silence: a feed that
+#     simply never reports a real split would otherwise reopen the 2026-11-05 buy.
 KIND_BASIS_LAG = "basis_lag"       # split confirmed + journaled, price not adjusted yet
 #   → the price arriving in the confirmed basis, or an ack
 KIND_BLIND = "blind"               # held, no mark, feed unavailable
@@ -435,6 +459,13 @@ class GateState:
     feed_streak_date: Optional[str] = None
     journal: List[Dict[str, Any]] = field(default_factory=list)
     problems: List[str] = field(default_factory=list)
+    # the file EXISTS but cannot be parsed as a whole: whatever freezes it held are
+    # unknowable, so nothing may be inferred from it and nothing written over it
+    unreadable: bool = False
+    # sessions since marks were last SEEDED (0 on the seeding day, 1 the run after,
+    # None from then on) and the run date that count was last stepped on
+    seed_sessions: Optional[int] = None
+    seed_step_date: Optional[str] = None
 
     @classmethod
     def load(cls, path: Optional[Path]) -> "GateState":
@@ -446,8 +477,8 @@ class GateState:
             if not isinstance(d, dict):
                 raise ValueError(f"top level is {type(d).__name__}, not an object")
         except (OSError, ValueError) as exc:
-            st.problems.append(f"marks file unreadable ({type(exc).__name__}: {exc}) — "
-                               "every ticker treated as having NO mark")
+            st.problems.append(f"marks file unreadable ({type(exc).__name__}: {exc})")
+            st.unreadable = True
             return st
         marks = d.get("marks")
         if marks is not None and not isinstance(marks, dict):
@@ -476,6 +507,10 @@ class GateState:
         st.feed_streak_date = d.get("feed_streak_date") if isinstance(
             d.get("feed_streak_date"), str) else None
         st.journal = [j for j in (d.get("journal") or []) if isinstance(j, dict)][-200:]
+        ss = d.get("seed_sessions")
+        st.seed_sessions = ss if isinstance(ss, int) and not isinstance(ss, bool) else None
+        st.seed_step_date = d.get("seed_step_date") if isinstance(
+            d.get("seed_step_date"), str) else None
         return st
 
     def save(self, path: Path) -> None:
@@ -489,6 +524,8 @@ class GateState:
                 "_schema": MARKS_SCHEMA, "marks": self.marks, "frozen": self.frozen,
                 "feed_unavailable_streak": self.feed_unavailable_streak,
                 "feed_streak_date": self.feed_streak_date,
+                "seed_sessions": self.seed_sessions,
+                "seed_step_date": self.seed_step_date,
                 "journal": self.journal[-200:]}, indent=1, sort_keys=True))
             fh.flush()
             os.fsync(fh.fileno())
@@ -574,6 +611,11 @@ class CorporateActionGate:
             st.feed_unavailable_streak = (0 if self.feed.available
                                           else st.feed_unavailable_streak + 1)
             st.feed_streak_date = day
+        # the first two sessions after a seed are weakly witnessed; count them
+        if st.seed_step_date != day:
+            if st.seed_sessions is not None:
+                st.seed_sessions = st.seed_sessions + 1 if st.seed_sessions < 1 else None
+            st.seed_step_date = day
         # an operator acknowledgement releases a freeze — and is journaled
         for t in list(st.frozen):
             ack = st.frozen[t].get("ack")
@@ -598,14 +640,15 @@ class CorporateActionGate:
 
     def _persist_freeze(self, ticker: str, kind: str, reason: str,
                         ref_px: Optional[float] = None,
-                        ref_date: Optional[str] = None) -> None:
+                        ref_date: Optional[str] = None,
+                        ratio: Optional[float] = None) -> None:
         """A freeze that must SURVIVE the run. Written once; never rewritten by
         a later day's price."""
         if ticker in self.state.frozen:
             return
         self.state.frozen[ticker] = {
             "kind": kind, "reason": reason, "frozen_on": self.today.isoformat(),
-            "ref_px": ref_px, "ref_date": ref_date,
+            "ref_px": ref_px, "ref_date": ref_date, "ratio": ratio,
             "no_split_streak": 0, "streak_date": None}
         self.state.journal.append({"date": self.today.isoformat(), "ticker": ticker,
                                    "event": "freeze", "kind": kind, "why": reason})
@@ -626,11 +669,14 @@ class CorporateActionGate:
     @property
     def stand_down(self) -> bool:
         """True ⇒ nothing may be staged today and the run is non-canonical."""
-        return bool(self.frozen) or bool(self.seeding)
+        return bool(self.frozen) or bool(self.seeding) or self.state.unreadable
 
     @property
     def noncanonical_reasons(self) -> List[str]:
         out = [f"FROZEN {t}: {r}" for t, r in sorted(self.frozen.items())]
+        if self.state.unreadable:
+            out.append("price-basis marks unreadable — operator must restore or "
+                       "acknowledge (" + "; ".join(self.state.problems) + ")")
         if self.seeding:
             out.append("seeding price-basis marks (first run) for "
                        + ", ".join(sorted(self.seeding)))
@@ -768,7 +814,8 @@ class CorporateActionGate:
             fz["streak_date"] = day
             covers = (self.feed.start is not None and fz.get("frozen_on")
                       and self.feed.start <= _as_date(fz["frozen_on"]))
-            if self.feed.available and not confirmed and covers:
+            if (self.feed.available and not confirmed and covers
+                    and releases_on_feed_silence(fz.get("ratio"))):
                 fz["no_split_streak"] = int(fz.get("no_split_streak") or 0) + 1
                 if fz["no_split_streak"] >= NO_SPLIT_RELEASE_SESSIONS:
                     self._release(t, f"feed answered no-split ×{fz['no_split_streak']} — "
@@ -807,6 +854,8 @@ class CorporateActionGate:
         * a split-shaped move → fine if a feed-confirmed split's RATIO explains
           it (matched by ratio, not by which date the mark carries); otherwise
           FROZEN, persistently, with the reference mark it was measured from."""
+        if self.state.unreadable:
+            return                    # no marks laid, nothing written over the file
         held_set = {str(t).upper() for t in held}
         check = held_set | {str(t).upper() for t in traded}
         feed_why = ("feed UNAVAILABLE: " + self.feed.reason if not self.feed.available
@@ -869,22 +918,22 @@ class CorporateActionGate:
             self._persist_freeze(
                 t, KIND_UNCONFIRMED,
                 f"{t} mark moved {prev:.4f} ({seen}) → {px:.4f} on {self.today}: a "
-                f"~{r:g}:1 split-shaped move, UNCONFIRMED ({feed_why})",
-                ref_px=prev, ref_date=seen.isoformat())
+                f"~{r:g}:1 split-shaped move, UNCONFIRMED ({feed_why})"
+                + ("" if releases_on_feed_silence(r) else
+                   " — 2:1 or more: releases ONLY on a ratio-matching confirmed split "
+                   "or an operator acknowledgement, never on feed silence"),
+                ref_px=prev, ref_date=seen.isoformat(), ratio=r)
             self._review_freeze(t, self.state.frozen[t], px, t in held_set)
+        if self.seeding:
+            self.state.seed_sessions = 0
         self.save()
 
     def save(self) -> None:
-        if self.marks_path is None:
+        """Write the state — unless the file on disk was UNREADABLE: that file
+        is left exactly as it is until an operator restores or resets it."""
+        if self.marks_path is None or self.state.unreadable:
             return
-        p = Path(self.marks_path)
-        if p.exists() and any("unreadable" in x and "marks file" in x
-                              for x in self.state.problems):
-            # [NN-ARCHIVE]: the file we could not read is kept, not overwritten
-            keep = p.with_name(f"{p.name}.unreadable-{self.today.isoformat()}")
-            if not keep.exists():
-                p.replace(keep)
-        self.state.save(p)
+        self.state.save(Path(self.marks_path))
 
     # ---- 4. orders -------------------------------------------------------- #
     def screen(self, orders: Sequence[Any]) -> List[Any]:
@@ -910,6 +959,11 @@ class CorporateActionGate:
                 "frozen": dict(self.frozen),
                 "frozen_persisted": {t: dict(e) for t, e in st.frozen.items()},
                 "seeding": sorted(self.seeding),
+                # 0 on a seeding day, 1 on the run after: the two sessions in which
+                # the price guard has no, or only a one-day-old, reference
+                "marks_age_sessions": (st.seed_sessions if st.seed_sessions in (0, 1)
+                                       else None),
+                "marks_unreadable": st.unreadable,
                 "released": list(self.released),
                 "stand_down": self.stand_down,
                 "noncanonical_reasons": self.noncanonical_reasons,
