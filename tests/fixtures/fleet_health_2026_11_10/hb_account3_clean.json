@@ -1,0 +1,124 @@
+{
+  "last_run": {
+    "run_date": "2026-11-10",
+    "run_ts": "2026-11-10T14:56:10.327046+00:00",
+    "canonical": true,
+    "reason": "clean",
+    "reconcile_clean_cycles": 3,
+    "reconcile_total_cycles": 3,
+    "halted": false,
+    "submitted": 1,
+    "fills": 54,
+    "account_explained": true,
+    "census_failures": []
+  },
+  "alert": false,
+  "alert_reason": "",
+  "updated_ts": "2026-11-10T14:56:10.327087+00:00",
+  "_schema": "paper_heartbeat/v1",
+  "streams": {
+    "llm_analyst": {
+      "stream": "analyst-a3",
+      "note_as_of": "2026-11-09",
+      "n_orders": 1,
+      "targets": {
+        "AGG": 0.03,
+        "SPY": 0.05
+      },
+      "degraded": false,
+      "reject_reason": null,
+      "no_view": false,
+      "no_view_reason": null,
+      "prompt_version": "daily/v4",
+      "halted": false,
+      "halt_reason": null,
+      "notes_pull_ok": true,
+      "notes_on_disk": 71,
+      "sub_budget_usd": 10000.0,
+      "ts": "2026-11-10T14:56:10.327553+00:00"
+    }
+  },
+  "econ_health": {
+    "degraded": false,
+    "findings": [
+      {
+        "channel": "no_trade",
+        "status": "ok",
+        "detail": "0 trading days since last order (\u2264 20)",
+        "value": 0.0
+      },
+      {
+        "channel": "stale_data",
+        "status": "ok",
+        "detail": "freshest bar 2026-11-09 is 1 trading days old (\u2264 3)",
+        "value": 1.0
+      },
+      {
+        "channel": "orphan_positions",
+        "status": "ok",
+        "detail": "all holdings are inside the managed universe",
+        "value": 0.0
+      }
+    ],
+    "_schema": "paper_econ_health/v1",
+    "ts": "2026-11-10T14:56:11.137427+00:00"
+  },
+  "exec_cost": {
+    "n_rows": 54,
+    "n_instruments": 3,
+    "per_instrument": {
+      "ai-trader|AGG": {
+        "account": "ai-trader",
+        "instrument": "AGG",
+        "n": 28,
+        "median_slippage_bps": 0.52,
+        "median_latency_s": 1.71,
+        "notional_wt_mean_bps": 0.88,
+        "first_date": "2026-08-27",
+        "last_date": "2026-11-10"
+      },
+      "ai-trader|GLD": {
+        "account": "ai-trader",
+        "instrument": "GLD",
+        "n": 4,
+        "median_slippage_bps": 0.82,
+        "median_latency_s": 1.12,
+        "notional_wt_mean_bps": 1.25,
+        "first_date": "2026-09-01",
+        "last_date": "2026-09-16"
+      },
+      "ai-trader|SPY": {
+        "account": "ai-trader",
+        "instrument": "SPY",
+        "n": 22,
+        "median_slippage_bps": 0.49,
+        "median_latency_s": 0.68,
+        "notional_wt_mean_bps": 0.62,
+        "first_date": "2026-08-27",
+        "last_date": "2026-11-09"
+      }
+    },
+    "_schema": "exec_cost_agg/v1",
+    "ts": "2026-11-10T14:56:11.145715+00:00"
+  },
+  "altdata": {
+    "degraded": true,
+    "reason": "3/4 snapshot sources fresh for 2026-11-10: {'kalshi': 22, 'kxfed': 258, 'polymarket': 492, 'cef': 0} | STALE/UNMONITORABLE BEYOND BUDGET: ['cef(22d>4d)', 'credit_oas(no-date)']",
+    "fresh_rows": {
+      "kalshi": 22,
+      "kxfed": 258,
+      "polymarket": 492,
+      "cef": 0
+    },
+    "ts": "2026-11-10T14:56:41.344533+00:00",
+    "_schema": "paper_altdata/v1"
+  },
+  "news": {
+    "degraded": false,
+    "n_new": 0,
+    "n_total": 3762,
+    "reason": null,
+    "ts": "2026-11-10T14:56:44.808242+00:00",
+    "_schema": "paper_news/v1"
+  }
+}

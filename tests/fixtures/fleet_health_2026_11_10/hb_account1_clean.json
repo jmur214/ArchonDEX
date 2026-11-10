@@ -1,0 +1,307 @@
+{
+  "last_run": {
+    "run_date": "2026-11-10",
+    "run_ts": "2026-11-10T14:46:35.608319+00:00",
+    "canonical": true,
+    "reason": "clean",
+    "reconcile_clean_cycles": 3,
+    "reconcile_total_cycles": 3,
+    "halted": false,
+    "submitted": 0,
+    "fills": 26,
+    "account_explained": true,
+    "census_failures": []
+  },
+  "alert": false,
+  "alert_reason": "",
+  "updated_ts": "2026-11-10T14:46:35.608346+00:00",
+  "_schema": "paper_heartbeat/v1",
+  "econ_health": {
+    "degraded": false,
+    "findings": [
+      {
+        "channel": "no_trade",
+        "status": "ok",
+        "detail": "2 trading days since last order (\u2264 20)",
+        "value": 2.0
+      },
+      {
+        "channel": "stale_data",
+        "status": "ok",
+        "detail": "freshest bar 2026-11-09 is 1 trading days old (\u2264 3)",
+        "value": 1.0
+      },
+      {
+        "channel": "orphan_positions",
+        "status": "ok",
+        "detail": "all holdings are inside the managed universe",
+        "value": 0.0
+      }
+    ],
+    "_schema": "paper_econ_health/v1",
+    "ts": "2026-11-10T14:47:25.659693+00:00"
+  },
+  "exec_cost": {
+    "n_rows": 22,
+    "n_instruments": 3,
+    "per_instrument": {
+      "account-1|AGG": {
+        "account": "account-1",
+        "instrument": "AGG",
+        "n": 11,
+        "median_slippage_bps": 1.02,
+        "median_latency_s": 2.29,
+        "notional_wt_mean_bps": 0.97,
+        "first_date": "2026-07-10",
+        "last_date": "2026-11-06"
+      },
+      "account-1|GLD": {
+        "account": "account-1",
+        "instrument": "GLD",
+        "n": 8,
+        "median_slippage_bps": 1.06,
+        "median_latency_s": 1.4,
+        "notional_wt_mean_bps": 2.12,
+        "first_date": "2026-08-06",
+        "last_date": "2026-09-24"
+      },
+      "account-1|SPY": {
+        "account": "account-1",
+        "instrument": "SPY",
+        "n": 3,
+        "median_slippage_bps": 0.95,
+        "median_latency_s": 1.82,
+        "notional_wt_mean_bps": 1.15,
+        "first_date": "2026-11-02",
+        "last_date": "2026-11-06"
+      }
+    },
+    "_schema": "exec_cost_agg/v1",
+    "ts": "2026-11-10T14:47:25.662231+00:00"
+  },
+  "altdata": {
+    "degraded": true,
+    "reason": "3/4 snapshot sources fresh for 2026-11-10: {'kalshi': 11, 'kxfed': 258, 'polymarket': 492, 'cef': 0} | STALE/UNMONITORABLE BEYOND BUDGET: ['cef(22d>4d)', 'credit_oas(no-date)']",
+    "fresh_rows": {
+      "kalshi": 11,
+      "kxfed": 258,
+      "polymarket": 492,
+      "cef": 0
+    },
+    "ts": "2026-11-10T14:48:00.745115+00:00",
+    "_schema": "paper_altdata/v1"
+  },
+  "news": {
+    "degraded": false,
+    "n_new": 454,
+    "n_total": 3758,
+    "reason": null,
+    "ts": "2026-11-10T14:48:03.470439+00:00",
+    "_schema": "paper_news/v1"
+  },
+  "clock_census": {
+    "_schema": "clock_census/v1",
+    "as_of": "2026-11-10",
+    "clocks_advanced": "15/20",
+    "n_advanced": 15,
+    "n_expected": 20,
+    "n_not_due": 5,
+    "n_missed": 5,
+    "degraded": true,
+    "missed": [
+      {
+        "clock": "analyst_note_written",
+        "detail": "no note for 2026-11-10: constrained"
+      },
+      {
+        "clock": "archive_feeds_in_budget",
+        "detail": "2 feed(s) over budget: cef(22d>4d), credit_oas(no-date)"
+      },
+      {
+        "clock": "similarity_panel_refreshed",
+        "detail": "no refresh receipt at data/edgar/similarity_panel_refresh.json \u2014 the panel has no clock"
+      },
+      {
+        "clock": "janitor_ran_nightly",
+        "detail": "no the nightly janitor report at data/state/janitor_report.md \u2014 it has never rendered"
+      },
+      {
+        "clock": "fleet_mirror_slice_rolled",
+        "detail": "no dated rows in fleet_mirror_slice.json"
+      }
+    ],
+    "detail": {
+      "analyst_note_written": {
+        "status": "MISS",
+        "detail": "no note for 2026-11-10: constrained"
+      },
+      "eval_scored_when_due": {
+        "status": "NOT_DUE",
+        "detail": "no matured-unscored predictions"
+      },
+      "news_month_pushed": {
+        "status": "ADVANCED",
+        "detail": "panel touched 2026-11-10, newest row 2026-11-10"
+      },
+      "scan_filed_when_due": {
+        "status": "NOT_DUE",
+        "detail": "not due (last filed 2026-11-04)"
+      },
+      "stage2_clock_ticked": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "archive_feeds_in_budget": {
+        "status": "MISS",
+        "detail": "2 feed(s) over budget: cef(22d>4d), credit_oas(no-date)"
+      },
+      "similarity_panel_refreshed": {
+        "status": "MISS",
+        "detail": "no refresh receipt at data/edgar/similarity_panel_refresh.json \u2014 the panel has no clock",
+        "note": "EXEMPT-WITH-REASON from the consumer requirement: this dataset currently has NO consumer \u2014 its intended one is the T-341 filing-change flag, pending the parser repair (15.1% of filings fail the section carve; 15 tickers fully blind). The clock is forward-correct and stays: it costs nothing and the panel already went 8 weeks stale once with no clock at all. Re-point this note when T-341 lands."
+      },
+      "exec_ledger_on_fill_days": {
+        "status": "NOT_DUE",
+        "detail": "no fills today"
+      },
+      "digest_written_weekly": {
+        "status": "NOT_DUE",
+        "detail": "digest 4d old (budget 9d) \u2014 inside cadence",
+        "note": "Registered by T-346 while the generator has ZERO production callers. Until the digest is wired into the pulse this clock reports a TRUE miss, not a false one."
+      },
+      "advisor_surface_rendered": {
+        "status": "NOT_DUE",
+        "detail": "advisor surface 8d old (budget 35d) \u2014 inside cadence"
+      },
+      "janitor_ran_nightly": {
+        "status": "MISS",
+        "detail": "no the nightly janitor report at data/state/janitor_report.md \u2014 it has never rendered"
+      },
+      "sleeve_tracker_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "btc_shadow_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "dbmf_shadow_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "event_desk_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "llm_shadow_agentic_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "fleet_mirror_slice_rolled": {
+        "status": "MISS",
+        "detail": "no dated rows in fleet_mirror_slice.json"
+      },
+      "thesis_machine_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "thesis_user_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "book_spy_null_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "book_damped_offense_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "book_quality_sat_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "book_sleeve_tier_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "llm_shadow_book_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      },
+      "book_momentum_sat_rolled": {
+        "status": "ADVANCED",
+        "detail": "last=2026-11-10"
+      }
+    },
+    "ts": "2026-11-10T14:48:04.040198+00:00"
+  },
+  "channel_liveness": {
+    "_schema": "channel_liveness/v1",
+    "n_channels": 7,
+    "n_live": 5,
+    "n_never_alive": 0,
+    "n_unverifiable": 2,
+    "n_no_history": 0,
+    "findings": [
+      {
+        "channel": "event_calls",
+        "consumer": "event_shadow_book",
+        "status": "UNVERIFIABLE",
+        "detail": "source missing: data/intel/event_calls.jsonl (cannot establish liveness)"
+      },
+      {
+        "channel": "cash_rate",
+        "consumer": "family_tracker(deploy_candidate)",
+        "status": "UNVERIFIABLE",
+        "detail": "source missing: data/state/deploy_candidate_tracking.json (cannot establish liveness)"
+      }
+    ],
+    "degraded": true,
+    "detail": [
+      {
+        "channel": "hypothetical_actions",
+        "consumer": "llm_shadow_book",
+        "status": "LIVE",
+        "detail": "'hypothetical_actions' non-empty in 48/71 record(s)"
+      },
+      {
+        "channel": "hypothetical_actions",
+        "consumer": "llm_shadow_book(agentic)",
+        "status": "LIVE",
+        "detail": "'hypothetical_actions' non-empty in 24/56 record(s)"
+      },
+      {
+        "channel": "predictions",
+        "consumer": "eval_harness",
+        "status": "LIVE",
+        "detail": "'predictions' non-empty in 71/71 record(s)"
+      },
+      {
+        "channel": "event_calls",
+        "consumer": "event_shadow_book",
+        "status": "UNVERIFIABLE",
+        "detail": "source missing: data/intel/event_calls.jsonl (cannot establish liveness)"
+      },
+      {
+        "channel": "thesis_calls",
+        "consumer": "thesis_book",
+        "status": "LIVE",
+        "detail": "'instruments' non-empty in 22/23 row(s)"
+      },
+      {
+        "channel": "cash_rate",
+        "consumer": "family_tracker(trend_sleeve)",
+        "status": "LIVE",
+        "detail": "'cash_adj' present on 30/80 point(s)"
+      },
+      {
+        "channel": "cash_rate",
+        "consumer": "family_tracker(deploy_candidate)",
+        "status": "UNVERIFIABLE",
+        "detail": "source missing: data/state/deploy_candidate_tracking.json (cannot establish liveness)"
+      }
+    ],
+    "ts": "2026-11-10T14:48:04.048435+00:00"
+  }
+}
