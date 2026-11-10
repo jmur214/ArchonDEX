@@ -45,6 +45,7 @@ SAT_W = 0.15
 
 
 def tr_close(ticker: str) -> pd.Series:
+    # ticker-exclusions: bypassed — three named ETF control series (SPY, HYG, LQD) for the regression; never a universe read
     df = pd.read_csv(os.path.join(ROOT, f"data/processed/tr_reconciled/{ticker}_1d.csv"),
                      parse_dates=["Date"]).set_index("Date")
     return df["Close"].astype(float).sort_index()
