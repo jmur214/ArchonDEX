@@ -826,6 +826,16 @@ python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manif
 # the MAIN tree's committed config/substrate_manifest.sha256 when --stamp-root is absent — a candidate
 # manifest, a worktree's own config/, a scratch file all refuse. The one bare `generate` is the
 # director's re-pin in the MAIN tree; the verify-stamp block above documents the flag.
+
+# T-384 option (a′) — the era-aware drip repair, a CANDIDATE on a copy (2026-11-11;
+# docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md). Every subcommand REFUSES an --out inside any
+# repo's data tree; the default --out is Dev/_substrate_candidates/drip_fix_a_prime_v4_2026_11_11/ (v4;
+# v3 stays at drip_fix_a_prime_2026_11_11/). --yf-dir defaults to v3's yf/ cache (read-only from v4 on).
+# Network: yfinance only (fetch); build/accept/manifest are offline on the cached yf/ directory.
+python scripts/drip_fix_candidate_t384.py fetch [--yf-dir D] [--tickers A B] [--refetch] [--sleep 0.4]   # yfinance prices (fetch_yf_tr) + Ticker.dividends -> <yf-dir>/ ; resumable; _fetch_log.jsonl
+python scripts/drip_fix_candidate_t384.py build [--yf-dir D] [--tickers A B] [--min-free-gb 15]         # pass 1 every reference (labels), pass 2 writes <out>/processed/; exit 2 on any refusal, 3 below --min-free-gb free
+python scripts/drip_fix_candidate_t384.py accept [--yf-dir D]                                           # the §1 pre-declared test (+ v4's (iii)(c) and step audit) -> <out>/acceptance/summary.json + CSVs
+python scripts/drip_fix_candidate_t384.py manifest                                           # <out>/MANIFEST.md5 over every file under <out>
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
