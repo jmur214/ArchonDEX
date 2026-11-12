@@ -591,3 +591,118 @@ python -c "import pandas as pd; d=pd.read_excel('data/research/aqr_tsmom_monthly
 # honest N (§12), read-only
 python -c "from core.measurement.mbl_gate import compute_n_effective_correlated as f; print(f(method='conservative'), f(method='equicorr'), f(method='onc'))"
 ```
+
+---
+
+## AMENDMENT 1 — 2026-11-11: DIRECTOR FREEZE + RULINGS (binding; recorded BEFORE the first fetch)
+
+**Freeze.** The director acknowledged the pre-registration and FROZE it at `535a3fc`. Everything above
+this amendment (frontmatter, §1–§17 and "Reproduce the census") is byte-identical to `535a3fc`: sha256
+of the file at that commit is `c5e8164cc6d6a6d427eae9b924b785305555003fb7ccdab1cf1a1f9e5217a635`. The
+frontmatter `status:` line above therefore still reads DRAFT. **This amendment supersedes it: the
+prereg is FROZEN.** This amendment is committed alone, before any fetch, so git and file times prove
+the order. N_trials consumed: **+1** (one family; unchanged by the rulings).
+
+**Rulings — all ACCEPTED as proposed in §15:**
+- **R-1 windows:**
+  - H1 on W-68 (1968–2025);
+  - the five-arm table on W-72 (1972–2025) and W-00 (2000–2025);
+  - arm (iv) on W-85 (1985–2025) and W-00.
+- **R-2 arm (iv):**
+  - **(iv-A) AQR TSMOM, REFUTE-ONLY**. It can close the overlay door, never open it.
+  - **(iv-L) DBMF live, 2019-06 → 2025-12, EXPLORATORY.**
+  - **Neither gates H1.** Both are inside B-5's one family; N_trials stays +1.
+- **R-3** RSSB and RSST validation is report-only; **NTSX gates the stacked-fund class**.
+- **R-4** RSSB is quarterly-rebalanced (NTSX-type).
+- **R-5** arm (iii) ER is **0.66 %**, frozen. The actual UGL and UST ERs are printed beside it from a
+  public fund source if retrievable. If not, the 0.95 % assumption stays labelled. **Neither result
+  changes the frozen 0.66 %.**
+- **R-6** the substrate-leg synthetic vs live NTSX/SSO (V2) is reported with the dated-caveat rule. No
+  halt.
+- **R-7** DTB3 is converted to a money-market yield; act/360 on calendar days; the rate of t−1.
+- **R-8** rebalancing costs 5 bp per rebalanced dollar.
+- **R-9** arm (iii) uses a 252-day vol window.
+- **R-10** 2022 is the calendar year; the ρ > 0 sub-sample is calendar years with positive daily
+  equity–bond correlation.
+- **R-11** both bootstrap sensitivities run (project-standard auto block; 252-day blocks), non-gating.
+- **R-12** the three-way "is financing binding" sentence.
+- **R-13** the benchmark is T-311 `buyhold_equity`.
+- **R-14** H1 is evaluated at 50 bp.
+
+**Validation gates as frozen (§8).**
+- SSO or UPRO FAIL → **everything halts**.
+- NTSX FAIL → **H1 is NOT EVALUABLE, not refuted**, and is reported exactly that way.
+
+**Fetches approved, exactly as listed in §14.**
+- FRED `DTB3` and `SOFR` (keyless `fredgraph.csv`).
+- yfinance `fetch_yf_tr` (Adj Close, `auto_adjust=False`, never its writer) for SSO, UPRO, UBT, TMF,
+  NTSX, RSSB, RSST, SPY, TLT, IEF, VT, **and DBMF** (R-2 (iv-L) approved).
+- AQR TSMOM is copied byte-for-byte from disk.
+- One snapshot under `data/research/b5/inputs/` with `MANIFEST.json` (md5 per file). The runs read
+  ONLY the snapshot.
+
+**Side findings (§3.2 cash quantization; §3.6 the vacuous `load_substrate` hole check at T-311 line 72).**
+The director logs both in `health_check.md`. They are NOT fixed on this branch. The verdict carries
+them as caveats.
+
+**The registry MEDIUM (§12).** It is on main after this branch's point: `573fc62` ("docs(health):
+MEDIUM — the honest-N gate's registry never sees a standalone-harness trial"). Cite it by that commit.
+It replaces §12's "could not locate".
+
+**Concurrency.** The outputs land in the MAIN tree's `data/research/b5/` through the `data/research`
+symlink. This is expected.
+
+### A1.1 Implementation decisions — recorded BEFORE any data (operational; they alter NO frozen term)
+
+They fill in details §5–§9 leave implicit, so that none of them can be chosen after seeing a number.
+
+1. **Script.** `scripts/b5_levered_diversified.py`, subcommands:
+   - `fetch`: one-time; REFUSES if `inputs/MANIFEST.json` exists.
+   - `validate`.
+   - `smoke`.
+   - `run --tag <A|B>`: writes `data/research/b5/run_<tag>/`.
+
+   Simulator identities are covered by a unit test, `tests/test_b5_levered_simulator.py`.
+2. **Fetch windows.**
+   - yfinance: `start="1990-01-01"`, `asof="2026-01-01"`.
+   - FRED: full history.
+   - Per-ticker CSV columns: `Date, adj_close, raw_close`. FRED CSVs are stored as the exact response
+     bytes.
+3. **Validation alignment.**
+   - Live product and underlying(s) are inner-joined on dates from the one snapshot.
+   - Accrual uses Δcal between consecutive joined dates.
+   - The overlap starts on the first trading day of the first full calendar month after the product's
+     first price and ends 2025-12-31.
+   - The slope is OLS-with-intercept of live on synthetic daily returns.
+   - RSST is validated monthly (months 2023-10 → 2025-12): compounded SPY TR month + AQR τ_m −
+     s/12 − 1.00 %/12.
+   - V2 uses the substrate `equity_tr` and `bond_tr` in place of SPY and IEF, inner-joined with the
+     live product's dates.
+4. **(iv-L) trend leg.**
+   - `τ_m = R_DBMF,m − C_m + 0.85 %/12`, where R_DBMF,m is the compounded DBMF Adj-Close month return
+     and C_m is the compounded cash accrual (`c_t`, §5.1) over the same month.
+   - That is DBMF's excess return over the financing base, grossed up by DBMF's own ER, so RSST's
+     frozen 1.00 % is charged once. The rest is §6 arm (iv) unchanged.
+   - Months 2019-06 → 2025-12, both w ∈ {0.50, 0.25}.
+5. **Monthly bootstraps** (arm (iv-A), (iv-L)):
+   - the primary block is 1 month (the brief's 21 trading days);
+   - sensitivity 1 is `block_length=None` (`max(5, round(n^(1/3)))` months);
+   - sensitivity 2 is 12-month blocks (the monthly analogue of 252 days).
+6. **Bootstrap engine.** A vectorized prefix-sum re-implementation replays
+   `MetricsEngine.bootstrap_distribution`'s exact RNG draws (seed 0, `rng.integers(0, n−L+1,
+   size=ceil(n/L))` per iteration, the concatenation truncated to n). The same draws serve every
+   spread on a cell.
+   - Before any curve is computed, the harness ASSERTS the replay equals `MetricsEngine` on the H1
+     cell: |Δci_low|, |Δci_high| and |Δmean| < 1e-9 per unit of Δ log TW. Otherwise it HALTS.
+   - The H1 cell's quoted numbers are `MetricsEngine`'s own.
+7. **Sub-sample bootstraps** (ρ > 0 years, ρ ≤ 0 years, 2022) resample the concatenated d_t of the
+   sub-sample with the same spec.
+8. **Sortino scorecard.** `MetricsEngine.bootstrap_distribution(r, lambda x: ME.sortino_ratio(x, 0.0,
+   252), 1000, None, 0)` on each arm's own daily return (×12 basis for the monthly arms).
+9. **Rebalance cost** is "per rebalanced dollar" = 5 bp × Σ|Δ exposure|/NAV over every leg traded:
+   - stacked funds: |ΔE| + |ΔF|;
+   - arm (iii): 1.9·Σ|Δv|;
+   - arm (v): Σ|Δw|;
+   - arm (iv): |ΔSPY sleeve| + |ΔRSST sleeve|.
+10. **Determinism.** The `run` outputs (results JSON + per-window return CSVs at `%.17g`) carry NO
+    wall-clock timestamps. Runs A and B must match by md5 file-for-file.
