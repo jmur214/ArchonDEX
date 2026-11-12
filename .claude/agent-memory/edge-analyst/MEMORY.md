@@ -14,3 +14,5 @@
 - [processed/ high-yielder dividend double-count? (director investigating)](project_processed_highyield_div_doublecount_2026_11_11.md) — MO/T/VZ pre-2021 ≈ +yield/yr vs T-265 and Stooq; flagged, not confirmed
 - [B-2 small-cap verdict 2026-11-11](project_b2_smallcap_verdict_2026_11_11.md) — momentum + insider clusters both FAIL on T-265; Mar-2020 drives insider pooled CAR; cost 4.8%/yr
 - [Annualization periods trap](feedback_annualization_periods_trap_2026_11_11.md) — monthly returns with periods=252 inflate Sharpe/Sortino 4.58x (T-249's 3.21 is really 0.70)
+- [Held-book timing trap](feedback_held_book_timing_trap.md) — timing Δ scales with TRADED fraction (~0.3%/mo for 85/15), not notional; same-index pre-listing proxy = zero info
+- [B-8 execution timing prereg 2026-11-11](project_b8_execution_timing_2026_11_11.md) — 54d0104 DRAFT; fleet journal has no open/close fills (all 09:51 ET); deploy cand is daily, not monthly
