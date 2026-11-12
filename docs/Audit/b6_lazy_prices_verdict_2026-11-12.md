@@ -152,3 +152,36 @@ The review's independent fill (272 fills) gave similarity −0.028 (ci_low −0.
 ## 5. T-265 arm — pending
 The stream was stopped, its 3,880 b6_parse/1 filings archived unused, and restarted from scratch on
 b6_parse/2 (2026-11-12 21:38 UTC). Its census and freeze follow its completion.
+
+## 6. ERRATUM — review round 2 (2026-11-12; APPROVED; text only, no number changes)
+The round-2 review reproduced the corrected results md5 `039750163d6f4a74e17b5022b38e5da9` and recomputed
+with its own code (similarity −0.0275 / ci_low −0.116; Δtone −0.0351 / −0.122; adjacent-pairing short-leg
+t +2.21); it planted a §7.7 violation (both layers halted), audited all 268 fills (each matches its CIK)
+and found no wrong-company join and no signature line in any of the 46,040 rows. Four corrections to the
+text above:
+
+- **LOW-1 — renames are not deletions.** "37 exits, every one a recorded deletion" (§3) is FALSE for three
+  renames that keep the same CIK as an index member: COG→CTRA, DISCA→WBD, CDAY→DAY. AMENDMENT 3's A3.1
+  rule reads the end of a TICKER's membership interval as a deletion — the wrong proxy for a rename.
+  Effect: DISCA, in the short leg, sat in BIL instead of taking WBD's ≈ −45% in 2022-Q2; this moves the
+  short-leg t by ≈ 0.04. Recorded as a KNOWN LIMITATION; not re-run.
+- **LOW-2 — not "everything else" resolves.** AMENDMENT 3's A3.2 says everything else resolves through
+  the CIK-based fill; that is false where T-265 has no bars. These names are counted as "no price at t"
+  (86 name-quarters) and the ranked share stays ≥ 87.8%. At 2020-06-30, 28 members with a usable signal
+  have no price at t (worker's recount; the review counted 23 of the 38 later-acquired names, plus the
+  named exclusions below): ABMD, ANSS, ATVI, CMA, COG, CTXS, DFS, DISH, DRE, FLIR, HBI, HES, HFC, INFO,
+  IPG, JNPR, JWN, K, LB, MRO, MYL, NLSN, PXD, SIVB, TWTR, VIAC, WBA, WRK. Over the window: **IHS Markit**
+  (INFO) excluded 2020-06-30 → 2022-03-31 (8 quarters); **Paramount** excluded for the whole window
+  (VIAC 7 quarters, then PARA 14); **WestRock** (WRK) excluded 2020-06-30 → 2024-06-28 (17 quarters). The
+  review also found the **PEAK→DOC fills differ from `data/processed` by roughly the dividend yield**: a
+  `data/processed` dividend shortfall before 2024 — the drip HIGH's class — not a join error.
+- **LOW-3 — timing.** AMENDMENT 4 (committed 16:07:59 local) says it came "before the corrected run computes
+  any return"; the corrected SMOKE (12 months of leg returns) was written at 16:02:06, before it. This is
+  immaterial: the post-AMENDMENT-4 smoke (16:08:13) is byte-identical (md5
+  `d3648722d00c8a8952a9f45dbb03962f` both), AMENDMENT 4 changes only AVGO from 2024-12-31 on, and both full
+  runs (16:08:57, 16:09:42) follow the commit.
+- **LOW-4 — framing.** "A live finding, not noise" (§2, §3.3) overclaims for t_HAC = 2.23 over 69 months.
+  Restated: p ≈ 0.03 unadjusted (two-sided) and ≈ 0.08 across roughly 3 effective tests — the
+  adjacent-pairing short-leg result **cannot be dismissed as noise**; it is not established either. In
+  §3.5's predictions table, the "inside the range under the adjacent pairing" credit is **post hoc**: the
+  frozen prediction was made for the gate construction (R2), where it was wrong.

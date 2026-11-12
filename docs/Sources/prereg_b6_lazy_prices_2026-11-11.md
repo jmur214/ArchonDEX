@@ -837,3 +837,5 @@ The rule resolves **5 name-quarters, all Broadcom Inc (CIK 1730168, AVGO)**:
 Every name-quarter's source, cause and the `shared_resolved` flag are in
 `data/b6_local/harness_sp/<run>/price_manifest_gate_similarity.csv`. The other 12 (c)-window members
 with shared T-265 tickers (PNR, CCL, COHR, CB, LDOS, PRGO, MDT, CI, DIS, STE, XRX, SNDK) needed no fill.
+
+- Review round 2 (2026-11-12, APPROVED): text-only errata LOW-1 to LOW-4 (renames as exits, unresolved exclusions, smoke timing, framing) are in docs/Audit/b6_lazy_prices_verdict_2026-11-12.md §6; no number and no amendment above changes.
