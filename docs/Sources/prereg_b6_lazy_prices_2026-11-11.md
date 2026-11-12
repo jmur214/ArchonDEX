@@ -786,3 +786,54 @@ book) — not tested now.
 names per rebalance is reported instead (≈ 32% on the original run). The 0.84 Sharpe is on RAW monthly
 returns, not excess of cash. `data/processed` drops spin-off value relative to T-265 (AIV −54 pp; FTV, WDC,
 LEN, J) — a known source difference of the (c) window, noted, not corrected.
+
+
+---
+
+## AMENDMENT 4 — shared T-265 tickers under the CIK-based fill (director ruling on the corrected run's census halt, 2026-11-12; BINDING; a GENERAL rule, not an AVGO exception). Appended; nothing above is edited.
+
+Committed alone, BEFORE the corrected run computes any return. The corrected census halted (exit 2, md5
+`2ede226fbca9bbd28859b299af9b447e`) on one name-quarter — AVGO, holding from 2025-03-31 — because
+A1.10-2 (exclude a T-265 ticker mapped to more than one CIK) blocked the T-265-by-CIK fill F1 orders.
+
+### A4.1 The rule
+- A1.10-2's purpose is to prevent WRONG-COMPANY joins through a ticker that maps to more than one company.
+  Under F1 prices join by CIK, so **the exclusion applies only to TICKER-based joins.**
+- **A CIK-based fill is allowed whenever the CIK's date-aware mapping is UNIQUE at that rebalance date:**
+  exactly one CIK holds the security in that month, and the T-265 bars used are keyed to that CIK or to a
+  ticker that maps to it alone in that month.
+- If the mapping is not unique at the date, or the bars cannot be attributed to the CIK unambiguously,
+  the name-quarter stays **unresolved and the census HALTS**, as before.
+- Re-domiciles and reorganisations that keep one economic issuer across a CIK change resolve by DATE,
+  never by name.
+
+**Implementation (harness `Prices.resolve`, data `data/b6_local/cik_map/t265_shared_ticker_users.parquet`,
+built by `b6_cik_map --t265-shared` from the cached Form 3/4/5 data):** for a T-265 ticker mapped to more
+than one CIK, the holders at t are the CIKs whose insider filings under that symbol span t (first − 90 d
+≤ t ≤ last + 90 d — the same padding as the identity map); the fill is allowed only if that set is exactly
+{the member's CIK}. A shared ticker with no symbol-use record is not attributable (no fill). Window (d)
+keeps the original unique-ticker join, so its A2.1 record is unchanged (HALT list md5 `8f80dc57…`
+identical; its census columns identical, plus all-zero cause columns).
+
+### A4.2 AVGO 2025-Q1 — RESOLVES under the rule, by date
+T-265 maps AVGO to three CIKs (1054374, 1649338, 1730168). The Form 3/4/5 data show four issuers using the symbol over time: 1317092
+(2006-04-05 → 2007-04-19), Avago 1441634 (2009-08-05 → 2016-02-03), Broadcom Ltd 1649338 (2016-02-02 →
+2018-03-28), **Broadcom Inc 1730168 (2018-04-06 → 2026-03-27)**. At 2025-03-31 exactly one CIK holds the
+symbol, and it is the member's (1730168). The 2018 Broadcom Ltd → Broadcom Inc re-domicile resolves by
+date.
+
+### A4.3 Every name-quarter the rule resolves (the census, re-run; no return computed)
+The corrected gate census now PASSES (ranked 438–489 per quarter, 87.8–97.8% of members, 0 unresolved).
+The rule resolves **5 name-quarters, all Broadcom Inc (CIK 1730168, AVGO)**:
+
+| rebalance | cause | why the fill was needed |
+|---|---|---|
+| 2024-12-31 | no_bar_at_t | `data/processed` has no bar at t |
+| 2025-03-31 | truncated | `data/processed` ends 2025-04-23 inside the quarter |
+| 2025-06-30 | no_bar_at_t | `data/processed` ended 2025-04-23 |
+| 2025-09-30 | no_bar_at_t | as above |
+| 2025-12-31 | no_bar_at_t | as above |
+
+Every name-quarter's source, cause and the `shared_resolved` flag are in
+`data/b6_local/harness_sp/<run>/price_manifest_gate_similarity.csv`. The other 12 (c)-window members
+with shared T-265 tickers (PNR, CCL, COHR, CB, LDOS, PRGO, MDT, CI, DIS, STE, XRX, SNDK) needed no fill.
