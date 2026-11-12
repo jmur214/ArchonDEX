@@ -87,6 +87,15 @@ small edge. What the more powerful instruments show (the event-study t of 0.20; 
 - **Full suite:** 4,690 passed, 56 skipped, 11 xfailed, and 1 failed. The failure is the known
   environmental `test_layer3a_capability_ledger_source_files_exist` (`data/governor/edges.yml` is
   absent in the safe worktree layout).
+- **Post-review hardening re-run (`run4`, on `e699286`, 2026-11-11, on the director's go).**
+  - This is the code with strict TSV reads, no coercion, a NOT-EVALUABLE gate and full §4.5 census
+    enforcement.
+  - Both canonical md5s are UNCHANGED (momentum `eb1a1a5cb9d10e872d3b0393a115c960`, insider
+    `7f9f470635d33cd0f365dd3f16ecb11c`), and all four output CSVs are byte-identical to run1.
+  - `momentum_census_check.json`: 23/23 checks ok (19 price, 4 window). `insider_census_check.json`:
+    31/31 ok (19 price, 12 Form 4 / join / window).
+  - Full suite after the re-run: 4,705 passed, 56 skipped, 11 xfailed, and 1 failed (the same known
+    `edges.yml` contract test). The data-write guard flagged nothing.
 - **Headlines recomputed independently** from the output CSVs: momentum Δ log wealth −0.111334,
   insider −0.141058, insider NW t 0.19980 (a hand-rolled Bartlett estimator) all match.
 
