@@ -1686,6 +1686,7 @@ python -m scripts.lazy_prices.b6_cik_map                    # offline: Form 3/4/
 python -m scripts.lazy_prices.b6_build_panel universe        # member CIK per (S&P interval, month) + the fetch list
 python -m scripts.lazy_prices.b6_smoke                       # 30+ real filings parsed and printed for a human read
 python -m scripts.lazy_prices.b6_build_panel fetch --min-interval 0.45   # S&P sections (zstd shards), resumable
+python -m scripts.lazy_prices.b6_build_panel fetch --retry-failed --ciks 858877 --disk-floor 10   # re-attempt recorded fetch failures only (appended; readers prefer the success)
 python -m scripts.lazy_prices.b6_stream_t265 --min-interval 0.45         # T-265 signals only, no stored text
 python -m scripts.lazy_prices.b6_signals sp                  # similarity + LM tone change per S&P filing
 python -m scripts.lazy_prices.b6_census                      # before (T-237) / after (B-6) coverage + price-file coverage

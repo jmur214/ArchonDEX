@@ -4,7 +4,7 @@ title: Pre-registration — Lazy Prices on a repaired 10-K + 10-Q text panel, S&
 date: 2026-11-11
 worker: ml-architect subagent (in-session, director-dispatched with the user's go-ahead; SEC User-Agent and the Loughran-McDonald download approved by the user 2026-11-11)
 branch: research/lazy-prices-repair-b6
-status: DRAFT — NOT freezable yet. The S&P fetch halted on the 15 GB disk floor at 12.5% of member-months (§4.0) and was RESUMED 2026-11-12 on the director's word with a 10 GB floor; the small-cap stream is HELD (R8). The director rules R1–R9 at freeze, with the full-panel census; preliminary reads (2026-11-11) accept R1 option (d), R2, R3 and R6 in principle. Awaiting the director's rulings (§13). Phase 1 is TEXT ONLY. NO forward return, price, portfolio or benchmark return has been computed or read. The census in §3–§4 counts filings, sections and price FILES (existence only).
+status: DRAFT, NOT FROZEN — the S&P text panel is COMPLETE and re-censused (2026-11-12: 46,040 filings, 100% fetched; §4); the T-265 small-cap stream is HELD at 45 of 4,099 CIKs (R8). The director rules R1–R9 at freeze, with the full-panel census; preliminary reads (2026-11-11) accept R1 option (d), R2, R3 and R6 in principle. Awaiting the director's rulings (§13). Phase 1 is TEXT ONLY. NO forward return, price, portfolio or benchmark return has been computed or read. The census in §3–§4 counts filings, sections and price FILES (existence only).
 N_trials: +2 at the run (S&P arm; T-265 arm) — §9
 ---
 
@@ -127,25 +127,16 @@ WPO interval exists. A symbol's historical user is therefore not always the memb
   Exhibit 13 → `incorporated_by_reference_external`); 10-Q risk 10/15 OK (3 pre-rule, 2 with no Part II
   Item 1A); 10-Q MD&A 15/15 OK.
 
-## 4. The repaired panel — coverage census (before / after)
+## 4. The repaired panel — coverage census (before / after; S&P panel COMPLETE 2026-11-12)
 
-### 4.0 ★ The fetch is PARTIAL — halted by the disk guard (read this first)
-Both network streams halted cleanly on the user's 15 GB free-disk floor (checked before every
-company): the T-265 stream at 04:07 UTC (14.32 GB free) and the S&P stream at 04:36 UTC (14.84 GB).
-B-6's own footprint was 60 MB (`data/b6_local/`) plus ~0.1 GB of scratch; the drop (17.65 → 14.06 GB
-in about an hour) came from elsewhere on the volume. Nothing was restarted after the trip.
-
-| stream | done | of | fetch success | retries / failures |
+### 4.0 Fetch record
+| stream | state | filings | fetch success | notes |
 |---|---|---|---|---|
-| S&P 10-K + 10-Q | **95 CIKs, 5,584 filings** (the LOWEST CIK numbers, 1800–37785 — the oldest registrants) | 954 CIKs, 46,040 filings | 100% | 0 / 0 |
-| T-265 signals-only | **45 CIKs, 2,012 filings** | 4,099 CIKs | 100% | 0 / 0 (1 CIK has no periodic filing since 2015 — recorded) |
+| **S&P 10-K + 10-Q** | **COMPLETE** (954 CIKs) | **46,040** (11,409 10-K, 34,631 10-Q) | **100%** after one retry pass | halted once on the 15 GB floor (2026-11-12 04:36 UTC, at 5,584 filings), resumed on the director's word with a 10 GB floor (never tripped; 13.7 GB free at the end); 151 transient retries; 37 Cisco filings lost to a local DNS outage ("nodename nor servname provided") were re-fetched with `fetch --retry-failed` (0 failures) |
+| T-265 signals-only | **HELD** at 45 of 4,099 CIKs (2,012 filings) | — | 100% | halted on the 15 GB floor; restarts on the director's word |
 
-The 95 S&P CIKs cover **16,254 of 130,322 member-months (12.5%)**. Because the fetch runs in CIK order,
-the sample is old-line companies, which use Exhibit-13 annual reports more than newer registrants do —
-the rates below are a census of THIS sample, not a forecast for the universe. The fetch is resumable
-by accession (`b6_build_panel fetch`, `b6_stream_t265 --shard`); about 7.5 h (S&P) and ~20 h (T-265)
-of fetching remain at today's rate. **No window or construction choice in this prereg is final until
-the census is re-run on the complete panel (§13, R8).**
+Footprint: 342 MB in `data/b6_local/` (zstd text shards, ~7 MB per 1,000 filings). ~47,000 SEC requests,
+6.3 GB over the wire (gzip). Parser `b6_parse/1` throughout.
 
 ### 4.1 BEFORE — T-237's 10-K panel (`data/edgar/sections.parquet`, read-only; `b6_census`)
 | year | 10-Ks | T-237 `parse_ok` | ok AND marker-free (§3.1) |
@@ -173,61 +164,88 @@ the census is re-run on the complete panel (§13, R8).**
 | 2025 | 598 | 561 | 274 |
 | 2026 | 522 | 489 | 228 |
 | **total** | **11,464** | **9,841 (85.8%)** | **5,786 (50.5%)** |
-T-237 had no 10-Qs.
+T-237 had no 10-Qs, and its universe held 604 of the 970 member tickers (§3.2).
 
-### 4.2 AFTER — B-6 (the 95 fetched S&P CIKs; per acceptance year)
-"both" = Risk Factors AND MD&A OK; "combo / risk / mda pair" = a YoY pair (§5) defined for that text.
+### 4.2 AFTER — B-6, the complete S&P panel (per acceptance year)
+"both" = Risk Factors AND MD&A OK; "combo / risk / MD&A pair" = a YoY pair (§5) defined for that text.
 
 | form | year | filings | risk OK | MD&A OK | both | combo pair | risk pair | MD&A pair |
 |---|---|---|---|---|---|---|---|---|
-| 10-K | 2005 | 84 | 0 (pre-rule) | 62 | 0 | 0 | 0 | 4 |
-| 10-K | 2006 | 80 | 72 | 60 | 55 | 0 | 0 | 58 |
-| 10-K | 2007 | 81 | 75 | 65 | 61 | 53 | 70 | 60 |
-| 10-K | 2010 | 69 | 66 | 57 | 56 | 55 | 66 | 56 |
-| 10-K | 2013 | 62 | 59 | 52 | 51 | 50 | 58 | 51 |
-| 10-K | 2016 | 59 | 56 | 53 | 52 | 44 | 52 | 47 |
-| 10-K | 2019 | 57 | 55 | 51 | 51 | 47 | 52 | 47 |
-| 10-K | 2022 | 53 | 51 | 48 | 47 | 47 | 51 | 48 |
-| 10-K | 2025 | 50 | 48 | 46 | 46 | 45 | 48 | 45 |
-| 10-Q | 2005 | 250 | 0 (pre-rule) | 224 | 0 | 0 | 0 | 58 |
-| 10-Q | 2007 | 245 | 170 | 235 | 166 | 118 | 126 | 214 |
-| 10-Q | 2010 | 203 | 151 | 194 | 148 | 132 | 136 | 190 |
-| 10-Q | 2013 | 187 | 144 | 184 | 141 | 132 | 136 | 177 |
-| 10-Q | 2016 | 179 | 144 | 176 | 141 | 137 | 140 | 172 |
-| 10-Q | 2019 | 167 | 133 | 164 | 130 | 117 | 120 | 151 |
-| 10-Q | 2022 | 160 | 134 | 154 | 128 | 118 | 125 | 151 |
-| 10-Q | 2025 | 144 | 123 | 140 | 119 | 114 | 118 | 140 |
+| 10-K | 2005 | 496 | 12 (pre-rule) | 392 | 12 | 0 | 0 | 29 |
+| 10-K | 2006 | 512 | 461 | 424 | 390 | 13 | 13 | 372 |
+| 10-K | 2007 | 527 | 490 | 452 | 429 | 365 | 440 | 399 |
+| 10-K | 2008 | 540 | 510 | 463 | 446 | 392 | 455 | 413 |
+| 10-K | 2010 | 521 | 500 | 465 | 454 | 427 | 484 | 438 |
+| 10-K | 2012 | 514 | 496 | 467 | 459 | 435 | 480 | 443 |
+| 10-K | 2014 | 512 | 494 | 473 | 464 | 436 | 471 | 443 |
+| 10-K | 2016 | 524 | 505 | 495 | 483 | 436 | 464 | 448 |
+| 10-K | 2018 | 509 | 491 | 483 | 470 | 432 | 456 | 442 |
+| 10-K | 2020 | 513 | 492 | 491 | 478 | 434 | 456 | 446 |
+| 10-K | 2022 | 519 | 498 | 504 | 487 | 461 | 476 | 479 |
+| 10-K | 2024 | 517 | 497 | 499 | 484 | 458 | 472 | 476 |
+| 10-K | 2025 | 523 | 504 | 510 | 494 | 467 | 481 | 483 |
+| 10-Q | 2005 | 1,502 | 0 (pre-rule) | 1,416 | 0 | 0 | 0 | 386 |
+| 10-Q | 2006 | 1,558 | 1,064 | 1,503 | 1,035 | 0 | 0 | 1,298 |
+| 10-Q | 2007 | 1,610 | 1,269 | 1,582 | 1,257 | 920 | 960 | 1,401 |
+| 10-Q | 2010 | 1,542 | 1,265 | 1,520 | 1,252 | 1,128 | 1,146 | 1,437 |
+| 10-Q | 2013 | 1,552 | 1,278 | 1,543 | 1,272 | 1,157 | 1,175 | 1,434 |
+| 10-Q | 2016 | 1,574 | 1,347 | 1,556 | 1,333 | 1,173 | 1,193 | 1,402 |
+| 10-Q | 2019 | 1,566 | 1,366 | 1,542 | 1,350 | 1,205 | 1,219 | 1,409 |
+| 10-Q | 2022 | 1,546 | 1,398 | 1,513 | 1,377 | 1,284 | 1,310 | 1,447 |
+| 10-Q | 2025 | 1,554 | 1,418 | 1,524 | 1,394 | 1,338 | 1,363 | 1,479 |
 
-(Every year 2004–2026 is in `data/b6_local/census/after_b6.csv`; the rows shown are every third year.)
+(Every year 2004–2026 is in `data/b6_local/census/after_b6.csv`, regenerated by `b6_census`.)
 
-**Summary, 2007 onward (the first year a 10-K pair can exist):** 10-K combo pair **80.6%**, MD&A pair
-82.6%; 10-Q combo pair **69.0%**, 10-Q MD&A pair **93.1%**. Against T-237's 54–58% marker-free 10-Ks
-in the same years — and T-237's "ok" rows were not clean.
+**Rates, 2007–2025:** 10-K Risk Factors OK **95.9%**, MD&A OK **92.9%**, both **90.3%**, combo pair
+**83.2%** (2016–2025: 86.3%). 10-Q MD&A OK **98.5%**, MD&A pair **91.7%** (2016–2025: 92.4%); 10-Q combo
+pair 76.1%. **Against T-237's 54–58% "ok and marker-free" 10-Ks in the same years — and T-237's "ok"
+rows were not clean, so the real comparison is worse for T-237 than that.**
 
-**Section statuses (all 5,584 filings):**
+**Section statuses (all 46,040 filings):**
 
 | form | Risk Factors | MD&A |
 |---|---|---|
-| 10-K (1,388) | OK 1,232 · pre_rule 92 · incorporated_by_reference 22 · NOT_LOCATED 23 · TOO_SHORT 19 | OK 1,177 (incl. title fallback) · **incorporated_by_reference_external 190 (13.7%)** · TOO_SHORT 21 |
-| 10-Q (4,196) | OK 2,991 · **item_absent 696 (16.6%)** · pre_rule 344 · NOT_LOCATED 109 · TOO_SHORT 35 · not_required 17 · unterminated 4 | OK 4,035 (96.2%) · TOO_SHORT 89 · NOT_LOCATED 50 · external 13 · unterminated 9 |
+| 10-K (11,409) | OK 10,410 · pre_rule 525 · TOO_SHORT 165 · NOT_LOCATED 161 · incorporated_by_reference 129 · not_required 7 · **CONTAMINATED 7** · unterminated 5 | OK 10,489 (item carve, title fallback for the cross-reference-index layout, or ICFR-trimmed) · **external (Exhibit 13 only) 768 (6.7%)** · TOO_SHORT 133 · NOT_LOCATED 18 · **CONTAMINATED 1** |
+| 10-Q (34,631) | OK 27,820 (80.3%) · **item_absent 3,793 (11.0%)** · pre_rule 2,055 · NOT_LOCATED 387 · TOO_SHORT 345 · unterminated 150 · not_required 81 | OK 33,984 (98.1%) · TOO_SHORT 298 · NOT_LOCATED 263 · unterminated 73 · external 13 |
 
-Two structural absences dominate, both witnessed, neither a parse failure: (i) **MD&A that exists only
-in an Exhibit-13 annual report** (13.7% of these old-line 10-Ks: WFC, IBM, and others) — recoverable
-only by fetching the EX-13 exhibit, which B-6 does not do (ruling R9); (ii) **10-Qs with no Part II
-Item 1A** (Abbott, Air Products and others in this sample; witnessed in Abbott's 2006 10-Q, whose risk
-factors appear only as a cross-reference inside its forward-looking-statements paragraph).
+MD&A sources across all filings: item carve 42,145 · title fallback 2,134 (+52 end-of-document) ·
+ICFR-trimmed 142. **CONTAMINATED (8 sections)** is the parser's end-of-document assertion firing on a
+structurally terminated body that still carries the signature boilerplate: those sections fail closed,
+as designed, and are counted. Pairs dropped for an MD&A source switch: 60 (10-K) and 219 (10-Q).
 
-**Distributions (no returns; sanity only):** median YoY combo TF-cosine 0.980 (10-K) / 0.958 (10-Q);
-median 10-K TF-IDF cosine 0.932; median Jaccard 0.844; LM tone ≈ −1.7% of tokens (negative words
-outnumber positive, as usual for 10-Ks); 10-Q Risk-Factors cosine 5th percentile 0.21 (a one-line "no
-material changes" one quarter, the full list the next).
+**Distributions (no returns; sanity only):** median YoY combo TF-cosine 0.981 (10-K); median 10-Q
+MD&A TF-cosine 0.958; s.d. of 10-K Δtone 0.0022 (tone itself ≈ −1.7% of tokens).
 
-### 4.3 T-265 (signals-only, 45 CIKs, 2,012 filings)
-Risk Factors OK 1,676 · item_absent 224 · not_required (smaller reporting company) 46 · NOT_LOCATED 57;
-MD&A OK 2,002 of 2,012 (99.5%). YoY combo pair 82.0% (10-K) / 71.0% (10-Q); MD&A pair 88.7% / 90.9%.
-Far too few CIKs for any coverage claim about the small-cap arm.
+### 4.3 ★ Usable ranking signals per quarter-end rebalance (the feasibility census; no prices)
+Members of the PIT S&P 500 that month with a CIK; "usable" = the latest filing with
+`decision_floor_date` ≤ t, accepted within 6 months, carrying a defined ranking signal under the
+proposed R6 text rule (10-K → YoY combo; 10-Q → YoY MD&A). Full table:
+`data/b6_local/census/rebalance_signal_coverage.csv`.
 
-### 4.4 S&P identity coverage (complete — the universe step ran on every candidate)
+| rebalance | members with CIK | usable | share | of which 10-K / 10-Q |
+|---|---|---|---|---|
+| 2007-03-31 | 488 | 360 | 73.8% | 261 / 99 |
+| 2010-06-30 | 492 | 461 | 93.7% | 22 / 439 |
+| 2013-03-31 | 492 | 432 | 87.8% | 328 / 104 |
+| 2016-03-31 | 498 | 430 | **86.3%** (window minimum) | 339 / 91 |
+| 2016-06-30 | 498 | 460 | 92.4% | 24 / 436 |
+| 2019-12-31 | 499 | 467 | 93.6% | 34 / 433 |
+| 2022-03-31 | 498 | 454 | 91.2% | 357 / 97 |
+| 2025-06-30 | 500 | 487 | 97.4% | 15 / 472 |
+| 2025-12-31 | 500 | 476 | 95.2% | 38 / 438 |
+
+**In the proposed 2016–2025 window: 40 rebalances, 430–487 usable names (median 464), 86.3%–97.4% of
+members (median 93.0%).** Every rebalance clears §7.7's floor (≥ 150 ranked names) and §11's halt rule
+(≥ 80% of members with a CIK) on the TEXT side; the price side is §11's coverage table. The March
+rebalances are the low points (86–93%): they rank mostly fresh 10-Ks, whose combo needs both sections
+(the Exhibit-13 hole and the 10-K combo's stricter pairing).
+
+### 4.4 T-265 (HELD; 45 CIKs, 2,012 filings — no coverage claim possible)
+Risk Factors OK 1,676 · item_absent 224 · not_required (smaller reporting companies) 46 ·
+NOT_LOCATED 57; MD&A OK 2,002 of 2,012 (99.5%). YoY combo pair 82.0% (10-K) / 71.0% (10-Q); MD&A pair
+88.7% / 90.9%. Remaining: 4,054 CIKs, roughly 20 h of fetching at today's rate.
+
+### 4.5 S&P identity coverage (§3.4)
 131,673 member-months 2005-01 → 2026-11; **130,322 (99.0%) carry a CIK**; by year 97.6% (2005) →
 99.3% (2016) → 99.4% (2025). Price-file coverage of those member-months is in §11.
 
@@ -237,7 +255,7 @@ Far too few CIKs for any coverage claim about the small-cap arm.
   Item 2), concatenated ("combo"). The combo is defined only when BOTH sections are OK in BOTH filings of
   a pair and the MD&A source (item carve vs title fallback) is the same in both. Per-section values are
   reported beside it, never gated. **Proposed (ruling R6, on coverage alone):** the 10-K ranks on the
-  combo; the 10-Q ranks on MD&A alone (its Part II Item 1A is absent in 16.6% of 10-Qs and flips
+  combo; the 10-Q ranks on MD&A alone (its Part II Item 1A is absent in 11.0% of 10-Qs and flips
   between a one-liner and the full list), the 10-Q combo reported as a diagnostic.
 - **Pairing (PIT).** Same CIK, same form, prior accepted strictly earlier. 10-K: the prior 10-K whose
   period end is 9–15 months earlier. 10-Q (PRIMARY): the 10-Q for the same fiscal quarter a year
@@ -484,18 +502,21 @@ names fall below 80% of the PIT members with a CIK, and reports the coverage per
 - **R6 — the text definition.** The combo (Risk Factors + MD&A, both OK in both filings, same MD&A
   source) ranks; a firm without it is out of that quarter. **Proposed, on coverage alone (§4.2 — no return exists):** the 10-K ranks on the combo (Items 1A + 7,
 T-237's text); the **10-Q ranks on MD&A (Part I Item 2) alone**, with the 10-Q combo reported as a
-diagnostic. Reason: 16.6% of 10-Qs in the census carry no Part II Item 1A at all, and where it exists
-it flips between a one-line "no material changes" and the full list (YoY cosine 5th percentile 0.21) —
-a formatting change, not a language change. 10-Q MD&A pairs exist for 93% of 10-Qs from 2007 vs 69%
-for the combo. Ranking stays within form (§6), so the two texts never compete in one ranking. To be
-re-confirmed on the complete panel's census before freeze (R8).
-- **R8 — re-census before freeze.** The fetch halted at 12.5% of S&P member-months (§4.0). The freeze
-  waits for the complete S&P panel (≈ 7.5 h of fetching at today's rate) and its census; the T-265 arm
-  (≈ 20 h) may freeze later, separately. The director rules when to resume, given the disk.
-- **R9 — Exhibit-13 MD&A.** 13.7% of the fetched (old-line) 10-Ks keep MD&A only in an EX-13 annual
-  report. Recovering it costs one exhibit fetch per such filing and a title-based carve of a document
-  with no Item structure. Proposed: NOT in B-6; those 10-Ks rank on nothing (NOT_COVERED), counted per
-  quarter; revisit if the complete census shows the hole above ~10% of S&P member-quarters.
+diagnostic. Reason (complete-panel census, §4.2): 11.0% of 10-Qs carry no Part II Item 1A at all
+(3,793 of 34,631; witnessed in Abbott's), and where it exists it flips between a one-line "no material
+changes" and the full list (YoY cosine 5th percentile 0.21 on the first sample) — a formatting change,
+not a language change. 10-Q MD&A pairs exist for 91.7% of 2007–2025 10-Qs vs 76.1% for the combo.
+Ranking stays within form (§6), so the two texts never compete in one ranking. Re-confirmed on the
+complete S&P panel; under this rule every 2016–2025 rebalance carries 430–487 usable names (§4.3).
+- **R8 — the two arms' readiness.** The S&P panel is COMPLETE and re-censused (§4). The T-265 stream is
+  HELD at 45 of 4,099 CIKs (≈ 20 h of fetching left at today's rate, signals only, a few MB of output);
+  the director restarts it when the disk allows. Proposed: the S&P arm may freeze on its own; the T-265
+  arm freezes after its census.
+- **R9 — Exhibit-13 MD&A.** 768 of 11,409 10-Ks (6.7%; 13.7% in the old-line first sample) keep MD&A
+  only in an EX-13 annual report. Recovering it costs one exhibit fetch per such filing and a title-based
+  carve of a document with no Item structure. Proposed: NOT in B-6 — those 10-Ks rank on nothing
+  (NOT_COVERED), counted per quarter. The complete census shows the hole is below the ~10% revisit line,
+  and the text-side coverage never falls under 86.3% of members in the proposed window (§4.3).
 - **R7 — the T-265 text universe.** Every T-265 priced CIK (4,743; the 644 also in the S&P panel are
   joined from it), filings from 2015. The ADV band is applied in Phase 2 at each rebalance.
 
@@ -509,7 +530,8 @@ predictions compared line by line.
 python -m scripts.lazy_prices.b6_cik_map                 # offline: Form 3/4/5 symbol chains
 python -m scripts.lazy_prices.b6_build_panel universe     # SEC submissions; member CIK per month
 python -m scripts.lazy_prices.b6_smoke                    # 30+ real filings, printed for a read
-python -m scripts.lazy_prices.b6_build_panel fetch --min-interval 0.45
+python -m scripts.lazy_prices.b6_build_panel fetch --min-interval 0.22 --disk-floor 10
+python -m scripts.lazy_prices.b6_build_panel fetch --retry-failed --ciks 858877   # the 37 Cisco DNS failures
 python -m scripts.lazy_prices.b6_stream_t265 --min-interval 0.45
 python -m scripts.lazy_prices.b6_signals sp
 python -m scripts.lazy_prices.b6_census

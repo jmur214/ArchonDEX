@@ -118,6 +118,34 @@ def price_coverage() -> pd.DataFrame:
                          "processed_file": g.processed_file.mean().round(3)})
 
 
+def rebalance_coverage(start: str = "2007-03-31", end: str = "2025-12-31") -> pd.DataFrame:
+    """Per quarter-end rebalance: how many PIT S&P members (with a CIK) carry a USABLE ranking signal
+    under the proposed text rule (R6: 10-K -> YoY combo; 10-Q -> YoY MD&A) from their latest filing
+    with decision_floor_date <= t and acceptance within 6 months. Counts names, reads no price."""
+    sig = pd.read_parquet(SIGNALS, columns=["cik", "form", "acceptance_dt", "decision_floor_date",
+                                            "yoy_combo_why", "yoy_mda_why"])
+    sig["floor"] = pd.to_datetime(sig.decision_floor_date)
+    sig["acc"] = pd.to_datetime(sig.acceptance_dt.str[:10])
+    sig["usable"] = ((sig.form == "10-K") & (sig.yoy_combo_why == "ok")) | (
+        (sig.form == "10-Q") & (sig.yoy_mda_why == "ok"))
+    sig = sig.sort_values("floor")
+    u = pd.read_parquet(UNIVERSE).dropna(subset=["cik"])
+    u["cik"] = u.cik.astype(int)
+    rows = []
+    for t in pd.date_range(start, end, freq="QE"):
+        m = u[u.month == t.to_period("M").to_timestamp()]
+        members = set(m.cik)
+        s = sig[(sig.floor <= t) & (sig.acc > t - pd.DateOffset(months=6)) & sig.cik.isin(members)]
+        latest = s.groupby("cik").tail(1)
+        usable = latest[latest.usable]
+        rows.append({"rebalance": t.date().isoformat(), "members_with_cik": len(members),
+                     "with_recent_filing": len(latest), "usable_signal": len(usable),
+                     "usable_share": round(len(usable) / max(1, len(members)), 3),
+                     "usable_10k": int((usable.form == "10-K").sum()),
+                     "usable_10q": int((usable.form == "10-Q").sum())})
+    return pd.DataFrame(rows).set_index("rebalance")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 parse-coverage census (before/after).")
     ap.add_argument("--skip-before", action="store_true")
@@ -139,6 +167,11 @@ def main(argv: list[str] | None = None) -> int:
         pc = price_coverage()
         pc.to_csv(OUT / "price_source_coverage.csv")
         print("\n## Price-source FILE coverage of S&P member-months (no prices read)\n" + md(pc))
+        if SIGNALS.is_file():
+            rc = rebalance_coverage()
+            rc.to_csv(OUT / "rebalance_signal_coverage.csv")
+            print("\n## Usable ranking signals per quarter-end rebalance (R6 rule; no prices)\n"
+                  + md(rc))
     return 0
 
 

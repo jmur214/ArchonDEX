@@ -28,12 +28,17 @@ pieces with non [A-Z0-9.-], catch null markers before splitting.
 itself survivorship-truncated pre-2016, separately from the dividend-era HIGH. Missing names are
 mostly acquired members (CELG, RHT, AET, TWX, MON).
 
-**Text-panel structural absences (B-6 census, 95 old-line S&P CIKs, 2026-11-11):** 13.7% of 10-Ks
-keep MD&A only in an Exhibit-13 annual report (WFC, IBM ...); 16.6% of 10-Qs have NO Part II Item
-1A (Abbott, Air Products — witnessed) and where present it flips one-liner <-> full list (YoY
-cosine p5 0.21) -> rank 10-Qs on MD&A. 10-Q MD&A carves 96%; gzip'd docs store at ~6 MB per 1,000
-filings (zstd parquet). The Mac's free disk swings by GBs within an hour from non-research
-consumers — a 15 GB floor halted both streams at 12.5% / 1% complete; plan fetches as resumable.
+**Text-panel census (COMPLETE S&P panel, 46,040 filings, 2026-11-12):** 6.7% of 10-Ks keep MD&A
+only in an Exhibit-13 annual report (13.7% in the old-line low-CIK first sample — a CIK-ordered
+partial fetch is NOT representative); 11.0% of 10-Qs have NO Part II Item 1A (Abbott — witnessed)
+and where present it flips one-liner <-> full list -> rank 10-Qs on MD&A (98.1% carve, 91.7% pairs).
+10-K risk OK 95.9%, both 90.3%, combo pairs 83.2% (2007–25). Usable ranking names per quarter-end
+2016–25: 430–487 (86–97% of members; March lowest). Store ~7 MB per 1,000 filings (zstd).
+**Fetch lessons:** 46k docs took ~9 h at ~1.3–1.7 docs/s serial (latency-bound); a local DNS blip
+killed all 37 filings of one CIK (Cisco) past the backoff — always keep a `--retry-failed` path and
+a reader that prefers the successful row; never accept a permanent drop for a transient error. The
+Mac's free disk swings by GBs/hour (an Xcode build in /private/tmp, other agents' substrate
+candidates, swap) — make every long fetch resumable with a per-batch disk floor.
 
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
