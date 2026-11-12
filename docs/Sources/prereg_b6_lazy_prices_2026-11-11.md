@@ -709,3 +709,9 @@ Smoke on (c)'s first 12 months (rebalances 2020-06-30 → 2021-03-31, holdings t
 not quoted) → the fail-closed census → the full run twice with an identical results md5 → the verdict
 section (long-leg satellite vs SPY TR for both signals at the family level, the short-changers
 diagnostic with t_HAC, and the brief's refutation sentence evaluated literally).
+
+**ERRATUM to A2.2 (worker, 2026-11-12, after the (c) run; changes no ruling).** A2.2 says the (c)
+census has a "ranked share 87–97%". That range was the (d)-source joint census (T-265 + fill) for the
+same quarters. On (c)'s declared source (`data/processed` only) the census reads **83.4–94.8% (ranked
+416–474; terciles ≥ 138)** — every quarter still passes the frozen 80% / 150 / 40 rules, so nothing in
+A2.2 changes. Census file: `data/b6_local/harness_sp/run1/census_gate_similarity.csv`.
