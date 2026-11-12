@@ -1697,7 +1697,8 @@ S&P-arm harness (Phase 2; standalone, never `BacktestController`). It builds the
 FROZEN census first; exit 2 = a fail-closed condition fired and no return was computed.
 
 ```bash
-python -m scripts.lazy_prices.b6_harness_sp --census-only --spec gate_similarity --out data/b6_local/harness_sp/census_run1
-python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1   # only after the census passes; run twice, compare results.md5
+python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --out data/b6_local/harness_sp/census_d_repro   # window (d): exit 2 (NOT EVALUABLE, AMENDMENT 2)
+python -m scripts.lazy_prices.b6_harness_sp --smoke --out data/b6_local/harness_sp/smoke_c   # the gate window (c)'s first 12 months, sanity only
+python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1   # gate (c) + diagnostics; run twice, compare results.md5
 python -m pytest tests/test_b6_harness_sp.py -q
 ```

@@ -75,28 +75,35 @@ SIM = dict(col_10k="yoy_combo_cos", col_10q="yoy_mda_cos", why_10k="yoy_combo_wh
 TONE = dict(col_10k="yoy_combo_dtone", col_10q="yoy_mda_dtone", why_10k="yoy_combo_why",
             why_10q="yoy_mda_why")
 
+C = dict(start="2020-06-30", price_mode="c")   # AMENDMENT 2: the gate window and source
+
 SPECS: dict[str, Spec] = {s.name: s for s in [
-    Spec("gate_similarity", **SIM, gate=True),
-    Spec("gate_tone", **TONE, gate=True),
-    Spec("sens_c_similarity", **SIM, start="2020-06-30", price_mode="c"),
-    Spec("sens_c_tone", **TONE, start="2020-06-30", price_mode="c"),
-    Spec("cost20_similarity", **SIM, cost_bps=20.0),
-    Spec("exit30_similarity", **SIM, exit_d=-0.30),
+    # the gate (prereg AMENDMENT 2): window (c), data/processed TR closes, rebalances 2020-06-30 ->
+    Spec("gate_similarity", **SIM, **C, gate=True),
+    Spec("gate_tone", **TONE, **C, gate=True),
+    # §7.5 pre-named diagnostics, on the gate's window (A2.2); none can meet H1
+    Spec("cost20_similarity", **SIM, **C, cost_bps=20.0),
+    Spec("exit30_similarity", **SIM, **C, exit_d=-0.30),
     Spec("jaccard", col_10k="yoy_combo_jac", col_10q="yoy_mda_jac", why_10k="yoy_combo_why",
-         why_10q="yoy_mda_why"),
+         why_10q="yoy_mda_why", **C),
     Spec("tfidf", col_10k="yoy_combo_tfidf", col_10q="yoy_mda_tfidf", why_10k="yoy_combo_why",
-         why_10q="yoy_mda_why"),
+         why_10q="yoy_mda_why", **C),
     Spec("risk_only", col_10k="yoy_risk_cos", col_10q="yoy_risk_cos", why_10k="yoy_risk_why",
-         why_10q="yoy_risk_why"),
+         why_10q="yoy_risk_why", **C),
     Spec("mda_only", col_10k="yoy_mda_cos", col_10q="yoy_mda_cos", why_10k="yoy_mda_why",
-         why_10q="yoy_mda_why"),
+         why_10q="yoy_mda_why", **C),
     Spec("q10_combo", col_10k="yoy_combo_cos", col_10q="yoy_combo_cos", why_10k="yoy_combo_why",
-         why_10q="yoy_combo_why"),
+         why_10q="yoy_combo_why", **C),
     Spec("q10_adjacent", col_10k="yoy_combo_cos", col_10q="qoq_mda_cos", why_10k="yoy_combo_why",
-         why_10q="qoq_mda_why"),
-    Spec("tenk_only", **SIM, forms=("10-K",)),
-    Spec("tenq_only", **SIM, forms=("10-Q",)),
+         why_10q="qoq_mda_why", **C),
+    Spec("tenk_only", **SIM, **C, forms=("10-K",)),
+    Spec("tenq_only", **SIM, **C, forms=("10-Q",)),
+    # window (d) — NOT EVALUABLE (AMENDMENT 2, A2.1): kept ONLY to reproduce the halted census;
+    # excluded from --all; re-runs as its own pre-registered trial once the price hole closes
+    Spec("d_similarity", **SIM, gate=True),
+    Spec("d_tone", **TONE, gate=True),
 ]}
+NOT_EVALUABLE = {"d_similarity", "d_tone"}
 
 
 # --------------------------------------------------------------------------- #
@@ -430,6 +437,38 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame, Prices, pd.DatetimeIndex]
     return sig, uni, Prices(t265_of_cik, t265, proc, spy, bil), pd.DatetimeIndex(spy.index)
 
 
+def smoke(args: argparse.Namespace) -> int:
+    """First 12 months of the gate window: census + returns + sanity numbers (never quoted)."""
+    from dataclasses import replace
+    sig, uni, px, cal = load_inputs()
+    args.out.mkdir(parents=True, exist_ok=True)
+    out = {}
+    for n in ("gate_similarity", "gate_tone"):
+        base = SPECS[n]
+        rebs = rebalance_dates(cal, base.start, base.end)
+        spec = replace(base, end=rebs[3].date().isoformat())
+        panel, census = build_panel(spec, sig, uni, px, cal)
+        bad = check_census(census)
+        if bad:
+            print(f"[b6-smoke] {n}: census HALT {bad}")
+            return 2
+        res = run_returns(spec, panel, px, cal, rebs[4])
+        stats = {k: {"mean": float(np.mean(res[k])), "sd": float(np.std(res[k], ddof=1)),
+                     "min": float(np.min(res[k])), "max": float(np.max(res[k])),
+                     "n_nan": int(np.sum(~np.isfinite(res[k])))}
+                 for k in ("long", "short", "universe", "spy", "blend")}
+        out[n] = {"months": res["months"], "census": census.to_dict("records"), "stats": stats,
+                  "n_exits": len(res["exits"]), "exits": res["exits"], "turnover": res["turnover"]}
+        print(f"[b6-smoke] {n}: {len(res['months'])} months; ranked "
+              f"{census.ranked.tolist()}; exits {len(res['exits'])}; NaN "
+              f"{sum(v['n_nan'] for v in stats.values())}; turnover {res['turnover']}")
+        for k, v in stats.items():
+            print(f"    {k:9} mean {v['mean']:+.4f} sd {v['sd']:.4f} min {v['min']:+.4f} "
+                  f"max {v['max']:+.4f}")
+    (args.out / "smoke.json").write_text(_json(out))
+    return 0
+
+
 def _json(obj) -> str:
     return json.dumps(obj, sort_keys=True, indent=1, default=lambda o: o.item() if hasattr(o, "item") else str(o))
 
@@ -439,10 +478,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--spec", default="gate_similarity", choices=sorted(SPECS))
     ap.add_argument("--all", action="store_true", help="every pre-named spec (gate first)")
     ap.add_argument("--census-only", action="store_true", help="panel + census, no returns")
+    ap.add_argument("--smoke", action="store_true",
+                    help="the gate's FIRST FOUR rebalances (12 months): sanity statistics only, "
+                         "no bootstrap, no headline — not quoted")
     ap.add_argument("--out", type=Path, default=LOCAL / "harness_sp" / "run")
     args = ap.parse_args(argv)
-    names = ["gate_similarity", "gate_tone"] + [n for n in SPECS if not SPECS[n].gate] if args.all \
-        else [args.spec]
+    names = ["gate_similarity", "gate_tone"] + [n for n in SPECS if not SPECS[n].gate
+                                                and n not in NOT_EVALUABLE] if args.all else [args.spec]
+    if args.smoke:
+        return smoke(args)
     sig, uni, px, cal = load_inputs()
     args.out.mkdir(parents=True, exist_ok=True)
     hold_end = cal[cal <= pd.Timestamp("2026-03-31")].max()

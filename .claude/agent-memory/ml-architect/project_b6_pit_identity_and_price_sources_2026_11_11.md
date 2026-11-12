@@ -48,6 +48,16 @@ before a coverage floor is frozen, compute the JOINT census of every eligibility
 rebalance; a ticker join does not rescue missing bars. Never run the sensitivity first when the gate
 halts — a sensitivity result seen before the gate ruling is a forking path.
 
+**S&P arm RESULT (gate window (c) 2020-Q2→2025-Q4, 69 months; verdict
+docs/Audit/b6_lazy_prices_verdict_2026-11-12.md):** H1 NOT MET — similarity Δlog wealth −0.027
+(ci_low −0.116), Δtone −0.041; short-leg t_HAC −0.77 / −1.29 (changers did NOT underperform, wrong
+sign). YoY filing similarity and LM tone change carry NO detectable return information in large caps
+here (all variants: TF/TF-IDF/Jaccard, MD&A-only). Most of the satellite's shortfall was the EW-vs-cap
+tilt in 2023–25, not the signal — any EW long leg gated vs SPY needs an EW-universe twin. Long-leg
+turnover ~72%/qtr (similarity), ~94% (Δtone): the ranks are unstable. One of 8 diagnostics, the
+ADJACENT-quarter 10-Q pairing, gave short-leg t_HAC +2.27 — multiplicity-exposed (Bonferroni over 8
+needs ~2.7); a nomination for its own prereg only if T-265 agrees.
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].
