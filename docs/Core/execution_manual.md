@@ -1670,3 +1670,24 @@ python -m scripts.rescore_b1_ey_exposure \
   --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_value_ex3/
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
+
+## B-6 Lazy Prices — the repaired 10-K + 10-Q text panel (T-383 Phase 1, added 2026-11-11)
+
+Prereg: `docs/Sources/prereg_b6_lazy_prices_2026-11-11.md`. TEXT ONLY — no price, no return. Every
+output lands in the worktree-LOCAL real directory `data/b6_local/` (never through the shared
+`data/edgar` / `data/research` symlinks, which are read-only inputs). SEC requests use the
+user-approved User-Agent read from `scripts/lazy_prices/ingest_filings_t237.py:UA`, SEC hosts only;
+`--min-interval 0.45` per process keeps two concurrent streams under 4.5 req/s together. Every
+network step checks free disk before each company and halts cleanly under 15 GB (exit 3); an SEC
+403 halts (exit 4).
+
+```bash
+python -m scripts.lazy_prices.b6_cik_map                    # offline: Form 3/4/5 symbol chains -> data/b6_local/cik_map/
+python -m scripts.lazy_prices.b6_build_panel universe        # member CIK per (S&P interval, month) + the fetch list
+python -m scripts.lazy_prices.b6_smoke                       # 30+ real filings parsed and printed for a human read
+python -m scripts.lazy_prices.b6_build_panel fetch --min-interval 0.45   # S&P sections (zstd shards), resumable
+python -m scripts.lazy_prices.b6_stream_t265 --min-interval 0.45         # T-265 signals only, no stored text
+python -m scripts.lazy_prices.b6_signals sp                  # similarity + LM tone change per S&P filing
+python -m scripts.lazy_prices.b6_census                      # before (T-237) / after (B-6) coverage + price-file coverage
+python -m pytest tests/test_b6_lazy_prices_parse.py tests/test_b6_lazy_prices_signals.py -q
+```
