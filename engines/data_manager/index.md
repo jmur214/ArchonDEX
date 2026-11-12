@@ -159,7 +159,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
 - **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the
 - **Function `substrate_convention_record()`**: The `substrate_convention` census block over `run_names` (the panel; every name in the merge
-- **Function `drip_spans()`**: Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
+- **Function `pre_seam_spans()`**: Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
 
 ### `coverage.py`
 **Module Docstring:** The stale/holed-files guard (adopted 2026-10-15; docs/Sources/proposal_stale_and_holed_files_guard_2026-10-15.md).
@@ -200,6 +200,38 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
   - `def fetch_universe()`: Fetch a list of tickers and concatenate into a long events frame.
   - `def cache_status()`: Return a DataFrame describing the on-disk cache state.
 - **Function `surprise_pct()`**: Standard surprise-magnitude transform.
+
+### `era_tr.py`
+**Module Docstring:** OPTION (a′) — the ERA-AWARE pre-seam convention (`era_tr`): the ONE shared implementation.
+- **Class `EraTrRefusal`**: The (a′) build will not produce this file: a load-bearing check failed (fail closed).
+- **Class `NameReference`**: What the yfinance reference says about one name's Stooq series.
+  - `def covered()`: Bars whose year has a valid same-security reference — plus (amendment A3) a stub of at
+- **Class `BuildResult`**: No docstring
+- **Function `global_missed()`**: Boolean mask: the date lies in a universe-wide missed era (fallback rule).
+- **Function `global_block()`**: No docstring
+- **Function `align_reference()`**: Stooq close + yfinance (adj_close, close) on their common, strictly positive dates.
+- **Function `year_identity()`**: Per calendar year: is the reference the SAME security as the Stooq series?
+- **Function `transient_offsets()`**: Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
+- **Function `probe_exdates()`**: The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
+- **Function `label_exdates()`**: missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
+- **Function `missed_log_factor()`**: Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
+- **Function `empty_labels()`**: The labelled-ex-date frame of a name with no usable reference (no ex-date labelled).
+- **Function `analyse_reference()`**: Probe every reference ex-date up to `until` (the seam) and label it.
+- **Function `era_runs()`**: Contiguous runs of MISSED ex-dates (the name's measured missed eras), for the record.
+- **Function `mask_runs()`**: Contiguous runs of True in `mask`, as [first date, last date] pairs (for the record).
+- **Function `raw_stooq_index()`**: Ticker -> path of the raw Stooq daily file under `raw_dir` (`<raw_dir>/*/*/<t>.us.txt`). A
+- **Function `read_raw_stooq()`**: No docstring
+- **Function `read_yf()`**: Cached yfinance (adj_close, close) and dividends. (None, None) when prices are absent:
+- **Function `read_cache_text()`**: A cached CSV as (header, data lines) — text, so post-seam rows can be copied verbatim.
+- **Function `read_cache_frame()`**: No docstring
+- **Function `frame_from_text()`**: The parquet twin of a written csv: parsed FROM the text (round trip), Date index at
+- **Function `recompute_derived()`**: ATR(14) + PrevClose on a Date-column frame — the writer's `with_derived_columns`, the
+- **Function `carried_columns()`**: The trailing columns past the cache's eight that the build carries verbatim: none (the
+- **Function `check_text_bytes()`**: The write-time byte rule on the cache's eight fields: every post-seam row's Date/OHLCV text
+- **Function `build_file()`**: Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written.
+- **Function `step_audit()`**: R3 at write time: the pre-seam daily log returns may differ from raw Stooq's ONLY at the
+- **Function `splice_audit()`**: The ONE constant at the seam, at write time. The written seam-day log return must be Stooq's
+- **Function `carried_text_identical()`**: Every carried column's text is the cache's own, on every row (the build copies it).
 
 ### `exclusions.py`
 **Module Docstring:** Declared data exclusions: bars the loader WITHHOLDS, by name, with a reason, and records.
@@ -264,16 +296,19 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `seam_return_ok()`**: R's C-3 rail: an UNADJUSTED provider after a split matches the pre-split overlap and would
 - **Function `with_derived_columns()`**: ATR + PrevClose per project convention (scripts/merge_stooq_alpaca_substrate.py).
 - **Function `write_pair_atomically()`**: Both temp files are written first; only then are both swapped in. A failure while writing
+- **Function `write_text_pair_atomically()`**: The TEXT-preserving twin of `write_pair_atomically` (option (a′)): the csv is `text` VERBATIM
 - **Function `load_level_declarations()`**: The hand-set facts the identity cannot establish: per name, `kind` (`scale_defect` — a level
 - **Function `level_identity()`**: The cache's last bar against the level the provider says it SHOULD hold. The cache was
 - **Function `substrate_level_declarations()`**: The census block (`level_declarations`): every file in this substrate whose CURRENT version
 - **Function `load_convention_declarations()`**: `config/convention_declarations.json`: `seams` (per name: `seam_date`, `pre_seam`,
 - **Function `load_merge_meta()`**: The T-082b merge record's `per_ticker` map under this cache, or None when the cache has
 - **Function `seam_for()`**: Where this file's seam is, and who says so. A DECLARED seam (classes (iii)/(iv)) wins, and
+- **Function `kept_pre_seam_convention()`**: What the KEPT pre-seam bars ARE (option (a′), T-387). `seam_spec`'s `pre_seam` (a declaration,
 - **Function `seam_ratio()`**: The provider/cache ratio AT the seam: the first bar on or after the seam both series hold.
 - **Function `verify_split_only_cache()`**: The declared check for a SPLIT-ONLY cache (the backfill_t052 trio): the cached tail must
 - **Function `verify_mixed_convention()`**: The declared check for a MIXED cache (AMCR: total return, then two missed ex-dates): the
 - **Function `full_refetch()`**: Replace `<ticker>_1d` with a total-return re-fetch from THE universe provider — or refuse.
+- **Function `era_tr_rewrite()`**: Rewrite the PRE-seam span of `<ticker>_1d` under `cache_dir` from the T-082b drip to `era_tr`
 - **Function `yfinance_provider()`**: yfinance: auto_adjust=True -> total return; False -> split-adjusted Close.
 - **Function `yfinance_actions()`**: yfinance's corporate-actions record (dividends and split factors), tz-naive.
 

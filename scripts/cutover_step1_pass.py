@@ -6,8 +6,9 @@ target that resolves to any repo's `data/processed`, and only a path under `Dev/
 is accepted as a copy; guard and label are READ-ONLY on any --cache, including the canonical one,
 which label exists to lock. The real-cache write is cutover day, a separate approved act.
 
-    python -m scripts.cutover_step1_pass fresh-copy --to <copy>        # from the canonical cache; refuses an existing <to>
+    python -m scripts.cutover_step1_pass fresh-copy --to <copy> [--from <copy>]   # from the canonical cache (or a copy); refuses an existing <to>
     python -m scripts.cutover_step1_pass pass --copy <copy> [--only A,B] [--today YYYY-MM-DD] [--sleep 0.4]
+    python -m scripts.cutover_step1_pass era-tr --copy <copy> [--yf-dir D] [--raw-stooq D] [--only A,B] [--dry-run]   # option (a′), offline
     python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 [--out x.json]
     python -m scripts.cutover_step1_pass label --cache <dir> [--out x.json]
     python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>   # then gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root> (a bare --root REFUSES since re-pin #1)
@@ -17,6 +18,14 @@ writer's own log (`write_log.jsonl`, the per-file records) and the PROVIDER's ou
 (`provider.log`: everything yfinance printed or logged, per file, with the file's name as a header).
 A provider exception (not a writer refusal) is retried 3 times with 10/20/30 s backoff and every
 attempt's reason is kept. Every row carries the writer source's sha256 and the worktree HEAD.
+
+`era-tr` (option (a′), USER RULING 2026-11-12, T-387) rewrites the PRE-seam span of every merged
+file with pre-seam bars (the merge record's `both` files with `n_stooq_pre_seam > 0`) from the drip
+to `era_tr`, through `tr_writer.era_tr_rewrite` — OFFLINE: raw Stooq from `--raw-stooq`, the
+yfinance reference from the cached `--yf-dir` (refused without its `_fetch_log.jsonl`). It is
+RESUMABLE (`era_tr_<tag>.jsonl`, one row per file) and leaves every post-seam byte (and
+`close_unadj`) as it was. Run it on a DUPLICATE (`fresh-copy --from <step-1 copy>`), never on the
+pinned step-1 copy itself. Exit 0 = every target written; 2 = a refusal; 3 = below --min-free-gb.
 """
 from __future__ import annotations
 
@@ -80,7 +89,11 @@ def _writer_sha() -> str:
 # ── fresh-copy ────────────────────────────────────────────────────────────────────
 
 def cmd_fresh_copy(args) -> int:
-    src = MAIN_CANONICAL.resolve()
+    # --from (T-387): a COPY of a copy — the (a′) rewrite runs on a duplicate, so the pinned step-1
+    # candidate stays the object its manifest names ([NN-ARCHIVE]); the default is the canonical.
+    src = MAIN_CANONICAL.resolve() if args.src is None else assert_is_a_copy(Path(args.src))
+    if not src.is_dir():
+        raise SystemExit(f"REFUSED: the source {src} is not a directory")
     dst = Path(args.to)
     if dst.exists():
         raise SystemExit(f"REFUSED: {dst} exists — a copy is never overwritten; rename it aside first")
@@ -243,6 +256,121 @@ def cmd_pass(args) -> int:
     return 0
 
 
+# ── option (a′): the era-aware pre-seam rewrite (USER RULING 2026-11-12, T-387) ────
+
+DEFAULT_YF_DIR = CANDIDATES_ROOT / "drip_fix_a_prime_2026_11_11" / "yf"
+DEFAULT_RAW_STOOQ = MAIN_CANONICAL.parents[1] / "data" / "raw" / "stooq" / "daily" / "us"
+
+
+def _md5(path: Path) -> str:
+    h = hashlib.md5()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def yf_fetch_state(yf_dir: Path) -> Dict[str, dict]:
+    """The reference cache's own fetch log, last row per ticker. The log is what makes an ABSENT
+    price file mean "fetched, the provider had none" rather than "never fetched" — so a cache
+    without one is refused (a wrong --yf-dir would otherwise read as 575 no-reference names)."""
+    log = Path(yf_dir) / "_fetch_log.jsonl"
+    if not log.exists():
+        raise SystemExit(f"REFUSED: {log} is absent — the reference cache's fetch state is unknown "
+                         f"(an absent price file could mean 'never fetched'); not running")
+    state: Dict[str, dict] = {}
+    for line in log.read_text().splitlines():
+        if line.strip():
+            r = json.loads(line)
+            state[r["ticker"]] = r
+    return state
+
+
+def reference_for(t: str, yf_dir: Path, state: Dict[str, dict]):
+    """(px, divs, status) for one name from the cached reference — refusing a name the fetch log
+    never saw, or one it says was fetched whose file is missing (never read as "no reference")."""
+    from engines.data_manager import era_tr as et
+    row = state.get(t)
+    if row is None:
+        return None, None, f"refused: {t} has no row in the reference fetch log (never fetched)"
+    px, dv = et.read_yf(t, yf_dir)
+    if row.get("prices") == "ok" and px is None:
+        return None, None, f"refused: the fetch log says {t}'s prices were fetched but the file is missing"
+    return px, dv, ("reference_files" if px is not None else f"no_reference ({row.get('prices')})")
+
+
+def cmd_era_tr(args) -> int:
+    """Rewrite every merged file's PRE-seam span in the copy from the drip to era_tr — offline,
+    through the writer (`tr_writer.era_tr_rewrite`), resumable. `--dry-run` measures and writes
+    nothing to the copy (only the report rows)."""
+    from engines.data_manager import era_tr as et
+    copy = assert_is_a_copy(Path(args.copy))
+    yf_dir, raw_dir = Path(args.yf_dir).resolve(), Path(args.raw_stooq).resolve()
+    meta = w.load_merge_meta(copy)
+    if meta is None:
+        raise SystemExit(f"REFUSED: {copy} has no {w.MERGE_META_NAME} — no seam, no drip slope")
+    state = yf_fetch_state(yf_dir)
+    raw_idx = et.raw_stooq_index(raw_dir)
+    targets = sorted(t for t, r in meta.items()
+                     if r.get("merge_case") == "both" and int(r.get("n_stooq_pre_seam") or 0) > 0)
+    if args.only:
+        wanted = [t.strip() for t in args.only.split(",") if t.strip()]
+        missing = sorted(set(wanted) - set(targets))
+        if missing:
+            raise SystemExit(f"REFUSED: --only names that are not merged files with pre-seam bars: {missing}")
+        targets = wanted
+    out_dir = Path(args.out_dir) if args.out_dir else copy.parent
+    tag = args.tag or f"{copy.name}{'_dryrun' if args.dry_run else ''}"
+    rows_path = out_dir / f"era_tr_{tag}.jsonl"
+    write_log = None if args.dry_run else out_dir / f"era_tr_write_log_{tag}.jsonl"
+    done = _done(rows_path)
+    todo = [t for t in targets if t not in done]
+    provenance = {"yf_dir": str(yf_dir), "yf_fetch_log_md5": _md5(yf_dir / "_fetch_log.jsonl"),
+                  "raw_stooq_dir": str(raw_dir), "writer_sha256": _writer_sha(), "head": _head(),
+                  "era_tr_sha256": hashlib.sha256((REPO / "engines" / "data_manager" / "era_tr.py").read_bytes()).hexdigest()}
+    print(f"[era-tr] {len(targets)} merged files with pre-seam bars, {len(done)} done, {len(todo)} to do; "
+          f"dry_run={args.dry_run}; {provenance}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    n_ok = n_ref = 0
+    with open(rows_path, "a") as rout:
+        for i, t in enumerate(todo, 1):
+            if shutil.disk_usage(copy).free < args.min_free_gb * 1024 ** 3:
+                print(f"[era-tr] HALT: free disk below {args.min_free_gb:.0f} GB at {t}")
+                return 3
+            row = {"ticker": t, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                   "dry_run": bool(args.dry_run), "terminal": True}
+            px, dv, ref_state = reference_for(t, yf_dir, state)
+            row["reference_files"] = ref_state
+            try:
+                if ref_state.startswith("refused"):
+                    raise w.WriterRefusal(f"{t}: {ref_state}")
+                stooq = et.read_raw_stooq(raw_idx[t]) if t in raw_idx else None
+                rec = w.era_tr_rewrite(t, copy, stooq=stooq, reference_px=px, reference_divs=dv,
+                                       write=not args.dry_run, provenance=provenance, log_path=write_log)
+                b = rec["era_tr"]
+                row.update({"written": not args.dry_run, "would_write": True, "convention": rec["convention"],
+                            "reference": b["reference"], "n_div_added": b["n_div_added"],
+                            "splice": b["splice"], "k_splice": b["k_splice"],
+                            "unverified_missed_era_spans": b["unverified_missed_era_spans"],
+                            "unverified_pre2003_span": b["unverified_pre2003_span"],
+                            "step_audit": b["rails"]["step_audit"], "splice_audit": b["rails"]["splice_audit"],
+                            "carried_columns": b["carried_columns"]})
+                n_ok += 1
+            except w.WriterRefusal as e:
+                row.update({"written": False, "would_write": False, "refused": str(e),
+                            "detail": _json_safe(e.detail)})
+                n_ref += 1
+            rout.write(json.dumps(row, default=str) + "\n")
+            rout.flush()
+            if i % 50 == 0 or "refused" in row:
+                print(f"[era-tr] {i}/{len(todo)} {t}: " + ("REFUSED — " + row["refused"][:160] if "refused" in row
+                                                         else f"ok (added {row['n_div_added']})"), flush=True)
+    rows = _done(rows_path)
+    n_refused = sum(1 for r in rows.values() if "refused" in r)
+    print(f"[era-tr] done: {len(rows)} rows ({n_ok} ok, {n_ref} refused this run; {n_refused} refused in all) -> {rows_path}")
+    return 0 if n_refused == 0 else 2
+
+
 # ── the guard and the label ───────────────────────────────────────────────────────
 
 def _dates_map(cache: Path) -> Dict[str, pd.DataFrame]:
@@ -332,6 +460,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("fresh-copy")
     s.add_argument("--to", required=True)
+    s.add_argument("--from", dest="src", default=None,
+                   help="a COPY to duplicate (T-387: the (a′) rewrite runs on a duplicate of the step-1 copy); default the canonical")
     s.set_defaults(fn=cmd_fresh_copy)
     s = sub.add_parser("pass")
     s.add_argument("--copy", required=True)
@@ -340,6 +470,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     s.add_argument("--sleep", type=float, default=0.4)
     s.add_argument("--tag", default=None)
     s.set_defaults(fn=cmd_pass)
+    s = sub.add_parser("era-tr", help="option (a′): rewrite every merged file's pre-seam span to era_tr (offline)")
+    s.add_argument("--copy", required=True)
+    s.add_argument("--yf-dir", default=str(DEFAULT_YF_DIR))
+    s.add_argument("--raw-stooq", default=str(DEFAULT_RAW_STOOQ))
+    s.add_argument("--only", default=None)
+    s.add_argument("--tag", default=None)
+    s.add_argument("--out-dir", default=None, help="where the report rows go (default: beside the copy)")
+    s.add_argument("--dry-run", action="store_true", help="measure only: nothing in the copy is written")
+    s.add_argument("--min-free-gb", type=float, default=11.0)
+    s.set_defaults(fn=cmd_era_tr)
     s = sub.add_parser("guard")
     s.add_argument("--cache", required=True)
     s.add_argument("--start", default="2000-01-03")

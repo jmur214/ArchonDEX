@@ -24,6 +24,16 @@ in `tests/test_contracts.py` (`CENSUS_PROVENANCE_KEYS`). The same per-name resol
 (`_resolve`) gives the stale/holed-files guard each drip-labelled name's seam and kept pre-seam bar
 count (`drip_spans`) for the `pre_seam_drip_gap` class (`coverage.py`), so the label and the
 guard can never disagree on where a file's drip span is.
+
+OPTION (a′) (USER RULING 2026-11-12, T-387): the cutover's pre-seam convention is `era_tr` (Stooq
+where Stooq is total return; the missed dividends restored per measured ex-date; no-reference spans
+raw Stooq, LABELLED UNVERIFIED), written by `tr_writer.era_tr_rewrite` into the file's record. The
+label reads it from the record like any other; an era_tr record must carry its `era_tr` block (the
+per-file `unverified_missed_era_spans` / `unverified_pre2003_span`), or the name is UNLABELLED —
+the census could no longer say what each span IS. The block carries the unverified spans per name
+(`unverified`). `pre_seam_spans` (the guard's input; `drip_spans` is its old name, kept) covers a
+kept pre-seam Stooq span under EITHER label: (a′) changes no pre-seam date, so the kept span's own
+holes are the same days. `drip` stays a valid label — it is what the pre-cutover cache IS.
 """
 from __future__ import annotations
 
@@ -34,10 +44,13 @@ from typing import Dict, Iterable, Optional
 
 import pandas as pd
 
-from engines.data_manager.tr_writer import (DRIP, EXACT_TR, MERGE_META_NAME, WRITE_RECORDS_DIR,
-                                            load_convention_declarations, load_merge_meta)
+from engines.data_manager.tr_writer import (DRIP, ERA_TR, EXACT_TR, MERGE_META_NAME, PRE_SEAM_CONVENTIONS,
+                                            WRITE_RECORDS_DIR, load_convention_declarations, load_merge_meta)
 
-RULE = ("pre-seam = drip (T-082b's constant-yield approximation of the Stooq years); post-seam = "
+RULE = ("pre-seam = era_tr (option (a') — Stooq where Stooq is total return, the missed dividends "
+        "restored per measured ex-date, no-reference spans raw Stooq and LABELLED UNVERIFIED; the "
+        "cutover's convention, read from the write record with its unverified spans) or drip (T-082b's "
+        "constant-yield approximation of the Stooq years; the pre-cutover cache); post-seam = "
         "exact_tr (the provider's ex-date total return); a file with no seam is one convention over "
         "its whole span. A name's label comes from its pinned write record, else a declared whole-file "
         "override, else the merge record (witnessed against the run's frame — unwitnessed, it is "
@@ -101,7 +114,15 @@ def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Option
             return {"unlabelled": ("a pinned write record with no convention block — written before the "
                                    "option (a) writer (2026-10-22); the file's spans are unrecorded")}
         out = {"label": label_of(conv), "source": "write_record"}
-        if conv.get("pre_seam") == DRIP and conv.get("seam_date"):
+        if conv.get("pre_seam") == ERA_TR:
+            block = rec.get("era_tr")
+            if not block:
+                return {"unlabelled": ("the write record says the pre-seam span is era_tr but carries no "
+                                       "era_tr block — its UNVERIFIED spans are unknown, so what each span "
+                                       "IS cannot be said")}
+            out["unverified"] = {"missed_era_spans": list(block.get("unverified_missed_era_spans") or []),
+                                 "pre2003_span": block.get("unverified_pre2003_span")}
+        if conv.get("pre_seam") in PRE_SEAM_CONVENTIONS and conv.get("seam_date"):
             seam = rec.get("seam") or {}
             kept = seam.get("n_pre_seam_bars_kept")
             out.update(seam_date=str(conv["seam_date"]), n_pre_seam_kept=int(kept) if kept is not None else None)
@@ -154,6 +175,7 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
     unlabelled: Dict[str, str] = {}
     sources: Counter = Counter()
     n_unwitnessed = 0
+    unverified: Dict[str, dict] = {}
     for t in names:
         r = _resolve(t, records_dir, overrides, meta, data_map.get(t) if witnessed else None, witnessed)
         if "unlabelled" in r:
@@ -162,6 +184,9 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
             continue
         per_name[t] = r["label"]
         sources[r["source"]] += 1
+        u = r.get("unverified")
+        if u and (u["missed_era_spans"] or u["pre2003_span"]):
+            unverified[t] = u
     labels = Counter(per_name.values())
     seams = Counter(v.split(SEAM_SEP, 1)[1].split(SIDE_SEP, 1)[0] for v in per_name.values() if SEAM_SEP in v)
     return {"cache_dir": str(cache_dir), "merge_meta_present": meta is not None,
@@ -169,16 +194,22 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
             "witness": WITNESS_FRAMES if witnessed else WITNESS_UNMEASURED, "n_unwitnessed": n_unwitnessed,
             "n_names": len(names), "n_labelled": len(per_name),
             "n_pre_seam_drip": int(sum(v for k, v in labels.items() if k.startswith(DRIP + SEAM_SEP))),
+            "n_pre_seam_era_tr": int(sum(v for k, v in labels.items() if k.startswith(ERA_TR + SEAM_SEP))),
+            # option (a′): what is UNVERIFIED inside each era_tr span, per name (never dropped)
+            "n_unverified_missed_era": sum(1 for u in unverified.values() if u["missed_era_spans"]),
+            "n_unverified_pre2003": sum(1 for u in unverified.values() if u["pre2003_span"]),
+            "unverified": unverified,
             "labels": dict(labels), "seams": dict(seams), "sources": dict(sources),
             "per_name": per_name, "unlabelled": unlabelled}
 
 
-def drip_spans(cache_dir: Path, names: Iterable[str], data_map: Optional[Dict[str, pd.DataFrame]],
-               conventions: Optional[Dict[str, dict]] = None) -> Dict[str, dict]:
+def pre_seam_spans(cache_dir: Path, names: Iterable[str], data_map: Optional[Dict[str, pd.DataFrame]],
+                   conventions: Optional[Dict[str, dict]] = None) -> Dict[str, dict]:
     """Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
-    "source"}` where the name's label carries a drip pre-seam span, else `{"refused": why}` — the
-    name is unlabelled or unwitnessed (the same resolution as the label, so the class can never
-    excuse a hole on a span the label does not call drip), or its label has no pre-seam drip."""
+    "source"}` where the name's label carries a KEPT pre-seam Stooq span (drip or, after the
+    cutover, era_tr — the same bar dates), else `{"refused": why}` — the name is unlabelled or
+    unwitnessed (the same resolution as the label, so the class can never excuse a hole on a span
+    the label does not call a kept pre-seam span), or its label has no pre-seam span."""
     cache_dir = Path(cache_dir)
     meta = load_merge_meta(cache_dir)
     conventions = load_convention_declarations() if conventions is None else conventions
@@ -191,7 +222,11 @@ def drip_spans(cache_dir: Path, names: Iterable[str], data_map: Optional[Dict[st
         if "unlabelled" in r:
             out[t] = {"refused": f"no convention label: {r['unlabelled']}"}
         elif "seam_date" not in r:
-            out[t] = {"refused": f"the label is {r['label']!r}: no pre-seam drip span"}
+            out[t] = {"refused": f"the label is {r['label']!r}: no pre-seam drip span or era_tr span"}
         else:
             out[t] = {"seam_date": r["seam_date"], "n_pre_seam_kept": r["n_pre_seam_kept"], "source": r["source"]}
     return out
+
+
+#: The pre-(a′) name of `pre_seam_spans` (2026-11-04), kept for its callers.
+drip_spans = pre_seam_spans

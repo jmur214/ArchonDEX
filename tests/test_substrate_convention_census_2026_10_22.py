@@ -175,7 +175,9 @@ def test_the_backtest_producer_labels_the_panel_from_the_canonical_cache(tmp_pat
 def test_the_canonical_cache_is_labelled_whole_with_575_pre_seam_drip_files():
     """A data lock on today's canonical cache: every one of the 730 files labelled, none by default;
     575 carry a pre-seam drip span (the 626 `both` files minus 51 with no pre-seam bars); SPY by
-    its declared override. Fails when the cache or its merge record changes — re-measure, re-pin."""
+    its declared override. Fails when the cache or its merge record changes — re-measure, re-pin.
+    Note, 2026-11-12 (T-387): still true of TODAY's canonical (drip). It flips on cutover day under the
+    USER's (a′) ruling — 575 `era_tr` from the write records — in re-pin #2's commit (runbook §6, S6)."""
     # R9 (2026-11-04): a cache-wide label is witnessed against the FILES' first bars (what a run loads).
     r = substrate_convention_record(w.CANONICAL_CACHE_DIR, data_map=cache_first_bar_frames(w.CANONICAL_CACHE_DIR))
     assert r["n_names"] == 730 and r["n_labelled"] == 730 and r["unlabelled"] == {}

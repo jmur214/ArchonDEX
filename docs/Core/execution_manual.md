@@ -817,6 +817,15 @@ python -m scripts.cutover_step1_pass pass --copy <copy> --today YYYY-MM-DD --tag
 python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 --out x.json   # the stale/holed-files guard's reading (exit 3 on defects); read-only on <dir>
 python -m scripts.cutover_step1_pass label --cache <dir> --out x.json                                      # the universal convention label over every file (exit 3 if any unlabelled)
 python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
+# T-387 option (a′) on the cutover copy (USER RULING 2026-11-12; runbook_cutover_day_2026-11-05.md §6). OFFLINE:
+# raw Stooq from --raw-stooq (default the main tree's data/raw/stooq/daily/us), the yfinance reference from the
+# cached --yf-dir (default v3's yf/; REFUSED without its _fetch_log.jsonl). Rewrites the PRE-seam span of every
+# merged file with pre-seam bars (575) from drip to era_tr via tr_writer.era_tr_rewrite; post-seam bytes and
+# close_unadj untouched. Resumable (era_tr_<tag>.jsonl beside the copy, or --out-dir). Exit 0 all written,
+# 2 a refusal, 3 below --min-free-gb. Run it on a DUPLICATE of the step-1 copy, never the pinned one.
+python -m scripts.cutover_step1_pass fresh-copy --from <step1_copy> --to /Users/jacksonmurphy/Dev/_substrate_candidates/<new_copy>   # duplicate a copy (refuses an existing target)
+python -m scripts.cutover_step1_pass era-tr --copy <copy> --tag <tag> [--yf-dir D] [--raw-stooq D] [--only A,B] [--out-dir D] [--min-free-gb 11]
+python -m scripts.cutover_step1_pass era-tr --copy <copy> --dry-run --out-dir <scratch> --tag <tag>        # measure only: nothing in the copy is written
 python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 # --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
 # regardless of --root, so without it the candidate's PASS stamp would land in the real
@@ -836,6 +845,9 @@ python scripts/drip_fix_candidate_t384.py fetch [--yf-dir D] [--tickers A B] [--
 python scripts/drip_fix_candidate_t384.py build [--yf-dir D] [--tickers A B] [--min-free-gb 15]         # pass 1 every reference (labels), pass 2 writes <out>/processed/; exit 2 on any refusal, 3 below --min-free-gb free
 python scripts/drip_fix_candidate_t384.py accept [--yf-dir D]                                           # the §1 pre-declared test (+ v4's (iii)(c) and step audit) -> <out>/acceptance/summary.json + CSVs
 python scripts/drip_fix_candidate_t384.py manifest                                           # <out>/MANIFEST.md5 over every file under <out>
+# T-387: the era model, probe, labels and per-file build MOVED to engines/data_manager/era_tr.py (shared with the
+# cutover writer); the script imports them — its commands and outputs are unchanged (build re-verified on 12 names
+# byte-identical to v4, 2026-11-12).
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh

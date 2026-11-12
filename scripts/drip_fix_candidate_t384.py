@@ -27,26 +27,43 @@ script are NOT edited. Network: yfinance only (Adj Close via `fetch_yf_tr` of
 `yfinance.Ticker(...).dividends`), cached under the candidate directory.
 
 Proposal + pre-declared acceptance test: `docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md`.
+
+T-387 (USER RULING 2026-11-12: the cutover adopts (a′) v4): the era model, the probe, the labels,
+the reference analysis and the per-file build MOVED to `engines/data_manager/era_tr.py` — the ONE
+implementation the cutover writer (`tr_writer.era_tr_rewrite`) also calls. This script imports them
+and keeps its own fetch / build / accept / manifest commands and the v1–v3-only helpers.
 """
 from __future__ import annotations
 
 import argparse
-import glob
 import hashlib
 import importlib.util
 import json
 import os
 import sys
 import time
-from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from engines.data_manager import era_tr as _et  # noqa: E402  — the ONE (a′) implementation (T-387)
+from engines.data_manager.era_tr import (  # noqa: E402,F401  — re-exported: the tests and records name them here
+    BLIP_MAX_BARS, BLIP_MIN, BLIP_REVERT_TOL, CONFIDENT_SM, FULL_YEAR_BARS, GLOBAL_BLOCK_EDGES,
+    GLOBAL_MISSED_ERAS, IDENTITY_CORR, IDENTITY_MED_ABS_D, MAX_DIV_FRACTION, MISSED_M, NOISE_WINDOW,
+    OHLC, PRE_REFERENCE_STUB_DAYS, PROBE_LEVEL_BARS, SEAM_TEXT_ROWS, STEP_TOL, BuildResult,
+    NameReference, align_reference, analyse_reference, build_file, era_runs, global_block,
+    global_missed, label_exdates, mask_runs, missed_log_factor, probe_exdates, read_raw_stooq, read_yf,
+    recompute_derived, transient_offsets, year_identity)
+from engines.data_manager.era_tr import EraTrRefusal as CandidateRefusal  # noqa: E402  — the script's name for it
+from engines.data_manager.tr_writer import write_text_pair_atomically  # noqa: E402
+
 CACHE_DIR = REPO / "data" / "processed"
 META_PATH = CACHE_DIR / "_merge_meta.json"
 RAW_STOOQ_GLOB = str(REPO / "data" / "raw" / "stooq" / "daily" / "us" / "*" / "*" / "*.us.txt")
@@ -59,7 +76,6 @@ DEFAULT_YF = V3_OUT / "yf"
 
 FETCH_START = "1962-01-01"
 FETCH_END = "2026-11-11"
-OHLC = ["Open", "High", "Low", "Close"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -96,56 +112,18 @@ def preseam_universe(meta: Dict[str, dict]) -> List[str]:
 
 
 def raw_stooq_index() -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    for p in glob.glob(RAW_STOOQ_GLOB):
-        stem = os.path.basename(p)[: -len(".us.txt")]
-        out[stem.upper().replace("-", ".")] = p
-    return out
-
-
-def read_raw_stooq(path: str) -> pd.Series:
-    df = pd.read_csv(path, usecols=["<DATE>", "<CLOSE>"])
-    idx = pd.to_datetime(df["<DATE>"].astype(str), format="%Y%m%d")
-    return pd.Series(df["<CLOSE>"].astype(float).values, index=idx, name="stooq").sort_index()
+    return _et.raw_stooq_index(Path(RAW_STOOQ_GLOB).parents[2])
 
 
 def read_cache_text(ticker: str, cache_dir: Path = CACHE_DIR) -> Tuple[str, List[str]]:
     """The cached CSV as (header, data lines) — text, so post-seam rows can be copied verbatim."""
     # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
-    with open(cache_dir / f"{ticker}_1d.csv", "r", newline="") as fh:
-        lines = fh.read().split("\n")
-    if lines and lines[-1] == "":
-        lines = lines[:-1]
-    return lines[0], lines[1:]
+    return _et.read_cache_text(cache_dir / f"{ticker}_1d.csv")
 
 
 def read_cache_frame(ticker: str, cache_dir: Path = CACHE_DIR) -> pd.DataFrame:
     # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
-    df = pd.read_csv(cache_dir / f"{ticker}_1d.csv", float_precision="round_trip")
-    df["Date"] = pd.to_datetime(df["Date"])
-    return df
-
-
-def _naive_day_index(idx: pd.Index) -> pd.DatetimeIndex:
-    out = pd.DatetimeIndex(idx)
-    if out.tz is not None:
-        out = out.tz_localize(None)
-    return out.normalize()
-
-
-def read_yf(ticker: str, yf_dir: Path) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
-    """Cached yfinance (adj_close, close) and dividends. (None, None) when prices are absent:
-    yfinance answers an EMPTY dividend series for a delisted symbol, so dividends without prices
-    are never read as "no dividends"."""
-    px_p, dv_p = yf_dir / f"{ticker}.parquet", yf_dir / f"{ticker}__div.parquet"
-    if not px_p.exists() or not dv_p.exists():
-        return None, None
-    px = pd.read_parquet(px_p)
-    px.index = _naive_day_index(px.index)
-    dv = pd.read_parquet(dv_p)["dividend"].astype(float)
-    dv.index = _naive_day_index(dv.index)
-    dv = dv[dv > 0].groupby(level=0).sum().sort_index()
-    return px.sort_index(), dv
+    return _et.read_cache_frame(cache_dir / f"{ticker}_1d.csv")
 
 
 def read_t265(ticker: str) -> Optional[pd.Series]:
@@ -250,191 +228,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 # The era model — what Stooq's dividend adjustment covers
 # ═══════════════════════════════════════════════════════════════════════════════
 
-#: Global fallback ONLY (a name or span with no usable reference). Measured 2026-11-11 by the
-#: per-ex-date probe over the universe (proposal §2): Stooq's capture flips in a single week
-#: universe-wide — captured → missed between 2003-03-30 and 2003-04-07, missed → captured between
-#: 2011-02-20 and 2011-02-21, captured → missed again from 2022-12-19. Before 2003-04-01 the
-#: behaviour is PER NAME (BA missed 1980–1999, AEP captured 1971–2003, MO/AA/CAT missed from
-#: 2001-Q2): the fallback there is "captured" (the measured majority) and is LABELLED unverified.
-GLOBAL_MISSED_ERAS: Tuple[Tuple[pd.Timestamp, pd.Timestamp], ...] = (
-    (pd.Timestamp("2003-04-01"), pd.Timestamp("2011-02-21")),
-    (pd.Timestamp("2022-12-19"), pd.Timestamp("2262-01-01")),
-)
-#: Era blocks for the neighbour rule: a one-sided neighbour may only lend its label inside its
-#: own block (it never extrapolates across a universe-wide flip).
-GLOBAL_BLOCK_EDGES = pd.DatetimeIndex(["2003-04-01", "2011-02-21", "2022-12-19"])
-PROBE_LEVEL_BARS = 1           # A1 (v3): the nearest CLEAN bar each side — v1's 3-return window when
-                               # no transient block is near (v2's 5-bar medians made σ(m) √(10/3)× larger
-                               # and lost the measured labels of noisy years: CMI/AXP/RTX 2000-01)
-BLIP_MIN = 0.0025              # A1: |Δlog stooq − Δlog ref| above this may open a transient offset …
-BLIP_MAX_BARS = 15             # … that a later bar undoes within this many bars …
-BLIP_REVERT_TOL = 0.15         # … to within 15 % of its size
-PRE_REFERENCE_STUB_DAYS = 45   # A3: Stooq bars this close before the reference's first bar are covered
-NOISE_WINDOW = 127             # trading days around an ex-date for the robust noise scale
-CONFIDENT_SM = 0.15            # σ(m) at or below this → the ex-date is MEASURED (0/1 are ≥ 3.3σ apart)
-MISSED_M = 0.5                 # m ≥ 0.5 → Stooq missed the dividend
-MAX_DIV_FRACTION = 0.95        # D/P_prev clip (a spin-off valued at most 95 % of the parent)
-IDENTITY_MED_ABS_D = 0.004     # a reference year is the SAME security when median |Δr| ≤ this …
-IDENTITY_CORR = 0.95           # … or the daily-return correlation is at least this
-SEAM_TEXT_ROWS = 14            # ATR(14) + PrevClose: post-seam rows whose DERIVED fields change
-FULL_YEAR_BARS = 200           # a name-year counts toward the cross-sectional yield median from here
+#: The era model (GLOBAL_MISSED_ERAS, the probe and its constants, the labels, missed_log_factor)
+#: lives in `engines/data_manager/era_tr.py` (T-387) and is imported above. Only the v1–v3
+#: approximation stays here, so the v3 record stays reproducible.
 MIN_FREE_BYTES = 15 * 1024 ** 3   # halt the write pass below 15 GB free (shared 8 GB / ~20 GB host)
-
-
-def global_missed(dates: pd.DatetimeIndex) -> np.ndarray:
-    """Boolean mask: the date lies in a universe-wide missed era (fallback rule)."""
-    out = np.zeros(len(dates), dtype=bool)
-    for lo, hi in GLOBAL_MISSED_ERAS:
-        out |= (dates >= lo) & (dates < hi)
-    return out
-
-
-def global_block(dates: pd.DatetimeIndex) -> np.ndarray:
-    return GLOBAL_BLOCK_EDGES.searchsorted(dates, side="right")
-
-
-def align_reference(stooq: pd.Series, px: pd.DataFrame) -> pd.DataFrame:
-    """Stooq close + yfinance (adj_close, close) on their common, strictly positive dates."""
-    j = pd.concat([stooq.rename("stooq"), px[["adj_close", "close"]]], axis=1, join="inner").dropna()
-    return j[(j > 0).all(axis=1)].sort_index()
-
-
-def year_identity(j: pd.DataFrame) -> pd.DataFrame:
-    """Per calendar year: is the reference the SAME security as the Stooq series?"""
-    lr = np.log(j).diff().dropna()
-    d = (lr["stooq"] - lr["adj_close"]).abs()
-    yrs = lr.index.year
-    med = d.groupby(yrs).median()
-    corr = lr.groupby(yrs).apply(
-        lambda g: float(np.corrcoef(g["stooq"], g["adj_close"])[0, 1]) if len(g) > 5
-        and g["stooq"].std() > 1e-12 and g["adj_close"].std() > 1e-12 else np.nan)
-    out = pd.DataFrame({"med_abs_d": med, "corr": corr, "n": d.groupby(yrs).size()})
-    out["valid"] = (out["med_abs_d"] <= IDENTITY_MED_ABS_D) | (out["corr"] >= IDENTITY_CORR)
-    out.index.name = "year"
-    return out
-
-
-def transient_offsets(d: np.ndarray) -> np.ndarray:
-    """Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
-
-    A jump d[a] (|d| > BLIP_MIN) that a later d[b], a < b ≤ a + BLIP_MAX_BARS, undoes to within
-    BLIP_REVERT_TOL of its size: bars a … b−1 carry the offset. Measured 2026-11-11 in raw Stooq
-    vs yfinance: 4,517 such offsets over 414 names since 1995 — 2008-05-07 (214 names), 2009-01-23
-    (162), 2011-03-21 (102), the 2013 month-ends (≈ 85 each), 2013-12-19 → 2014-01-03, 2015-03-12
-    — most the size of one quarterly dividend. A one-day-late adjustment is the 1-bar case."""
-    n = len(d)
-    a = np.flatnonzero(np.abs(d) > BLIP_MIN)
-    if n == 0 or len(a) == 0:
-        return np.zeros(n, dtype=bool)
-    k = np.arange(1, BLIP_MAX_BARS + 1)
-    b = a[:, None] + k[None, :]
-    inside = b < n
-    bc = np.minimum(b, n - 1)
-    da = d[a][:, None]
-    hit = inside & (np.abs(d[bc]) > BLIP_MIN) & (np.abs(da + d[bc]) < BLIP_REVERT_TOL * np.abs(da))
-    has = hit.any(axis=1)
-    starts = a[has]
-    ends = (a + 1 + np.argmax(hit, axis=1))[has]          # b = a + k[first hit]
-    edge = np.zeros(n + 1, dtype=int)
-    np.add.at(edge, starts, 1)
-    np.add.at(edge, ends, -1)
-    return np.cumsum(edge)[:n] > 0
-
-
-def probe_exdates(j: pd.DataFrame, divs: pd.Series, k_bars: int = PROBE_LEVEL_BARS) -> pd.DataFrame:
-    """The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
-    a LEVEL-SHIFT probe; v1's ex-day ± 1 sum was confused by Stooq's transient offsets).
-
-    Levels:  X(t) = Σ_{≤t}(Δlog adj − Δlog stooq)  — what Stooq lacks relative to the reference
-             Y(t) = Σ_{≤t}(Δlog adj − Δlog close)  — the dividends the reference applied
-    For ex-date e (mapped to the first common bar p ≥ e), with PRE = the last k CLEAN bars ≤ p−2 and
-    POST = the first k CLEAN bars ≥ p+1 (clean = outside a transient offset; the skipped bars make
-    it robust to a one-day-early or one-day-late adjustment):
-        x = median X(POST) − median X(PRE);  y = median Y(POST) − median Y(PRE);  m = x / y
-    m = 0: Stooq captured it; m = 1: Stooq missed it.
-    σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on clean non-event bars × √(span) / |y|,
-    span = the daily returns between the two nearest clean bars (+ 2(k−1)): 3 when no block is near."""
-    cols = ["ex_date", "day", "pos", "D", "P_prev", "log_f", "y_lvl", "x_lvl", "m", "sm", "confident",
-            "offset_bars_near"]
-    if divs is None or len(divs) == 0 or len(j) < 4 * k_bars + 4:
-        return pd.DataFrame(columns=cols)
-    lr = np.log(j).diff().fillna(0.0)
-    d = (lr["stooq"] - lr["adj_close"]).to_numpy()
-    offset = transient_offsets(d)
-    lvl_x = np.cumsum(lr["adj_close"].to_numpy() - lr["stooq"].to_numpy())
-    lvl_y = np.cumsum(lr["adj_close"].to_numpy() - lr["close"].to_numpy())
-    pos = j.index.searchsorted(divs.index, side="left")
-    clean_pos = np.flatnonzero(~offset)
-    kp = clean_pos.searchsorted(pos - 1, side="left")      # clean bars < p−1 are clean_pos[:kp]
-    kq = clean_pos.searchsorted(pos + 1, side="left")      # clean bars ≥ p+1 start at clean_pos[kq]
-    ok = (pos >= 2) & (pos < len(j)) & (kp >= k_bars) & (kq + k_bars <= len(clean_pos))
-    pos, dv, kp, kq = pos[ok], divs[ok], kp[ok], kq[ok]
-    if len(pos) == 0:
-        return pd.DataFrame(columns=cols)
-    ar = np.arange(k_bars)
-    pre_idx = clean_pos[kp[:, None] - k_bars + ar[None, :]]
-    post_idx = clean_pos[kq[:, None] + ar[None, :]]
-    x_lvl = np.median(lvl_x[post_idx], axis=1) - np.median(lvl_x[pre_idx], axis=1)
-    y_lvl = np.median(lvl_y[post_idx], axis=1) - np.median(lvl_y[pre_idx], axis=1)
-    event = np.zeros(len(j), dtype=bool)
-    for k in (-1, 0, 1):                                   # three fixed offsets, not a data loop
-        event[np.clip(pos + k, 0, len(j) - 1)] = True
-    d_abs = pd.Series(np.abs(d)).where(~event & ~offset)
-    sig = (d_abs.rolling(NOISE_WINDOW, center=True, min_periods=30).median() * 1.4826).to_numpy()[pos]
-    near = pd.Series(offset.astype(int)).rolling(2 * k_bars + 5, center=True, min_periods=1).sum().to_numpy()[pos]
-    p_prev = j["close"].to_numpy()[pos - 1]
-    frac = np.minimum(dv.to_numpy() / p_prev, MAX_DIV_FRACTION)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        m = np.where(np.abs(y_lvl) > 1e-12, x_lvl / y_lvl, np.nan)
-        span = (post_idx[:, 0] - pre_idx[:, -1]) + 2 * (k_bars - 1)
-        sm = np.where(np.abs(y_lvl) > 1e-12, sig * np.sqrt(span) / np.abs(y_lvl), np.inf)
-    sm = np.where(np.isfinite(sm), sm, np.inf)
-    return pd.DataFrame({
-        "ex_date": dv.index, "day": j.index[pos], "pos": pos, "D": dv.to_numpy(), "P_prev": p_prev,
-        "log_f": np.log1p(-frac), "y_lvl": y_lvl, "x_lvl": x_lvl, "m": m, "sm": sm,
-        "confident": np.isfinite(m) & (sm <= CONFIDENT_SM), "offset_bars_near": near.astype(int)})
-
-
-def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
-    """missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
-    (both agree, or the one present lies in the same global block); otherwise the global rule."""
-    out = probe.copy()
-    if out.empty:
-        out["missed"] = pd.Series(dtype=bool)
-        out["label_source"] = pd.Series(dtype=object)
-        return out
-    out = out.sort_values("day").reset_index(drop=True)
-    days = pd.DatetimeIndex(out["day"])
-    blk = global_block(days)
-    conf = out["confident"].to_numpy(dtype=bool)
-    lab = np.where(conf, (out["m"].to_numpy() >= MISSED_M).astype(float), np.nan)
-    lab_s = pd.Series(lab)
-    blk_conf = pd.Series(np.where(conf, blk, np.nan))
-    prev_l, next_l = lab_s.ffill().to_numpy(), lab_s.bfill().to_numpy()
-    prev_b, next_b = blk_conf.ffill().to_numpy(), blk_conf.bfill().to_numpy()
-    glob = global_missed(days).astype(float)
-    both = ~np.isnan(prev_l) & ~np.isnan(next_l)
-    agree = both & (prev_l == next_l)
-    only_prev = ~np.isnan(prev_l) & np.isnan(next_l) & (prev_b == blk)
-    only_next = np.isnan(prev_l) & ~np.isnan(next_l) & (next_b == blk)
-    final = np.select([conf, agree, only_prev, only_next], [lab, prev_l, prev_l, next_l], default=glob)
-    source = np.select([conf, agree, only_prev | only_next], ["measured", "neighbours", "neighbour_same_block"],
-                       default="global")
-    out["missed"] = final.astype(bool)
-    out["label_source"] = source
-    return out
-
-
-def missed_log_factor(dates: pd.DatetimeIndex, ex_days: pd.DatetimeIndex, log_f: np.ndarray) -> np.ndarray:
-    """Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
-    Stooq calendar `dates` (an ex-date that is not a bar lands on the next bar). Ex-dates after the
-    last date contribute to every bar."""
-    pos = dates.searchsorted(ex_days, side="left")
-    acc = np.zeros(len(dates) + 1)
-    np.add.at(acc, pos, log_f)
-    total = acc.sum()
-    # bar i is scaled by every event at a position > i
-    return total - np.cumsum(acc)[: len(dates)]
 
 
 def approx_log_factor(dates: pd.DatetimeIndex, mask: np.ndarray, yield_by_year: pd.Series) -> np.ndarray:
@@ -465,240 +262,15 @@ def approx_log_factor(dates: pd.DatetimeIndex, mask: np.ndarray, yield_by_year: 
 # Per-name reference analysis (probe → labels → reference coverage)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@dataclass
-class NameReference:
-    """What the yfinance reference says about one name's Stooq series."""
-    ticker: str
-    status: str                                   # "reference" | "no_prices" | "no_overlap"
-    labels: pd.DataFrame                          # labelled ex-dates (reference years only)
-    valid_years: List[int] = field(default_factory=list)
-    invalid_years: List[int] = field(default_factory=list)
-    ref_first: Optional[pd.Timestamp] = None      # first common Stooq∩yf day
-    yearly_yield: Optional[pd.Series] = None      # log(TR/PR) per valid calendar year
-
-    def covered(self, dates: pd.DatetimeIndex) -> np.ndarray:
-        """Bars whose year has a valid same-security reference — plus (amendment A3) a stub of at
-        most PRE_REFERENCE_STUB_DAYS before the reference's first bar: a vendor IPO / relisting date
-        offset (BLDR, LYV, TDC by days; CHTR's 2009-12 relisting by 34 days), not a missing source."""
-        if self.status != "reference" or self.ref_first is None:
-            return np.zeros(len(dates), dtype=bool)
-        stub = (dates < self.ref_first) & (dates >= self.ref_first - pd.Timedelta(days=PRE_REFERENCE_STUB_DAYS))
-        return ((dates >= self.ref_first) & np.isin(dates.year, self.valid_years)) | stub
-
-
-def analyse_reference(ticker: str, stooq_full: pd.Series, px: Optional[pd.DataFrame],
-                      divs: Optional[pd.Series], until: pd.Timestamp) -> NameReference:
-    """Probe every reference ex-date up to `until` (the seam) and label it."""
-    if px is None or divs is None:
-        return NameReference(ticker, "no_prices", label_exdates(probe_exdates(pd.DataFrame(), None)))
-    j = align_reference(stooq_full, px)
-    if len(j) < 2 * NOISE_WINDOW:
-        return NameReference(ticker, "no_overlap", label_exdates(probe_exdates(pd.DataFrame(), None)))
-    ident = year_identity(j)
-    valid = sorted(int(y) for y in ident.index[ident["valid"]])
-    invalid = sorted(int(y) for y in ident.index[~ident["valid"]])
-    divs = pd.Series(divs.to_numpy(dtype=float), index=_naive_day_index(divs.index)).sort_index()
-    d_in = divs[(divs.index <= until) & (divs.index >= j.index[0])]
-    probe = probe_exdates(j, d_in)
-    if not probe.empty:
-        probe = probe[np.isin(pd.DatetimeIndex(probe["day"]).year, valid)]
-        probe = probe[pd.DatetimeIndex(probe["day"]) <= until]
-    labels = label_exdates(probe)
-    lr = np.log(j[["adj_close", "close"]]).diff().dropna()
-    grp = (lr["adj_close"] - lr["close"]).groupby(lr.index.year)
-    yy, n_y = grp.sum(), grp.size()
-    yy = yy[yy.index.isin(valid) & (n_y >= FULL_YEAR_BARS)]   # full years only, for the medians
-    return NameReference(ticker, "reference", labels, valid, invalid, j.index[0], yy)
-
-
-def era_runs(labels: pd.DataFrame) -> List[dict]:
-    """Contiguous runs of MISSED ex-dates (the name's measured missed eras), for the record."""
-    if labels.empty:
-        return []
-    lab = labels.sort_values("day")
-    flag = lab["missed"].to_numpy(dtype=bool)
-    run_id = np.cumsum(np.r_[True, flag[1:] != flag[:-1]])
-    runs = []
-    for rid in np.unique(run_id[flag]):
-        sel = lab[run_id == rid]
-        runs.append({"first": str(pd.Timestamp(sel["day"].iloc[0]).date()),
-                     "last": str(pd.Timestamp(sel["day"].iloc[-1]).date()), "n": int(len(sel)),
-                     "n_measured": int((sel["label_source"] == "measured").sum())})
-    return runs
+# NameReference, analyse_reference and era_runs: `engines/data_manager/era_tr.py` (imported above).
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # The per-file candidate
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class CandidateRefusal(RuntimeError):
-    """The candidate will not write this file: a load-bearing check failed (fail closed)."""
-
-
-def _load_merge_module():
-    spec = importlib.util.spec_from_file_location(
-        "_t082b_merge", REPO / "scripts" / "merge_stooq_alpaca_substrate.py")
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)   # top level: imports + constants only (main() never called)
-    return mod
-
-
-_RECOMPUTE: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None
-
-
-def recompute_derived(df: pd.DataFrame) -> pd.DataFrame:
-    """ATR(14) + PrevClose exactly as the T-082b merge computed them (its own function)."""
-    global _RECOMPUTE
-    if _RECOMPUTE is None:
-        _RECOMPUTE = _load_merge_module()._recompute_derived
-    return _RECOMPUTE(df)
-
-
-@dataclass
-class BuildResult:
-    ticker: str
-    text: str
-    frame: pd.DataFrame
-    record: dict
-
-
-def mask_runs(dates: pd.DatetimeIndex, mask: np.ndarray) -> List[List[str]]:
-    """Contiguous runs of True in `mask`, as [first date, last date] pairs (for the record)."""
-    if not mask.any():
-        return []
-    m = mask.astype(int)
-    edges = np.diff(np.r_[0, m, 0])
-    starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1) - 1
-    return [[str(dates[a].date()), str(dates[b].date())] for a, b in zip(starts, ends)]
-
-
-def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List[str],
-               cache_df: pd.DataFrame, stooq_raw: pd.Series, ref: NameReference) -> BuildResult:
-    """Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written.
-
-    v4: a bar with no same-security payer reference is NEVER moved off raw Stooq — not even inside a
-    global missed era. It is LABELLED instead (`unverified_missed_era_spans`, with the bias
-    direction), because no citable source establishes whether the name paid at all."""
-    expected_header = "Date,Open,High,Low,Close,Volume,ATR,PrevClose"
-    if cache_header != expected_header:
-        raise CandidateRefusal(f"{ticker}: unexpected header {cache_header!r}")
-    if len(cache_lines) != len(cache_df):
-        raise CandidateRefusal(f"{ticker}: text rows {len(cache_lines)} != parsed rows {len(cache_df)}")
-    seam = pd.Timestamp(meta_rec["seam_date"])
-    b = float(meta_rec.get("fit_slope_per_day") or 0.0)
-    dates = pd.DatetimeIndex(cache_df["Date"])
-    pre = dates < seam
-    n_pre = int(pre.sum())
-    if n_pre != int(meta_rec.get("n_stooq_pre_seam") or -1):
-        raise CandidateRefusal(f"{ticker}: {n_pre} pre-seam bars != merge record {meta_rec.get('n_stooq_pre_seam')}")
-    if n_pre == 0 or n_pre == len(cache_df) or dates[n_pre] != seam:
-        raise CandidateRefusal(f"{ticker}: the seam bar {seam.date()} is not the first post-seam row")
-    pre_dates = dates[:n_pre]
-    dt = (pre_dates - seam).days.to_numpy(dtype=float)
-    undrift = np.exp(-b * dt)
-    s_pre = cache_df["Close"].to_numpy()[:n_pre] * undrift
-
-    # 1. the de-drifted cache IS the Stooq series the merge read (to the float floor), or refuse
-    raw_on_pre = stooq_raw.reindex(pre_dates)
-    if raw_on_pre.isna().any():
-        raise CandidateRefusal(f"{ticker}: {int(raw_on_pre.isna().sum())} pre-seam bars absent from raw Stooq")
-    log_lam = np.log(s_pre / raw_on_pre.to_numpy())
-    if float(log_lam.max() - log_lam.min()) > 1e-9:
-        raise CandidateRefusal(f"{ticker}: de-drifted cache is not proportional to raw Stooq "
-                               f"(log-ratio range {float(log_lam.max() - log_lam.min()):.2e})")
-    lam = float(np.exp(np.median(log_lam)))
-
-    # 2. the dividends Stooq missed (measured labels) — up to and including the seam day
-    covered = ref.covered(pre_dates)
-    lab = ref.labels
-    add = lab[lab["missed"]] if not lab.empty else lab
-    log_m = (missed_log_factor(pre_dates.append(pd.DatetimeIndex([seam])),
-                               pd.DatetimeIndex(add["day"]), add["log_f"].to_numpy())[:n_pre]
-             if len(add) else np.zeros(n_pre))
-    # 3. v4: NO approximation. A no-reference bar in a missed era stays raw Stooq and is LABELLED:
-    #    if the name paid, those spans under-count by its (unknown) yield; if it did not, they are exact.
-    unverified_missed = (~covered) & global_missed(pre_dates)
-    log_a = np.zeros(n_pre)
-
-    # 4. ONE constant at the seam: the Stooq seam-day return is kept
-    c_seam = float(cache_df["Close"].iloc[n_pre])
-    base = s_pre * np.exp(log_m + log_a)
-    if seam in stooq_raw.index:
-        k = c_seam / (lam * float(stooq_raw.loc[seam]))
-        splice = "stooq_seam_return"
-    else:
-        k = float(cache_df["Close"].iloc[n_pre - 1]) / float(base[-1])
-        splice = "cache_seam_return_kept (raw Stooq has no seam bar)"
-    factor = undrift * np.exp(log_m + log_a) * k
-
-    out = cache_df[["Date"] + OHLC + ["Volume"]].copy()
-    for col in OHLC:
-        vals = out[col].to_numpy(dtype=float).copy()
-        vals[:n_pre] = vals[:n_pre] * factor
-        out[col] = vals
-    out = recompute_derived(out)
-    # post-seam derived fields beyond the seam's reach are the cache's own values (text-identical)
-    keep_atr = np.arange(len(out)) >= n_pre + SEAM_TEXT_ROWS
-    out.loc[keep_atr, "ATR"] = cache_df.loc[keep_atr, "ATR"].to_numpy()
-    keep_prev = np.arange(len(out)) > n_pre
-    out.loc[keep_prev, "PrevClose"] = cache_df.loc[keep_prev, "PrevClose"].to_numpy()
-    text = out.to_csv(index=False, date_format="%Y-%m-%d")
-
-    # 5. post-seam bytes: OHLCV identical on every post-seam row; ATR from seam+14; PrevClose from seam+1
-    new_lines = text.split("\n")[1:-1]
-    if len(new_lines) != len(cache_lines):
-        raise CandidateRefusal(f"{ticker}: row count changed")
-    n_post = len(cache_lines) - n_pre
-    for i in range(n_pre, len(cache_lines)):
-        a, c = new_lines[i].split(","), cache_lines[i].split(",")
-        if a[:6] != c[:6]:
-            raise CandidateRefusal(f"{ticker}: post-seam row {i} OHLCV text differs: {a[:6]} vs {c[:6]}")
-        if i >= n_pre + SEAM_TEXT_ROWS and a[6] != c[6]:
-            raise CandidateRefusal(f"{ticker}: post-seam row {i} ATR text differs")
-        if i > n_pre and a[7] != c[7]:
-            raise CandidateRefusal(f"{ticker}: post-seam row {i} PrevClose text differs")
-    for i in range(n_pre):
-        a, c = new_lines[i].split(","), cache_lines[i].split(",")
-        if a[0] != c[0] or a[5] != c[5]:
-            raise CandidateRefusal(f"{ticker}: pre-seam row {i} Date/Volume text differs")
-
-    new_close = out["Close"].to_numpy()
-    seam_ret_old = c_seam / float(cache_df["Close"].iloc[n_pre - 1]) - 1.0
-    seam_ret_new = c_seam / float(new_close[n_pre - 1]) - 1.0
-    src_counts = (add["label_source"].value_counts().to_dict() if len(add) else {})
-    n_lab = int(len(lab))
-    exceptions = 0
-    if n_lab:
-        g = global_missed(pd.DatetimeIndex(lab["day"]))
-        exceptions = int(((lab["label_source"] == "measured") & (lab["missed"].to_numpy() != g)).sum())
-    unverified = (~covered) & (pre_dates < GLOBAL_MISSED_ERAS[0][0])
-    record = {
-        "ticker": ticker, "seam": str(seam.date()), "b_per_day": b,
-        "b_pct_per_year": b * 365.25 * 100, "n_pre": n_pre, "n_post": n_post,
-        "first_bar": str(pre_dates[0].date()), "lambda_raw": lam, "k_splice": k, "splice": splice,
-        "seam_ret_cache": seam_ret_old, "seam_ret_candidate": seam_ret_new,
-        "reference": ref.status, "ref_first": str(ref.ref_first.date()) if ref.ref_first is not None else None,
-        "invalid_years": ref.invalid_years,
-        "covered_bars": int(covered.sum()),
-        "n_div_labelled": n_lab, "n_div_added": int(len(add)),
-        "added_by_source": {str(k_): int(v) for k_, v in src_counts.items()},
-        "n_measured": int((lab["label_source"] == "measured").sum()) if n_lab else 0,
-        "measured_exceptions_to_global": exceptions,
-        "missed_runs": era_runs(lab),
-        "approx_bars": 0, "approx_years": [],          # v4: the approximation is never applied
-        "unverified_missed_era_bars": int(unverified_missed.sum()),
-        "unverified_missed_era_spans": mask_runs(pre_dates, unverified_missed),
-        "unverified_missed_era_bias": ("raw Stooq kept: UNDER-counts by the name's dividend yield over these "
-                                       "spans IF it paid; exact if it did not (payer status not established)"
-                                       if unverified_missed.any() else None),
-        "unverified_pre2003_bars": int(unverified.sum()),
-        "unverified_pre2003_span": ([str(pre_dates[unverified][0].date()), str(pre_dates[unverified][-1].date())]
-                                    if unverified.any() else None),
-        "log_added_total": float(log_m[0] + log_a[0]) if n_pre else 0.0,
-        "post_seam_derived_rows_changed": int(min(SEAM_TEXT_ROWS, n_post)),
-    }
-    return BuildResult(ticker, text, out, record)
+# CandidateRefusal (= era_tr.EraTrRefusal), recompute_derived, BuildResult, mask_runs and build_file:
+# `engines/data_manager/era_tr.py` (imported above) — the cutover writer calls the same build_file.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -724,19 +296,12 @@ def xs_median_yield(refs: Dict[str, NameReference]) -> pd.Series:
 
 
 def write_pair(out_dir: Path, ticker: str, text: str) -> Tuple[Path, Path]:
-    """csv (the text, verbatim) + parquet (parsed from that text), mirroring the cache layout."""
-    import io
+    """csv (the text, verbatim) + parquet (parsed from that text), mirroring the cache layout —
+    through the cutover writer's own atomic text pair (T-387: one writer of the (a′) bytes)."""
     # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     csv_p = out_dir / f"{ticker}_1d.csv"
     pq_p = out_dir / "parquet" / f"{ticker}_1d.parquet"
-    pq_p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = csv_p.with_suffix(".csv.tmp")
-    with open(tmp, "w", newline="") as fh:
-        fh.write(text)
-    df = pd.read_csv(io.StringIO(text), float_precision="round_trip")
-    df["Date"] = pd.to_datetime(df["Date"]).astype("datetime64[us]")
-    df.set_index("Date").to_parquet(pq_p)
-    os.replace(tmp, csv_p)
+    write_text_pair_atomically(text, _et.frame_from_text(text), pq_p, csv_p)
     return csv_p, pq_p
 
 
@@ -753,7 +318,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     refs: Dict[str, NameReference] = {}
     for t in targets:    # pass 1: every reference (v4: no cross-sectional median is needed)
         if t not in raw_idx:
-            refs[t] = NameReference(t, "no_raw_stooq", label_exdates(probe_exdates(pd.DataFrame(), None)))
+            refs[t] = NameReference(t, "no_raw_stooq", _et.empty_labels())
             continue
         px, dv = read_yf(t, ydir)
         refs[t] = analyse_reference(t, read_raw_stooq(raw_idx[t]), px, dv, pd.Timestamp(meta[t]["seam_date"]))
@@ -814,7 +379,7 @@ YF_MEDIAN_PP = 0.05
 YF_P95_PP = 0.30
 YF_MIN_NAMES = 100
 NONPAYER_TOL_PP = 1e-6
-STEP_TOL = 1e-10      # |daily log-return difference vs raw Stooq| below this is float noise (v4 audit)
+# STEP_TOL (1e-10, the v4 step audit's float floor) is the shared constant, imported above.
 
 
 def yearly_periods(a: pd.Series, b: pd.Series) -> pd.DataFrame:
