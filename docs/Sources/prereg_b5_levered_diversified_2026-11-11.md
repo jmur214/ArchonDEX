@@ -813,3 +813,39 @@ The XML is parsed by streaming, without loading the whole file, to stay inside t
 **Unchanged:** SOFR (NY Fed Markets API; the halted attempt's copy parses at 1,936 rows, 2018-04-02 →
 2025-12-31, but it is re-fetched inside the new staged attempt). Also unchanged: yfinance, the AQR
 copy, the staged-then-renamed snapshot, and every downstream term.
+
+### A2.2 Operational note — 2026-11-11 21:25 CT: a parser defect voided the first validation output (recorded BEFORE the validation re-run; alters NO gate, threshold, arm or window)
+
+**What the first `validate` run showed, and why it is VOID.** SSO, UPRO and TMF failed G1 (TD −149,
+−282 and −259 bp/yr). Read-only diagnosis
+(`scratchpad b5_val_diag.py`: by-year TD, worst days, adjustment-factor steps) traced the largest
+daily misses to the same dates across two issuers, 2011-11-14 and 2016-11-14. Each is the Monday after
+Veterans Day, a day the bond market is closed and the stock market open.
+
+The H.15 SDMX encodes no-data days as `OBS_STATUS="ND" OBS_VALUE="-9999"`. My parser kept the numeric
+`-9999` as a rate. **809 holiday rows became −99.99 %**, and every synthetic accrued a large negative
+financing charge across those holidays.
+
+The amendment-2 misidentification guard did not see it: it joins on dates common with FRED DGS3MO,
+which has no row on those holidays. The raw snapshot bytes are correct, and the manifest md5s are
+unchanged. Only the parse was wrong. **That first output is void.** It is kept, renamed and not
+deleted, as `data/research/b5/validation_VOID_sdmx_ND_sentinel.json`.
+
+**The fixes (each restores a rule already declared, or adds a HALT-only check).**
+1. **`parse_h15_sdmx_zip` keeps only observations with `OBS_STATUS="A"`.** This is the faithful form
+   of A2.1's "non-numeric values are dropped, never filled": in this format "no data" is a status
+   flag, not a non-numeric string.
+   - The manifest's H.15 `rows: 19006` field was written by the defective parse. It counts the 809
+     ND sentinels. The corrected count is recorded in `validation.json` and the run census. The
+     manifest itself is left as written (fetch once).
+2. **New HALT-only input-validity check.** Every bill and SOFR value used must lie in [−1 %, +25 %]
+   per year. It cannot tune anything; it would have caught this defect.
+3. **Implied-spread sign.** §8 printed `s* = 50 bp + TD/(L−1)`. The algebra gives
+   **`s* = 50 bp − TD/(L−1)`**: a live product that lags its synthetic (TD < 0) is paying a HIGHER
+   spread.
+   - The G1 gate (|TD| ≤ 100 bp × (L−1), symmetric) is unchanged, and so is its equivalent band of
+     s* ∈ [−50, +150] bp.
+   - Only the reported s* diagnostic flips sign.
+
+**Then `validate` re-runs once on the unchanged snapshot.** Its verdict stands whatever it is: a gating
+failure still halts exactly as frozen.
