@@ -4,7 +4,7 @@ title: Pre-registration — Lazy Prices on a repaired 10-K + 10-Q text panel, S&
 date: 2026-11-11
 worker: ml-architect subagent (in-session, director-dispatched with the user's go-ahead; SEC User-Agent and the Loughran-McDonald download approved by the user 2026-11-11)
 branch: research/lazy-prices-repair-b6
-status: DRAFT — NOT freezable yet: the fetch HALTED on the 15 GB disk floor at 12.5% of S&P member-months (§4.0; ruling R8). Awaiting the director's rulings (§13). Phase 1 is TEXT ONLY. NO forward return, price, portfolio or benchmark return has been computed or read. The census in §3–§4 counts filings, sections and price FILES (existence only).
+status: DRAFT — NOT freezable yet. The S&P fetch halted on the 15 GB disk floor at 12.5% of member-months (§4.0) and was RESUMED 2026-11-12 on the director's word with a 10 GB floor; the small-cap stream is HELD (R8). The director rules R1–R9 at freeze, with the full-panel census; preliminary reads (2026-11-11) accept R1 option (d), R2, R3 and R6 in principle. Awaiting the director's rulings (§13). Phase 1 is TEXT ONLY. NO forward return, price, portfolio or benchmark return has been computed or read. The census in §3–§4 counts filings, sections and price FILES (existence only).
 N_trials: +2 at the run (S&P arm; T-265 arm) — §9
 ---
 
@@ -241,9 +241,14 @@ Far too few CIKs for any coverage claim about the small-cap arm.
   between a one-liner and the full list), the 10-Q combo reported as a diagnostic.
 - **Pairing (PIT).** Same CIK, same form, prior accepted strictly earlier. 10-K: the prior 10-K whose
   period end is 9–15 months earlier. 10-Q (PRIMARY): the 10-Q for the same fiscal quarter a year
-  earlier (period end 350–380 days earlier) — CMN's seasonality-controlled comparison as I read it
-  (ruling R2 asks the director to confirm or switch before freeze; both are already computed). 10-Q
-  (diagnostic): the adjacent prior 10-Q (60–200 days).
+  earlier (period end 350–380 days earlier) — CMN's seasonality-controlled comparison. **Source,
+  stated honestly:** Cohen, Malloy and Nguyen, "Lazy Prices", *Journal of Finance* 75(3), 2020,
+  pp. 1371–1415 — the data/similarity-measure section, where (as I recall it) each quarterly filing is
+  compared with the same fiscal quarter of the prior year to remove the seasonality of 10-Q content.
+  **This is from memory and NOT verified against the text in this session** (no approved access to the
+  paper); the section and page must be checked against the published article before freeze. The
+  director accepted this pairing in principle (2026-11-11, R2). 10-Q (diagnostic): the adjacent prior
+  10-Q (60–200 days). Both are computed.
 - **Signal 1 — similarity (PRIMARY).** Cosine similarity of term-frequency vectors (CMN Sim_Cosine),
   lower-case alphabetic tokens ≥ 2 letters, sklearn's 318 English stop words removed. Jaccard (word
   sets) and T-237's per-pair sublinear TF-IDF cosine are reported, never gated.
@@ -344,6 +349,11 @@ MDE80 = 2.80 × SE (two-sided 5%, 80% power); the Bonferroni level of §7.4 rais
 | **T-265 long-leg satellite**, 10.0 yr | TE (in-band small-cap tercile EW vs SPY TR) **14%**/yr (10–18%) | **+0.310 total ≈ +3.1%/yr on the blend ≈ the long leg beating SPY TR by ~12.4%/yr** | +0.341 (≈ 13.6%/yr) | long leg +8.9 to +16%/yr |
 | **S&P short-leg t_HAC** (monthly EW universe − EW changers) | σ(spread) **3.5%**/yr (2.5–5%) | **t = 2 at +2.2%/yr; MDE80 +3.1%/yr** | — | t = 2 at +1.6 to +3.2%/yr |
 | **T-265 short-leg t_HAC** | σ(spread) **6%**/yr (4–8%) | **t = 2 at +3.8%/yr; MDE80 +5.3%/yr** | — | t = 2 at +2.5 to +5.1%/yr |
+
+**Stated plainly, as the director asked: the SHORT-LEG diagnostic is the most informative statistic
+B-6 produces, and the long-leg gates can only detect effects far above anything the literature
+reports.** A long-leg null therefore says little; a short-leg t_HAC is where the evidence is — and it
+enters only the refutation clause, never H1.
 
 **What this means, plainly.** The long-leg gates detect only a long leg that beats SPY by 5%/yr (S&P)
 or 12%/yr (small caps). CMN place the effect mostly in the SHORT leg (changers underperform); the
