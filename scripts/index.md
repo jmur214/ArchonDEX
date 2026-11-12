@@ -1987,6 +1987,7 @@
 
 ### `tilt_decision_measure_t318_t320.py`
 **Module Docstring:** T-318 + T-320 — the tilt DECISION measurements (frozen pre-regs; N += 2, one per family).
+- **Class `B9Halt`**: A fail-closed census/validation failure: no results file is written ([NN-FAIL-CLOSED]).
 - **Function `ff_factor()`**: A single FF factor/portfolio column, monthly decimal returns.
 - **Function `load_legs()`**: All legs, monthly, TOTAL return (market = MktRF + RF).
 - **Function `nasdaq_monthly()`**: ^IXIC monthly TR proxy (price index — dividends light for a growth index; named caveat).
@@ -1995,6 +1996,9 @@
 - **Function `rolling_win_and_ci()`**: Fraction of rolling-40yr windows the blend wins + block-bootstrap log-wealth CI.
 - **Function `report_arm()`**: No docstring
 - **Function `main()`**: No docstring
+- **Function `b9_snapshot()`**: ONE-TIME input snapshot (prereg §3.2 Option A, §16). Refuses to overwrite an existing one.
+- **Function `b9_simulate()`**: Annual-rebalance portfolio (§5). Holdings drift monthly; at each December close that is not
+- **Function `b9_run()`**: No docstring
 
 ### `train_gate.py`
 - **Function `train_gate_model()`**: Train the SignalGate model using harvested data.
