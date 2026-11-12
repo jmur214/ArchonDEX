@@ -582,7 +582,7 @@ python -c "from core.measurement.mbl_gate import compute_n_effective_correlated 
 
 ---
 
-## §19 DIRECTOR RULING 2026-11-11 — CLOSED WITHOUT RUNNING (N_trials 0)
+## §20 DIRECTOR RULING 2026-11-11 — CLOSED WITHOUT RUNNING (N_trials 0)
 
 **The director ruled on the Phase 1 draft (`54d0104`): B-8 is CLOSED WITHOUT RUNNING.** This section is
 appended. Nothing above it was changed except the frontmatter `status:` line, which the ruling asked for.
