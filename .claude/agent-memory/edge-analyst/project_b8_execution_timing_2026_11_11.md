@@ -1,19 +1,30 @@
 ---
 name: project-b8-execution-timing-2026-11-11
-description: B-8 (T-386) execution-timing prereg 54d0104 — Phase 1 STOP awaiting 7 rulings; the fleet journal has NO open/close fills (all ~09:51 ET market DAY); deployed system is a daily band-checker, not monthly
+description: B-8 (T-386) execution timing CLOSED WITHOUT RUNNING by director ruling 2026-11-11 (N_trials 0) — power analysis settled it; durable census facts: fleet journal has NO open/close fills, deploy candidate is a daily band-checker with no MOC path
 metadata:
   type: project
 ---
 
-B-8 (T-386) prereg `docs/Sources/prereg_b8_execution_timing_2026-11-11.md` was committed at `54d0104` on `research/execution-timing-b8`, 2026-11-11. It is a DRAFT. Seven rulings were requested (§18), and no returns have been computed. Prior P(H1) ≈ 4%; prediction: REFUTED.
+B-8 (T-386) was **closed without running** on 2026-11-11, with N_trials 0.
+- **Record:** the prereg `docs/Sources/prereg_b8_execution_timing_2026-11-11.md`. The draft is at `54d0104`; the director-ruling section was appended in the follow-up commit.
+- **Verdict:** "execution timing is noise at this turnover — closed by power analysis, not by measurement".
+- **Nothing ran:** no price was fetched and no return was computed.
 
-**Durable facts found by reading the artifacts:**
-- **Account 2's journal is the only fill record, and it has no open or close fill.** It lives at `s3://archondex-results-407539788432/paper_state_offense_sso/data/{paper_state/orders.jsonl, state/exec_cost_ledger.jsonl}`. All 12 fills are market DAY orders at ≈ 09:51 ET. So realized open-vs-close slippage can never come from the fleet as it is configured.
-- **Pre-void costs:** 10 fills ≤ 2026-11-04 (VOO 1.65 bps, MTUM 0.00, SGOV 0–0.99 bps). Notional-weighted 1.33 bps.
+**Why it closed.** Pre-data arithmetic settled it:
+- the MDE is ≈ 0.9 bps/yr after Holm, against a plausible effect of ≤ 0.3 bps/yr;
+- a perfect-hindsight ceiling is ≈ 2–5 bps/yr at ≈ 6.4%/yr turnover.
+
+The director ruled that spending an honest-N trial on an arithmetic-settled question raises the bar for every later test.
+
+**Durable facts (read from the artifacts):**
+- **The fleet journal has no open or close fills.** Account 2's journal at `s3://archondex-results-407539788432/paper_state_offense_sso/data/{paper_state/orders.jsonl, state/exec_cost_ledger.jsonl}` holds 12 fills, all market DAY at ≈ 09:51 ET. The 10 fills ≤ 2026-11-04 cost 1.33 bps notional-weighted and 0.61 bps simple mean.
 - **VOO and MTUM never traded after the 2026-09-15 arrival.** The bands did not bind in 36 sessions.
-- **The deploy candidate is not a monthly rebalancer.** It is a DAILY band check at 09:50 ET (`cron(50 9 ...)`). The driver accepts TIF day|opg only, so no MOC path exists. Contributions land on the 11th.
-- **Local Stooq raw** (`data/raw/stooq/daily/us/nyse etfs/`) has SPY 2005+, VOO 2010+, MTUM 2013+ and SGOV 2020+, all back-adjusted. It is usable as an Open-field validator (the intraday ratio), not as a return source.
+- **The deploy candidate is a daily band check at 09:50 ET**, not a monthly rebalancer. The driver accepts TIF day|opg only, so there is no MOC path. Contributions land on the 11th.
+- **Local Stooq raw** (`data/raw/stooq/daily/us/nyse etfs/`) is usable as an Open-field validator (the intraday ratio), never as a return source.
 
-**Why:** the user's go-ahead for the frontier program. B-8 is the cheap Route-J closure.
+**How to apply:**
+- Do not re-propose execution or turn-of-month timing for this book.
+- Re-open only if (a) an MOC/LOC order path exists, in which case measure its realized cost first, or (b) turnover rises roughly 10× (≳ 60% of the book per year). Re-run the turnover arithmetic first.
+- **Lesson:** when the pre-data MDE arithmetic settles a question, propose closure without running. That keeps the honest-N count down.
 
-**How to apply:** check the director's rulings (an amendment appended to the prereg) before Phase 2. If REFUTED, do not re-propose execution timing for this book unless flows grow by roughly 100× relative to the book. See [[feedback-held-book-timing-trap]].
+See [[feedback-held-book-timing-trap]].

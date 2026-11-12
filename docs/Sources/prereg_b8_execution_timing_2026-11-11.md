@@ -4,7 +4,7 @@ title: Pre-registration — execution timing for the monthly 85/15 VOO/MTUM reba
 date: 2026-11-11
 worker: edge-analyst (worktree agent-a387580a4ac70b709)
 branch: research/execution-timing-b8
-status: DRAFT — Phase 1 STOP. A read-only input census is done (the S3 fill journal, the local files, the honest-N read). NO price was fetched and NO cell, leg or portfolio return has been computed. Awaiting the director's acknowledgment and the rulings in §18. N_trials consumed on acknowledgment: +1.
+status: CLOSED — not run (power analysis)
 ---
 
 # B-8 — does WHEN the monthly rebalancer trades change terminal wealth by more than it costs?
@@ -579,3 +579,78 @@ md5 -q config/deploy_candidate.json paper_trader/deploy_candidate_constructor.py
 # §12 honest N, read-only
 python -c "from core.measurement.mbl_gate import compute_n_effective_correlated as f; print(f(method='conservative'), f(method='equicorr'), f(method='onc'))"
 ```
+
+---
+
+## §19 DIRECTOR RULING 2026-11-11 — CLOSED WITHOUT RUNNING (N_trials 0)
+
+**The director ruled on the Phase 1 draft (`54d0104`): B-8 is CLOSED WITHOUT RUNNING.** This section is
+appended. Nothing above it was changed except the frontmatter `status:` line, which the ruling asked for.
+
+### The ruling
+
+**Verdict: "execution timing is noise at this turnover — closed by power analysis, not by measurement."**
+
+- **No price was fetched.** No snapshot exists.
+- **No return was computed.** That covers instrument, leg, cell, portfolio and differential returns.
+- **N_trials consumed: 0.** Spending an honest-N trial on a question that arithmetic already settles would
+  raise the bar for every later test and buy nothing. The honest-N count stays where B-10 left it: the gate's
+  N_raw 231 / N_eff 36.92; the hand count ≥ 282 (≈ 289 if the July T-306 series is outside the 267).
+- **The seven rulings requested in §18 are moot.**
+
+### The arithmetic that closes it (from §11; literature assumptions, no data)
+
+| quantity | value |
+|---|---|
+| turnover: the monthly drift trade of the 85/15 at an MTUM−VOO tracking error of ≈ 9%/yr | ≈ 0.27% of the book per leg per month (RMS 0.33%), ≈ **6.4% of the book per year**; cost drag ≈ 0.07 bps/yr at 1.02 bps per side |
+| MDE (80% power, Holm first step, 12.67 years) | **≈ 0.9 bps/yr** (0.55–1.1 across cells; ≈ 0.7 unadjusted) |
+| plausible true effect | **≤ 0.3 bps/yr** |
+| perfect-hindsight ceiling (the best of the six cells, chosen every month) | **≈ 2–5 bps/yr** |
+| the brief's "if positive, ≤ 20 bps/yr" | impossible at this turnover |
+
+**The mechanism.** A held book earns every overnight leg whatever time it trades. Execution timing
+touches only the dollars that move: about 0.3% of the book per month for a closed 85/15. Even an
+oracle captures about a tenth of the brief's ceiling. The true effect is about a third of what the test
+could detect.
+
+### The durable output: census facts (each read from the artifact, not inferred)
+
+1. **The deployed system is not a monthly rebalancer** (§3.1):
+   - Account 2 (`offense-sso`, strategy `deploy_candidate`) checks its bands every trading day at 09:50 ET
+     (`cron(50 9 ? * MON-FRI *)`, `scripts/provision_paper_fleet.py:53,305`).
+   - It sends market DAY orders (`ARCHONDEX_SLEEVE_TIF=day`).
+   - The driver accepts TIF `day|opg` only (`scripts/run_paper_cloud_day.py:725-728`), so **no
+     market-on-close path exists.**
+   - Rule-B contributions ($583) grow the notional cap on whole months since 2026-09-11, so they land on
+     **the 11th**, not at the turn of the month.
+2. **The fill journal cannot answer open-vs-close** (§3.3).
+   - **Location:** `s3://archondex-results-407539788432/paper_state_offense_sso/data/`. I only listed it and
+     copied files out; nothing was written to the bucket.
+   - **Files:**
+     - `paper_state/orders.jsonl`: 82 lines, md5 `41b8389803ec45ccea5ef5c82455eb61`;
+     - `state/exec_cost_ledger.jsonl`: 12 rows, md5 `891da6b021547757c3f8b43a44c0a6f3`;
+     - both pushed 2026-11-11 08:51.
+   - **All 12 fills are market DAY orders at ≈ 09:51 ET.** No fill sits at the open print or at the close.
+   - **The 10 fills ≤ 2026-11-04:**
+     - VOO 1.65 bps and MTUM 0.00 bps, one fill each, both the 2026-09-15 arrival;
+     - SGOV 0.00–0.99 bps, n 8, cash sweeps;
+     - **1.33 bps notional-weighted, 0.61 bps simple mean**, on $10,782.69.
+   - The two 2026-11-05 fills (the void, split-day record) are excluded.
+   - VOO and MTUM have not traded since the arrival: the bands did not bind in 36 clean sessions.
+3. **The prior close-vs-open read is T-341's** (`docs/Audit/exec_timing_verdict_t341_2026_08_15.md`).
+   - Arm B, full-notional, on monthly dates 2000–2026: SPY close − open **+6.8 bps per event,
+     CI [−4.8, +17.7]**, n 316, MDE 16.2 bps. It carried no verdict, by pre-registration.
+   - Arm A (the cost of open vs close) was NOT MEASURABLE on held data.
+   - The real fills then were 0.26 / 0.51 / 1.02 bps vs arrival (n 3).
+
+### What WOULD re-open it
+
+- **An order type the driver cannot send today.** A market-on-close or limit-on-close path (MOC/LOC; TIF
+  `cls`) would make the close cells executable. The first thing to measure would then be its realized
+  cost vs arrival, from that order type's own fills.
+- **Turnover an order of magnitude higher.** That means ≳ 60% of the book per year: a large
+  contribution-to-book ratio, a lump-sum arrival, or a tactical book. Re-run the §11 arithmetic at the
+  new turnover before proposing any test. For new money, the stakes are mostly time-in-market (T-299),
+  not execution skill.
+
+Neither condition holds on 2026-11-11.
