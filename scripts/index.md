@@ -706,6 +706,49 @@
 - **Function `check_high_row_anchors()`**: Every `- Anchor:` on an open HIGH row still matches its cited line.
 - **Function `main()`**: No docstring
 
+### `drip_fix_candidate_t384.py`
+**Module Docstring:** T-384 — candidate fix ("option (a′)") for the era-wrong pre-seam drip in the price cache.
+- **Class `NameReference`**: What the yfinance reference says about one name's Stooq series.
+  - `def covered()`: Bars whose year has a valid same-security reference — plus (amendment A3) a stub of at
+- **Class `CandidateRefusal`**: The candidate will not write this file: a load-bearing check failed (fail closed).
+- **Class `BuildResult`**: No docstring
+- **Function `assert_outside_canon()`**: Refuse any output directory inside the repository's data tree or the canonical cache.
+- **Function `load_meta()`**: No docstring
+- **Function `preseam_universe()`**: Every merged ('both') file that carries pre-seam (Stooq) bars.
+- **Function `raw_stooq_index()`**: No docstring
+- **Function `read_raw_stooq()`**: No docstring
+- **Function `read_cache_text()`**: The cached CSV as (header, data lines) — text, so post-seam rows can be copied verbatim.
+- **Function `read_cache_frame()`**: No docstring
+- **Function `read_yf()`**: Cached yfinance (adj_close, close) and dividends. (None, None) when prices are absent:
+- **Function `read_t265()`**: No docstring
+- **Function `fetch_dividends()`**: yfinance dividend history (split-adjusted per-share cash, by ex-date). Returns (series,
+- **Function `cmd_fetch()`**: No docstring
+- **Function `global_missed()`**: Boolean mask: the date lies in a universe-wide missed era (fallback rule).
+- **Function `global_block()`**: No docstring
+- **Function `align_reference()`**: Stooq close + yfinance (adj_close, close) on their common, strictly positive dates.
+- **Function `year_identity()`**: Per calendar year: is the reference the SAME security as the Stooq series?
+- **Function `transient_offsets()`**: Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
+- **Function `probe_exdates()`**: The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
+- **Function `label_exdates()`**: missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
+- **Function `missed_log_factor()`**: Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
+- **Function `approx_log_factor()`**: v1–v3 ONLY — v4's `build_file` never calls this (independent review, MAJOR-1, 2026-11-11: with
+- **Function `analyse_reference()`**: Probe every reference ex-date up to `until` (the seam) and label it.
+- **Function `era_runs()`**: Contiguous runs of MISSED ex-dates (the name's measured missed eras), for the record.
+- **Function `recompute_derived()`**: ATR(14) + PrevClose exactly as the T-082b merge computed them (its own function).
+- **Function `mask_runs()`**: Contiguous runs of True in `mask`, as [first date, last date] pairs (for the record).
+- **Function `build_file()`**: Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written.
+- **Function `xs_median_yield()`**: Median annual dividend log-yield across reference-backed names (non-payers count as 0).
+- **Function `write_pair()`**: csv (the text, verbatim) + parquet (parsed from that text), mirroring the cache layout.
+- **Function `cmd_build()`**: No docstring
+- **Function `cmd_manifest()`**: No docstring
+- **Function `yearly_periods()`**: Calendar-year log returns of a and b on their common dates: from the last common date of
+- **Function `check_post_seam_bytes()`**: Test (iv) on text. Returns the list of violations (empty = pass).
+- **Function `year_diagnostics()`**: Per calendar year, from the labelled ex-dates: the witnesses the §1.2 cause classes read.
+- **Function `classify_failure()`**: The §1.2 cause classes, in order. A class EXPLAINS a failure; it never excuses one.
+- **Function `cmd_accept()`**: No docstring
+- **Function `summarize_acceptance()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `edge_compression_t117.py`
 **Module Docstring:** scripts/edge_compression_t117.py
 - **Function `build_panel()`**: Per-edge daily-return panel stitched across the yearly runs.
