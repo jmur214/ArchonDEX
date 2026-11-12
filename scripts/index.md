@@ -266,6 +266,43 @@
 **Module Docstring:** scripts/audit_per_edge_substrate.py
 - **Function `main()`**: No docstring
 
+### `b10_gold_leg.py`
+**Module Docstring:** T-385 (B-10) — a permanent 10% gold leg: 90% equity / 10% gold, monthly rebalance, vs 1x SPY.
+- **Class `B10Halt`**: A fail-closed guard fired. Never converted into a number.
+- **Function `md5_file()`**: No docstring
+- **Function `check_pins()`**: No docstring
+- **Function `read_native()`**: No docstring
+- **Function `assert_native_integrity()`**: G2 — on the NATIVE series, before any reindex/ffill.
+- **Function `native_span()`**: Native prints covering [base, end]: the last print at/before base through end.
+- **Function `max_native_gap()`**: No docstring
+- **Function `assert_native_gaps()`**: G3 — a data outage hidden by a later ffill shows here as a long native gap.
+- **Function `asof_staleness()`**: No docstring
+- **Function `assert_staleness()`**: G4 — the price carried onto each equity date is at most `max_days` old.
+- **Function `assert_end_within_native()`**: G5 — no window may end after a leg's last NATIVE print (T-311's loader ffills past it).
+- **Function `assert_base_print()`**: G6 — each leg has a native print within `max_days` at/before the base close.
+- **Function `rebal_returns()`**: Vectorized monthly-rebalanced constant-mix book (the T-311 `robo_returns` convention, no cash).
+- **Function `t311_rebal()`**: The sensitivity arm, literally T-311's function (gold ER 0.40%); zero cash, no `_cash` weight.
+- **Function `assert_parity()`**: G9 parity lock: own vectorized function at T-311's ER == t311.robo_returns to 1e-12.
+- **Function `slice_legs()`**: No docstring
+- **Function `paired_diff()`**: G7 — identical dates, finite.
+- **Function `boot()`**: G8 then the project-standard block bootstrap of Σd.
+- **Function `curve()`**: Equity curve INCLUDING the base value 1.0 (a first-day loss counts — §5).
+- **Function `drawdown()`**: No docstring
+- **Function `ann_ir()`**: No docstring
+- **Function `window_arms()`**: No docstring
+- **Function `run_window()`**: No docstring
+- **Function `segment_mdd()`**: No docstring
+- **Function `crisis_table()`**: No docstring
+- **Function `decade_table()`**: No docstring
+- **Function `w22()`**: No docstring
+- **Function `gld_validation()`**: G11 — the local GLD file vs the substrate gold leg, 2020-04-09 → 2025-12-31.
+- **Function `outcome()`**: No docstring
+- **Function `labels()`**: No docstring
+- **Function `load_all()`**: No docstring
+- **Function `write_json()`**: No docstring
+- **Function `smoke()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `b5_levered_diversified.py`
 **Module Docstring:** T-382 (B-5) — levered diversified book vs 1x SPY under honest Roth financing.
 - **Class `B5Halt`**: A fail-closed halt in the measurement path. Never caught inside the harness.

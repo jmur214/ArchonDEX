@@ -1745,3 +1745,24 @@ python -m pytest tests/test_smallcap_t265_b2.py -q
 # the pre-run input census (prereg §3; each script takes the worktree root first)
 python scripts/b2_census_t381/census_prices.py "$(pwd)" /tmp/price_census.parquet
 ```
+
+## B-10 (T-385) — a permanent 10% gold leg vs 1× SPY (added 2026-11-11)
+A standalone harness (the T-311 pattern; never `BacktestController`) for the frozen prereg
+`docs/Sources/prereg_b10_gold_leg_2026-11-11.md`, frozen at `0cc3f56`, amendment 1 at `f702523`.
+- Substrate: T-306 equity + gold, read through T-311's `load_substrate` (imported, never edited).
+  The T-306 cash leg is NOT used.
+- Inputs: the md5s of the equity, gold, `data/processed/GLD_1d.csv` and T-311 script are pinned.
+- Guards: the native-calendar guards (G2–G6) run BEFORE any reindex/ffill. Any window end after a
+  leg's last native print is refused.
+- No network, no `.env`.
+- Outputs are worktree-LOCAL under `data/b10_local/`, a real directory, never via the
+  `data/research` symlink.
+- Fail-closed: every guard (G1–G11) exits 2 with `B10 HALT`.
+
+```bash
+python -m scripts.b10_gold_leg --smoke                                      # first 12 months of each window -> data/b10_local/b10_smoke_W71.json, _W00.json (never quoted)
+python -m scripts.b10_gold_leg --out data/b10_local/b10_results.json        # the frozen measurement (~3 s)
+python -m scripts.b10_gold_leg --out data/b10_local/b10_results_run2.json   # determinism twin
+md5 -q data/b10_local/b10_results.json data/b10_local/b10_results_run2.json # must match
+python -m pytest tests/test_b10_gold_leg_guards.py -q                       # planted-hole / flat-tail / parity locks (synthetic)
+```
