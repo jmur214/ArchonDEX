@@ -849,3 +849,16 @@ deleted, as `data/research/b5/validation_VOID_sdmx_ND_sentinel.json`.
 
 **Then `validate` re-runs once on the unchanged snapshot.** Its verdict stands whatever it is: a gating
 failure still halts exactly as frozen.
+
+---
+
+## RESULT (appended 2026-11-11; nothing above this line altered)
+
+**H1 NOT MET.** Arm (ii) on W-68 at s = 50 bp: Δ log wealth +0.21 %/yr, 95 % CI [−1.91, +2.30] %/yr
+(MetricsEngine, 21-day MBB, 1000 iter, seed 0). **Route C is CLOSED for a levered-ETF Roth holder, as
+briefed.** Financing is NOT the binding constraint: ci_low is −1.41 %/yr already at s = 0, and the
+point-estimate break-even spread is 71 bp.
+
+All gating validations pass on the record re-run (A2.2): SSO s* 57 bp, UPRO 56, TMF 49, UBT −38,
+NTSX 0.4. Determinism ×2 is bit-identical. Predictions in §11 are compared line by line in the
+verdict: `docs/Audit/b5_levered_diversified_verdict_2026-11-11.md`. N_trials consumed: +1.

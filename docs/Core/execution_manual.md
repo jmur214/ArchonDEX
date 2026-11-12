@@ -1677,15 +1677,17 @@ A standalone harness (the T-311 pattern; never `BacktestController`). Pre-regist
 `3dcf399`.
 - Substrate: T-306, read through T-311's `load_substrate` (imported, never edited); the substrate
   md5s are verified on every run.
-- Financing: FRED DTB3 (converted to a money-market yield) through 2018-04-02, then SOFR, plus the
-  spread s.
+- Financing: the 3-month T-bill (= FRED DTB3, converted to a money-market yield) through 2018-04-02,
+  then SOFR, plus the spread s. Both come from their publishers (amendment 2): the Fed Board's H.15
+  DDP full-release SDMX/ZIP, keeping `OBS_STATUS="A"` only (no-data days are `-9999`), and the NY Fed
+  Markets API. FRED's keyless `fredgraph.csv` was blocked for this client on 2026-11-11.
 - Network: `fetch` runs ONCE. It refuses if `data/research/b5/inputs/MANIFEST.json` exists. Every
   later step reads only the md5-verified snapshot.
 - Fail-closed: every halt exits 2 with `B5 HALT [NN-FAIL-CLOSED]`.
 - Order: fetch → validate → smoke → run A and B, then compare their md5s.
 
 ```bash
-python scripts/b5_levered_diversified.py fetch       # one time: FRED DTB3/SOFR + yfinance fetch_yf_tr + AQR copy
+python scripts/b5_levered_diversified.py fetch       # one time: H.15 SDMX/ZIP (3m bill) + NY Fed SOFR + yfinance fetch_yf_tr + AQR copy
 python scripts/b5_levered_diversified.py er-check    # informational: UGL/UST ERs (alters nothing)
 python scripts/b5_levered_diversified.py validate    # synthetic vs live ETF -> data/research/b5/validation.json
 python scripts/b5_levered_diversified.py smoke       # first 12 months of each window -> smoke.json (never quoted)
