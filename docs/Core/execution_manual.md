@@ -1312,6 +1312,23 @@ Runs the frozen pre-registration `docs/Sources/prereg_cef_wide_lagged_t379_2026-
 the archived CEFConnect panel (S3 `altdata/data/macro_data/alt/cef_daily.parquet`); the daily panel is
 fetched once from yfinance and cached at `data/research/cef_panel_t379.parquet`. Exploratory, survivor-only.
 
+### B-9 / T-380 — multi-factor combination tilts at deployable weights (2026-11-11)
+
+```bash
+python -m scripts.tilt_decision_measure_t318_t320 --b9-snapshot   # ONE-TIME: French zips + yfinance Adj Close/Close
+                                                                  # (SPY/VOO/MTUM/AVUV) -> data/research/b9/inputs/ + md5 manifest;
+                                                                  # refuses if a snapshot already exists
+python -m scripts.tilt_decision_measure_t318_t320 --b9-smoke      # legs + mechanics on the window's FIRST 12 months; no CI
+python -m scripts.tilt_decision_measure_t318_t320 --b9            # the frozen measurement -> data/research/b9/b9_results.json
+md5 -q data/research/b9/b9_results.json                           # determinism: run --b9 twice, md5s must match
+```
+
+Runs the frozen pre-registration `docs/Sources/prereg_b9_combo_tilts_2026-11-11.md` (16432da + amendment 1,
+60e51a5). It extends the T-318/T-320 harness: with no flag, the original `main()` runs unchanged. The B-9 path
+reads ONLY the md5-verified snapshot and HALTs (`B9Halt`, no results file) on any failed input check (a)–(d),
+a missing or non-finite month, a splice-month mismatch, or an honest-N pin mismatch. Verdict:
+`docs/Audit/b9_combo_tilts_verdict_2026-11-11.md`.
+
 ### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
 
 The autonomous-development pilot's first rung
