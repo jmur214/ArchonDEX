@@ -96,6 +96,29 @@ small edge. What the more powerful instruments show (the event-study t of 0.20; 
     31/31 ok (19 price, 12 Form 4 / join / window).
   - Full suite after the re-run: 4,705 passed, 56 skipped, 11 xfailed, and 1 failed (the same known
     `edges.yml` contract test). The data-write guard flagged nothing.
+- **Review round 2 notes (2026-11-11):**
+  - **`main()` census wiring is now tested.**
+    - Six tests drive each script's `main()` on a tiny synthetic fixture: a positive control per
+      script that passes its census, and four refusals (momentum price, momentum window, insider
+      price, insider Form 4), each with one declared count off by one, asserting exit 2 and the
+      census-halt message.
+    - Each refusal was proven in a SCRATCH COPY, never the worktree: disconnecting exactly that one
+      `enforce_census` call made its test fail (main ran to exit 0), and the unmodified copy passed
+      6/6.
+  - **pandas' default NA tokens** ("NA", "N/A", "null", …) still become NaN without a halt.
+    `strict_parse` only refuses a NON-empty value that fails to parse.
+    - A scan of all 81 zips with NA-detection off found **17** such values in the fields the
+      harness reads. All 17 are in `SECURITY_TITLE`, across every transaction code.
+    - That field feeds only the "prefer" test. The literal string and the NaN it becomes (filled to
+      "") fail that test identically, so no event or number changes.
+    - Every date, number, CIK, code and accession field has **0**.
+  - **The census scripts' byte-identity to the pre-freeze scratch copies is established by the
+    author but NOT independently verifiable.**
+    - The scratch copies still exist in the author's session scratchpad, last modified 18:00:09 →
+      18:06:11, before the 18:15:11 freeze. Their git blob hashes equal all nine blobs committed at
+      `7e6562b` (e.g. `census_prices.py` `ccfa2496…`, `census_form4.py` `9cd7bcb0…`).
+    - That scratchpad lies outside the repo and is session-scoped, so a reviewer cannot read it.
+      Treat the identity as the author's attestation, not as a reproduced fact.
 - **Headlines recomputed independently** from the output CSVs: momentum Δ log wealth −0.111334,
   insider −0.141058, insider NW t 0.19980 (a hand-rolled Bartlett estimator) all match.
 
@@ -148,7 +171,7 @@ small edge. What the more powerful instruments show (the event-study t of 0.20; 
   −18.2 / −20.5; 2023 +5.4 / +26.2 / +16.8; 2024 +2.3 / +24.9 / +11.4; 2025 +2.5 / +17.7 / +12.7;
   2026 Jan–Apr +13.9 / +5.7 / +13.1 (%). One year (2020) carries the arm.
 
-### 3.1 The haircut, measured — and T-249 corrected
+### 3.1 The survivor-only gap, decomposed (not a measured haircut) — and T-249 corrected
 | | window / universe | cost | CAGR | Sharpe | Sortino (ci_low) |
 |---|---|---|---|---|---|
 | T-249 **as published** (gross / net tier) | 2006-02 → 2026-05 (244 months; the audit says "2006–2025"), Stooq, 100% survivors, ADV tier from the FULL-window median (look-ahead) | 0 / 35+75 bps per side | 15.1% / 10.8% | 3.21 / 2.47 (no CI published) | 4.91 (1.52) / 3.71 (0.49) |
@@ -278,6 +301,7 @@ Once T-249's annualization is corrected, its net-tier point estimates (Sharpe 0.
 | insider satellite ci_low < 0; H1 NOT met | −0.454; NOT met | ✓ |
 | sub-$1M events show a larger CAR | +8.8% vs +2.0% mean summed CAR; BHAR median −3.8% | untested (§6.3: bid-ask bounce) |
 | 150–400 in-band EVENTS/yr | 116, 113, 179, 186, 324, 177, 229, 211, 151, 241 (2016–2025) | partial: 2016–17 fall below the range |
+| … fewest in 2024–25 (prereg §8.2 sub-prediction) | the fewest were 2016–17 (116, 113); 2024–25 had 151 and 241 | ✗ MISSED |
 | the 40-name cap binds on < 10% of book-days | 24% | ✗ |
 
 ## 8. What this does NOT show

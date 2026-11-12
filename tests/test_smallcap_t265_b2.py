@@ -254,6 +254,140 @@ def test_any_census_count_that_disagrees_halts_and_a_match_is_recorded():
         cm.enforce_census({"b": "x"}, {"a": 1, "b": "x"})      # a missing recomputation
 
 
+# ============================================================ main() census wiring (review round 2)
+# Each harness's main() must HALT (exit 2) when a census count disagrees with its declaration. The
+# fixtures are tiny synthetic substrates; the default-arg paths are redirected by wrapping the
+# loaders (module constants are bound at def time), and the declared counts are set to the
+# fixture's truth (positive control) or to the truth with ONE count off (the refusal).
+def _twins(d, cal: pd.DatetimeIndex) -> None:
+    d.mkdir()
+    rng = np.random.default_rng(7)
+    for name, sd in (("SPY", 0.01), ("IWM", 0.012), ("BIL", 0.0001)):
+        px = 100.0 * np.cumprod(1.0 + rng.normal(0.0002, sd, len(cal)))
+        pd.DataFrame({"Date": cal.strftime("%Y-%m-%d"), "Close": px}).to_csv(d / f"{name}_1d.csv",
+                                                                            index=False)
+
+
+def _prices(d, cal: pd.DatetimeIndex, n: int) -> None:
+    d.mkdir()
+    rng = np.random.default_rng(11)
+    for i in range(n):
+        px = 10.0 * np.cumprod(1.0 + rng.normal(0.0001 * (i - n / 2), 0.012, len(cal)))
+        df = pd.DataFrame({"close": px, "volume": 2e6 / px},               # $2M/day: in band
+                          index=pd.DatetimeIndex(cal, name="timestamp"))
+        df.to_parquet(d / f"T{i:02d}.parquet")
+
+
+def _redirect(monkeypatch, twins, prices) -> pd.DatetimeIndex:
+    oc, ot, ou = cm.market_calendar, cm.twins_on, cm.load_universe
+    monkeypatch.setattr(cm, "market_calendar",
+                        lambda twins_dir=None, start=cm.PANEL_START: oc(twins, start))
+    monkeypatch.setattr(cm, "twins_on", lambda cal, twins_dir=None: ot(cal, twins))
+    monkeypatch.setattr(cm, "load_universe",
+                        lambda cal, prices_dir=None, tickers=None: ou(cal, prices, tickers))
+    monkeypatch.setattr(cm, "EXPECTED_PHANTOM_TAIL_FILES", 0)
+    monkeypatch.setattr(cm, "EXPECTED_SPLICE_FILES", 0)
+    cal = cm.market_calendar()
+    monkeypatch.setattr(cm, "EXPECTED_PRICE_CENSUS",
+                        cm.price_census_observed(cm.load_universe(cal)[2]))   # the fixture's truth
+    return cal
+
+
+def _off_by_one(d: dict, key: str) -> dict:
+    out = dict(d)
+    out[key] = out[key] + 1
+    return out
+
+
+@pytest.fixture
+def mom_fixture(tmp_path, monkeypatch):
+    cal = pd.bdate_range("2016-01-04", "2025-10-31")     # -> 105 formations, not the declared 111
+    _twins(tmp_path / "tw", cal)
+    # prices run past DEATH_CUTOFF so the survivor-only arm has survivors; the twins set the calendar
+    _prices(tmp_path / "px", pd.bdate_range("2016-01-04", "2026-06-30"), 15)
+    _redirect(monkeypatch, tmp_path / "tw", tmp_path / "px")
+    monkeypatch.setattr(mom, "MIN_ELIGIBLE", 10)
+    monkeypatch.setattr(mom, "MIN_DECILE", 1)
+    return tmp_path
+
+
+def test_momentum_main_positive_control_passes_its_census(mom_fixture):
+    assert mom.main(["--smoke", "--out", str(mom_fixture / "ok")]) == 0
+    rec = __import__("json").loads((mom_fixture / "ok" / "momentum_census_check.json").read_text())
+    assert rec["price"] and all(v["ok"] for v in rec["price"].values())
+
+
+def test_momentum_main_halts_on_a_price_census_mismatch(mom_fixture, monkeypatch, capsys):
+    monkeypatch.setattr(cm, "EXPECTED_PRICE_CENSUS", _off_by_one(cm.EXPECTED_PRICE_CENSUS, "files"))
+    assert mom.main(["--smoke", "--out", str(mom_fixture / "bad")]) == 2
+    assert "census recomputation disagrees" in capsys.readouterr().err
+    assert not (mom_fixture / "bad" / "momentum_results.json").exists()
+
+
+def test_momentum_main_halts_on_a_window_census_mismatch(mom_fixture, capsys):
+    # 105 >= MIN_MONTHS, so only the §3.6 window check (111 declared) can stop this run
+    assert mom.main(["--out", str(mom_fixture / "win")]) == 2
+    err = capsys.readouterr().err
+    assert "census recomputation disagrees" in err and "'formations': (111, 105)" in err
+    assert not (mom_fixture / "win" / "momentum_results.json").exists()
+
+
+@pytest.fixture
+def ins_fixture(tmp_path, monkeypatch):
+    cal = pd.bdate_range("2016-01-04", "2017-09-29")
+    _twins(tmp_path / "tw", cal)
+    _prices(tmp_path / "px", cal, 12)
+    cal = _redirect(monkeypatch, tmp_path / "tw", tmp_path / "px")
+    t265 = tmp_path / "t265"
+    t265.mkdir()
+    pd.DataFrame({"cik": np.arange(1000, 1012, dtype=np.int64),
+                  "ticker": [f"T{i:02d}" for i in range(12)]}).to_parquet(t265 / "cik_ticker_final.parquet")
+    monkeypatch.setattr(cm, "T265", t265)
+    sub, nd, own = [SUB_H], [ND_H], [OWN_H]
+    for i in range(12):                                   # one 3-insider cluster a month, 12 issuers
+        d = pd.Timestamp("2016-02-01") + pd.DateOffset(months=i) + pd.offsets.Week(weekday=0)
+        ds = d.strftime("%d-%b-%Y").upper()
+        for j in range(3):
+            acc = f"A{i:02d}{j}"
+            sub.append(f"{acc}\t{ds}\t4\t{1000 + i:010d}\tT{i:02d}\n")
+            nd.append(f"{acc}\tCommon Stock\t{ds}\tP\t100\t10.0\tA\n")
+            own.append(f"{acc}\t{5000 + 3 * i + j:010d}\n")
+    zd = tmp_path / "zips"
+    zd.mkdir()
+    _zip(zd, sub="".join(sub), nd="".join(nd), own="".join(own), fn=FN_H)
+    osz = ins.scan_zips
+    monkeypatch.setattr(ins, "scan_zips", lambda zdir=None, expected_quarters=None: osz(zd, 1))
+    rows, _, any4z = ins.scan_zips()
+    fin = pd.read_parquet(t265 / "cik_ticker_final.parquet")
+    truth = ins.form4_census_observed(rows, any4z, fin, cm.load_universe(cal)[2], cal,
+                                      ins.EXPECTED_ZIPS)
+    monkeypatch.setattr(ins, "EXPECTED_F4_CENSUS", truth)
+    return tmp_path
+
+
+def test_insider_main_positive_control_passes_its_census(ins_fixture):
+    assert ins.main(["--smoke", "--out", str(ins_fixture / "ok")]) == 0
+    rec = __import__("json").loads((ins_fixture / "ok" / "insider_census_check.json").read_text())
+    assert all(v["ok"] for blk in ("price", "form4") for v in rec[blk].values())
+
+
+def test_insider_main_halts_on_a_form4_census_mismatch(ins_fixture, monkeypatch, capsys):
+    monkeypatch.setattr(ins, "EXPECTED_F4_CENSUS", _off_by_one(ins.EXPECTED_F4_CENSUS, "inwin_rows"))
+    assert ins.main(["--smoke", "--out", str(ins_fixture / "bad")]) == 2
+    err = capsys.readouterr().err
+    assert "census recomputation disagrees" in err and "inwin_rows" in err
+    assert not (ins_fixture / "bad" / "insider_results.json").exists()
+
+
+def test_insider_main_halts_on_a_price_census_mismatch(ins_fixture, monkeypatch, capsys):
+    monkeypatch.setattr(cm, "EXPECTED_PRICE_CENSUS",
+                        _off_by_one(cm.EXPECTED_PRICE_CENSUS, "zero_volume_bars"))
+    assert ins.main(["--smoke", "--out", str(ins_fixture / "bad")]) == 2
+    err = capsys.readouterr().err
+    assert "census recomputation disagrees" in err and "zero_volume_bars" in err
+    assert not (ins_fixture / "bad" / "insider_results.json").exists()
+
+
 def test_price_census_observed_uses_the_census_definitions():
     cal = _cal(300)
     vol = np.ones(300) * 1000.0
