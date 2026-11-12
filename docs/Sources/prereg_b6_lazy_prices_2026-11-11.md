@@ -654,3 +654,58 @@ return is computed until the director rules.** The options, each the director's:
 - **(iii)** make (c) the gate (5.75 years; MinBTL SR ≈ 0.90; coverage ≥ 87%) with (d) as a diagnostic;
 - **(iv)** wait for price data that closes the hole — the one-time Alpaca SIP fetch of dead symbols that
   B-2 R1 measured, or the T-384 cutover.
+
+
+---
+
+## AMENDMENT 2 — the S&P gate window after the (d) census halted (director ruling on A1.11, 2026-11-12; BINDING). Appended; nothing above is edited.
+
+Committed alone, BEFORE any return, price-level statistic or portfolio is computed (`git log` on this
+file is the proof).
+
+### A2.1 Window (d) 2016-Q1 → 2025-Q4 is NOT EVALUABLE
+The frozen census (§7.7, §11; harness `scripts/lazy_prices/b6_harness_sp.py`, run 2026-11-12, exit 2,
+no return computed) put **13 of 40 gate rebalances below the 80%-of-members floor; the worst is
+2016-03-31 at 67.9%**. The census ran twice, bit-identical: census CSV md5
+`c3effa85be82e4f5941051cd97dac980`, HALT list md5 `8f80dc57c89739fbae9ea976c86fe1e2`. **The cause is
+missing T-265 bars for acquired or failed members — the B-2 §3.1 survivorship hole — not text
+coverage** (86–97% of members carry a usable signal every quarter). **(d) re-runs as its OWN
+pre-registered trial once the price hole closes** (the T-384 cutover and/or the one-time Alpaca
+dead-ticker fetch B-2's census scoped).
+
+**Option 2 of A1.11 (lowering the floor) is REJECTED** by the director: loosening a frozen gate because
+it fired is goalpost-moving, even before returns. **Option 4 alone (wait) is not chosen**: the hole has
+no date.
+
+### A2.2 The S&P gate window is (c): rebalances 2020-06-30 → 2025-12-31 (2020-Q2 → 2025-Q4)
+**The B-1 precedent: when a pre-return census halts, the gate window is set by INPUT AVAILABILITY.**
+(c) is the input-available span — `data/processed` closes, exact total return for every name after
+2020-04-09 (main's dividend-era HIGH) — where **every quarter passes the frozen 80% / 150 / 40 rules**
+(census 2026-11-12: 23 rebalances, ranked share 87–97%). **It was chosen AFTER the (d) census halted and
+BEFORE any return was computed.** 23 quarterly rebalances, holdings through 2026-03-31: **5.75 years
+(69 months)**. **N_trials: +1 at its run.** The T-265 arm's +1 stands, at its own run.
+
+**Power, stated up front.** At N_eff 36.92 the MinBTL Sharpe bar for 5.75 years is **≈ 0.90**. The
+long-leg satellite gate can only detect a long leg beating SPY TR by roughly 7%/yr (MDE80, §8: +0.101
+total Δ log wealth, ≈ +0.111 at the Bonferroni level) — far above the long-side effect in the
+literature. **The short-leg t_HAC diagnostic remains the most informative statistic B-6 produces.**
+Cohen-Malloy-Nguyen (2020) report their effect as concentrated in the short leg (the firms that change
+their filings); no page is cited here.
+
+**(c) no longer has a sensitivity, and none is pulled from inside (d).** The §7.5 pre-named
+diagnostics (20 bps cost, D = −30% exits, Jaccard, TF-IDF, Risk-Factors-only, MD&A-only, the 10-Q
+combo, the adjacent-quarter 10-Q pairing, 10-K-only and 10-Q-only rankings, the per-year table) run on
+the gate's own window and source (c), as diagnostics of the gate; none can meet H1. *(This last
+sentence is the worker's operational reading — the diagnostics follow the gate's window — recorded
+here before any return so it is not decided after one.)*
+
+### A2.3 A1.10 conventions: ACCEPTED as written
+Delisted holdings exit at their last close into BIL TR, D = −30% as a diagnostic; a T-265 ticker mapped
+to two CIKs is excluded (moot on (c), which reads `data/processed` only); the `data/processed` fill
+only for rebalances on or after 2020-06-30; 10-Q Δtone on MD&A.
+
+### A2.4 What runs next (S&P arm, on (c))
+Smoke on (c)'s first 12 months (rebalances 2020-06-30 → 2021-03-31, holdings to 2021-06-30; sanity only,
+not quoted) → the fail-closed census → the full run twice with an identical results md5 → the verdict
+section (long-leg satellite vs SPY TR for both signals at the family level, the short-changers
+diagnostic with t_HAC, and the brief's refutation sentence evaluated literally).
