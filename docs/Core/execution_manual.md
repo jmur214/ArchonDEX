@@ -1312,6 +1312,23 @@ Runs the frozen pre-registration `docs/Sources/prereg_cef_wide_lagged_t379_2026-
 the archived CEFConnect panel (S3 `altdata/data/macro_data/alt/cef_daily.parquet`); the daily panel is
 fetched once from yfinance and cached at `data/research/cef_panel_t379.parquet`. Exploratory, survivor-only.
 
+### B-9 / T-380 — multi-factor combination tilts at deployable weights (2026-11-11)
+
+```bash
+python -m scripts.tilt_decision_measure_t318_t320 --b9-snapshot   # ONE-TIME: French zips + yfinance Adj Close/Close
+                                                                  # (SPY/VOO/MTUM/AVUV) -> data/research/b9/inputs/ + md5 manifest;
+                                                                  # refuses if a snapshot already exists
+python -m scripts.tilt_decision_measure_t318_t320 --b9-smoke      # legs + mechanics on the window's FIRST 12 months; no CI
+python -m scripts.tilt_decision_measure_t318_t320 --b9            # the frozen measurement -> data/research/b9/b9_results.json
+md5 -q data/research/b9/b9_results.json                           # determinism: run --b9 twice, md5s must match
+```
+
+Runs the frozen pre-registration `docs/Sources/prereg_b9_combo_tilts_2026-11-11.md` (16432da + amendment 1,
+60e51a5). It extends the T-318/T-320 harness: with no flag, the original `main()` runs unchanged. The B-9 path
+reads ONLY the md5-verified snapshot and HALTs (`B9Halt`, no results file) on any failed input check (a)–(d),
+a missing or non-finite month, a splice-month mismatch, or an honest-N pin mismatch. Verdict:
+`docs/Audit/b9_combo_tilts_verdict_2026-11-11.md`.
+
 ### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
 
 The autonomous-development pilot's first rung
@@ -1695,4 +1712,36 @@ python scripts/b5_levered_diversified.py run --tag A # -> data/research/b5/run_A
 python scripts/b5_levered_diversified.py run --tag B # determinism twin -> run_B/
 diff <(cd data/research/b5/run_A && md5 -r * | sort) <(cd data/research/b5/run_B && md5 -r * | sort)
 python -m pytest tests/test_b5_levered_simulator.py -q
+```
+
+## B-2 (T-381) — small-cap momentum + insider clusters on the T-265 panel (added 2026-11-11)
+These are standalone harnesses for the frozen prereg `docs/Sources/prereg_b2_smallcap_t265_2026-11-11.md`
+(+ AMENDMENT 1). They read the T-265 stages (`data/research/t265/`), the SEC Form 345 zips
+(`data/edgar/insider_zips/`) and the `tr_reconciled` SPY/IWM/BIL twins. They make no network call
+and never load `.env`. Without the env pins they REFUSE (exit 3). A fail-closed HALT exits 2 on any
+of the following:
+- any prereg census count (§3.3 price artefacts, §3.5 Form 4 + join, §3.6 windows) differs from its
+  recomputation; the record is written to `<stem>_census_check.json`, beside and never inside the
+  canonical results;
+- a zip TSV line whose field count differs from its header (never skipped);
+- an unparseable date or number (never coerced to NaN);
+- a P/A row without an owner, issuer or date;
+- the CIK-join coverage is below 63%;
+- a decile or event set is empty;
+- the gate's NW t is NOT-EVALUABLE (descriptive cells record the literal "NOT-EVALUABLE");
+- a twin has a gap.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+# smoke — each window's FIRST 12 months, no bootstrap (writes data/research/b2/smoke/)
+python -m scripts.smallcap_momentum_t265_b2 --smoke     # ~20 s, ~1.3 GB RSS
+python -m scripts.smallcap_insider_t265_b2 --smoke      # ~60 s, ~1.8 GB RSS (81 zips, one quarter at a time)
+# full run + determinism (the two canonical md5s printed must match)
+python -m scripts.smallcap_momentum_t265_b2 --out data/research/b2/run1
+python -m scripts.smallcap_momentum_t265_b2 --out data/research/b2/run2
+python -m scripts.smallcap_insider_t265_b2 --out data/research/b2/run1
+python -m scripts.smallcap_insider_t265_b2 --out data/research/b2/run2
+python -m pytest tests/test_smallcap_t265_b2.py -q
+# the pre-run input census (prereg §3; each script takes the worktree root first)
+python scripts/b2_census_t381/census_prices.py "$(pwd)" /tmp/price_census.parquet
 ```
