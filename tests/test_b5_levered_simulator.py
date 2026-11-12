@@ -152,3 +152,31 @@ def test_parse_nyfed_sofr_checks_type_and_rows(tmp_path):
     p.write_text(good.replace(",SOFR,", ",EFFR,", 1))
     with pytest.raises(b5.B5Halt):
         b5.parse_nyfed_sofr(p)
+
+
+def _sdmx_zip(tmp_path, desc="3-month Treasury bill secondary market rate, discount basis", n=10010):
+    import zipfile
+    obs = "".join(f'<frb:Obs OBS_STATUS="A" OBS_VALUE="{"ND" if i == 5 else "4.50"}" TIME_PERIOD="{d.date()}"/>'
+                  for i, d in enumerate(pd.bdate_range("1960-01-01", periods=n)))
+    xml = ('<?xml version="1.0"?><message:MessageGroup xmlns:message="urn:m" xmlns:frb="urn:frb" '
+           'xmlns:kf="urn:kf" xmlns:common="urn:c"><frb:DataSet>'
+           '<kf:Series SERIES_NAME="RIFLGFCM03_N.B"><frb:Annotations><common:Annotation>'
+           '<common:AnnotationText>3-month constant maturity</common:AnnotationText></common:Annotation>'
+           '</frb:Annotations><frb:Obs OBS_VALUE="1.0" TIME_PERIOD="2000-01-03"/></kf:Series>'
+           f'<kf:Series SERIES_NAME="RIFSGFSM03_N.B"><frb:Annotations><common:Annotation>'
+           f'<common:AnnotationText>{desc}</common:AnnotationText></common:Annotation></frb:Annotations>'
+           f'{obs}</kf:Series></frb:DataSet></message:MessageGroup>')
+    p = tmp_path / "h15.zip"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("FRB_H15.xml", xml)
+    return p
+
+
+def test_parse_h15_sdmx_zip_selects_by_series_name(tmp_path):
+    s, desc = b5.parse_h15_bill(_sdmx_zip(tmp_path))
+    assert len(s) == 10009 and float(s.iloc[0]) == pytest.approx(0.045) and "secondary market" in desc
+
+
+def test_parse_h15_sdmx_zip_halts_on_wrong_description(tmp_path):
+    with pytest.raises(b5.B5Halt):
+        b5.parse_h15_bill(_sdmx_zip(tmp_path, desc="6-month Treasury bill, investment basis"))

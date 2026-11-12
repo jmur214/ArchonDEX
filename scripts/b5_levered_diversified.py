@@ -64,11 +64,13 @@ AQR_MD5 = "5bcb8dbf28146f729b99b629147bb0cd"
 YF_TICKERS = ["SSO", "UPRO", "UBT", "TMF", "NTSX", "RSSB", "RSST", "SPY", "TLT", "IEF", "VT", "DBMF"]
 # Amendment 2 (891cc3c): FRED's keyless endpoint is blocked for this client, so the SAME series come
 # from the publishers FRED republishes. Everything downstream of the parse is unchanged.
-H15_URL = ("https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series="
-           "bf17364827e38702b42a58cf8eaa3f78&lastobs=&from=&to=&filetype=csv&label=include"
-           "&layout=seriescolumn&type=package")
+# A2.1 (b0c05b8): amendment 2's package hash was the CMT package (halted by the identity check);
+# the DDP retired "Build your package" the week of 2026-11-09, so the full-history bill series is
+# only in the full H.15 SDMX/ZIP release at the same publisher.
+H15_URL = "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&filetype=zip"
 H15_ID = "H15/H15/RIFSGFSM03_N.B"              # 3-month T-bill, secondary market, discount basis, bd
-H15_FILE = "frb_h15_package.csv"
+H15_SERIES_NAME = H15_ID.split("/")[-1]         # SDMX SERIES_NAME attribute
+H15_FILE = "frb_h15_all_sdmx.zip"
 H15_PUBLISHER = ("Board of Governors of the Federal Reserve System - H.15 Selected Interest Rates, "
                  "Data Download Program")
 SOFR_URL = ("https://markets.newyorkfed.org/api/rates/secured/sofr/search.csv"
@@ -413,7 +415,77 @@ def cmd_er_check() -> int:
 
 # --------------------------------------------------------------------------- snapshot loaders
 def parse_h15_bill(p: Path) -> Tuple[pd.Series, str]:
-    """The H.15 package CSV -> the 3-month bill (decimal, discount basis), by its Unique Identifier.
+    """Dispatch: the full-release SDMX/ZIP (A2.1, the production path) or a DDP CSV package."""
+    if p.suffix.lower() == ".zip":
+        return parse_h15_sdmx_zip(p)
+    return parse_h15_csv(p)
+
+
+def _desc_ok(text: str) -> bool:
+    t = text.lower()
+    return "3-month" in t and "secondary market" in t
+
+
+def parse_h15_sdmx_zip(p: Path) -> Tuple[pd.Series, str]:
+    """The full H.15 SDMX/ZIP -> the 3-month bill (decimal), by SERIES_NAME (A2.1 identity check).
+    Streams the XML (iterparse) and drops every finished Series element, so memory stays small.
+    HALTS unless exactly one series carries SERIES_NAME == RIFSGFSM03_N.B AND its own description /
+    annotation text contains '3-month' and 'secondary market'."""
+    import xml.etree.ElementTree as ET
+    import zipfile
+    hits: List[Dict] = []
+    matching_desc: List[str] = []
+    with zipfile.ZipFile(p) as zf:
+        names = [n for n in zf.namelist() if n.lower().endswith(".xml")]
+        if not names:
+            raise B5Halt("H.15 SDMX/ZIP holds no XML file")
+        for name in names:
+            with zf.open(name) as fh:
+                stack: List = []
+                cur: Optional[Dict] = None
+                for ev, el in ET.iterparse(fh, events=("start", "end")):
+                    tag = el.tag.rsplit("}", 1)[-1]
+                    if ev == "start":
+                        stack.append(el)
+                        if tag == "Series":
+                            cur = {"name": el.attrib.get("SERIES_NAME"), "obs": [], "text": [],
+                                   "attrs": dict(el.attrib)}
+                        continue
+                    stack.pop()
+                    if cur is not None:
+                        if tag == "Obs":
+                            if cur["name"] == H15_SERIES_NAME:
+                                cur["obs"].append((el.attrib.get("TIME_PERIOD"), el.attrib.get("OBS_VALUE")))
+                            if stack:
+                                stack[-1].remove(el)
+                        elif tag == "Series":
+                            text = " ".join(t for t in cur["text"] if t)
+                            if cur["name"] == H15_SERIES_NAME:
+                                hits.append({**cur, "desc": text})
+                            elif _desc_ok(text):
+                                matching_desc.append(f"{cur['name']}: {text[:160]}")
+                            cur = None
+                            if stack:
+                                stack[-1].remove(el)
+                        elif el.text and el.text.strip():
+                            cur["text"].append(el.text.strip())
+    if len(hits) != 1:
+        raise B5Halt(f"H.15 SDMX holds {len(hits)} series named {H15_SERIES_NAME}; series whose "
+                     f"description matches (NOT used without a ruling): {matching_desc[:10]}")
+    h = hits[0]
+    if not _desc_ok(h["desc"]):
+        raise B5Halt(f"H.15 {H15_SERIES_NAME} description fails the identity check: {h['desc'][:300]!r}")
+    dates = pd.to_datetime(pd.Series([o[0] for o in h["obs"]]), errors="coerce", format="%Y-%m-%d")
+    vals = pd.to_numeric(pd.Series([o[1] for o in h["obs"]]), errors="coerce")
+    s = pd.Series(vals.values, index=pd.DatetimeIndex(dates)).dropna()
+    s = s[s.index.notna()]
+    if s.index.duplicated().any() or len(s) < 10000:
+        raise B5Halt(f"H.15 bill series malformed (rows {len(s)}, duplicates {int(s.index.duplicated().sum())})")
+    return (s / 100.0).sort_index(), h["desc"][:300]
+
+
+def parse_h15_csv(p: Path) -> Tuple[pd.Series, str]:
+    """A DDP H.15 CSV package -> the 3-month bill (decimal, discount basis), by its Unique Identifier.
     Amendment 2 identity check: exactly one column with H15_ID; its description must contain
     '3-month' and 'secondary market'. Non-numeric cells (ND/NC) are dropped, never filled."""
     raw = pd.read_csv(p, header=None, dtype=str, keep_default_na=False)
