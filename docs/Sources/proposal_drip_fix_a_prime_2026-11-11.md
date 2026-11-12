@@ -241,5 +241,358 @@ whatever its result.
   nearest clean bar ≥ e+1. σ(m) = noise × √(returns spanned) / |y|.
 - The blip test and the five other reversion modes still fail exactly as intended.
 
-<!-- §2 onward (the build, the acceptance result, the runbook consequence, the re-run list, the
-risks and the recommendation) is written AFTER the candidate is built and tested. -->
+---
+
+## §2. The defect, in plain English
+
+The price files for 575 stocks join two sources at a "seam" date:
+- **After the seam** (usually 2018-01-02 or 2020-04-09), the prices are Alpaca's. They correctly
+  fold every dividend into the return.
+- **Before the seam**, the prices are Stooq's. Stooq is inconsistent about dividends, and the
+  inconsistency follows calendar dates:
+  - it includes the dividends paid from 2011-02-21 to 2022-12-18;
+  - it leaves out the dividends paid from 2003-04-01 to 2011-02-20;
+  - before 2003 it depends on the stock. Some, like KO and XOM, lack every dividend since 1970.
+
+When the two sources were joined in May, the code assumed Stooq always included dividends. Stooq
+differs from Alpaca only because it lacks the 2023-onward dividends, and the code read that gap as
+a steady difference. It then added that same steady difference to every year before the seam.
+
+So the cache:
+- adds a dividend stream the stock never paid on top of years that were already right
+  (2011 → seam): about +0.6 pp/yr on the median stock, and about +4.6 pp/yr for MO;
+- under-states years whose dividends were genuinely missing (2003 → 2011), and many pre-2003 years.
+
+The errors are proportional to dividend yield. They therefore tilt every backtest toward or away
+from high-yield, value and low-volatility names, depending on the decade. Cutover option (a), as
+ruled, keeps these years and only rescales them, so the error would survive the cutover unchanged.
+
+## §3. The candidate (v3): what was built and where
+
+- **Script:** `scripts/drip_fix_candidate_t384.py`, with subcommands `fetch`, `build`, `accept`
+  and `manifest`, command of record in `docs/Core/execution_manual.md`.
+- **Tests:** `tests/test_drip_fix_candidate_t384.py` has 15 tests. Each one plants a known-good or
+  known-defective name and checks that the fix moves only the defective one.
+- **Code not touched:** `tr_writer.py`, the merge script and `data/`.
+- **Location:** the candidate is at
+  `/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_2026_11_11/`. Its contents:
+  - `processed/<T>_1d.csv` and `processed/parquet/<T>_1d.parquet` for the 575 files that carry
+    pre-seam bars. Every other cache file is unchanged and is not copied.
+  - `build_records.jsonl` holds one record per file: the seam, b, the splice, every missed run of
+    ex-dates, how many dividends were added and by which rule, the approximation years, and the
+    unverified pre-2003 span.
+  - `probe/labels/<T>.parquet` holds every labelled ex-date with its m and σ(m).
+    `probe/xs_median_yield.csv` holds the per-year cross-sectional median yield used by the
+    approximation.
+  - `acceptance/` holds the §1 test outputs: `summary.json`, `i_t265.csv`, `ii_yf.csv`,
+    `iii_nonpayers.csv`, `iv_bytes.csv`, `era_deltas.csv` and `b_before_after.csv`.
+  - `yf/` is the yfinance cache: prices and dividends for 576 symbols, plus the fetch log.
+  - `v1_evidence/` and `v2_evidence/` hold the superseded runs' records, acceptance outputs and
+    manifests.
+  - `MANIFEST.md5` holds the md5 of every file. The aggregate md5 is stated in §4.5.
+- **Written: 575, refused: 0.** Every file passed the fail-closed checks:
+  - the de-drifted cache is proportional to raw Stooq to within 1e-9;
+  - the pre-seam bar count equals the merge record;
+  - the seam bar is the first Alpaca bar;
+  - the post-seam text is byte-identical.
+- **Coverage:**
+  - 564 files are reference-backed.
+  - 11 have no reference: AVB, CTRA, EA, EQR, HOLX, LEG and QRVO have no yfinance prices at all
+    (Yahoo: "No data found, symbol may be delisted", confirmed by a serial retry); BBBY, PSKY,
+    SATS and POM have a yfinance symbol that is now a different, recent security.
+  - 34,575 ex-dates were labelled across 449 payers. 27,642 are MEASURED, 5,210 come from
+    neighbours and 1,723 from the global rule. 11,096 were missed and added; 9,602 of those were
+    measured.
+  - 1,610 measured labels contradict the global era rule:
+    - 1,322 before 2003-04, missed where the global rule says captured;
+    - 163 in 2003-04 → 2011-02, captured where it says missed, such as MO/Kraft 2007, CAH 2009
+      and XOM 2009-05;
+    - 125 in 2011-02 → 2022-12.
+  - The approximation is used by 12 files: the 11 above plus DAL, ELV and PLD over their
+    no-reference years.
+  - 54 files carry a pre-2003 span labelled UNVERIFIED.
+- **Before 2000, now established where measurable.** 11,517 ex-dates on 201 names; 53.5 % are
+  measured. Of the measured ones, 16.4 % were missed, and 40 of 172 names have at least one
+  measured miss. KO and XOM missed every dividend from 1970; BA missed them from 1980 to 1999.
+  Where a name has no measurable reference (yfinance and Stooq disagree day to day before about
+  1988), the span is LABELLED unverified, not guessed.
+
+## §4. The acceptance result — **FAIL** under the pre-declared test
+
+### 4.1 (ii) Against yfinance, per year, 2000–2015. The era structure is tested here.
+
+The thresholds are median 0.05, p95 0.30 and per-quintile median 0.05. The "cache" columns are the
+same statistic for today's cache.
+
+| year | era (global) | names | median \|x\| | p95 \|x\| | worst quintile median | cache median | cache p95 | verdict |
+|---|---|---|---|---|---|---|---|---|
+| 2000 | per-name | 243 | 0.0128 | 0.122 | 0.0171 | 0.93 | 2.84 | PASS |
+| 2001 | per-name | 250 | 0.0133 | 0.147 | 0.0151 | 0.88 | 2.76 | PASS |
+| 2002 | per-name | 254 | 0.0123 | 0.067 | 0.0129 | 0.92 | 2.47 | PASS |
+| 2003 | edge 04-01 | 254 | 0.0098 | 0.050 | 0.0107 | 0.69 | 2.73 | PASS |
+| 2004 | missed | 255 | 0.0063 | 0.032 | 0.0105 | 0.74 | 3.03 | PASS |
+| 2005 | missed | 256 | 0.0068 | 0.030 | 0.0079 | 0.78 | 2.86 | PASS |
+| 2006 | missed | 452 | 0.0056 | 0.037 | 0.0077 | 0.66 | 3.04 | PASS |
+| 2007 | missed | 461 | 0.0048 | 0.029 | 0.0061 | 0.69 | 3.07 | PASS |
+| 2008 | missed | 471 | 0.0045 | 0.026 | 0.0060 | 0.95 | 4.45 | PASS |
+| 2009 | missed | 477 | 0.0048 | 0.027 | 0.0074 | 1.07 | 4.68 | PASS |
+| 2010 | missed | 482 | 0.0066 | 0.132 | 0.0116 | 0.88 | 3.49 | PASS |
+| 2011 | edge 02-21 | 494 | 0.0065 | 0.101 | 0.0099 | 0.49 | 2.21 | PASS |
+| 2012 | captured | 503 | 0.0056 | 0.054 | 0.0081 | 0.68 | 2.42 | PASS |
+| **2013** | captured | 512 | 0.0039 | **0.350** | 0.0057 | 0.68 | 2.43 | **FAIL** |
+| 2014 | captured | 525 | 0.0033 | 0.035 | 0.0057 | 0.62 | 2.28 | PASS |
+| 2015 | captured | 534 | 0.0027 | 0.027 | 0.0052 | 0.65 | 2.28 | PASS |
+
+The census covers 534 names and 6,423 name-years. The yield quintiles' upper bounds are 0, 0.74,
+1.68, 2.98 and 23.8 pp. Sector medians run from 0.0026 to 0.0069 pp.
+
+**Why 2013 fails.** 29 of 512 name-years exceed 0.30 pp:
+- **13 sit on a Stooq transient block at the 2013 year-end**, the 2013-12-19 → 2014-01-03 block
+  on CPB, DGX, DRI, ERIE, GIS, LNC, LVS, MAS, NTAP, ORCL, UDR, VZ and XEL. The raw bundle, the cache
+  and the candidate all carry it, because the candidate keeps Stooq where Stooq is total return
+  (§1.3).
+- 7 are corporate actions the vendors treat differently: LDOS, MUR, VLO, JEF, TMUS, FCX and PSX.
+- 2 are partial adjustments: T (yfinance's AT&T dividends read about 1.3 × Stooq's in every
+  year 2001–2012, consistent with the known yfinance AT&T anomaly) and MDLZ.
+- 7 are small unexplained Stooq/yfinance gaps of 0.3–1.8 pp: BLK, LNT, FLS, VFC, CBOE, ROST and
+  BUD. Several had splits that year.
+
+Without the 13 inherited-block rows, the 2013 p95 would be 0.138. That counterfactual explains the
+failure; under the rule it does not change the verdict.
+
+### 4.2 (i) Against T-265 (Alpaca 'all'), every name-year from 2016 to the seam
+
+| period | names | median \|x\| | p95 \|x\| | failing name-years | cache median |
+|---|---|---|---|---|---|
+| 2016 | 535 | 0.0081 | 0.077 | 27 | 0.648 |
+| 2017 | 545 | 0.0077 | 0.061 | 19 | 0.648 |
+| 2018 (2020-seam names) | 98 | 0.0071 | 0.038 | 3 | 0.900 |
+| 2019 | 99 | 0.0074 | 0.025 | 2 | 0.863 |
+| 2022 / 2023 (late seams) | 1 / 1 | 0 | 0 | 0 | 0 |
+| seam stub (incl. the splice return) | 551 | 0.0061 | 0.033 | 8 | 0.011 |
+
+- **Pass rate:** 1,771 of 1,830 name-years with the floor, and 1,741 with no floor. 59 fail,
+  across 46 names. The cache passes 747 of 1,830.
+- **Who fails, and why.** Of the 59:
+  - **35: the two references disagree with each other** (yfinance − T-265 beyond the tolerance).
+    In 27 of those the candidate equals yfinance, so T-265 is the outlier. Examples: AEE 2016,
+    COR, DD, F (supplemental dividends), PM, SPGI, SRE, RL, PHM, QCOM, TMUS, UAA, IR, META and
+    SYK. The other 8 are large corporate actions where all three series differ: AA 2016,
+    APTV 2017, AVGO 2018, DOC 2016, JCI 2016, RTX 2020 stub, XRX 2017 and PGR 2020 stub.
+  - **13: spin-offs and mergers that Stooq never applied, though yfinance and T-265 agree.**
+    APD 2016 (−7.2), CAG 2016 (−25.1), HPE 2017 (−54.3), HLT 2017, HON 2016 and 2018, GE 2019,
+    BIIB 2017, CHTR 2016–17, and VNO 2017.
+  - **5: small Stooq/reference gaps** of 0.2–1.0 pp: ACN 2016, AFL 2017, HST 2017, NWSA 2017 and
+    WMB 2016.
+  - **2: no reference.** BBBY 2016–17. Its yfinance symbol is now a different security, so no
+    ex-date could be measured, and Stooq appears to miss its 2016–17 dividends.
+  - **5: the splice.** The 2017-12-29 → 2018-01-02 seam day, Stooq's return against Alpaca's,
+    off by 0.08–0.24 pp, for AFL, CHTR, MTCH, NWSA and POOL. The cache's stub fails the same
+    way.
+  - **1: WM 2016**, an ex-date m outside [−0.25, 1.25].
+- The cache also fails 55 of these 59 name-years.
+- In 34 of the 59 the cache happens to sit closer to the reference than the candidate. In those
+  rows its drip partly offsets a Stooq corporate-action error: GE 2019 has cache +1.05 against
+  candidate −3.95.
+
+### 4.3 (iii) Non-payers — FAIL, only through (i)
+
+- (a) holds for all 110 reference-backed non-payers: the candidate equals raw Stooq to below
+  1e-6 pp in every year. The fix injects nothing.
+- (b) fails for 6 names on 9 name-years: BIIB 2017 (the Bioverativ spin-off), CHTR 2016–18
+  (merger), IR 2017, META 2016–17 (T-265 vs yfinance, −0.07 pp), MTCH 2018 (stub) and UAA 2016
+  (T-265 vs yfinance).
+
+### 4.4 (iv) Post-seam bytes — PASS, 575 of 575
+
+### 4.5 The candidate's identity
+
+- Final candidate (v3): commit `69620e7` (script) and the aggregate manifest md5 below.
+- The superseded runs, kept as evidence:
+  - v1 (`f69b475`, manifest `10a8f55c…`) had the same (i) and (iii) failures. (ii) failed 2013 at
+    a p95 of 0.71, because v1's probe added dividends a second time inside Stooq's transient
+    blocks.
+  - v2 (`acb1e72`, manifest `244bcf07…`) fixed that but regressed 2000–01 (§1.4).
+- v3 is the best of the three on every test. It is still a FAIL.
+
+**Manifest.**
+- `MANIFEST.md5` lists 3,674 files. The md5 of the whole manifest file is
+  `a2aad09fd687f4e6260eaa9312ab0430`.
+- The candidate substrate alone is the 1,150 `processed/` lines (575 csv + 575 parquet), with
+  aggregate md5 `5646d03d91f8392218e8239bb228e93b` (computed as `grep "  processed/" MANIFEST.md5 | md5`).
+- Size: about 0.93 GB, of which `processed/` is 0.81 GB.
+
+**Full suite** (`python -m pytest -q`, on this branch, before the script's lock-marker comments
+were added):
+- result: 4,692 passed, 2 failed, 56 skipped;
+- failure 1: the known environmental `edges.yml` capability-ledger contract;
+- failure 2: the repo-wide `test_processed_globbers` lock, which my new script tripped. It now
+  carries the `# ticker-exclusions: bypassed — data-ops …` marker beside each per-ticker read.
+
+**Re-run after the fix:** the full suite was NOT repeated, because the host was below 15 GB free.
+I re-ran every script-scanning lock (17 files) and the new tests: 286 passed, plus the same known
+`edges.yml` failure. The canonical `data/processed/` listing (names, sizes, mtimes) was identical
+before and after the suite.
+
+## §5. What changes in the numbers people quote
+
+**Per-name mean annual return, candidate − cache, in pp/yr.** Medians [p10, p90] over files:
+
+| era | files | median | p10 | p90 | what moved |
+|---|---|---|---|---|---|
+| pre-2000 | 246 | −0.86 | −1.91 | 0.00 | the drip removed; KO +1.25, XOM +3.87, PG +1.52 where Stooq missed dividends since the 1970s |
+| 2000 → 2003-03 | 259 | −0.76 | −1.91 | 0.00 | the drip removed; per-name missed eras added (MO, AA, CAT from 2001) |
+| 2003-04 → 2011-02 | 500 | +0.39 | −0.65 | +2.47 | the missing dividends restored, net of the drip |
+| 2011-02 → seam | 571 | −0.59 | −1.78 | 0.00 | the drip's over-count removed |
+
+**By seam group, 2011-02 → seam:** −0.55 for the 2018-01-02 seam and −0.77 for the 2020-04-09
+seam.
+
+**Named examples, the same four eras in order:**
+- MO −4.58 / −0.99 / +0.79 / −4.58
+- PFE −4.03 / −4.03 / −0.04 / −4.03
+- VZ −3.64 / −3.64 / +1.33 / −3.64
+- XOM +3.87 / −0.35 / +0.32 / −1.82
+- KO +1.25 / +0.15 / +1.04 / −1.61
+- AAPL and AMZN 0.00 throughout
+
+**Share of files whose drift exceeds 0.5 pp/yr.**
+- The merge applied b > 0.5 pp/yr to 313 of these 575 files, 54 %. The health-check figure is
+  334 of 730, counting the `both` files with no pre-seam bars.
+- Measured as the mean annual excess against the reference over 2012 → seam, the files above
+  0.5 pp/yr fall from **299 of 564 in the cache to 33 of 564 in the candidate**.
+- Every one of the 33 is a corporate-action name: AA, APTV, CNX, DHR, JCI, YUM, HPE, XRX, GE,
+  KMB, PPL, SPG, MUR, VLO, OXY, WMB and others. The yfinance AT&T anomaly accounts for T. These
+  are Stooq's unapplied spin-offs, which the drip had partly masked. Across the (ii) census, the
+  name-years with |x| > 0.30 pp fall from 4,549 of 6,423 to 169.
+
+## §6. What it changes for the cutover runbook (described, NOT made)
+
+`engines/data_manager/tr_writer.py` option (a), lines 45–55, keeps the cached pre-seam bars and
+scales them by the ratio at the seam. The mechanism is right; the bars it keeps are wrong. (a′)
+implies:
+
+1. **A new step before S2** (the one-step replacement), on the cutover COPY:
+   - build (a′) pre-seam bars for the copy's 575 seam files, using this script's `build` logic
+     pointed at the copy, or an (a′) mode added to the writer;
+   - then re-run P2/P3 (the guard and label readings) and regenerate the candidate manifest.
+   The post-seam bars in the copy come from yfinance exact total return, not Alpaca. (a′) leaves
+   them alone, and the writer's existing seam-ratio rail checks the splice.
+2. **The convention label changes.** `tr_writer.py:122-124` defines `DRIP` as "T-082b's
+   `apply_dividend_strip`". (a′) needs its own label (for example `era_tr`: "Stooq where Stooq is
+   total return; the missed dividends restored per ex-date"). The census's convention reader and
+   the write record's `convention` block must carry it, along with the per-file
+   `approx_years` / `unverified_pre2003_span`, or the census can no longer say what each span
+   IS.
+3. **Records owed:**
+   - the cutover proposal §1's "not systematic" (refuted);
+   - the merge script's docstring premise, lines 13–15;
+   - `_merge_meta.json`'s `implied_annual_div_yield_pct`, which uses × 252 on a per-calendar-day
+     slope.
+4. **Re-pin #2 content grows** by the 575 pre-seam rewrites. The S6 class-by-class manifest diff
+   gains that class.
+5. **What (a′) does NOT fix:** Stooq's unapplied 2012–2019 spin-offs and its transient blocks
+   (§4, §10). Under option (a) or (a′), those stay in the substrate until a separate repair.
+
+## §7. Verdicts that must be re-run on a corrected substrate
+
+These are `[NN-SUBSTRATE-REVERIFY]` cases. "Re-verify required" means the verdict was measured on
+a substrate with a known yield-proportional error.
+
+- **B-1 / T-365, the decisive price-vocabulary test** (`docs/Audit/b1_raw_signal_decile_verdict_2026-10-14.md`):
+  - its forward returns over 2000–2019 carry this bias, tilted toward high-yield names in
+    2011 → seam and away from them in 2003–10 and in the per-name pre-2003 eras;
+  - value, low-vol and momentum deciles are the most exposed;
+  - re-run as a NEW pre-registered run. Its null is not a clean refutation of those signals
+    until then.
+- **The RR-1 equity-book list**
+  (`docs/Sources/referee_repair_proposal_RR-1_2026_09_30.md` §5): the 29 controller-produced
+  verdicts and the 4 consumption verdicts (T-170, T-206, and per R's review T-148 and T-169).
+  - The 29:
+    - T-066, T-092, T-126, T-140, T-140-fu3, T-180;
+    - T-055c/d/e/g/h, T-057, T-057b, T-109, T-118-rerun, T-120, T-121, T-128r, T-154, T-162,
+      T-174;
+    - T-041b, T-122, T-129, T-144, T-145, T-196, T-241;
+    - T-211.
+  - These are already UNTESTED under RR-1. This defect is a second, independent reason, and
+    their re-runs must happen on the corrected substrate or they will be re-verified on a wrong
+    one.
+- **Also:**
+  - the harnesses that read `data/processed` closes over pre-seam windows (T-123, T-135, T-137,
+    T-150, T-153, T-269, per R's read of the cutover proposal);
+  - the base-curve consumers (T-171, T-178);
+  - T-239, which "reads raw price files". If those files are `data/processed`, it is affected
+    too, so check before quoting it;
+  - any Discovery or Gate-7 window that reaches before a seam.
+- **B-4 must not run on the current cache.** B-6 must read a clean price source.
+- **Unaffected:**
+  - the T-306 family, SPY, `tr_reconciled/` and the T-265 panel;
+  - anything whose window starts after 2020-04-09.
+
+## §8. Risks
+
+1. **The amounts come from the reference's own source.** Inside the missed era the added
+   dividends come from yfinance, the same source as (ii)'s reference. They are checked
+   independently only at the era edges, where Stooq's own dividend amounts agree with
+   yfinance's (pooled median 0.0037 pp), and against Alpaca from 2016. A systematic error in
+   yfinance's 2003–2010 dividend amounts would not be caught. (Since the SPY check proves
+   yfinance to 0.08 pp/yr, this is not the expected failure.)
+2. **The 11 no-reference names carry an approximation:** the cross-sectional median yield, about
+   1.2–2 %/yr, through 2003–2011. BBBY was very likely a non-payer then, so for BBBY the
+   approximation is an over-count. Each file's record names its `approx_years`. A future source
+   for the delisted names (EDGAR dividend facts, SimFin) can replace it.
+3. **54 files have unverified pre-2003 spans.** The candidate leaves Stooq as-is there. The
+   measured pre-2000 miss share is 16 %, so some of these spans are likely under-counted.
+4. **Stooq's transient blocks and unapplied spin-offs stay in the substrate.** Any monthly
+   rebalance reading the 2013 month-end closes (June–November 2013, about 85 names) sees a
+   spurious ±1-dividend move each month. That applies under (a) as well.
+5. **The forking path.** Three candidate versions ran against one test. Every change was a
+   diagnosed defect, recorded before the next run, and the thresholds never moved. Still, this
+   is three looks, not one. A reviewer should re-run `accept` on v3 independently.
+6. **The yfinance data is a snapshot.** It is cached in `yf/`, so the candidate is reproducible
+   from that cache. A re-fetch on another day may differ by the ex-dates Yahoo restates.
+
+## §9. Recommendation
+
+**Do not cut over on option (a) as ruled.** It carries a measured, yield-proportional bias:
+- the cache fails 1,083 of 1,830 name-years against Alpaca from 2016, where the candidate fails
+  59;
+- it has 4,549 of 6,423 name-years against yfinance above 0.30 pp, where the candidate has 169.
+
+**Adopt (a′) as the pre-seam convention for cutover day, knowing it FAILS its pre-declared test,**
+because:
+- every failing name-year traces to a cause outside the dividend-era repair: spin-offs Stooq
+  never applied, Stooq transient blocks, reference-vs-reference disagreement, one no-reference
+  name, and the seam-day return;
+- the cache fails 55 of the 59 too;
+- the (ii) medians sit at the reference's own noise (0.003–0.013 pp) in every year, every yield
+  quintile and every sector.
+
+The failure is the true statement that **Stooq has defects beyond dividends**. That claim needs
+its own unit, held to this same §1 test unchanged: repair the 2012–2019 unapplied spin-offs and
+the transient blocks, measured, with a declared list. Until that unit passes, label those
+name-years in the census.
+
+This reopens the 2026-10-22 cutover ruling, so it is **the user's decision**. The alternatives:
+- keep (a) and label every pre-seam number "drip-biased, yield-proportional";
+- delay the cutover until the second unit lands.
+
+## §10. Findings beyond the brief
+
+1. **Stooq transient blocks** (4,517 since 1995, over 414 names). These are runs of bars offset by
+   about one dividend that revert within days. They are now a health-check candidate (MEDIUM).
+   They hit the cache's month-end closes in 2013 and any return measured across them.
+2. **Stooq did not apply 2012–2019 spin-offs** on at least 13 names: APD, CAG, HPE, HLT, HON,
+   GE, BIIB, VNO, KMB, PPL, SPG, MUR, VLO and OXY. Yet it did apply spin-offs inside the
+   2003–2011 "missed" era: MO/Kraft, MO/PM, CAH and AYI.
+3. **Pre-2003 eras are per name.** KO and XOM lack every dividend from 1970, and BA from 1980 to
+   1999. So the cache's pre-2003 years are ALSO wrong for those names, by −yield + b. The
+   investigation's "≈ 0 % missed 2000 → 2003-Q1" holds for most names but not all: in 2001–02,
+   22–32 % of measured ex-dates were missed.
+4. **POM's seam-day return is −90.8 %**, in the cache and in the candidate alike. The pre-seam
+   Stooq level is about 10× Alpaca's: a reused ticker or a split mismatch. Not touched here.
+5. **yfinance quirks:**
+   - `Ticker.dividends` answers an EMPTY series for a delisted symbol rather than an error;
+   - Yahoo returns "possibly delisted" for live-looking names it has dropped (AVB, EA, EQR,
+     HOLX, LEG, QRVO, CTRA);
+   - SATS, BBBY and PSKY now map to recent securities with months of history.

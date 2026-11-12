@@ -826,6 +826,15 @@ python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manif
 # the MAIN tree's committed config/substrate_manifest.sha256 when --stamp-root is absent — a candidate
 # manifest, a worktree's own config/, a scratch file all refuse. The one bare `generate` is the
 # director's re-pin in the MAIN tree; the verify-stamp block above documents the flag.
+
+# T-384 option (a′) — the era-aware drip repair, a CANDIDATE on a copy (2026-11-11;
+# docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md). Every subcommand REFUSES an --out inside any
+# repo's data tree; the default --out is Dev/_substrate_candidates/drip_fix_a_prime_2026_11_11/.
+# Network: yfinance only (fetch); build/accept/manifest are offline on the cached yf/ directory.
+python scripts/drip_fix_candidate_t384.py fetch [--tickers A B] [--refetch] [--sleep 0.4]   # yfinance prices (fetch_yf_tr) + Ticker.dividends -> <out>/yf/ ; resumable; _fetch_log.jsonl
+python scripts/drip_fix_candidate_t384.py build [--tickers A B]                              # pass 1 every reference (labels, xs-median yield), pass 2 writes <out>/processed/; exit 2 on any refusal, 3 below 15 GB free
+python scripts/drip_fix_candidate_t384.py accept                                             # the §1 pre-declared test -> <out>/acceptance/summary.json + per-test CSVs; prints the verdict
+python scripts/drip_fix_candidate_t384.py manifest                                           # <out>/MANIFEST.md5 over every file under <out>
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh

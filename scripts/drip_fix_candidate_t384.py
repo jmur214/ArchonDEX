@@ -107,6 +107,7 @@ def read_raw_stooq(path: str) -> pd.Series:
 
 def read_cache_text(ticker: str, cache_dir: Path = CACHE_DIR) -> Tuple[str, List[str]]:
     """The cached CSV as (header, data lines) — text, so post-seam rows can be copied verbatim."""
+    # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     with open(cache_dir / f"{ticker}_1d.csv", "r", newline="") as fh:
         lines = fh.read().split("\n")
     if lines and lines[-1] == "":
@@ -115,6 +116,7 @@ def read_cache_text(ticker: str, cache_dir: Path = CACHE_DIR) -> Tuple[str, List
 
 
 def read_cache_frame(ticker: str, cache_dir: Path = CACHE_DIR) -> pd.DataFrame:
+    # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     df = pd.read_csv(cache_dir / f"{ticker}_1d.csv", float_precision="round_trip")
     df["Date"] = pd.to_datetime(df["Date"])
     return df
@@ -697,6 +699,7 @@ def xs_median_yield(refs: Dict[str, NameReference]) -> pd.Series:
 def write_pair(out_dir: Path, ticker: str, text: str) -> Tuple[Path, Path]:
     """csv (the text, verbatim) + parquet (parsed from that text), mirroring the cache layout."""
     import io
+    # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     csv_p = out_dir / f"{ticker}_1d.csv"
     pq_p = out_dir / "parquet" / f"{ticker}_1d.parquet"
     pq_p.parent.mkdir(parents=True, exist_ok=True)
@@ -812,12 +815,14 @@ def yearly_periods(a: pd.Series, b: pd.Series) -> pd.DataFrame:
 
 
 def _cand_close(out: Path, t: str) -> pd.Series:
+    # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     df = pd.read_csv(out / "processed" / f"{t}_1d.csv", usecols=["Date", "Close"],
                      float_precision="round_trip")
     return pd.Series(df["Close"].to_numpy(dtype=float), index=pd.to_datetime(df["Date"]), name="cand")
 
 
 def _cache_close(t: str) -> pd.Series:
+    # ticker-exclusions: bypassed — data-ops: the substrate-repair candidate reads/rewrites EVERY merged file; the measurement-universe exclusion does not apply to a cache rewrite (output outside the repo)
     df = pd.read_csv(CACHE_DIR / f"{t}_1d.csv", usecols=["Date", "Close"], float_precision="round_trip")
     return pd.Series(df["Close"].to_numpy(dtype=float), index=pd.to_datetime(df["Date"]), name="cache")
 
