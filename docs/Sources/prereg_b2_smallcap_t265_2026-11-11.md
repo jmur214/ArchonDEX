@@ -456,3 +456,98 @@ python census_join.py <wt> <out>/f4/ <out>/price_census.parquet  # §3.5 CIK vs 
 python census_recover.py <wt> <out>/price_census.parquet         # §3.1 Form 4 symbol recovery
 python -c "from core.measurement import mbl_gate as g; print(g.compute_n_effective(), g.compute_n_effective_correlated())"
 ```
+
+---
+
+## AMENDMENT 1 — director rulings R1–R9, 2026-11-11 (BINDING; pre-data)
+
+The frozen text above is unchanged: md5 `d369e628779d93b8b10b95f9b8546d87`, the same at `780a49b`. This
+amendment adds to it and rewrites nothing. It is committed together with the nine census scripts
+(`scripts/b2_census_t381/`, byte-identical to the scratch copies that produced §3) BEFORE any strategy
+return, signal, cluster or event exists. The commit time is earlier than every file under
+`data/research/b2/`, and that ordering is the proof.
+
+### A1.1 R1 Survivorship — option (a), the asymmetric rule (§2.7)
+Run now on T-265. A FAIL stands. A PASS reads "upper bound — not certifiable on a survivor-biased
+panel".
+**Stop trigger for the fix:** any H1 met, OR any of the three pre-declared alpha diagnostics in A1.6
+with t_HAC > +2.0. If it fires, STOP after the verdict draft and report. The director then rules on a
+one-time Alpaca SIP fetch of the ~2,000 symbols recovered from Form 4 filings. Nothing is fetched now.
+
+### A1.2 R2 Delistings — accepted, with the segment rules made explicit
+- **BASE:** D = −30% (Shumway) on every death, at the last traded bar. **STRESS:** D = −100%.
+  **No-penalty diagnostic:** D = 0. The proceeds earn BIL TR as in §4.3.
+- **Phantom tails:** every file is truncated at its last bar with volume > 0, and that bar is the
+  death. The census counted **151 files** with a trailing zero-volume run of ≥ 5 bars (45 of them
+  forward-filled to 2025-03-21). Files with 1–4 trailing zero-volume bars are truncated the same way
+  and counted separately.
+- **Reused tickers:** **141 files** have an interior no-trade run of ≥ 63 market days. Each is split at
+  that gap into separate securities. The first segment ends as a death under the base rule. The second
+  starts fresh and needs its own full 12-1 lookback (momentum). The gap is counted on the
+  `tr_reconciled/SPY` market calendar from 2016-01-04, exactly as `census_splice.py` counts it.
+- **The harness re-measures both counts (151 and 141) and HALTS if either differs** (§4.5).
+- **Death date, precisely:** a segment's last traded bar, when it is earlier than 2026-06-23 (the
+  panel's final week). Every window ends on or before 2026-05-22, so a death after that date never
+  enters a computation.
+- **SURVIVOR-ONLY diagnostic:** segments with no death on or before 2026-05-22.
+
+### A1.3 R3 Costs — the gate is the 70/150 bps round-trip basis (the T-249/T-265 basis)
+- **Momentum gate:** 70 bps RT ($20M–$200M ADV) and 150 bps RT ($1M–$20M), charged as
+  |Δw| × RT/2 per side. **Sensitivity:** the brief's 35/75 bps RT.
+- **Insider gate:** I extend the ruling's reason ("stricter, pre-data; a pass at half the measured cost
+  would be re-argued") to the insider arm. **Gate:** 70/150 bps RT by the name's ADV bucket at the
+  event. **Sensitivity:** the brief's flat 75 bps RT. I flag this extension for the director.
+- An exit from a name whose ADV has left the band is charged at 150 bps RT if ADV is below $20M or
+  missing, and 70 bps if it is $20M or more.
+
+### A1.4 R4–R9
+- **R4** SEC zips: accepted.
+- **R5** ADV < $200M: accepted.
+- **R6** H1 against SPY TR only, with the IWM sleeve reported: accepted.
+- **R7** N_trials +2: accepted.
+- **R9** CMP filter in the brief's wording: accepted.
+- **R8** footnote regex: accepted, plus two items. (i) The footnote-match rate and the
+  `AFF10B5ONE` rate are reported per filing year among P/A Form 4 rows. (ii) A **sensitivity with no
+  10b5-1 exclusion before 2023**: footnote matches are ignored for filings before 2023-01-01, and the
+  structured flag (2023q1+) still applies. The sensitivity reports the event study (≥ 3) and the
+  satellite. It cannot meet H1.
+
+### A1.5 Point in time
+No acceptance timestamp exists in either Form 4 source (§3.5). **Entry is the close of the first
+trading day after the SEC `FILING_DATE`** on which the name trades, within 5 market days; otherwise
+the event is dropped and counted. Day 0 is the entry close.
+
+### A1.6 Power — minimum detectable effects (pre-data; assumptions stated)
+MDE80 = (z_{0.975} + z_{0.80}) × SE = 2.80 × SE: a two-sided 5% test with 80% power. The "t > 2"
+threshold itself is the 50%-power point.
+
+| gate | SE model (assumptions) | **MDE80 (central)** | range across the assumptions |
+|---|---|---|---|
+| **momentum satellite** Δ log wealth, 111 months | SE = 0.25 × TE/√12 × √111; TE (arm vs SPY TR) **20%**/yr (15–25%) | **+0.43 total ≈ +4.6%/yr on the blend ≈ the arm beating SPY TR by ~18%/yr** (log) | +0.32 to +0.53 total (arm +14 to +23%/yr) |
+| **insider satellite** Δ log wealth, 123 months | the same, with TE **25%**/yr (a ≤ 40-name small-cap book; 20–30%) | **+0.56 total ≈ +5.5%/yr on the blend ≈ the arm beating SPY TR by ~22%/yr** | +0.45 to +0.67 total (arm +18 to +26%/yr) |
+| **insider event study** CAR(0,126), ≥ 3, t_HAC | about 118 entry-month cohorts with ~15 events each; event CAR σ **40%** (35–45%); a cohort-common style shock σ **8%** (6–10%) carried across 6 overlapping months, so long-run var = σ²/m + 6·σ_c² | **mean CAR ≈ +5.7%** (t = 2 is reached at about +4.0%) | +4.4% to +7.4% (t = 2 at +3.1% to +5.2%) |
+
+The verdict also reports a **realized** MDE (2.80 × the bootstrap sd of the gate statistic). That
+figure is descriptive; the pre-data MDEs above are the ones that bind.
+**Labelling rule (binding):** a satellite null (ci_low ≤ 0) with a point estimate below its pre-data
+central MDE80 is labelled **"not demonstrable at this length"**. The brief's refutation sentences (§1)
+still apply verbatim beside that label.
+
+**Two alpha diagnostics.** They carry no N_trials, cannot meet H1, and feed only the stop trigger in
+A1.1.
+1. **Momentum** base-arm monthly net returns in excess of BIL TR, regressed on (a) IWM TR minus BIL and
+   (b) SPY TR minus BIL. Each regression reports the annualized intercept (alpha × 12) and its
+   Newey-West t (statsmodels HAC, 6 lags), over the 111 holding months.
+2. **Insider** base-book monthly net returns in excess of BIL TR, regressed on IWM TR minus BIL, with
+   the same HAC (6 lags), over the 123 satellite months.
+
+Their power, under the same assumptions: residual volatility against IWM of 12%/yr (momentum) and
+18%/yr (insider book) gives an alpha SE of about 3.9 and 5.6%/yr, so t = 2 needs about +8 and +11%/yr
+of alpha. Against SPY (momentum), residual volatility of 18% gives an SE of about 5.9%/yr.
+
+### A1.7 Sequence from here
+Commit this amendment with the census scripts → build `scripts/smallcap_momentum_t265_b2.py` and
+`scripts/smallcap_insider_t265_b2.py` → smoke the first 12 months of each window and read the first
+formations and events by eye → full run → determinism ×2 → verdict
+`docs/Audit/b2_smallcap_t265_verdict_2026-11-11.md` (or, if the A1.1 trigger fires, the verdict DRAFT,
+then STOP and report) → full suite → commit, including the memory files. No push, no merge.
