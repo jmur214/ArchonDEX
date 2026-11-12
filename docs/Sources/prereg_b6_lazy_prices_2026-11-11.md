@@ -715,3 +715,74 @@ census has a "ranked share 87–97%". That range was the (d)-source joint census
 same quarters. On (c)'s declared source (`data/processed` only) the census reads **83.4–94.8% (ranked
 416–474; terciles ≥ 138)** — every quarter still passes the frozen 80% / 150 / 40 rules, so nothing in
 A2.2 changes. Census file: `data/b6_local/harness_sp/run1/census_gate_similarity.csv`.
+
+
+---
+
+## AMENDMENT 3 — review findings F1–F5 and the defect-corrected S&P re-run (director rulings, 2026-11-12; BINDING). Appended; nothing above is edited.
+
+**Disclosure (verbatim, as ruled): "a defect-corrected re-run after results were seen; the configuration
+is unchanged; N_trials stays +1 (the B-5 A2.2 precedent)."** The original (c) run (results md5
+`2ec68e5a9248af3a5138eb940960aa6f`, commit `e5a923f`) stays as the record — NON-COMPLIANT with §7.7 — and
+the verdict shows both runs. Window (c), signals, ranking, legs, costs, satellite, bootstrap and gates are
+unchanged; only the defects below are corrected. Committed BEFORE the corrected run.
+
+### A3.1 F1 — §7.7 was not implemented (MEDIUM-HIGH, `[NN-FAIL-CLOSED]`)
+The original harness booked ANY price-file end as an index exit (last close → BIL). §7.7 says a NaN return
+with no recorded index deletion must HALT, and the harness had no deletion check. Of its 58 "exits",
+≈ 27 were real M&A or failures, 8 renames (CDAY, FLT, RE, FBHS, WLTW, COG, DISCA, HFC) and ≈ 23 TRUNCATED
+`data/processed` files of members still live (AVGO ends 2025-04-23; ANET, PWR, APH, MU, LRCX, CAT, DELL,
+MPC, TER, GLW; CMA 2024-07-01); at 2025-12-31, 25 live members with a signal were unpriced because their
+file had ended (NVDA from 2024-06, AVGO, PLTR, VST, APP, HOOD, KLAC). **Corrected:** each name-quarter's
+price is resolved from bar DATES and membership records before any return — `data/processed` if it has a
+bar at t and covers the quarter; else **T-265 bars joined BY CIK** (R1's primary source) if they cover
+(renames resolve here, through the CIK map); else the name EXITS at its last bar ONLY if its PIT
+membership interval ends within −10 / +45 days of that bar (a **recorded index deletion**); anything else
+is **unresolved and HALTS the census**. Returns also halt on any exit the census did not record. A cause
+table (ok / no_file / no_bar_at_t / truncated / rename / real_exit / unresolved / no_price_at_t) is in the
+census, and every name-quarter's source and cause is in `price_manifest_<spec>.csv`.
+
+### A3.2 F2 — joins (MEDIUM)
+The membership writes `BRK-B` / `BF-B`; the files are `BRK.B_1d.csv` / `BF.B_1d.csv` — Berkshire and
+Brown-Forman were excluded from all 23 quarters (the item §11 said Phase 2 "must resolve"). META was
+excluded 2020-06 → 2022-06 (the membership ticker FB maps to a different security whose `FB_1d.csv`
+starts 2025-06-26); IHS Markit likewise (INFO starts 2024-10-10); 38 later-acquired members were excluded
+at 2020-06-30 because their files start 2020-07-27; MMC has no file. **Corrected:** both share-class
+spellings are tried; everything else resolves through the same CIK-based T-265 fill (A3.1).
+
+### A3.3 F4 — the parser (LOW; fixed BEFORE the T-265 arm's census and freeze)
+The T-237 runaway still occurred through the title fallback: b6_parse/1 accepted an MD&A that ran to
+end-of-document "when clean", and `_CONTAMINATION` knew only the 10-K signature sentence — **52 of 52 such
+S&P sections carried a 10-Q signature sentence or an auditor `/s/` line** (Western Union's 2016–21 10-Q
+MD&A runs through Part II to the signatures; Campbell's 2004–06 likewise). Cause: the fallback keyed
+heading lines on letters only, so "Item 3. Quantitative and Qualitative …" became ITEMQUANTITATIVE… and
+never matched. **b6_parse/2:** heading keys strip a leading "PART II" / "Item 3." (an item letter counts only
+standing alone); "PART II", SIGNATURES, EXHIBIT INDEX, OTHER INFORMATION terminate; **end-of-document is
+never a terminator** — with no terminating heading the body is cut at the first document-end marker
+(signature block, either signature sentence, `/s/`, an auditor-report heading) or rejected;
+`_CONTAMINATION` adds the 10-Q signature sentence, `/s/` and the auditor-report heading with its
+salutation. Locks: `tests/test_b6_lazy_prices_parse.py` (the Campbell and Western Union shapes, the 10-Q
+`/s/` contamination). **WITHDRAWN: the claim in §3.4 that the T-237 runaway "cannot occur by
+construction".** It held for the item carve only; the title fallback broke it. **S&P panel re-parsed under
+b6_parse/2** into `data/b6_local/sp_sections_v2/` (b6_parse/1 stays in `sp_sections/` as the record):
+every row whose MD&A came from the title fallback or failed is re-fetched and re-parsed; every other row
+keeps its item-carved text and is re-checked against the widened `_CONTAMINATION` on its stored text.
+Signals recomputed (`signals_sp_v2.parquet`); the verdict states how many ranked name-quarters changed.
+**The T-265 stream restarts from scratch on b6_parse/2** (its 3,880 b6_parse/1 filings archived unused).
+
+### A3.4 F3 — the refutation framing (MEDIUM)
+R2 stands — ruled pre-data, legitimate. But under the brief's literal "prior same-form filing" (the
+ADJACENT 10-Q), the S&P short-leg t_HAC is **+2.27** (+2.32 with the review's fill). The verdict must say
+plainly: **the S&P half of the refutation holds ONLY under R2's same-quarter-prior-year pairing; under
+the adjacent pairing the short leg clears t = 2 in this window.** The "one of 8, needs |t| ≈ 2.7" discount
+is withdrawn: two of the 8 are the gate signals and five (20 bps cost, D = −30%, Jaccard, TF-IDF,
+MD&A-only) are near-copies of the gate, so the effective count is small and the adjacent-pairing
+short-leg result is a LIVE finding, not noise. It is untradeable in a Roth (no shorts); it is named as
+the candidate for a future pre-registered **negative-screen** test (exclude recent "changers" from a long
+book) — not tested now.
+
+### A3.5 F5 (LOW)
+"Replaces ≈ 72% of its names" was wrong: 0.72 is the two-sided Σ|Δw|; the measured share of NEW long
+names per rebalance is reported instead (≈ 32% on the original run). The 0.84 Sharpe is on RAW monthly
+returns, not excess of cash. `data/processed` drops spin-off value relative to T-265 (AIV −54 pp; FTV, WDC,
+LEN, J) — a known source difference of the (c) window, noted, not corrected.
