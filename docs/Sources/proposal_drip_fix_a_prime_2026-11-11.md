@@ -644,6 +644,17 @@ implies:
    - the 12 no-reference missed-era spans;
    - the 54 unverified pre-2003 spans.
 
+> **Note, 2026-11-12 (T-387; appended — §6 above is kept as written).** The USER ruled on 2026-11-12 to adopt
+> (a′) v4 for the cutover. §6 items 1, 2 and 4 are now BUILT on branch `feat/cutover-a-prime-writer-t387`
+> (not merged): the (a′) logic moved to ONE module, `engines/data_manager/era_tr.py`, which this proposal's
+> script now imports; the writer's (a′) mode is `tr_writer.era_tr_rewrite`, driven by
+> `python -m scripts.cutover_step1_pass era-tr`; the label is `era_tr`, and the census and the write record
+> carry each file's `unverified_missed_era_spans` / `unverified_pre2003_span`. On a copy of the canonical
+> inputs the writer's output equals v4's `processed/` file for file (aggregate md5
+> `2cee41ef7d2e0bd8fa858d500f99dda2`). The day's order is in `docs/Sources/runbook_cutover_day_2026-11-05.md`
+> §6. Item 3's records (§1 of the cutover proposal: noted; the merge docstring's premise; the
+> `implied_annual_div_yield_pct` field) — the merge script and `_merge_meta.json` are NOT edited here.
+
 ## §7. Verdicts that must be re-run on a corrected substrate
 
 These are `[NN-SUBSTRATE-REVERIFY]` cases.
