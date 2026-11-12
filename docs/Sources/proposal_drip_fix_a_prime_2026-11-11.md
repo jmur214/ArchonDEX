@@ -177,5 +177,51 @@ A cause class explains a failure. It never excuses one.
 7. The candidate is written only outside the repository's data tree. Every file and every refusal
    is recorded.
 
+### 1.4 Amendment to the CANDIDATE's rules after the v1 run (thresholds, populations and verdict NOT changed)
+
+Written after the v1 run and before the v2 run. The v1 script is `f69b475`. Its evidence is kept
+under `drip_fix_a_prime_2026_11_11/v1_evidence/`, with aggregate manifest md5
+`10a8f55cb3c867bb428c38da291acbf4`.
+
+**v1 result: FAIL.**
+- (i) 1,771 of 1,830 name-years pass (59 fail, across 46 names).
+- (ii) 15 of 16 years pass. 2013 fails with p95 0.71 pp against the 0.30 pp limit; its median,
+  0.004, passes.
+- (iii) 8 names are flagged.
+- (iv) 575 of 575 pass.
+
+The failures were traced to mechanisms. Three were defects in the candidate. Each change below
+fixes one of them, and each is reversion-proven: undoing the change fails a planted test.
+
+- **A1 — the probe was fooled by Stooq's TRANSIENT offsets.**
+  - Raw Stooq contains blocks of bars that sit one dividend off the reference and revert days
+    later. Measured since 1995: 4,517 such blocks over 414 names. The largest dates are
+    2008-05-07 (214 names), 2009-01-23 (162), 2011-03-21 (102), the 2013 month-ends from June to
+    November (about 85 names each), 2013-12-03 and 2013-12-19 → 2014-01-03, and 2015-03-12.
+  - When a block reverts inside v1's ex-day ± 1 window, a CAPTURED dividend reads m ≈ 1. v1 then
+    added it a second time. Examples: AEE 2013-12-09 (block 12-03 → 12-06), HD 2013-12-03,
+    PEP 2013-09-04, TJX 2019 and HST 2017.
+  - Change: a level-shift probe. It compares the median of 5 CLEAN bars on each side
+    (≤ e−2 / ≥ e+1). Clean means outside a detected block: a jump > 0.25 % that a bar within 15
+    undoes to within 15 %. σ(m) = noise × √10 / |y|.
+  - Unchanged: σ(m) ≤ 0.15 for MEASURED, and m ≥ 0.5 for missed.
+- **A2 — the approximation per bar** is Y(year) / business days in that year. v1 divided by the
+  bars PRESENT, so CHTR's December 2009 stub received a whole year's yield in one month.
+- **A3 — a stub of ≤ 45 calendar days before the reference's first bar is covered by the
+  reference.** This is a vendor IPO or relisting date offset, not a missing source: BLDR, LYV and
+  TDC by days, CHTR by 34 days. v1 approximated these stubs, which put a drift into non-payers.
+- **Test code brought into line with §1's text. These are bugs, not rule changes.**
+  - (iii)'s population is restricted to REFERENCE-BACKED non-payers, as §1.1 defines it. The v1
+    code admitted BBBY, PSKY, SATS and POM, whose yfinance symbols now point to a different,
+    recent security.
+  - The cause classifier treated a missing diagnostic (NaN) as "m outside".
+  - A descriptive sub-label inside the declared "other" and "splice" classes records whether a
+    period endpoint sits inside a Stooq transient block.
+
+**Not changed, and stated in advance:** the candidate does not repair Stooq's prices where Stooq
+is already total return (§1.3). The 2013 year-end block (2013-12-19 → 2014-01-03, ≥ 12 names) sits
+ON the 2013/2014 year-end endpoint. The cache and the candidate both inherit it. If (ii) 2013 still
+fails because of it, that is reported as a FAIL.
+
 <!-- §2 onward (the build, the acceptance result, the runbook consequence, the re-run list, the
 risks and the recommendation) is written AFTER the candidate is built and tested. -->

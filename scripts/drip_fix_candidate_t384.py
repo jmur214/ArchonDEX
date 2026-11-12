@@ -257,7 +257,11 @@ GLOBAL_MISSED_ERAS: Tuple[Tuple[pd.Timestamp, pd.Timestamp], ...] = (
 #: Era blocks for the neighbour rule: a one-sided neighbour may only lend its label inside its
 #: own block (it never extrapolates across a universe-wide flip).
 GLOBAL_BLOCK_EDGES = pd.DatetimeIndex(["2003-04-01", "2011-02-21", "2022-12-19"])
-PROBE_HALF_WINDOW = 1          # the probe window is ex-day ± 1 trading day (robust to a 1-day offset)
+PROBE_LEVEL_BARS = 5           # A1: clean bars each side of the ex-date for the level-shift probe
+BLIP_MIN = 0.0025              # A1: |Δlog stooq − Δlog ref| above this may open a transient offset …
+BLIP_MAX_BARS = 15             # … that a later bar undoes within this many bars …
+BLIP_REVERT_TOL = 0.15         # … to within 15 % of its size
+PRE_REFERENCE_STUB_DAYS = 45   # A3: Stooq bars this close before the reference's first bar are covered
 NOISE_WINDOW = 127             # trading days around an ex-date for the robust noise scale
 CONFIDENT_SM = 0.15            # σ(m) at or below this → the ex-date is MEASURED (0/1 are ≥ 3.3σ apart)
 MISSED_M = 0.5                 # m ≥ 0.5 → Stooq missed the dividend
@@ -302,45 +306,83 @@ def year_identity(j: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def probe_exdates(j: pd.DataFrame, divs: pd.Series, half_window: int = PROBE_HALF_WINDOW) -> pd.DataFrame:
-    """The fraction of each dividend Stooq MISSED, measured against the reference.
+def transient_offsets(d: np.ndarray) -> np.ndarray:
+    """Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
 
-    For ex-date e (mapped to the first common day ≥ e), over the window e ± w:
-        y = Σ(log adj_close − log close)   — the dividend as the reference applied it
-        x = Σ(log adj_close − log stooq)   — what Stooq lacks relative to the reference
-        m = x / y                           — 0: Stooq captured it; 1: Stooq missed it
-    σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on non-event days × √(2w+1) / |y|."""
-    cols = ["ex_date", "day", "pos", "D", "P_prev", "log_f", "y_seg", "x_seg", "m", "sm", "confident"]
-    if divs is None or len(divs) == 0 or len(j) < 2 * half_window + 3:
+    A jump d[a] (|d| > BLIP_MIN) that a later d[b], a < b ≤ a + BLIP_MAX_BARS, undoes to within
+    BLIP_REVERT_TOL of its size: bars a … b−1 carry the offset. Measured 2026-11-11 in raw Stooq
+    vs yfinance: 4,517 such offsets over 414 names since 1995 — 2008-05-07 (214 names), 2009-01-23
+    (162), 2011-03-21 (102), the 2013 month-ends (≈ 85 each), 2013-12-19 → 2014-01-03, 2015-03-12
+    — most the size of one quarterly dividend. A one-day-late adjustment is the 1-bar case."""
+    n = len(d)
+    a = np.flatnonzero(np.abs(d) > BLIP_MIN)
+    if n == 0 or len(a) == 0:
+        return np.zeros(n, dtype=bool)
+    k = np.arange(1, BLIP_MAX_BARS + 1)
+    b = a[:, None] + k[None, :]
+    inside = b < n
+    bc = np.minimum(b, n - 1)
+    da = d[a][:, None]
+    hit = inside & (np.abs(d[bc]) > BLIP_MIN) & (np.abs(da + d[bc]) < BLIP_REVERT_TOL * np.abs(da))
+    has = hit.any(axis=1)
+    starts = a[has]
+    ends = (a + 1 + np.argmax(hit, axis=1))[has]          # b = a + k[first hit]
+    edge = np.zeros(n + 1, dtype=int)
+    np.add.at(edge, starts, 1)
+    np.add.at(edge, ends, -1)
+    return np.cumsum(edge)[:n] > 0
+
+
+def probe_exdates(j: pd.DataFrame, divs: pd.Series, k_bars: int = PROBE_LEVEL_BARS) -> pd.DataFrame:
+    """The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
+    a LEVEL-SHIFT probe; v1's ex-day ± 1 sum was confused by Stooq's transient offsets).
+
+    Levels:  X(t) = Σ_{≤t}(Δlog adj − Δlog stooq)  — what Stooq lacks relative to the reference
+             Y(t) = Σ_{≤t}(Δlog adj − Δlog close)  — the dividends the reference applied
+    For ex-date e (mapped to the first common bar p ≥ e), with PRE = the last k CLEAN bars ≤ p−2 and
+    POST = the first k CLEAN bars ≥ p+1 (clean = outside a transient offset; the skipped bars make
+    it robust to a one-day-early or one-day-late adjustment):
+        x = median X(POST) − median X(PRE);  y = median Y(POST) − median Y(PRE);  m = x / y
+    m = 0: Stooq captured it; m = 1: Stooq missed it.
+    σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on clean non-event bars × √(2k) / |y|."""
+    cols = ["ex_date", "day", "pos", "D", "P_prev", "log_f", "y_lvl", "x_lvl", "m", "sm", "confident",
+            "offset_bars_near"]
+    if divs is None or len(divs) == 0 or len(j) < 4 * k_bars + 4:
         return pd.DataFrame(columns=cols)
     lr = np.log(j).diff().fillna(0.0)
+    d = (lr["stooq"] - lr["adj_close"]).to_numpy()
+    offset = transient_offsets(d)
+    lvl_x = np.cumsum(lr["adj_close"].to_numpy() - lr["stooq"].to_numpy())
+    lvl_y = np.cumsum(lr["adj_close"].to_numpy() - lr["close"].to_numpy())
     pos = j.index.searchsorted(divs.index, side="left")
-    ok = (pos >= half_window + 1) & (pos < len(j) - half_window)
-    pos, dv = pos[ok], divs[ok]
+    clean_pos = np.flatnonzero(~offset)
+    kp = clean_pos.searchsorted(pos - 1, side="left")      # clean bars < p−1 are clean_pos[:kp]
+    kq = clean_pos.searchsorted(pos + 1, side="left")      # clean bars ≥ p+1 start at clean_pos[kq]
+    ok = (pos >= 2) & (pos < len(j)) & (kp >= k_bars) & (kq + k_bars <= len(clean_pos))
+    pos, dv, kp, kq = pos[ok], divs[ok], kp[ok], kq[ok]
     if len(pos) == 0:
         return pd.DataFrame(columns=cols)
-    cs = lr.cumsum()
-    hi = cs.iloc[pos + half_window].to_numpy()
-    lo = cs.iloc[pos - half_window - 1].to_numpy()
-    seg = hi - lo
-    ci = {c: i for i, c in enumerate(lr.columns)}
-    y_seg = seg[:, ci["adj_close"]] - seg[:, ci["close"]]
-    x_seg = seg[:, ci["adj_close"]] - seg[:, ci["stooq"]]
+    ar = np.arange(k_bars)
+    pre_idx = clean_pos[kp[:, None] - k_bars + ar[None, :]]
+    post_idx = clean_pos[kq[:, None] + ar[None, :]]
+    x_lvl = np.median(lvl_x[post_idx], axis=1) - np.median(lvl_x[pre_idx], axis=1)
+    y_lvl = np.median(lvl_y[post_idx], axis=1) - np.median(lvl_y[pre_idx], axis=1)
     event = np.zeros(len(j), dtype=bool)
-    for k in range(-half_window, half_window + 1):
+    for k in (-1, 0, 1):                                   # three fixed offsets, not a data loop
         event[np.clip(pos + k, 0, len(j) - 1)] = True
-    d_abs = (lr["stooq"] - lr["adj_close"]).abs().where(~event)
+    d_abs = pd.Series(np.abs(d)).where(~event & ~offset)
     sig = (d_abs.rolling(NOISE_WINDOW, center=True, min_periods=30).median() * 1.4826).to_numpy()[pos]
+    near = pd.Series(offset.astype(int)).rolling(2 * k_bars + 5, center=True, min_periods=1).sum().to_numpy()[pos]
     p_prev = j["close"].to_numpy()[pos - 1]
     frac = np.minimum(dv.to_numpy() / p_prev, MAX_DIV_FRACTION)
     with np.errstate(divide="ignore", invalid="ignore"):
-        m = np.where(np.abs(y_seg) > 1e-12, x_seg / y_seg, np.nan)
-        sm = np.where(np.abs(y_seg) > 1e-12, sig * np.sqrt(2 * half_window + 1) / np.abs(y_seg), np.inf)
+        m = np.where(np.abs(y_lvl) > 1e-12, x_lvl / y_lvl, np.nan)
+        sm = np.where(np.abs(y_lvl) > 1e-12, sig * np.sqrt(2 * k_bars) / np.abs(y_lvl), np.inf)
     sm = np.where(np.isfinite(sm), sm, np.inf)
     return pd.DataFrame({
         "ex_date": dv.index, "day": j.index[pos], "pos": pos, "D": dv.to_numpy(), "P_prev": p_prev,
-        "log_f": np.log1p(-frac), "y_seg": y_seg, "x_seg": x_seg, "m": m, "sm": sm,
-        "confident": np.isfinite(m) & (sm <= CONFIDENT_SM)})
+        "log_f": np.log1p(-frac), "y_lvl": y_lvl, "x_lvl": x_lvl, "m": m, "sm": sm,
+        "confident": np.isfinite(m) & (sm <= CONFIDENT_SM), "offset_bars_near": near.astype(int)})
 
 
 def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
@@ -387,10 +429,14 @@ def missed_log_factor(dates: pd.DatetimeIndex, ex_days: pd.DatetimeIndex, log_f:
 
 def approx_log_factor(dates: pd.DatetimeIndex, mask: np.ndarray, yield_by_year: pd.Series) -> np.ndarray:
     """The LABELLED approximation for a span with no dividend source: inside `mask` (a missed era
-    with no reference) each bar carries a drift of Y(year)/n_bars(year), Y = the cross-sectional
-    median annual log dividend yield of the reference-backed universe that year."""
+    with no reference) each bar carries a drift of Y(year)/B(year), Y = the cross-sectional median
+    annual log dividend yield of the reference-backed universe that year, B = the business days in
+    that calendar year (amendment A2: v1 divided by the bars PRESENT, so a stub year — CHTR's
+    December 2009 — received a whole year's yield in a month)."""
     yrs = dates.year
-    n_in_year = pd.Series(1, index=dates).groupby(yrs).transform("size").to_numpy()
+    uniq = np.unique(yrs)
+    bdays = {int(y): len(pd.bdate_range(f"{y}-01-01", f"{y}-12-31")) for y in uniq}
+    n_in_year = np.array([bdays[int(y)] for y in uniq])[np.searchsorted(uniq, yrs)]
     yld = yield_by_year.reindex(yrs).to_numpy()
     if mask.any() and np.isnan(yld[mask]).any():
         missing = sorted(set(yrs[mask & np.isnan(yld)]))
@@ -416,10 +462,13 @@ class NameReference:
     yearly_yield: Optional[pd.Series] = None      # log(TR/PR) per valid calendar year
 
     def covered(self, dates: pd.DatetimeIndex) -> np.ndarray:
-        """Bars whose year has a valid same-security reference."""
+        """Bars whose year has a valid same-security reference — plus (amendment A3) a stub of at
+        most PRE_REFERENCE_STUB_DAYS before the reference's first bar: a vendor IPO / relisting date
+        offset (BLDR, LYV, TDC by days; CHTR's 2009-12 relisting by 34 days), not a missing source."""
         if self.status != "reference" or self.ref_first is None:
             return np.zeros(len(dates), dtype=bool)
-        return (dates >= self.ref_first) & np.isin(dates.year, self.valid_years)
+        stub = (dates < self.ref_first) & (dates >= self.ref_first - pd.Timedelta(days=PRE_REFERENCE_STUB_DAYS))
+        return ((dates >= self.ref_first) & np.isin(dates.year, self.valid_years)) | stub
 
 
 def analyse_reference(ticker: str, stooq_full: pd.Series, px: Optional[pd.DataFrame],
@@ -821,18 +870,24 @@ def classify_failure(row: pd.Series, test: str) -> str:
     if test == "i" and pd.notna(row.get("x_yf_vs_t265_pp")) and \
             abs(row["x_yf_vs_t265_pp"]) > T265_TOL_PP + row.get("floor_pp", 0.0):
         return "reference_disagreement (yfinance and T-265 differ)"
-    if row.get("max_dp", 0) and row.get("max_dp", 0) >= LARGE_DISTRIBUTION:
+    def pos(key: str) -> bool:
+        v = row.get(key)
+        return v is not None and pd.notna(v) and float(v) > 0
+    if pos("max_dp") and float(row["max_dp"]) >= LARGE_DISTRIBUTION:
         return "reference_disagreement (large distribution / spin-off)"
-    if row.get("n_extreme", 0):
+    if pos("n_extreme"):
         return "reference_disagreement (ex-date m outside [-0.25, 1.25])"
     if test == "i" and pd.notna(row.get("med_abs_daily_vs_t265")) and row["med_abs_daily_vs_t265"] > IDENTITY_MED_ABS_D:
         return "identity"
-    if row.get("n_partial", 0):
+    if pos("n_partial"):
         return "partial_adjustment"
-    if row.get("n_global_label", 0):
+    if pos("n_global_label"):
         return "unlabelled_exdate (global rule)"
-    if test == "i" and row.get("seam_stub", False):
-        return "splice"
+    if test == "i" and bool(row.get("seam_stub", False)):
+        return ("splice (a Stooq transient offset on the bar before the seam)"
+                if bool(row.get("endpoint_in_offset", False)) else "splice")
+    if bool(row.get("endpoint_in_offset", False)):
+        return "other: a Stooq transient offset at a period endpoint (inherited from raw Stooq)"
     return "other"
 
 
@@ -914,18 +969,24 @@ def cmd_accept(args: argparse.Namespace) -> int:
                 yf_vs = {(row.start, row.end): row.x_pp for row in pr.itertuples()}
             # the candidate against T-265, day by day (an identity witness)
             jd = pd.concat([c_i.rename("c"), ref_i.rename("r")], axis=1, join="inner").dropna()
-            dd = (np.log(jd).diff()["c"] - np.log(jd).diff()["r"]).abs()
-            med_d = dd.groupby(jd.index.year).median()
+            jd = jd[(jd > 0).all(axis=1)]
+            dsig = (np.log(jd).diff()["c"] - np.log(jd).diff()["r"]).fillna(0.0)
+            med_d = dsig.abs().groupby(jd.index.year).median()
+            off_i = pd.Series(transient_offsets(dsig.to_numpy()), index=jd.index)
             for (_, p), (_, q) in zip(pi.iterrows(), pk.iterrows()):
                 if p["year"] < 2016:
                     continue
                 y = int(p["year"])
                 floor = 100 * (T265_CENT / p["b_start"] + T265_CENT / p["b_end"])
+                ends_off = bool(off_i.get(p["start"], False)) or bool(off_i.get(p["end"], False))
+                if bool(p["end"] == seam):   # the stub's start is the bar before the seam
+                    ends_off = bool(off_i.get(p["start"], False))
                 rows_i.append({"ticker": t, "year": y, "start": p["start"], "end": p["end"],
                                "seam_stub": bool(p["end"] == seam), "x_pp": p["x_pp"],
                                "x_cache_pp": q["x_pp"], "floor_pp": floor,
                                "x_yf_vs_t265_pp": yf_vs.get((p["start"], p["end"]), np.nan),
                                "med_abs_daily_vs_t265": float(med_d.get(y, np.nan)),
+                               "endpoint_in_offset": ends_off,
                                **diag.get(y, {}),
                                "pass": abs(p["x_pp"]) <= T265_TOL_PP + floor,
                                "pass_strict": abs(p["x_pp"]) <= T265_TOL_PP})
@@ -944,6 +1005,8 @@ def cmd_accept(args: argparse.Namespace) -> int:
             ref_ii = px["adj_close"]
             pc, pk = yearly_periods(c_ii, ref_ii), yearly_periods(k_ii, ref_ii)
             pk = pk.set_index("year")
+            dj = (np.log(j).diff()["stooq"] - np.log(j).diff()["adj_close"]).fillna(0.0)
+            off_ii = pd.Series(transient_offsets(dj.to_numpy()), index=j.index)
             for _, p in pc.iterrows():
                 y = int(p["year"])
                 if not p["full_year"] or y < 2000 or y > 2015 or y >= seam.year or y not in valid:
@@ -951,9 +1014,12 @@ def cmd_accept(args: argparse.Namespace) -> int:
                 rows_ii.append({"ticker": t, "year": y, "x_pp": p["x_pp"],
                                 "x_cache_pp": float(pk.loc[y, "x_pp"]) if y in pk.index else np.nan,
                                 "name_yield_pp": 100 * name_yield, "sector": sectors.get(t, "unknown"),
-                                "year_yield_pp": 100 * float(yy.get(y, np.nan)), **diag.get(y, {})})
+                                "year_yield_pp": 100 * float(yy.get(y, np.nan)),
+                                "endpoint_in_offset": bool(off_ii.get(p["start"], False))
+                                or bool(off_ii.get(p["end"], False)), **diag.get(y, {})})
             n_div_pre = int((dv.index < seam).sum()) if dv is not None else 0
-            if n_div_pre == 0:
+            # §1.1: a non-payer is REFERENCE-BACKED (v1 also admitted no-overlap symbols — a test bug)
+            if n_div_pre == 0 and r.get("reference") == "reference":
                 pr = yearly_periods(cand[cand.index < seam], raw[raw.index < seam])
                 worst = float(pr["x_pp"].abs().max()) if len(pr) else 0.0
                 rows_iii.append({"ticker": t, "n_years": int(len(pr)), "max_abs_vs_raw_pp": worst,

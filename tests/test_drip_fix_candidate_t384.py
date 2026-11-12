@@ -282,6 +282,53 @@ def test_label_rule_neighbours_and_blocks():
     assert lab2["label_source"].tolist() == ["global", "measured"]
 
 
+def test_a_transient_stooq_offset_does_not_mislabel_a_captured_dividend(good_payer):
+    """Amendment A1 — the 2013 month-end class: raw Stooq carries a block of bars offset by one
+    dividend that reverts days later. Straddling a CAPTURED ex-date, v1's ex-day ± 1 sum read it as
+    'missed' and added the dividend a second time; the level-shift probe must not."""
+    tr, close, divs, stooq, text, meta = good_payer
+    ex = pd.DatetimeIndex(divs.index)
+    e = ex[(ex >= "2013-06-01")][0]
+    p = stooq.index.get_loc(e)
+    y = -np.log1p(-divs.loc[e] / close.iloc[p - 1])
+    blipped = stooq.copy()
+    blipped.iloc[p - 4:p - 1] *= np.exp(y)                     # 3 bars one dividend HIGH, reverting at p−1
+    text2, meta2 = _merge_cache(blipped, tr)
+    res, ref = _build(tr, close, divs, blipped, text2, meta2)
+    row = ref.labels[pd.DatetimeIndex(ref.labels["day"]) == e]
+    assert len(row) == 1 and not bool(row["missed"].iloc[0])
+    assert res.record["n_div_added"] == 0
+    # and the planted block IS what a ±1-bar window would have read as a full miss
+    lr = np.log(pd.concat([blipped.rename("s"), tr.rename("a")], axis=1)).diff()
+    win = lr.iloc[p - 1:p + 2].sum()
+    assert abs((win["a"] - win["s"]) / y - 1.0) < 0.05     # v1 would have read m = 1 (missed)
+
+
+def test_transient_offsets_marks_the_offset_block_only():
+    d = np.zeros(40)
+    d[10], d[14] = 0.011, -0.0108                              # a 4-bar block, reverted within 15 %
+    d[25] = -0.012                                             # a permanent step (a missed dividend)
+    mask = fix.transient_offsets(d)
+    assert mask[10:14].all() and mask.sum() == 4
+
+
+def test_approximation_in_a_stub_year_is_per_business_day():
+    """Amendment A2 — CHTR's December 2009: 21 bars must carry 21 business days of the yield."""
+    dates = pd.bdate_range("2009-12-01", "2009-12-31")
+    la = fix.approx_log_factor(dates, np.ones(len(dates), dtype=bool), pd.Series({2009: 0.02}))
+    b_2009 = len(pd.bdate_range("2009-01-01", "2009-12-31"))
+    # first bar → last bar: (n − 1) business days of a 2 % yield (v1 would give 2 % × (n−1)/n)
+    assert abs((la[-1] - la[0]) - 0.02 * (len(dates) - 1) / b_2009) < 1e-12
+
+
+def test_a_vendor_ipo_date_stub_is_covered_by_the_reference():
+    """Amendment A3 — Stooq's first bars a few days before yfinance's (BLDR, LYV, TDC)."""
+    ref = fix.NameReference("X", "reference", fix.label_exdates(fix.probe_exdates(pd.DataFrame(), None)),
+                            valid_years=[2010], ref_first=pd.Timestamp("2010-01-05"))
+    dates = pd.DatetimeIndex(["2009-10-01", "2009-12-02", "2010-01-04", "2010-01-05"])
+    assert ref.covered(dates).tolist() == [False, True, True, True]
+
+
 def test_missed_log_factor_back_adjusts_bars_before_the_ex_date():
     dates = pd.bdate_range("2020-01-01", periods=6)
     lm = fix.missed_log_factor(dates, pd.DatetimeIndex([dates[3]]), np.array([np.log(0.98)]))
