@@ -29,6 +29,16 @@ Census facts that outlive the task:
 - No live levered-ETF prices are in `data/processed/`. UPRO, TMF and RSST are on disk nowhere. Old
   `data/research/t282|t285|t294` copies have auto_adjust or unknown provenance.
 
+**FRED download blocked (2026-11-11, ~19:00 CT):**
+- `fredgraph.csv` and `fredgraph.xlsx` timed out or reset the connection for this Mac. It was
+  retried for about 20 minutes over IPv4 and IPv6 with up to 540 s timeouts. FRED's HTML pages,
+  google and yfinance all responded.
+- The keyless FRED path the T-306 builder used is therefore not reliable.
+- The publishers of record are DTB3 from the Fed H.15 Data Download Program (reachable) and SOFR from
+  the NY Fed Markets API. Each is a new source and needs a director ruling before use.
+- Fetch design: stage per attempt and rename into `inputs/` only after ALL inputs succeed, so a
+  failed attempt never needs a delete.
+
 **Why:** a regime or financing analysis lives or dies on the short rate. A 1 bp/day quantized rate is a
 silent ±1 pp/yr error in exactly the regimes (ZIRP exits, 2018–19, 2025) where leverage verdicts flip.
 
