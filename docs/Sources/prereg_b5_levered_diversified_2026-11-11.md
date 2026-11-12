@@ -706,3 +706,68 @@ They fill in details §5–§9 leave implicit, so that none of them can be chose
    - arm (iv): |ΔSPY sleeve| + |ΔRSST sleeve|.
 10. **Determinism.** The `run` outputs (results JSON + per-window return CSVs at `%.17g`) carry NO
     wall-clock timestamps. Runs A and B must match by md5 file-for-file.
+
+---
+
+## AMENDMENT 2 — 2026-11-11: financing-series PUBLISHERS replace the blocked FRED endpoint (director ruling, option 2; binding; recorded BEFORE any fetch)
+
+**Why.** FRED's keyless download endpoint for both approved series could not be fetched from this
+client: `fredgraph.csv` and `fredgraph.xlsx` time out or reset the connection, while FRED's HTML pages,
+google and yfinance all respond (2026-11-11, about 20 minutes of attempts; commit `ac8e1fa`). No byte
+of any series was obtained. `data/research/b5/inputs/` is empty and has no manifest.
+
+**Ruling.** The **same two series** come from the publishers FRED republishes. A generic User-Agent is
+used, with no personal details. Everything downstream is **unchanged**:
+- the DTB3 → money-market conversion `360·d/(360 − 91·d)`;
+- the splice (bill rate through 2018-04-02, SOFR from 2018-04-03);
+- act/360 accrual on calendar days at the rate of t−1;
+- the spread, the arms, the gates, the windows, the bootstrap and every other frozen term in §1–§17
+  and amendment 1.
+
+| series | publisher (declared, and named in `MANIFEST.json`) | keyless call | identity check (HALT if it fails) |
+|---|---|---|---|
+| **3-month Treasury bill, secondary market, discount basis, business day** (= FRED `DTB3`) | **Board of Governors of the Federal Reserve System — H.15 Selected Interest Rates, Data Download Program** | `https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series=bf17364827e38702b42a58cf8eaa3f78&lastobs=&from=&to=&filetype=csv&label=include&layout=seriescolumn&type=package` (the H.15 package CSV, `FRB_H15.csv`) | The column whose "Unique Identifier" row reads **`H15/H15/RIFSGFSM03_N.B`** is extracted. Its "Series Description" must contain both "3-month" and "secondary market" (case-insensitive). Non-numeric cells (`ND`, `NC`) are dropped, not filled. |
+| **SOFR** (= FRED `SOFR`) | **Federal Reserve Bank of New York — Markets Data API** (SOFR's administrator) | `https://markets.newyorkfed.org/api/rates/secured/sofr/search.csv?startDate=2018-04-02&endDate=2025-12-31` | `Effective Date` and `Rate (%)` are taken; `Rate Type` must be SOFR. The effective-date convention means the rate dated D is the overnight D → next business day, consistent with §5.1's "rate of t−1". At least 1,900 rows. |
+
+Both endpoints were confirmed alive by **header-only** requests before this amendment (2026-11-11):
+- the Fed returned `HTTP 200`, `text/csv`, `filename=FRB_H15.csv`;
+- the NY Fed returned `HTTP 200`, `text/csv`, `filename=Search.csv`.
+
+No body was downloaded, and nothing was written anywhere.
+
+**Misidentification guard** (set now, before any data; it can only HALT, never tune). Each fetched
+series is compared with the on-disk FRED copy of a sibling series, read-only:
+- **The bill series vs `data/macro/DGS3MO.parquet`** (3-month constant maturity, 2000-01-03 →
+  2026-04-23). It HALTS if the correlation of levels over common dates is < 0.99, or if
+  |mean(DGS3MO − bill)| > 50 bp. Both are 3-month bill yields that differ only by basis (bond-equivalent
+  vs discount), so a correctly extracted column clears both easily. A wrong column (another maturity, a
+  monthly series, percent vs decimal) does not.
+- **SOFR vs `data/macro/DFF.parquet`** (effective fed funds), common dates 2018-04-03 → 2025-12-31. It
+  HALTS if the level correlation is < 0.99, or if |mean(SOFR − EFFR)| > 25 bp. The SOFR–EFFR gap is a
+  few bp on average, with rare one-day spikes such as 2019-09-17.
+
+Both comparisons are recorded in the manifest.
+
+**What changes in the code (operational only).**
+- The fetch calls the two URLs above instead of `fredgraph.csv`.
+- Snapshot files: `frb_h15_package.csv` (exact response bytes) and `nyfed_sofr.csv` (exact response
+  bytes).
+- Two parsers implement the identity checks.
+- `financing_base()` reads them.
+
+The yfinance list (11 + DBMF) and the AQR byte copy are unchanged. So is the staged-then-renamed
+snapshot.
+
+**Sequence.** This amendment is committed alone. **Then STOP:** no fetch, and no write under
+`data/research/b5/`, until the director's "go". The director needs a quiet `data/` window to merge
+B-9 and B-2 through the full-suite gate. After the go, Phase 2 runs exactly as frozen:
+1. fetch (yfinance, H.15, NY Fed; AQR copied from disk);
+2. the UGL/UST ER print;
+3. the validation gates;
+4. smoke;
+5. run ×2;
+6. the verdict;
+7. the full suite;
+8. commit.
+
+No push, no merge. N_trials unchanged: +1.
