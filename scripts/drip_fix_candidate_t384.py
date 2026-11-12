@@ -51,7 +51,11 @@ CACHE_DIR = REPO / "data" / "processed"
 META_PATH = CACHE_DIR / "_merge_meta.json"
 RAW_STOOQ_GLOB = str(REPO / "data" / "raw" / "stooq" / "daily" / "us" / "*" / "*" / "*.us.txt")
 T265_DIR = REPO / "data" / "research" / "t265" / "prices"
-DEFAULT_OUT = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_2026_11_11")
+V3_OUT = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_2026_11_11")
+#: v4 (independent review, 2026-11-11) writes to a NEW directory; v3 is kept as it is.
+DEFAULT_OUT = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_v4_2026_11_11")
+#: The yfinance cache fetched for v1–v3 (read-only from v4 on; its md5s are in v3's MANIFEST.md5).
+DEFAULT_YF = V3_OUT / "yf"
 
 FETCH_START = "1962-01-01"
 FETCH_END = "2026-11-11"
@@ -201,7 +205,7 @@ def fetch_dividends(symbol: str, retries: int = 3) -> Tuple[Optional[pd.Series],
 
 def cmd_fetch(args: argparse.Namespace) -> int:
     out = assert_outside_canon(Path(args.out))
-    ydir = out / "yf"
+    ydir = assert_outside_canon(Path(args.yf_dir))
     ydir.mkdir(parents=True, exist_ok=True)
     meta = load_meta()
     tickers = list(args.tickers) if args.tickers else (["SPY"] + preseam_universe(meta))
@@ -434,7 +438,12 @@ def missed_log_factor(dates: pd.DatetimeIndex, ex_days: pd.DatetimeIndex, log_f:
 
 
 def approx_log_factor(dates: pd.DatetimeIndex, mask: np.ndarray, yield_by_year: pd.Series) -> np.ndarray:
-    """The LABELLED approximation for a span with no dividend source: inside `mask` (a missed era
+    """v1–v3 ONLY — v4's `build_file` never calls this (independent review, MAJOR-1, 2026-11-11: with
+    no payer reference it ADDED ≈ 1.1 pp/yr of dividends to known non-payers HOLX/SATS/BBBY and the
+    near-non-payer CTRA, and under-counted the REIT/high-yield AVB/EQR/LEG). Kept, with its test, so
+    the v3 record stays reproducible. Original contract below.
+
+    The LABELLED approximation for a span with no dividend source: inside `mask` (a missed era
     with no reference) each bar carries a drift of Y(year)/B(year), Y = the cross-sectional median
     annual log dividend yield of the reference-backed universe that year, B = the business days in
     that calendar year (amendment A2: v1 divided by the bars PRESENT, so a stub year — CHTR's
@@ -554,10 +563,23 @@ class BuildResult:
     record: dict
 
 
+def mask_runs(dates: pd.DatetimeIndex, mask: np.ndarray) -> List[List[str]]:
+    """Contiguous runs of True in `mask`, as [first date, last date] pairs (for the record)."""
+    if not mask.any():
+        return []
+    m = mask.astype(int)
+    edges = np.diff(np.r_[0, m, 0])
+    starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1) - 1
+    return [[str(dates[a].date()), str(dates[b].date())] for a, b in zip(starts, ends)]
+
+
 def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List[str],
-               cache_df: pd.DataFrame, stooq_raw: pd.Series, ref: NameReference,
-               yield_by_year: pd.Series) -> BuildResult:
-    """Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written."""
+               cache_df: pd.DataFrame, stooq_raw: pd.Series, ref: NameReference) -> BuildResult:
+    """Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written.
+
+    v4: a bar with no same-security payer reference is NEVER moved off raw Stooq — not even inside a
+    global missed era. It is LABELLED instead (`unverified_missed_era_spans`, with the bias
+    direction), because no citable source establishes whether the name paid at all."""
     expected_header = "Date,Open,High,Low,Close,Volume,ATR,PrevClose"
     if cache_header != expected_header:
         raise CandidateRefusal(f"{ticker}: unexpected header {cache_header!r}")
@@ -594,9 +616,10 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
     log_m = (missed_log_factor(pre_dates.append(pd.DatetimeIndex([seam])),
                                pd.DatetimeIndex(add["day"]), add["log_f"].to_numpy())[:n_pre]
              if len(add) else np.zeros(n_pre))
-    # 3. the labelled approximation where there is no reference and the global rule says "missed"
-    approx_mask = (~covered) & global_missed(pre_dates)
-    log_a = approx_log_factor(pre_dates, approx_mask, yield_by_year) if approx_mask.any() else np.zeros(n_pre)
+    # 3. v4: NO approximation. A no-reference bar in a missed era stays raw Stooq and is LABELLED:
+    #    if the name paid, those spans under-count by its (unknown) yield; if it did not, they are exact.
+    unverified_missed = (~covered) & global_missed(pre_dates)
+    log_a = np.zeros(n_pre)
 
     # 4. ONE constant at the seam: the Stooq seam-day return is kept
     c_seam = float(cache_df["Close"].iloc[n_pre])
@@ -649,7 +672,6 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
     if n_lab:
         g = global_missed(pd.DatetimeIndex(lab["day"]))
         exceptions = int(((lab["label_source"] == "measured") & (lab["missed"].to_numpy() != g)).sum())
-    approx_years = sorted(set(int(y) for y in pre_dates.year[approx_mask]))
     unverified = (~covered) & (pre_dates < GLOBAL_MISSED_ERAS[0][0])
     record = {
         "ticker": ticker, "seam": str(seam.date()), "b_per_day": b,
@@ -664,7 +686,12 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
         "n_measured": int((lab["label_source"] == "measured").sum()) if n_lab else 0,
         "measured_exceptions_to_global": exceptions,
         "missed_runs": era_runs(lab),
-        "approx_bars": int(approx_mask.sum()), "approx_years": approx_years,
+        "approx_bars": 0, "approx_years": [],          # v4: the approximation is never applied
+        "unverified_missed_era_bars": int(unverified_missed.sum()),
+        "unverified_missed_era_spans": mask_runs(pre_dates, unverified_missed),
+        "unverified_missed_era_bias": ("raw Stooq kept: UNDER-counts by the name's dividend yield over these "
+                                       "spans IF it paid; exact if it did not (payer status not established)"
+                                       if unverified_missed.any() else None),
         "unverified_pre2003_bars": int(unverified.sum()),
         "unverified_pre2003_span": ([str(pre_dates[unverified][0].date()), str(pre_dates[unverified][-1].date())]
                                     if unverified.any() else None),
@@ -715,7 +742,7 @@ def write_pair(out_dir: Path, ticker: str, text: str) -> Tuple[Path, Path]:
 
 def cmd_build(args: argparse.Namespace) -> int:
     out = assert_outside_canon(Path(args.out))
-    ydir, pdir = out / "yf", out / "processed"
+    ydir, pdir = assert_outside_canon(Path(args.yf_dir)), out / "processed"
     (out / "probe" / "labels").mkdir(parents=True, exist_ok=True)
     pdir.mkdir(parents=True, exist_ok=True)
     meta = load_meta()
@@ -724,7 +751,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     targets = list(args.tickers) if args.tickers else universe
 
     refs: Dict[str, NameReference] = {}
-    for t in universe:   # pass 1: every reference (the medians need all of them)
+    for t in targets:    # pass 1: every reference (v4: no cross-sectional median is needed)
         if t not in raw_idx:
             refs[t] = NameReference(t, "no_raw_stooq", label_exdates(probe_exdates(pd.DataFrame(), None)))
             continue
@@ -732,24 +759,22 @@ def cmd_build(args: argparse.Namespace) -> int:
         refs[t] = analyse_reference(t, read_raw_stooq(raw_idx[t]), px, dv, pd.Timestamp(meta[t]["seam_date"]))
         if not refs[t].labels.empty:
             refs[t].labels.drop(columns=["pos"]).to_parquet(out / "probe" / "labels" / f"{t}.parquet")
-    yields = xs_median_yield(refs)
-    yields.to_csv(out / "probe" / "xs_median_yield.csv")
     print(f"[build] pass 1: {sum(r.status == 'reference' for r in refs.values())} reference-backed of "
-          f"{len(universe)}; statuses {pd.Series([r.status for r in refs.values()]).value_counts().to_dict()}")
+          f"{len(targets)} (yf: {ydir}); statuses {pd.Series([r.status for r in refs.values()]).value_counts().to_dict()}")
 
     rec_path = out / "build_records.jsonl"
     n_ok = n_ref = 0
     with open(rec_path, "w") as rec_fh:
         for i, t in enumerate(targets):
-            if _free_bytes(out) < MIN_FREE_BYTES:
-                print(f"[build] HALT: free disk below {MIN_FREE_BYTES / 1024 ** 3:.0f} GB at {t}")
+            if _free_bytes(out) < args.min_free_gb * 1024 ** 3:
+                print(f"[build] HALT: free disk below {args.min_free_gb:.0f} GB at {t}")
                 return 3
             try:
                 if t not in raw_idx:
                     raise CandidateRefusal(f"{t}: no raw Stooq file")
                 header, lines = read_cache_text(t)
                 res = build_file(t, meta[t], header, lines, read_cache_frame(t),
-                                 read_raw_stooq(raw_idx[t]), refs[t], yields)
+                                 read_raw_stooq(raw_idx[t]), refs[t])
                 write_pair(pdir, t, res.text)
                 rec = {"status": "written", **res.record}
                 n_ok += 1
@@ -789,6 +814,7 @@ YF_MEDIAN_PP = 0.05
 YF_P95_PP = 0.30
 YF_MIN_NAMES = 100
 NONPAYER_TOL_PP = 1e-6
+STEP_TOL = 1e-10      # |daily log-return difference vs raw Stooq| below this is float noise (v4 audit)
 
 
 def yearly_periods(a: pd.Series, b: pd.Series) -> pd.DataFrame:
@@ -922,6 +948,7 @@ def cmd_accept(args: argparse.Namespace) -> int:
     written = sorted(t for t, r in recs.items() if r["status"] == "written")
     sectors = _membership_sectors()
     rows_i, rows_ii, rows_iii, rows_iv, rows_era, rows_b = [], [], [], [], [], []
+    rows_iiic, rows_step = [], []
     era_edges = [("pre_2000", None, pd.Timestamp("2000-01-01")),
                  ("2000_to_2003Q1", pd.Timestamp("2000-01-01"), pd.Timestamp("2003-04-01")),
                  ("2003Q2_to_2011Feb", pd.Timestamp("2003-04-01"), pd.Timestamp("2011-02-21")),
@@ -960,7 +987,7 @@ def cmd_accept(args: argparse.Namespace) -> int:
                 continue
             rows_era.append({"ticker": t, "era": name, "years": yrs,
                              "delta_pp_per_year": 100 * (end_v - start_v) / yrs, "seam": r["seam"]})
-        px, dv = read_yf(t, out / "yf")
+        px, dv = read_yf(t, Path(args.yf_dir))
         raw = read_raw_stooq(raw_idx[t])
         diag = year_diagnostics(out, t)
         # (i) T-265
@@ -1033,6 +1060,38 @@ def cmd_accept(args: argparse.Namespace) -> int:
                 worst = float(pr["x_pp"].abs().max()) if len(pr) else 0.0
                 rows_iii.append({"ticker": t, "n_years": int(len(pr)), "max_abs_vs_raw_pp": worst,
                                  "pass_a": worst < NONPAYER_TOL_PP})
+        # (iii)(c) [v4, the review's "(iii-b)"] and the step audit: the candidate may differ from raw
+        # Stooq's daily returns ONLY at labelled added ex-dates, by exactly −log(1 − D/P_prev).
+        pre_c = cand[cand.index < seam]
+        raw_pre = raw.reindex(pre_c.index)
+        step = np.diff(np.log(pre_c.to_numpy() / raw_pre.to_numpy()))       # step[i-1] = bar i
+        expected = np.zeros(len(pre_c) + 1)
+        lab_p = out / "probe" / "labels" / f"{t}.parquet"
+        if lab_p.exists():
+            lab = pd.read_parquet(lab_p)
+            lab = lab[lab["missed"].astype(bool) & (pd.DatetimeIndex(lab["day"]) < seam)]
+            pos = pre_c.index.searchsorted(pd.DatetimeIndex(lab["day"]), side="left")
+            np.add.at(expected, pos, -lab["log_f"].to_numpy())
+        exp_bar = expected[1:len(pre_c)]
+        dev = np.abs(step - exp_bar)
+        unexpected = (np.abs(step) > STEP_TOL) & (np.abs(exp_bar) == 0)
+        rows_step.append({"ticker": t, "n_steps_expected": int((np.abs(exp_bar) > 0).sum()),
+                          "n_unexpected_steps": int(unexpected.sum()),
+                          "max_abs_dev": float(dev.max()) if len(dev) else 0.0})
+        nr_mask = np.zeros(len(pre_c), dtype=bool)
+        kind = None
+        if r.get("reference") != "reference":
+            nr_mask = global_missed(pre_c.index)
+            kind = "no_reference_name"
+        else:
+            for a_, b_ in r.get("unverified_missed_era_spans") or []:
+                nr_mask |= (pre_c.index >= a_) & (pre_c.index <= b_)
+            kind = "uncovered_span_of_a_referenced_name" if nr_mask.any() else None
+        if kind is not None:
+            chk = nr_mask[1:] & nr_mask[:-1]                                  # both ends of the return inside
+            worst = float(np.abs(step[chk]).max()) if chk.any() else 0.0
+            rows_iiic.append({"ticker": t, "kind": kind, "n_returns_checked": int(chk.sum()),
+                              "max_abs_daily_vs_raw": worst, "pass": bool(worst < STEP_TOL)})
         # b before / after: mean excess vs the reference over full years 2012..seam-1
         mine = ([x for x in rows_i[n_i0:] if not x["seam_stub"] and x["year"] < seam.year]
                 + [x for x in rows_ii[n_ii0:] if 2012 <= x["year"] <= 2015])
@@ -1045,20 +1104,23 @@ def cmd_accept(args: argparse.Namespace) -> int:
             print(f"[accept] {n + 1}/{len(written)}", flush=True)
 
     di, dii, diii, div_, dera, db = (pd.DataFrame(x) for x in (rows_i, rows_ii, rows_iii, rows_iv, rows_era, rows_b))
+    diiic, dstep = pd.DataFrame(rows_iiic), pd.DataFrame(rows_step)
     di["cause"] = [classify_failure(r, "i") if not r["pass"] else "" for _, r in di.iterrows()]
     dii["outlier"] = dii["x_pp"].abs() > YF_P95_PP
     dii["cause"] = [classify_failure(r, "ii") if r["outlier"] else "" for _, r in dii.iterrows()]
     for name, d in [("i_t265", di), ("ii_yf", dii), ("iii_nonpayers", diii), ("iv_bytes", div_),
-                    ("era_deltas", dera), ("b_before_after", db)]:
+                    ("era_deltas", dera), ("b_before_after", db), ("iii_c_no_reference", diiic),
+                    ("step_audit", dstep)]:
         d.to_csv(adir / f"{name}.csv", index=False)
-    summary = summarize_acceptance(di, dii, diii, div_, dera, db, recs)
+    summary = summarize_acceptance(di, dii, diii, div_, dera, db, recs, diiic, dstep)
     (adir / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
     print(json.dumps(summary["verdict"], indent=2))
     return 0
 
 
 def summarize_acceptance(di: pd.DataFrame, dii: pd.DataFrame, diii: pd.DataFrame, div_: pd.DataFrame,
-                         dera: pd.DataFrame, db: pd.DataFrame, recs: Dict[str, dict]) -> dict:
+                         dera: pd.DataFrame, db: pd.DataFrame, recs: Dict[str, dict],
+                         diiic: Optional[pd.DataFrame] = None, dstep: Optional[pd.DataFrame] = None) -> dict:
     s: dict = {}
     # (i)
     s["i"] = {"names": int(di["ticker"].nunique()), "name_years": int(len(di)),
@@ -1115,10 +1177,39 @@ def summarize_acceptance(di: pd.DataFrame, dii: pd.DataFrame, diii: pd.DataFrame
                     "measured_names": int(len(bb)),
                     "cache_mean_excess_gt_0p5": int((bb["mean_excess_cache_pp"] > 0.5).sum()),
                     "candidate_mean_excess_gt_0p5": int((bb["mean_excess_candidate_pp"].abs() > 0.5).sum())}
+    # (iii)(c) — v4: no no-reference bar in a missed era moves off raw Stooq
+    if diiic is not None and len(diiic):
+        s["iii_c"] = {"files": int(len(diiic)), "pass": int(diiic["pass"].sum()),
+                      "by_kind": diiic.groupby("kind").size().to_dict(),
+                      "failing": sorted(diiic.loc[~diiic["pass"], "ticker"].tolist())}
+    else:
+        s["iii_c"] = {"files": 0, "pass": 0, "by_kind": {}, "failing": []}
+    # the step audit — evidence that NO price was copied from the reference
+    if dstep is not None and len(dstep):
+        s["step_audit"] = {"files": int(len(dstep)), "steps_expected": int(dstep["n_steps_expected"].sum()),
+                           "unexpected_steps": int(dstep["n_unexpected_steps"].sum()),
+                           "files_with_unexpected": sorted(dstep.loc[dstep["n_unexpected_steps"] > 0, "ticker"].tolist()),
+                           "max_abs_dev": float(dstep["max_abs_dev"].max())}
+    # which evidence is INDEPENDENT of the build, and which is circular by construction (review MAJOR-2)
+    cap = d[(d["year"] >= 2011) & (d["year"] <= 2015)]
+    cap12 = d[(d["year"] >= 2012) & (d["year"] <= 2015)]
+    mis = d[(d["year"] >= 2004) & (d["year"] <= 2010)]
+    s["evidence"] = {
+        "independent_i_vs_t265": {"name_years": int(len(di)), "candidate_fail": s["i"]["fail"],
+                                  "cache_fail": int((di["x_cache_pp"].abs() > T265_TOL_PP + di["floor_pp"]).sum())},
+        "independent_ii_2011_2015_gt_0p30": {"name_years": int(len(cap)),
+                                             "cache": int((cap["axc"] > YF_P95_PP).sum()),
+                                             "candidate": int((cap["ax"] > YF_P95_PP).sum())},
+        "independent_ii_2012_2015_gt_0p30": {"name_years": int(len(cap12)),
+                                             "cache": int((cap12["axc"] > YF_P95_PP).sum()),
+                                             "candidate": int((cap12["ax"] > YF_P95_PP).sum())},
+        "circular_ii_2004_2010": {"name_years": int(len(mis)), "median_abs_pp": float(mis["ax"].median()),
+                                  "note": "added dividends AND labels come from the reference's own series"},
+    }
     s["verdict"] = {
         "i": s["i"]["fail"] == 0,
         "ii": all(v["pass"] for v in yr.values()) and set(yr) == set(range(2000, 2016)),
-        "iii": len(s["iii"]["failing"]) == 0,
+        "iii": len(s["iii"]["failing"]) == 0 and len(s["iii_c"]["failing"]) == 0,
         "iv": s["iv"]["pass"] == s["iv"]["files"],
     }
     s["verdict"]["PASS"] = all(s["verdict"].values())
@@ -1134,16 +1225,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fetch", help="cache yfinance prices + dividends under the candidate dir")
     f.add_argument("--out", default=str(DEFAULT_OUT))
+    f.add_argument("--yf-dir", default=str(DEFAULT_YF))
     f.add_argument("--tickers", nargs="*")
     f.add_argument("--sleep", type=float, default=0.4)
     f.add_argument("--refetch", action="store_true")
     f.set_defaults(func=cmd_fetch)
     b = sub.add_parser("build", help="write the candidate files (two passes) under <out>/processed")
     b.add_argument("--out", default=str(DEFAULT_OUT))
+    b.add_argument("--yf-dir", default=str(DEFAULT_YF))
     b.add_argument("--tickers", nargs="*")
+    b.add_argument("--min-free-gb", type=float, default=MIN_FREE_BYTES / 1024 ** 3)
     b.set_defaults(func=cmd_build)
     a = sub.add_parser("accept", help="run the pre-declared acceptance test on the written candidate")
     a.add_argument("--out", default=str(DEFAULT_OUT))
+    a.add_argument("--yf-dir", default=str(DEFAULT_YF))
     a.set_defaults(func=cmd_accept)
     mf = sub.add_parser("manifest", help="md5 manifest of every file under <out>")
     mf.add_argument("--out", default=str(DEFAULT_OUT))

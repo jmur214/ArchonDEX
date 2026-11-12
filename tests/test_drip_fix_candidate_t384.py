@@ -130,9 +130,8 @@ def _build(tr, close, divs, stooq, text, meta, with_reference: bool = True):
     px = pd.DataFrame({"adj_close": tr, "close": close}) if with_reference else None
     dv = divs if with_reference else None
     ref = fix.analyse_reference("PLANT", stooq, px, dv, SEAM)
-    yields = pd.Series(0.02, index=range(1995, 2027))
     header, lines = _split_text(text)
-    res = fix.build_file("PLANT", meta, header, lines, _frame(text), stooq, ref, yields)
+    res = fix.build_file("PLANT", meta, header, lines, _frame(text), stooq, ref)
     return res, ref
 
 
@@ -235,20 +234,23 @@ def test_a_captured_spin_off_inside_the_missed_era_is_not_added(defective):
     assert abs(y.loc[2007, "x_pp"]) < 1e-3
 
 
-def test_no_reference_uses_the_labelled_approximation_in_the_missed_era_only(defective):
-    tr, close, divs, stooq, text, meta = defective
+@pytest.mark.parametrize("fixture_name", ["defective", "good_nonpayer"])
+def test_a_no_reference_name_never_moves_off_raw_stooq_iii_c(fixture_name, request):
+    """v4, the review's MAJOR-1 / test (iii-b): with no payer reference NOTHING is added, not in a
+    missed era either. v1-v3's cross-sectional-median drift added about 1.1 pp/yr to known non-payers
+    (HOLX, SATS, BBBY). The spans are LABELLED with the bias direction instead."""
+    tr, close, divs, stooq, text, meta = request.getfixturevalue(fixture_name)
     res, ref = _build(tr, close, divs, stooq, text, meta, with_reference=False)
     assert ref.status == "no_prices"
     rec = res.record
-    assert rec["n_div_added"] == 0
-    assert rec["approx_years"] == list(range(2003, 2012))
+    assert rec["n_div_added"] == 0 and rec["approx_years"] == [] and rec["approx_bars"] == 0
+    assert rec["unverified_missed_era_spans"] and rec["unverified_missed_era_spans"][0][0].startswith("2003-04")
+    assert "UNDER-counts" in rec["unverified_missed_era_bias"]
     assert rec["unverified_pre2003_bars"] > 0
     cand = _closes(res.text)
-    raw_y = _yearly(stooq[stooq.index < SEAM], stooq[stooq.index < SEAM])
-    cy = _yearly(cand[cand.index < SEAM], stooq[stooq.index < SEAM])
-    assert raw_y["x_pp"].abs().max() == 0.0
-    assert abs(cy.loc[2006, "x_pp"] - 2.0) < 0.01              # the declared 2 % median drift
-    assert cy.loc[2012:2016, "x_pp"].abs().max() < 1e-9        # nothing outside the missed era
+    pre = cand.index < SEAM
+    step = np.diff(np.log(cand[pre].to_numpy() / stooq.reindex(cand.index[pre]).to_numpy()))
+    assert np.abs(step).max() < fix.STEP_TOL                   # every daily return IS raw Stooq's
 
 
 def test_refuses_a_cache_that_is_not_the_raw_stooq_series(defective):
@@ -258,7 +260,7 @@ def test_refuses_a_cache_that_is_not_the_raw_stooq_series(defective):
     ref = fix.analyse_reference("PLANT", other, pd.DataFrame({"adj_close": tr, "close": close}), divs, SEAM)
     header, lines = _split_text(text)
     with pytest.raises(fix.CandidateRefusal, match="not proportional"):
-        fix.build_file("PLANT", meta, header, lines, _frame(text), other, ref, pd.Series(0.02, index=range(1995, 2027)))
+        fix.build_file("PLANT", meta, header, lines, _frame(text), other, ref)
 
 
 def test_label_rule_neighbours_and_blocks():
@@ -344,3 +346,61 @@ def test_refuses_to_write_inside_the_repository_data_tree(tmp_path):
     with pytest.raises(SystemExit, match="REFUSED"):
         fix.assert_outside_canon(fix.REPO / "data" / "processed" / "tr_reconciled")
     assert fix.assert_outside_canon(tmp_path) == Path(str(tmp_path)).resolve()
+
+
+# -- v4: locks on three code paths the review found unguarded (MINOR-3) ---------
+
+def test_the_probe_noise_is_the_three_return_window():
+    """v3 keeps v1's 3-return window: sigma(m) = noise x sqrt(3) / |y| when no block is near.
+    Reverting to v2's 5-bar medians (sqrt(10) or sqrt(11)) drops this dividend out of MEASURED,
+    the 2000-01 regression class (CMI, AXP, RTX)."""
+    rng = np.random.default_rng(3)
+    n = 600
+    idx = pd.bdate_range("2001-01-02", periods=n)
+    la = np.cumsum(rng.normal(0.0, 0.01, n))                  # the reference's total-return log path
+    sigma, y = 0.001, 0.0173                                   # sigma*sqrt(3)/y ~ 0.10; sqrt(11) ~ 0.33
+    ex = 300
+    lc = la - np.where(np.arange(n) >= ex, y, 0.0)             # the price-only close drops at the ex-date
+    ls = la + np.cumsum(rng.normal(0.0, sigma, n))             # Stooq: total return + iid daily noise
+    j = pd.DataFrame({"stooq": np.exp(ls) * 40, "adj_close": np.exp(la) * 40, "close": np.exp(lc) * 40},
+                     index=idx)
+    d = pd.Series([0.4], index=[idx[ex]])
+    pr = fix.probe_exdates(j, d)
+    assert len(pr) == 1
+    assert 0.06 < float(pr["sm"].iloc[0]) < 0.14              # 3-return window; 5-bar would read >= 0.18
+    assert bool(pr["confident"].iloc[0]) and abs(float(pr["m"].iloc[0])) < 0.5
+
+
+def test_the_seam_constant_keeps_stooqs_seam_day_return(good_payer):
+    """The ONE constant k at the seam. The merge's intercept is a 30-day MEDIAN ratio; when Stooq has
+    a block offset early in the overlap, the median sits off the seam-day ratio, and only k keeps the
+    seam-day return equal to Stooq's own. Without k this test fails by the block's size."""
+    tr, close, divs, stooq, text, meta = good_payer
+    blk = stooq.copy()
+    p = blk.index.get_loc(SEAM)
+    blk.iloc[p + 3:p + 26] *= 1.02                             # a post-seam block inside the first 30 days
+    text2, meta2 = _merge_cache(blk, tr)
+    res, _ = _build(tr, close, divs, blk, text2, meta2)
+    stooq_seam_ret = blk.iloc[p] / blk.iloc[p - 1] - 1
+    assert abs(res.record["k_splice"] - 1.0) > 0.01            # the block makes the constant matter
+    assert abs(res.record["seam_ret_candidate"] - stooq_seam_ret) < 1e-6
+
+
+def test_a_wrong_security_reference_year_is_never_used(defective):
+    """The identity check. Years where the 'reference' is another security (a reused ticker) are
+    uncovered: none of that security's dividends enter, and the candidate is raw Stooq there."""
+    tr, close, divs, stooq, text, meta = defective
+    rng = np.random.default_rng(99)
+    yrs = (tr.index.year >= 2005) & (tr.index.year <= 2008)
+    other = pd.Series(30 * np.exp(np.cumsum(rng.normal(0, 0.02, yrs.sum()))), index=tr.index[yrs])
+    tr2, close2 = tr.copy(), close.copy()
+    tr2[yrs], close2[yrs] = other.to_numpy(), other.to_numpy() * 1.01
+    wrong = pd.Series(0.5, index=pd.bdate_range("2005-01-10", "2008-12-10", freq="BMS"))
+    divs2 = pd.concat([divs[(divs.index.year < 2005) | (divs.index.year > 2008)], wrong]).sort_index()
+    res, ref = _build(tr2, close2, divs2, stooq, text, meta)
+    assert set(range(2005, 2009)) <= set(ref.invalid_years)
+    assert not (pd.DatetimeIndex(ref.labels["day"]).year.isin(range(2005, 2009))).any()
+    cand = _closes(res.text)
+    inside = (cand.index >= "2005-02-01") & (cand.index <= "2008-11-28")
+    step = np.diff(np.log(cand[inside].to_numpy() / stooq.reindex(cand.index[inside]).to_numpy()))
+    assert np.abs(step).max() < fix.STEP_TOL                   # raw Stooq there, untouched

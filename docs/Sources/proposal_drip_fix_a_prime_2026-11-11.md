@@ -120,6 +120,16 @@ the last common date of year y.
   - Stooq's own adjusted eras (2000-02 and 2011-22) agree with yfinance to a pooled median of
     0.0037 pp;
   - (i), against Alpaca, from 2016.
+- **RESTATED 2026-11-11 after the independent review (MAJOR-2). The text above is kept; this note
+  supersedes its claim.**
+  - "(ii) tests the era labels" OVERCLAIMS. In 2003-04 → 2011-02, and in every per-name pre-2003
+    missed era, the "missed" labels (m ≥ 0.5) are computed FROM the same yfinance Adj Close series
+    that (ii) then compares against. The added amounts are yfinance's own D/P_prev. So in those
+    eras (ii) measures SELF-CONSISTENCY: the candidate reproduces the reference it was built from.
+    It is not independent evidence that the eras or the amounts are right.
+  - The independent evidence is listed separately in §4: (i) against Alpaca; (ii) in the 2011–15
+    captured era, where the candidate is raw Stooq; and the step audit, which shows no price was
+    copied from yfinance.
 
 **(iii) Non-payers.**
 - (a) candidate − raw Stooq annual log return: |x| < 1e-6 pp in every pre-seam year. The fix
@@ -240,6 +250,39 @@ whatever its result.
   outward when it sits inside a detected block: PRE is the nearest clean bar ≤ e−2, POST the
   nearest clean bar ≥ e+1. σ(m) = noise × √(returns spanned) / |y|.
 - The blip test and the five other reversion modes still fail exactly as intended.
+
+**v4 — the independent review's corrections.** Declared here BEFORE the v4 run. Thresholds,
+populations of (i), (ii), (iii)(a)/(b) and (iv), and the verdict rule are UNCHANGED.
+- The review (2026-11-11) judged v3 SOUND: every recomputed number matched to 1e-13, and the
+  v1 → v3 path was judged legitimate defect-fixing. It returned two MAJOR and two MINOR findings.
+  v3 stays as it is at `drip_fix_a_prime_2026_11_11/`. v4 is written to a NEW directory,
+  `drip_fix_a_prime_v4_2026_11_11/`, and reads v3's `yf/` cache read-only (`--yf-dir`).
+- **R1, rule change (MAJOR-1). No approximated dividend is ever added.**
+  - v1–v3 gave no-reference spans in a missed era the cross-sectional median yield. With no payer
+    reference, that ADDED about 1.08 pp/yr to the known non-payers HOLX, SATS and BBBY (merge
+    b = 0, so v3 was WORSE than the cache, by about 7.6 % cumulative) and to the near-non-payer
+    CTRA. It UNDER-counted the REIT and high-yield names AVB, EQR and LEG.
+  - v4 rule 4 (§1.3), replaced: a bar with no same-security payer reference stays raw Stooq
+    (after the drip is undone), in every era. The record labels it UNVERIFIED:
+    `unverified_missed_era_spans`, plus the bias direction "UNDER-counts by the name's yield IF
+    it paid; exact if it did not".
+  - No source in hand establishes payer status for those names, so no approximation is applied.
+- **R2, new test (iii)(c)** — the review's "(iii-b)". No bar without a reference may move off raw
+  Stooq. It is checked daily:
+  - on every no-reference name, across its whole missed-era span;
+  - on the unverified missed-era spans of referenced names.
+  Criterion: |Δ daily log return vs raw Stooq| < 1e-10. **(iii) now PASSES iff (a), (b) and (c)
+  all hold.**
+- **R3, a step audit (evidence, not a threshold).** On every file, the candidate's daily returns may
+  differ from raw Stooq's ONLY at labelled added ex-dates, and there by exactly −log(1 − D/P_prev).
+  This is the independent evidence that no yfinance PRICE enters the candidate.
+- **R4, the circularity of (ii) is restated** (the note in §1.2). §4 separates INDEPENDENT evidence
+  from evidence that is CIRCULAR BY CONSTRUCTION.
+- **R5, three code paths get locks** (MINOR-3), each proven by reverting it:
+  - the 3-return probe window;
+  - the seam constant k;
+  - the identity check.
+- **R6, every count in the narrative is recomputed** from the machine output (MINOR-4).
 
 ---
 
