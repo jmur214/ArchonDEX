@@ -9,8 +9,13 @@ metadata:
   (no contact) -> `data.sec.gov/submissions/*.json` 200; `www.sec.gov/Archives/edgar/data/...`
   (every filing DOCUMENT) -> 403 "Your Request Originates from an Undeclared Automated Tool".
   The SEC's documented form is "Company Name contact@domain". Never put the user's personal
-  email in a UA without their explicit say; the T-237 ingest's UA string carries one — do
-  NOT reuse it. A UA decision is the user's.
+  email in a UA without their explicit say. A UA decision is the user's. RULED 2026-11-11 (user,
+  via the director, for B-6): the T-237 UA (`scripts/lazy_prices/ingest_filings_t237.py:UA`) is
+  approved for SEC EDGAR hosts ONLY — import the constant, never duplicate the literal, and refuse
+  any non-SEC host in the fetch function (`b6_edgar.fetch` does). Re-check the ruling's scope
+  before using it for a different task.
+- Throughput (B-6, 2026-11-11): gzip cuts a 4.5 MB 10-K to ~0.34 MB on the wire; one serial
+  process at a 0.45 s floor does ~1.7 docs/s (latency-bound) — two concurrent streams stay <4.5/s.
 - Fair access: <= 10 req/s; use <= 4–5/s serial; never parallelize the fetch.
 - Submissions JSON: `filings.recent` (~1000 rows) + `filings.files[]` older pages; all forms
   in one array (10-K and 10-Q selection from the same cached JSON). Amendments (10-K/A)
