@@ -455,7 +455,8 @@ def parse_h15_sdmx_zip(p: Path) -> Tuple[pd.Series, str]:
                     if cur is not None:
                         if tag == "Obs":
                             if cur["name"] == H15_SERIES_NAME:
-                                cur["obs"].append((el.attrib.get("TIME_PERIOD"), el.attrib.get("OBS_VALUE")))
+                                cur["obs"].append((el.attrib.get("TIME_PERIOD"), el.attrib.get("OBS_VALUE"),
+                                                   el.attrib.get("OBS_STATUS")))
                             if stack:
                                 stack[-1].remove(el)
                         elif tag == "Series":
@@ -475,13 +476,15 @@ def parse_h15_sdmx_zip(p: Path) -> Tuple[pd.Series, str]:
     h = hits[0]
     if not _desc_ok(h["desc"]):
         raise B5Halt(f"H.15 {H15_SERIES_NAME} description fails the identity check: {h['desc'][:300]!r}")
-    dates = pd.to_datetime(pd.Series([o[0] for o in h["obs"]]), errors="coerce", format="%Y-%m-%d")
-    vals = pd.to_numeric(pd.Series([o[1] for o in h["obs"]]), errors="coerce")
+    # A2.2: "no data" is a STATUS flag here (OBS_STATUS="ND", OBS_VALUE="-9999"), so keep "A" only.
+    obs = [o for o in h["obs"] if o[2] == "A"]
+    dates = pd.to_datetime(pd.Series([o[0] for o in obs]), errors="coerce", format="%Y-%m-%d")
+    vals = pd.to_numeric(pd.Series([o[1] for o in obs]), errors="coerce")
     s = pd.Series(vals.values, index=pd.DatetimeIndex(dates)).dropna()
     s = s[s.index.notna()]
     if s.index.duplicated().any() or len(s) < 10000:
         raise B5Halt(f"H.15 bill series malformed (rows {len(s)}, duplicates {int(s.index.duplicated().sum())})")
-    return (s / 100.0).sort_index(), h["desc"][:300]
+    return _rate_range_check((s / 100.0).sort_index(), "H.15 bill"), h["desc"][:300]
 
 
 def parse_h15_csv(p: Path) -> Tuple[pd.Series, str]:
@@ -510,7 +513,7 @@ def parse_h15_csv(p: Path) -> Tuple[pd.Series, str]:
     s = s[s.index.notna()]
     if s.index.duplicated().any() or len(s) < 10000:
         raise B5Halt(f"H.15 bill series malformed (rows {len(s)}, duplicates {int(s.index.duplicated().sum())})")
-    return (s / 100.0).sort_index(), desc
+    return _rate_range_check((s / 100.0).sort_index(), "H.15 bill (csv)"), desc
 
 
 def parse_nyfed_sofr(p: Path) -> pd.Series:
@@ -527,7 +530,19 @@ def parse_nyfed_sofr(p: Path) -> pd.Series:
                   index=pd.DatetimeIndex(pd.to_datetime(df[cols["effective date"]]))).dropna()
     if s.index.duplicated().any() or len(s) < SOFR_MIN_ROWS:
         raise B5Halt(f"NY Fed SOFR malformed (rows {len(s)} < {SOFR_MIN_ROWS} or duplicated dates)")
-    return (s / 100.0).sort_index()
+    return _rate_range_check((s / 100.0).sort_index(), "NY Fed SOFR")
+
+
+RATE_RANGE = (-0.01, 0.25)
+
+
+def _rate_range_check(s: pd.Series, what: str) -> pd.Series:
+    """A2.2: every rate used must lie in [-1 %, +25 %] per year — a HALT-only input-validity check."""
+    lo, hi = RATE_RANGE
+    bad = s[(s < lo) | (s > hi) | ~np.isfinite(s)]
+    if len(bad):
+        raise B5Halt(f"{what}: {len(bad)} values outside [{lo}, {hi}] (first {bad.index[0].date()}: {bad.iloc[0]})")
+    return s
 
 
 def _guard_pair(x: pd.Series, ref: pd.Series, spec: Dict, what: str, ref_minus_x: bool) -> Dict:
@@ -831,7 +846,7 @@ def _val_stats(live_r: np.ndarray, syn_r: np.ndarray, periods: int, L_minus_1: f
     slope = float(np.cov(live_r, syn_r, ddof=1)[0, 1] / var)
     g1_band = 0.0100 * L_minus_1
     out = {"n": int(len(d)), "td_ann": td, "te_ann": te, "slope": slope,
-           "implied_spread_bp": 50.0 + td / L_minus_1 * 1e4, "g1_band_ann": g1_band,
+           "implied_spread_bp": 50.0 - td / L_minus_1 * 1e4, "g1_band_ann": g1_band,
            "g1_pass": bool(abs(td) <= g1_band + 1e-15),
            "corr": float(np.corrcoef(live_r, syn_r)[0, 1])}
     out["g2_pass"] = bool(0.90 <= slope <= 1.10) if slope_gate else None
@@ -921,7 +936,10 @@ def cmd_validate() -> int:
     verdict = {"halted_arms": sorted(set(halted)),
                "h1_status": "NOT EVALUABLE" if ("ii" in halted) else "EVALUABLE",
                "all_gating_pass": not halted}
+    bill_ok, _ = parse_h15_bill(INPUTS / H15_FILE)
     write_json(VALIDATION, {"prereg": PREREG_REF, "manifest_md5": md5_file(MANIFEST),
+                            "h15_bill_rows_status_A": int(len(bill_ok)),
+                            "h15_bill_span": [str(bill_ok.index[0].date()), str(bill_ok.index[-1].date())],
                             "spread_bp": 50, "v1": v1, "v2": v2, "verdict": verdict})
     for k, v in v1.items():
         print(f"  V1 {k:5} {v['role']:8} TD {v['td_ann']*1e4:+8.1f} bp/yr  band ±{v['g1_band_ann']*1e4:5.0f}"

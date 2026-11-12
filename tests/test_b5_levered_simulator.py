@@ -180,3 +180,23 @@ def test_parse_h15_sdmx_zip_selects_by_series_name(tmp_path):
 def test_parse_h15_sdmx_zip_halts_on_wrong_description(tmp_path):
     with pytest.raises(b5.B5Halt):
         b5.parse_h15_bill(_sdmx_zip(tmp_path, desc="6-month Treasury bill, investment basis"))
+
+
+def test_parse_h15_sdmx_zip_drops_the_ND_minus_9999_sentinel(tmp_path):
+    """A2.2 regression: the Fed's SDMX marks no-data days OBS_STATUS="ND" OBS_VALUE="-9999"."""
+    import zipfile
+    p = _sdmx_zip(tmp_path)
+    with zipfile.ZipFile(p) as zf:
+        xml = zf.read("FRB_H15.xml").decode()
+    xml = xml.replace('OBS_STATUS="A" OBS_VALUE="ND"', 'OBS_STATUS="ND" OBS_VALUE="-9999"')
+    assert 'OBS_VALUE="-9999"' in xml
+    q = tmp_path / "h15_nd.zip"
+    with zipfile.ZipFile(q, "w") as zf:
+        zf.writestr("FRB_H15.xml", xml)
+    s, _ = b5.parse_h15_bill(q)
+    assert len(s) == 10009 and float(s.min()) > 0
+
+
+def test_rate_range_check_halts_on_a_sentinel():
+    with pytest.raises(b5.B5Halt):
+        b5._rate_range_check(pd.Series([0.05, -99.99], index=pd.to_datetime(["2011-11-10", "2011-11-11"])), "x")
