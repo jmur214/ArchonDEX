@@ -25,9 +25,12 @@ reproduce: "python scripts/b5_levered_diversified.py validate && python scripts/
 - Per the brief's refutation, **Route C is closed for a levered-ETF Roth holder, and the break-even
   curve (§6) is the record.**
 
-**Is financing the binding constraint? No.** This is the brief's acceptance sentence, made exhaustive
-in R-12. Arm (ii)'s ci_low is already −1.41 %/yr at **zero** spread over the bill/SOFR rate. The
-point estimate crosses zero at s*_pt = 71 bp.
+**Is financing the binding constraint? No — under the frozen, director-confirmed R-12 reading.**
+R-12 made the brief's acceptance sentence exhaustive with three cases. Its third case, "ci_low ≤ 0
+already at s = 0", reads as *not binding: the premia and the ER bind*. That **departs from the brief's
+literal rule** ("if break-even spread < the current embedded spread, it is"), under which a break-even
+below 50 bp, here below zero, would read as binding. Arm (ii)'s ci_low is already −1.41 %/yr at
+**zero** spread over the bill/SOFR rate. The point estimate crosses zero at s*_pt = 71 bp.
 
 What binds is the size and sampling noise of the premia. Over 58 years:
 - the substrate's 10-year term premium over bills is 1.46 %/yr;
@@ -35,9 +38,13 @@ What binds is the size and sampling noise of the premia. Over 58 years:
 - with the ER and the variance cost, that leaves a stack whose edge over equity has an information
   ratio of 0.03.
 
-A cheaper spread cannot fix that. The validation (§3) measured the futures-financed stacked funds'
-real embedded spread at ≈ 0 bp (NTSX s* = 0.4 bp). At that realistic spread the H1 cell is still
-+0.71 %/yr, with ci_low −1.41 %/yr.
+A cheaper spread cannot fix that, and **H1 does not depend on what the embedded spread is**:
+ci_low ≤ 0 already at s = 0, the cheapest point on the curve (there the H1 cell is +0.71 %/yr with
+ci_low −1.41 %/yr).
+- The validation (§3) **pins the swap-financed products' spread near the frozen 50 bp**. Implied s*,
+  with 21-day-block 95 % CIs: SSO 57 [18, 96], UPRO 56 [35, 81], TMF 49 [10, 77] bp.
+- It **does not pin the futures-financed stacks**. NTSX's point s* is 0.4 bp, but its CI is
+  [−223, +239] bp on 7.3 years, so it is indistinguishable from anything in 0–200 bp.
 
 **What this means for a Roth holder, in plain English.** Swapping SPY for an RSSB-style "100 % stocks +
 100 % Treasuries" fund would, over 58 years of history, have added about **0.2 % a year**. That is
@@ -112,11 +119,12 @@ Cheaper borrowing would not change the answer.
    package" the week of 2026-11-09, so the bill series exists only in the full SDMX/ZIP (A2.1). The
    halted attempt directory `inputs_attempt_20261112T030007Z/` is kept, unused.
 3. **The first validation run is VOID.** The SDMX marks no-data days `OBS_STATUS="ND"
-   OBS_VALUE="-9999"`, and my parser kept −9999 as a rate on **809 holidays**. SSO, UPRO and TMF then
-   "failed" G1 (TD −149, −282, −259 bp/yr).
+   OBS_VALUE="-9999"`, and my parser kept −9999 as a rate on **801 holidays** (all 801 ND
+   observations carry −9999). SSO, UPRO and TMF then "failed" G1 (TD −149, −282, −259 bp/yr).
    - Read-only diagnosis traced the largest misses to 2011-11-14 and 2016-11-14, the Mondays after
-     Veterans Day (bond market shut, stocks open), across two issuers. The implied financing on those
-     days was about −400 %/yr.
+     Veterans Day (bond market shut, stocks open), across two issuers. The sentinel is −9,999 %/yr as
+     published (−99.99 as a decimal). After the money-market conversion it becomes about −380 %/yr,
+     and that is what the synthetics accrued across those holidays.
    - The amendment-2 guard missed it because DGS3MO has no row on those holidays.
    - Fixes (A2.2, recorded before the re-run): keep `OBS_STATUS="A"` only; add a HALT-only
      [−1 %, +25 %] range check; correct the implied-spread sign (§8 printed `50 + TD/(L−1)`; the
@@ -127,6 +135,24 @@ Cheaper borrowing would not change the answer.
 4. **The smoke step caught one more harness bug.** The DBMF leg's cash accrual ran over the 2026 part
    of the equity calendar, past SOFR's declared 2025-12-31 end, and the staleness guard halted. Fixed
    at `8ee1cb6` by limiting that calendar to the windows' common end.
+5. **Director ratification of A2.2, recorded verbatim:**
+
+> "Director ratification, 2026-11-11: A2.2 (voiding the first validation run and filtering OBS_STATUS='ND' sentinel values of −9999) is RATIFIED as a data-defect correction, not a forking path. The sentinel mechanism is confirmed in the snapshot (801 ND rows, all −9999); amendment 2 named ND cells among those to drop before any data existed; and the correction ran AGAINST H1 — with the defective parse H1 would have read MET (+2.98 %/yr, ci_low +0.75)."
+
+6. **The true sequence.** The independent reviewer reconstructed it from git and file times. The
+   prereg's A2.1 and A2.2 header times ("21:10 CT", "21:25 CT") are wrong; the errata are at the end of
+   the prereg. The git and file order is correct throughout:
+   - halted attempt 21:00:07;
+   - A2.1 (`b0c05b8`, committed 21:01:33);
+   - parser (`94572c6`) 21:02:27;
+   - fetch 21:02:29;
+   - VOID validation 21:02:57;
+   - A2.2 (`7307ed2`, committed 21:05:07);
+   - fix (`eb4f281`) 21:05:49;
+   - validation of record 21:05:53;
+   - smoke 21:06:35;
+   - `8ee1cb6`;
+   - runs A and B.
 
 ## 3. Validation (V1 gates; V2 reported) — all gating products PASS, H1 EVALUABLE
 
@@ -146,10 +172,16 @@ bill/SOFR. TD is Δ log wealth per year (live − synthetic). s* is the implied 
 | V2 NTSX (substrate legs) | reported | as NTSX | +32.7 | — | 5.17 % | 1.018 | — | −15 | no caveat |
 
 **Reading.**
-- **The frozen 50 bp swap spread is right for the swap-financed products:** SSO 57, UPRO 56 and TMF 49
-  bp implied. That matches the route research's SOFR + 40–60 bp.
-- **Futures-financed NTSX embeds ≈ 0 bp.** So H1 at 50 bp is conservative by about 50 bp/yr for
-  arm (ii), and §6 reads the curve at the realistic spread too.
+- **The swap-financed products pin the spread near the frozen 50 bp.** Implied s* with 21-day-block
+  95 % CIs: SSO 57 [18, 96], UPRO 56 [35, 81], TMF 49 [10, 77] bp. That matches the route research's
+  SOFR + 40–60 bp. UBT is cheaper: −38 [−107, +25] bp.
+- **The futures-financed stacks are NOT pinned.** NTSX's TD is +24.8 bp/yr, CI [−95, +136], so
+  s* = 0.4 bp with CI [−223, +239] bp. On 7.3 years it cannot be told apart from anything in 0–200 bp.
+  - The point also absorbs the underlying ETFs' own expense ratios inside the synthetic (SPY 9.45 bp ×
+    0.9 + IEF 15 bp × 0.6 ≈ 17.5 bp of TD, ≈ 35 bp of s*).
+  - The earlier readings "NTSX embeds ≈ 0 bp" and "H1 at 50 bp is conservative by about 50 bp/yr" are
+    **withdrawn as overstated**. They read a noise-level diagnostic as a measurement.
+  - **H1 does not depend on any of this**: ci_low ≤ 0 already at s = 0.
 - **The AQR-based RSST synthetic over-captures the live fund by 2.9 %/yr**, consistent with T-296's
   +5.3 %/yr on a different window. That is why arm (iv)-A is refute-only.
 - **V2 raises no substrate-basis caveat.**
@@ -238,14 +270,16 @@ The 81-point curve lives in `results.json` (`windows.W-68.ii.curve`).
 | (iv-L) DBMF (w = 50 %) | < 0 | > 400 | NOT binding (exploratory) |
 
 In every gated arm on every window, ci_low ≤ 0 at zero spread. The point-estimate break-even spreads
-(43–231 bp) sit **above** the measured embedded spreads of ≈ 0 bp (futures) and 49–57 bp (swaps) in
-most cells. On the point estimate, a holder would come out ahead at today's financing. The data
-cannot tell that edge from zero.
+(43–231 bp) sit above the swap products' measured spread (49–57 bp; CIs within [10, 96] bp) in most
+cells. The futures stacks' spread is not measured precisely enough to compare (§3). On the point
+estimate, a holder of a swap-financed book would come out ahead at today's financing. The data cannot
+tell that edge from zero.
 
 ## 7. ρ(stock, bond) > 0 sub-samples and 2022
 
 The ρ > 0 years are calendar years with a positive daily equity–bond correlation (R-10). In W-68 that
-is 36 of 58 years: 1968–1997 except 1998, plus 1999, 2005, 2006 and 2022–2024. W-00 has 5 such years.
+is 36 of 58 years: 1968–97, 1999, 2005, 2006 and 2022–24. W-00 has 5 such years (2005, 2006,
+2022–24).
 Δ %/yr, with the primary-bootstrap CI on each concatenation:
 
 | arm / window | ρ > 0 years | ρ ≤ 0 years |
@@ -274,12 +308,15 @@ each window):
 | episode | bench | (i) | (ii) | (iii) | (v) |
 |---|---|---|---|---|---|
 | 1973–74 | −48.2 | −48.4 | **−55.8** | −21.1 | −31.9 |
-| 1980–82 Volcker | −20.2 | −26.8 | **−39.3** | **−48.9** | −14.9 |
+| 1980–82 Volcker (calendar 1980-01 → 1982-08) | −20.2 | −26.8 | **−39.3** | **−48.9** | −14.9 |
 | 1987 crash | −33.1 | −31.0 | −36.9 | −22.8 | −20.9 |
 | dotcom 2000–02 | −47.6 | −37.4 | −38.9 | −9.0 | −24.8 |
 | GFC 2007–09 | −55.2 | −46.0 | −48.1 | −26.1 | −33.1 |
 | COVID 2020 | −33.7 | −26.8 | −27.6 | −15.4 | −19.1 |
 | 2022 | −24.5 | −29.7 | **−36.8** | −30.0 | −20.0 |
+
+The Volcker row is **calendar 1980-01 → 1982-08**. T-311's narrower Volcker window (1980-11 →
+1982-08, its `CRISES` table) gives bench −20.2, (i) −26.6, **(ii) −37.6**, (iii) −46.5, (v) −14.9.
 
 **The regime reading (the macro lens).** The bond-levered stack is a **stock–bond correlation-regime
 bet**:
@@ -348,7 +385,7 @@ equity (arm (i)) and is neutral for arm (ii), whose equity exposure is 1.0.
 | 2022: (ii) −28 to −15; (i) −14 to −7; (iii) −25 to −5 | −18.0 / −8.1 / −5.3 | hit / hit / hit |
 | ρ > 0 sign: (ii) Δ lower on ρ > 0 years | −1.80 vs +3.49 | hit |
 | Arm (ii) W-68 MaxDD −65 to −45 %, deeper in 1973–74 and 1980–81, milder in 2008 | −55.8 %; deeper in both shocks; milder in GFC | hit |
-| Validation: SSO/UPRO/UBT/TMF/NTSX PASS; SSO s* 0–120; NTSX s* −40 to +60 | all PASS; 57; 0.4 | hit |
+| Validation: SSO/UPRO/UBT/TMF/NTSX PASS; SSO s* 0–120; NTSX s* −40 to +60 | all PASS; 57 [CI 18, 96]; 0.4 [CI −223, +239] | hit on the points (the NTSX point is noise-level, §3) |
 | RSST synthetic TD −3 to −8 %/yr | −2.88 %/yr | **miss** (just outside) |
 | Arm (iv)-A W-85 ci_low > 0 (basis-inflated) | +3.25 | hit |
 
@@ -386,6 +423,21 @@ the CI width.
    retired the DDP's custom-package option the same week. Any project script using
    `fredgraph.csv` (the T-306 builder, T-295) is exposed. The full-release SDMX encodes no-data as
    `-9999` with `OBS_STATUS="ND"`: **filter on the status, never on the value's type.**
+9. **The NTSX gate ruled on noise, and H1's evaluability hinged on it.** The prereg declined to gate
+   RSSB because a short overlap's TD sampling error (≈ TE/√years) is at least the band. By that same
+   logic, NTSX's TD CI [−95, +136] bp/yr is wider than its ±50 bp band. **For future preregs:** a gate
+   needs power. Either set the band from the TD's sampling error, or gate only where the band exceeds
+   about 2 SE. Pre-declare what happens when no product in a structural class has that power.
+10. **The substrate bond leg understates a real Treasury fund after 2002.**
+    - IEF TR beat `bond_tr` by +0.62 %/yr, CI [+0.24, +1.03], over 2002-07 → 2025-12 (the reviewer:
+      +0.61 [0.23, 1.02]). That supports "conservative" after 2002; a real-fund arm (ii) point would be
+      nearer +0.8 %/yr.
+    - It **cannot flip ci_low**, which would need +1.91 %/yr.
+    - It is **not established before 2002**, where no live Treasury-fund TR exists to compare.
+11. **The smoke's financing "hand check" is not independent.** It recomputes the same `(r + s)·Δcal/360`
+    from the same arrays, so it confirms the code path and nothing more. The independent check of the
+    financing is the V1 validation against live swap-financed funds (SSO, UPRO and TMF s* within
+    [10, 96] bp).
 
 ## 11. What this means
 
@@ -404,8 +456,9 @@ depth: SG CTA by registration, or an accruing forward book.
 
 **For a Roth holder.** Holding an RSSB/NTSX-class fund instead of SPY is, on the historical record, a
 coin flip on terminal wealth. It wins when stocks and bonds hedge each other and loses badly when
-inflation drives them down together, as in 1973–74, 1980–82 and 2022. Borrowing costs are fair (≈ 0 bp
-over SOFR in the futures-based funds, ≈ 50 bp in the swap-based ones); the premia are simply too small
+inflation drives them down together, as in 1973–74, 1980–82 and 2022. Borrowing cost is not what
+decides it. The swap-based funds' spread is pinned near 50 bp; the futures-based funds' spread cannot be
+pinned from 7 years of data; and the stack fails even at zero spread. The premia are simply too small
 and too noisy. 1× SPY remains the honest default.
 
 ## Reproduce

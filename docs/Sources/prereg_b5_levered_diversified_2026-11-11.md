@@ -862,3 +862,38 @@ point-estimate break-even spread is 71 bp.
 All gating validations pass on the record re-run (A2.2): SSO s* 57 bp, UPRO 56, TMF 49, UBT −38,
 NTSX 0.4. Determinism ×2 is bit-identical. Predictions in §11 are compared line by line in the
 verdict: `docs/Audit/b5_levered_diversified_verdict_2026-11-11.md`. N_trials consumed: +1.
+
+---
+
+## DIRECTOR RATIFICATION + ERRATA (appended 2026-11-11 after the independent review; NOTHING above this line altered)
+
+**Ratification (verbatim):**
+
+> "Director ratification, 2026-11-11: A2.2 (voiding the first validation run and filtering OBS_STATUS='ND' sentinel values of −9999) is RATIFIED as a data-defect correction, not a forking path. The sentinel mechanism is confirmed in the snapshot (801 ND rows, all −9999); amendment 2 named ND cells among those to drop before any data existed; and the correction ran AGAINST H1 — with the defective parse H1 would have read MET (+2.98 %/yr, ci_low +0.75)."
+
+**Errata.** The amendment text above is left as written; these lines correct it.
+
+1. **A2.2's count and unit.** It says "809 holiday rows became −99.99 %". Correct:
+   - **801 ND rows, all −9999.** The 809 also counted the 8 genuinely negative status-A bill quotes.
+   - The sentinel is **−9,999 %/yr as published** (−99.99 as a decimal), and **≈ −380 %/yr after the
+     money-market conversion**, which is what the synthetics accrued.
+2. **Amendment header times.** A2.1's header says "21:10 CT"; it was **committed 21:01:33** (`b0c05b8`).
+   A2.2's header says "21:25 CT"; it was **committed 21:05:07** (`7307ed2`). The git and file order is
+   correct throughout. The reviewer reconstructed the full sequence:
+   - halted attempt 21:00:07;
+   - A2.1;
+   - parser 21:02:27;
+   - fetch 21:02:29;
+   - VOID validation 21:02:57;
+   - A2.2;
+   - fix 21:05:49;
+   - validation of record 21:05:53;
+   - smoke 21:06:35;
+   - `8ee1cb6`;
+   - the runs.
+3. **The RESULT note's "NTSX 0.4".** The NTSX implied spread is a noise-level point: its 21-day-block CI
+   is [−223, +239] bp. Only the swap products' spreads are pinned (SSO [18, 96], UPRO [35, 81], TMF
+   [10, 77] bp). H1 does not depend on this, because ci_low ≤ 0 already at s = 0.
+4. **The "financing is not binding" reading** follows the frozen, director-confirmed R-12. It departs
+   from the brief's literal rule, under which a break-even below the current spread would read as
+   binding.
