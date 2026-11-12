@@ -771,3 +771,45 @@ B-9 and B-2 through the full-suite gate. After the go, Phase 2 runs exactly as f
 8. commit.
 
 No push, no merge. N_trials unchanged: +1.
+
+### A2.1 Operational addendum — 2026-11-11 21:10 CT: the H.15 DDP call corrected (same publisher, same series, same identity checks; recorded BEFORE the re-fetch)
+
+**What happened.** Amendment 2's H.15 URL (`series=bf17364827e38702b42a58cf8eaa3f78`) turned out to
+be the DDP's preformatted **"Treasury Constant Maturities"** package. The halted attempt's label rows
+show eleven CMT columns (`RIFLGFCM01_N.B` … `RIFLGFCY30_N.B`) and no T-bill secondary-market column.
+**The identity check HALTED it as designed:** "0 columns with identifier H15/H15/RIFSGFSM03_N.B".
+Nothing reached `inputs/`, and nothing was read by any run. The attempt directory
+`data/research/b5/inputs_attempt_20261112T030007Z/` is kept, unused, and not deleted.
+
+**Why the declared call cannot work.** The DDP H.15 page says the Board removes "Build your package"
+the week of November 9 (a notice dated 2026-07-16). The preformatted CSV packages left are:
+- Treasury Constant Maturities (all observations);
+- weekly averages (last 52 observations);
+- monthly averages (last 12 observations).
+
+None of them carries the full-history business-day 3-month bill series. **At the approved publisher,
+that series is now available only in the DDP's full H.15 release, "Download all H15 data as a single
+XML file [SDMX/ZIP, 67.6 MB]"**, linked from the same DDP page.
+
+**The corrected call (DTB3 only; SOFR unchanged).**
+- URL: `https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&filetype=zip`.
+- Publisher, as before: Board of Governors of the Federal Reserve System, H.15 Selected Interest
+  Rates, Data Download Program.
+- Snapshot file: `frb_h15_all_sdmx.zip` (the exact response bytes).
+
+**Identity check (same substance as amendment 2, adapted to SDMX; HALT if it fails).**
+- Exactly one SDMX series has the attribute `SERIES_NAME="RIFSGFSM03_N.B"`.
+- Its description or annotation text must contain both "3-month" and "secondary market"
+  (case-insensitive). If the file carries no description text for that series, it HALTS.
+- Observations are read from `TIME_PERIOD` / `OBS_VALUE`. Non-numeric values are dropped, never
+  filled. There must be at least 10,000 of them.
+- The amendment-2 misidentification guard against DGS3MO (correlation ≥ 0.99, |mean gap| ≤ 50 bp) is
+  unchanged.
+- If `RIFSGFSM03_N.B` is absent, it HALTS and reports any series whose description matches. Such a
+  series is NOT used without a ruling.
+
+The XML is parsed by streaming, without loading the whole file, to stay inside the 8 GB host.
+
+**Unchanged:** SOFR (NY Fed Markets API; the halted attempt's copy parses at 1,936 rows, 2018-04-02 →
+2025-12-31, but it is re-fetched inside the new staged attempt). Also unchanged: yfinance, the AQR
+copy, the staged-then-renamed snapshot, and every downstream term.
