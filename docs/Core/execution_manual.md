@@ -1692,3 +1692,12 @@ python -m scripts.lazy_prices.b6_signals sp                  # similarity + LM t
 python -m scripts.lazy_prices.b6_census                      # before (T-237) / after (B-6) coverage + price-file coverage
 python -m pytest tests/test_b6_lazy_prices_parse.py tests/test_b6_lazy_prices_signals.py -q
 ```
+
+S&P-arm harness (Phase 2; standalone, never `BacktestController`). It builds the panel and runs the
+FROZEN census first; exit 2 = a fail-closed condition fired and no return was computed.
+
+```bash
+python -m scripts.lazy_prices.b6_harness_sp --census-only --spec gate_similarity --out data/b6_local/harness_sp/census_run1
+python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1   # only after the census passes; run twice, compare results.md5
+python -m pytest tests/test_b6_harness_sp.py -q
+```
