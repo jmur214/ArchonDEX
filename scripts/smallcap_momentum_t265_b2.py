@@ -180,7 +180,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         cal = cm.market_calendar()
         tw = cm.twins_on(cal)
-        segs, ucensus = cm.load_universe(cal)
+        segs, ucensus, fcen = cm.load_universe(cal)
+        census_rec = {"price": cm.enforce_census(cm.price_census_observed(fcen),
+                                                 cm.EXPECTED_PRICE_CENSUS)}
         C, A = cm.price_matrices(segs, cal)
         closes = {s.seg_id: s.close for s in segs}
         deaths = {s.seg_id: s.death for s in segs}
@@ -195,6 +197,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         forms = build_formations(me, C, A, MC, all_u, n_forms)
         if not a.smoke and len(forms) < MIN_MONTHS:
             raise cm.Halt(f"{len(forms)} holding months < {MIN_MONTHS}")
+        if not a.smoke:      # prereg §3.6 window, recomputed (§4.5)
+            census_rec["window"] = cm.enforce_census(
+                {"formations": len(forms), "first_formation": forms[0]["date"].strftime("%Y-%m-%d"),
+                 "last_formation": forms[-1]["date"].strftime("%Y-%m-%d"),
+                 "last_hold_end": me[forms[-1]["i"] + 1].strftime("%Y-%m-%d")},
+                {"formations": 111, "first_formation": "2017-01-31",
+                 "last_formation": "2026-03-31", "last_hold_end": "2026-04-30"})
         hold_end = pd.DatetimeIndex([me[f["i"] + 1] for f in forms])
         twm = tw.loc[[me[forms[0]["i"]]] + list(hold_end)].pct_change().iloc[1:]
         spy, iwm, bilm = (twm[c].to_numpy() for c in ("SPY", "IWM", "BIL"))
@@ -213,6 +222,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[B2-MOM] HALT: {e}", file=sys.stderr)
         return 2
 
+    try:
+        return _report(a, out_dir, t_start, forms, arms, hold_end, spy, iwm, bilm, ucensus,
+                       census_rec)
+    except cm.Halt as e:
+        print(f"[B2-MOM] HALT: {e}", file=sys.stderr)
+        return 2
+
+
+def _report(a, out_dir, t_start, forms, arms, hold_end, spy, iwm, bilm, ucensus, census_rec) -> int:
     fcensus = pd.DataFrame([{"formation": f["date"].strftime("%Y-%m-%d"),
                              "n_eligible": f["n_eligible"], "k": f["k"], "n_small": f["n_small"],
                              "n_micro": f["n_micro"], "n_ge200M": f["n_ge200M"],
@@ -288,6 +306,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "alpha_t_gt_2": {k: bool(v["alpha_t_hac"] > 2.0)
                              for k, v in results["alpha_diagnostics"].items()}}
     results["run_meta"] = {"wall_seconds": round(time.time() - t_start, 1)}
+    cm.write_census_check(census_rec, out_dir, "momentum")
     md5 = cm.write_results(results, out_dir, "momentum_results")
     print(f"[B2-MOM] wrote {out_dir}/momentum_results.json  canonical_md5={md5}")
     return 0

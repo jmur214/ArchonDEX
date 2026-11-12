@@ -145,3 +145,123 @@ def test_canonical_md5_ignores_key_order_and_run_meta():
 def test_bootstrap_refuses_short_windows():
     with pytest.raises(cm.Halt):
         cm.boot(12, lambda i: 0.0)
+
+
+# ============================================================ review hardening (2026-11-11)
+import zipfile  # noqa: E402
+
+SUB_H = "ACCESSION_NUMBER\tFILING_DATE\tDOCUMENT_TYPE\tISSUERCIK\tISSUERTRADINGSYMBOL\n"
+ND_H = ("ACCESSION_NUMBER\tSECURITY_TITLE\tTRANS_DATE\tTRANS_CODE\tTRANS_SHARES\t"
+        "TRANS_PRICEPERSHARE\tTRANS_ACQUIRED_DISP_CD\n")
+OWN_H = "ACCESSION_NUMBER\tRPTOWNERCIK\n"
+FN_H = "ACCESSION_NUMBER\tFOOTNOTE_ID\tFOOTNOTE_TXT\n"
+
+
+def _zip(tmp_path, sub=None, nd=None, own=None, fn=None, name="2016q1_form345.zip"):
+    sub = sub if sub is not None else SUB_H + "A1\t01-FEB-2016\t4\t0000049196\tHBAN\n"
+    nd = nd if nd is not None else ND_H + "A1\tCommon\t01-FEB-2016\tP\t100\t8.5\tA\n"
+    own = own if own is not None else OWN_H + "A1\t0001000001\n"
+    fn = fn if fn is not None else FN_H + "A1\tF1\tplain footnote\n"
+    with zipfile.ZipFile(tmp_path / name, "w") as z:
+        for nm, body in (("SUBMISSION.tsv", sub), ("NONDERIV_TRANS.tsv", nd),
+                         ("REPORTINGOWNER.tsv", own), ("FOOTNOTES.tsv", fn)):
+            z.writestr(nm, body)
+    return tmp_path
+
+
+def test_scan_zips_positive_control_reads_one_clean_quarter(tmp_path):
+    rows, any4, any4z = ins.scan_zips(_zip(tmp_path), expected_quarters=1)
+    assert len(rows) == 1 and int(rows["owner"].iloc[0]) == 1000001
+    assert any4 == {2016: {49196}} and any4z == {2016: {49196}}
+
+
+def test_scan_zips_halts_on_a_wrong_quarter_count(tmp_path):
+    with pytest.raises(cm.Halt, match="quarters"):
+        ins.scan_zips(_zip(tmp_path), expected_quarters=81)
+
+
+@pytest.mark.parametrize("bad", ["A1\tCommon\t01-FEB-2016\tP\t100\t8.5\tA\tEXTRA\n",   # too many
+                                 "A1\tCommon\t01-FEB-2016\tP\n"])                       # too few
+def test_a_malformed_line_halts_never_skips(tmp_path, bad):
+    with pytest.raises(cm.Halt, match="field count"):
+        ins.scan_zips(_zip(tmp_path, nd=ND_H + bad), expected_quarters=1)
+
+
+@pytest.mark.parametrize("field,nd", [
+    ("TRANS_DATE", ND_H + "A1\tCommon\t31-FOO-2016\tP\t100\t8.5\tA\n"),
+    ("TRANS_SHARES", ND_H + "A1\tCommon\t01-FEB-2016\tP\tlots\t8.5\tA\n"),
+    ("TRANS_PRICEPERSHARE", ND_H + "A1\tCommon\t01-FEB-2016\tP\t100\t$8.5\tA\n")])
+def test_an_unparseable_value_halts_never_coerces(tmp_path, field, nd):
+    with pytest.raises(cm.Halt, match=field):
+        ins.scan_zips(_zip(tmp_path, nd=nd), expected_quarters=1)
+
+
+def test_an_unparseable_filing_date_or_cik_halts(tmp_path):
+    with pytest.raises(cm.Halt, match="FILING_DATE"):
+        ins.scan_zips(_zip(tmp_path, sub=SUB_H + "A1\t2016-02-01\t4\t49196\tHBAN\n"),
+                      expected_quarters=1)
+    with pytest.raises(cm.Halt, match="ISSUERCIK"):
+        ins.scan_zips(_zip(tmp_path, sub=SUB_H + "A1\t01-FEB-2016\t4\tCIK49196\tHBAN\n"),
+                      expected_quarters=1)
+
+
+def test_a_purchase_without_a_reporting_owner_halts(tmp_path):
+    with pytest.raises(cm.Halt, match="missing a required id"):
+        ins.scan_zips(_zip(tmp_path, own=OWN_H + "ZZ\t0001000001\n"), expected_quarters=1)
+
+
+def test_an_empty_optional_value_is_not_a_parse_failure():
+    s = ins.strict_parse(pd.Series(["8.5", None]), "num", "x")
+    assert s.iloc[0] == 8.5 and np.isnan(s.iloc[1])
+
+
+def test_count_rows_refuses_rows_without_ids():
+    rows = pd.DataFrame({"owner": [np.nan], "issuer": [1.0],
+                         "trans_date": [pd.Timestamp("2016-01-04")],
+                         "filing_date": [pd.Timestamp("2016-01-05")], "shares": [1.0],
+                         "price": [1.0], "pref": [False], "aff": [False], "fn": [False]})
+    with pytest.raises(cm.Halt):
+        ins.count_rows(rows, pd.Series(dtype=float), "base")
+
+
+def test_too_few_cohorts_is_NOT_EVALUABLE_and_the_gate_halts():
+    entry = pd.to_datetime(["2016-02-02", "2016-03-02", "2016-04-04"])
+    ev = pd.DataFrame({"entry": entry}, index=[0, 1, 2])
+    car = pd.Series([0.1, -0.05, 0.02], index=[0, 1, 2])
+    with pytest.raises(cm.NotEvaluable):
+        cm.nw_mean_t(car.to_numpy())
+    with pytest.raises(cm.Halt):
+        ins.study_stats(ev, car, gate=True)
+    out = ins.study_stats(ev, car, gate=False)
+    assert out["t_hac"] == cm.NOT_EVALUABLE and out["cohort_mean_of_means"] == cm.NOT_EVALUABLE
+    with pytest.raises(cm.Halt):
+        ins.study_stats(ev.iloc[:0], car.iloc[:0], gate=True)
+
+
+def test_alpha_regression_refuses_short_or_nonfinite_input():
+    with pytest.raises(cm.NotEvaluable):
+        cm.nw_alpha(np.zeros(5), np.zeros(5))
+    with pytest.raises(cm.NotEvaluable):
+        cm.nw_alpha(np.r_[np.zeros(30), np.nan], np.zeros(31))
+
+
+def test_any_census_count_that_disagrees_halts_and_a_match_is_recorded():
+    rec = cm.enforce_census({"a": 1, "b": "x"}, {"a": 1, "b": "x"})
+    assert all(r["ok"] for r in rec.values())
+    with pytest.raises(cm.Halt, match="'a'"):
+        cm.enforce_census({"a": 2, "b": "x"}, {"a": 1, "b": "x"})
+    with pytest.raises(cm.Halt):
+        cm.enforce_census({"b": "x"}, {"a": 1, "b": "x"})      # a missing recomputation
+
+
+def test_price_census_observed_uses_the_census_definitions():
+    cal = _cal(300)
+    vol = np.ones(300) * 1000.0
+    vol[-7:] = 0.0                                               # a 7-bar phantom tail
+    df = _file(cal, np.full(300, 5.0), vol)
+    fc = cm.file_census(df, cal)
+    fcen = pd.DataFrame([dict(fc, ticker="T")]).set_index("ticker")
+    obs = cm.price_census_observed(fcen)
+    assert obs["files"] == 1 and obs["zero_volume_bars"] == 7 and obs["phantom_tail_files_ge5"] == 1
+    assert obs["files_lt_60_bars"] == 0 and obs["nonpositive_close_files"] == 0
+    assert set(obs) == set(cm.EXPECTED_PRICE_CENSUS)

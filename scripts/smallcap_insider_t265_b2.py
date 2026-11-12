@@ -60,33 +60,95 @@ BRIEF_FLAT_SIDE = 0.00375                           # 75 bps RT flat (sensitivit
 MIN_MONTHS = 100
 SMOKE_LAST_ENTRY = pd.Timestamp("2017-01-31")
 NO_DEATH = 10 ** 9                                  # death index sentinel: never reached
+EXPECTED_ZIPS = 81
+# prereg §3.5 / §3.6, recomputed with census_form4.py / census_join.py definitions (§4.5)
+EXPECTED_F4_CENSUS = {
+    "zips": 81, "pa_form4_rows": 808146,
+    "pa_rows_by_filing_year": {"2016": 33967, "2017": 27505, "2018": 44722, "2019": 38556,
+                               "2020": 30409, "2021": 25544, "2022": 33280, "2023": 27880,
+                               "2024": 21856, "2025": 21490},
+    "inwin_rows": 305209, "inwin_issuer_ciks": 7770, "joined_rows": 196641,
+    "joined_issuer_ciks": 4075, "multi_cik_tickers": 71, "multi_cik_ciks": 145,
+    # year: [priced names alive, their CIKs, CIKs with any Form 4, CIKs with any P/A buy]
+    "universe_by_year": {"2016": [2735, 2786, 2563, 1309], "2017": [2910, 2964, 2711, 1319],
+                         "2018": [3092, 3148, 2886, 1553], "2019": [3252, 3309, 3000, 1506],
+                         "2020": [3490, 3550, 3222, 1851], "2021": [3862, 3921, 3569, 1669],
+                         "2022": [3885, 3941, 3567, 1876], "2023": [3905, 3959, 3606, 1734],
+                         "2024": [4023, 4078, 3708, 1659], "2025": [4213, 4271, 3884, 1861]},
+    "first_adv_day": "2016-02-01", "study_last_entry": "2025-11-19",
+}
 
 
 # ============================================================ Form 4 extraction
-def _read(z: zipfile.ZipFile, name: str, cols: List[str]) -> pd.DataFrame:
-    with z.open(name) as f:
-        hdr = f.readline().decode("utf-8", "replace").rstrip("\n").split("\t")
+def bad_field_lines(raw: bytes) -> int:
+    """Lines whose tab count differs from the header's (too many OR too few fields — pandas
+    pads a short line silently), plus an unterminated trailing fragment."""
+    a = np.frombuffer(raw, dtype=np.uint8)
+    nl = np.flatnonzero(a == 10)
+    if len(nl) == 0:
+        return 0
+    tabs = np.flatnonzero(a == 9)
+    per = np.diff(np.r_[0, np.searchsorted(tabs, nl)])
+    tail = len(a) - (int(nl[-1]) + 1)
+    return int((per[1:] != per[0]).sum()) + (1 if tail > 0 else 0)
+
+
+def _read(z: zipfile.ZipFile, name: str, cols: List[str], chunksize: Optional[int] = None):
+    """Strict TSV read: any malformed line HALTS (never skipped)."""
+    raw = z.read(name)
+    nbad = bad_field_lines(raw)
+    if nbad:
+        raise cm.Halt(f"{z.filename}:{name}: {nbad} line(s) with a field count != the header")
+    hdr = raw[:raw.index(b"\n")].decode("utf-8", "replace").rstrip("\r").split("\t")
     use = [c for c in cols if c in hdr]
-    with z.open(name) as f:
-        return pd.read_csv(f, sep="\t", usecols=use, dtype=str, quoting=3,
-                           on_bad_lines="skip", encoding_errors="replace")
+    del raw
+    try:
+        with z.open(name) as f:
+            if chunksize is None:
+                return pd.read_csv(f, sep="\t", usecols=use, dtype=str, quoting=3,
+                                   on_bad_lines="error", encoding_errors="replace")
+            return list(pd.read_csv(f, sep="\t", usecols=use, dtype=str, quoting=3,
+                                    on_bad_lines="error", chunksize=chunksize,
+                                    encoding_errors="replace"))
+    except pd.errors.ParserError as e:
+        raise cm.Halt(f"{z.filename}:{name}: parser error {e}") from e
 
 
-def scan_zips(zdir: Path = cm.ZIPS) -> Tuple[pd.DataFrame, Dict[int, set]]:
-    """All P/A original-Form-4 non-derivative rows (2006q1-2026q1), one quarter at a time."""
+def strict_parse(raw: pd.Series, kind: str, label: str) -> pd.Series:
+    """Parse; a non-empty raw value that does not parse HALTS (never coerced to NaN)."""
+    if kind == "date":
+        out = pd.to_datetime(raw, format="%d-%b-%Y", errors="coerce")
+    else:
+        out = pd.to_numeric(raw, errors="coerce")
+    bad = raw.notna() & out.isna()
+    if bad.any():
+        raise cm.Halt(f"{label}: {int(bad.sum())} unparseable value(s), e.g. "
+                      f"{raw[bad].head(3).tolist()}")
+    return out
+
+
+def scan_zips(zdir: Path = cm.ZIPS, expected_quarters: int = EXPECTED_ZIPS
+              ) -> Tuple[pd.DataFrame, Dict[int, set], Dict[int, set]]:
+    """All P/A original-Form-4 non-derivative rows (2006q1-2026q1), one quarter at a time.
+    Returns (rows, Form-4 issuers by FILING year, Form-4 issuers by ZIP year — the census's)."""
     zps = sorted(zdir.glob("*_form345.zip"))
-    if len(zps) != 81:
-        raise cm.Halt(f"expected 81 Form 345 quarters (census §3.5), found {len(zps)}")
-    parts, any4 = [], {}
+    if len(zps) != expected_quarters:
+        raise cm.Halt(f"expected {expected_quarters} Form 345 quarters (census §3.5), "
+                      f"found {len(zps)}")
+    parts, any4, any4_zipyear = [], {}, {}
     for zp in zps:
         z = zipfile.ZipFile(zp)
         sub = _read(z, "SUBMISSION.tsv", ["ACCESSION_NUMBER", "FILING_DATE", "DOCUMENT_TYPE",
                                           "ISSUERCIK", "AFF10B5ONE"])
         sub = sub[sub["DOCUMENT_TYPE"] == "4"].copy()
-        sub["filing_date"] = pd.to_datetime(sub["FILING_DATE"], format="%d-%b-%Y", errors="coerce")
-        sub["issuer"] = pd.to_numeric(sub["ISSUERCIK"], errors="coerce")
-        for y, g in sub.dropna(subset=["filing_date", "issuer"]).groupby(sub["filing_date"].dt.year):
+        sub["filing_date"] = strict_parse(sub["FILING_DATE"], "date", f"{zp.name} FILING_DATE")
+        sub["issuer"] = strict_parse(sub["ISSUERCIK"], "num", f"{zp.name} ISSUERCIK")
+        if sub[["filing_date", "issuer"]].isna().any().any():
+            raise cm.Halt(f"{zp.name}: Form 4 submission without a FILING_DATE or ISSUERCIK")
+        for y, g in sub.groupby(sub["filing_date"].dt.year):
             any4.setdefault(int(y), set()).update(g["issuer"].astype(np.int64).tolist())
+        any4_zipyear.setdefault(int(zp.name[:4]), set()).update(
+            sub["issuer"].astype(np.int64).tolist())
         nd = _read(z, "NONDERIV_TRANS.tsv", ["ACCESSION_NUMBER", "SECURITY_TITLE", "TRANS_DATE",
                                              "TRANS_CODE", "TRANS_SHARES", "TRANS_PRICEPERSHARE",
                                              "TRANS_ACQUIRED_DISP_CD"])
@@ -94,17 +156,14 @@ def scan_zips(zdir: Path = cm.ZIPS) -> Tuple[pd.DataFrame, Dict[int, set]]:
         p = p.merge(sub, on="ACCESSION_NUMBER", how="inner")
         acc = set(p["ACCESSION_NUMBER"])
         own = _read(z, "REPORTINGOWNER.tsv", ["ACCESSION_NUMBER", "RPTOWNERCIK"])
-        own = own[own["ACCESSION_NUMBER"].isin(acc)]
-        own["o"] = pd.to_numeric(own["RPTOWNERCIK"], errors="coerce")
+        own = own[own["ACCESSION_NUMBER"].isin(acc)].copy()
+        own["o"] = strict_parse(own["RPTOWNERCIK"], "num", f"{zp.name} RPTOWNERCIK")
         owner = own.groupby("ACCESSION_NUMBER")["o"].min()
         fn_hit = set()
-        with z.open("FOOTNOTES.tsv") as f:
-            for ch in pd.read_csv(f, sep="\t", usecols=["ACCESSION_NUMBER", "FOOTNOTE_TXT"],
-                                  dtype=str, quoting=3, on_bad_lines="skip", chunksize=200_000,
-                                  encoding_errors="replace"):
-                ch = ch[ch["ACCESSION_NUMBER"].isin(acc)]
-                fn_hit |= set(ch.loc[ch["FOOTNOTE_TXT"].fillna("").str.contains(RX_10B51),
-                                     "ACCESSION_NUMBER"])
+        for ch in _read(z, "FOOTNOTES.tsv", ["ACCESSION_NUMBER", "FOOTNOTE_TXT"], chunksize=200_000):
+            ch = ch[ch["ACCESSION_NUMBER"].isin(acc)]
+            fn_hit |= set(ch.loc[ch["FOOTNOTE_TXT"].fillna("").str.contains(RX_10B51),
+                                 "ACCESSION_NUMBER"])
         aff = (p["AFF10B5ONE"].fillna("").str.strip().str.lower().isin(["1", "true"])
                if "AFF10B5ONE" in p else pd.Series(False, index=p.index))
         parts.append(pd.DataFrame({
@@ -112,17 +171,21 @@ def scan_zips(zdir: Path = cm.ZIPS) -> Tuple[pd.DataFrame, Dict[int, set]]:
             "issuer": p["issuer"].to_numpy(),
             "owner": p["ACCESSION_NUMBER"].map(owner).to_numpy(),
             "filing_date": p["filing_date"].to_numpy(),
-            "trans_date": pd.to_datetime(p["TRANS_DATE"], format="%d-%b-%Y", errors="coerce").to_numpy(),
-            "shares": pd.to_numeric(p["TRANS_SHARES"], errors="coerce").to_numpy(),
-            "price": pd.to_numeric(p["TRANS_PRICEPERSHARE"], errors="coerce").to_numpy(),
+            "trans_date": strict_parse(p["TRANS_DATE"], "date", f"{zp.name} TRANS_DATE").to_numpy(),
+            "shares": strict_parse(p["TRANS_SHARES"], "num", f"{zp.name} TRANS_SHARES").to_numpy(),
+            "price": strict_parse(p["TRANS_PRICEPERSHARE"], "num",
+                                  f"{zp.name} TRANS_PRICEPERSHARE").to_numpy(),
             "pref": p["SECURITY_TITLE"].fillna("").str.contains("prefer", case=False).to_numpy(),
             "aff": aff.to_numpy(),
             "fn": p["ACCESSION_NUMBER"].isin(fn_hit).to_numpy()}))
         z.close()
     rows = pd.concat(parts, ignore_index=True)
+    missing = {c: int(rows[c].isna().sum()) for c in ("issuer", "owner", "filing_date", "trans_date")}
+    if any(missing.values()):
+        raise cm.Halt(f"P/A Form 4 rows missing a required id/date (never dropped silently): {missing}")
     rows = rows.sort_values(["issuer", "filing_date", "acc", "owner", "trans_date", "shares",
                              "price"], kind="mergesort").reset_index(drop=True)
-    return rows, any4
+    return rows, any4, any4_zipyear
 
 
 # ============================================================ CMP + clusters
@@ -142,6 +205,8 @@ def routine_from_year(rows: pd.DataFrame) -> pd.Series:
 def count_rows(rows: pd.DataFrame, y_star: pd.Series, tenb51: str) -> Tuple[pd.DataFrame, dict]:
     """Rows that count toward a cluster. tenb51: 'base' (AFF or footnote) | 'no_pre2023_fn'."""
     r = rows.dropna(subset=["owner", "issuer", "trans_date", "filing_date"])
+    if len(r) != len(rows):
+        raise cm.Halt(f"{len(rows) - len(r)} P/A rows lack an id/date (scan_zips should have halted)")
     n0 = len(r)
     r = r[(r["shares"] > 0) & (r["price"] > 0) & ~r["pref"]]
     n1 = len(r)
@@ -279,13 +344,22 @@ def car_table(ev: pd.DataFrame, paths: Dict[int, np.ndarray], iwm_r: np.ndarray)
     return pd.Series(out, dtype=float)
 
 
-def study_stats(ev: pd.DataFrame, car: pd.Series) -> dict:
+def study_stats(ev: pd.DataFrame, car: pd.Series, gate: bool = False) -> dict:
+    """Event-study statistics. Too few cohorts: the GATE halts (NotEvaluable propagates); a
+    descriptive cell records the literal NOT-EVALUABLE — never a NaN that reads as 't < 2'."""
     sub = ev.loc[car.index]
     if len(sub) == 0:
-        return {"n": 0}
+        if gate:
+            raise cm.NotEvaluable("the gate's event set is empty")
+        return {"n": 0, "t_hac": cm.NOT_EVALUABLE}
     coh = pd.Series(car.to_numpy(), index=sub["entry"].dt.to_period("M").to_numpy())
     cm_ = coh.groupby(level=0).mean().sort_index()
-    mean_c, t, n_c = cm.nw_mean_t(cm_.to_numpy())
+    try:
+        mean_c, t, n_c = cm.nw_mean_t(cm_.to_numpy())
+    except cm.NotEvaluable:
+        if gate:
+            raise
+        mean_c, t, n_c = cm.NOT_EVALUABLE, cm.NOT_EVALUABLE, int(len(cm_))
     lo, hi = np.percentile(car, [1, 99])
     return {"n": int(len(car)), "mean_car": float(car.mean()), "median_car": float(car.median()),
             "share_pos": float((car > 0).mean()),
@@ -353,6 +427,40 @@ def monthly_from_daily(V: pd.Series, me: pd.DatetimeIndex, start_value_date: pd.
     return mv.pct_change().iloc[1:]
 
 
+# ============================================================ census (§4.5)
+def form4_census_observed(rows: pd.DataFrame, any4_zipyear: Dict[int, set], fin: pd.DataFrame,
+                          fcen: pd.DataFrame, cal: pd.DatetimeIndex, n_zips: int) -> dict:
+    """§3.5/§3.6 counts with census_form4.py / census_join.py definitions (priced = a file with
+    >= 60 closes; alive = its first/last close; Form 4 issuers by ZIP year)."""
+    fy = rows["filing_date"].dt.year
+    inwin = rows[(rows["filing_date"] >= "2016-01-01") & (rows["filing_date"] <= "2025-12-31")]
+    priced = set(fcen.index[fcen["n_close"] >= cm.MIN_FILE_BARS])
+    fp = fin[fin["ticker"].isin(priced)]
+    cik_priced = set(fp["cik"].astype(np.int64))
+    iss = pd.Series(inwin["issuer"].astype(np.int64).unique())
+    dup = fin[fin.duplicated("ticker", keep=False)]
+    t2c = fp.groupby("ticker")["cik"].apply(lambda x: set(x.astype(np.int64))).to_dict()
+    pby = {int(y): set(g["issuer"].astype(np.int64)) for y, g in inwin.groupby(inwin["filing_date"].dt.year)}
+    first, last = pd.to_datetime(fcen["first"]), pd.to_datetime(fcen["last"])
+    uni = {}
+    for y in range(2016, 2026):
+        al = fcen.index[(fcen["n_close"] >= cm.MIN_FILE_BARS) & (first <= f"{y}-12-31")
+                        & (last >= f"{y}-01-01")]
+        ciks = set().union(*[t2c.get(t, set()) for t in al]) if len(al) else set()
+        uni[str(y)] = [int(len(al)), len(ciks), len(ciks & any4_zipyear.get(y, set())),
+                       len(ciks & pby.get(y, set()))]
+    return {"zips": n_zips, "pa_form4_rows": int(len(rows)),
+            "pa_rows_by_filing_year": {str(y): int(n) for y, n in
+                                       rows[(fy >= 2016) & (fy <= 2025)].groupby(fy).size().items()},
+            "inwin_rows": int(len(inwin)), "inwin_issuer_ciks": int(len(iss)),
+            "joined_rows": int(inwin["issuer"].isin(cik_priced).sum()),
+            "joined_issuer_ciks": int(iss.isin(cik_priced).sum()),
+            "multi_cik_tickers": int(dup["ticker"].nunique()), "multi_cik_ciks": int(len(dup)),
+            "universe_by_year": uni,
+            "first_adv_day": cal[19].strftime("%Y-%m-%d"),
+            "study_last_entry": cal[cal <= cm.TWIN_END][-1 - HOLD].strftime("%Y-%m-%d")}
+
+
 # ============================================================ main
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -370,7 +478,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         bil, iwm = tw["BIL"].to_numpy(), tw["IWM"].to_numpy()
         bil_r = np.r_[np.nan, bil[1:] / bil[:-1] - 1.0]
         iwm_r = np.r_[np.nan, iwm[1:] / iwm[:-1] - 1.0]
-        segs, ucensus = cm.load_universe(cal)
+        segs, ucensus, fcen = cm.load_universe(cal)
+        census_rec = {"price": cm.enforce_census(cm.price_census_observed(fcen),
+                                                 cm.EXPECTED_PRICE_CENSUS)}
         C, A = cm.price_matrices(segs, cal)
         seg_by_ticker: Dict[str, list] = {}
         for s in segs:
@@ -381,7 +491,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         tcount = fin.groupby("ticker")["cik"].nunique()
         multi_cik = set(tcount[tcount > 1].index)
 
-        rows, any4 = scan_zips()
+        rows, any4, any4_zipyear = scan_zips()
         # ---- census: rates (R8), join coverage (§4.5), universe with any Form 4
         rows["fy"] = rows["filing_date"].dt.year
         rates = rows[(rows["fy"] >= 2016) & (rows["fy"] <= 2025)].groupby("fy").agg(
@@ -399,6 +509,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             ciks = set().union(*[t2c.get(t, set()) for t in alive]) if alive else set()
             uni[str(y)] = {"priced_alive_ciks": len(ciks),
                            "share_any_form4": len(ciks & any4.get(y, set())) / max(len(ciks), 1)}
+        census_rec["form4"] = cm.enforce_census(
+            form4_census_observed(rows, any4_zipyear, fin, fcen, cal, EXPECTED_ZIPS), EXPECTED_F4_CENSUS)
         y_star = routine_from_year(rows)
         res["census"] = {"universe": ucensus, "pa_form4_rows_all_years": int(len(rows)),
                          "join_coverage_rows_2016_2025": cov,
@@ -440,7 +552,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 sub1 = evs[(evs["band"] == "sub1M") & (evs["entry"] <= study_last)]
                 car_sub1 = car_table(sub1, paths["base"], iwm_r)
                 studies["base"] = {
-                    "size_ge3": study_stats(studyset, cars["base"]),
+                    "size_ge3": study_stats(studyset, cars["base"], gate=True),
                     "by_size": {lab: study_stats(studyset[m], cars["base"][studyset[m].index])
                                 for lab, m in (("3", studyset["size"] == 3),
                                                ("4", studyset["size"] == 4),
@@ -520,6 +632,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[B2-INS] HALT: {e}", file=sys.stderr)
         return 2
     res["run_meta"] = {"wall_seconds": round(time.time() - t_start, 1)}
+    cm.write_census_check(census_rec, out_dir, "insider")
     md5 = cm.write_results(res, out_dir, "insider_results")
     print(f"[B2-INS] wrote {out_dir}/insider_results.json  canonical_md5={md5}")
     return 0

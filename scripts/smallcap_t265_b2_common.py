@@ -14,6 +14,15 @@ Design laws (each locked in tests/test_smallcap_t265_b2.py):
   * Missing is counted, never filled; a load-bearing input that is missing HALTS (exit 2).
   * ONE bootstrap draw per window on the MONTH INDICES (the B-1 pattern): every arm, twin and
     diagnostic in a window sees the same resampled months (paired). Auto block length.
+  * Every census count the prereg declares for an input the harness CONSUMES (§3.3 price-file
+    artefacts, §3.5 Form 4 + join, §3.6 windows) is recomputed exactly as the committed census
+    script computed it and HALTS on any mismatch (§4.5). The check record goes to
+    `<stem>_census_check.json`, beside — never inside — the canonical results. §3.1's EDGAR-
+    cessation and in-band-death tables describe inputs the harness never reads; they are
+    reproduced by `scripts/b2_census_t381/` only.
+  * A statistic that cannot be evaluated (too few observations) raises NotEvaluable: the gate
+    path HALTS; a descriptive cell records the literal "NOT-EVALUABLE", never a NaN read as
+    "below 2".
 """
 from __future__ import annotations
 
@@ -59,6 +68,42 @@ MDE80 = {"momentum_satellite": 0.43, "insider_satellite": 0.56, "insider_car": 0
 
 class Halt(RuntimeError):
     """A fail-closed stop ([NN-FAIL-CLOSED]): the harness exits 2 and writes no headline."""
+
+
+class NotEvaluable(Halt):
+    """Too few observations for a statistic. Halts on the gate path; descriptive cells catch it."""
+
+
+NOT_EVALUABLE = "NOT-EVALUABLE"
+
+# prereg §3.3 (census_prices.py / census_zerovol.py / census_splice.py), recomputed by
+# load_universe with the census scripts' own definitions.
+EXPECTED_PRICE_CENSUS = {
+    "files": 4674, "files_lt_60_bars": 44, "files_start_le_2016_01_05": 2577,
+    "files_last_ge_2026_06_26": 4172, "first_bar_min": "2016-01-04", "last_bar_max": "2026-06-30",
+    "files_last_close_lt_2026_06_01": 495, "nonpositive_close_files": 0,
+    "zero_volume_bars": 220696, "files_with_zero_volume": 1307,
+    "phantom_tail_files_ge5": 151, "phantom_tail_files_ge21": 145, "phantom_tail_files_ge252": 44,
+    "terminations_last_traded_lt_2026_06_01": 532,
+    "notrade_files_ge5": 511, "notrade_files_ge10": 318, "notrade_files_ge21": 198,
+    "splice_files_ge63": 141, "notrade_files_ge252": 85,
+}
+
+
+def enforce_census(observed: Dict[str, object], expected: Dict[str, object]) -> Dict[str, dict]:
+    """§4.5: every declared count must equal its recomputation; any mismatch (or a missing
+    recomputation) HALTS. Returns the check record."""
+    rec = {k: {"expected": v, "observed": observed.get(k), "ok": observed.get(k) == v}
+           for k, v in expected.items()}
+    bad = {k: (r["expected"], r["observed"]) for k, r in rec.items() if not r["ok"]}
+    if bad:
+        raise Halt(f"census recomputation disagrees with the prereg (expected, observed): {bad}")
+    return rec
+
+
+def write_census_check(rec: Dict[str, dict], out_dir: Path, stem: str) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{stem}_census_check.json").write_text(json.dumps(r12(rec), indent=2, sort_keys=True))
 
 
 def env_pin_violations(env: Optional[dict] = None) -> List[str]:
@@ -113,12 +158,18 @@ class Segment:
     death: Optional[pd.Timestamp]
 
 
-def file_census(df: pd.DataFrame, cal: pd.DatetimeIndex) -> Dict[str, int]:
-    """The two A1.2 counts, computed EXACTLY as census_zerovol.py / census_splice.py do."""
+def file_census(df: pd.DataFrame, cal: pd.DatetimeIndex) -> Dict[str, object]:
+    """Per-file census, computed EXACTLY as census_prices.py / census_zerovol.py /
+    census_splice.py do (same column, same NaN handling, same calendar)."""
+    c = df["close"].dropna()
+    ci = pd.DatetimeIndex(pd.to_datetime(c.index)).normalize()
     v = df["volume"].fillna(0)
     pos = v[v > 0]
     trail0 = int((v.index > pos.index.max()).sum()) if len(pos) else len(v)
-    out = {"trailing_zero_vol_bars": trail0, "max_notrade": -1}
+    out = {"trailing_zero_vol_bars": trail0, "max_notrade": -1, "n_close": int(len(c)),
+           "first": ci[0] if len(ci) else None, "last": ci[-1] if len(ci) else None,
+           "n_nonpos": int((c <= 0).sum()), "n_zero_vol": int((v <= 0).sum()),
+           "last_traded": pos.index.max() if len(pos) else None}
     idx = pd.DatetimeIndex(pd.to_datetime(df.index)).normalize()
     traded = idx[df["volume"].fillna(0).to_numpy() > 0]
     if len(traded) >= 2:
@@ -165,9 +216,11 @@ def load_universe(cal: pd.DatetimeIndex, prices_dir: Path = PRICES,
         raise Halt(f"no price files under {prices_dir}")
     segs: List[Segment] = []
     n_tail5 = n_tail_any = n_splice = n_short = 0
+    rows = []
     for f in files:
         df = pd.read_parquet(f, columns=["close", "volume"])
         fc = file_census(df, cal)
+        rows.append(dict(fc, ticker=f.stem))
         n_tail5 += fc["trailing_zero_vol_bars"] >= 5
         n_tail_any += fc["trailing_zero_vol_bars"] >= 1
         n_splice += fc["max_notrade"] >= SPLICE_GAP
@@ -187,7 +240,30 @@ def load_universe(cal: pd.DatetimeIndex, prices_dir: Path = PRICES,
             raise Halt(f"A1.2 recount differs from the census: phantom tails {n_tail5} "
                        f"(declared {EXPECTED_PHANTOM_TAIL_FILES}), splices {n_splice} "
                        f"(declared {EXPECTED_SPLICE_FILES})")
-    return segs, census
+    fcen = pd.DataFrame(rows).set_index("ticker")
+    return segs, census, fcen
+
+
+def price_census_observed(fcen: pd.DataFrame) -> Dict[str, object]:
+    """The §3.3 counts from the per-file census, with the census scripts' definitions."""
+    first, last = pd.to_datetime(fcen["first"]), pd.to_datetime(fcen["last"])
+    lt = pd.to_datetime(fcen["last_traded"])
+    tz, mn = fcen["trailing_zero_vol_bars"], fcen["max_notrade"]
+    return {"files": int(len(fcen)), "files_lt_60_bars": int((fcen["n_close"] < MIN_FILE_BARS).sum()),
+            "files_start_le_2016_01_05": int((first <= "2016-01-05").sum()),
+            "files_last_ge_2026_06_26": int((last >= "2026-06-26").sum()),
+            "first_bar_min": first.min().strftime("%Y-%m-%d"),
+            "last_bar_max": last.max().strftime("%Y-%m-%d"),
+            "files_last_close_lt_2026_06_01": int((last < "2026-06-01").sum()),
+            "nonpositive_close_files": int((fcen["n_nonpos"] > 0).sum()),
+            "zero_volume_bars": int(fcen["n_zero_vol"].sum()),
+            "files_with_zero_volume": int((fcen["n_zero_vol"] > 0).sum()),
+            "phantom_tail_files_ge5": int((tz >= 5).sum()), "phantom_tail_files_ge21": int((tz >= 21).sum()),
+            "phantom_tail_files_ge252": int((tz >= 252).sum()),
+            "terminations_last_traded_lt_2026_06_01": int((lt < "2026-06-01").sum()),
+            "notrade_files_ge5": int((mn >= 5).sum()), "notrade_files_ge10": int((mn >= 10).sum()),
+            "notrade_files_ge21": int((mn >= 21).sum()), "splice_files_ge63": int((mn >= 63).sum()),
+            "notrade_files_ge252": int((mn >= 252).sum())}
 
 
 def price_matrices(segs: List[Segment], cal: pd.DatetimeIndex) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -270,7 +346,7 @@ def nw_mean_t(x: np.ndarray, lags: int = NW_LAGS) -> Tuple[float, float, int]:
     if not np.all(np.isfinite(x)):
         raise Halt("non-finite value in a Newey-West input")
     if len(x) < 2 * lags:
-        return float("nan"), float("nan"), len(x)
+        raise NotEvaluable(f"Newey-West t over {len(x)} observations < {2 * lags}")
     res = sm.OLS(x, np.ones((len(x), 1))).fit(cov_type="HAC", cov_kwds={"maxlags": lags})
     return float(res.params[0]), float(res.tvalues[0]), len(x)
 
@@ -278,6 +354,8 @@ def nw_mean_t(x: np.ndarray, lags: int = NW_LAGS) -> Tuple[float, float, int]:
 def nw_alpha(y: np.ndarray, x: np.ndarray, lags: int = NW_LAGS) -> Dict[str, float]:
     """Intercept (x12, annualized) and slope of y on [1, x] with HAC t (A1.6 diagnostics)."""
     import statsmodels.api as sm
+    if len(y) < 2 * lags or not (np.all(np.isfinite(y)) and np.all(np.isfinite(x))):
+        raise NotEvaluable(f"alpha regression over {len(y)} observations (or non-finite input)")
     res = sm.OLS(np.asarray(y, float), sm.add_constant(np.asarray(x, float), has_constant="add")
                  ).fit(cov_type="HAC", cov_kwds={"maxlags": lags})
     return {"alpha_ann": float(res.params[0] * 12.0), "alpha_t_hac": float(res.tvalues[0]),

@@ -1675,9 +1675,18 @@ python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 These are standalone harnesses for the frozen prereg `docs/Sources/prereg_b2_smallcap_t265_2026-11-11.md`
 (+ AMENDMENT 1). They read the T-265 stages (`data/research/t265/`), the SEC Form 345 zips
 (`data/edgar/insider_zips/`) and the `tr_reconciled` SPY/IWM/BIL twins. They make no network call
-and never load `.env`. Without the env pins they REFUSE (exit 3). A fail-closed HALT exits 2: the
-A1.2 recount differs from 151/141, the CIK-join coverage is below 63%, a decile or event set is
-empty, or a twin has a gap.
+and never load `.env`. Without the env pins they REFUSE (exit 3). A fail-closed HALT exits 2 on any
+of the following:
+- any prereg census count (§3.3 price artefacts, §3.5 Form 4 + join, §3.6 windows) differs from its
+  recomputation; the record is written to `<stem>_census_check.json`, beside and never inside the
+  canonical results;
+- a zip TSV line whose field count differs from its header (never skipped);
+- an unparseable date or number (never coerced to NaN);
+- a P/A row without an owner, issuer or date;
+- the CIK-join coverage is below 63%;
+- a decile or event set is empty;
+- the gate's NW t is NOT-EVALUABLE (descriptive cells record the literal "NOT-EVALUABLE");
+- a twin has a gap.
 
 ```bash
 export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
