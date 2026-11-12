@@ -537,3 +537,120 @@ python -m scripts.lazy_prices.b6_signals sp
 python -m scripts.lazy_prices.b6_census
 python -m pytest tests/test_b6_lazy_prices_parse.py tests/test_b6_lazy_prices_signals.py -q
 ```
+
+
+---
+
+## AMENDMENT 1 — director rulings R1–R9 (2026-11-12; BINDING). Appended; the draft text above is NOT edited.
+
+**Effect: this amendment FREEZES THE S&P ARM** (R8). The T-265 arm freezes after its own census. Where
+a sentence above conflicts with this amendment, this amendment governs. Committed alone, before any
+return, price-level statistic or portfolio is computed (`git log` on this file is the proof).
+
+### A1.1 R1 — price source: ACCEPTED
+- **Gate: option (d)** — T-265 Alpaca TR bars, rebalances 2016-Q1 → 2025-Q4, with `data/processed`
+  filling names T-265 lacks ONLY for holding periods after 2020-04-09.
+- **The one sensitivity: option (c)** — 2020-Q2 → 2025-Q4 on `data/processed`.
+- **(b) stays out of B-6.**
+- **B-2's asymmetric survivorship rule applies to the S&P arm:** a FAIL stands; a PASS is an UPPER BOUND.
+- **Recorded:** on 2026-11-12 the USER ruled to ADOPT the T-384 (a′) drip fix for the cutover. The
+  pre-2016 S&P extension waits for that cutover and runs under its own pre-registration.
+
+### A1.2 R2 — the 10-Q comparison: RULED
+- **PRIMARY: the same fiscal quarter a year earlier** (period end 350–380 days earlier). **Diagnostic:
+  the adjacent prior 10-Q** (60–200 days).
+- **Basis: the project's own design reason — seasonality control. It is NOT a citation.**
+- **§5's attribution of this pairing to Cohen-Malloy-Nguyen (2020), including the section/page wording,
+  is WITHDRAWN.** The paper's exact 10-Q comparison is **not verified here**; the director's check of
+  secondary sources found them describing "quarter-to-quarter" changes. **The adjacent-quarter
+  diagnostic is the closest reading of "quarter-to-quarter".** No sentence in this prereg may cite the
+  paper for R2.
+
+### A1.3 R3 — costs: ACCEPTED
+T-265: 70 / 150 bps RT by ADV bucket (gate); flat 75 bps RT (sensitivity). S&P: 10 bps RT (gate);
+20 bps RT (sensitivity).
+
+### A1.4 R4 — identity: ACCEPTED
+The month-level CIK rule (§3.4), its NOT_COVERED list, and one ticker per firm per month.
+
+### A1.5 R5 — the family: ACCEPTED
+Similarity and Δtone per arm under Bonferroni: the gate `ci_low` is the 1.25th percentile.
+
+### A1.6 R6 — the text that ranks: ACCEPTED
+10-Ks rank on the Items 1A + 7 combo; 10-Qs rank on MD&A alone (the 10-Q combo is a diagnostic);
+ranking within form.
+
+### A1.7 R7 — the T-265 text universe: ACCEPTED
+Every T-265 priced CIK, filings from 2015; the ADV band applied at each rebalance.
+
+### A1.8 R8 — readiness: ACCEPTED
+The S&P arm freezes now (this amendment). The T-265 arm freezes after its own census. The T-265
+stream was restarted 2026-11-12 19:48 UTC (`--min-interval 0.22 --disk-floor 10`), worktree-local.
+
+### A1.9 R9 — Exhibit-13 MD&A: ACCEPTED
+No Exhibit-13 fetch; those 10-Ks are NOT_COVERED, counted per quarter.
+
+### A1.N N_trials
+**+1 for the S&P arm at its run; +1 for the T-265 arm at its run.**
+
+### A1.10 Harness conventions — the worker's operational decisions, fixed BEFORE any return (the B-1 §11.4 precedent; for the director's check; they alter no ruled term)
+The draft left these unspecified; each is chosen for conservatism or for consistency with B-1/B-2.
+1. **Calendar.** The trading calendar is `data/processed/tr_reconciled/SPY_1d.csv`. A rebalance is the
+   last SPY trading day of each calendar quarter; monthly returns are month-end close to month-end
+   close (the last bar on or before each month-end).
+2. **Price join (option (d)).** CIK → T-265 ticker through `cik_ticker_final.parquet`; a T-265 ticker
+   that maps to two CIKs is EXCLUDED (identity ambiguity) and counted. The `data/processed` fill uses
+   the membership ticker's `Close`, only for rebalances on or after 2020-06-30 (a holding quarter wholly
+   after 2020-04-09), only when the T-265 join gives no bar. One source per name per holding quarter,
+   recorded.
+3. **Eligibility at t.** A usable signal (R6; the latest filing with `decision_floor_date` ≤ t, accepted
+   within 6 months) AND a bar on the rebalance date in the declared source.
+4. **Holding.** Equal weight at the rebalance, buy-and-hold within the quarter (weights drift).
+5. **Exits.** A held name whose bars end inside the quarter: return to its last close, then the
+   proceeds earn BIL TR for the rest of the quarter (**D = 0**, the LAST-PRICE convention — S&P exits
+   are overwhelmingly acquisitions, for which Shumway's −30% is a small-cap delisting estimate);
+   **D = −30% as a diagnostic.** Every exit is recorded (name, date). A NaN return with no recorded exit
+   HALTS (§7.7).
+6. **Costs.** At each rebalance, Σ |w_target − w_drifted| × RT/2 over the leg, deducted from the
+   leg's first month in the quarter; the first build turns over 100%.
+7. **Δtone for a 10-Q** is computed on its MD&A (the text that ranks under R6); for a 10-K on the combo.
+8. **Ranking.** Percentile rank within form (`method="average"`), pooled; long = pct > 2/3, short =
+   pct ≤ 1/3, universe = all ranked.
+9. **Satellite.** Monthly blend returns are computed on the true path (quarterly rebalance to 25/75,
+   drift within the quarter, §7.1); the bootstrap resamples paired MONTH INDICES of the blend and SPY
+   (`MetricsEngine.bootstrap_distribution`, 1,000 iterations, seed 0, auto block length — the B-1/B-2
+   pattern); percentiles 1.25 / 2.5 / 97.5 reported.
+10. **Newey-West** t with 3 lags (Bartlett). **Determinism:** two runs, identical md5 of the results
+    JSON (sorted keys) before any number is quoted.
+
+### A1.11 ★ PRE-RUN CENSUS FINDING — the frozen S&P gate HALTS as specified (worker, 2026-11-12; NO return computed)
+§11 above freezes: *"The harness HALTS if any quarter's ranked S&P names fall below 80% of the PIT
+members with a CIK."* On the joint census (a usable text signal AND a price bar at t in the declared
+source; bar DATES only), **13 of the 40 gate rebalances fall below 80%**: every quarter from 2016-03-31 to
+2018-03-29, 2018-09-28, 2018-12-31, 2019-03-29 and 2020-03-31. The minimum is **67.9% at 2016-03-31**
+(338 ranked of 498 members). From 2020-06-30 the `data/processed` fill applies and every quarter clears
+(87–97%).
+
+| rebalance | members | usable text | priced in T-265 | ranked | share |
+|---|---|---|---|---|---|
+| 2016-03-31 | 498 | 430 | 338 | 338 | **67.9%** |
+| 2017-03-31 | 500 | 443 | 362 | 362 | 72.4% |
+| 2018-03-29 | 500 | 441 | 371 | 371 | 74.2% |
+| 2019-03-29 | 499 | 433 | 380 | 380 | 76.2% |
+| 2020-03-31 | 499 | 438 | 390 | 390 | 78.2% |
+| 2020-06-30 | 499 | 472 | 424 + 18 fill | 442 | 88.6% |
+
+**Cause:** T-265 holds no bars for 14–20% of S&P members in 2016–2019 — acquired or failed names (AET,
+ANDV, ATVI, CELG, RHT, TWX, MON …) that T-265 never priced: the survivorship hole B-2 §3.1 documented.
+A ticker-based join instead of the CIK join does not help (17 quarters below 80%): the bars do not
+exist. Nothing inside B-6 can fill them without new price data.
+
+**Consequence, under `[NN-FAIL-CLOSED]`: the S&P gate does not run, no smoke runs on real data, and no
+return is computed until the director rules.** The options, each the director's:
+- **(i)** keep the rule → the S&P arm is NOT EVALUABLE on (d) as frozen;
+- **(ii)** lower the floor for 2016-Q1 → 2020-Q1 (the ranked count never falls below 338, far above
+  §7.7's 150), the asymmetric rule already making any PASS an upper bound — at the cost of a gate on a
+  cross-section missing up to a fifth of the index, non-randomly (acquisitions);
+- **(iii)** make (c) the gate (5.75 years; MinBTL SR ≈ 0.90; coverage ≥ 87%) with (d) as a diagnostic;
+- **(iv)** wait for price data that closes the hole — the one-time Alpaca SIP fetch of dead symbols that
+  B-2 R1 measured, or the T-384 cutover.
