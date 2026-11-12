@@ -61,7 +61,8 @@ def _shards() -> pd.DataFrame:
     cols = ["cik", "form", "accession", "acceptance_dt", "fetch_ok", "risk_status", "mda_status",
             "mda_source", "risk_words", "mda_words"]
     parts = [pq.read_table(p, columns=cols).to_pandas() for p in sorted(SHARDS.glob("shard_*.parquet"))]
-    return pd.concat(parts, ignore_index=True).drop_duplicates("accession")
+    from scripts.lazy_prices.b6_build_panel import latest_by_accession
+    return latest_by_accession(pd.concat(parts, ignore_index=True))
 
 
 def census_after() -> tuple[pd.DataFrame, pd.DataFrame]:

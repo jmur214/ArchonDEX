@@ -289,13 +289,30 @@ SHARD_SCHEMA_COLS = [
 ]
 
 
-def _done_accessions() -> set[str]:
+def latest_by_accession(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per accession across shards: a successful fetch beats a failed one; among equals
+    the later shard wins (a `--retry-failed` pass appends a new shard, never rewrites an old one).
+    Every reader of the shards goes through this."""
+    if "fetch_ok" not in df.columns:
+        return df.drop_duplicates("accession", keep="last")
+    order = df.assign(_ok=df["fetch_ok"].fillna(False).astype(bool),
+                      _pos=range(len(df))).sort_values(["_ok", "_pos"])
+    return order.drop_duplicates("accession", keep="last").drop(columns=["_ok", "_pos"])
+
+
+def _done_accessions(include_failed: bool = True) -> set[str]:
+    """Accessions already in a shard. With include_failed=False, only those with a SUCCESSFUL fetch
+    (so `--retry-failed` re-attempts a transient failure; its new row wins via latest_by_accession)."""
     if not SHARD_DIR.is_dir():
         return set()
-    done: set[str] = set()
-    for p in sorted(SHARD_DIR.glob("shard_*.parquet")):
-        done |= set(pq.read_table(p, columns=["accession"]).column("accession").to_pylist())
-    return done
+    parts = [pq.read_table(p, columns=["accession", "fetch_ok"]).to_pandas()
+             for p in sorted(SHARD_DIR.glob("shard_*.parquet"))]
+    if not parts:
+        return set()
+    d = latest_by_accession(pd.concat(parts, ignore_index=True))
+    if not include_failed:
+        d = d[d["fetch_ok"].fillna(False).astype(bool)]
+    return set(d["accession"])
 
 
 def _write_shard(rows: list[dict]) -> Path:
@@ -347,7 +364,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     order = list(dict.fromkeys(fl.cik.astype(int)))
     if args.limit_ciks:
         order = order[: args.limit_ciks]
-    done = _done_accessions()
+    done = _done_accessions(include_failed=not args.retry_failed)
     todo = fl[fl.cik.isin(order) & ~fl.accession.isin(done)]
     _log(f"[fetch] list {len(fl)}; already done {len(done)}; to do {len(todo)} filings over "
          f"{todo.cik.nunique()} CIKs; free disk {E.disk_free_gb():.2f} GB", logfile)
@@ -400,6 +417,9 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("--shard-rows", type=int, default=400)
     pf.add_argument("--disk-floor", type=float, default=E.DISK_FLOOR_GB)
     pf.add_argument("--min-interval", type=float, default=E.MIN_INTERVAL)
+    pf.add_argument("--retry-failed", action="store_true",
+                    help="re-attempt accessions whose recorded fetch failed (e.g. a transient DNS "
+                         "outage); the new row is appended and preferred by every reader")
     args = ap.parse_args(argv)
     if args.cmd == "universe":
         return cmd_universe(args)

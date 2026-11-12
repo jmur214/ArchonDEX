@@ -71,3 +71,14 @@ def test_section_not_ok_and_mda_source_switch_give_nan_with_reason():
     assert rows["k2"]["yoy_risk_why"] == "ok"
     assert rows["k3"]["yoy_combo_why"] == "current_not_ok" and np.isnan(rows["k3"]["yoy_combo_cos"])
     assert rows["k3"]["yoy_mda_why"] == "ok"
+
+
+def test_a_successful_retry_beats_the_recorded_failure_in_every_reader():
+    """Cisco's 37 filings failed on a transient DNS outage (2026-11-12); `fetch --retry-failed`
+    appends new rows. The reader must keep the success, wherever it sits in shard order."""
+    from scripts.lazy_prices.b6_build_panel import latest_by_accession
+    d = pd.DataFrame({"accession": ["a", "a", "b", "b", "c"],
+                      "fetch_ok": [False, True, True, False, False],
+                      "v": ["fail", "ok", "ok", "fail", "fail"]})
+    out = latest_by_accession(d).set_index("accession").v.to_dict()
+    assert out == {"a": "ok", "b": "ok", "c": "fail"}

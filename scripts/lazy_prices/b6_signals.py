@@ -252,7 +252,7 @@ def company_signals(f: pd.DataFrame) -> list[dict]:
 # driver (S&P shards)
 # --------------------------------------------------------------------------- #
 READ_COLS = ["cik", "form", "accession", "acceptance_dt", "period_end", "risk_status", "risk_text",
-             "mda_status", "mda_text", "mda_source"]
+             "mda_status", "mda_text", "mda_source", "fetch_ok"]
 
 
 def run_sp() -> pd.DataFrame:
@@ -274,7 +274,8 @@ def run_sp() -> pd.DataFrame:
                     cache.pop(next(iter(cache)))
                 cache[p] = pq.read_table(p, columns=READ_COLS).to_pandas()
             parts.append(cache[p][cache[p].cik == cik])
-        f = pd.concat(parts).drop_duplicates("accession")
+        from scripts.lazy_prices.b6_build_panel import latest_by_accession
+        f = latest_by_accession(pd.concat(parts, ignore_index=True))
         f["mda_source"] = f["mda_source"].fillna("")
         out.extend(company_signals(f))
         if n % 50 == 0:
