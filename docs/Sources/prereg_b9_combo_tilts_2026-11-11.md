@@ -4,7 +4,7 @@ title: Pre-registration — multi-factor combination tilts at deployable weights
 date: 2026-11-11
 worker: regime-analyst subagent (dispatched by the director, 2026-11-11, with the user's go-ahead)
 branch: research/combo-tilts-b9
-status: DRAFT — awaiting director acknowledgment (FREEZE) before any return is computed. One ruling is REQUIRED at freeze (§3.2, the total-return source for the ETF-era legs). N_trials consumed at run: 1.
+status: FROZEN 2026-11-11 by the director at 16432da with OPTION A (§3.2); Amendment 1 (§17, pre-data, committed before the yfinance fetch) adds input check (d). §1–§16 unchanged from 16432da. N_trials consumed at run: 1.
 ---
 
 # B-9 — do two 20% factor tilts together beat 1× SPY where one alone could not?
@@ -367,3 +367,30 @@ the user, not deployment evidence, until it is re-verified after cutover.
 `main()` is unchanged. Outputs go under `data/research/b9/`: `inputs/` (snapshot + md5 manifest),
 `b9_results.json` (sorted keys; its md5 is compared across two runs before any number is quoted), and
 the printed tables. The verdict goes to `docs/Audit/b9_combo_tilts_verdict_2026-11-11.md`.
+
+## 17. Amendment 1 — the director's freeze, Option A ruled, input check (d) (pre-data, 2026-11-11)
+
+**Freeze.** The director FROZE this pre-registration at commit `16432da` on 2026-11-11 and ruled
+**Option A** (§3.2): one free, keyless yfinance pull (`Adj Close` + `Close`) for SPY, VOO, MTUM,
+AVUV via `scripts/reconcile_stooq_tr_t256.py:fetch_yf_tr` only — never its writer — snapshotted once
+to `data/research/b9/inputs/` with an md5 manifest; both determinism runs read only the snapshot.
+Window 2000-01 → 2026-06 as written. Accepted as written: the 85/15 REF row and the arm (i) vs REF
+line (§3.1), the constant-subtraction haircut (§5), the standard block for the decision with the
+60-month block beside it (§3.4), the three DSR lines (§7), the ~20% prior (§14), and the
+stale-registry note (§10; recording trials in the registry is the director's job, not this run's).
+
+**Check (d) — added to the §3.2 input validation, run on the snapshot BEFORE any arm, blend or
+benchmark return is computed:** for each of **VOO, MTUM and AVUV**, over its **actual-ETF months**
+(§4: VOO 2010-10 → 2026-06, MTUM 2013-05 → 2026-06, AVUV 2019-10 → 2026-06), the annualized gap
+
+    gap = CAGR(month-end Adj Close) − CAGR(month-end Close)
+
+measured from the month-end close preceding the first actual-ETF month to the 2026-06 month-end
+close (geometric, the T-256 `ann_ret` convention: (last/first)^(1/years) − 1, years = days/365.25),
+**must be positive and lie in [0.3%, 4.0%] per year.** Rationale: check (b) proves dividends are in
+the series for SPY only; (d) proves it for each tilt and core ETF (a split-only or price-only series
+gives a gap ≈ 0; a mis-adjusted one gives an implausible gap). **Failure → HALT and report; no
+result is computed.** The three gaps are recorded in the results file's census block.
+
+This amendment is committed alone, before the fetch, so the file times prove it came first.
+Nothing else in §1–§16 changes.
