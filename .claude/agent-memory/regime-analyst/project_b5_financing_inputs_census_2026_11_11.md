@@ -34,8 +34,15 @@ Census facts that outlive the task:
   retried for about 20 minutes over IPv4 and IPv6 with up to 540 s timeouts. FRED's HTML pages,
   google and yfinance all responded.
 - The keyless FRED path the T-306 builder used is therefore not reliable.
-- The publishers of record are DTB3 from the Fed H.15 Data Download Program (reachable) and SOFR from
-  the NY Fed Markets API. Each is a new source and needs a director ruling before use.
+- RESOLVED (director ruling, amendment 2): the 3-month bill came from the Fed H.15 DDP and SOFR from
+  the NY Fed Markets API (`/api/rates/secured/sofr/search.csv`). Both worked.
+  - The DDP retired "Build your package" the week of 2026-11-09. The only full-history bill source
+    there is now the full-release SDMX/ZIP (`Output.aspx?rel=H15&filetype=zip`, series
+    `RIFSGFSM03_N.B`).
+  - TRAP: SDMX no-data days are `OBS_STATUS="ND" OBS_VALUE="-9999"`. Filter on the STATUS. Keeping
+    the value made holidays read as −99.99 % and manufactured fake LETF tracking failures.
+  - A guard that joins against FRED (which has no holiday rows) cannot see it. A rate range check
+    can.
 - Fetch design: stage per attempt and rename into `inputs/` only after ALL inputs succeed, so a
   failed attempt never needs a delete.
 
