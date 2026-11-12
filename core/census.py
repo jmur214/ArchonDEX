@@ -188,7 +188,8 @@ def assert_census(
     # 13 — option (a)'s UNIVERSAL convention label (2026-10-22; invariant 10 on the cutover branch,
     # renumbered at the merge onto main behind 10 post_run_failure / 11 bootstrap_book /
     # 12 share_price_basis): every name in the panel carries
-    # what each span of its file IS (the pre-seam drip vs exact total return). A name with no label
+    # what each span of its file IS (the pre-seam drip — era_tr after the cutover, T-387 — vs exact
+    # total return). A name with no label
     # — no write record, no override, no merge record, or a merge record the run's own frame proves
     # stale — is a measurement on an unknown convention, never a default; the run is non-canonical.
     sc = census.get("substrate_convention")
@@ -198,7 +199,7 @@ def assert_census(
             names = sorted(bad)
             failures.append(
                 f"substrate_convention: {len(names)} name(s) in the panel carry NO convention label "
-                f"(the pre-seam drip is labelled, never defaulted): "
+                f"(the pre-seam span — drip, or era_tr after the cutover — is labelled, never defaulted): "
                 f"{', '.join(f'{n} ({bad[n]})' for n in names[:5])}{' …' if len(names) > 5 else ''}")
     elif sc is None:
         warnings.append("census has no substrate_convention record (summary predates 2026-10-22) — "

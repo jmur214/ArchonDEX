@@ -114,3 +114,116 @@ that refused, with its reason recorded here.
    or not.
 5. Whether the dollar-ADV readers' `close_unadj` switch rides WITH the day (bigger diff, one re-qualification)
    or after it (two). My recommendation: after, as its own reviewed unit.
+
+## 6. Amendment, 2026-11-12 (T-387): the USER ruled option (a′) — the pre-seam rewrite before S2
+
+**Appended; §0–§5 above are kept as written.** The USER ruled on 2026-11-12 that the cutover adopts the
+T-384 option-(a′) v4 drip fix, amending the 2026-10-22 option (a) (`docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md`).
+Where §0–§5 say the copy's pre-seam span is "drip", read this section. **Status:** the writer is BUILT on branch
+`feat/cutover-a-prime-writer-t387`, NOT merged; nothing here has run on a cutover copy except the read-only dry
+run below. The step joins the day only after the branch's review and merge (a new pre-condition, P9).
+
+**What the writer does.** `tr_writer.era_tr_rewrite` (the (a′) logic in ONE module, `engines/data_manager/era_tr.py`,
+shared with `scripts/drip_fix_candidate_t384.py`) rewrites the PRE-seam span of a merged file from the drip to
+`era_tr`, OFFLINE: raw Stooq from the bundle, the missed dividends from the cached yfinance reference (v3's `yf/`,
+read-only; refused without its `_fetch_log.jsonl`), no-reference spans kept raw Stooq and LABELLED UNVERIFIED, ONE
+constant at the seam. *(Corrected 2026-11-12 after review — the first wording, "every post-seam byte … stay",
+overclaimed.)* Post-seam, every Date/OHLCV field and `close_unadj` on every row stay as the step-1 pass wrote
+them; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction (they are functions
+of pre-seam bars; measured over the 575 on the T-387 check copy: 181 files × 14 ATR rows, 390 × 13, VRT 3, VLTO 1, PODD and POM 0 — all inside the first 14 post-seam rows; PrevClose on the seam row in 573 (not PODD, POM); nothing later). It
+refuses (fail closed) a span that is not the drip (so it never runs twice), a file the step-1 pass wrote WHOLE, a
+kept-bar count that disagrees with the merge record, and any write-time rail failure (the step audit: pre-seam
+daily returns differ from raw Stooq's only at the restored ex-dates, by exactly −log(1 − D/P); the splice audit:
+the seam-day return is Stooq's own). The refusal behaviour of option (a)'s seam write (the mid-span step,
+`cache_convention_defects`) is unchanged. *(Corrected 2026-11-12 after review: "unchanged" undersold it —
+those refusals are KEPT, and `full_refetch` GAINED four fail-closed refusals, all before any provider call:
+a pinned record whose seam is not the seam; a record that says the file was written WHOLE; an era_tr record
+without its `era_tr` block; a seam DECLARED era_tr on a file with no record.)*
+
+**Acceptance (T-387, 2026-11-12).** On a COPY of the canonical inputs (the 575 merged files with pre-seam bars +
+`_merge_meta.json`, at `Dev/_substrate_candidates/t387_writer_check_2026-11-12/`), the writer path's output equals
+v4's `processed/` FILE FOR FILE: 1,150 of 1,150 identical, aggregate md5 `2cee41ef7d2e0bd8fa858d500f99dda2`.
+A `--dry-run` on the real step-1 copy (read-only; no file in it changed): 575 would be written, 0 refused; the built
+pre-seam span equals v4's × ONE constant per file (the copy's seam close ÷ the canonical's) to 8.9e-16; post-seam
+text identical FROM THE 15TH POST-SEAM ROW ON, and `close_unadj` identical on every row, in all 575 (563 carry
+`close_unadj`) *(corrected 2026-11-12: the first wording said "post-seam text identical", which overclaimed — the
+first 14 ATR values and the seam row's PrevClose change, as above)*.
+
+**P9 (new pre-condition).** The T-387 branch merged on main after independent review by execution.
+
+**S1b — the (a′) build, NEW, between S1 and S2.**
+1. P2 is read on the step-1 copy FIRST, exactly as §1 says: it must still be the object the step-1 record pinned.
+2. Duplicate it — the step-1 copy stays the pinned record ([NN-ARCHIVE]): `python -m scripts.cutover_step1_pass
+   fresh-copy --from /Users/jacksonmurphy/Dev/_substrate_candidates/cutover_copy_2026_10_22 --to
+   /Users/jacksonmurphy/Dev/_substrate_candidates/cutover_copy_a_prime_<date>`. The step-1 copy measured 1.0 GB
+   on 2026-11-12; P7's 15 GB floor applies AFTER the duplicate.
+3. `python -m scripts.cutover_step1_pass era-tr --copy /Users/jacksonmurphy/Dev/_substrate_candidates/cutover_copy_a_prime_<date>
+   --tag a_prime_<date>`. Artifact: `era_tr_a_prime_<date>.jsonl` beside the copy — 575 rows, 0 refused, exit 0 —
+   and `era_tr_write_log_a_prime_<date>.jsonl`. Refusal: any non-zero exit halts the day (§4).
+4. P3 re-read on the (a′) copy. EXPECTED — by construction, NOT yet read on an (a′) copy (no duplicate was made
+   on 2026-11-12; disk): `guard` → holed 1 (SLE, declared), as on the step-1 copy ((a′) moves no pre-seam DATE and
+   keeps every kept-bar count, and the `pre_seam_drip_gap` class now also covers an `era_tr` span, so the same 380
+   days on 215 names are excused); `label` → 0 unlabelled, `n_pre_seam_era_tr` 575, `n_pre_seam_drip` 0,
+   `n_unverified_missed_era` 12 (AVB, BBBY, CTRA, DAL, ELV, EQR, HOLX, LEG, PLD, POM, PSKY, SATS),
+   `n_unverified_pre2003` 54 (the label counts were READ on the T-387 check copy's 575 files). A different reading
+   is a finding, not a tolerance.
+5. P2 replaced by a NEW candidate manifest for the (a′) copy: `stage --copy <(a′) copy> --root <root>`, then
+   `gen_substrate_manifest.py generate --root <root> --manifest ../cutover_a_prime_candidate_manifest_<date>.sha256
+   --stamp-root <root>`, then `verify` 0/0/0. Its diff against the step-1 candidate manifest must be exactly the
+   575 × (csv + parquet) price files and 575 write records (563 modified, 12 new) — nothing else.
+6. S2 then moves the (a′) copy — not the step-1 copy — into place.
+
+**S6 re-pin #2 grows.** The class-by-class review gains one class: the 575 pre-seam rewrites. Against the canonical,
+563 of the 575 were already rewritten by option (a) (post-seam exact) and now ALSO carry `era_tr` pre-seam bars; 12
+(AVB, BBBY, CTRA, EA, EQR, HOLX, LEG, POM, PSKY, QRVO, SATS, SLE — refused by the step-1 pass, so canonical bytes in
+the copy) change ONLY in their pre-seam span and gain a write record. The tests that lock today's canonical as
+drip flip in the same commit (`test_the_canonical_cache_is_labelled_whole_with_575_pre_seam_drip_files` → 575
+`era_tr`).
+
+**S11.** The census reports `era_tr<seam|exact_tr` for the 575 files (not drip), with each file's UNVERIFIED spans
+(`unverified`), and `exact_tr` elsewhere.
+
+**After the day (§3, added).** The re-run campaign runs on the (a′) substrate (the proposal's §7 list). (a′) does
+NOT repair Stooq's corporate actions or its transient blocks, the 12 no-reference missed-era spans, or the 54
+pre-2003 spans; the second unit (the spin-off / transient-block repair, held to the same §1 test) is owed.
+
+**Decisions the user owns (added to §5).**
+6. Whether the (a′) build rides on cutover day (S1b above) or runs as its own approved act before it, with its
+   own candidate manifest reviewed separately (my recommendation: before, as its own act, so the day itself is
+   unchanged in length).
+7. The reference cache as an input: the (a′) bytes depend on v3's `yf/` snapshot (fetch-log md5
+   `1763a95fe86a44f0d42085767acb545e`, 95 MB), which no manifest pins. Every write record names it; my
+   recommendation is to keep it read-only beside the candidates and quote its md5 in the re-pin #2 commit.
+   *(Superseded 2026-11-12 after review — the fetch log alone does not pin the ~95 MB of price and dividend
+   parquets the bytes depend on.)* The cache is now pinned PER FILE by the committed
+   `config/era_tr_reference_yf_manifest.sha256` (1,147 files; the manifest text's sha256
+   `e516573f46248ff06589315c0d3eeba91afa2e1b95059f4d74711e445ffcd32e`; every file equal to v3's recorded md5,
+   1,147/1,147). `era-tr` REFUSES a cache that does not equal it, and writes the manifest's digest into every
+   record's provenance. **`--yf-manifest none` is NEVER a cutover-day option:** it exits 0 with every row marked
+   `UNVERIFIED: --yf-manifest none`, so a run with it — or any row carrying that mark — HALTS the day (§4); it
+   exists only for scratch and test runs. Recommendation: pin it in
+   re-pin #2 — the manifest is committed; the cache itself kept read-only beside the candidates (and, if the
+   user wants it reproducible from S3, staged with the prefix).
+8. Keep the step-1 copy after the day (my recommendation: yes, as the pinned record of option (a)).
+
+**Notes (2026-11-12, after the T-387 review).**
+- The census's merge-record `drip` fallback now FAILS CLOSED: a seam file is labelled drip from the merge record
+  only when its csv (and parquet) bytes equal the FROZEN drip-cache witness `config/drip_cache_witness_repin1.json`
+  (derived from re-pin #1's committed manifest; never regenerated) AND the cache holds no era_tr write record.
+  After (a′) a seam file without its record is UNLABELLED, never inferred (the gate fails the run). The witness
+  stays frozen through re-pin #2; after the day only the records label the 575.
+- Worktrees need `data/processed/_write_records/` — `~/Dev/_director_tools/wt_data_layout.sh` now COPIES it when it
+  exists. *(Corrected 2026-11-12, review round 2.)* Without it, a post-cutover worktree's census reads 573 of the
+  575 seam files as unlabelled (fail closed) — but NOT PODD and POM: their (a′) bytes equal the drip witness, so
+  with no records and no era_tr record in the cache they are labelled `drip` from the merge record. That label is
+  true of the bytes, but it DROPS POM's recorded UNVERIFIED span (2025-10-08 → 2025-12-09) from the census. Those
+  two names are why a worktree needs `_write_records/` even though the gate fails closed on the rest.
+- The copy is a SNAPSHOT taken when the worktree is laid out: a worktree created before a canonical write-record
+  change (cutover day, a later refresh) holds stale records until it is laid out again.
+- The 13 declared seams in `config/convention_declarations.json` still say `pre_seam: drip` — true of the files as
+  merged; after the rewrite each file's write record (era_tr) overrides the declaration, and a declaration of
+  `era_tr` on a file with no record is refused.
+- The canonical-unchanged proof for T-387 is `config/substrate_manifest.sha256`: all 2,172 `data/processed` files
+  matched it (0 missing / 0 extra / 0 changed) after the work. The listing md5 quoted in the T-387 report,
+  `cb1ceca452b1fd196e1ad288f66858a8`, reproduces only with this exact recipe (macOS `md5`, C collation):
+  `cd /Users/jacksonmurphy/Dev/trading_machine-2/data/processed && find . -type f | LC_ALL=C sort | xargs md5 -r | md5 -q`.

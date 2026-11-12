@@ -65,6 +65,14 @@ shift reorders names, and that moves a cross-section even when the median shift 
 *(Wording endorsed by R and adopted by the director, 2026-10-15.)* Post-seam the cache is already
 exact: see §4.
 
+> **Note, 2026-11-12 (T-387; appended, the text above is kept as written).** "Not systematic" is
+> REFUTED for the pre-seam drip: it is ERA-WRONG (`docs/State/health_check.md` HIGH of 2026-11-11 — it
+> over-counts dividends 2011-Q2 → seam and under-counts 2003–2010, in proportion to yield). The USER
+> ruled on 2026-11-12 that the cutover adopts the T-384 option-(a′) v4 fix, amending the 2026-10-22
+> option (a): the kept pre-seam span is rewritten to `era_tr` before the copy replaces the canonical
+> (`docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md`; the writer is `tr_writer.era_tr_rewrite`;
+> the day's added step is in `docs/Sources/runbook_cutover_day_2026-11-05.md` §6).
+
 ## 2. Finding two: delisted names cannot be re-fetched, so a naive cutover splits the universe on SURVIVORSHIP
 
 yfinance returns **nothing** for delisted tickers. **Measured: 75 of the 730 files (10.3%) are
@@ -542,3 +550,11 @@ labels carrying both reasons.
    SLE, which stays class (i)). A name lifts only if its written level equals the declared restoration,
    and the declaration test flips to the restored level IN THE SAME COMMIT.
 5. First artifact: the next canonical run's census reports the convention, and, under (b), the split.
+
+> **Note, 2026-11-12 (T-387; appended, steps 1–5 above are kept as written).** Under the USER's
+> ruling of 2026-11-12 (option (a′) amends option (a)), step 4 is preceded by the (a′) rewrite of the
+> pre-seam span of every merged file with pre-seam bars (575), offline, on a DUPLICATE of the step-1
+> copy; P2/P3 are then re-read and the candidate manifest regenerated, and re-pin #2 carries the 575
+> pre-seam rewrites as their own class. The order, commands and artifacts are in the cutover-day
+> runbook's §6 (`docs/Sources/runbook_cutover_day_2026-11-05.md`). Step 5's census reports
+> `era_tr<seam|exact_tr` for those files, with the per-file UNVERIFIED spans.

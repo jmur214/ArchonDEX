@@ -13,7 +13,10 @@ admission (`ModeController.run_backtest`):
   * the real COPY reads 215 names / 380 days (the item-1(b) computation of the cutover record),
     holed 1 (SLE: post-seam, class (i)), stale 3 (CCR, DLPH, FSR: the membership identity defect);
   * the measured-run admission ADMITS a real canonical name whose only holes are the kept drip's.
-"""
+
+Note, 2026-11-12 (T-387): after the cutover the kept pre-seam span is labelled `era_tr` (option (a′));
+it moves no pre-seam DATE, so the class covers an era_tr span too (`convention.pre_seam_spans`) — locked
+in tests/test_era_tr_writer_t387.py. Every lock here still applies."""
 from __future__ import annotations
 
 import json

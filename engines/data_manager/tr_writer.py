@@ -54,6 +54,20 @@ over the last-year tail: a mid-span step is a convention change the cache made (
 ex-dates), refused unless a `cache_convention_defects` declaration names it. A file with no
 pre-seam span is replaced whole, as before. The write record carries `seam` and `convention`
 (what each span IS), which is what the census's universal label reads back.
+
+OPTION (a′) — the ERA-AWARE pre-seam convention (USER RULING 2026-11-12, T-387; amends option (a)
+above, whose text is kept as the record of the 2026-10-22 ruling). The kept pre-seam bars are no
+longer the drip: `era_tr_rewrite` rewrites a seam file's pre-seam span OFFLINE to `era_tr` — Stooq
+as-is where Stooq is total return, every dividend it MISSED restored from the yfinance reference
+per measured ex-date (the fraction-missed probe, transient blocks masked), no-reference spans kept
+raw Stooq and LABELLED UNVERIFIED, ONE constant at the seam. Post-seam, every Date/OHLCV field stays
+byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction
+(they are functions of pre-seam bars — measured over the 575: ATR on 14 rows in 181 files, 13 in 390, 3 in
+VRT, 1 in VLTO, 0 in PODD and POM; PrevClose in 573); every later post-seam field, and `close_unadj` on EVERY row, stays byte-identical. The (a′) logic itself lives in ONE module, `era_tr.py` (shared with
+`scripts/drip_fix_candidate_t384.py`). On a drip file the order is: option (a)'s seam write (or the
+cached file as merged), then the (a′) rewrite; `full_refetch` thereafter KEEPS whatever the file's
+pinned record says its pre-seam span IS (`kept_pre_seam_convention`) — it never relabels era_tr
+bars as drip, nor drip bars as era_tr. Proposal: `docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md`.
 """
 from __future__ import annotations
 
@@ -119,11 +133,22 @@ CONVENTION_DECLARATIONS_PATH = (Path(__file__).resolve().parents[2] / "config"
                                 / "convention_declarations.json")
 CONVENTION_SECTIONS = ("seams", "whole_file_overrides", "cache_convention_defects")
 DEFECT_KINDS = ("split_only_cache", "mixed_convention_cache")
-#: The two conventions a span can carry. "drip": T-082b's `apply_dividend_strip` — Stooq bars
+#: The conventions a span can carry. "drip": T-082b's `apply_dividend_strip` — Stooq bars
 #: scaled by a fitted exp(a + b·t), a constant-yield APPROXIMATION of total return (every ex-date
 #: step smeared into a drift). "exact_tr": the provider's ex-date total return.
+#: "era_tr" (option (a′), USER RULING 2026-11-12, T-387): the pre-seam convention the cutover writes —
+#: Stooq where Stooq is total return; the missed dividends restored per measured ex-date; no-reference
+#: spans raw Stooq, LABELLED UNVERIFIED (the record's `era_tr` block carries the spans). `drip` stays
+#: a valid label: it is what the pre-cutover cache (and a merge record with no write record) IS.
 DRIP = "drip"
 EXACT_TR = "exact_tr"
+ERA_TR = "era_tr"
+#: The conventions a KEPT pre-seam (Stooq) span can carry — the same bar dates under either.
+PRE_SEAM_CONVENTIONS = (DRIP, ERA_TR)
+#: What a declaration may name per side (`seams`) or for a whole file (`whole_file_overrides`).
+SEAM_PRE_CONVENTIONS = (DRIP, ERA_TR, EXACT_TR)
+SEAM_POST_CONVENTIONS = (DRIP, EXACT_TR)
+WHOLE_CONVENTIONS = (DRIP, EXACT_TR)
 #: The seam-ratio rail: |ln r_seam − ln r_tail| may not exceed this many rounding floors (the
 #: floor at the seam bar plus the tail's median floor). A dividend the cache missed is ~1e-2;
 #: the floor at $100 is 5e-5.
@@ -164,9 +189,10 @@ class WriteRecord:
     level_declared: Optional[dict] = None   # the declaration a level change was written under
     adjusted_as_of: Optional[str] = None    # the date this file's total-return adjustment is as of
     seam: Optional[dict] = None             # option (a): the kept pre-seam span and the seam ratio
-    convention: Optional[dict] = None       # what each span of the written file IS (drip / exact_tr)
+    convention: Optional[dict] = None       # what each span of the written file IS (drip / era_tr / exact_tr)
     convention_declared: Optional[dict] = None   # the cache-convention defect a write was made under
     close_unadj: Optional[dict] = None      # the split-only column: its span and the bars it lacks
+    era_tr: Optional[dict] = None           # option (a′): the pre-seam build record (unverified spans, rails)
 
 
 # ── pure primitives ───────────────────────────────────────────────────────────────
@@ -267,6 +293,27 @@ def write_pair_atomically(df: pd.DataFrame, parquet_path: Path, csv_path: Path) 
     try:
         df.to_parquet(tmp_pq, index=True)
         df.to_csv(tmp_csv, date_format="%Y-%m-%d")
+    except Exception:
+        for tmp in (tmp_pq, tmp_csv):
+            if tmp.exists():
+                tmp.unlink()              # temps only — the originals were never opened
+        raise
+    os.replace(tmp_csv, csv_path)
+    os.replace(tmp_pq, parquet_path)
+
+
+def write_text_pair_atomically(text: str, frame: pd.DataFrame, parquet_path: Path, csv_path: Path) -> None:
+    """The TEXT-preserving twin of `write_pair_atomically` (option (a′)): the csv is `text` VERBATIM
+    (so the rows the rewrite does not touch stay byte-identical) and the parquet is `frame` (the
+    caller parses it FROM that text — `era_tr.frame_from_text`). Both temps first, then both swaps."""
+    parquet_path, csv_path = Path(parquet_path), Path(csv_path)
+    tmp_pq = parquet_path.with_name(parquet_path.name + ".writing")
+    tmp_csv = csv_path.with_name(csv_path.name + ".writing")
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        frame.to_parquet(tmp_pq)
+        with open(tmp_csv, "w", newline="") as fh:
+            fh.write(text)
     except Exception:
         for tmp in (tmp_pq, tmp_csv):
             if tmp.exists():
@@ -383,13 +430,13 @@ def load_convention_declarations(path: Path = CONVENTION_DECLARATIONS_PATH) -> D
     out = {s: dict(raw.get(s, {})) for s in CONVENTION_SECTIONS}
     for t, d in out["seams"].items():
         pd.Timestamp(d["seam_date"])
-        if d.get("pre_seam") not in (DRIP, EXACT_TR) or d.get("post_seam") not in (DRIP, EXACT_TR):
-            raise ValueError(f"convention_declarations.seams[{t}]: pre_seam/post_seam must be "
-                             f"{DRIP!r} or {EXACT_TR!r}")
+        if d.get("pre_seam") not in SEAM_PRE_CONVENTIONS or d.get("post_seam") not in SEAM_POST_CONVENTIONS:
+            raise ValueError(f"convention_declarations.seams[{t}]: pre_seam must be one of "
+                             f"{SEAM_PRE_CONVENTIONS}, post_seam one of {SEAM_POST_CONVENTIONS}")
     for t, d in out["whole_file_overrides"].items():
-        if d.get("convention") not in (DRIP, EXACT_TR):
+        if d.get("convention") not in WHOLE_CONVENTIONS:
             raise ValueError(f"convention_declarations.whole_file_overrides[{t}]: convention must be "
-                             f"{DRIP!r} or {EXACT_TR!r}")
+                             f"one of {WHOLE_CONVENTIONS}")
     for t, d in out["cache_convention_defects"].items():
         if d.get("kind") not in DEFECT_KINDS:
             raise ValueError(f"convention_declarations.cache_convention_defects[{t}]: kind must be "
@@ -433,6 +480,47 @@ def seam_for(cache_dir: Path, ticker: str,
         return {"date": pd.Timestamp(entry["seam_date"]), "source": "merge_meta",
                 "pre_seam": DRIP, "post_seam": EXACT_TR, "declared": None}
     return None
+
+
+def kept_pre_seam_convention(ticker: str, prior: Optional[dict], seam_spec: dict) -> dict:
+    """What the KEPT pre-seam bars ARE (option (a′), T-387). `seam_spec`'s `pre_seam` (a declaration,
+    or the merge record's `drip`) describes the file as merged; a pinned write record describes the
+    file ITSELF, so when it carries a convention it wins — the writer never relabels era_tr bars as
+    drip (a post-cutover refresh) nor drip bars as era_tr. Fail closed: a record whose seam is not
+    this seam, a record that says the file was written WHOLE, an era_tr record without its
+    `era_tr` block (the unverified spans unknown), or a seam DECLARED era_tr on a file with no record
+    is REFUSED. Returns {"pre_seam", "source",
+    "era_tr"} (the record's block, carried forward when the kept span is era_tr)."""
+    conv = (prior or {}).get("convention")
+    seam_date = str(pd.Timestamp(seam_spec["date"]).date())
+    if not conv:
+        if seam_spec["pre_seam"] == ERA_TR:
+            # (T-387 review, MINOR-2) era_tr is only ever CARRIED from a record that has its block; a
+            # DECLARED era_tr with no record would label the cached (drip) bars era_tr with no block
+            raise WriterRefusal(f"{ticker}: the seam is declared {ERA_TR} but the file has no write record "
+                                f"— an era_tr span is written by era_tr_rewrite (which records its "
+                                f"unverified spans), never by a declaration; not writing",
+                                detail={"seam": {k: str(v) for k, v in seam_spec.items()}})
+        return {"pre_seam": seam_spec["pre_seam"], "source": seam_spec["source"], "era_tr": None}
+    if "whole" in conv:
+        raise WriterRefusal(f"{ticker}: the pinned write record says the file was written WHOLE "
+                            f"({conv['whole']}); a seam at {seam_date} would keep its bars before the "
+                            f"seam under a convention they do not carry — re-rule the seam; not writing",
+                            detail={"prior_convention": conv, "seam": seam_date})
+    if str(conv.get("seam_date")) != seam_date:
+        raise WriterRefusal(f"{ticker}: the pinned write record's seam {conv.get('seam_date')} is not "
+                            f"the seam {seam_date} — the kept bars' convention is unknown; not writing",
+                            detail={"prior_convention": conv, "seam": seam_date})
+    pre = conv.get("pre_seam")
+    if pre not in PRE_SEAM_CONVENTIONS:
+        raise WriterRefusal(f"{ticker}: the pinned write record's pre-seam convention {pre!r} is not "
+                            f"one of {PRE_SEAM_CONVENTIONS}; not writing", detail={"prior_convention": conv})
+    if pre == ERA_TR and not (prior or {}).get("era_tr"):
+        raise WriterRefusal(f"{ticker}: the pinned write record says {ERA_TR} but carries no era_tr "
+                            f"block — its unverified spans are unknown; not writing",
+                            detail={"prior_convention": conv})
+    return {"pre_seam": pre, "source": "write_record",
+            "era_tr": (prior or {}).get("era_tr") if pre == ERA_TR else None}
 
 
 def seam_ratio(cached_close: pd.Series, fetched_close: pd.Series, seam_date: pd.Timestamp) -> dict:
@@ -536,6 +624,10 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     scaled by the ratio measured at the seam bar; the provider must cover the POST-seam span only;
     and the seam ratio must equal the tail's rescale (the seam-ratio rail) unless a mixed-convention
     declaration explains the difference. The record says what each span IS (`convention`).
+
+    OPTION (a′) (T-387): the kept span's label is what the KEPT bars ARE — the file's pinned record
+    when it has one (`kept_pre_seam_convention`; an era_tr span keeps its label and its `era_tr`
+    block), else the seam spec's. The (a′) rewrite of a drip span is `era_tr_rewrite`, offline.
     """
     cache_dir = Path(cache_dir)
     cached = _read_cached(cache_dir, ticker)
@@ -569,11 +661,13 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
     # OPTION (a): the seam. The kept span is the cached bars before it; the provider must cover the
     # rest. A seam with no cached bars on one side of it is a declaration that does not match.
     seam_spec = seam_for(cache_dir, ticker, conventions) if isinstance(seam, str) and seam == "auto" else seam
-    pre, post = None, cached
+    prior_record = _read_write_record(cache_dir, ticker)
+    pre, post, kept_conv = None, cached, None
     if seam_spec is not None:
         if cached is None or cached.empty:
             raise WriterRefusal(f"{who}: a seam is declared but there is no cached file to keep "
                                 f"bars from; not writing", detail={"seam": seam_spec})
+        kept_conv = kept_pre_seam_convention(who, prior_record, seam_spec)     # before any provider call
         seam_date = pd.Timestamp(seam_spec["date"])
         pre, post = cached[cached.index < seam_date], cached[cached.index >= seam_date]
         if pre.empty or post.empty:
@@ -636,7 +730,7 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
             raise WriterRefusal(f"{who}: no corporate-actions record given — the last-bar level "
                                 f"identity cannot be checked; not writing",
                                 detail={"symbol_mapped": mapped})
-        prior = _read_write_record(cache_dir, ticker)
+        prior = prior_record
         as_of = (pd.Timestamp(prior["adjusted_as_of"]) if prior and prior.get("adjusted_as_of")
                  else LEGACY_ADJUSTED_AS_OF)
         d_last = pd.Timestamp(cached.index.max())
@@ -690,7 +784,9 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
                        "pre_seam_span": [str(kept.index.min().date()), str(kept.index.max().date())],
                        "seam_ratio": sr, "tail_log_ratio": tail_log, "gap": gap, "tolerance": tol,
                        "gap_explained_by_declaration": bool(explained and gap > tol)}
-        convention = {"pre_seam": seam_spec["pre_seam"], "seam_date": seam_record["date"],
+        # what the KEPT bars ARE: the file's own record when it has one (option (a′): never relabelled)
+        seam_record["pre_seam_label_source"] = kept_conv["source"]
+        convention = {"pre_seam": kept_conv["pre_seam"], "seam_date": seam_record["date"],
                       "post_seam": seam_spec["post_seam"]}
     else:
         out = with_derived_columns(fetched)
@@ -715,7 +811,7 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
         written_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         level=level, level_declared=level_declared, adjusted_as_of=str(pd.Timestamp(today).date()),
         seam=seam_record, convention=convention, convention_declared=convention_declared,
-        close_unadj=close_unadj)
+        close_unadj=close_unadj, era_tr=None if kept_conv is None else kept_conv["era_tr"])
     if write:
         write_pair_atomically(out, cache_dir / "parquet" / f"{ticker}_1d.parquet",
                               cache_dir / f"{ticker}_1d.csv")
@@ -724,6 +820,126 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
             Path(log_path).parent.mkdir(parents=True, exist_ok=True)
             with open(log_path, "a") as f:
                 f.write(json.dumps(asdict(record)) + "\n")
+    return record
+
+
+# ── OPTION (a′): the era-aware pre-seam rewrite (USER RULING 2026-11-12, T-387) ─────
+
+def era_tr_rewrite(ticker: str, cache_dir: Path, *, stooq: Optional[pd.Series],
+                   reference_px: Optional[pd.DataFrame], reference_divs: Optional[pd.Series],
+                   write: bool = True, conventions: Optional[Dict[str, dict]] = None,
+                   provenance: Optional[dict] = None, log_path: Optional[Path] = None) -> dict:
+    """Rewrite the PRE-seam span of `<ticker>_1d` under `cache_dir` from the T-082b drip to `era_tr`
+    (option (a′)) — OFFLINE (no provider call), or refuse. Returns the record as written (or, with
+    `write=False`, as it would be written — the proof-on-a-copy mode; nothing is touched).
+
+    Inputs: the merge record under `cache_dir` (`_merge_meta.json`: the seam, the drip slope b, the
+    kept bar count — never fabricated), the raw Stooq close series (`stooq`), and the yfinance
+    reference (`reference_px` with `adj_close`/`close`, `reference_divs` by ex-date) — (None, None)
+    for a name with no reference: its missed-era bars stay raw Stooq, LABELLED UNVERIFIED.
+
+    Never writes unless: the file is a merged (`both`) file with pre-seam bars whose seam agrees
+    with `seam_for`; the span it would rewrite IS the drip (its record's pre-seam label, else the
+    seam spec's — an era_tr or whole-written file is refused, so the rewrite never runs twice); a
+    prior record's kept bar count equals the merge record's; the shared build (`era_tr.build_file`)
+    passes its own rails (the de-drifted cache proportional to raw Stooq; every post-seam Date/OHLCV
+    field byte-identical, ATR from the 15th post-seam row and PrevClose from the 2nd byte-identical —
+    the first 14 ATR values and the seam row's PrevClose are functions of pre-seam bars and change by
+    construction; a carried `close_unadj` byte-identical on every row); and the WRITE-TIME rails pass on its output — the step
+    audit (the pre-seam daily returns differ from raw Stooq's ONLY at the restored ex-dates, by
+    exactly −log(1 − D/P_prev)) and the splice audit (ONE constant at the seam: the written seam-day
+    return is Stooq's own, less any restored dividend ex on the seam bar; the cache's own when raw
+    Stooq has no seam bar). The record keeps every prior field and sets `convention.pre_seam` =
+    era_tr plus the `era_tr` block (the per-file `unverified_missed_era_spans` /
+    `unverified_pre2003_span` the census reads back); a file with no prior record gets one that
+    says it was never provider-written."""
+    from engines.data_manager import era_tr as et      # lazy: era_tr imports this module's primitives
+
+    cache_dir = Path(cache_dir)
+    conventions = load_convention_declarations() if conventions is None else conventions
+    meta = load_merge_meta(cache_dir)
+    if meta is None:
+        raise WriterRefusal(f"{ticker}: no {MERGE_META_NAME} under {cache_dir} — the seam and the drip "
+                            f"slope are unknown; the (a′) rewrite is never run on a guess")
+    entry = meta.get(ticker)
+    if not entry or entry.get("merge_case") != "both" or int(entry.get("n_stooq_pre_seam") or 0) <= 0:
+        raise WriterRefusal(f"{ticker}: not a merged file with pre-seam Stooq bars in the merge record — "
+                            f"there is no drip span to rewrite", detail={"merge_record": entry})
+    seam_spec = seam_for(cache_dir, ticker, conventions)
+    if seam_spec is None or pd.Timestamp(seam_spec["date"]) != pd.Timestamp(entry["seam_date"]):
+        raise WriterRefusal(f"{ticker}: the seam ({None if seam_spec is None else seam_spec['date']}) does "
+                            f"not agree with the merge record's {entry['seam_date']}; not writing")
+    seam = pd.Timestamp(entry["seam_date"])
+    prior = _read_write_record(cache_dir, ticker)
+    kept = kept_pre_seam_convention(ticker, prior, seam_spec)
+    if kept["pre_seam"] != DRIP:
+        raise WriterRefusal(f"{ticker}: the pre-seam span is {kept['pre_seam']!r} (per the "
+                            f"{kept['source']}), not {DRIP!r} — the (a′) rewrite undoes the T-082b "
+                            f"drip and applies to a drip span only; not writing",
+                            detail={"kept": {k: v for k, v in kept.items() if k != "era_tr"}})
+    n_meta = int(entry["n_stooq_pre_seam"])
+    n_kept = ((prior or {}).get("seam") or {}).get("n_pre_seam_bars_kept")
+    if prior and prior.get("seam") and n_kept != n_meta:
+        raise WriterRefusal(f"{ticker}: the write record kept {n_kept} pre-seam bars but the merge "
+                            f"record says {n_meta}; not writing")
+    if stooq is None or stooq.empty:
+        raise WriterRefusal(f"{ticker}: no raw Stooq series — the drip cannot be undone; not writing")
+    csv_path = cache_dir / f"{ticker}_1d.csv"
+    if not csv_path.exists():
+        raise WriterRefusal(f"{ticker}: no {csv_path.name} under {cache_dir}; not writing")
+    header, lines = et.read_cache_text(csv_path)
+    frame = et.read_cache_frame(csv_path)
+    ref = et.analyse_reference(ticker, stooq, reference_px, reference_divs, seam)
+    try:
+        res = et.build_file(ticker, entry, header, lines, frame, stooq, ref)
+    except et.EraTrRefusal as e:
+        raise WriterRefusal(f"{ticker}: the (a′) build refused — {e}", detail={"reference": ref.status}) from e
+    # the WRITE-TIME rails, on the build's output
+    new_close = pd.Series(res.frame["Close"].to_numpy(dtype=float), index=pd.DatetimeIndex(res.frame["Date"]))
+    cache_close = pd.Series(frame["Close"].to_numpy(dtype=float), index=pd.DatetimeIndex(frame["Date"]))
+    steps = et.step_audit(new_close, stooq, ref.labels, seam)
+    splice = et.splice_audit(new_close, cache_close, stooq, ref.labels, seam, res.record["splice"])
+    carried = et.carried_text_identical(res.text, header, lines)
+    rails = {"step_audit": steps, "splice_audit": splice, "carried_columns_identical": carried}
+    if not (steps["pass"] and splice["pass"] and carried):
+        raise WriterRefusal(f"{ticker}: a write-time (a′) rail failed — step audit {steps['pass']} "
+                            f"({steps['n_unexpected_steps']} unexpected, max dev {steps['max_abs_dev']:.2e}); "
+                            f"splice {splice['pass']} (dev {splice['abs_dev']:.2e}); carried columns {carried}; "
+                            f"not writing", detail={"rails": rails})
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    block = {**res.record, "rails": rails, "rewritten_at": now, "inputs": dict(provenance or {}),
+             "prior_pre_seam": {k: v for k, v in kept.items() if k != "era_tr"}}
+    seam_date = str(seam.date())
+    if prior is not None:
+        conv = dict(prior.get("convention") or {})
+        record = {**prior, "convention": {"pre_seam": ERA_TR, "seam_date": seam_date,
+                                          "post_seam": conv.get("post_seam", seam_spec["post_seam"])},
+                  "era_tr": block}
+    else:
+        dates = pd.DatetimeIndex(frame["Date"])
+        record = asdict(WriteRecord(
+            ticker=ticker, provider="none (no provider write: the merged file as cached)", symbol_mapped=None,
+            mode="era_tr_pre_seam_rewrite (offline; no provider call)",
+            span_start=str(dates.min().date()), span_end=str(dates.max().date()), n_rows=int(len(frame)),
+            basis="not measured (no provider call)", basis_detail={}, overlap=None,
+            cached_span=[str(dates.min().date()), str(dates.max().date())], written_at=now,
+            seam={"date": seam_date, "source": seam_spec["source"], "declared": seam_spec.get("declared"),
+                  "n_pre_seam_bars_kept": int(res.record["n_pre"]),
+                  "pre_seam_span": [res.record["first_bar"], str(dates[res.record["n_pre"] - 1].date())]},
+            convention={"pre_seam": ERA_TR, "seam_date": seam_date, "post_seam": seam_spec["post_seam"]},
+            era_tr=block))
+    if write:
+        write_text_pair_atomically(res.text, et.frame_from_text(res.text),
+                                   cache_dir / "parquet" / f"{ticker}_1d.parquet", csv_path)
+        p = _write_record_path(cache_dir, ticker)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".writing")
+        tmp.write_text(json.dumps(record, indent=1, default=str))
+        os.replace(tmp, p)
+        if log_path is not None:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a") as f:
+                f.write(json.dumps(record, default=str) + "\n")
     return record
 
 
