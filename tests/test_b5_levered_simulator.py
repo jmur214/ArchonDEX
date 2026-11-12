@@ -108,3 +108,47 @@ def test_guard_std_fails_closed_on_degenerate_input():
         b5._guard_std(float(pd.Series([0.001] * 100).std()), "constant")
     with pytest.raises(b5.B5Halt):
         b5._guard_std(float("nan"), "nan")
+
+
+# --------------------------------------------------------------------------- amendment 2 parsers
+_H15 = (
+    '"Series Description","Federal funds effective rate","3-month Treasury bill secondary market rate, '
+    'discount basis"\n'
+    '"Unit:","Percent:_Per_Year","Percent:_Per_Year"\n'
+    '"Multiplier:","1","1"\n'
+    '"Currency:","NA","NA"\n'
+    '"Unique Identifier: ","H15/H15/RIFSPFF_N.B","H15/H15/RIFSGFSM03_N.B"\n'
+    '"Time Period","RIFSPFF_N.B","RIFSGFSM03_N.B"\n'
+)
+
+
+def _h15_file(tmp_path, desc_ok=True, rows=10050):
+    body = _H15 if desc_ok else _H15.replace("3-month Treasury bill secondary market", "6-month Treasury bill")
+    dates = pd.bdate_range("1960-01-01", periods=rows)
+    lines = [f"{d.date()},4.00,{'ND' if i == 3 else '5.00'}" for i, d in enumerate(dates)]
+    p = tmp_path / "h15.csv"
+    p.write_text(body + "\n".join(lines) + "\n")
+    return p
+
+
+def test_parse_h15_bill_extracts_by_identifier_and_drops_ND(tmp_path):
+    s, desc = b5.parse_h15_bill(_h15_file(tmp_path))
+    assert "3-month" in desc and len(s) == 10049            # the ND row is dropped, not filled
+    assert float(s.iloc[0]) == pytest.approx(0.05)
+
+
+def test_parse_h15_bill_halts_on_wrong_description(tmp_path):
+    with pytest.raises(b5.B5Halt):
+        b5.parse_h15_bill(_h15_file(tmp_path, desc_ok=False))
+
+
+def test_parse_nyfed_sofr_checks_type_and_rows(tmp_path):
+    dates = pd.bdate_range("2018-04-02", periods=1950)
+    good = "Effective Date,Rate Type,Rate (%)\n" + "\n".join(f"{d:%m/%d/%Y},SOFR,1.80" for d in dates)
+    p = tmp_path / "sofr.csv"
+    p.write_text(good)
+    s = b5.parse_nyfed_sofr(p)
+    assert len(s) == 1950 and float(s.iloc[0]) == pytest.approx(0.018)
+    p.write_text(good.replace(",SOFR,", ",EFFR,", 1))
+    with pytest.raises(b5.B5Halt):
+        b5.parse_nyfed_sofr(p)

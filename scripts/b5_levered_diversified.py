@@ -5,7 +5,9 @@ decisions) at 3dcf399: docs/Sources/prereg_b5_levered_diversified_2026-11-11.md.
 
 Standalone harness (T-249 / T-311 pattern). Never touches BacktestController. Substrate = T-306
 (`data/research/substrate_multidecade/`) read through T-311's `load_substrate` (imported, not edited).
-Financing = FRED DTB3 (money-market converted) to 2018-04-02, SOFR from 2018-04-03, + spread s.
+Financing = the 3-month T-bill (= FRED DTB3, fetched from its publisher, the Fed Board's H.15 DDP;
+money-market converted) to 2018-04-02, SOFR (= FRED SOFR, from the NY Fed Markets API) from
+2018-04-03, + spread s. Amendment 2 (891cc3c): FRED's keyless endpoint was blocked for this client.
 
 Subcommands (run in this order):
   fetch      one-time snapshot of every network input into data/research/b5/inputs/ + MANIFEST.json
@@ -60,7 +62,24 @@ SUBSTRATE_MD5 = {
 }
 AQR_MD5 = "5bcb8dbf28146f729b99b629147bb0cd"
 YF_TICKERS = ["SSO", "UPRO", "UBT", "TMF", "NTSX", "RSSB", "RSST", "SPY", "TLT", "IEF", "VT", "DBMF"]
-FRED_IDS = ["DTB3", "SOFR"]
+# Amendment 2 (891cc3c): FRED's keyless endpoint is blocked for this client, so the SAME series come
+# from the publishers FRED republishes. Everything downstream of the parse is unchanged.
+H15_URL = ("https://www.federalreserve.gov/datadownload/Output.aspx?rel=H15&series="
+           "bf17364827e38702b42a58cf8eaa3f78&lastobs=&from=&to=&filetype=csv&label=include"
+           "&layout=seriescolumn&type=package")
+H15_ID = "H15/H15/RIFSGFSM03_N.B"              # 3-month T-bill, secondary market, discount basis, bd
+H15_FILE = "frb_h15_package.csv"
+H15_PUBLISHER = ("Board of Governors of the Federal Reserve System - H.15 Selected Interest Rates, "
+                 "Data Download Program")
+SOFR_URL = ("https://markets.newyorkfed.org/api/rates/secured/sofr/search.csv"
+            "?startDate=2018-04-02&endDate=2025-12-31")
+SOFR_FILE = "nyfed_sofr.csv"
+SOFR_PUBLISHER = "Federal Reserve Bank of New York - Markets Data API"
+SOFR_MIN_ROWS = 1900
+GUARD_BILL = {"min_corr": 0.99, "max_abs_mean_gap": 0.0050}   # vs data/macro/DGS3MO.parquet
+GUARD_SOFR = {"min_corr": 0.99, "max_abs_mean_gap": 0.0025}   # vs data/macro/DFF.parquet
+MACRO = ROOT / "data/macro"
+PREREG_REF = "535a3fc + amendment 1 3dcf399 + amendment 2 891cc3c"
 YF_START, YF_ASOF = "1990-01-01", "2026-01-01"
 SOFR_START = pd.Timestamp("2018-04-03")
 
@@ -325,18 +344,21 @@ def cmd_fetch() -> int:
     from scripts.reconcile_stooq_tr_t256 import fetch_yf_tr   # the helper only; never its writer
     entries: Dict[str, Dict] = {}
     now = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")  # noqa: E731
-    for sid in FRED_IDS:
-        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}"
+    for fname, url, publisher in ((H15_FILE, H15_URL, H15_PUBLISHER), (SOFR_FILE, SOFR_URL, SOFR_PUBLISHER)):
         raw = _http_get(url)
-        p = stage / f"fred_{sid}.csv"
-        p.write_bytes(raw)
-        s = _parse_fred(p)
-        if len(s) < 100:
-            raise B5Halt(f"FRED {sid} returned {len(s)} rows")
-        entries[p.name] = {"source": "FRED (keyless fredgraph.csv)", "call": url, "fetched_utc": now(),
-                           "rows": int(len(s)), "first": str(s.index[0].date()),
-                           "last": str(s.index[-1].date()), "md5": md5_file(p)}
-        print(f"  {sid}: {len(s)} rows {s.index[0].date()}..{s.index[-1].date()}")
+        p = stage / fname
+        p.write_bytes(raw)                      # the exact response bytes
+        entries[fname] = {"source": publisher, "call": url, "fetched_utc": now(), "md5": md5_file(p)}
+    bill, desc = parse_h15_bill(stage / H15_FILE)
+    sofr = parse_nyfed_sofr(stage / SOFR_FILE)
+    guard = guard_financing(bill, sofr)          # HALTS on misidentification (amendment 2)
+    entries[H15_FILE].update({"series": H15_ID, "series_description": desc, "rows": int(len(bill)),
+                              "first": str(bill.index[0].date()), "last": str(bill.index[-1].date())})
+    entries[SOFR_FILE].update({"series": "SOFR", "rows": int(len(sofr)), "first": str(sofr.index[0].date()),
+                               "last": str(sofr.index[-1].date())})
+    print(f"  H.15 {H15_ID}: {len(bill)} rows {bill.index[0].date()}..{bill.index[-1].date()} [{desc}]")
+    print(f"  NY Fed SOFR: {len(sofr)} rows {sofr.index[0].date()}..{sofr.index[-1].date()}")
+    print(f"  guard: {json.dumps(guard)}")
     for tk in YF_TICKERS:
         tr, close = fetch_yf_tr(tk, YF_START, YF_ASOF)
         if tr is None or close is None or len(tr) < 100:
@@ -361,8 +383,8 @@ def cmd_fetch() -> int:
                        "call": "shutil.copyfile", "fetched_utc": now(), "md5": md5_file(p)}
     if entries[p.name]["md5"] != AQR_MD5:
         raise B5Halt("AQR snapshot copy md5 mismatch")
-    write_json(stage / MANIFEST.name, {"prereg": "535a3fc + amendment 1 3dcf399",
-                                       "staged_as": stage.name, "files": entries})
+    write_json(stage / MANIFEST.name, {"prereg": PREREG_REF, "staged_as": stage.name,
+                                       "misidentification_guard": guard, "files": entries})
     stage.rename(INPUTS)                 # POSIX rename onto an EMPTY directory (or none) is atomic
     print(f"snapshot written: {MANIFEST}")
     return 0
@@ -390,11 +412,75 @@ def cmd_er_check() -> int:
 
 
 # --------------------------------------------------------------------------- snapshot loaders
-def _parse_fred(p: Path) -> pd.Series:
+def parse_h15_bill(p: Path) -> Tuple[pd.Series, str]:
+    """The H.15 package CSV -> the 3-month bill (decimal, discount basis), by its Unique Identifier.
+    Amendment 2 identity check: exactly one column with H15_ID; its description must contain
+    '3-month' and 'secondary market'. Non-numeric cells (ND/NC) are dropped, never filled."""
+    raw = pd.read_csv(p, header=None, dtype=str, keep_default_na=False)
+    first = raw.iloc[:, 0].astype(str).str.strip().str.lower()
+    uid_rows = np.where(first.str.startswith("unique identifier"))[0]
+    tp_rows = np.where(first == "time period")[0]
+    desc_rows = np.where(first.str.startswith("series description"))[0]
+    if not (len(uid_rows) and len(tp_rows) and len(desc_rows)):
+        raise B5Halt("H.15 package CSV lacks its label rows (Series Description / Unique Identifier / Time Period)")
+    uid = raw.iloc[uid_rows[0]].astype(str).str.strip()
+    cols = np.where(uid == H15_ID)[0]
+    if len(cols) != 1:
+        raise B5Halt(f"H.15 package holds {len(cols)} columns with identifier {H15_ID}")
+    j = int(cols[0])
+    desc = str(raw.iloc[desc_rows[0], j]).strip()
+    if "3-month" not in desc.lower() or "secondary market" not in desc.lower():
+        raise B5Halt(f"H.15 column {H15_ID} description fails the identity check: {desc!r}")
+    data = raw.iloc[tp_rows[0] + 1:, [0, j]]
+    dates = pd.to_datetime(data.iloc[:, 0].str.strip(), errors="coerce", format="%Y-%m-%d")
+    vals = pd.to_numeric(data.iloc[:, 1].str.strip(), errors="coerce")
+    s = pd.Series(vals.values, index=pd.DatetimeIndex(dates)).dropna()
+    s = s[s.index.notna()]
+    if s.index.duplicated().any() or len(s) < 10000:
+        raise B5Halt(f"H.15 bill series malformed (rows {len(s)}, duplicates {int(s.index.duplicated().sum())})")
+    return (s / 100.0).sort_index(), desc
+
+
+def parse_nyfed_sofr(p: Path) -> pd.Series:
+    """NY Fed Markets API search.csv -> SOFR (decimal) by Effective Date (amendment 2)."""
     df = pd.read_csv(p)
-    s = pd.to_numeric(df.iloc[:, 1], errors="coerce")
-    s.index = pd.to_datetime(df.iloc[:, 0])
-    return (s.dropna() / 100.0).sort_index()
+    cols = {c.strip().lower(): c for c in df.columns}
+    need = ("effective date", "rate type", "rate (%)")
+    if not all(k in cols for k in need):
+        raise B5Halt(f"NY Fed SOFR CSV lacks columns {need}: {list(df.columns)}")
+    types = set(df[cols["rate type"]].astype(str).str.strip().str.upper())
+    if types != {"SOFR"}:
+        raise B5Halt(f"NY Fed CSV rate types {types} != {{'SOFR'}}")
+    s = pd.Series(pd.to_numeric(df[cols["rate (%)"]], errors="coerce").values,
+                  index=pd.DatetimeIndex(pd.to_datetime(df[cols["effective date"]]))).dropna()
+    if s.index.duplicated().any() or len(s) < SOFR_MIN_ROWS:
+        raise B5Halt(f"NY Fed SOFR malformed (rows {len(s)} < {SOFR_MIN_ROWS} or duplicated dates)")
+    return (s / 100.0).sort_index()
+
+
+def _guard_pair(x: pd.Series, ref: pd.Series, spec: Dict, what: str, ref_minus_x: bool) -> Dict:
+    j = pd.concat({"x": x, "ref": ref}, axis=1, join="inner").dropna()
+    if len(j) < 250:
+        raise B5Halt(f"misidentification guard ({what}): only {len(j)} common dates")
+    corr = float(np.corrcoef(j["x"], j["ref"])[0, 1])
+    gap = float((j["ref"] - j["x"]).mean() if ref_minus_x else (j["x"] - j["ref"]).mean())
+    ok = corr >= spec["min_corr"] and abs(gap) <= spec["max_abs_mean_gap"]
+    out = {"n_common": int(len(j)), "level_corr": corr, "mean_gap": gap, **spec, "pass": bool(ok)}
+    if not ok:
+        raise B5Halt(f"misidentification guard FAILED ({what}): {out}")
+    return out
+
+
+def guard_financing(bill: pd.Series, sofr: pd.Series) -> Dict:
+    """Amendment 2: each publisher series vs its on-disk FRED sibling (read-only). HALT-only."""
+    dg_p, dff_p = MACRO / "DGS3MO.parquet", MACRO / "DFF.parquet"
+    dg = pd.read_parquet(dg_p)["value"].astype(float) / 100.0
+    dff = pd.read_parquet(dff_p)["value"].astype(float) / 100.0
+    dg.index, dff.index = pd.DatetimeIndex(dg.index), pd.DatetimeIndex(dff.index)
+    so = sofr[(sofr.index >= SOFR_START) & (sofr.index <= pd.Timestamp("2025-12-31"))]
+    return {"bill_vs_DGS3MO (DGS3MO - bill)": _guard_pair(bill, dg, GUARD_BILL, "bill vs DGS3MO", True),
+            "SOFR_vs_DFF (SOFR - EFFR)": _guard_pair(so, dff, GUARD_SOFR, "SOFR vs DFF", False),
+            "reference_md5": {"DGS3MO.parquet": md5_file(dg_p), "DFF.parquet": md5_file(dff_p)}}
 
 
 def verify_snapshot() -> Dict:
@@ -417,9 +503,10 @@ def load_yf(tk: str) -> pd.Series:
 
 
 def financing_base() -> pd.Series:
-    """Annual act/360 rate (decimal): DTB3 money-market-converted to 2018-04-02, SOFR from 2018-04-03."""
-    dtb3 = _parse_fred(INPUTS / "fred_DTB3.csv")
-    sofr = _parse_fred(INPUTS / "fred_SOFR.csv")
+    """Annual act/360 rate (decimal): the 3-month bill (H.15; = FRED DTB3) money-market-converted
+    to 2018-04-02, SOFR (NY Fed; = FRED SOFR) from 2018-04-03 (amendment 2: publishers, same series)."""
+    dtb3, _ = parse_h15_bill(INPUTS / H15_FILE)
+    sofr = parse_nyfed_sofr(INPUTS / SOFR_FILE)
     d = dtb3[dtb3.index < SOFR_START]
     mm = pd.Series(mm_from_discount(d.values), index=d.index)
     so = sofr[sofr.index >= SOFR_START]
@@ -762,7 +849,7 @@ def cmd_validate() -> int:
     verdict = {"halted_arms": sorted(set(halted)),
                "h1_status": "NOT EVALUABLE" if ("ii" in halted) else "EVALUABLE",
                "all_gating_pass": not halted}
-    write_json(VALIDATION, {"prereg": "535a3fc + amendment 1 3dcf399", "manifest_md5": md5_file(MANIFEST),
+    write_json(VALIDATION, {"prereg": PREREG_REF, "manifest_md5": md5_file(MANIFEST),
                             "spread_bp": 50, "v1": v1, "v2": v2, "verdict": verdict})
     for k, v in v1.items():
         print(f"  V1 {k:5} {v['role']:8} TD {v['td_ann']*1e4:+8.1f} bp/yr  band ±{v['g1_band_ann']*1e4:5.0f}"
@@ -920,7 +1007,7 @@ def cmd_run(tag: str) -> int:
     boot = Boot()
     outdir = B5 / f"run_{tag}"
     outdir.mkdir(parents=True, exist_ok=True)
-    res: Dict = {"prereg": "535a3fc + amendment 1 3dcf399", "tag_independent": True,
+    res: Dict = {"prereg": PREREG_REF,
                  "honest_n": hn, "validation_md5": md5_file(VALIDATION),
                  "validation_verdict": val["verdict"], "windows": {}, "monthly": {},
                  "census": {"inputs": {k: v["md5"] for k, v in man["files"].items()},
