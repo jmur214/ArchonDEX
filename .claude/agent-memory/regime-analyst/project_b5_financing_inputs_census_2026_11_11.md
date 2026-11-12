@@ -40,7 +40,9 @@ Census facts that outlive the task:
     there is now the full-release SDMX/ZIP (`Output.aspx?rel=H15&filetype=zip`, series
     `RIFSGFSM03_N.B`).
   - TRAP: SDMX no-data days are `OBS_STATUS="ND" OBS_VALUE="-9999"`. Filter on the STATUS. Keeping
-    the value made holidays read as −99.99 % and manufactured fake LETF tracking failures.
+    the value made 801 holidays read as −9,999 %/yr (≈ −380 %/yr after the money-market conversion) and
+    manufactured fake LETF tracking failures. With the defect, H1 would have read MET (+2.98 %/yr,
+    ci_low +0.75). The correction ran against H1, and the director ratified it as a data-defect fix.
   - A guard that joins against FRED (which has no holiday rows) cannot see it. A rate range check
     can.
 - Fetch design: stage per attempt and rename into `inputs/` only after ALL inputs succeed, so a

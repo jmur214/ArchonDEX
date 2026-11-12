@@ -1,6 +1,6 @@
 ---
 name: project-b5-route-c-closed-correlation-regime-bet-2026-11-11
-description: B-5 (T-382) verdict — levered stock+bond stacks are a stock-bond CORRELATION-REGIME bet that nets to ~0 over 58y; financing is not binding; measured embedded spreads (swaps ~50bp, futures ~0bp); RP SR 0.46 on T-306
+description: B-5 (T-382) verdict — levered stock+bond stacks are a stock-bond CORRELATION-REGIME bet that nets to ~0 over 58y; financing is not binding; swap spreads pinned ~50bp, futures-stack spread NOT pinned (noise); RP SR 0.46 on T-306
 metadata:
   type: project
 ---
@@ -27,9 +27,14 @@ metadata:
   - 2000–25 is a point win that straddles zero.
 - **Measured embedded financing** (validation of the frozen simulator against live funds):
   - swap-financed LETFs ≈ bill/SOFR + 49–57 bp (SSO, UPRO, TMF);
-  - futures-stacked NTSX ≈ +0 bp;
-  - UBT −38 bp.
-  - The brief's frozen 50 bp is right for swaps and conservative by ~50 bp for futures stacks.
+  - the swap spreads are tight under 21-day-block CIs: SSO [18, 96], UPRO [35, 81], TMF [10, 77];
+  - UBT −38 [−107, +25];
+  - futures-stacked NTSX's point is 0.4 bp, but its CI is [−223, +239]. It is NOT pinned, and the
+    point also absorbs about 35 bp of the underlying ETFs' own expense ratios.
+  - The brief's frozen 50 bp is right for swaps. "Conservative by ~50 bp for futures stacks" was an
+    OVERSTATEMENT; the independent review caught it.
+  - LESSON: an implied-spread point from a 7-year overlap is noise. Quote its CI before reading it as
+    a measurement.
 - **The brief's no-variance break-even formula** understates arm (i)'s break-even. Adding
   (σ_e² − σ_p²)/2 matches the simulator within ~6 bp.
 
