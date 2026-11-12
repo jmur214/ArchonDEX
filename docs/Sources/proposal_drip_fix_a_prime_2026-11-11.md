@@ -275,7 +275,9 @@ populations of (i), (ii), (iii)(a)/(b) and (iv), and the verdict rule are UNCHAN
   all hold.**
 - **R3, a step audit (evidence, not a threshold).** On every file, the candidate's daily returns may
   differ from raw Stooq's ONLY at labelled added ex-dates, and there by exactly −log(1 − D/P_prev).
-  This is the independent evidence that no yfinance PRICE enters the candidate.
+  This is the independent evidence that no yfinance price LEVEL or RETURN enters the candidate. The
+  yfinance close is used in exactly one place: as P_prev, the denominator of each added dividend's
+  factor.
 - **R4, the circularity of (ii) is restated** (the note in §1.2). §4 separates INDEPENDENT evidence
   from evidence that is CIRCULAR BY CONSTRUCTION.
 - **R5, three code paths get locks** (MINOR-3), each proven by reverting it:
@@ -415,7 +417,9 @@ yield, and say so.
   two items test the drip REMOVAL.
 - **The step audit.** In all 575 files the candidate's daily returns differ from raw Stooq's only
   at the 11,096 labelled ex-dates, by exactly −log(1 − D/P_prev) (to 9.4e-16). No yfinance price
-  enters the candidate.
+  LEVEL or RETURN enters the candidate. The yfinance close is used only as P_prev, the denominator
+  of each added dividend's factor. (Corrected in review round 2: the earlier "no yfinance price
+  enters" overstated it.)
 - **(iv) and (iii)(c).**
 
 **CIRCULAR BY CONSTRUCTION:**
@@ -466,8 +470,22 @@ machine cause class:
   the candidate alike.
   - 11 END inside the 2013 year-end block, which opens 2013-12-19 and closes 2014-01-03/06: CPB,
     DGX, DRI, ERIE, GIS, LNC, MAS, NTAP, ORCL, UDR and VZ.
-  - 2 START inside a block at 2012-12-31: XEL (a one-day blip) and LVS (a block from 2012-12-18
-    to 2012-12-31).
+  - 2 START on a one-day blip at 2012-12-31:
+    - XEL;
+    - LVS, whose blip is +0.617 % and reverts on 2013-01-02.
+  - **Correction (review round 2).** An earlier draft described LVS as "a block from 2012-12-18 to
+    2012-12-31". There is no such block.
+    - On 2012-12-18 Stooq MISSED LVS's $0.25 dividend: a permanent −0.548 % step. It was measured
+      as m = 1.006 and correctly added.
+    - The detector paired that step with the 12-31 blip, because |−0.548 + 0.617| = 0.069 falls
+      just under its tolerance of 0.15 × 0.548 = 0.082.
+    - The 13 endpoint-offset rows stand.
+  - **Known limit of the block detector:** near its tolerance it can mis-pair a PERMANENT
+    dividend step with a nearby blip of opposite sign.
+    - For LVS the dividend label survived. The probe's POST endpoint moved past both masked spans
+      to 2013-01-02, so the label is still m = 1.006.
+    - A step mis-paired with no later clean bar inside the window could lose its measured label
+      and fall to the neighbour or global rule.
 - **11 "other".** These are corporate actions the vendors treat differently (LDOS, MUR, VLO, JEF,
   FCX, PSX) and unexplained gaps of 0.3–1.8 pp (BUD, CBOE, FLS, ROST, VFC), several in a split
   year.
@@ -663,9 +681,14 @@ These are `[NN-SUBSTRATE-REVERIFY]` cases.
    yfinance. They are corroborated only at those eras' edges (Stooq's own adjustments, Alpaca from
    2016), plus SPY's total return. A per-name yfinance error inside the era, like the AT&T case
    (≈ 1.3 ×; there the candidate is right because Stooq captured T), would not be caught.
-2. **12 no-reference files keep raw Stooq in a missed era (15,487 bars).** For a payer that is an
-   UNDER-count by its yield, plausibly about 1.5 pp/yr on the REITs AVB and EQR. For a non-payer
-   it is exact. Each file's record says so. A citable dividend source for delisted names (EDGAR
+2. **12 no-reference files keep raw Stooq in a missed era (15,487 bars).**
+   - For a payer, that is an UNMEASURED under-count of roughly its dividend yield. For the REITs
+     AVB and EQR that is likely about 3–6 pp/yr in 2005–10. That range comes from public dividend
+     records; it is NOT measured here and is unverified.
+   - The −1.53 and −1.77 in §4.0 are those names' drip slopes being removed. They are not yields.
+     (Corrected in review round 2: the earlier "about 1.5 pp/yr" echoed the drip slopes.)
+   - For a non-payer it is exact.
+   - Each file's record says so. A citable dividend source for delisted names (EDGAR
    `DividendsDeclared`, SimFin) would let these be filled. Nothing is guessed until then.
 3. **54 files have unverified pre-2003 spans**, where the measured pre-2000 miss share is 16 %.
    Some of these spans are likely under-counted.
@@ -679,6 +702,11 @@ These are `[NN-SUBSTRATE-REVERIFY]` cases.
    moves 12 files outside the test populations, and added stricter checks.
 6. **The yfinance cache is a snapshot.** The candidate is reproducible from `yf/`. A re-fetch may
    differ by ex-dates Yahoo restates.
+7. **The missed/captured cut is not pinned by any test.** Raising `MISSED_M` from 0.5 to 0.9 still
+   passes all 19 tests. This is a low risk:
+   - m is bimodal, and only 163 of 27,642 measured labels (0.6 %) fall in [0.5, 0.9);
+   - those 163 are the only labels the two cuts would treat differently.
+   It is still a parameter whose value is held by the design argument (§1.3), not by a lock.
 
 ## §9. Recommendation
 
