@@ -6,7 +6,14 @@ network); each is reversion-proven (the record is in docs/Audit/cutover_step1_re
 The planted world: a quarterly payer. The PROVIDER is total return as of TODAY; the CACHE's
 post-seam span is total return as of its write date W (= its last bar), and its pre-seam span is a
 DIFFERENT series (the T-082b drip stands in for it: the same bars at +2% level) — so a lock can tell
-"the cached pre-seam bars were KEPT" from "the provider's were taken"."""
+"the cached pre-seam bars were KEPT" from "the provider's were taken".
+
+Note, 2026-11-12 (T-387; the USER ruled option (a′), amending option (a)): every lock here STILL
+APPLIES and none is archived. Option (a)'s seam write is step one of the cutover order — the drip
+kept, the provider post-seam, `close_unadj` added — and the (a′) rewrite (`tr_writer.era_tr_rewrite`)
+follows it on the copy (tests/test_era_tr_writer_t387.py drives the two in order). `drip` stays the
+label of a pre-seam span no (a′) rewrite has touched (the pre-cutover cache); the shipped
+declarations still describe the files as merged, and a write record's label wins over them."""
 from __future__ import annotations
 
 import json

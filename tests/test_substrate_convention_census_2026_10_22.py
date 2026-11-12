@@ -35,6 +35,21 @@ def _entry(case="both", seam="2018-01-02", n_pre=100, first="2000-01-03"):
             "n_stooq_pre_seam": n_pre if case == "both" else 0, "first_bar_date": first}
 
 
+def _witness(d: Path, *names: str) -> dict:
+    """A PLANTED drip-cache witness for planted merge-record names (T-387 review, 2026-11-12): the
+    merge-record fallback labels a seam file drip only when its bytes equal the frozen witness, so a
+    planted cache certifies its own planted files — a minimal csv where the name has none (an existing
+    csv is never overwritten), and the witness is that file's sha256."""
+    import hashlib
+    out = {}
+    for t in names:
+        csv = d / f"{t}_1d.csv"
+        if not csv.exists():
+            csv.write_text("Date,Open,High,Low,Close,Volume\n2000-01-03,1,1,1,1,1\n")
+        out[t] = {"csv": hashlib.sha256(csv.read_bytes()).hexdigest()}
+    return out
+
+
 def _frame(start="2024-01-02"):
     return pd.DataFrame({"Close": 1.0}, index=pd.bdate_range(start, periods=30))
 
@@ -54,7 +69,8 @@ def test_labels_come_from_the_write_record_then_the_override_then_the_merge_reco
                records={"REC": {"convention": {"pre_seam": "drip", "seam_date": "2020-04-09", "post_seam": "exact_tr"}}})
     conv = {**NO_CONV, "whole_file_overrides": {"OVR": {"convention": "exact_tr"}}}
     names = ["REC", "OVR", "META", "WHOLE", "NOPRE"]
-    r = substrate_convention_record(d, run_names=names, data_map={t: _frame() for t in names}, conventions=conv)
+    r = substrate_convention_record(d, run_names=names, data_map={t: _frame() for t in names}, conventions=conv,
+                                    drip_witness=_witness(d, "META"))
     assert r["per_name"] == {"REC": "drip<2020-04-09|exact_tr", "OVR": "exact_tr",
                              "META": "drip<2018-01-02|exact_tr", "WHOLE": "exact_tr", "NOPRE": "exact_tr"}
     assert r["sources"] == {"write_record": 1, "declared_override": 1, "merge_meta": 3}
@@ -81,7 +97,7 @@ def test_label_of_is_the_one_string_form():
 def test_a_name_with_no_record_no_override_and_no_merge_entry_is_UNLABELLED_and_the_gate_fails(tmp_path):
     d = _cache(tmp_path, {"KNOWN": _entry()})
     r = substrate_convention_record(d, run_names=["KNOWN", "NEWT"], data_map={"KNOWN": _frame(), "NEWT": _frame()},
-                                    conventions=NO_CONV)
+                                    conventions=NO_CONV, drip_witness=_witness(d, "KNOWN"))
     assert r["per_name"] == {"KNOWN": "drip<2018-01-02|exact_tr"}
     assert list(r["unlabelled"]) == ["NEWT"] and "no merge record" in r["unlabelled"]["NEWT"]
     v = _gate(r)
@@ -175,7 +191,9 @@ def test_the_backtest_producer_labels_the_panel_from_the_canonical_cache(tmp_pat
 def test_the_canonical_cache_is_labelled_whole_with_575_pre_seam_drip_files():
     """A data lock on today's canonical cache: every one of the 730 files labelled, none by default;
     575 carry a pre-seam drip span (the 626 `both` files minus 51 with no pre-seam bars); SPY by
-    its declared override. Fails when the cache or its merge record changes — re-measure, re-pin."""
+    its declared override. Fails when the cache or its merge record changes — re-measure, re-pin.
+    Note, 2026-11-12 (T-387): still true of TODAY's canonical (drip). It flips on cutover day under the
+    USER's (a′) ruling — 575 `era_tr` from the write records — in re-pin #2's commit (runbook §6, S6)."""
     # R9 (2026-11-04): a cache-wide label is witnessed against the FILES' first bars (what a run loads).
     r = substrate_convention_record(w.CANONICAL_CACHE_DIR, data_map=cache_first_bar_frames(w.CANONICAL_CACHE_DIR))
     assert r["n_names"] == 730 and r["n_labelled"] == 730 and r["unlabelled"] == {}
@@ -208,7 +226,7 @@ def test_R9_a_merge_record_label_with_NO_frames_is_UNWITNESSED_unmeasured_and_th
                                    for f in v.failures), v.failures
     # the positive control: the same name WITH its frame is labelled from the record, witnessed
     ok = substrate_convention_record(d, run_names=["META", "REC", "OVR"], data_map={"META": _frame()},
-                                     conventions=conv)
+                                     conventions=conv, drip_witness=_witness(d, "META"))
     assert ok["per_name"]["META"] == "drip<2018-01-02|exact_tr" and ok["n_unwitnessed"] == 0
     assert ok["witness"] == "frames" and _gate(ok).canonical
 
@@ -217,7 +235,7 @@ def test_R9_a_name_whose_frame_is_ABSENT_from_the_given_frames_is_unwitnessed_to
     """Frames were given, but not this name's: the per-name form of the same fail-open."""
     d = _cache(tmp_path, {"META": _entry(), "OTHER": _entry()})
     r = substrate_convention_record(d, run_names=["META", "OTHER"], data_map={"OTHER": _frame()},
-                                    conventions=NO_CONV)
+                                    conventions=NO_CONV, drip_witness=_witness(d, "OTHER"))
     assert r["witness"] == "frames" and r["n_unwitnessed"] == 1 and r["per_name"] == {"OTHER": "drip<2018-01-02|exact_tr"}
     assert r["unlabelled"]["META"].startswith("UNWITNESSED") and "no frame in data_map" in r["unlabelled"]["META"]
     assert not _gate(r).canonical
@@ -233,7 +251,7 @@ def test_R9_a_cache_wide_label_is_witnessed_against_each_files_FIRST_bar(tmp_pat
     frames = cache_first_bar_frames(d)
     assert set(frames) == {"EARLY", "LATE"}
     assert frames["EARLY"].index[0] == pd.Timestamp("1999-06-01") and frames["LATE"].index[0] == pd.Timestamp("2001-02-01")
-    r = substrate_convention_record(d, data_map=frames, conventions=NO_CONV)
+    r = substrate_convention_record(d, data_map=frames, conventions=NO_CONV, drip_witness=_witness(d, "LATE"))
     assert r["per_name"] == {"LATE": "drip<2018-01-02|exact_tr"}
     assert "STALE" in r["unlabelled"]["EARLY"]                      # the file starts before the record
     assert r["unlabelled"]["NOCSV"].startswith("UNWITNESSED") and r["n_unwitnessed"] == 1

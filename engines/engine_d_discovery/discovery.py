@@ -81,7 +81,8 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
       * stale_files (2026-10-15, the stale/holed-files guard): BARS, never file presence, over the
         candidate's own data_map and window. Without them the record is an ERROR, which fails the
         gate — coverage that was not measured is never a pass;
-      * substrate_convention (2026-10-22, option (a)'s universal label): drip vs exact_tr per span
+      * substrate_convention (2026-10-22, option (a)'s universal label): drip / era_tr vs exact_tr per
+        span (era_tr = the (a′) pre-seam convention after the cutover, T-387)
         for every name in the candidate's data_map, from the write records / overrides / merge
         record under the canonical cache; an unlabelled name fails the gate, never a default;
       * share_price_basis (L4, 2026-10-22): which price basis sized the with-candidate run's
@@ -136,7 +137,8 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         block["level_declarations"] = {"error": repr(e)}
     try:
         # OPTION (a)'s universal convention label (2026-10-22), over the CANDIDATE's own names —
-        # drip vs exact_tr per span, from the write records / overrides / merge record; an
+        # drip / era_tr vs exact_tr per span (T-387), from the write records / overrides / merge record
+        # (a merge-record drip label needs the frozen drip witness, never inferred after (a′)); an
         # unlabelled name fails the gate. Without the candidate's data_map the names are unknown.
         from engines.data_manager.convention import substrate_convention_record
         from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _cache_dir
@@ -151,7 +153,7 @@ def candidate_census_block(cand_id: str, cand_census, n_trades: int, *,
         from engines.data_manager.tr_writer import CANONICAL_CACHE_DIR as _coverage_cache
         if data_map is None or window is None:
             raise RuntimeError("no data_map/window given — coverage not measured")
-        # cache_dir (2026-11-04): the kept drip's own pre-seam holes under the COUNTED class.
+        # cache_dir (2026-11-04): the kept pre-seam span's own holes (drip or era_tr) under the COUNTED class.
         block["stale_files"] = stale_files_record(data_map, *window, intervals=membership_intervals,
                                                   universe=universe, cache_dir=_coverage_cache)
     except Exception as e:   # recorded, never omitted
