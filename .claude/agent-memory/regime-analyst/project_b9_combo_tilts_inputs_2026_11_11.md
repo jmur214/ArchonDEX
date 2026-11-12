@@ -15,7 +15,12 @@ straddle (REF 60-blk ci_low +0.009 the only positive). Verdict: `docs/Audit/b9_c
 - **Long-only tilt legs do NOT inherit long/short factor correlations.** value×momentum L/S ρ ≈ −0.3
   (AMP 2013), but the long-only legs' active returns vs SPY correlated −0.07 — size/beta deviations
   dominate. Any "diversified tilts = more power" argument must use the measured long-only active ρ.
-- **Small-value active TE vs SPY ≈ 20%/yr** (French `SMALL HiBM HiOP` cell, 22–55 firms; and AVUV
+- **Zero-haircut diagnostic (reviewer, director-counted N+1 → B-9 N_trials 2):** arm (i) +0.441,
+  ci_low −0.099 / −0.363 (blk 60) — the refutation does not depend on the 50% haircut convention.
+- **Lesson from review:** I misquoted a French firm-count range by sampling only Jun/Dec rows —
+  read the WHOLE table's min/max before quoting a range.
+- **Small-value active TE vs SPY ≈ 20%/yr** (French `SMALL HiBM HiOP` cell, 16–61 firms 2000–10,
+  16–35 in 2006–08, 22–39 since 2020; and AVUV
   vs mega-cap S&P), not the 8% assumed. Momentum (BIG HiPRIOR / MTUM) TE ≈ 8.6% — as assumed.
 - **Regime dependence:** arm (i)'s whole gain came 2000–2013 (value-friendly, haircut French era);
   relative wealth peaked 2014-06, −25% to 2020-03, still below peak after 12y. The mega-cap-growth

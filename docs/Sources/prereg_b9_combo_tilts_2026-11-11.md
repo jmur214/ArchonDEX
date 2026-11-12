@@ -4,7 +4,7 @@ title: Pre-registration — multi-factor combination tilts at deployable weights
 date: 2026-11-11
 worker: regime-analyst subagent (dispatched by the director, 2026-11-11, with the user's go-ahead)
 branch: research/combo-tilts-b9
-status: FROZEN 2026-11-11 by the director at 16432da with OPTION A (§3.2); Amendment 1 (§17, pre-data, committed before the yfinance fetch) adds input check (d). §1–§16 unchanged from 16432da. RUN COMPLETE 2026-11-11 — VERDICT H1 NOT MET (arm (i) ci_low −0.241; docs/Audit/b9_combo_tilts_verdict_2026-11-11.md; results md5 6368f5c6… ×2). N_trials consumed: 1.
+status: FROZEN 2026-11-11 by the director at 16432da with OPTION A (§3.2); Amendment 1 (§17, pre-data, committed before the yfinance fetch) adds input check (d). §1–§16 unchanged from 16432da. RUN COMPLETE 2026-11-11 — VERDICT H1 NOT MET (arm (i) ci_low −0.241; docs/Audit/b9_combo_tilts_verdict_2026-11-11.md; results md5 6368f5c6… ×2). N_trials consumed: 2 (the run +1; the independent reviewer's zero-haircut diagnostic +1, by the director's count — verdict §11).
 ---
 
 # B-9 — do two 20% factor tilts together beat 1× SPY where one alone could not?

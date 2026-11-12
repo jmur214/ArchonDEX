@@ -3,8 +3,8 @@ task_id: T-380 (B-9)
 title: "B-9 multi-factor combination tilts at deployable weights (VOO / MTUM / AVUV) — VERDICT"
 date: 2026-11-11
 author: regime-analyst subagent (dispatched by the director)
-outcome: "H1 NOT MET — arm (i) 60/20/20 Δ log TW vs 1× SPY-TR +0.279 (terminal wealth ×1.32), block-bootstrap ci_low −0.241 (block 7; −0.477 at block 60). REFUTED per the prereg: multi-factor closed, momentum stays at 15%. No arm clears ci_low > 0. The power premise failed on both inputs: measured t 1.24 against a predicted 2.2; realized ρ of the two tilts' active returns −0.07, not −0.3; the AVUV leg's tracking error 19.9%/yr, not 8%."
-status: "FINAL pending director review. Pre-cutover substrate: re-verify required after cutover ([NN-SUBSTRATE-REVERIFY]). N_trials consumed: 1."
+outcome: "H1 NOT MET — arm (i) 60/20/20 Δ log TW vs 1× SPY-TR +0.279 (terminal wealth ×1.32), block-bootstrap ci_low −0.241 (block 7; −0.477 at block 60). REFUTED per the prereg: multi-factor closed, momentum stays at 15%. No arm clears ci_low > 0 on the main window (the only positive ci_low in B-9 is the secondary, non-gating French-only REF row at block 60, +0.009). The power premise failed on both inputs: measured t 1.24 against a predicted 2.2; realized ρ of the two tilts' active returns −0.07, not −0.3; the AVUV leg's tracking error 19.9%/yr, not 8%."
+status: "FINAL — APPROVED by independent review 2026-11-11 (md5 reproduced, headline recomputed by separate code, three HALT drills); four text corrections in a follow-up commit (§11). Pre-cutover substrate: re-verify required after cutover ([NN-SUBSTRATE-REVERIFY]). N_trials consumed: 2 (the run +1; the reviewer's zero-haircut diagnostic +1, director's count)."
 reproduce: "python -m scripts.tilt_decision_measure_t318_t320 --b9 (reads only the md5-manifested snapshot data/research/b9/inputs/); results md5 6368f5c6e901d600dd889e5a3fc06d3f must reproduce (bit-identical ×2 on 2026-11-11)"
 ---
 
@@ -28,7 +28,10 @@ project-standard block of 7 months. A 60-month block is reported beside it.
   by 1.32. The 95% CI is **[−0.241, +0.732]**; with 60-month blocks it is [−0.477, +0.726].
 - **Measured t:** 1.24 against the predicted 2.2.
 - **The prereg's refutation applies verbatim:** *multi-factor closed, momentum stays at 15%.*
-- **No arm clears,** including the REF row and every secondary line.
+- **No arm clears on the main window**, the REF row included. Among the secondary lines, exactly
+  one has a positive ci_low: the French-only REF 85/15 row at the 60-month block, **+0.009** (§6).
+  It does not gate: it is a secondary, non-decision row, and on the standard block the same row's CI
+  straddles zero ([−0.005, +0.285]).
 
 The point estimate is positive and its CI is wide. The result is a failure to reach significance, not
 evidence that the tilts hurt. Two facts make it decisive for deployment anyway:
@@ -40,23 +43,25 @@ evidence that the tilts hurt. Two facts make it decisive for deployment anyway:
 
 ## 2. The four arms and the deployed reference (main window)
 
-| arm | Δ log TW | /yr | ci_low (blk 7) | ci_high | ci_low (blk 60) | t (iid) | α/yr | TE/yr | TW ratio |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| **(i) 60/20/20 — DECISION** | **+0.279** | +1.05% | **−0.241** | +0.732 | −0.477 | **1.24** | +1.05% | 4.36% | 1.322 |
-| (ii) 70/15/15 | +0.220 | +0.83% | −0.173 | +0.561 | −0.352 | 1.30 | +0.83% | 3.29% | 1.246 |
-| (iii) 80/20/0 (top of the approved envelope) | +0.101 | +0.38% | −0.093 | +0.221 | −0.055 | 1.12 | +0.38% | 1.74% | 1.106 |
-| (iv) 80/0/20 | +0.188 | +0.71% | −0.297 | +0.692 | −0.591 | 0.89 | +0.71% | 4.12% | 1.207 |
-| *REF 85/15/0 — deployed mix, no N* | *+0.079* | *+0.30%* | *−0.066* | *+0.169* | *−0.038* | *1.17* | *+0.30%* | *1.31%* | *1.082* |
+| arm | Δ log TW | /yr | ci_low (blk 7) | ci_high | ci_low (blk 60) | t (iid) | boot z | α/yr | TE/yr | TW ratio |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| **(i) 60/20/20 — DECISION** | **+0.279** | +1.05% | **−0.241** | +0.732 | −0.477 | **1.24** | 1.12 | +1.05% | 4.36% | 1.322 |
+| (ii) 70/15/15 | +0.220 | +0.83% | −0.173 | +0.561 | −0.352 | 1.30 | 1.17 | +0.83% | 3.29% | 1.246 |
+| (iii) 80/20/0 (top of the approved envelope) | +0.101 | +0.38% | −0.093 | +0.221 | −0.055 | 1.12 | 1.25 | +0.38% | 1.74% | 1.106 |
+| (iv) 80/0/20 | +0.188 | +0.71% | −0.297 | +0.692 | −0.591 | 0.89 | 0.76 | +0.71% | 4.12% | 1.207 |
+| *REF 85/15/0 — deployed mix, no N* | *+0.079* | *+0.30%* | *−0.066* | *+0.169* | *−0.038* | *1.17* | *1.32* | *+0.30%* | *1.31%* | *1.082* |
 
 **Column definitions.**
 - α and TE are the annualized mean and standard deviation of the monthly log active return.
 - Δ log TW per year = Δ log TW ÷ 26.5.
+- boot z = Δ log TW ÷ the bootstrap standard deviation (block 7). It is the prereg §7 companion to
+  the iid t (`boot_z` in the results JSON).
 
 **Costs are immaterial.** Annual rebalancing at 5 bp per rebalanced dollar cost 0.02–0.09% of wealth
 over the whole window (26 rebalances).
 
 **Secondary line (§3.1), arm (i) paired against the deployed 85/15:** Δ log TW +0.200, CI
-[−0.283, +0.690] (60-month block [−0.555, +0.688]), t 0.95. Adding AVUV and five more points of MTUM on
+[−0.283, +0.690] (60-month block [−0.555, +0.688]), t 0.95, boot z 0.82. Adding AVUV and five more points of MTUM on
 top of the deployed mix is not distinguishable from zero.
 
 ## 3. Predicted vs measured t: why the power argument failed
@@ -73,8 +78,9 @@ top of the deployed mix is not distinguishable from zero.
 **The alpha was larger than the prior assumed. The noise was 2.3× larger.** Both inputs to the "twice
 the power" arithmetic failed:
 1. **The value leg is far noisier than the prior assumed.**
-   - Before 2019 it is the French `SMALL HiBM HiOP` cell. The French file's own counts show it holds
-     44–55 firms in 2000–2010 and 22–24 since 2020. Its calendar-year returns include −12% (2000),
+   - Before 2019 it is the French `SMALL HiBM HiOP` cell. The French file's own "Number of Firms"
+     table shows it holds 16–61 firms in 2000–2010 (16–35 in 2006–08) and 22–39 since 2020. Its
+     calendar-year returns include −12% (2000),
      +66% (2001) and +104% (2009).
    - From 2019-10 it is actual AVUV, small-cap value against a mega-cap S&P. Its tracking error is
      structurally far above 8%.
@@ -114,18 +120,21 @@ real MTUM are ahead: (iii) +0.068 and REF +0.053, neither significant.
 
 ## 6. Secondary: French-only sign test, 1963-07 → 2026-06 (756 months, block 9)
 
-| arm | sign | Δ log TW | CI (blk 9) | ci_low (blk 60) | t (iid) | regret | recover | win40y |
-|---|:-:|--:|---|--:|--:|--:|---|--:|
-| (i) 60/20/20 | **+** | +0.744 | [−0.142, +1.580] | −0.530 | 2.06 | −33.2% | NEVER (≥ 12.0 y) | 100% |
-| (ii) 70/15/15 | + | +0.589 | [−0.072, +1.224] | −0.376 | 2.16 | −25.8% | NEVER (≥ 12.0 y) | 100% |
-| (iii) 80/20/0 | + | +0.182 | [−0.021, +0.365] | −0.003 | 1.74 | −6.9% | NEVER (≥ 18.0 y) | 100% |
-| (iv) 80/0/20 | + | +0.602 | [−0.221, +1.461] | −0.619 | 1.72 | −31.4% | NEVER (≥ 12.0 y) | 98% |
-| *REF 85/15/0* | *+* | *+0.147* | *[−0.005, +0.285]* | *+0.009* | *1.88* | *−5.0%* | *NEVER (≥ 18.0 y)* | *100%* |
+| arm | sign | Δ log TW | CI (blk 9) | ci_low (blk 60) | t (iid) | boot z | regret | recover | win40y |
+|---|:-:|--:|---|--:|--:|--:|--:|---|--:|
+| (i) 60/20/20 | **+** | +0.744 | [−0.142, +1.580] | −0.530 | 2.06 | 1.67 | −33.2% | NEVER (≥ 12.0 y) | 100% |
+| (ii) 70/15/15 | + | +0.589 | [−0.072, +1.224] | −0.376 | 2.16 | 1.75 | −25.8% | NEVER (≥ 12.0 y) | 100% |
+| (iii) 80/20/0 | + | +0.182 | [−0.021, +0.365] | −0.003 | 1.74 | 1.76 | −6.9% | NEVER (≥ 18.0 y) | 100% |
+| (iv) 80/0/20 | + | +0.602 | [−0.221, +1.461] | −0.619 | 1.72 | 1.40 | −31.4% | NEVER (≥ 12.0 y) | 98% |
+| *REF 85/15/0* | *+* | *+0.147* | *[−0.005, +0.285]* | *+0.009* | *1.88* | *1.90* | *−5.0%* | *NEVER (≥ 18.0 y)* | *100%* |
 
 **The sign test passes for every arm:** all point estimates are positive over 63 years.
-- The block-bootstrap CI still straddles zero for every arm on the standard block, even where the iid t
-  passes 2 (arm (i) 2.06, (ii) 2.16). Serial dependence in factor returns makes the iid t overstate
-  the evidence.
+- The block-bootstrap CI still straddles zero for every arm on the standard block (block 9), even where
+  the iid t passes 2 (arm (i) 2.06, (ii) 2.16). Serial dependence in factor returns makes the iid t
+  overstate the evidence.
+- **The one positive ci_low anywhere in B-9 is the REF 85/15 row here at the 60-month block: +0.009.**
+  It is a secondary, non-decision row and does not gate. On the standard block the same row's CI
+  straddles zero ([−0.005, +0.285]).
 - The 1963 test therefore does not contradict the main window. It shows a real long-run sign, not
   significance.
 - The 100% win40y figures sit on about 1.6 independent 40-year windows. As in T-318, they are not
@@ -206,9 +215,10 @@ printed tables were byte-identical.
 ## 9. What this means for the deployed 85/15
 
 **Keep it exactly as it is. B-9 gives no reason to add a value leg or to move momentum to 20%.**
-- **Adding AVUV at 15–20%** would have more than tripled tracking error against SPY (1.3% → 4.1–4.4%/yr).
-  It would have produced a 25–29% relative drawdown that is still unrecovered after 12 years, with no
-  significant gain to show for it. In the only stretch where both tilts are real ETFs (2019-10 →),
+- **Adding AVUV at 15–20%** would have raised tracking error against SPY 2.5–3.3× (1.3% → 3.3–4.4%/yr:
+  3.29% for arm (ii) at 15% AVUV; 4.12% and 4.36% for the 20% arms). It would have produced a 19–29%
+  relative drawdown (−19.3% for (ii), −25.0% for (i), −28.5% for (iv)) that is still unrecovered after
+  12 years, with no significant gain to show for it. In the only stretch where both tilts are real ETFs (2019-10 →),
   the gain is +0.01 to +0.04 log and indistinguishable from zero.
 - **The deployed 85/15 under B-9's conventions** (annual rebalance, fully invested; not the live
   share-quantum bands or the SGOV residue):
@@ -234,15 +244,45 @@ printed tables were byte-identical.
    snapshot, so the expected sensitivity is small.
 2. **The decision rests mostly on modelled months.** 237 of 318 AVUV months and 160 of 318 MTUM months
    are haircut French proxies. The 50% haircut is a convention from Novy-Marx-Velikov, not a
-   measurement.
-3. **The AVUV proxy is a 22–55-firm cell.** The prereg froze it. A broader small-value cell might have
-   lower tracking error. Testing that now would be a post-hoc re-spec, which the prereg forbids. It
+   measurement. H1 is not met even with no haircut (§11 note a).
+3. **The AVUV proxy is a narrow cell:** 16–61 firms in 2000–2010 (16–35 in 2006–08) and 22–39 since
+   2020, per the French file's "Number of Firms" table. The prereg froze it. A broader small-value
+   cell might have lower tracking error. Testing that now would be a post-hoc re-spec, which the prereg forbids. It
    needs its own pre-registered trial if anyone wants it.
 4. **The ETFs are survivors chosen in 2026.** MTUM and AVUV exist and are well known today. The bias
    from that selection would run toward the arms, which strengthens rather than weakens the null.
 5. **Pre-tax and lump sum.** Annual rebalancing in a taxable account would realize gains. Contributions
    are not modelled.
 
-**N_trials consumed: 1** (one family; arms (i)–(iv) are reported jointly). The REF row, the arm (i) vs
-REF line, the sensitivity block, the sub-windows and the French-only test are pre-declared secondary
-reporting and consume no N.
+**N_trials consumed: 2 for B-9:**
+- +1 for the run (one family; arms (i)–(iv) are reported jointly);
+- +1 for the reviewer's zero-haircut diagnostic (§11 note a, by the director's count).
+
+The REF row, the arm (i) vs REF line, the sensitivity block, the sub-windows and the French-only test
+are pre-declared secondary reporting and consume no N.
+
+## 11. Independent review notes (2026-11-11, added after the director's APPROVE)
+
+**Outcome of the review.** An independent reviewer approved the run:
+- it reproduced the results md5 (`6368f5c6…`);
+- it recomputed the headline with its own code;
+- it made checks (c), (d) and the snapshot-md5 check HALT on modified copies of the inputs.
+
+Four text errors in the first version of this verdict were corrected in a follow-up commit: §1's "no
+arm clears" overreach; the proxy cell's firm counts; the 15–20% AVUV range in §9; and the missing
+bootstrap-z column. No number in the harness or the results changed.
+
+**(a) Reviewer diagnostic. This was NOT pre-registered and does not decide H1.**
+- With a **zero** haircut on the French-era alpha, arm (i) Δ log TW is **+0.441**, with ci_low
+  **−0.099** (block 7) and **−0.363** (block 60).
+- **H1 is not met even with no haircut,** so the refutation does not depend on the 50% convention.
+- The figures were reproduced in-process from the same snapshot. No results file was written, and the
+  harness was unchanged.
+- The director counts the diagnostic as a trial, so **B-9's record reads N_trials +2** (the run plus
+  this diagnostic).
+
+**(b) The fail-closed HALT paths are proven by drills, not locked.**
+- The input checks' HALT paths, (c), (d) and the snapshot md5 among them, are proven by the reviewer's
+  three drills on modified copies of the inputs. Those drills ran in scratch only.
+- They are **not** locked by a committed test. A future edit to the harness could disable a check
+  without any test failing.
