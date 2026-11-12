@@ -480,6 +480,19 @@
 - **Function `monthly()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `cef_wide_lagged_probe_t379.py`
+**Module Docstring:** T-379 — CEF discount reversion, WIDE survivor universe, one-day execution skip.
+- **Function `tr_close()`**: No docstring
+- **Function `build_panel()`**: Daily raw Close, Adj Close, Volume and NAV per fund → cached parquet (columns: field|ticker).
+- **Function `field()`**: No docstring
+- **Function `newey_west_t()`**: T-267's estimator, unchanged.
+- **Function `signal_days()`**: No docstring
+- **Function `run_arm()`**: No docstring
+- **Function `boot_ci_low()`**: No docstring
+- **Function `ratio_ci()`**: No docstring
+- **Function `report()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `census_fail_closed_reversion_proof.py`
 **Module Docstring:** Census fail-closed unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
 
@@ -856,6 +869,15 @@
 **Module Docstring:** T-186 — put the FIRST REAL paper fill on the board.
 - **Function `main()`**: No docstring
 
+### `fleet_health.py`
+**Module Docstring:** Fleet health — does anything in the autonomous loop READ the paper fleet's own alarms?
+- **Class `FleetVerdict`**: No docstring
+  - `def detail()`
+- **Function `judge_heartbeat()`**: Problems in one account's heartbeat. An absent field is a problem, never a pass.
+- **Function `judge_book()`**: Problems in one live_book/v1 state file.
+- **Function `evaluate()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `fullequity_gated_leverage_t284.py`
 **Module Docstring:** T-284 — trend-gated leverage on a FULL-EQUITY base. PRIMARY = 100% SPY 2x-when-trend-on;
 - **Function `spy_close()`**: No docstring
@@ -994,6 +1016,7 @@
 - **Function `check_runner_canon()`**: Is the janitor running CANONICAL code?
 - **Function `check_ledger_backup()`**: Does a readable REMOTE copy of the authority record exist, and is it current?
 - **Function `check_observability_backup()`**: Last night's push of the honest-N inputs (run registry + ρ̄ artifacts): is each
+- **Function `check_fleet_health()`**: Is the paper fleet healthy BY ITS OWN RECORD — every account canonical, no book
 - **Function `check_substrate_verify()`**: The FULL data-hashing verify of the canonical substrate against the manifest committed
 - **Function `survival_syncs()`**: The nightly pushes of single-copy records. Never `allow_rewrite` here: a nightly
 - **Function `run_checks()`**: No docstring
@@ -1964,6 +1987,7 @@
 
 ### `tilt_decision_measure_t318_t320.py`
 **Module Docstring:** T-318 + T-320 — the tilt DECISION measurements (frozen pre-regs; N += 2, one per family).
+- **Class `B9Halt`**: A fail-closed census/validation failure: no results file is written ([NN-FAIL-CLOSED]).
 - **Function `ff_factor()`**: A single FF factor/portfolio column, monthly decimal returns.
 - **Function `load_legs()`**: All legs, monthly, TOTAL return (market = MktRF + RF).
 - **Function `nasdaq_monthly()`**: ^IXIC monthly TR proxy (price index — dividends light for a growth index; named caveat).
@@ -1972,6 +1996,9 @@
 - **Function `rolling_win_and_ci()`**: Fraction of rolling-40yr windows the blend wins + block-bootstrap log-wealth CI.
 - **Function `report_arm()`**: No docstring
 - **Function `main()`**: No docstring
+- **Function `b9_snapshot()`**: ONE-TIME input snapshot (prereg §3.2 Option A, §16). Refuses to overwrite an existing one.
+- **Function `b9_simulate()`**: Annual-rebalance portfolio (§5). Holdings drift monthly; at each December close that is not
+- **Function `b9_run()`**: No docstring
 
 ### `train_gate.py`
 - **Function `train_gate_model()`**: Train the SignalGate model using harvested data.
