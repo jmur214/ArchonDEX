@@ -62,8 +62,8 @@ as-is where Stooq is total return, every dividend it MISSED restored from the yf
 per measured ex-date (the fraction-missed probe, transient blocks masked), no-reference spans kept
 raw Stooq and LABELLED UNVERIFIED, ONE constant at the seam. Post-seam, every Date/OHLCV field stays
 byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction
-(they are functions of pre-seam bars — measured over the 575: ATR on 13–14 rows in 571 files, PrevClose
-in 573); every later post-seam field, and `close_unadj` on EVERY row, stays byte-identical. The (a′) logic itself lives in ONE module, `era_tr.py` (shared with
+(they are functions of pre-seam bars — measured over the 575: ATR on 14 rows in 181 files, 13 in 390, 3 in
+VRT, 1 in VLTO, 0 in PODD and POM; PrevClose in 573); every later post-seam field, and `close_unadj` on EVERY row, stays byte-identical. The (a′) logic itself lives in ONE module, `era_tr.py` (shared with
 `scripts/drip_fix_candidate_t384.py`). On a drip file the order is: option (a)'s seam write (or the
 cached file as merged), then the (a′) rewrite; `full_refetch` thereafter KEEPS whatever the file's
 pinned record says its pre-seam span IS (`kept_pre_seam_convention`) — it never relabels era_tr

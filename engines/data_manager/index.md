@@ -156,6 +156,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 
 ### `convention.py`
 **Module Docstring:** The UNIVERSAL convention label (option (a), the user's cutover ruling, 2026-10-22).
+- **Function `derive_drip_witness_text()`**: THE recipe of `config/drip_cache_witness_repin1.json`, as text (its exact bytes): from re-pin #1's
 - **Function `load_drip_witness()`**: The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
 - **Function `is_drip_witnessed()`**: None when the file under `cache_dir` IS the drip the witness pinned (csv always; parquet where
 - **Function `era_tr_records_present()`**: The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr.

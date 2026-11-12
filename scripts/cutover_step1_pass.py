@@ -520,7 +520,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     s.add_argument("--yf-dir", default=str(DEFAULT_YF_DIR))
     s.add_argument("--raw-stooq", default=str(DEFAULT_RAW_STOOQ))
     s.add_argument("--yf-manifest", default=str(DEFAULT_YF_MANIFEST),
-                   help="the reference cache's pinned per-file sha256 manifest (refuses a mismatch); 'none' skips")
+                   help="the reference cache's pinned per-file sha256 manifest (refuses a mismatch); 'none' skips — scratch/test only, NEVER on cutover day (rows are marked UNVERIFIED)")
     s.add_argument("--only", default=None)
     s.add_argument("--tag", default=None)
     s.add_argument("--out-dir", default=None, help="where the report rows go (default: beside the copy)")

@@ -130,8 +130,7 @@ read-only; refused without its `_fetch_log.jsonl`), no-reference spans kept raw 
 constant at the seam. *(Corrected 2026-11-12 after review — the first wording, "every post-seam byte … stay",
 overclaimed.)* Post-seam, every Date/OHLCV field and `close_unadj` on every row stay as the step-1 pass wrote
 them; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction (they are functions
-of pre-seam bars; measured over the 575 on the T-387 check copy: ATR on 13–14 rows in 571 files, on 0–3 in 4;
-PrevClose on the seam row in 573; nothing later). It
+of pre-seam bars; measured over the 575 on the T-387 check copy: 181 files × 14 ATR rows, 390 × 13, VRT 3, VLTO 1, PODD and POM 0 — all inside the first 14 post-seam rows; PrevClose on the seam row in 573 (not PODD, POM); nothing later). It
 refuses (fail closed) a span that is not the drip (so it never runs twice), a file the step-1 pass wrote WHOLE, a
 kept-bar count that disagrees with the merge record, and any write-time rail failure (the step audit: pre-seam
 daily returns differ from raw Stooq's only at the restored ex-dates, by exactly −log(1 − D/P); the splice audit:
@@ -199,8 +198,10 @@ pre-2003 spans; the second unit (the spin-off / transient-block repair, held to 
    parquets the bytes depend on.)* The cache is now pinned PER FILE by the committed
    `config/era_tr_reference_yf_manifest.sha256` (1,147 files; the manifest text's sha256
    `e516573f46248ff06589315c0d3eeba91afa2e1b95059f4d74711e445ffcd32e`; every file equal to v3's recorded md5,
-   1,147/1,147). `era-tr` REFUSES a cache that does not equal it (`--yf-manifest none` runs unverified and every
-   row says so), writes the manifest's digest into every record's provenance. Recommendation: pin it in
+   1,147/1,147). `era-tr` REFUSES a cache that does not equal it, and writes the manifest's digest into every
+   record's provenance. **`--yf-manifest none` is NEVER a cutover-day option:** it exits 0 with every row marked
+   `UNVERIFIED: --yf-manifest none`, so a run with it — or any row carrying that mark — HALTS the day (§4); it
+   exists only for scratch and test runs. Recommendation: pin it in
    re-pin #2 — the manifest is committed; the cache itself kept read-only beside the candidates (and, if the
    user wants it reproducible from S3, staged with the prefix).
 8. Keep the step-1 copy after the day (my recommendation: yes, as the pinned record of option (a)).
@@ -212,7 +213,13 @@ pre-2003 spans; the second unit (the spin-off / transient-block repair, held to 
   After (a′) a seam file without its record is UNLABELLED, never inferred (the gate fails the run). The witness
   stays frozen through re-pin #2; after the day only the records label the 575.
 - Worktrees need `data/processed/_write_records/` — `~/Dev/_director_tools/wt_data_layout.sh` now COPIES it when it
-  exists. Without it, a post-cutover worktree's census reads every seam file as unlabelled (fail closed), never drip.
+  exists. *(Corrected 2026-11-12, review round 2.)* Without it, a post-cutover worktree's census reads 573 of the
+  575 seam files as unlabelled (fail closed) — but NOT PODD and POM: their (a′) bytes equal the drip witness, so
+  with no records and no era_tr record in the cache they are labelled `drip` from the merge record. That label is
+  true of the bytes, but it DROPS POM's recorded UNVERIFIED span (2025-10-08 → 2025-12-09) from the census. Those
+  two names are why a worktree needs `_write_records/` even though the gate fails closed on the rest.
+- The copy is a SNAPSHOT taken when the worktree is laid out: a worktree created before a canonical write-record
+  change (cutover day, a later refresh) holds stale records until it is laid out again.
 - The 13 declared seams in `config/convention_declarations.json` still say `pre_seam: drip` — true of the files as
   merged; after the rewrite each file's write record (era_tr) overrides the declaration, and a declaration of
   `era_tr` on a file with no record is refused.

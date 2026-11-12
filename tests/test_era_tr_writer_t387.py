@@ -539,3 +539,28 @@ def test_the_shipped_reference_manifest_and_drip_witness_are_the_ones_v4_and_re_
     assert wit["n_files"] == 575 == len(load_drip_witness())
     assert wit["source_manifest"] == "config/substrate_manifest.sha256"
     assert all(set(v) == {"csv", "parquet"} and len(v["csv"]) == 64 for v in wit["files"].values())
+
+
+def test_the_drip_witness_RE_DERIVES_byte_for_byte_from_re_pin_1s_manifest():
+    """Round-2 review MINOR: a hand-edited hash must fail. The witness is re-derived from
+    `git show 1bb6764:config/substrate_manifest.sha256` and the merge record through THE recipe
+    (`convention.derive_drip_witness_text`) and must equal the committed file byte for byte. Where git
+    history is unavailable (the image) or the cache has no merge record, the lock SKIPS with the reason —
+    it never passes silently."""
+    import subprocess
+    from engines.data_manager.convention import (DRIP_WITNESS_PATH, DRIP_WITNESS_SOURCE_COMMIT,
+                                                  derive_drip_witness_text)
+    spec = f"{DRIP_WITNESS_SOURCE_COMMIT}:config/substrate_manifest.sha256"
+    try:
+        r = subprocess.run(["git", "show", spec], cwd=REPO, capture_output=True, timeout=60)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        pytest.skip(f"git unavailable here ({e!r}) — the witness cannot be re-derived from {spec}")
+    if r.returncode != 0:
+        pytest.skip(f"git history unavailable here — `git show {spec}` failed: {r.stderr.decode()[:200]}")
+    meta = w.CANONICAL_CACHE_DIR / w.MERGE_META_NAME
+    if not meta.exists():
+        pytest.skip(f"no merge record at {meta} — the witness's name set cannot be re-derived")
+    derived = derive_drip_witness_text(r.stdout, meta.read_bytes())
+    assert derived.encode() == DRIP_WITNESS_PATH.read_bytes(), (
+        "config/drip_cache_witness_repin1.json is NOT the re-derivation from re-pin #1's manifest — a hash "
+        "was edited, or the merge record changed since the witness was frozen")

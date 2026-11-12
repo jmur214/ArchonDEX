@@ -85,6 +85,42 @@ _DEFAULT = "default"
 _SHA_CACHE: Dict[Tuple[str, int, int], str] = {}
 
 
+#: The commit whose `config/substrate_manifest.sha256` the frozen witness was derived from (re-pin #1).
+DRIP_WITNESS_SOURCE_COMMIT = "1bb6764"
+_DRIP_WITNESS_DOC = (
+    "The DRIP-CACHE WITNESS (T-387 follow-up, 2026-11-12): positive evidence that a merged file IS the "
+    "T-082b drip as re-pin #1 pinned it. The census's merge-record fallback may label a seam file `drip` "
+    "ONLY when its bytes equal these (engines/data_manager/convention.py); a file the (a′) rewrite changed "
+    "can never match, and an ABSENT witness labels nothing drip (fail closed). FROZEN: derived once from "
+    "the committed re-pin #1 manifest, never regenerated from a later manifest (after re-pin #2 that "
+    "manifest pins the era_tr bytes). Recipe: for every `both` file with n_stooq_pre_seam > 0 in "
+    "data/processed/_merge_meta.json, the sha256 lines of data/processed/<T>_1d.csv and "
+    "data/processed/parquet/<T>_1d.parquet in source_manifest.")
+
+
+def derive_drip_witness_text(manifest_bytes: bytes, merge_meta_bytes: bytes) -> str:
+    """THE recipe of `config/drip_cache_witness_repin1.json`, as text (its exact bytes): from re-pin #1's
+    manifest (`git show 1bb6764:config/substrate_manifest.sha256`) and the merge record, every merged
+    file with pre-seam bars and the sha256 the manifest pins for its csv and parquet. The lock in
+    tests/test_era_tr_writer_t387.py re-derives it and asserts byte-equality with the committed file."""
+    pins: Dict[str, str] = {}
+    for ln in manifest_bytes.decode().splitlines():
+        if ln.strip():
+            h, path = ln.split("  ", 1)
+            pins[path] = h
+    meta = json.loads(merge_meta_bytes.decode())["per_ticker"]
+    targets = sorted(t for t, r in meta.items()
+                     if r.get("merge_case") == "both" and int(r.get("n_stooq_pre_seam") or 0) > 0)
+    files = {t: {"csv": pins[f"data/processed/{t}_1d.csv"], "parquet": pins[f"data/processed/parquet/{t}_1d.parquet"]}
+             for t in targets}
+    out = {"_doc": _DRIP_WITNESS_DOC, "source_manifest": "config/substrate_manifest.sha256",
+           "source_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+           "source_commit": f"{DRIP_WITNESS_SOURCE_COMMIT} (RE-PIN #1 — the drip substrate PINNED)",
+           "merge_record_sha256": hashlib.sha256(merge_meta_bytes).hexdigest(),
+           "n_files": len(files), "files": files}
+    return json.dumps(out, indent=1, sort_keys=False) + "\n"
+
+
 def load_drip_witness(path: Path = DRIP_WITNESS_PATH) -> Optional[Dict[str, dict]]:
     """The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
     drip from the merge record — fail closed). A malformed witness raises."""
