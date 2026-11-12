@@ -257,7 +257,9 @@ GLOBAL_MISSED_ERAS: Tuple[Tuple[pd.Timestamp, pd.Timestamp], ...] = (
 #: Era blocks for the neighbour rule: a one-sided neighbour may only lend its label inside its
 #: own block (it never extrapolates across a universe-wide flip).
 GLOBAL_BLOCK_EDGES = pd.DatetimeIndex(["2003-04-01", "2011-02-21", "2022-12-19"])
-PROBE_LEVEL_BARS = 5           # A1: clean bars each side of the ex-date for the level-shift probe
+PROBE_LEVEL_BARS = 1           # A1 (v3): the nearest CLEAN bar each side — v1's 3-return window when
+                               # no transient block is near (v2's 5-bar medians made σ(m) √(10/3)× larger
+                               # and lost the measured labels of noisy years: CMI/AXP/RTX 2000-01)
 BLIP_MIN = 0.0025              # A1: |Δlog stooq − Δlog ref| above this may open a transient offset …
 BLIP_MAX_BARS = 15             # … that a later bar undoes within this many bars …
 BLIP_REVERT_TOL = 0.15         # … to within 15 % of its size
@@ -344,7 +346,8 @@ def probe_exdates(j: pd.DataFrame, divs: pd.Series, k_bars: int = PROBE_LEVEL_BA
     it robust to a one-day-early or one-day-late adjustment):
         x = median X(POST) − median X(PRE);  y = median Y(POST) − median Y(PRE);  m = x / y
     m = 0: Stooq captured it; m = 1: Stooq missed it.
-    σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on clean non-event bars × √(2k) / |y|."""
+    σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on clean non-event bars × √(span) / |y|,
+    span = the daily returns between the two nearest clean bars (+ 2(k−1)): 3 when no block is near."""
     cols = ["ex_date", "day", "pos", "D", "P_prev", "log_f", "y_lvl", "x_lvl", "m", "sm", "confident",
             "offset_bars_near"]
     if divs is None or len(divs) == 0 or len(j) < 4 * k_bars + 4:
@@ -377,7 +380,8 @@ def probe_exdates(j: pd.DataFrame, divs: pd.Series, k_bars: int = PROBE_LEVEL_BA
     frac = np.minimum(dv.to_numpy() / p_prev, MAX_DIV_FRACTION)
     with np.errstate(divide="ignore", invalid="ignore"):
         m = np.where(np.abs(y_lvl) > 1e-12, x_lvl / y_lvl, np.nan)
-        sm = np.where(np.abs(y_lvl) > 1e-12, sig * np.sqrt(2 * k_bars) / np.abs(y_lvl), np.inf)
+        span = (post_idx[:, 0] - pre_idx[:, -1]) + 2 * (k_bars - 1)
+        sm = np.where(np.abs(y_lvl) > 1e-12, sig * np.sqrt(span) / np.abs(y_lvl), np.inf)
     sm = np.where(np.isfinite(sm), sm, np.inf)
     return pd.DataFrame({
         "ex_date": dv.index, "day": j.index[pos], "pos": pos, "D": dv.to_numpy(), "P_prev": p_prev,

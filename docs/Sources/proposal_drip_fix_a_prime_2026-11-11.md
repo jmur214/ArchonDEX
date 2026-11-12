@@ -223,5 +223,23 @@ is already total return (§1.3). The 2013 year-end block (2013-12-19 → 2014-01
 ON the 2013/2014 year-end endpoint. The cache and the candidate both inherit it. If (ii) 2013 still
 fails because of it, that is reported as a FAIL.
 
+**A second correction to A1, after the v2 run.** This is the last change. v3 is the candidate
+whatever its result.
+- v2 is commit `acb1e72`, evidence under `v2_evidence/`, manifest `244bcf07…`.
+- **v2 result: FAIL.**
+  - (i) 1,770 of 1,830 pass.
+  - (ii) 2013 improved from p95 0.71 to 0.32, still above the 0.30 limit. 2000 and 2001
+    REGRESSED, to p95 0.415 and 0.414.
+  - (iii) 6 names fail, all through (i). Its part (a) passes for 110 of 110.
+  - (iv) 575 of 575 pass.
+- The 2000–01 regression came from my A1 implementation, not from the data. The 5-bar medians made
+  σ(m) √(10/3) times larger than v1's. In the noisier 2000–01 data that turned measured labels
+  into global-rule labels (CMI, AXP, RTX, PGR, EXC and others), and the global rule says
+  "captured" before 2003-04.
+- **v3** keeps v1's window, the 3 daily returns around the ex-date, and only moves an endpoint
+  outward when it sits inside a detected block: PRE is the nearest clean bar ≤ e−2, POST the
+  nearest clean bar ≥ e+1. σ(m) = noise × √(returns spanned) / |y|.
+- The blip test and the five other reversion modes still fail exactly as intended.
+
 <!-- §2 onward (the build, the acceptance result, the runbook consequence, the re-run list, the
 risks and the recommendation) is written AFTER the candidate is built and tested. -->
