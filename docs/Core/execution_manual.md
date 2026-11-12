@@ -1711,6 +1711,43 @@ python -m scripts.rescore_b1_ey_exposure \
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
 
+## B-6 Lazy Prices — the repaired 10-K + 10-Q text panel (T-383 Phase 1, added 2026-11-11)
+
+Prereg: `docs/Sources/prereg_b6_lazy_prices_2026-11-11.md`. TEXT ONLY — no price, no return. Every
+output lands in the worktree-LOCAL real directory `data/b6_local/` (never through the shared
+`data/edgar` / `data/research` symlinks, which are read-only inputs). SEC requests use the
+user-approved User-Agent read from `scripts/lazy_prices/ingest_filings_t237.py:UA`, SEC hosts only;
+`--min-interval 0.45` per process keeps two concurrent streams under 4.5 req/s together. Every
+network step checks free disk before each company and halts cleanly under 15 GB (exit 3); an SEC
+403 halts (exit 4).
+
+```bash
+python -m scripts.lazy_prices.b6_cik_map                    # offline: Form 3/4/5 symbol chains -> data/b6_local/cik_map/
+python -m scripts.lazy_prices.b6_build_panel universe        # member CIK per (S&P interval, month) + the fetch list
+python -m scripts.lazy_prices.b6_smoke                       # 30+ real filings parsed and printed for a human read
+python -m scripts.lazy_prices.b6_build_panel fetch --min-interval 0.45   # S&P sections (zstd shards), resumable
+python -m scripts.lazy_prices.b6_build_panel fetch --retry-failed --ciks 858877 --disk-floor 10   # re-attempt recorded fetch failures only (appended; readers prefer the success)
+python -m scripts.lazy_prices.b6_stream_t265 --min-interval 0.45         # T-265 signals only, no stored text
+python -m scripts.lazy_prices.b6_signals sp                  # similarity + LM tone change per S&P filing
+python -m scripts.lazy_prices.b6_census                      # before (T-237) / after (B-6) coverage + price-file coverage
+python -m pytest tests/test_b6_lazy_prices_parse.py tests/test_b6_lazy_prices_signals.py -q
+```
+
+S&P-arm harness (Phase 2; standalone, never `BacktestController`). It builds the panel and runs the
+FROZEN census first; exit 2 = a fail-closed condition fired and no return was computed.
+
+```bash
+python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --out data/b6_local/harness_sp/census_d_repro   # window (d): exit 2 (NOT EVALUABLE, AMENDMENT 2)
+python -m scripts.lazy_prices.b6_harness_sp --smoke --out data/b6_local/harness_sp/smoke_c   # the gate window (c)'s first 12 months, sanity only
+python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1   # gate (c) + diagnostics; run twice, compare results.md5
+# AMENDMENTS 3/4 (review F1-F5): parser b6_parse/2 over the S&P panel, v2 signals, shared-ticker holders
+python -m scripts.lazy_prices.b6_build_panel reparse --min-interval 0.22 --disk-floor 10   # sp_sections_v2/ (re-fetch fallback/failed MD&A rows; re-check the rest)
+python -m scripts.lazy_prices.b6_signals sp --shards data/b6_local/sp_sections_v2 --out data/b6_local/signals_sp_v2.parquet
+python -m scripts.lazy_prices.b6_cik_map --t265-shared   # who held each shared T-265 ticker when (AMENDMENT 4)
+python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --signals data/b6_local/signals_sp.parquet --out data/b6_local/harness_sp/census_d   # the (d) record on b6_parse/1 signals
+python -m pytest tests/test_b6_harness_sp.py -q
+```
+
 ## B-5 levered diversified book vs 1× SPY under Roth financing (T-382, added 2026-11-11)
 A standalone harness (the T-311 pattern; never `BacktestController`). Pre-registration:
 `docs/Sources/prereg_b5_levered_diversified_2026-11-11.md`, frozen at `535a3fc`, amendment 1 at
