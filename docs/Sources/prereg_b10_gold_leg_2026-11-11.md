@@ -407,3 +407,50 @@ md5 -q data/research/substrate_multidecade/{equity,gold}_tr_daily.csv data/proce
 # §10 honest N, read-only
 python -c "from core.measurement.mbl_gate import compute_n_effective_correlated as f; print(f(method='conservative'), f(method='equicorr'), f(method='onc'))"
 ```
+
+---
+
+## AMENDMENT 1 — 2026-11-11: DIRECTOR FREEZE + the five §17 rulings (BINDING; appended, frozen text above unedited)
+
+**The director FROZE this prereg at `0cc3f56`.** All five §17 rulings were ACCEPTED as proposed. This
+amendment is committed on its own, BEFORE any return is computed. The frontmatter `status:` line above
+is part of the frozen text and is left as written. This section supersedes it as the record of the
+freeze.
+
+1. **The refutation takes precedence.** H1 MET also requires ci_low(W-00) ≥ 0. A W-71 ci_low > 0
+   together with a W-00 ci_low < 0 reads as **REFUTED**. The §6 table stands as written.
+2. **The MDD clause** is read on W-71, on the realized path, as a point value. The bootstrap interval
+   of the MDD difference is reported but does not gate.
+3. **The fee:** primary is gold 0.09%/yr (IAUM). The labelled sensitivity is 0.40%/yr (GLD), computed
+   by T-311's own `robo_returns` with the 1e-12 parity check (§4).
+4. **The splice:** T-306 as built (LBMA AM fix → COMEX front-month). The local GLD file checks
+   2020-04-09 → 2025-12-31 and HALTS outside [−1.00, +0.20] %/yr gap, or below 0.95 21-day correlation
+   (§3.2, G11).
+5. **Labels:** **1971–2025** (W-71) and **2000–2025** (W-00), both ending 2025-12-31.
+
+**The director's instruction on the T-311 finding:** the gold flat-tail forward-fill (§3.4 item 2) is
+being logged in health_check by the director. The verdict carries it as a caveat on T-311's 3-asset arm.
+
+**Operational decisions recorded before any data** (they alter NO frozen term):
+- Harness: `scripts/b10_gold_leg.py`. Locks: `tests/test_b10_gold_leg_guards.py` (synthetic data).
+- Outputs: a worktree-local real directory `data/b10_local/` (`b10_results.json`; smoke files
+  `b10_smoke_*.json`). Nothing is written through `data/research`.
+- **Determinism:** two full runs. The md5 of `b10_results.json` must match bit for bit. The JSON is
+  written with sorted keys and carries no wall-clock timestamps.
+- `bootstrap_distribution` takes `metric_fn = lambda x: float(np.sum(x))` and seed 0 for every call.
+  `t311.paired` keeps its internal seed 0.
+- **By-decade correlation** (§7 item 7): month-end-to-month-end simple returns of the two NET legs.
+  These are the same daily net returns T uses, compounded within each calendar month. It uses the
+  Pearson correlation.
+- **Drawdown dates** (§7 item 4): peak = the last running-max date before the trough. Recovery = the
+  first date after the trough when the curve regains the peak level, or `null` if it never does
+  within the window.
+- **The smoke** (the first 12 months of each window) calls the same pipeline on [base, end-of-first-year]
+  with the G8 length floor lowered to the smoke's length. It checks only:
+  - the rebalance census (11 rebalances);
+  - turnover > 0;
+  - the parity lock and the Σd identity;
+  - that all guards pass.
+  No smoke number is quoted.
+
+N_trials consumed: **+1** (unchanged).
