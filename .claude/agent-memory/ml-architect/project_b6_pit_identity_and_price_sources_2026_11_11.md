@@ -40,6 +40,14 @@ a reader that prefers the successful row; never accept a permanent drop for a tr
 Mac's free disk swings by GBs/hour (an Xcode build in /private/tmp, other agents' substrate
 candidates, swap) — make every long fetch resumable with a per-batch disk floor.
 
+**Phase-2 outcome (2026-11-12):** the frozen S&P gate HALTED at its own census before any return —
+13 of 40 rebalances below the 80%-of-members floor (min 67.9%, 2016-Q1): text was fine (86–97%),
+T-265 simply has no bars for acquired members. I had written that floor into the draft using each
+coverage SEPARATELY (text 86%+, price files 83%+), never their JOINT rate at each rebalance. Lesson:
+before a coverage floor is frozen, compute the JOINT census of every eligibility condition per
+rebalance; a ticker join does not rescue missing bars. Never run the sensitivity first when the gate
+halts — a sensitivity result seen before the gate ruling is a forking path.
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].
