@@ -168,7 +168,7 @@
 - Deploy-candidate record — **VOID after 2026-11-04** (an unhandled MTUM split: a spurious buy, a paper-broker windfall, halted since 11-06; 36 clean sessions stand). The record restarts only after split handling deploys and the account is recovered — the user's word (health_check HIGH, 2026-11-10).
 - Wash-guard recorder on account-1 (E; phase 1 approved) → sibling pulls + liveness check (phase 2).
 - Post-audit structure work: `main()` extraction into an ordered step registry with ONE strategy pipeline + the five text-assertion wiring tests converted to execution tests (E, C rider; branch) — sequenced BEFORE the collar/pre-trade gate and journal checkpoint (director YES, pending the user's word).
-- **Alpha-frontier search RESUMED (2026-11-11):** B-9 combo tilts (T-380) and B-2 small-cap momentum + insider clusters (T-381) in worktrees, prereg-first, director-acknowledged before any result; next in line B-6 (Lazy Prices, filings text), B-5, B-4, B-8, B-10 (B-7 waits on the HMM repoint). The CEF thread closed 2026-11-10 (T-379).
+- **Alpha-frontier search RESUMED (2026-11-11):** B-9 (T-380) REFUTED and merged `4ac2519` — keep 85/15; B-2 (T-381) small-cap momentum AND insider clusters both NOT MET (review: text corrections owed, numbers reproduced exactly); B-5 (T-382) levered diversified book running; B-6 (T-383) phase 1 rebuilding the Lazy Prices panel (the T-237 panel was invalid). B-1 (T-365) is re-verify-required (the drip HIGH); B-4 must not run on B-1's panel; B-7 waits on the HMM repoint.
 - Referee repairs (B, after the director pass's first artifact): HMM backfill repoint; legacy-HMM production load.
 
 ## Next decision (exactly 1)
