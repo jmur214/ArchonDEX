@@ -1815,11 +1815,39 @@
 - **Function `run_moonshot_verdict()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `smallcap_insider_t265_b2.py`
+**Module Docstring:** scripts/smallcap_insider_t265_b2.py — B-2 (T-381) insider-buying clusters on the T-265 panel.
+- **Function `bad_field_lines()`**: Lines whose tab count differs from the header's (too many OR too few fields — pandas
+- **Function `strict_parse()`**: Parse; a non-empty raw value that does not parse HALTS (never coerced to NaN).
+- **Function `scan_zips()`**: All P/A original-Form-4 non-derivative rows (2006q1-2026q1), one quarter at a time.
+- **Function `routine_from_year()`**: Y* per (owner, issuer): the first calendar year in which the insider is ROUTINE — they
+- **Function `count_rows()`**: Rows that count toward a cluster. tenb51: 'base' (AFF or footnote) | 'no_pre2023_fn'.
+- **Function `detect_clusters()`**: PIT clusters with a cool-off of one live event per issuer (A1.5 / §4.2).
+- **Function `event_path()`**: Daily returns k=1..n_days after the entry close at calendar index e. Alive: the change in
+- **Function `build_events()`**: No docstring
+- **Function `attach_paths()`**: Per event and D: the daily return path (up to 126 days, truncated at the calendar end).
+- **Function `car_table()`**: No docstring
+- **Function `study_stats()`**: Event-study statistics. Too few cohorts: the GATE halts (NotEvaluable propagates); a
+- **Function `simulate_book()`**: Daily calendar-time EW book; positions enter at the entry close, earn days 1..126, exit at
+- **Function `monthly_from_daily()`**: No docstring
+- **Function `form4_census_observed()`**: §3.5/§3.6 counts with census_form4.py / census_join.py definitions (priced = a file with
+- **Function `main()`**: No docstring
+
 ### `smallcap_momentum_gauntlet_t249.py`
 **Module Docstring:** T-249 small-cap 12-1 momentum gauntlet — gross vs HONEST small-cap cost. Survivor-biased universe (upper bound).
 - **Function `load_monthly()`**: Return (month-end close Series, month-end trailing dollar-ADV Series) or None.
 - **Function `run()`**: No docstring
 - **Function `stats()`**: No docstring
+
+### `smallcap_momentum_t265_b2.py`
+**Module Docstring:** scripts/smallcap_momentum_t265_b2.py — B-2 (T-381) small-cap 12-1 momentum on the T-265 panel.
+- **Function `formation_frame()`**: Every segment's signal / ADV / tradability at formation month-end me[i].
+- **Function `select_decile()`**: No docstring
+- **Function `holding_returns()`**: Per-name return over (me[i], me[i+1]]; a death inside the month takes D at its last
+- **Function `run_arm()`**: Monthly net returns of one arm over the formation list (drifted-weight turnover).
+- **Function `build_formations()`**: No docstring
+- **Function `per_year()`**: No docstring
+- **Function `main()`**: No docstring
 
 ### `smallcap_pead_pilot_t265.py`
 **Module Docstring:** T-265 — survivorship-complete small-cap panel + PEAD low-coverage event-study pilot.
@@ -1828,6 +1856,38 @@
 - **Function `stage_prices()`**: No docstring
 - **Function `stage_study()`**: No docstring
 - **Function `stage_announce()`**: No docstring
+
+### `smallcap_t265_b2_common.py`
+**Module Docstring:** scripts/smallcap_t265_b2_common.py — shared machinery for the B-2 (T-381) harnesses.
+- **Class `Halt`**: A fail-closed stop ([NN-FAIL-CLOSED]): the harness exits 2 and writes no headline.
+- **Class `NotEvaluable`**: Too few observations for a statistic. Halts on the gate path; descriptive cells catch it.
+- **Class `Segment`**: No docstring
+- **Function `enforce_census()`**: §4.5: every declared count must equal its recomputation; any mismatch (or a missing
+- **Function `write_census_check()`**: No docstring
+- **Function `env_pin_violations()`**: No docstring
+- **Function `load_twin()`**: No docstring
+- **Function `market_calendar()`**: Trading days of the SPY TR twin (prereg §4.1).
+- **Function `twins_on()`**: SPY / IWM / BIL TR closes on the calendar; any gap HALTS.
+- **Function `month_ends()`**: No docstring
+- **Function `file_census()`**: Per-file census, computed EXACTLY as census_prices.py / census_zerovol.py /
+- **Function `split_segments()`**: Traded bars only; split where the census_splice gap (market days without a trade between
+- **Function `load_universe()`**: Every T-265 price file -> segments, with the A1.2 recount (HALT on mismatch).
+- **Function `price_census_observed()`**: The §3.3 counts from the per-file census, with the census scripts' definitions.
+- **Function `price_matrices()`**: (traded close on the calendar, 20-day median dollar ADV on the calendar). ADV counts a
+- **Function `side_cost()`**: Per-side cost by ADV bucket; ADV missing or < $20M -> the micro rate (A1.3).
+- **Function `boot()`**: Project-standard moving-block bootstrap on the MONTH INDICES (auto block length).
+- **Function `dlogw()`**: Δ log terminal wealth of (75% SPY + 25% arm) vs 100% SPY, or vs (75% SPY + 25% bench).
+- **Function `sharpe_fn()`**: No docstring
+- **Function `sortino_fn()`**: No docstring
+- **Function `max_dd()`**: No docstring
+- **Function `cagr()`**: No docstring
+- **Function `nw_mean_t()`**: Mean and Newey-West (Bartlett, statsmodels HAC) t of a series' mean.
+- **Function `nw_alpha()`**: Intercept (x12, annualized) and slope of y on [1, x] with HAC t (A1.6 diagnostics).
+- **Function `arm_block()`**: Standalone + satellite statistics for one monthly arm on one paired bootstrap draw.
+- **Function `satellite_label()`**: A1.6 binding labelling rule.
+- **Function `r12()`**: No docstring
+- **Function `canonical_md5()`**: No docstring
+- **Function `write_results()`**: No docstring
 
 ### `special_situations_monitor_t277.py`
 **Module Docstring:** scripts/special_situations_monitor_t277.py
