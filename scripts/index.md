@@ -266,6 +266,71 @@
 **Module Docstring:** scripts/audit_per_edge_substrate.py
 - **Function `main()`**: No docstring
 
+### `b5_levered_diversified.py`
+**Module Docstring:** T-382 (B-5) — levered diversified book vs 1x SPY under honest Roth financing.
+- **Class `B5Halt`**: A fail-closed halt in the measurement path. Never caught inside the harness.
+- **Class `Boot`**: Caches block-start draws per (n, L) so every spread on a cell uses identical resamples.
+  - `def __init__()`
+  - `def sums()`
+  - `def stat()`
+- **Class `Substrate`**: T-306 legs on the equity calendar via T-311 load_substrate, with a REAL ffill guard.
+  - `def __init__()`
+  - `def ffill_runs()`
+  - `def window()`
+- **Function `md5_file()`**: No docstring
+- **Function `write_json()`**: No docstring
+- **Function `mm_from_discount()`**: T-bill discount yield (decimal) -> money-market (act/360) yield: 360d/(360-91d).
+- **Function `daily_reset()`**: Brief formula, daily reset: R = L*u - (L-1)*f - ER/252.
+- **Function `stacked_fund()`**: Stacked fund (NTSX/RSSB-type): equity E and Treasury overlay F drift between rebalances;
+- **Function `drifting_portfolio_init()`**: Unlevered drifting portfolio starting at weights w0; after the close of each rebal day t the
+- **Function `apply_cost()`**: No docstring
+- **Function `arm_iv_monthly()`**: (1-w) NAV SPY sleeve (ER 0.09 %) + w NAV RSST-class sleeve (equity + 1.0 overlay at
+- **Function `auto_block()`**: MetricsEngine.bootstrap_distribution's block_length=None rule, verbatim.
+- **Function `mbb_starts()`**: Replays MetricsEngine.bootstrap_distribution's exact draws (A1.1-6).
+- **Function `mbb_sums()`**: Sum of each moving-block resample (concatenation truncated to n), via prefix sums.
+- **Function `ci_from_samples()`**: No docstring
+- **Function `me_sum_stat()`**: MetricsEngine's own bootstrap on Σd (the project standard; quoted for H1).
+- **Function `crossing()`**: First grid crossing of `stat` through 0 (linear interpolation). Monotone decreasing in s.
+- **Function `binding_sentence()`**: Prereg §9 / R-12, three cases, exhaustive.
+- **Function `cmd_fetch()`**: No docstring
+- **Function `cmd_er_check()`**: Informational (R-5): UGL / UST expense ratios from yfinance fund data. Alters nothing.
+- **Function `parse_h15_bill()`**: Dispatch: the full-release SDMX/ZIP (A2.1, the production path) or a DDP CSV package.
+- **Function `parse_h15_sdmx_zip()`**: The full H.15 SDMX/ZIP -> the 3-month bill (decimal), by SERIES_NAME (A2.1 identity check).
+- **Function `parse_h15_csv()`**: A DDP H.15 CSV package -> the 3-month bill (decimal, discount basis), by its Unique Identifier.
+- **Function `parse_nyfed_sofr()`**: NY Fed Markets API search.csv -> SOFR (decimal) by Effective Date (amendment 2).
+- **Function `guard_financing()`**: Amendment 2: each publisher series vs its on-disk FRED sibling (read-only). HALT-only.
+- **Function `verify_snapshot()`**: No docstring
+- **Function `load_yf()`**: No docstring
+- **Function `financing_base()`**: Annual act/360 rate (decimal): the 3-month bill (H.15; = FRED DTB3) money-market-converted
+- **Function `financing_arrays()`**: For return dates[1:]: r_{t-1} (last base rate on or before dates[t-1]) and Δcal_t.
+- **Function `fin_gap_check()`**: No docstring
+- **Function `load_aqr()`**: No docstring
+- **Function `fin()`**: No docstring
+- **Function `cash_acc()`**: No docstring
+- **Function `quarter_end_flags()`**: No docstring
+- **Function `month_end_flags()`**: No docstring
+- **Function `rp_weights()`**: Inverse-vol weights at every date (used only at month-ends): 252-day trailing std of daily log
+- **Function `arm_returns()`**: No docstring
+- **Function `log_diff()`**: No docstring
+- **Function `wealth_stats()`**: No docstring
+- **Function `sortino_ci()`**: No docstring
+- **Function `ir_of()`**: No docstring
+- **Function `honest_n()`**: No docstring
+- **Function `mbl_line()`**: No docstring
+- **Function `to_monthly()`**: No docstring
+- **Function `monthly_inputs()`**: No docstring
+- **Function `validate_daily()`**: No docstring
+- **Function `cmd_validate()`**: No docstring
+- **Function `load_validation()`**: No docstring
+- **Function `cmd_smoke()`**: No docstring
+- **Function `rho_years()`**: No docstring
+- **Function `cell_daily()`**: No docstring
+- **Function `curve_daily()`**: No docstring
+- **Function `subsample()`**: No docstring
+- **Function `arithmetic()`**: No docstring
+- **Function `cmd_run()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `backfill_decision_diary.py`
 **Module Docstring:** One-shot backfill of decision diary with this week's load-bearing decisions.
 - **Function `main()`**: No docstring

@@ -1688,6 +1688,32 @@ python -m scripts.rescore_b1_ey_exposure \
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
 
+## B-5 levered diversified book vs 1× SPY under Roth financing (T-382, added 2026-11-11)
+A standalone harness (the T-311 pattern; never `BacktestController`). Pre-registration:
+`docs/Sources/prereg_b5_levered_diversified_2026-11-11.md`, frozen at `535a3fc`, amendment 1 at
+`3dcf399`.
+- Substrate: T-306, read through T-311's `load_substrate` (imported, never edited); the substrate
+  md5s are verified on every run.
+- Financing: the 3-month T-bill (= FRED DTB3, converted to a money-market yield) through 2018-04-02,
+  then SOFR, plus the spread s. Both come from their publishers (amendment 2): the Fed Board's H.15
+  DDP full-release SDMX/ZIP, keeping `OBS_STATUS="A"` only (no-data days are `-9999`), and the NY Fed
+  Markets API. FRED's keyless `fredgraph.csv` was blocked for this client on 2026-11-11.
+- Network: `fetch` runs ONCE. It refuses if `data/research/b5/inputs/MANIFEST.json` exists. Every
+  later step reads only the md5-verified snapshot.
+- Fail-closed: every halt exits 2 with `B5 HALT [NN-FAIL-CLOSED]`.
+- Order: fetch → validate → smoke → run A and B, then compare their md5s.
+
+```bash
+python scripts/b5_levered_diversified.py fetch       # one time: H.15 SDMX/ZIP (3m bill) + NY Fed SOFR + yfinance fetch_yf_tr + AQR copy
+python scripts/b5_levered_diversified.py er-check    # informational: UGL/UST ERs (alters nothing)
+python scripts/b5_levered_diversified.py validate    # synthetic vs live ETF -> data/research/b5/validation.json
+python scripts/b5_levered_diversified.py smoke       # first 12 months of each window -> smoke.json (never quoted)
+python scripts/b5_levered_diversified.py run --tag A # -> data/research/b5/run_A/
+python scripts/b5_levered_diversified.py run --tag B # determinism twin -> run_B/
+diff <(cd data/research/b5/run_A && md5 -r * | sort) <(cd data/research/b5/run_B && md5 -r * | sort)
+python -m pytest tests/test_b5_levered_simulator.py -q
+```
+
 ## B-2 (T-381) — small-cap momentum + insider clusters on the T-265 panel (added 2026-11-11)
 These are standalone harnesses for the frozen prereg `docs/Sources/prereg_b2_smallcap_t265_2026-11-11.md`
 (+ AMENDMENT 1). They read the T-265 stages (`data/research/t265/`), the SEC Form 345 zips
