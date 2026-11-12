@@ -811,7 +811,7 @@ def monthly_inputs(sub: Substrate, kind: str, m0: str, m1: str) -> Dict:
     if kind == "aqr":
         tau = load_aqr().reindex(months)
     else:
-        full_dates = sub.px2.index
+        full_dates = sub.px2.index[sub.px2.index <= pd.Timestamp("2025-12-31")]   # every window ends here
         r, dcal = financing_arrays(full_dates, sub.base)
         c_daily = pd.Series(r * dcal / 360.0, index=full_dates[1:])
         fin_gap_check(sub.base, months[0].to_timestamp(), months[-1].to_timestamp(how="end"))
