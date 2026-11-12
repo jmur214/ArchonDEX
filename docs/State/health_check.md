@@ -84,6 +84,17 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: USER/DIRECTOR-GATED. Dispatch RR-1, RR-2, RR-3, RR-7 in parallel (P0); do not quote any new equity-book number until RR-1 and RR-5 merge; run B-1 (raw-signal decile re-evaluation) as the first research brief — it does not touch the referee.
 - Anchor: `config/alpha_settings.prod.json:37` contains `"news_sentiment_edge"` — (11) RR-7
 
+### [MEDIUM] The T-306 multi-decade CASH leg is quantized to 1 bp/day (seven distinct values, 0–6 bp) — ±1 pp/yr year-level error in every cash-financed or cash-credited T-306 harness (director, 2026-11-11; found by the B-5 worker's census, value count verified by the director)
+- Engine: research substrate — `data/research/substrate_multidecade/cash_daily.csv` (column `cash_ret`, 26,253 rows 1926-07-01 → 2026-05-29), its builder (provenance in `provenance.json`), consumers `scripts/deep_reverify_sleeve_t311.py` `load_substrate` and every T-306-family harness that credits or finances at cash
+- First flagged: 2026-11-11 (B-5 / T-382 prereg census). Director check: `cash_ret` takes exactly 7 distinct values {0.0000, 0.0001, …, 0.0006}.
+- Description: one quantum is ≈ 2.52 %/yr annualized, so a single year's cash return is off by up to ±1.03 pp against DGS3MO (2003, 2017, 2025 per the worker); over 2000–2025 the errors net to ≈ −0.01 pp/yr. Long-window aggregates (T-311/T-315 wealth verdicts) are probably fine; YEAR-LEVEL reads (crisis-window cash credit, the leveraged arms' financing cost in a given year — T-315's SSO synthetic used cash + 60 bp) are suspect. B-5 uses FRED DTB3/SOFR instead and never this file.
+- Status: OPEN (research substrate; owner: whoever next rebuilds T-306). Fix: rebuild the cash leg from FF daily RF at full precision (or DTB3/SOFR) and re-check the year-level T-306 reads; until then any per-year cash-sensitive number from a T-306 harness carries this caveat.
+
+### [LOW] T-311's `load_substrate` calendar-hole guard can never fail — it compares the aligned frame's index with itself (director, 2026-11-11; found by the B-5 worker)
+- Engine: research harness — `scripts/deep_reverify_sleeve_t311.py:72` (`assert_no_calendar_holes(frame.index, frame.index, …)`), imported by later T-306-family harnesses
+- Description: the legs are reindexed onto the equity calendar and forward-filled BEFORE the check, and the check's two arguments are the same index — so a data outage masked by `ffill()` passes silently. A lock that cannot fail certifies nothing ([[a lock is proven only where it runs]]). B-5 adds its own guard against forward-fills masking outages.
+- Status: OPEN, low. Fix: check each leg's NATIVE index against the expected calendar before the reindex/ffill, and prove the guard by planting a hole; T-311's own verdict numbers are not known to be affected.
+
 ### [MEDIUM] The honest-N gate's registry never sees a standalone-harness trial — every frontier test since August is missing from `compute_n_effective_correlated`'s count (director, 2026-11-11, found by the B-9 prereg)
 - Engine: referee / measurement — `core/measurement/mbl_gate.py` (`compute_n_effective_correlated`), `core/observability/run_registry.py`, `data/observability/run_registry.sqlite`
 - First flagged: 2026-11-11, by the B-9 (T-380) worker's read-only honest-N step: N_raw 231, N_eff 36.92; the registry file last modified 2026-08-05.
