@@ -6,3 +6,4 @@
 - [B-5 financing-input census (2026-11-11)](project_b5_financing_inputs_census_2026_11_11.md) — T-306 FF-RF cash quantized 1bp/day (±1pp/yr); DTB3/SOFR absent; SG CTA gated; AQR TSMOM over-captures ~5%/yr; T-311 guard vacuous.
 - [B-5 verdict: levered stacks = correlation-regime bet (2026-11-11)](project_b5_route_c_closed_correlation_regime_bet_2026_11_11.md) — RSSB 100/100 +0.21%/yr [-1.91,+2.30] 1968-2025; financing NOT binding; rho<=0 yrs +3.5%, rho>0 yrs -1.8..-6.4%; swaps pinned ~50bp; futures-stack spread unpinned (noise).
 - [B-9 multi-factor tilts REFUTED (2026-11-11)](project_b9_combo_tilts_inputs_2026_11_11.md) — 60/20/20 ci_low −0.24, t 1.24 vs 2.2; long-only active ρ −0.07 (not −0.3), small-value TE 20%; gain all 2000–13; no local TR for MTUM/AVUV.
+- [B-10 gold leg REFUTED (2026-11-11)](project_b10_gold_leg_prereg_2026_11_11.md) — wealth Δ ci_low<0; 5.2pp MDD cut is mostly 10% de-equitization (cash gives 3.95); ALWAYS add a same-weight cash control.
