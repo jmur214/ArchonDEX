@@ -156,6 +156,9 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 
 ### `convention.py`
 **Module Docstring:** The UNIVERSAL convention label (option (a), the user's cutover ruling, 2026-10-22).
+- **Function `load_drip_witness()`**: The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
+- **Function `is_drip_witnessed()`**: None when the file under `cache_dir` IS the drip the witness pinned (csv always; parquet where
+- **Function `era_tr_records_present()`**: The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr.
 - **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
 - **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the
 - **Function `substrate_convention_record()`**: The `substrate_convention` census block over `run_names` (the panel; every name in the merge

@@ -22,9 +22,12 @@ attempt's reason is kept. Every row carries the writer source's sha256 and the w
 `era-tr` (option (a′), USER RULING 2026-11-12, T-387) rewrites the PRE-seam span of every merged
 file with pre-seam bars (the merge record's `both` files with `n_stooq_pre_seam > 0`) from the drip
 to `era_tr`, through `tr_writer.era_tr_rewrite` — OFFLINE: raw Stooq from `--raw-stooq`, the
-yfinance reference from the cached `--yf-dir` (refused without its `_fetch_log.jsonl`). It is
-RESUMABLE (`era_tr_<tag>.jsonl`, one row per file) and leaves every post-seam byte (and
-`close_unadj`) as it was. Run it on a DUPLICATE (`fresh-copy --from <step-1 copy>`), never on the
+yfinance reference from the cached `--yf-dir` (refused without its `_fetch_log.jsonl`, and unless the
+cache equals its pinned per-file manifest `--yf-manifest`, default
+`config/era_tr_reference_yf_manifest.sha256`). It is
+RESUMABLE (`era_tr_<tag>.jsonl`, one row per file). Post-seam it leaves every Date/OHLCV field, and
+`close_unadj` on every row, byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam
+row change by construction (functions of pre-seam bars). Run it on a DUPLICATE (`fresh-copy --from <step-1 copy>`), never on the
 pinned step-1 copy itself. Exit 0 = every target written; 2 = a refusal; 3 = below --min-free-gb.
 """
 from __future__ import annotations
@@ -260,6 +263,42 @@ def cmd_pass(args) -> int:
 
 DEFAULT_YF_DIR = CANDIDATES_ROOT / "drip_fix_a_prime_2026_11_11" / "yf"
 DEFAULT_RAW_STOOQ = MAIN_CANONICAL.parents[1] / "data" / "raw" / "stooq" / "daily" / "us"
+#: The per-file sha256 manifest of the reference cache the (a′) bytes depend on (T-387 review MINOR-4):
+#: every price and dividend parquet plus the fetch log, committed so the input is pinned in git. The
+#: driver REFUSES a cache that does not equal it (`--yf-manifest none` skips, and the rows say so).
+DEFAULT_YF_MANIFEST = REPO / "config" / "era_tr_reference_yf_manifest.sha256"
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def yf_cache_manifest(yf_dir: Path) -> str:
+    """`<sha256>  <relative path>` for EVERY regular file under the reference cache, sorted — the
+    manifest the (a′) build's inputs are pinned by (the prices and dividends, not only the log)."""
+    root = Path(yf_dir)
+    files = sorted(q for q in root.rglob("*") if q.is_file())
+    return "".join(f"{_sha256_file(q)}  {q.relative_to(root).as_posix()}\n" for q in files)
+
+
+def verify_yf_manifest(yf_dir: Path, manifest_path: Path) -> str:
+    """The cache's manifest must EQUAL the pinned one, line for line — or REFUSE (SystemExit) with
+    the first differences. Returns the sha256 of the verified manifest text."""
+    want_p = Path(manifest_path)
+    if not want_p.exists():
+        raise SystemExit(f"REFUSED: the reference-cache manifest {want_p} is absent — the (a′) inputs are "
+                         f"unpinned; pass --yf-manifest none to run unverified (recorded in every row)")
+    got, want = yf_cache_manifest(yf_dir), want_p.read_text()
+    if got != want:
+        g, w_ = set(got.splitlines()), set(want.splitlines())
+        diff = sorted(g ^ w_)[:6]
+        raise SystemExit(f"REFUSED: the reference cache {yf_dir} does not equal its pinned manifest {want_p} "
+                         f"({len(g - w_)} lines differ/extra, {len(w_ - g)} missing); first: {diff}")
+    return hashlib.sha256(got.encode()).hexdigest()
 
 
 def _md5(path: Path) -> str:
@@ -310,6 +349,10 @@ def cmd_era_tr(args) -> int:
     if meta is None:
         raise SystemExit(f"REFUSED: {copy} has no {w.MERGE_META_NAME} — no seam, no drip slope")
     state = yf_fetch_state(yf_dir)
+    if args.yf_manifest == "none":
+        yf_pin = "UNVERIFIED: --yf-manifest none"
+    else:
+        yf_pin = verify_yf_manifest(yf_dir, Path(args.yf_manifest))
     raw_idx = et.raw_stooq_index(raw_dir)
     targets = sorted(t for t, r in meta.items()
                      if r.get("merge_case") == "both" and int(r.get("n_stooq_pre_seam") or 0) > 0)
@@ -326,6 +369,8 @@ def cmd_era_tr(args) -> int:
     done = _done(rows_path)
     todo = [t for t in targets if t not in done]
     provenance = {"yf_dir": str(yf_dir), "yf_fetch_log_md5": _md5(yf_dir / "_fetch_log.jsonl"),
+                  "yf_manifest": (None if args.yf_manifest == "none" else str(Path(args.yf_manifest).resolve())),
+                  "yf_manifest_sha256": yf_pin,
                   "raw_stooq_dir": str(raw_dir), "writer_sha256": _writer_sha(), "head": _head(),
                   "era_tr_sha256": hashlib.sha256((REPO / "engines" / "data_manager" / "era_tr.py").read_bytes()).hexdigest()}
     print(f"[era-tr] {len(targets)} merged files with pre-seam bars, {len(done)} done, {len(todo)} to do; "
@@ -474,6 +519,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     s.add_argument("--copy", required=True)
     s.add_argument("--yf-dir", default=str(DEFAULT_YF_DIR))
     s.add_argument("--raw-stooq", default=str(DEFAULT_RAW_STOOQ))
+    s.add_argument("--yf-manifest", default=str(DEFAULT_YF_MANIFEST),
+                   help="the reference cache's pinned per-file sha256 manifest (refuses a mismatch); 'none' skips")
     s.add_argument("--only", default=None)
     s.add_argument("--tag", default=None)
     s.add_argument("--out-dir", default=None, help="where the report rows go (default: beside the copy)")

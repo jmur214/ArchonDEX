@@ -677,6 +677,8 @@
 - **Function `cmd_fresh_copy()`**: No docstring
 - **Function `capture_provider_output()`**: Everything the provider prints or logs during one file, UNFILTERED, under the file's name.
 - **Function `cmd_pass()`**: No docstring
+- **Function `yf_cache_manifest()`**: `<sha256>  <relative path>` for EVERY regular file under the reference cache, sorted — the
+- **Function `verify_yf_manifest()`**: The cache's manifest must EQUAL the pinned one, line for line — or REFUSE (SystemExit) with
 - **Function `yf_fetch_state()`**: The reference cache's own fetch log, last row per ticker. The log is what makes an ABSENT
 - **Function `reference_for()`**: (px, divs, status) for one name from the cached reference — refusing a name the fetch log
 - **Function `cmd_era_tr()`**: Rewrite every merged file's PRE-seam span in the copy from the drip to era_tr — offline,

@@ -416,3 +416,126 @@ def test_the_driver_refuses_a_reference_cache_without_its_fetch_log_or_a_name_it
 def test_the_driver_refuses_to_rewrite_the_canonical_cache():
     with pytest.raises(SystemExit, match="REFUSED"):
         cs.main(["era-tr", "--copy", str(w.CANONICAL_CACHE_DIR), "--dry-run"])
+
+
+# ── 9. the T-387 review (2026-11-12): the merge-record drip fallback FAILS CLOSED after (a′) ──────
+
+def _sha(path: Path) -> str:
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _planted_witness(cache_dir: Path, *names: str) -> dict:
+    """The frozen drip-cache witness, planted: each name's csv/parquet sha256 AS MERGED (drip)."""
+    out = {}
+    for t in names:
+        pq = cache_dir / "parquet" / f"{t}_1d.parquet"
+        out[t] = {"csv": _sha(cache_dir / f"{t}_1d.csv"), **({"parquet": _sha(pq)} if pq.exists() else {})}
+    return out
+
+
+def test_a_rewritten_file_whose_record_is_missing_is_UNLABELLED_never_inferred_drip(tmp_path, defective):
+    """The MAJOR: an era_tr file with its record set aside read `drip<…>` from the merge record. Now
+    the fallback needs the file's bytes to equal the frozen drip witness; the rewrite changed them."""
+    p = defective
+    cache = _seed_merged_cache(tmp_path / "copy", p)
+    witness = _planted_witness(cache, TICKER)
+    df = pd.read_csv(cache / f"{TICKER}_1d.csv", usecols=["Date", "Close"], parse_dates=["Date"]).set_index("Date")
+    before = substrate_convention_record(cache, run_names=[TICKER], data_map={TICKER: df}, conventions=NO_CONV,
+                                         drip_witness=witness)
+    assert before["per_name"] == {TICKER: "drip<2018-01-02|exact_tr"}            # positive control: the drip
+    _rewrite(cache, p)
+    rec_p = cache / w.WRITE_RECORDS_DIR / f"{TICKER}.json"
+    rec_p.rename(tmp_path / "set_aside.json")                                   # the record goes missing
+    r = substrate_convention_record(cache, run_names=[TICKER], data_map={TICKER: df}, conventions=NO_CONV,
+                                    drip_witness=witness)
+    assert r["per_name"] == {} and "NOT the drip re-pin #1 pinned" in r["unlabelled"][TICKER]
+    assert "refused" in pre_seam_spans(cache, [TICKER], {TICKER: df}, conventions=NO_CONV, drip_witness=witness)[TICKER]
+
+
+def test_a_post_a_prime_cache_never_infers_drip_even_for_a_byte_identical_file(tmp_path):
+    """PODD/POM: (a′) leaves two files byte-identical to the drip, so the byte rule passes them. A
+    cache holding ANY era_tr record is post-(a′): there a seam file without a record is unlabelled.
+    And with no witness at all, nothing is labelled drip from the merge record."""
+    d = tmp_path / "cache"
+    (d / w.WRITE_RECORDS_DIR).mkdir(parents=True)
+    entry = {"merge_case": "both", "seam_date": "2018-01-02", "n_stooq_pre_seam": 1, "first_bar_date": "2017-12-29"}
+    (d / w.MERGE_META_NAME).write_text(json.dumps({"per_ticker": {"ERA": entry, "SAME": entry}}))
+    for t in ("ERA", "SAME"):
+        (d / f"{t}_1d.csv").write_text("Date,Open,High,Low,Close,Volume\n2017-12-29,1,1,1,1,1\n2018-01-02,1,1,1,1,1\n")
+    witness = _planted_witness(d, "SAME")
+    frames = {t: pd.DataFrame({"Close": [1.0]}, index=pd.DatetimeIndex(["2017-12-29"])) for t in ("ERA", "SAME")}
+    ok = substrate_convention_record(d, run_names=["SAME"], data_map=frames, conventions=NO_CONV, drip_witness=witness)
+    assert ok["per_name"] == {"SAME": "drip<2018-01-02|exact_tr"} and not ok["post_a_prime"]   # positive control
+    nowit = substrate_convention_record(d, run_names=["SAME"], data_map=frames, conventions=NO_CONV, drip_witness=None)
+    assert "no drip-cache witness" in nowit["unlabelled"]["SAME"]
+    (d / w.WRITE_RECORDS_DIR / "ERA.json").write_text(json.dumps({
+        "ticker": "ERA", "convention": {"pre_seam": w.ERA_TR, "seam_date": "2018-01-02", "post_seam": w.EXACT_TR},
+        "seam": {"n_pre_seam_bars_kept": 1},
+        "era_tr": {"unverified_missed_era_spans": [], "unverified_pre2003_span": None}}))
+    r = substrate_convention_record(d, run_names=["ERA", "SAME"], data_map=frames, conventions=NO_CONV,
+                                    drip_witness=witness)
+    assert r["post_a_prime"] and r["per_name"] == {"ERA": "era_tr<2018-01-02|exact_tr"}
+    assert "post-(a′)" in r["unlabelled"]["SAME"]
+
+
+def test_an_era_tr_block_without_its_unverified_keys_is_unlabelled(tmp_path):
+    """MINOR-1: a block that cannot say what is unverified is never read as fully verified."""
+    d = tmp_path / "cache"
+    (d / w.WRITE_RECORDS_DIR).mkdir(parents=True)
+    conv = {"pre_seam": w.ERA_TR, "seam_date": "2018-01-02", "post_seam": w.EXACT_TR}
+    for t, block in (("NOTE", {"note": "x"}), ("HALF", {"unverified_missed_era_spans": []}),
+                     ("FULL", {"unverified_missed_era_spans": [["2005-01-03", "2006-01-03"]],
+                               "unverified_pre2003_span": None})):
+        (d / w.WRITE_RECORDS_DIR / f"{t}.json").write_text(json.dumps({"ticker": t, "convention": conv,
+                                                                          "seam": {}, "era_tr": block}))
+    r = substrate_convention_record(d, run_names=["NOTE", "HALF", "FULL"], data_map={}, conventions=NO_CONV,
+                                    drip_witness=None)
+    assert r["per_name"] == {"FULL": "era_tr<2018-01-02|exact_tr"}
+    assert "lacks" in r["unlabelled"]["NOTE"] and "unverified_pre2003_span" in r["unlabelled"]["HALF"]
+    assert r["unverified"] == {"FULL": {"missed_era_spans": [["2005-01-03", "2006-01-03"]], "pre2003_span": None}}
+
+
+def test_a_seam_DECLARED_era_tr_on_a_file_with_no_record_is_refused_before_any_provider_call(tmp_path, defective):
+    """MINOR-2: a declaration may name era_tr, but era_tr is only CARRIED from a record with its block."""
+    p = defective
+    cache = _seed_merged_cache(tmp_path / "cache", p)
+    conv = {**NO_CONV, "seams": {TICKER: {"seam_date": "2018-01-02", "pre_seam": w.ERA_TR, "post_seam": w.EXACT_TR}}}
+    calls = []
+
+    def counting(symbol, start, end, adjusted):
+        calls.append(symbol)
+        return _provider(p)(symbol, start, end, adjusted)
+    snap = (cache / f"{TICKER}_1d.csv").read_bytes()
+    with pytest.raises(w.WriterRefusal, match="declared era_tr but the file has no write record"):
+        w.full_refetch(TICKER, cache, {"yfinance": counting}, today=TODAY, actions=_no_actions,
+                       declarations={}, conventions=conv)
+    assert calls == [] and (cache / f"{TICKER}_1d.csv").read_bytes() == snap
+
+
+def test_the_driver_pins_the_reference_cache_by_its_per_file_manifest(tmp_path):
+    """MINOR-4: the (a′) bytes depend on every price/dividend parquet, not only the fetch log."""
+    yf = tmp_path / "yf"
+    yf.mkdir()
+    (yf / "_fetch_log.jsonl").write_text("{}\n")
+    (yf / "A.parquet").write_bytes(b"prices")
+    man = tmp_path / "pin.sha256"
+    man.write_text(cs.yf_cache_manifest(yf))
+    assert len(cs.verify_yf_manifest(yf, man)) == 64
+    (yf / "A.parquet").write_bytes(b"prices, restated")                      # a re-fetch drifted a file
+    with pytest.raises(SystemExit, match="does not equal its pinned manifest"):
+        cs.verify_yf_manifest(yf, man)
+    with pytest.raises(SystemExit, match="is absent"):
+        cs.verify_yf_manifest(yf, tmp_path / "nope.sha256")
+
+
+def test_the_shipped_reference_manifest_and_drip_witness_are_the_ones_v4_and_re_pin_1_used():
+    """Data locks on the two committed pins: the reference manifest lists 1,147 files (v3's yf/ set,
+    which v4 read) and the drip witness names the 575 merged files with pre-seam bars."""
+    from engines.data_manager.convention import DRIP_WITNESS_PATH, load_drip_witness
+    lines = cs.DEFAULT_YF_MANIFEST.read_text().splitlines()
+    assert len(lines) == 1147 and any(ln.endswith("  _fetch_log.jsonl") for ln in lines)
+    wit = json.loads(DRIP_WITNESS_PATH.read_text())
+    assert wit["n_files"] == 575 == len(load_drip_witness())
+    assert wit["source_manifest"] == "config/substrate_manifest.sha256"
+    assert all(set(v) == {"csv", "parquet"} and len(v["csv"]) == 64 for v in wit["files"].values())

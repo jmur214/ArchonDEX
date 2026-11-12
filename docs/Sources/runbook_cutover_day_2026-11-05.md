@@ -127,19 +127,28 @@ run below. The step joins the day only after the branch's review and merge (a ne
 shared with `scripts/drip_fix_candidate_t384.py`) rewrites the PRE-seam span of a merged file from the drip to
 `era_tr`, OFFLINE: raw Stooq from the bundle, the missed dividends from the cached yfinance reference (v3's `yf/`,
 read-only; refused without its `_fetch_log.jsonl`), no-reference spans kept raw Stooq and LABELLED UNVERIFIED, ONE
-constant at the seam. Every post-seam byte and the `close_unadj` column stay as the step-1 pass wrote them. It
+constant at the seam. *(Corrected 2026-11-12 after review — the first wording, "every post-seam byte … stay",
+overclaimed.)* Post-seam, every Date/OHLCV field and `close_unadj` on every row stay as the step-1 pass wrote
+them; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction (they are functions
+of pre-seam bars; measured over the 575 on the T-387 check copy: ATR on 13–14 rows in 571 files, on 0–3 in 4;
+PrevClose on the seam row in 573; nothing later). It
 refuses (fail closed) a span that is not the drip (so it never runs twice), a file the step-1 pass wrote WHOLE, a
 kept-bar count that disagrees with the merge record, and any write-time rail failure (the step audit: pre-seam
 daily returns differ from raw Stooq's only at the restored ex-dates, by exactly −log(1 − D/P); the splice audit:
 the seam-day return is Stooq's own). The refusal behaviour of option (a)'s seam write (the mid-span step,
-`cache_convention_defects`) is unchanged.
+`cache_convention_defects`) is unchanged. *(Corrected 2026-11-12 after review: "unchanged" undersold it —
+those refusals are KEPT, and `full_refetch` GAINED four fail-closed refusals, all before any provider call:
+a pinned record whose seam is not the seam; a record that says the file was written WHOLE; an era_tr record
+without its `era_tr` block; a seam DECLARED era_tr on a file with no record.)*
 
 **Acceptance (T-387, 2026-11-12).** On a COPY of the canonical inputs (the 575 merged files with pre-seam bars +
 `_merge_meta.json`, at `Dev/_substrate_candidates/t387_writer_check_2026-11-12/`), the writer path's output equals
 v4's `processed/` FILE FOR FILE: 1,150 of 1,150 identical, aggregate md5 `2cee41ef7d2e0bd8fa858d500f99dda2`.
 A `--dry-run` on the real step-1 copy (read-only; no file in it changed): 575 would be written, 0 refused; the built
 pre-seam span equals v4's × ONE constant per file (the copy's seam close ÷ the canonical's) to 8.9e-16; post-seam
-text and `close_unadj` identical on all 575 (563 carry `close_unadj`).
+text identical FROM THE 15TH POST-SEAM ROW ON, and `close_unadj` identical on every row, in all 575 (563 carry
+`close_unadj`) *(corrected 2026-11-12: the first wording said "post-seam text identical", which overclaimed — the
+first 14 ATR values and the seam row's PrevClose change, as above)*.
 
 **P9 (new pre-condition).** The T-387 branch merged on main after independent review by execution.
 
@@ -186,4 +195,28 @@ pre-2003 spans; the second unit (the spin-off / transient-block repair, held to 
 7. The reference cache as an input: the (a′) bytes depend on v3's `yf/` snapshot (fetch-log md5
    `1763a95fe86a44f0d42085767acb545e`, 95 MB), which no manifest pins. Every write record names it; my
    recommendation is to keep it read-only beside the candidates and quote its md5 in the re-pin #2 commit.
+   *(Superseded 2026-11-12 after review — the fetch log alone does not pin the ~95 MB of price and dividend
+   parquets the bytes depend on.)* The cache is now pinned PER FILE by the committed
+   `config/era_tr_reference_yf_manifest.sha256` (1,147 files; the manifest text's sha256
+   `e516573f46248ff06589315c0d3eeba91afa2e1b95059f4d74711e445ffcd32e`; every file equal to v3's recorded md5,
+   1,147/1,147). `era-tr` REFUSES a cache that does not equal it (`--yf-manifest none` runs unverified and every
+   row says so), writes the manifest's digest into every record's provenance. Recommendation: pin it in
+   re-pin #2 — the manifest is committed; the cache itself kept read-only beside the candidates (and, if the
+   user wants it reproducible from S3, staged with the prefix).
 8. Keep the step-1 copy after the day (my recommendation: yes, as the pinned record of option (a)).
+
+**Notes (2026-11-12, after the T-387 review).**
+- The census's merge-record `drip` fallback now FAILS CLOSED: a seam file is labelled drip from the merge record
+  only when its csv (and parquet) bytes equal the FROZEN drip-cache witness `config/drip_cache_witness_repin1.json`
+  (derived from re-pin #1's committed manifest; never regenerated) AND the cache holds no era_tr write record.
+  After (a′) a seam file without its record is UNLABELLED, never inferred (the gate fails the run). The witness
+  stays frozen through re-pin #2; after the day only the records label the 575.
+- Worktrees need `data/processed/_write_records/` — `~/Dev/_director_tools/wt_data_layout.sh` now COPIES it when it
+  exists. Without it, a post-cutover worktree's census reads every seam file as unlabelled (fail closed), never drip.
+- The 13 declared seams in `config/convention_declarations.json` still say `pre_seam: drip` — true of the files as
+  merged; after the rewrite each file's write record (era_tr) overrides the declaration, and a declaration of
+  `era_tr` on a file with no record is refused.
+- The canonical-unchanged proof for T-387 is `config/substrate_manifest.sha256`: all 2,172 `data/processed` files
+  matched it (0 missing / 0 extra / 0 changed) after the work. The listing md5 quoted in the T-387 report,
+  `cb1ceca452b1fd196e1ad288f66858a8`, reproduces only with this exact recipe (macOS `md5`, C collation):
+  `cd /Users/jacksonmurphy/Dev/trading_machine-2/data/processed && find . -type f | LC_ALL=C sort | xargs md5 -r | md5 -q`.

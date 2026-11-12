@@ -60,8 +60,10 @@ above, whose text is kept as the record of the 2026-10-22 ruling). The kept pre-
 longer the drip: `era_tr_rewrite` rewrites a seam file's pre-seam span OFFLINE to `era_tr` — Stooq
 as-is where Stooq is total return, every dividend it MISSED restored from the yfinance reference
 per measured ex-date (the fraction-missed probe, transient blocks masked), no-reference spans kept
-raw Stooq and LABELLED UNVERIFIED, ONE constant at the seam — and leaves the post-seam span (and
-`close_unadj`) byte-identical. The (a′) logic itself lives in ONE module, `era_tr.py` (shared with
+raw Stooq and LABELLED UNVERIFIED, ONE constant at the seam. Post-seam, every Date/OHLCV field stays
+byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam row change by construction
+(they are functions of pre-seam bars — measured over the 575: ATR on 13–14 rows in 571 files, PrevClose
+in 573); every later post-seam field, and `close_unadj` on EVERY row, stays byte-identical. The (a′) logic itself lives in ONE module, `era_tr.py` (shared with
 `scripts/drip_fix_candidate_t384.py`). On a drip file the order is: option (a)'s seam write (or the
 cached file as merged), then the (a′) rewrite; `full_refetch` thereafter KEEPS whatever the file's
 pinned record says its pre-seam span IS (`kept_pre_seam_convention`) — it never relabels era_tr
@@ -485,12 +487,20 @@ def kept_pre_seam_convention(ticker: str, prior: Optional[dict], seam_spec: dict
     or the merge record's `drip`) describes the file as merged; a pinned write record describes the
     file ITSELF, so when it carries a convention it wins — the writer never relabels era_tr bars as
     drip (a post-cutover refresh) nor drip bars as era_tr. Fail closed: a record whose seam is not
-    this seam, a record that says the file was written WHOLE, or an era_tr record without its
-    `era_tr` block (the unverified spans unknown) is REFUSED. Returns {"pre_seam", "source",
+    this seam, a record that says the file was written WHOLE, an era_tr record without its
+    `era_tr` block (the unverified spans unknown), or a seam DECLARED era_tr on a file with no record
+    is REFUSED. Returns {"pre_seam", "source",
     "era_tr"} (the record's block, carried forward when the kept span is era_tr)."""
     conv = (prior or {}).get("convention")
     seam_date = str(pd.Timestamp(seam_spec["date"]).date())
     if not conv:
+        if seam_spec["pre_seam"] == ERA_TR:
+            # (T-387 review, MINOR-2) era_tr is only ever CARRIED from a record that has its block; a
+            # DECLARED era_tr with no record would label the cached (drip) bars era_tr with no block
+            raise WriterRefusal(f"{ticker}: the seam is declared {ERA_TR} but the file has no write record "
+                                f"— an era_tr span is written by era_tr_rewrite (which records its "
+                                f"unverified spans), never by a declaration; not writing",
+                                detail={"seam": {k: str(v) for k, v in seam_spec.items()}})
         return {"pre_seam": seam_spec["pre_seam"], "source": seam_spec["source"], "era_tr": None}
     if "whole" in conv:
         raise WriterRefusal(f"{ticker}: the pinned write record says the file was written WHOLE "
@@ -832,8 +842,10 @@ def era_tr_rewrite(ticker: str, cache_dir: Path, *, stooq: Optional[pd.Series],
     with `seam_for`; the span it would rewrite IS the drip (its record's pre-seam label, else the
     seam spec's — an era_tr or whole-written file is refused, so the rewrite never runs twice); a
     prior record's kept bar count equals the merge record's; the shared build (`era_tr.build_file`)
-    passes its own rails (the de-drifted cache proportional to raw Stooq; post-seam text, and a
-    carried `close_unadj`, byte-identical); and the WRITE-TIME rails pass on its output — the step
+    passes its own rails (the de-drifted cache proportional to raw Stooq; every post-seam Date/OHLCV
+    field byte-identical, ATR from the 15th post-seam row and PrevClose from the 2nd byte-identical —
+    the first 14 ATR values and the seam row's PrevClose are functions of pre-seam bars and change by
+    construction; a carried `close_unadj` byte-identical on every row); and the WRITE-TIME rails pass on its output — the step
     audit (the pre-seam daily returns differ from raw Stooq's ONLY at the restored ex-dates, by
     exactly −log(1 − D/P_prev)) and the splice audit (ONE constant at the seam: the written seam-day
     return is Stooq's own, less any restored dividend ex on the seam bar; the cache's own when raw

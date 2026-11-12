@@ -34,13 +34,29 @@ the census could no longer say what each span IS. The block carries the unverifi
 (`unverified`). `pre_seam_spans` (the guard's input; `drip_spans` is its old name, kept) covers a
 kept pre-seam Stooq span under EITHER label: (a′) changes no pre-seam date, so the kept span's own
 holes are the same days. `drip` stays a valid label — it is what the pre-cutover cache IS.
+
+THE MERGE-RECORD `drip` FALLBACK FAILS CLOSED after (a′) (the T-387 review's MAJOR, 2026-11-12). The
+merge record describes every `both` file as drip, which stops being true once the (a′) rewrite has
+run; read without the file's write record it would silently re-label an era_tr file drip. So the
+fallback may label a seam file drip ONLY with POSITIVE evidence that the file IS the drip:
+  1. its bytes (csv, and the parquet twin where present) equal the FROZEN drip-cache witness
+     (`config/drip_cache_witness_repin1.json`, derived from re-pin #1's committed manifest). The (a′)
+     rewrite changes 573 of the 575 files, so a rewritten file can never match; an ABSENT witness,
+     an absent file or an unlisted name labels nothing drip. Evidence that is MISSING therefore reads
+     as "not proven drip", never as "drip" — the signal cannot be forged by omission;
+  2. and the cache holds NO era_tr write record. The two files (a′) leaves byte-identical (PODD,
+     POM) would pass rule 1; a cache with any era_tr record is post-(a′), and there a seam file with no
+     write record is UNLABELLED, never inferred. (This rule alone could be defeated by dropping every
+     record — rule 1 is what holds then; for PODD/POM the drip label would still be byte-true.)
+Hashes are computed once per file version per process (keyed by path, size and mtime).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import pandas as pd
 
@@ -54,10 +70,79 @@ RULE = ("pre-seam = era_tr (option (a') — Stooq where Stooq is total return, t
         "exact_tr (the provider's ex-date total return); a file with no seam is one convention over "
         "its whole span. A name's label comes from its pinned write record, else a declared whole-file "
         "override, else the merge record (witnessed against the run's frame — unwitnessed, it is "
-        "unmeasured); a name with none of the three is UNLABELLED by name — never defaulted — and the "
-        "gate fails the run")
+        "unmeasured; a seam file's drip label also needs its bytes to equal the frozen drip-cache "
+        "witness and the cache to hold no era_tr record — never inferred after (a')); a name with none "
+        "of the three is UNLABELLED by name — never defaulted — and the gate fails the run")
 SEAM_SEP = "<"
 SIDE_SEP = "|"
+#: The FROZEN drip-cache witness (module docstring): the bytes re-pin #1 pinned for every merged file
+#: with pre-seam bars. Never regenerated from a later manifest.
+DRIP_WITNESS_PATH = Path(__file__).resolve().parents[2] / "config" / "drip_cache_witness_repin1.json"
+#: The unverified-span keys an era_tr write record's block MUST carry (values may be empty) — a block
+#: without them cannot say what is unverified, so the name is unlabelled.
+ERA_TR_BLOCK_KEYS = ("unverified_missed_era_spans", "unverified_pre2003_span")
+_DEFAULT = "default"
+_SHA_CACHE: Dict[Tuple[str, int, int], str] = {}
+
+
+def load_drip_witness(path: Path = DRIP_WITNESS_PATH) -> Optional[Dict[str, dict]]:
+    """The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
+    drip from the merge record — fail closed). A malformed witness raises."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    files = json.loads(path.read_text())["files"]
+    if not isinstance(files, dict):
+        raise ValueError(f"{path}: `files` is not a map")
+    return files
+
+
+def _sha256(path: Path) -> str:
+    st = path.stat()
+    key = (str(path.resolve()), st.st_size, st.st_mtime_ns)
+    if key not in _SHA_CACHE:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        _SHA_CACHE[key] = h.hexdigest()
+    return _SHA_CACHE[key]
+
+
+def is_drip_witnessed(cache_dir: Path, t: str, witness: Optional[Dict[str, dict]]) -> Optional[str]:
+    """None when the file under `cache_dir` IS the drip the witness pinned (csv always; parquet where
+    the cache holds one); else why it is not proven drip."""
+    if witness is None:
+        return ("no drip-cache witness (config/drip_cache_witness_repin1.json absent) — a seam file with "
+                "no write record is never inferred drip")
+    pins = witness.get(t)
+    if not pins:
+        return "the name is not in the drip-cache witness — its file is not proven to be the drip"
+    csv = Path(cache_dir) / f"{t}_1d.csv"
+    if not csv.exists():
+        return f"no {csv.name} under the cache — the drip cannot be witnessed"
+    if _sha256(csv) != pins.get("csv"):
+        return (f"{csv.name} is NOT the drip re-pin #1 pinned (its bytes differ) and it has no write record "
+                f"— after the (a′) rewrite a seam file is labelled only from its record")
+    pq = Path(cache_dir) / "parquet" / f"{t}_1d.parquet"
+    if pq.exists() and _sha256(pq) != pins.get("parquet"):
+        return (f"parquet/{pq.name} is NOT the drip re-pin #1 pinned (its bytes differ) and the file has no "
+                f"write record")
+    return None
+
+
+def era_tr_records_present(records_dir: Path) -> bool:
+    """The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr."""
+    if not records_dir.is_dir():
+        return False
+    for p in records_dir.glob("*.json"):
+        try:
+            conv = json.loads(p.read_text()).get("convention") or {}
+        except (OSError, ValueError):
+            continue          # an unreadable record is that name's problem (`_resolve` reports it)
+        if conv.get("pre_seam") == ERA_TR:
+            return True
+    return False
 #: The witness summary a record carries: "frames" when the caller gave the run's frames (every
 #: merge-record label checked against its frame), "unmeasured" when it gave none (R9).
 WITNESS_FRAMES = "frames"
@@ -101,9 +186,11 @@ def cache_first_bar_frames(cache_dir: Path, names: Optional[Iterable[str]] = Non
 
 
 def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Optional[Dict[str, dict]],
-             frame: Optional[pd.DataFrame], witnessed: bool) -> dict:
+             frame: Optional[pd.DataFrame], witnessed: bool, drip_witness: Optional[Dict[str, dict]] = None,
+             post_a_prime: bool = False) -> dict:
     """ONE per-name resolution: the write record, else the declared override, else the merge
-    record witnessed against `frame`. Returns {"label", "source"} plus, for a drip pre-seam span,
+    record witnessed against `frame` (and, for a seam file, against the drip-cache witness and the
+    post-(a′) rule — module docstring). Returns {"label", "source"} plus, for a kept pre-seam span,
     {"seam_date", "n_pre_seam_kept"} (the kept bar count the record carries — None when it does
     not); or {"unlabelled": reason}. `witnessed` is False when the caller gave no frames at all."""
     rec_path = records_dir / f"{t}.json"
@@ -120,8 +207,12 @@ def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Option
                 return {"unlabelled": ("the write record says the pre-seam span is era_tr but carries no "
                                        "era_tr block — its UNVERIFIED spans are unknown, so what each span "
                                        "IS cannot be said")}
-            out["unverified"] = {"missed_era_spans": list(block.get("unverified_missed_era_spans") or []),
-                                 "pre2003_span": block.get("unverified_pre2003_span")}
+            missing = [k for k in ERA_TR_BLOCK_KEYS if k not in block]
+            if missing:
+                return {"unlabelled": (f"the write record's era_tr block lacks {missing} — what is UNVERIFIED "
+                                       f"in the span is unknown; never read as fully verified")}
+            out["unverified"] = {"missed_era_spans": list(block["unverified_missed_era_spans"] or []),
+                                 "pre2003_span": block["unverified_pre2003_span"]}
         if conv.get("pre_seam") in PRE_SEAM_CONVENTIONS and conv.get("seam_date"):
             seam = rec.get("seam") or {}
             kept = seam.get("n_pre_seam_bars_kept")
@@ -146,6 +237,13 @@ def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Option
                                f"after the merge without a record or an override")}
     if (entry.get("merge_case") == "both" and int(entry.get("n_stooq_pre_seam") or 0) > 0
             and entry.get("seam_date")):
+        # The drip is never INFERRED after (a′): positive evidence only (module docstring).
+        if post_a_prime:
+            return {"unlabelled": ("the cache is post-(a′) (an era_tr write record is present): a seam file "
+                                   "with no write record is never inferred drip from the merge record")}
+        why = is_drip_witnessed(records_dir.parent, t, drip_witness)
+        if why is not None:
+            return {"unlabelled": why}
         return {"label": label_of({"pre_seam": DRIP, "seam_date": entry["seam_date"], "post_seam": EXACT_TR}),
                 "source": "merge_meta", "seam_date": str(entry["seam_date"]),
                 "n_pre_seam_kept": int(entry["n_stooq_pre_seam"])}
@@ -154,7 +252,8 @@ def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Option
 
 def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[str]] = None,
                                 data_map: Optional[Dict[str, pd.DataFrame]] = None,
-                                conventions: Optional[Dict[str, dict]] = None) -> dict:
+                                conventions: Optional[Dict[str, dict]] = None,
+                                drip_witness: Any = _DEFAULT) -> dict:
     """The `substrate_convention` census block over `run_names` (the panel; every name in the merge
     record when None). Per name: its label (`per_name`), or why it has none (`unlabelled`). The
     block names the directory it READ (`cache_dir`), whether the merge record and the write
@@ -171,13 +270,16 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
                                 f"nothing to label")
     names = sorted(set(run_names)) if run_names is not None else sorted(meta)
     witnessed = data_map is not None
+    drip_witness = load_drip_witness() if isinstance(drip_witness, str) and drip_witness == _DEFAULT else drip_witness
+    post_a_prime = era_tr_records_present(records_dir)
     per_name: Dict[str, str] = {}
     unlabelled: Dict[str, str] = {}
     sources: Counter = Counter()
     n_unwitnessed = 0
     unverified: Dict[str, dict] = {}
     for t in names:
-        r = _resolve(t, records_dir, overrides, meta, data_map.get(t) if witnessed else None, witnessed)
+        r = _resolve(t, records_dir, overrides, meta, data_map.get(t) if witnessed else None, witnessed,
+                     drip_witness, post_a_prime)
         if "unlabelled" in r:
             unlabelled[t] = r["unlabelled"]
             n_unwitnessed += int(r["unlabelled"].startswith("UNWITNESSED"))
@@ -192,6 +294,9 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
     return {"cache_dir": str(cache_dir), "merge_meta_present": meta is not None,
             "records_dir_present": records_dir.is_dir(), "rule": RULE,
             "witness": WITNESS_FRAMES if witnessed else WITNESS_UNMEASURED, "n_unwitnessed": n_unwitnessed,
+            # the merge-record drip fallback's evidence (T-387 review): the frozen witness, and the
+            # post-(a′) rule that switches the fallback off for every seam file
+            "drip_witness_present": drip_witness is not None, "post_a_prime": post_a_prime,
             "n_names": len(names), "n_labelled": len(per_name),
             "n_pre_seam_drip": int(sum(v for k, v in labels.items() if k.startswith(DRIP + SEAM_SEP))),
             "n_pre_seam_era_tr": int(sum(v for k, v in labels.items() if k.startswith(ERA_TR + SEAM_SEP))),
@@ -204,7 +309,7 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
 
 
 def pre_seam_spans(cache_dir: Path, names: Iterable[str], data_map: Optional[Dict[str, pd.DataFrame]],
-                   conventions: Optional[Dict[str, dict]] = None) -> Dict[str, dict]:
+                   conventions: Optional[Dict[str, dict]] = None, drip_witness: Any = _DEFAULT) -> Dict[str, dict]:
     """Per name, for the guard's `pre_seam_drip_gap` class: `{"seam_date", "n_pre_seam_kept",
     "source"}` where the name's label carries a KEPT pre-seam Stooq span (drip or, after the
     cutover, era_tr — the same bar dates), else `{"refused": why}` — the name is unlabelled or
@@ -215,10 +320,12 @@ def pre_seam_spans(cache_dir: Path, names: Iterable[str], data_map: Optional[Dic
     conventions = load_convention_declarations() if conventions is None else conventions
     records_dir = cache_dir / WRITE_RECORDS_DIR
     witnessed = data_map is not None
+    drip_witness = load_drip_witness() if isinstance(drip_witness, str) and drip_witness == _DEFAULT else drip_witness
+    post_a_prime = era_tr_records_present(records_dir)
     out: Dict[str, dict] = {}
     for t in sorted(set(names)):
         r = _resolve(t, records_dir, conventions["whole_file_overrides"], meta,
-                     data_map.get(t) if witnessed else None, witnessed)
+                     data_map.get(t) if witnessed else None, witnessed, drip_witness, post_a_prime)
         if "unlabelled" in r:
             out[t] = {"refused": f"no convention label: {r['unlabelled']}"}
         elif "seam_date" not in r:

@@ -25,7 +25,10 @@ THE CONVENTION (`era_tr`), per merged file with pre-seam bars (`build_file`, pur
   3. a bar with no same-security reference stays RAW Stooq in every era — never approximated —
      and is LABELLED UNVERIFIED (`unverified_missed_era_spans`, `unverified_pre2003_span`);
   4. ONE constant at the seam (the Stooq seam-day return kept);
-  5. the post-seam text is copied, byte for byte (and a carried `close_unadj` column on every row).
+  5. post-seam, every Date/OHLCV field is copied byte for byte; ATR from the 15th post-seam row and
+     PrevClose from the 2nd are byte-identical (the first 14 ATR values and the seam row's PrevClose are
+     functions of pre-seam bars and change by construction); a carried `close_unadj` column is copied
+     verbatim on EVERY row.
 Nothing here reads or writes a fixed location: every input is passed in.
 """
 from __future__ import annotations

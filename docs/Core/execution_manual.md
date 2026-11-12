@@ -820,11 +820,12 @@ python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>  
 # T-387 option (a′) on the cutover copy (USER RULING 2026-11-12; runbook_cutover_day_2026-11-05.md §6). OFFLINE:
 # raw Stooq from --raw-stooq (default the main tree's data/raw/stooq/daily/us), the yfinance reference from the
 # cached --yf-dir (default v3's yf/; REFUSED without its _fetch_log.jsonl). Rewrites the PRE-seam span of every
-# merged file with pre-seam bars (575) from drip to era_tr via tr_writer.era_tr_rewrite; post-seam bytes and
-# close_unadj untouched. Resumable (era_tr_<tag>.jsonl beside the copy, or --out-dir). Exit 0 all written,
+# merged file with pre-seam bars (575) from drip to era_tr via tr_writer.era_tr_rewrite. Post-seam: Date/OHLCV
+# and close_unadj (every row) byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam row
+# change by construction (functions of pre-seam bars). Resumable (era_tr_<tag>.jsonl beside the copy, or --out-dir). Exit 0 all written,
 # 2 a refusal, 3 below --min-free-gb. Run it on a DUPLICATE of the step-1 copy, never the pinned one.
 python -m scripts.cutover_step1_pass fresh-copy --from <step1_copy> --to /Users/jacksonmurphy/Dev/_substrate_candidates/<new_copy>   # duplicate a copy (refuses an existing target)
-python -m scripts.cutover_step1_pass era-tr --copy <copy> --tag <tag> [--yf-dir D] [--raw-stooq D] [--only A,B] [--out-dir D] [--min-free-gb 11]
+python -m scripts.cutover_step1_pass era-tr --copy <copy> --tag <tag> [--yf-dir D] [--yf-manifest P|none] [--raw-stooq D] [--only A,B] [--out-dir D] [--min-free-gb 11]   # --yf-manifest default config/era_tr_reference_yf_manifest.sha256: the reference cache must EQUAL it, per file, or the run refuses
 python -m scripts.cutover_step1_pass era-tr --copy <copy> --dry-run --out-dir <scratch> --tag <tag>        # measure only: nothing in the copy is written
 python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 # --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
