@@ -31,6 +31,13 @@ audits; CLI `cutover_step1_pass era-tr` (+ `fresh-copy --from`). Acceptance chec
   fallback would still label them drip. Copy's `_merge_meta.json` md5 = canonical's.
 - On the real copy (dry run) (a′) pre-seam = v4 × ONE constant per file (copy seam close ÷ canonical's) to 8.9e-16.
 
+**Review round 1 (NOT READY, MAJOR) → fixed in 9d17a6d:** the census's merge-record fallback labelled ANY
+`both` file drip, so an era_tr file whose record went missing read drip. A post-(a′) signal must be POSITIVE
+evidence of the drip (absence ⇒ "not proven"), never a presence marker (`_write_records/`, a writer stamp —
+both read pre-(a′) when omitted). Fix: frozen drip witness `config/drip_cache_witness_repin1.json` (from
+re-pin #1's manifest) + "any era_tr record ⇒ post-(a′)", because PODD/POM are BYTE-IDENTICAL under (a′)
+(no per-file witness can split them). The yf reference is pinned per file: `config/era_tr_reference_yf_manifest.sha256`.
+
 **Why:** cutover day needs a writer, not a script; re-pin #2 grows by the 575 pre-seam rewrites.
 **How to apply:** any change to era_tr/tr_writer → re-run the byte-identity check (copy the 575 canonical
 seam files + meta, `era-tr`, compare to v4 MANIFEST `grep "  processed/"`). Related: [[drip-double-count-stooq-eras]].
