@@ -13,12 +13,18 @@ per-filing statuses. The CIK's texts are discarded when it is done.
 CIKs already in the S&P fetch list are skipped (their text is in the S&P panel; Phase 2 joins).
 Resumable by CIK; disk checked before every CIK (halts cleanly under the floor); a 403 halts.
 
+Workers: `--shard k/n` takes every n-th CIK (sorted) starting at k, so concurrent workers never
+overlap; output files carry the shard in their name; SIGTERM/SIGINT flush the in-memory buffer
+before exit (exit 5), so a stopped worker loses no finished CIK. Keep the workers' combined rate
+under the SEC ceiling with margin (two at --min-interval 0.45 <= 4.5 req/s).
+
 Usage:
-  python -m scripts.lazy_prices.b6_stream_t265 [--limit-ciks N] [--min-interval 0.45]
+  python -m scripts.lazy_prices.b6_stream_t265 [--shard 0/1] [--min-interval 0.45]
 """
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
 import time
 from pathlib import Path
@@ -97,13 +103,18 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 T-265 small-cap signals (streaming, no text).")
     ap.add_argument("--limit-ciks", type=int, default=None)
     ap.add_argument("--min-interval", type=float, default=E.MIN_INTERVAL)
-    ap.add_argument("--flush-ciks", type=int, default=50)
+    ap.add_argument("--flush-ciks", type=int, default=10)
+    ap.add_argument("--shard", default="0/1", help="k/n: this worker takes CIKs with index %% n == k")
     ap.add_argument("--disk-floor", type=float, default=E.DISK_FLOOR_GB)
     args = ap.parse_args(argv)
     E.MIN_INTERVAL = args.min_interval
     S.load_lm()
     sp = set(pd.read_parquet(B.FETCH_LIST).cik.astype(int)) if B.FETCH_LIST.is_file() else set()
     ciks = [c for c in t265_ciks() if c not in sp]
+    k_shard, n_shard = (int(x) for x in args.shard.split("/"))
+    if not 0 <= k_shard < n_shard:
+        raise SystemExit(f"bad --shard {args.shard}")
+    ciks = [c for i, c in enumerate(ciks) if i % n_shard == k_shard]
     done = _done()
     todo = [c for c in ciks if c not in done]
     if args.limit_ciks:
@@ -113,25 +124,37 @@ def main(argv: list[str] | None = None) -> int:
            f"{len(done)}; to do {len(todo)}; free {E.disk_free_gb():.2f} GB", LOG)
     sig_buf, meta_buf, done_buf = [], [], []
     t0, n_docs = time.time(), 0
+    tag = f"s{k_shard}of{n_shard}_{int(t0)}"
+    n_flush = [0]
 
     def flush() -> None:
         nonlocal sig_buf, meta_buf, done_buf
         if not done_buf:
             return
-        k = len(list(OUT_DIR.glob("done_*.parquet")))
+        k = n_flush[0]
+        n_flush[0] += 1
         if sig_buf:
-            pd.DataFrame(sig_buf).to_parquet(OUT_DIR / f"signals_{k:05d}.parquet", index=False)
+            pd.DataFrame(sig_buf).to_parquet(OUT_DIR / f"signals_{tag}_{k:05d}.parquet", index=False)
         if meta_buf:
-            pd.DataFrame(meta_buf).to_parquet(OUT_DIR / f"filings_{k:05d}.parquet", index=False)
-        pd.DataFrame(done_buf).to_parquet(OUT_DIR / f"done_{k:05d}.parquet", index=False)
+            pd.DataFrame(meta_buf).to_parquet(OUT_DIR / f"filings_{tag}_{k:05d}.parquet", index=False)
+        pd.DataFrame(done_buf).to_parquet(OUT_DIR / f"done_{tag}_{k:05d}.parquet", index=False)
         sig_buf, meta_buf, done_buf = [], [], []
+
+    class _Stop(Exception):
+        pass
+
+    def _on_signal(signum, _frame):  # noqa: ANN001
+        raise _Stop(f"signal {signum}")
+
+    signal.signal(signal.SIGTERM, _on_signal)
+    signal.signal(signal.SIGINT, _on_signal)
 
     try:
         for i, cik in enumerate(todo, 1):
             free = E.assert_disk(args.disk_floor)
             try:
                 sig, meta, err = process_cik(cik)
-            except (E.DiskFloor, E.EdgarRefused):
+            except (E.DiskFloor, E.EdgarRefused, _Stop):
                 raise
             except Exception as e:  # noqa: BLE001 — recorded per CIK, never silent
                 sig, meta, err = [], [], f"error:{type(e).__name__}:{e}"[:300]
@@ -141,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
             done_buf.append({"cik": cik, "n_filings": len(meta), "error": err})
             if i % args.flush_ciks == 0:
                 flush()
-                B._log(f"[t265] {i}/{len(todo)} CIKs; {n_docs} filings; "
+                B._log(f"[t265 {args.shard}] {i}/{len(todo)} CIKs; {n_docs} filings; "
                        f"{n_docs / max(1.0, time.time() - t0):.2f} docs/s; requests "
                        f"{E.stats['requests']} failures {E.stats['failures']}; free {free:.2f} GB",
                        LOG)
@@ -153,6 +176,10 @@ def main(argv: list[str] | None = None) -> int:
         flush()
         B._log(f"[t265] HALT (SEC refused): {e}", LOG)
         return 4
+    except _Stop as e:
+        flush()
+        B._log(f"[t265] STOPPED ({e}) after {n_docs} filings; buffer flushed", LOG)
+        return 5
     flush()
     B._log(f"[t265] DONE {len(todo)} CIKs, {n_docs} filings in {time.time() - t0:.0f}s", LOG)
     return 0
