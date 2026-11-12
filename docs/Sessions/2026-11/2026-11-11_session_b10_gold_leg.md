@@ -66,3 +66,26 @@ tests/test_b10_gold_leg_guards.py
 ## Subagents invoked
 
 - None. The regime-analyst lens ran as a single worktree subagent dispatched by the director.
+
+## Addendum — independent review APPROVE, plus a text-only follow-up
+
+- **The review found that the MDD clause had no cash control (MEDIUM).** 90 % equity / 10 % zero-return
+  cash gives MDD −51.30 %, a 3.95 pp reduction with no gold.
+  - About 3.95 of the 5.22 pp is de-equitization. Gold's own share at the GFC trough is ≈ 1.3 pp.
+  - In 2022 gold did worse than the mattress (−22.89 % vs −22.25 %).
+  - The cash leg costs ≈ 0.5 log TW over 55 years at 0 % yield.
+- **The verdict is restated:** gold is a de-risking leg that costs no wealth, not a distinctive hedge.
+  It was clearly distinctive only in 1973–74.
+- **The cash control is added as a reviewer diagnostic (§4a).** The director counts N +1, so B-10
+  records **N_trials +2**.
+- **The forward twin now has a cash twin.** It asks whether gold beats cash by ≥ 1 pp at the next
+  ≥ 15 % drawdown. The old "B ≥ 1.5 pp vs SPY" threshold was exactly the cash effect.
+- **Low fixes:** 1973–74 is +9.5, not +9.6. The baseline MDD prediction is a miss (−55.25 % against a
+  −51 to −55 % range). Turnover is two-sided Σ|Δw|.
+- **Four guard-coverage notes added (§7):**
+  - G4 is native-index staleness;
+  - a frozen-value tail is caught only by G11;
+  - the locks test `[us]` only (the reviewer checked other units);
+  - the smoke never calls `boot`.
+- **Lesson:** a static leg's drawdown benefit must be scored against a same-weight cash leg, never
+  against 100 % equity alone. Otherwise the leg gets credit for the de-equitization effect.
