@@ -55,7 +55,8 @@ FETCH_LIST = LOCAL / "sp_fetch_list.parquet"
 SHARD_DIR = LOCAL / "sp_sections"
 LOG_DIR = LOCAL / "logs"
 
-PARSER_VERSION = "b6_parse/1"
+PARSER_VERSION = "b6_parse/2"   # review F4, 2026-11-12 (b6_parse/1: sp_sections/)
+SHARD_DIR_V2 = LOCAL / "sp_sections_v2"
 MONTH_START = pd.Timestamp("2005-01-01")
 FILING_FLOOR = pd.Timestamp("2004-10-01")
 TODAY = pd.Timestamp("2026-11-30")
@@ -315,10 +316,11 @@ def _done_accessions(include_failed: bool = True) -> set[str]:
     return set(d["accession"])
 
 
-def _write_shard(rows: list[dict]) -> Path:
-    SHARD_DIR.mkdir(parents=True, exist_ok=True)
-    n = len(list(SHARD_DIR.glob("shard_*.parquet")))
-    path = SHARD_DIR / f"shard_{n:05d}.parquet"
+def _write_shard(rows: list[dict], shard_dir: Path | None = None) -> Path:
+    shard_dir = SHARD_DIR if shard_dir is None else shard_dir
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    n = len(list(shard_dir.glob("shard_*.parquet")))
+    path = shard_dir / f"shard_{n:05d}.parquet"
     df = pd.DataFrame(rows, columns=SHARD_SCHEMA_COLS)
     table = pa.Table.from_pandas(df, preserve_index=False)
     pq.write_table(table, path, compression="zstd", compression_level=15,
@@ -407,6 +409,85 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reparse(args: argparse.Namespace) -> int:
+    """b6_parse/2 over the complete S&P panel (review F4), into sp_sections_v2/ (sp_sections/ stays
+    as the b6_parse/1 record). A row whose MD&A came from the title fallback or failed is RE-FETCHED
+    and re-parsed (only those rows can carve differently under b6_parse/2); every other row keeps its
+    item-carved text and is re-checked against the widened `_CONTAMINATION` on its stored text (the
+    patterns are whitespace-insensitive, so the check equals the parser's). Resumable by accession."""
+    logfile = LOG_DIR / "reparse_sp.log"
+    E.MIN_INTERVAL = args.min_interval
+    cols = SHARD_SCHEMA_COLS
+    meta_cols = ["accession", "fetch_ok", "mda_status", "mda_source"]
+    shards = sorted(SHARD_DIR.glob("shard_*.parquet"))
+    # winners per accession from METADATA only (memory: the text is read one shard at a time)
+    meta = pd.concat([pq.read_table(p, columns=meta_cols).to_pandas().assign(_shard=i, _row=range(
+        pq.ParquetFile(p).metadata.num_rows)) for i, p in enumerate(shards)], ignore_index=True)
+    win = latest_by_accession(meta)
+    done = set()
+    if SHARD_DIR_V2.is_dir():
+        for p in SHARD_DIR_V2.glob("shard_*.parquet"):
+            done |= set(pq.read_table(p, columns=["accession"]).column("accession").to_pylist())
+    ok = win["fetch_ok"].fillna(False).astype(bool)
+    win["refetch"] = ok & ((win["mda_status"] != "OK")
+                           | win["mda_source"].isin(["title_fallback", "title_fallback_eof"]))
+    win = win[~win.accession.isin(done)]
+    _log(f"[reparse] v1 rows {len(meta)} -> {len(win) + len(done)} accessions; re-fetch "
+         f"{int(win.refetch.sum())}; revalidate {int((~win.refetch).sum())}; already in v2 "
+         f"{len(done)}", logfile)
+    buf: list[dict] = []
+    todo_rows: list[pd.Series] = []
+    n_contam = {"risk": 0, "mda": 0}
+    for i, p in enumerate(shards):
+        w = win[win._shard == i]
+        if w.empty:
+            continue
+        d = pq.read_table(p).to_pandas()[cols].iloc[w._row.to_numpy()]
+        flags = dict(zip(w.accession, w.refetch))
+        for _, r in d.iterrows():
+            if flags[r.accession]:
+                todo_rows.append(r[["cik", "form", "accession", "acceptance_dt", "filing_date",
+                                    "period_end", "primary_doc"]])
+                continue
+            rec = r.to_dict()
+            rec["parser_version"] = "b6_parse/2(revalidated)"
+            for sec in ("risk", "mda"):
+                if rec[f"{sec}_status"] == "OK" and P._CONTAMINATION.search(rec[f"{sec}_text"] or ""):
+                    rec[f"{sec}_status"], rec[f"{sec}_text"] = "CONTAMINATED", ""
+                    rec[f"{sec}_source"] = ""
+                    n_contam[sec] += 1
+            buf.append(rec)
+            if len(buf) >= args.shard_rows:
+                _write_shard(buf, SHARD_DIR_V2)
+                buf = []
+    if buf:
+        _write_shard(buf, SHARD_DIR_V2)
+        buf = []
+    _log(f"[reparse] revalidated rows written; newly CONTAMINATED: {n_contam}", logfile)
+    todo = pd.DataFrame(todo_rows)
+    t0 = time.time()
+    try:
+        for i, (_, r) in enumerate(todo.iterrows(), 1):
+            if i % 200 == 1:
+                E.assert_disk(args.disk_floor)
+            buf.append(process_filing(r))
+            if len(buf) >= args.shard_rows:
+                _write_shard(buf, SHARD_DIR_V2)
+                buf = []
+            if i % 200 == 0:
+                _log(f"[reparse] re-fetched {i}/{len(todo)}; {i / max(1.0, time.time() - t0):.2f} "
+                     f"docs/s; failures {E.stats['failures']}", logfile)
+    except (E.DiskFloor, E.EdgarRefused) as e:
+        if buf:
+            _write_shard(buf, SHARD_DIR_V2)
+        _log(f"[reparse] HALT: {e}", logfile)
+        return 3
+    if buf:
+        _write_shard(buf, SHARD_DIR_V2)
+    _log(f"[reparse] DONE: re-fetched {len(todo)}; failures {E.stats['failures']}", logfile)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 S&P PIT text panel builder.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -420,9 +501,15 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("--retry-failed", action="store_true",
                     help="re-attempt accessions whose recorded fetch failed (e.g. a transient DNS "
                          "outage); the new row is appended and preferred by every reader")
+    pr = sub.add_parser("reparse", help="b6_parse/2 over the S&P panel -> sp_sections_v2/")
+    pr.add_argument("--shard-rows", type=int, default=400)
+    pr.add_argument("--disk-floor", type=float, default=E.DISK_FLOOR_GB)
+    pr.add_argument("--min-interval", type=float, default=E.MIN_INTERVAL)
     args = ap.parse_args(argv)
     if args.cmd == "universe":
         return cmd_universe(args)
+    if args.cmd == "reparse":
+        return cmd_reparse(args)
     return cmd_fetch(args)
 
 

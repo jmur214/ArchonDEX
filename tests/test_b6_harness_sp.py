@@ -105,3 +105,71 @@ def test_returns_and_summary_are_deterministic_and_paired():
     assert a == b
     assert a["n_months"] == 36
     assert a["dlogw_ci_low_1p25"] <= a["dlogw_ci_low_2p5"] <= a["dlogw_point"] <= a["dlogw_ci_high_97p5"]
+
+
+# ---------------------------------------------------------------- AMENDMENT 3 (review F1/F2)
+T0, QE = pd.Timestamp("2021-03-31"), pd.Timestamp("2021-06-30")
+DAYS = pd.bdate_range("2020-01-01", "2022-12-30")
+
+
+def _s(a="2020-01-01", b="2022-12-30"):
+    idx = DAYS[(DAYS >= pd.Timestamp(a)) & (DAYS <= pd.Timestamp(b))]
+    return pd.Series(100.0, index=idx)
+
+
+def _px(proc=None, t265=None, t265_of_cik=None, iv_end=None):
+    return H.Prices(t265_of_cik or {}, t265 or {}, proc or {}, _s(), _s(), iv_end=iv_end or {})
+
+
+def test_resolve_prefers_processed_then_t265_by_cik_and_names_the_cause():
+    full = _s()
+    assert H.Prices.resolve(_px(proc={"AAA": full}), 1, "AAA", 0, T0, QE)["cause"] == "ok"
+    # truncated processed file of a live member (AVGO ends 2025-04-23): T-265 by CIK fills
+    px = _px(proc={"AVGO": _s(b="2021-04-23")}, t265={"AVGO": full}, t265_of_cik={2: "AVGO"})
+    r = px.resolve(2, "AVGO", 0, T0, QE)
+    assert (r["source"], r["cause"]) == ("t265_fill", "truncated")
+    # rename (CDAY -> DAY): the CIK's T-265 ticker differs
+    px = _px(proc={"CDAY": _s(b="2021-05-01")}, t265={"DAY": full}, t265_of_cik={3: "DAY"})
+    assert px.resolve(3, "CDAY", 0, T0, QE)["cause"] == "rename"
+    # a different security under the ticker (FB file starts 2025-06-26): no bar at t -> T-265
+    px = _px(proc={"FB": _s(a="2022-06-26")}, t265={"META": full}, t265_of_cik={4: "META"})
+    assert px.resolve(4, "FB", 0, T0, QE)["cause"] == "no_bar_at_t"
+    # no file at all (MMC)
+    px = _px(t265={"MMC": full}, t265_of_cik={5: "MMC"})
+    assert px.resolve(5, "MMC", 0, T0, QE)["cause"] == "no_file"
+
+
+def test_share_class_spelling_is_resolved():
+    px = _px(proc={"BRK.B": _s()})
+    assert px.resolve(6, "BRK-B", 0, T0, QE)["source"] == "processed"
+
+
+def test_an_exit_needs_a_recorded_index_deletion_else_the_census_halts():
+    ended = _s(b="2021-05-14")
+    px = _px(proc={"XYZ": ended}, iv_end={7: pd.Timestamp("2021-05-17")})
+    r = px.resolve(1, "XYZ", 7, T0, QE)
+    assert r["cause"] == "real_exit" and r["exit"] == pd.Timestamp("2021-05-14")
+    px = _px(proc={"XYZ": ended}, iv_end={7: pd.NaT})            # still a member: no deletion
+    assert px.resolve(1, "XYZ", 7, T0, QE)["cause"] == "unresolved"
+    census = pd.DataFrame([{"rebalance": "2021-03-31", "ranked": 400, "share": 0.9, "long": 130,
+                            "short": 130, "cause_unresolved": 1}])
+    assert any("recorded index deletion" in b for b in H.check_census(census))
+    assert px.resolve(1, "QQQ", 7, T0, QE)["cause"] == "no_price_at_t"
+
+
+def test_amendment_4_shared_ticker_fills_only_with_a_unique_date_aware_holder():
+    """AVGO: T-265 maps the symbol to several CIKs (Avago, Broadcom Ltd, Broadcom Inc). The CIK fill
+    is allowed when exactly ONE CIK holds the symbol at the rebalance date and it is this member's."""
+    full = _s()
+    holders = {"AVGO": [(1649338, pd.Timestamp("2016-02-02"), pd.Timestamp("2018-03-28")),
+                        (1730168, pd.Timestamp("2018-04-06"), pd.Timestamp("2026-03-27"))]}
+    px = _px(proc={"AVGO": _s(b="2021-04-23")}, t265={"AVGO": full})
+    px.t265_of_cik_all = {1730168: "AVGO", 1649338: "AVGO"}
+    px.shared, px.holders = {"AVGO"}, holders
+    r = px.resolve(1730168, "AVGO", 0, T0, QE)
+    assert (r["source"], r["cause"], r["shared_resolved"]) == ("t265_fill", "truncated", True)
+    # the older issuer does NOT hold the symbol at t -> its bars are not attributable to it
+    assert px.resolve(1649338, "AVGO", 0, T0, QE)["source"] != "t265_fill"
+    # two concurrent holders at t -> not unique -> no fill -> unresolved (the census halts)
+    px.holders = {"AVGO": holders["AVGO"] + [(999, pd.Timestamp("2020-01-01"), pd.Timestamp("2022-01-01"))]}
+    assert px.resolve(1730168, "AVGO", 0, T0, QE)["cause"] == "unresolved"

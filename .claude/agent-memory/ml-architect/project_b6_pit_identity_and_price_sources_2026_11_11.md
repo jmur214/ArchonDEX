@@ -58,6 +58,17 @@ turnover ~72%/qtr (similarity), ~94% (Δtone): the ranks are unstable. One of 8 
 ADJACENT-quarter 10-Q pairing, gave short-leg t_HAC +2.27 — multiplicity-exposed (Bonferroni over 8
 needs ~2.7); a nomination for its own prereg only if T-265 agrees.
 
+**Review (2026-11-12) of the S&P run — NOT READY until corrected:** my harness booked ANY price-file
+end as an index exit (§7.7 required a recorded deletion or HALT): of 58 "exits" ~23 were TRUNCATED
+data/processed files of live members (AVGO, NVDA 2024-06, ANET …) and 8 renames; BRK-B/BF-B never
+matched BRK.B_1d.csv; FB/INFO files are other securities. Fix that held: resolve each name-quarter from
+bar DATES + membership (processed if it covers; else T-265 by CIK; else exit only at a recorded
+deletion −10/+45 d; else HALT), manifest every source/cause. Shared T-265 tickers fill only when the
+date-aware holder (Form 3/4/5 symbol use ±90 d) is unique = this CIK (AMENDMENT 4; AVGO by date).
+Corrected S&P (c): similarity −0.028 (ci_low −0.117), Δtone −0.037; short-leg t −0.72 under the
+same-quarter pairing but +2.23 under the ADJACENT 10-Q pairing — the refutation half depends on the
+pairing choice; a negative-screen candidate. **A file end is not an exit; reconcile before booking.**
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].

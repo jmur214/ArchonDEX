@@ -255,11 +255,11 @@ READ_COLS = ["cik", "form", "accession", "acceptance_dt", "period_end", "risk_st
              "mda_status", "mda_text", "mda_source", "fetch_ok"]
 
 
-def run_sp() -> pd.DataFrame:
+def run_sp(shard_dir: Path = SHARD_DIR, out_path: Path = OUT_SP) -> pd.DataFrame:
     load_lm()
-    shards = sorted(SHARD_DIR.glob("shard_*.parquet"))
+    shards = sorted(shard_dir.glob("shard_*.parquet"))
     if not shards:
-        raise SystemExit(f"FATAL: no shards under {SHARD_DIR}")
+        raise SystemExit(f"FATAL: no shards under {shard_dir}")
     where: dict[int, list[Path]] = {}
     for p in shards:
         for c in set(pq.read_table(p, columns=["cik"]).column("cik").to_pylist()):
@@ -282,17 +282,21 @@ def run_sp() -> pd.DataFrame:
             print(f"[b6-signals] {n}/{len(where)} CIKs, {len(out)} rows", flush=True)
     df = pd.DataFrame(out)
     df["lm_md5"] = lm_md5()
-    df.to_parquet(OUT_SP, index=False)
+    df.to_parquet(out_path, index=False)
     return df
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 text signals (similarity + LM tone change).")
     ap.add_argument("panel", choices=["sp"])
+    ap.add_argument("--shards", type=Path, default=SHARD_DIR,
+                    help="shard dir (sp_sections = b6_parse/1; sp_sections_v2 = b6_parse/2)")
+    ap.add_argument("--out", type=Path, default=OUT_SP)
     args = ap.parse_args(argv)
-    df = run_sp()
+    OUT = args.out
+    df = run_sp(args.shards, OUT)
     ok = (df["yoy_combo_why"] == "ok").sum()
-    print(f"[b6-signals] wrote {OUT_SP.relative_to(ROOT)}: {len(df)} filings; "
+    print(f"[b6-signals] wrote {OUT}: {len(df)} filings; "
           f"yoy combo ok {ok} ({ok / max(1, len(df)):.1%})")
     return 0
 

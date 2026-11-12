@@ -247,9 +247,26 @@ _END_MARKERS = re.compile(
     r"pursuant\s+to\s+the\s+requirements\s+of\s+section\s+13\s+or\s+15\s*\(\s*d\s*\)"
     r"|report\s+of\s+independent\s+registered\s+public\s+accounting\s+firm",
     re.IGNORECASE)
+# b6_parse/2 (review F4, 2026-11-12): the 10-K signature sentence was the ONLY signature wording
+# known; 10-Qs sign with "Pursuant to the requirements of the Securities Exchange Act of 1934, the
+# registrant has duly caused this report to be signed", and electronic signatures read "/s/".
+# Every pattern is whitespace-insensitive so the same test runs on raw and on stored (collapsed) text.
+_SIG_SENTENCE = (r"pursuant\s+to\s+the\s+requirements\s+of\s+section\s+13\s+or\s+15\s*\(\s*d\s*\)"
+                 r"|pursuant\s+to\s+the\s+requirements\s+of\s+the\s+securities\s+exchange\s+act"
+                 r"\s+of\s+1934\s*,?\s+the\s+registrant\s+has\s+duly\s+caused")
+_SLASH_S = r"(?<![A-Za-z0-9])/s/"
+_AUDITOR_SALUTATION = (r"reports?\s+of\s+independent\s+registered\s+public\s+accounting\s+firm\s*"
+                       r"(?:\W{0,3})\s*to\s+the\s+(?:board|shareholders|stockholders|members)")
 _CONTAMINATION = re.compile(
-    r"pursuant\s+to\s+the\s+requirements\s+of\s+section\s+13\s+or\s+15\s*\(\s*d\s*\)"
-    r"|(?m:^[ \t]*reports?\s+of\s+independent\s+registered\s+public\s+accounting\s+firm)",
+    _SIG_SENTENCE + "|" + _SLASH_S + "|" + _AUDITOR_SALUTATION
+    + r"|(?m:^[ \t]*reports?\s+of\s+independent\s+registered\s+public\s+accounting\s+firm)",
+    re.IGNORECASE)
+# Document-end markers that CUT a title-located body (b6_parse/2): a SIGNATURES heading line, either
+# signature sentence, a "/s/" line, an auditor-report heading, an exhibit-index heading.
+_DOC_END = re.compile(
+    r"(?m:^[ \t]*signatures?[ \t]*$)|(?m:^[ \t]*exhibit\s+index[ \t]*$)|"
+    + _SIG_SENTENCE + "|" + _SLASH_S + "|" + _AUDITOR_SALUTATION
+    + r"|(?m:^[ \t]*reports?\s+of\s+independent\s+registered\s+public\s+accounting\s+firm)",
     re.IGNORECASE)
 _INCORP = re.compile(
     r"incorporated\s+(?:[\w-]+\s+){0,4}by\s+reference|reference\s+is\s+(?:hereby\s+)?made\s+to"
@@ -371,6 +388,7 @@ def extract_section(text: str, form: str, section: str, heads: list[Heading] | N
 # the same document (the "Form 10-K cross-reference index" format: ETN, IBM, XOM, WFC, C, USB ...).
 _MDA_TITLE = re.compile(r"^(?:MANAGEMENTSDISCUSSIONANDANALYSIS|FINANCIALREVIEW$)")
 _MDA_ENDS = ("QUANTITATIVEANDQUALITATIVE", "QUALITATIVEANDQUANTITATIVE", "MARKETRISKDISCLOSURE",
+             "SIGNATURE", "EXHIBITINDEX", "OTHERINFORMATION", "UNREGISTEREDSALES", "EXHIBITS",
              "RISKFACTORS", "CONTROLSANDPROCEDURES", "LEGALPROCEEDINGS", "PARTIIOTHERINFORMATION",
              "REPORTOFINDEPENDENTREGISTERED",
              "MANAGEMENTSREPORTONINTERNALCONTROL", "MANAGEMENTSRESPONSIBILITY",
@@ -380,24 +398,43 @@ _MDA_ENDS = ("QUANTITATIVEANDQUALITATIVE", "QUALITATIVEANDQUANTITATIVE", "MARKET
 _MAX_HEADING_LINE = 220
 
 
+# Leading "PART II -" and/or "Item 3." / "Items 7 and 7A." stripped from the RAW line: an item letter
+# only counts when it stands alone ("1A." yes; "3. Quantitative" must not lose its "Q").
+_ITEM_PART_PREFIX = re.compile(
+    r"^[\s\W]*(?:PART\s+(?:IV|I{1,3})\b[\s\W]*)?"
+    r"(?:ITEMS?\s*\d{1,2}(?:\s*[A-Z](?![A-Za-z]))?"
+    r"(?:\s*(?:AND|&)\s*\d{1,2}(?:\s*[A-Z](?![A-Za-z]))?)?[\s\W]*)?",
+    re.IGNORECASE)
+
+
 def _line_keys(text: str) -> list[tuple[int, int, str]]:
-    """(start, end, alnum-upper key) of every short line — heading-like lines only."""
+    """(start, end, key) of every short line — heading-like lines only. The key is the upper-case
+    alphanumeric line with a leading "PART II" / "Item 3." stripped, then letters only: b6_parse/1
+    keyed on letters only, so "Item 3. Quantitative and Qualitative ..." became "ITEMQUANTITATIVE..."
+    and never matched a terminator — the cause of the 52 runaway MD&A sections (review F4). A line
+    that is only "PART II" keys as "PARTII"."""
     out, pos = [], 0
     for line in text.split("\n"):
         end = pos + len(line)
         if 0 < len(line.strip()) <= _MAX_HEADING_LINE:
-            out.append((pos, end, re.sub(r"[^A-Za-z]", "", line).upper()))
+            stripped = _ITEM_PART_PREFIX.sub("", line, count=1)
+            key = re.sub(r"[^A-Za-z]", "", stripped).upper()
+            if not key:
+                key = re.sub(r"[^A-Za-z]", "", line).upper()      # a bare "PART II" -> PARTII
+            out.append((pos, end, key))
         pos = end + 1
     return out
 
 
 def mda_by_title(text: str, min_words: int = 1000) -> tuple[str, str]:
-    """Longest MD&A body that starts at a short title line and ends at the next short line
-    opening a known post-MD&A section -> (body, 'title_fallback'). In the cross-reference-index
-    format the financial section is appended AFTER the signatures and MD&A can be the document's
-    last section: end-of-document is then accepted ONLY if the body carries no end-of-document
-    marker (signature boilerplate, auditor's report) -> (body, 'title_fallback_eof').
-    Nothing acceptable -> ('', '') — fail closed."""
+    """Longest MD&A body that starts at a short title line and ends at the next short line opening
+    a known post-MD&A section (prefix-stripped keys: "Item 3. Quantitative ...", "PART II", ...) ->
+    (body, 'title_fallback'). b6_parse/2: END-OF-DOCUMENT IS NEVER A TERMINATOR. With no terminating
+    heading, the body is cut at the earliest document-end marker (signature block, either signature
+    sentence, "/s/", an auditor-report heading, an exhibit-index heading) -> 'title_fallback_docend';
+    with no marker either -> rejected. b6_parse/1 accepted end-of-document when it looked clean and
+    52 of 52 such S&P sections ran through Part II to the 10-Q signatures (review F4).
+    Every accepted body must also pass `_CONTAMINATION`. Nothing acceptable -> ('', '')."""
     lines = _line_keys(text)
     best, best_src = "", ""
     for i, (s0, e0, k0) in enumerate(lines):
@@ -407,11 +444,18 @@ def mda_by_title(text: str, min_words: int = 1000) -> tuple[str, str]:
         for s1, _e1, k1 in lines[i + 1:]:
             if _MDA_TITLE.match(k1):
                 continue
-            if k1.startswith(_MDA_ENDS):
+            if k1 == "PARTII" or k1.startswith(_MDA_ENDS):
                 end, src = s1, "title_fallback"
                 break
         if end is None:
-            end, src = len(text), "title_fallback_eof"
+            cut = _DOC_END.search(text, e0)
+            if cut is None:
+                continue
+            end, src = cut.start(), "title_fallback_docend"
+        else:
+            cut = _DOC_END.search(text, e0, end)
+            if cut is not None:
+                end, src = cut.start(), "title_fallback_docend"
         body = text[e0:end].strip()
         if len(_WORD.findall(body)) >= min_words and not _CONTAMINATION.search(body) \
                 and len(body) > len(best):

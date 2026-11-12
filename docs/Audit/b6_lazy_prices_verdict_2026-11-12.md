@@ -3,125 +3,152 @@ task_id: T-383 (B-6)
 title: B-6 Lazy Prices — verdict (S&P arm; T-265 arm pending its census and freeze)
 date: 2026-11-12
 author: ml-architect subagent (director-dispatched)
-outcome: "S&P ARM, gate window (c) 2020-Q2→2025-Q4: H1 NOT MET for either signal — similarity Δ log wealth −0.027 (ci_low −0.116 at the family level), Δtone −0.041 (ci_low −0.128); short-leg t_HAC −0.77 / −1.29 (wrong sign). The S&P half of the refutation holds; the refutation itself needs the T-265 arm. Window (d) NOT EVALUABLE (census halt)."
-status: "S&P arm DONE on (c) (prereg AMENDMENT 2); N_trials +1 consumed. T-265 arm: stream running, not frozen. Determinism x2: results md5 2ec68e5a9248af3a5138eb940960aa6f."
-reproduce: "python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1  # md5 2ec68e5a9248af3a5138eb940960aa6f (x2); (d) census: --census-only --spec d_similarity  # exit 2, md5 c3effa85be82e4f5941051cd97dac980"
+outcome: "S&P ARM, gate window (c), CORRECTED run (AMENDMENTS 3+4): H1 NOT MET for either signal — similarity Δ log wealth −0.028 (ci_low −0.117 at the family level), Δtone −0.037 (ci_low −0.122); short-leg t_HAC −0.72 / −0.89 under R2's same-quarter pairing, but +2.23 under the ADJACENT 10-Q pairing — the S&P half of the refutation holds only under R2. The ORIGINAL run is kept as the NON-COMPLIANT record. Window (d) NOT EVALUABLE."
+status: "S&P arm DONE (corrected run); N_trials stays +1. T-265: stream restarted on b6_parse/2, not frozen."
+reproduce: "corrected: python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/a4_run1  # md5 039750163d6f4a74e17b5022b38e5da9 (x2); original: commit e5a923f, md5 2ec68e5a9248af3a5138eb940960aa6f (x2); (d): --census-only --spec d_similarity --signals data/b6_local/signals_sp.parquet  # exit 2, HALT md5 8f80dc57c89739fbae9ea976c86fe1e2"
 ---
 
 # B-6 Lazy Prices — verdict
 
-Pre-registration: `docs/Sources/prereg_b6_lazy_prices_2026-11-11.md` — the draft, AMENDMENT 1 (rulings
-R1–R9, committed alone at `fc28a7d` before any return) and AMENDMENT 2 (the gate window after the (d)
-census halted, committed alone at `2a90763` before any return). Harness:
-`scripts/lazy_prices/b6_harness_sp.py` (standalone, never `BacktestController`; locks
-`tests/test_b6_harness_sp.py`). All outputs worktree-local under `data/b6_local/harness_sp/`.
+Pre-registration: `docs/Sources/prereg_b6_lazy_prices_2026-11-11.md` — the draft; AMENDMENT 1 (rulings
+R1–R9, `fc28a7d`); AMENDMENT 2 (gate window (c) after the (d) census halted, `2a90763`; erratum `2e51918`);
+AMENDMENT 3 (review F1–F5 — **"a defect-corrected re-run after results were seen; the configuration is
+unchanged; N_trials stays +1 (the B-5 A2.2 precedent)"**, `a089d8f`); AMENDMENT 4 (a shared T-265 ticker
+may fill by CIK only when the date-aware mapping is unique, `ad8eaa7`). Each amendment was committed alone.
+Harness: `scripts/lazy_prices/b6_harness_sp.py` (standalone; never `BacktestController`).
 
-## 1. S&P arm, window (d) 2016-Q1 → 2025-Q4 — NOT EVALUABLE (census halt, no return)
-The frozen census (§7.7, §11) halted the (d) gate (exit 2) before any return: **13 of 40 rebalances below
-the 80%-of-members floor, worst 2016-03-31 at 67.9%**; bit-identical twice (census CSV md5
-`c3effa85be82e4f5941051cd97dac980`, HALT list `8f80dc57c89739fbae9ea976c86fe1e2`; reproduced again under
-the renamed spec `d_similarity`). Cause: T-265 holds no bars for 14–20% of 2016–2019 members (acquired or
-failed names — the B-2 §3.1 survivorship hole), not text coverage. Per AMENDMENT 2 (director, B-1
-precedent; lowering the floor rejected), (d) re-runs as its own pre-registered trial once the price hole
-closes.
+## 1. Window (d) 2016-Q1 → 2025-Q4 — NOT EVALUABLE (census halt, no return)
+13 of 40 rebalances below the 80%-of-members floor (worst 2016-03-31, 67.9%); bit-identical twice (census
+md5 `c3effa85be82e4f5941051cd97dac980`, HALT list `8f80dc57c89739fbae9ea976c86fe1e2`). Cause: missing T-265
+bars for acquired or failed members (B-2's survivorship hole), not text. Re-runs as its own pre-registered
+trial once the hole closes (AMENDMENT 2).
 
-| rebalance | share | | rebalance | share |
-|---|---|---|---|---|
-| 2016-03-31 | **0.679** | | 2017-12-29 | 0.778 |
-| 2016-06-30 | 0.741 | | 2018-03-29 | 0.742 |
-| 2016-09-30 | 0.747 | | 2018-09-28 | 0.792 |
-| 2016-12-30 | 0.753 | | 2018-12-31 | 0.795 |
-| 2017-03-31 | 0.724 | | 2019-03-29 | 0.761 |
-| 2017-06-30 | 0.767 | | 2020-03-31 | 0.782 |
-| 2017-09-29 | 0.772 | | | |
+## 2. Window (c), the ORIGINAL run — H1 NOT MET, but NON-COMPLIANT (kept as the record)
+**Why non-compliant (review, AMENDMENT 3):**
+- **F1 (`[NN-FAIL-CLOSED]`, §7.7).** Any price-file end was booked as an index exit; §7.7 requires a
+  recorded deletion or a HALT. Of its 58 "exits", ≈ 27 were real, 8 renames and ≈ 23 TRUNCATED
+  `data/processed` files of live members (AVGO, ANET, PWR, APH, MU, LRCX, CAT, DELL, MPC, TER, GLW, CMA);
+  25 live members with a signal were unpriced at 2025-12-31 (NVDA, AVGO, PLTR, VST, APP, HOOD, KLAC …).
+- **F2 (joins).** BRK-B / BF-B never matched `BRK.B_1d.csv` / `BF.B_1d.csv` (excluded all 23 quarters);
+  META 2020-06 → 2022-06 and IHS Markit hit a different security under FB / INFO; 38 later-acquired
+  members' files start 2020-07-27; MMC had no file.
+- **F4 (parser b6_parse/1).** 52 of 52 end-of-document MD&A sections ran to the 10-Q signatures.
 
-## 2. S&P arm, gate window (c) 2020-Q2 → 2025-Q4 — H1 NOT MET
+**Its numbers (results md5 `2ec68e5a9248af3a5138eb940960aa6f`, ×2; commit `e5a923f`):**
+| signal | Δ log wealth (69 m) | ci_low 1.25th (gate) | ci_low 2.5th | short-leg mean | short-leg t_HAC |
+|---|---|---|---|---|---|
+| similarity | −0.027 | −0.116 | −0.107 | −0.77%/yr | −0.77 |
+| Δtone | −0.041 | −0.128 | −0.115 | −1.27%/yr | −1.29 |
 
-**Setup (frozen; AMENDMENT 2).** 23 quarterly rebalances 2020-06-30 → 2025-12-31, holdings to 2026-03-31:
-**69 months (5.75 years)**. Prices: `data/processed` closes (exact TR after 2020-04-09). Universe: PIT S&P
-500 members with a CIK and a usable signal (R6: 10-K combo, 10-Q MD&A; latest filing with
-`decision_floor_date` ≤ t, within 6 months) and a bar at t. Census PASS every quarter (ranked 416–474,
-83.4–94.8% of members; terciles ≥ 138). Costs 10 bps RT. Exits: 58 over the window (last close → BIL TR).
-Bootstrap: paired month-index moving blocks, 1,000 iterations, seed 0, block 5. **Determinism: two full
-runs, identical results md5 `2ec68e5a9248af3a5138eb940960aa6f`.** Smoke (the first 12 months) passed
-first: no NaN, 5 exits, SPY TR +2.98%/month mean (≈ +42% over the year, matching the period).
+**Refutation framing, corrected (F3).** R2 stands (ruled pre-data, legitimate). **The S&P half of the
+brief's refutation ("ci_low ≤ 0 AND short-leg t_HAC < 2") holds ONLY under R2's same-quarter-prior-year
+10-Q pairing. Under the brief's literal "prior same-form filing" — the ADJACENT 10-Q — the S&P short leg
+CLEARS t = 2 in this window: t_HAC +2.27** (changers underperform by 2.1%/yr; +2.32 with the review's own
+fill). **The earlier "one of 8, needs |t| ≈ 2.7" discount is WITHDRAWN:** two of the 8 are the gate signals
+and five (20 bps cost, D = −30%, Jaccard, TF-IDF, MD&A-only) are near-copies of the gate, so the effective
+number of distinct tests is small and **the adjacent-pairing short-leg result is a LIVE finding, not
+noise.** It is untradeable in a Roth (no shorts). It is named as the candidate for a future
+pre-registered **negative-screen** test — exclude recent "changers" from a long book — and is not tested
+here.
 
-### 2.1 The gate — long-leg 25% satellite, Δ log wealth vs 100% SPY TR (family level, Bonferroni)
-| signal | Δ log wealth (69 m) | ci_low **1.25th pct (gate)** | ci_low 2.5th | ci_high 97.5th | realized MDE80 | H1 |
+**Corrections to the original text (F5).** "Replaces ≈ 72% of its names" was wrong: 0.72 is the
+two-sided Σ|Δw|; the review measured ≈ 32% NEW long names per rebalance. The long leg's 0.84 Sharpe (ci_low
+0.21) is on RAW monthly returns, not excess of cash. `data/processed` drops spin-off value against T-265
+(AIV −54 pp; FTV, WDC, LEN, J) — a source difference of the (c) window, noted, not corrected. The
+equal-weight-vs-cap decomposition stands: long − SPY −1.99%/yr ≈ (long − EW universe −0.42%) + (EW
+universe − SPY −1.57%).
+
+## 3. Window (c), the CORRECTED run (AMENDMENTS 3 + 4) — H1 NOT MET for either signal
+
+**What changed (configuration otherwise unchanged; N_trials stays +1).**
+- **Parser b6_parse/2** (F4): the S&P panel re-parsed into `sp_sections_v2/` — 3,753 filings re-fetched
+  and re-parsed (0 failures), 42,287 re-checked on stored text (2 Risk-Factors and 6 MD&A sections newly
+  CONTAMINATED). Signals recomputed (`signals_sp_v2.parquet`): **575 filings' ranking signal changed; in
+  the gate panel 161 ranked name-quarters change** (70 enter, 2 leave, the rest change value; 48 move leg).
+  The review counted 7 because it counted only the end-of-document runaways: in the (c) window the
+  section-level changes are 6 runaway MD&A sections, **97 MD&A sections v1 failed to locate that v2 now
+  carves** (the 70 entering name-quarters) and **563 title-located MD&A bodies re-carved** by the
+  terminator-key fix ("Item 3. Quantitative …" now terminates).
+- **Prices** (F1/F2, AMENDMENT 4): per name-quarter resolution — `data/processed` if it covers the quarter,
+  else T-265 bars by CIK (through a shared T-265 ticker only when the date-aware mapping is unique), else an
+  exit only at a recorded index deletion, else HALT. Every name-quarter's source and cause:
+  `data/b6_local/harness_sp/a4_run1/price_manifest_gate_similarity.csv`.
+
+**Census (×2 identical, md5 `c08c92319a363d699ee5d7b7ffb445c7`): PASS** — ranked 438–489 per quarter,
+87.8–97.8% of members, terciles ≥ 145, **0 unresolved**. The first corrected attempt halted on AVGO
+(census md5 `2ede226fbca9bbd28859b299af9b447e`) until AMENDMENT 4's general rule resolved it by date.
+
+| cause (name-quarters with a usable signal, 23 quarters) | n | names (e.g.) |
+|---|---|---|
+| ok — `data/processed` covers the quarter | 10,520 | |
+| no_bar_at_t → T-265 fill (late-starting or other-security files) | 138 | FB→META (9 qtrs), NVDA (8), AVGO (4), PLTR, APP, ANET … (57 names) |
+| no_file → T-265 fill | 105 | MMC, ABC, ANTM, BLL, CTL, ETFC, FI … (12 names) |
+| truncated → T-265 fill | 18 | AVGO, ANET, APH, CAT, DELL, GLW, JBL, LRCX, MCK, MPC, MU, NRG, PH, PWR … |
+| rename → T-265 fill | 5 | FBHS, FLT, GPS, RE, WLTW |
+| real_exit — a recorded index deletion within −10 / +45 days | 37 | ABMD, ALXN, ANSS, ATVI, CTXS, CXO, DFS … |
+| unresolved | **0** | |
+| no price at t (not ranked) | 86 | |
+
+AMENDMENT 4 resolves exactly 5 name-quarters, all Broadcom Inc (AVGO, 2024-12-31 → 2025-12-31). BRK-B
+and BF-B are priced in all 23 quarters; META in all 23. Exits fall from the original 58 to **37, every one a
+recorded deletion**.
+
+**Smoke** (the first 12 months): clean — ranked 438–473, 7 exits (all recorded), no NaN.
+**Determinism: two full runs, identical results md5 `039750163d6f4a74e17b5022b38e5da9`.**
+
+### 3.1 The gate — long-leg 25% satellite, Δ log wealth vs 100% SPY TR (family level, Bonferroni)
+| signal | Δ log wealth (69 m) | ci_low **1.25th (gate)** | ci_low 2.5th | ci_high 97.5th | realized MDE80 | H1 |
 |---|---|---|---|---|---|---|
-| **similarity** (non-changers long) | **−0.027** | **−0.116** | −0.107 | +0.053 | 0.114 | **NOT MET** |
-| **Δtone** (tone improved long) | **−0.041** | **−0.128** | −0.115 | +0.028 | 0.106 | **NOT MET** |
+| **similarity** | **−0.0278** | **−0.117** | −0.107 | +0.052 | 0.114 | **NOT MET** |
+| **Δtone** | **−0.0365** | **−0.122** | −0.110 | +0.032 | 0.104 | **NOT MET** |
 
-**Label (B-2's binding rule, §8):** both point estimates are below the pre-data central MDE80 (+0.101
-total) → **"not demonstrable at this length"**, and the brief's refutation sentence is evaluated beside it
-(§2.3).
+The review's independent fill (272 fills) gave similarity −0.028 (ci_low −0.115) and Δtone −0.036 (ci_low
+−0.122); the corrected run lands on both. **Label (§8):** both points below the central MDE80 (+0.101) →
+**"not demonstrable at this length."**
 
-### 2.2 The short-changers diagnostic (the most informative statistic, §8 / A2.2)
-Monthly s_t = r(EW universe) − r(EW bottom tercile); positive = changers underperform. Newey-West, 3 lags.
-| signal | mean s, ann. | **t_HAC** | long − short, ann. | t_HAC |
+### 3.2 The short-changers diagnostic (R2's same-quarter-prior-year pairing — the gate construction)
+| signal | mean s (universe − changers), ann. | **t_HAC** | long − short, ann. | t_HAC |
 |---|---|---|---|---|
-| similarity | **−0.77%** | **−0.77** | −1.19% | −0.59 |
-| Δtone | **−1.27%** | **−1.29** | −2.69% | −1.44 |
+| similarity | −0.76% | **−0.72** | −1.26% | −0.61 |
+| Δtone | −0.88% | **−0.89** | −1.97% | −1.06 |
 
-**The changers did NOT underperform in this window — both point estimates have the wrong sign**, and
-neither is distinguishable from zero.
+### 3.3 The brief's refutation sentence, evaluated literally — and its dependence on R2
+- S&P: ci_low ≤ 0 for both signals — TRUE; short-leg t_HAC < 2 — TRUE **under R2's same-quarter pairing**.
+- **Under the ADJACENT 10-Q pairing (the brief's literal "prior same-form filing"), the S&P short leg CLEARS
+  t = 2: changers underperform by 1.96%/yr, t_HAC +2.23** (long − short +2.98%/yr, t +1.72; satellite
+  −0.002, ci_low 2.5th −0.101). The review measured +2.32 with its own fill; the gap is the b6_parse/2
+  signals and the AVGO fill.
+- **So the S&P half of the refutation holds ONLY under R2's pairing.** The refutation as a whole still needs
+  the T-265 arm. Multiplicity: two of the 8 diagnostics that ran are the gate signals and five are
+  near-copies of the gate, so the adjacent-pairing short-leg result is a **live finding, not noise** —
+  untradeable in a Roth, and the named candidate for a future pre-registered **negative-screen** test
+  (exclude recent "changers" from a long book). Not tested here.
 
-### 2.3 The brief's refutation sentence, evaluated literally
-*"Refutation: both ≤ 0 AND short-leg t_HAC < 2 ⇒ Lazy Prices is H0 on free data for this operator."*
-- "both ≤ 0" refers to the two arms' H1 statistics (S&P and T-265). **S&P: ci_low ≤ 0 — TRUE** (−0.116
-  similarity; −0.128 Δtone). **T-265: NOT YET EVALUATED** (its stream is running; its arm is not frozen).
-- "short-leg t_HAC < 2": **S&P — TRUE** (−0.77; −1.29). T-265 — not yet evaluated.
-- **Literal result: the S&P half of the refutation HOLDS; the refutation as a whole CANNOT be recorded
-  until the T-265 arm runs.** If T-265 also returns ci_low ≤ 0 and short-leg t_HAC < 2, the verdict is
-  "Lazy Prices is H0 on free data for this operator" — the first verdict doc T-237 never got.
+### 3.4 Decomposition, standalone statistics, diagnostics
+- **Where the shortfall comes from** (arithmetic on the reported means): long − SPY −2.03%/yr ≈ (long −
+  EW universe −0.50%) + (EW universe − SPY −1.53%): mostly the equal-weight vs cap-weight tilt of 2023–25
+  (per-year Δ log wealth +0.005 / +0.008 / +0.015 in 2020–22, −0.028 / −0.019 / −0.013 in 2023–25).
+- **Long leg (similarity):** Sharpe 0.84 (ci_low 0.20) and Sortino 1.46 (ci_low 0.30) on RAW monthly
+  returns, not excess of cash; SPY TR 1.01 over the same months; below the 5.75-year MinBTL bar (≈ 0.90).
+  **NEW long names per rebalance: 32% (similarity), 44% (Δtone)** (two-sided Σ|Δw| 0.71 / 0.93).
+- **Diagnostics** (none can meet H1): 20 bps −0.030 (short-leg t −0.62); D = −30% −0.033 (−0.62); Jaccard
+  −0.036 (−0.89); TF-IDF −0.019 (−0.68); MD&A-only −0.027 (−0.67); adjacent pairing −0.002 (**+2.23**).
+  HALTED at their own censuses: Risk-Factors-only (2020-06-30 share 0.780), 10-Q combo (2020-06-30
+  0.765), 10-K-only and 10-Q-only (a single form cannot fill a quarter).
+- `data/processed` drops spin-off value against T-265 (AIV −54 pp; FTV, WDC, LEN, J) — noted, not
+  corrected (F5).
 
-### 2.4 Where the long leg's shortfall comes from (arithmetic on the reported means; not a new test)
-Long − SPY = **−1.99%/yr** = (long − EW universe ≈ −0.42%/yr) + (EW universe − SPY ≈ −1.57%/yr). Most of
-the satellite's shortfall is the **equal-weight vs cap-weight tilt** over 2023–2025 (mega-cap
-concentration; per-year Δ log wealth +0.005 / +0.010 / +0.015 in 2020–22, −0.026 / −0.020 / −0.014 in
-2023–25), not the text signal; the signal's own contribution (long vs its universe) is small and
-negative. The prereg named no EW-universe benchmark for the S&P gate (B-1's §3.7 lesson), so this is
-reported, not gated.
-
-### 2.5 Standalone statistics (with ci_low, `[NN-SHARPE-CI]`) and the MBL line
-Long leg (similarity): Sharpe **0.84, ci_low 0.21**; Sortino 1.46, ci_low 0.31 — against SPY TR's 1.01 over
-the same months. **MBL line:** at N_eff 36.92 a 5.75-year window needs SR ≥ ≈ 0.90 to clear MinBTL; the
-long leg's 0.84 does not, and it does not beat SPY. Turnover: the long leg replaces ≈ 72% of its names per
-quarter (similarity) and ≈ 94% (Δtone) — the ranks are unstable quarter to quarter.
-
-### 2.6 Pre-named diagnostics (§7.5; on the gate's window per A2.2; none can meet H1)
-| diagnostic | Δ log wealth | ci_low 2.5th | short-leg mean | short-leg t_HAC |
-|---|---|---|---|---|
-| 20 bps cost | −0.029 | −0.109 | −0.66% | −0.66 |
-| exits at D = −30% | −0.036 | −0.117 | −0.69% | −0.68 |
-| Jaccard | −0.034 | −0.105 | −1.13% | −0.85 |
-| T-237's TF-IDF cosine | −0.018 | −0.094 | −0.66% | −0.55 |
-| MD&A-only (both forms) | −0.028 | −0.106 | −0.76% | −0.68 |
-| **10-Q adjacent-quarter pairing** | −0.001 | −0.104 | **+2.10%** | **+2.27** |
-| Risk-Factors-only | HALTED at its census (2020-06-30 share 0.726) | | | |
-| 10-Q combo | HALTED (3 quarters < 80%) | | | |
-| 10-K-only / 10-Q-only rankings | HALTED (a single form cannot fill a quarter: 20–98 names) | | | |
-
-**On the one diagnostic with t_HAC > 2.** Ranking 10-Qs against the ADJACENT prior quarter (the A1.2
-diagnostic — "the closest reading of 'quarter-to-quarter'") gives changers underperforming by 2.1%/yr,
-t_HAC +2.27, while the satellite stays flat (−0.001, ci_low −0.10). It is **one of 8 diagnostics that ran;
-under the null, one t above 2 among 8 is unsurprising** (Bonferroni across 8 needs |t| ≈ 2.7). It cannot
-meet H1 and does not enter the refutation clause, which reads the gate construction. It is recorded as a
-**nomination**: if the T-265 arm's adjacent-quarter diagnostic points the same way, the adjacent pairing
-is the candidate for its OWN pre-registered test — never a re-reading of this one.
-
-### 2.7 Predictions (§12) vs outcome (they were written for the 10-year window (d))
+### 3.5 Predictions (§12; written for the 10-year window) vs the corrected run
 | prediction | outcome |
 |---|---|
-| similarity satellite point in [−0.05, +0.10]; ci_low ≤ 0; "not demonstrable" | **as predicted** (−0.027; −0.116; label applies) |
-| S&P short-leg t_HAC +1.0 to +2.5 | **wrong** — −0.77 (wrong sign) |
-| tone weaker than similarity | **as predicted** (−0.041 vs −0.027) |
+| similarity satellite point in [−0.05, +0.10]; ci_low ≤ 0; "not demonstrable" | **as predicted** (−0.028; −0.117) |
+| S&P short-leg t_HAC +1.0 to +2.5 | **wrong under R2** (−0.72); **inside the range under the adjacent pairing** (+2.23) |
+| tone weaker than similarity | **as predicted** (−0.037 vs −0.028) |
 
-## 3. N_trials
-**+1 consumed (the S&P arm, run on (c)).** The (d) census halt consumed none (no return). The T-265
-arm's +1 is consumed at its run. Honest N context: registry N_eff 36.92 (it omits standalone-harness
-trials, health_check MEDIUM `573fc62`); the hand count rises by this trial.
+## 4. N_trials
+**+1 (the S&P arm), unchanged by AMENDMENTS 3 and 4.** The (d) census halt and the corrected run's first
+(AVGO) census halt consumed none.
 
-## 4. T-265 arm — pending
-The signals-only stream (restarted 2026-11-12 19:48 UTC) is running; its census and freeze follow its
-completion. Nothing has been run on it.
+## 5. T-265 arm — pending
+The stream was stopped, its 3,880 b6_parse/1 filings archived unused, and restarted from scratch on
+b6_parse/2 (2026-11-12 21:38 UTC). Its census and freeze follow its completion.

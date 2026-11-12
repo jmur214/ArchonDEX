@@ -61,6 +61,9 @@ OUT_DIR = ROOT / "data" / "b6_local" / "cik_map"
 INTERVALS_PATH = OUT_DIR / "sp_intervals.parquet"
 USERS_PATH = OUT_DIR / "sp_interval_users.parquet"
 ACTIVITY_PATH = OUT_DIR / "cik_year_activity.parquet"
+T265_MAP = ROOT / "data" / "research" / "t265" / "cik_ticker_final.parquet"
+SHARED_USERS_PATH = OUT_DIR / "t265_shared_ticker_users.parquet"
+UNIVERSE_MONTHS = ROOT / "data" / "b6_local" / "sp_universe_months.parquet"
 
 OPEN_END = pd.Timestamp("2026-12-31")
 INSIDER_START = pd.Timestamp("2006-01-01")
@@ -188,11 +191,52 @@ def _t237_map() -> dict[str, int]:
     return {str(t): int(c) for t, c in zip(s["ticker"], s["cik"])}
 
 
+def t265_shared_ticker_users() -> pd.DataFrame:
+    """AMENDMENT 4 — for every T-265 ticker mapped to more than one CIK (and touching an S&P member
+    CIK), WHO used the symbol WHEN in the Form 3/4/5 data: one row per (ticker, cik) with the first
+    and last insider filing under that symbol. The harness allows a CIK-based fill through such a
+    ticker only when exactly ONE CIK holds the symbol at the rebalance date and it is the member's."""
+    ct = pd.read_parquet(T265_MAP)
+    ct["cik"] = ct["cik"].astype(int)
+    n = ct.groupby("ticker").cik.nunique()
+    shared = ct[ct.ticker.isin(set(n[n > 1].index))]
+    members = set(pd.read_parquet(UNIVERSE_MONTHS).dropna(subset=["cik"]).cik.astype(int))
+    tickers = set(shared[shared.cik.isin(members)].ticker)
+    keys = {ticker_key(t): t for t in tickers}
+    parts = []
+    for zp in sorted(INSIDER_DIR.glob("*_form345.zip")):
+        with zipfile.ZipFile(zp) as z, z.open("SUBMISSION.tsv") as fh:
+            df = pd.read_csv(fh, sep="\t", dtype=str, quoting=3, on_bad_lines="skip",
+                             usecols=["FILING_DATE", "ISSUERCIK", "ISSUERTRADINGSYMBOL"])
+        df["key"] = df["ISSUERTRADINGSYMBOL"].map(symbol_keys)
+        df = df.explode("key")
+        df = df[df["key"].isin(set(keys))]
+        if df.empty:
+            continue
+        df["date"] = pd.to_datetime(df["FILING_DATE"], format="%d-%b-%Y", errors="coerce")
+        df["cik"] = pd.to_numeric(df["ISSUERCIK"], errors="coerce")
+        parts.append(df.dropna(subset=["date", "cik"])[["key", "cik", "date"]])
+    d = pd.concat(parts, ignore_index=True)
+    d["cik"] = d["cik"].astype(int)
+    d["ticker"] = d["key"].map(keys)
+    out = (d.groupby(["ticker", "cik"]).date.agg(first="min", last="max", n="size").reset_index()
+             .sort_values(["ticker", "first"]))
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 date-aware S&P ticker->CIK candidates (offline).")
     ap.add_argument("--since", default="2006-01-01",
                     help="keep membership intervals ending on/after this date")
+    ap.add_argument("--t265-shared", action="store_true",
+                    help="AMENDMENT 4: write the symbol-user table for shared T-265 tickers only")
     args = ap.parse_args(argv)
+    if args.t265_shared:
+        out = t265_shared_ticker_users()
+        out.to_parquet(SHARED_USERS_PATH, index=False)
+        print(out.to_string(index=False))
+        print(f"[b6-cikmap] wrote {SHARED_USERS_PATH.relative_to(ROOT)}")
+        return 0
 
     mem = pd.read_parquet(MEMBERSHIP)
     since = pd.Timestamp(args.since)

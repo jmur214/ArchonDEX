@@ -33,4 +33,11 @@ MD&A tail + financial statements (found 2026-11-11 by B-6, months after "validat
 4. Minimum-length guards pass stubs ("incorporated by reference" ~400 chars) — classify
    incorporation-by-reference explicitly (NOT_COVERED or follow EX-13), don't length-gate.
 5. Validate on a broad random sample across years/sectors, not 2 mega-caps.
+6. (B-6 review F4, 2026-11-12) A FALLBACK carve is still a carve: my title-located MD&A fallback
+   accepted end-of-document "when clean" and 52/52 such sections ran through Part II to the 10-Q
+   signatures. Causes: heading lines keyed on letters only ("Item 3. Quantitative" -> ITEMQUANT…
+   never matched a terminator) and a contamination check that knew only the 10-K signature
+   sentence. Strip "PART II"/"Item N." from the RAW line before matching (an item letter counts only
+   standing alone), never accept end-of-document, cut at /s/, both signature sentences and
+   auditor-report headings. Never write "cannot occur by construction" for anything with a fallback.
 See [[t237-lazy-prices-parse-similarity]].

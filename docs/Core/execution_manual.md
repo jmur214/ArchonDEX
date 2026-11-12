@@ -1700,5 +1700,10 @@ FROZEN census first; exit 2 = a fail-closed condition fired and no return was co
 python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --out data/b6_local/harness_sp/census_d_repro   # window (d): exit 2 (NOT EVALUABLE, AMENDMENT 2)
 python -m scripts.lazy_prices.b6_harness_sp --smoke --out data/b6_local/harness_sp/smoke_c   # the gate window (c)'s first 12 months, sanity only
 python -m scripts.lazy_prices.b6_harness_sp --all --out data/b6_local/harness_sp/run1   # gate (c) + diagnostics; run twice, compare results.md5
+# AMENDMENTS 3/4 (review F1-F5): parser b6_parse/2 over the S&P panel, v2 signals, shared-ticker holders
+python -m scripts.lazy_prices.b6_build_panel reparse --min-interval 0.22 --disk-floor 10   # sp_sections_v2/ (re-fetch fallback/failed MD&A rows; re-check the rest)
+python -m scripts.lazy_prices.b6_signals sp --shards data/b6_local/sp_sections_v2 --out data/b6_local/signals_sp_v2.parquet
+python -m scripts.lazy_prices.b6_cik_map --t265-shared   # who held each shared T-265 ticker when (AMENDMENT 4)
+python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --signals data/b6_local/signals_sp.parquet --out data/b6_local/harness_sp/census_d   # the (d) record on b6_parse/1 signals
 python -m pytest tests/test_b6_harness_sp.py -q
 ```

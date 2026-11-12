@@ -140,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         pd.DataFrame(done_buf).to_parquet(OUT_DIR / f"done_{tag}_{k:05d}.parquet", index=False)
         sig_buf, meta_buf, done_buf = [], [], []
 
-    class _Stop(Exception):
+    class _Stop(BaseException):  # NOT Exception: process_filing's broad except must not swallow it
         pass
 
     def _on_signal(signum, _frame):  # noqa: ANN001

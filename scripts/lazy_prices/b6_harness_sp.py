@@ -36,7 +36,9 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL = ROOT / "data" / "b6_local"
-SIGNALS = LOCAL / "signals_sp.parquet"
+SIGNALS = LOCAL / "signals_sp_v2.parquet"      # AMENDMENT 3: b6_parse/2 (v1: signals_sp.parquet)
+INTERVALS = LOCAL / "cik_map" / "sp_intervals.parquet"
+SHARED_USERS = LOCAL / "cik_map" / "t265_shared_ticker_users.parquet"   # AMENDMENT 4
 UNIVERSE = LOCAL / "sp_universe_months.parquet"
 T265 = ROOT / "data" / "research" / "t265"
 PROCESSED = ROOT / "data" / "processed"
@@ -75,7 +77,7 @@ SIM = dict(col_10k="yoy_combo_cos", col_10q="yoy_mda_cos", why_10k="yoy_combo_wh
 TONE = dict(col_10k="yoy_combo_dtone", col_10q="yoy_mda_dtone", why_10k="yoy_combo_why",
             why_10q="yoy_mda_why")
 
-C = dict(start="2020-06-30", price_mode="c")   # AMENDMENT 2: the gate window and source
+C = dict(start="2020-06-30", price_mode="cfix")  # AMENDMENT 2 window; AMENDMENT 3 price resolution
 
 SPECS: dict[str, Spec] = {s.name: s for s in [
     # the gate (prereg AMENDMENT 2): window (c), data/processed TR closes, rebalances 2020-06-30 ->
@@ -161,6 +163,71 @@ class Prices:
     spy: pd.Series
     bil: pd.Series
     source_log: dict = field(default_factory=dict)
+    iv_end: dict = field(default_factory=dict)          # iv_id -> membership interval end (NaT = open)
+    # AMENDMENT 4: the CIK-based fill may use a T-265 ticker mapped to several CIKs only when the
+    # date-aware mapping is UNIQUE at the rebalance date (exactly one CIK holds the symbol then)
+    t265_of_cik_all: dict = field(default_factory=dict)  # every CIK -> its T-265 ticker (shared too)
+    shared: set = field(default_factory=set)            # T-265 tickers mapped to > 1 CIK
+    holders: dict = field(default_factory=dict)         # ticker -> [(cik, first, last)] symbol use
+
+    def holders_at(self, ticker: str, t: pd.Timestamp) -> set[int]:
+        pad = pd.Timedelta(days=90)
+        return {c for c, a, b in self.holders.get(ticker, []) if a - pad <= t <= b + pad}
+
+    def proc_for(self, ticker: str) -> pd.Series | None:
+        """`data/processed` by membership ticker, trying the share-class spellings ('BRK.B' is the
+        file; the membership writes 'BRK-B') — review F2."""
+        for k in dict.fromkeys([ticker, ticker.replace(".", "-"), ticker.replace("-", ".")]):
+            s = self.proc.get(k)
+            if s is not None:
+                return s
+        return None
+
+    def resolve(self, cik: int, ticker: str, iv_id: int | None, t: pd.Timestamp,
+                q_end: pd.Timestamp) -> dict:
+        """AMENDMENT 3 (review F1/F2) — the gate's price for one name-quarter, decided from bar DATES
+        and membership records only (no return): `data/processed` if it has a bar at t and covers the
+        quarter; else T-265 bars joined BY CIK (R1's primary source) if they cover; else, if a source
+        has a bar at t, the name EXITS at its last bar only when its PIT membership interval ends near
+        that bar (a recorded index deletion, §7.7); else 'unresolved' (the census HALTS)."""
+        P = self.proc_for(ticker)
+        tk = self.t265_of_cik_all.get(cik, self.t265_of_cik.get(cik))
+        shared_ok = None
+        if tk is not None and tk in self.shared:
+            # AMENDMENT 4: unique date-aware holder == this CIK, else the bars are not attributable
+            shared_ok = self.holders_at(tk, t) == {cik}
+            if not shared_ok:
+                tk = None
+        T = self.t265.get(tk) if tk is not None else None
+
+        def bar(s):
+            return s is not None and t in s.index
+
+        def covers(s):
+            return bar(s) and s.index.max() >= q_end
+
+        if covers(P):
+            return {"source": "processed", "series": P, "cause": "ok"}
+        if covers(T):
+            if P is None:
+                cause = "no_file"
+            elif not bar(P):
+                cause = "no_bar_at_t"
+            elif tk is not None and tk.replace(".", "-") != ticker.replace(".", "-"):
+                cause = "rename"
+            else:
+                cause = "truncated"
+            return {"source": "t265_fill", "series": T, "cause": cause,
+                    "shared_resolved": bool(shared_ok)}
+        cands = [(n, x) for n, x in (("processed", P), ("t265_fill", T)) if bar(x)]
+        if not cands:
+            return {"source": None, "series": None, "cause": "no_price_at_t"}
+        name, ser = max(cands, key=lambda c: c[1].index.max())
+        last = ser.index.max()
+        end = self.iv_end.get(iv_id, pd.NaT) if iv_id is not None else pd.NaT
+        if pd.notna(end) and last - pd.Timedelta(days=10) <= end <= last + pd.Timedelta(days=45):
+            return {"source": name, "series": ser, "cause": "real_exit", "exit": last}
+        return {"source": name, "series": ser, "cause": "unresolved", "exit": last}
 
     def series_for(self, cik: int, ticker: str, t: pd.Timestamp, mode: str) -> tuple[str, pd.Series] | None:
         key = ticker.replace(".", "-")
@@ -180,20 +247,35 @@ class Prices:
 
 
 def build_panel(spec: Spec, sig: pd.DataFrame, uni: pd.DataFrame, px: Prices,
-                cal: pd.DatetimeIndex) -> tuple[list[dict], pd.DataFrame]:
-    """Per rebalance: the ranked names with leg + source; and the census rows."""
+                cal: pd.DatetimeIndex, hold_end: pd.Timestamp | None = None
+                ) -> tuple[list[dict], pd.DataFrame]:
+    """Per rebalance: the ranked names with leg + source (+ the resolved series for 'cfix'); and the
+    census rows, including the AMENDMENT-3 cause table."""
     rebs = rebalance_dates(cal, spec.start, spec.end)
+    q_ends = rebs[1:] + [hold_end if hold_end is not None else rebs[-1] + pd.offsets.QuarterEnd(1)]
     panel, census = [], []
-    for t in rebs:
+    for t, q_end in zip(rebs, q_ends):
         m = uni[uni.month == t.to_period("M").to_timestamp()].drop_duplicates("cik")
         members = dict(zip(m.cik.astype(int), m.ticker))
+        iv_of = dict(zip(m.cik.astype(int), m.iv_id)) if "iv_id" in m.columns else {}
         s = signals_at(sig, t, spec, set(members))
-        rows = []
+        rows, causes = [], {}
         for r in s.itertuples():
-            got = px.series_for(int(r.cik), members[int(r.cik)], t, spec.price_mode)
+            c = int(r.cik)
+            if spec.price_mode == "cfix":
+                res = px.resolve(c, members[c], iv_of.get(c), t, q_end)
+                causes[res["cause"]] = causes.get(res["cause"], 0) + 1
+                if res["source"] is None:
+                    continue
+                rows.append({"cik": c, "ticker": members[c], "form": r.form, "value": float(r.value),
+                             "source": res["source"], "cause": res["cause"],
+                             "series": res["series"], "exit": res.get("exit"),
+                             "shared_resolved": bool(res.get("shared_resolved", False))})
+                continue
+            got = px.series_for(c, members[c], t, spec.price_mode)
             if got is None:
                 continue
-            rows.append({"cik": int(r.cik), "ticker": members[int(r.cik)], "form": r.form,
+            rows.append({"cik": c, "ticker": members[c], "form": r.form,
                          "value": float(r.value), "source": got[0]})
         ranked = rank_terciles(pd.DataFrame(rows)) if rows else pd.DataFrame(
             columns=["cik", "ticker", "form", "value", "source", "pct", "leg"])
@@ -206,15 +288,24 @@ def build_panel(spec: Spec, sig: pd.DataFrame, uni: pd.DataFrame, px: Prices,
                        "src_fill": int((ranked.source == "processed_fill").sum()) if len(ranked) else 0,
                        "src_processed": int((ranked.source == "processed").sum()) if len(ranked) else 0,
                        "n_10k": int((ranked.form == "10-K").sum()) if len(ranked) else 0,
-                       "n_10q": int((ranked.form == "10-Q").sum()) if len(ranked) else 0})
+                       "n_10q": int((ranked.form == "10-Q").sum()) if len(ranked) else 0,
+                       **{f"cause_{k}": int(causes.get(k, 0)) for k in CAUSES}})
         panel.append({"t": t, "ranked": ranked})
     return panel, pd.DataFrame(census)
 
 
+CAUSES = ("ok", "no_file", "no_bar_at_t", "truncated", "rename", "real_exit", "unresolved",
+          "no_price_at_t")
+
+
 def check_census(census: pd.DataFrame) -> list[str]:
-    """The frozen halt conditions (§7.7, §11). Empty list = pass."""
+    """The frozen halt conditions (§7.7, §11) — plus, for 'cfix', §7.7's 'no recorded deletion':
+    any unresolved name-quarter HALTS. Empty list = pass."""
     bad = []
     for r in census.itertuples():
+        if getattr(r, "cause_unresolved", 0):
+            bad.append(f"{r.rebalance}: {r.cause_unresolved} name(s) end inside the quarter with no "
+                       f"recorded index deletion and no T-265 fill (§7.7)")
         if r.ranked < MIN_RANKED:
             bad.append(f"{r.rebalance}: ranked {r.ranked} < {MIN_RANKED}")
         if min(r.long, r.short) < MIN_TERCILE:
@@ -286,13 +377,23 @@ def run_returns(spec: Spec, panel: list[dict], px: Prices, cal: pd.DatetimeIndex
     months, out = [], {"long": [], "short": [], "universe": [], "spy": [], "blend": []}
     prev_w = {"long": {}, "short": {}, "universe": {}}
     exits, turn = [], {"long": [], "short": [], "universe": []}
+    new_share, prev_long = [], None
     for p, t1 in zip(panel, ends):
         t0, ranked = p["t"], p["ranked"]
         marks = month_marks(cal, t0, t1)
-        series = {}
+        series, allowed_exit = {}, set()
         for r in ranked.itertuples():
-            s = px.t265[px.t265_of_cik[r.cik]] if r.source == "t265" else px.proc[r.ticker.replace(".", "-")]
+            if spec.price_mode == "cfix":
+                s = r.series
+                if r.cause == "real_exit":
+                    allowed_exit.add(r.cik)
+            else:
+                s = px.t265[px.t265_of_cik[r.cik]] if r.source == "t265" else px.proc[r.ticker.replace(".", "-")]
             series[r.cik] = s[s.index >= t0]
+        cur_long = set(ranked[ranked.leg == "long"].cik)
+        if prev_long is not None and cur_long:
+            new_share.append(len(cur_long - prev_long) / len(cur_long))   # review F5: NEW names
+        prev_long = cur_long
         legs = {"long": ranked[ranked.leg == "long"].cik.tolist(),
                 "short": ranked[ranked.leg == "short"].cik.tolist(),
                 "universe": ranked.cik.tolist()}
@@ -307,6 +408,10 @@ def run_returns(spec: Spec, panel: list[dict], px: Prices, cal: pd.DatetimeIndex
             res[name] = r
             if name == "universe":
                 exits.extend(ex)
+                if spec.price_mode == "cfix":
+                    stray = [e for e in ex if e["cik"] not in allowed_exit]
+                    if stray:
+                        raise CensusHalt(f"exit without a recorded index deletion: {stray[:3]} (§7.7)")
         spy = np.array([growth(px.spy, a, b) - 1.0 for a, b in zip([t0] + marks[:-1], marks)])
         if not np.all(np.isfinite(spy)):
             raise CensusHalt(f"SPY TR missing in quarter from {t0.date()}")
@@ -320,7 +425,8 @@ def run_returns(spec: Spec, panel: list[dict], px: Prices, cal: pd.DatetimeIndex
             out[k].extend(v.tolist())
         months.extend([m.date().isoformat() for m in marks])
     return {"months": months, **{k: np.array(v) for k, v in out.items()}, "exits": exits,
-            "turnover": {k: float(np.mean(v)) for k, v in turn.items()}}
+            "turnover": {k: float(np.mean(v)) for k, v in turn.items()},
+            "long_new_name_share": float(np.mean(new_share)) if new_share else float("nan")}
 
 
 # --------------------------------------------------------------------------- #
@@ -396,6 +502,7 @@ def summarize(res: dict) -> dict:
         "spy_sharpe": sharpe(spy),
         "per_year_dlogw": {str(int(k)): float(v) for k, v in years.groupby(years.index.year).sum().items()},
         "turnover_per_rebalance": res["turnover"], "n_exits": len(res["exits"]),
+        "long_new_name_share": res["long_new_name_share"],
     }
 
 
@@ -413,8 +520,8 @@ def _close(path: Path, csv: bool) -> pd.Series:
     return s[np.isfinite(s) & (s > 0)]
 
 
-def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame, Prices, pd.DatetimeIndex]:
-    sig = pd.read_parquet(SIGNALS)
+def load_inputs(signals: Path = SIGNALS) -> tuple[pd.DataFrame, pd.DataFrame, Prices, pd.DatetimeIndex]:
+    sig = pd.read_parquet(signals)
     sig["floor"] = pd.to_datetime(sig.decision_floor_date)
     sig["acc"] = pd.to_datetime(sig.acceptance_dt.str[:10])
     uni = pd.read_parquet(UNIVERSE).dropna(subset=["cik"])
@@ -425,29 +532,46 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame, Prices, pd.DatetimeIndex]
     need = set(uni.cik)
     t265_of_cik = {c: t for c, t in zip(ct.cik, ct.ticker) if c in need and t not in shared
                    and (T265 / "prices" / f"{t}.parquet").is_file()}
-    t265 = {t: _close(T265 / "prices" / f"{t}.parquet", csv=False) for t in set(t265_of_cik.values())}
+    # (d) keeps the original unique-ticker join (its census is the A2.1 record); 'cfix' may use a
+    # shared ticker under AMENDMENT 4's date-aware uniqueness rule
+    t265_of_cik_all = {c: t for c, t in zip(ct.cik, ct.ticker) if c in need
+                       and (T265 / "prices" / f"{t}.parquet").is_file()}
+    t265 = {t: _close(T265 / "prices" / f"{t}.parquet", csv=False)
+            for t in set(t265_of_cik_all.values())}
+    hu = pd.read_parquet(SHARED_USERS) if SHARED_USERS.is_file() else pd.DataFrame(
+        columns=["ticker", "cik", "first", "last"])
+    holders = {}
+    for r in hu.itertuples():
+        holders.setdefault(r.ticker, []).append((int(r.cik), pd.Timestamp(r.first), pd.Timestamp(r.last)))
     proc = {}
-    for tk in set(uni.ticker):
-        k = tk.replace(".", "-")
+    keys = {k for tk0 in set(uni.ticker)
+            for k in (tk0, tk0.replace(".", "-"), tk0.replace("-", "."))}
+    for k in sorted(keys):
         p = PROCESSED / f"{k}_1d.csv"  # ticker-exclusions: bypassed — named PIT members only; returns are scale-free ratios, so the level exclusion does not bind
         if p.is_file():
             proc[k] = _close(p, csv=True)  # ticker-exclusions: bypassed — named PIT members only; returns are scale-free ratios, so the level exclusion does not bind
     spy = _close(TWINS / "SPY_1d.csv", csv=True)
     bil = _close(TWINS / "BIL_1d.csv", csv=True)
-    return sig, uni, Prices(t265_of_cik, t265, proc, spy, bil), pd.DatetimeIndex(spy.index)
+    ivs = pd.read_parquet(INTERVALS)
+    iv_end = {int(i): (pd.Timestamp(e) if pd.notna(e) else pd.NaT) for i, e in zip(ivs.iv_id, ivs.iv_end)}
+    if shared & set(t265_of_cik_all.values()) and not SHARED_USERS.is_file():
+        raise SystemExit(f"FATAL: {SHARED_USERS} missing — run b6_cik_map --t265-shared (AMENDMENT 4)")
+    px = Prices(t265_of_cik, t265, proc, spy, bil, iv_end=iv_end, t265_of_cik_all=t265_of_cik_all,
+                shared=shared, holders=holders)
+    return sig, uni, px, pd.DatetimeIndex(spy.index)
 
 
 def smoke(args: argparse.Namespace) -> int:
     """First 12 months of the gate window: census + returns + sanity numbers (never quoted)."""
     from dataclasses import replace
-    sig, uni, px, cal = load_inputs()
+    sig, uni, px, cal = load_inputs(args.signals)
     args.out.mkdir(parents=True, exist_ok=True)
     out = {}
     for n in ("gate_similarity", "gate_tone"):
         base = SPECS[n]
         rebs = rebalance_dates(cal, base.start, base.end)
         spec = replace(base, end=rebs[3].date().isoformat())
-        panel, census = build_panel(spec, sig, uni, px, cal)
+        panel, census = build_panel(spec, sig, uni, px, cal, rebs[4])
         bad = check_census(census)
         if bad:
             print(f"[b6-smoke] {n}: census HALT {bad}")
@@ -482,19 +606,26 @@ def main(argv: list[str] | None = None) -> int:
                     help="the gate's FIRST FOUR rebalances (12 months): sanity statistics only, "
                          "no bootstrap, no headline — not quoted")
     ap.add_argument("--out", type=Path, default=LOCAL / "harness_sp" / "run")
+    ap.add_argument("--signals", type=Path, default=SIGNALS,
+                    help="signals file (default b6_parse/2; signals_sp.parquet reproduces the b6_parse/1 records)")
     args = ap.parse_args(argv)
     names = ["gate_similarity", "gate_tone"] + [n for n in SPECS if not SPECS[n].gate
                                                 and n not in NOT_EVALUABLE] if args.all else [args.spec]
     if args.smoke:
         return smoke(args)
-    sig, uni, px, cal = load_inputs()
+    sig, uni, px, cal = load_inputs(args.signals)
     args.out.mkdir(parents=True, exist_ok=True)
     hold_end = cal[cal <= pd.Timestamp("2026-03-31")].max()
     results = {}
     for n in names:
         spec = SPECS[n]
-        panel, census = build_panel(spec, sig, uni, px, cal)
+        panel, census = build_panel(spec, sig, uni, px, cal, hold_end)
         census.to_csv(args.out / f"census_{n}.csv", index=False)
+        if spec.price_mode == "cfix":
+            man = pd.concat([p_["ranked"].drop(columns=["series"]).assign(rebalance=p_["t"].date().isoformat())
+                             for p_ in panel if len(p_["ranked"])], ignore_index=True)
+            man["exit"] = man["exit"].map(lambda x: x.date().isoformat() if pd.notna(x) else "")
+            man.to_csv(args.out / f"price_manifest_{n}.csv", index=False)
         bad = check_census(census)
         print(f"[b6-harness] {n}: {len(census)} rebalances; census "
               f"{'PASS' if not bad else 'HALT (' + str(len(bad)) + ' violations)'}", flush=True)

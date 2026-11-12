@@ -190,19 +190,72 @@ def test_mda_title_fallback_for_the_cross_reference_index_layout():
     assert rec["risk_source"] == "item"
 
 
-def test_mda_title_fallback_accepts_end_of_document_only_when_clean():
+def test_title_fallback_never_accepts_end_of_document():
+    """b6_parse/2 (review F4): end-of-document is never a terminator. With no terminating heading and
+    no document-end marker, the title-located MD&A is rejected (b6_parse/1 accepted it 'when clean',
+    and 52 of 52 such S&P sections ran through Part II to the signatures)."""
     rec = P.parse_document(_xref_index_10k([]), "10-K", "2022-12-31")
-    assert rec["mda_status"] == "OK" and rec["mda_source"] == "title_fallback_eof"
-    # a MENTION of the auditor's report inside MD&A is not contamination (Boston Scientific 2019)
-    mention = _xref_index_10k(["In addition, the Report of Independent Registered Public "
-                               "Accounting Firm on the schedules appears below. " + MDA_FILLER])
-    assert P.parse_document(mention, "10-K", "2022-12-31")["mda_status"] == "OK"
-    # the signature boilerplate inside the carved tail IS (the carve ran past the signatures)
-    dirty = _xref_index_10k([MDA_FILLER + " Pursuant to the requirements of Section 13 or 15(d) of "
-                             "the Securities Exchange Act of 1934, the registrant has duly caused"])
-    rec = P.parse_document(dirty, "10-K", "2022-12-31")
     assert rec["mda_status"] == "NOT_COVERED:incorporated_by_reference_external"
     assert rec["mda_text"] == ""
+    # a MENTION of the auditor's report inside MD&A is not a cut or contamination (BSX 2019) —
+    # it ends at the next real heading
+    mention = _xref_index_10k(["In addition, the Report of Independent Registered Public "
+                               "Accounting Firm on the schedules appears below. " + MDA_FILLER,
+                               "MARKET RISK DISCLOSURE", "Rates."])
+    rec = P.parse_document(mention, "10-K", "2022-12-31")
+    assert rec["mda_status"] == "OK" and rec["mda_source"] == "title_fallback"
+    assert "Rates." not in rec["mda_text"]
+
+
+def test_campbell_10q_item_3_heading_terminates_the_title_located_mda():
+    """Real case (Campbell Soup 10-Qs 2004-06, CIK 16732): MD&A located by title, then
+    "Item 3. Quantitative and Qualitative Disclosure About Market Risk". b6_parse/1 keyed that line
+    as ITEMQUANTITATIVE..., missed it, and ran through Part II and the exhibit list to the
+    signatures."""
+    doc = _html("PART I - FINANCIAL INFORMATION", "Item 1. Financial Statements", "Balance sheet.",
+                "MANAGEMENT'S DISCUSSION AND ANALYSIS OF RESULTS OF OPERATIONS AND FINANCIAL CONDITION",
+                MDA_FILLER,
+                "Item 3. Quantitative and Qualitative Disclosure About Market Risk", "Rates moved.",
+                "Item 4. Controls and Procedures", "Effective.",
+                "PART II - OTHER INFORMATION", "Item 6. Exhibits",
+                "32(ii) Certification of Robert A. Schiffner pursuant to 18 U.S.C. Section 1350.",
+                "SIGNATURES", "Pursuant to the requirements of the Securities Exchange Act of 1934, the "
+                "registrant has duly caused this report to be signed on its behalf.", "/s/ R. Schiffner")
+    rec = P.parse_document(doc, "10-Q", "2005-01-30")
+    assert rec["mda_status"] == "OK" and rec["mda_source"] == "title_fallback"
+    for leak in ("Rates moved", "Certification", "SIGNATURES", "/s/"):
+        assert leak not in rec["mda_text"]
+
+
+def test_western_union_style_runaway_is_cut_at_the_signature_block():
+    """Real case (Western Union 10-Qs 2016-21, CIK 1365135): the title-located MD&A had no
+    terminating heading the fallback recognised and ran through Part II to the signatures and the
+    exhibit index. b6_parse/2 cuts at the first document-end marker."""
+    doc = _html("PART I", "Management's Discussion and Analysis of Financial Condition and Results of "
+                "Operations", MDA_FILLER, "Other matters are described in Note 6.",
+                "SIGNATURES", "Pursuant to the requirements of the Securities Exchange Act of 1934, the "
+                "registrant has duly caused this report to be signed.", "/s/ Hikmet Ersek",
+                "EXHIBIT INDEX", "31.1 Certification of Chief Executive Officer")
+    rec = P.parse_document(doc, "10-Q", "2017-03-31")
+    assert rec["mda_status"] == "OK" and rec["mda_source"] == "title_fallback"   # SIGNATURES line
+    for leak in ("SIGNATURES", "Pursuant to the requirements", "/s/", "EXHIBIT INDEX"):
+        assert leak not in rec["mda_text"]
+    # no SIGNATURES heading line: the cut falls at the signature sentence itself
+    bare = doc.replace("<p>SIGNATURES</p>", "")
+    rec = P.parse_document(bare, "10-Q", "2017-03-31")
+    assert rec["mda_status"] == "OK" and rec["mda_source"] == "title_fallback_docend"
+    for leak in ("Pursuant to the requirements", "/s/", "EXHIBIT INDEX"):
+        assert leak not in rec["mda_text"]
+
+
+def test_10q_signature_sentence_and_slash_s_are_contamination():
+    """b6_parse/1 knew only the 10-K signature sentence. An item-carved 10-Q section that carries the
+    10-Q signature sentence or an electronic '/s/' signature fails closed."""
+    doc = _html("Item 2. Management's Discussion and Analysis", MDA_FILLER,
+                "/s/ Jane Doe, Chief Financial Officer", MDA_FILLER,
+                "Item 3. Quantitative and Qualitative Disclosures About Market Risk", "Rates.")
+    rec = P.parse_document(doc, "10-Q", "2016-03-31")
+    assert rec["mda_status"] == "CONTAMINATED" and rec["mda_text"] == ""
 
 
 def test_item_1c_cybersecurity_terminates_risk_factors():
