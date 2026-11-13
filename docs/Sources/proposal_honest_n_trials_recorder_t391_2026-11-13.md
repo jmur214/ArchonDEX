@@ -287,6 +287,11 @@ S = 16 (the hand count's increment only, B): R1 39.48 · R2 52.92 · R3 287.28 (
 - `tests/_honest_n_trials_fixture.py`
 - `tests/test_honest_n_trials_t391.py`
 
+**One deviation from §1, stated:** §1.6 says the signature of `compute_n_effective_correlated` is unchanged. As
+built, it gains one optional keyword, `trials_path` (default `None`, which means the record beside the pin). This is
+backward-compatible: every existing call is unchanged, and the float return is unchanged. `resolve_cycle_n_trials`
+gains the same optional keyword, plus a `breakdown` key in its returned dict.
+
 ### 2.1 Before and after, on the real inputs, read-only
 
 The registry is opened `mode=ro`. Its md5 is `83e474412a37075db16d419ad3dea414` before and after (`md5 -q`). The
