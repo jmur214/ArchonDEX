@@ -1407,6 +1407,17 @@
 ### `optimize.py`
 - **Function `main()`**: No docstring
 
+### `pairs_manifest_pin.py`
+**Module Docstring:** Pin or verify the pairs edge's input — the cointegration screen's survivor manifest (T-389, cutover P6).
+- **Class `PairsPinInvalid`**: The pin, or the file it names, cannot be verified. Never degraded to a pass.
+- **Class `PinExistsError`**: A pin already exists and `replace` was not requested.
+- **Function `sha256_file()`**: No docstring
+- **Function `survivor_edge_ids()`**: The edge ids the pairs module registers from `payload`, as the screen recorded them.
+- **Function `load_pin()`**: No docstring
+- **Function `verify()`**: Verify the committed pin against `root/<pin.file>`: present, sha256-equal, and its survivor
+- **Function `write_pin()`**: Pin `root/<rel_file>`: its sha256 and the survivor edge ids it registers. Refuses what the
+- **Function `main()`**: No docstring
+
 ### `path1_revalidation_grid.py`
 **Module Docstring:** scripts/path1_revalidation_grid.py
 - **Function `run_cell()`**: No docstring
