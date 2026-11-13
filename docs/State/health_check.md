@@ -174,6 +174,11 @@ then LOW. Within each severity, list newest at the top.
   the names a momentum signal ranks highest, so the bias is directional, not noise. The 2020–21
   holes (SE, ETSY, PENN, ENPH, MTCH, XYZ) reach windows further back than 2024–2025, and A is
   extending B-1's counts from early ends to holes across the whole panel.
+  *T-392c addition (2026-11-12, read-only forensic):* the archived `audit_data_gaps.py` (a csv-only
+  open/close CLIP to 0.5–1.5× median, rows kept) is EXCLUDED as an alternative cause — 0 of 730 canonical
+  and 0 of 730 pre-merge leg files carry its signature (no lowercase/`timestamp` header, no series at
+  exactly 1.5×/0.5× its median where 668/598 would be, csv = parquet everywhere); a clip cannot remove a
+  bar. This row's attribution to the band stands. `docs/Audit/forensic_audit_data_gaps_t392c_2026-11-13.md`.
 - Description: of the 730 cache files, 652 are LIVE (the provider serves them through 2026-10-14).
   **33 of those 652 have a canonical file that ENDS before 2025-12-31**, by end date:
   SMCI 2023-05-02, FIX 2024-02-22, VST 2024-04-22, NVDA 2024-05-10, HWM 2024-11-04, APP 2024-11-06,
