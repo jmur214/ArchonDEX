@@ -19,3 +19,10 @@ its failure line.
 Worktree-isolated bash: commands chaining `git` with `;`/`&&`, `ls` of main-tree paths inside a git
 compound, or Python heredocs naming main-tree paths alongside git were REFUSED as "too complex to verify".
 Use separate plain `git` calls run from the worktree, and write Python to the scratchpad and run it by path.
+
+**A CLI-level lock must ISOLATE its class (T-392b, 2026-11-12):** a reversion of the new `--check` gate
+(exit on `changes_file` only) was NOT CAUGHT at first — the planted anchor held only the pairs row, so the
+CLI (which imports all 27 modules) exited 1 on 26 unrelated additions whatever the gate did. Fix: build
+the fixture so every OTHER class is clean (a full CLI sync first, plus a positive-control `--check` exit 0),
+then assert the exact class line and `"WOULD CHANGE" not in stdout`. An exit code is evidence only when
+nothing else can produce it.
