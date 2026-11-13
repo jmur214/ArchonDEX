@@ -269,3 +269,131 @@ S = 16 (the hand count's increment only, B): R1 39.48 · R2 52.92 · R3 287.28 (
 6. The recorder appends one row, refuses a duplicate id, a non-existent path, and a source line past EOF. It recomputes the digest, so the gate accepts its output.
 7. The lint fails: a ledger row declaring N > 0 with no record row; a record sum below the declared k; a forward verdict row stating no N; a dangling `ledger_id`. It passes on the real ledger + record.
 8. Existing honest-N locks stay green with fixtures that supply a record (S = 0 via one `n_trials: 0` row), and their expected values are unchanged.
+
+---
+
+## §2. Built: results (branch `referee/honest-n-trials-recorder-t391`)
+
+**Commits:**
+- `edc103a`: §1 alone, before code.
+- `080aff1`: the gate, the recorder and lint, the pin's v2 support, the backfill record, and the existing fixtures.
+- `2bbff22`: the 42 T-391 locks.
+
+**Files:**
+- `core/measurement/mbl_gate.py`: `load_trials_record`, `reconcile_trials_with_registry`, `honest_n_breakdown`, and the combined `compute_n_effective_correlated`.
+- `scripts/honest_n_trials.py`: `record` (the ONE writer), `check` (the lint), `show`.
+- `scripts/honest_n_pin.py`: `--verify` loads and reconciles the record; `--pin` writes v2.
+- `config/honest_n_trials.json`: 63 rows (26 `registry_ledger`, 106 trials; 37 `standalone`, 53 trials) and 12 unresolved, digest `3bedde97…`. Every citation was checked to exist (path, and line ≤ EOF) by the recorder's own checks when the backfill was built.
+- `tests/_honest_n_trials_fixture.py`
+- `tests/test_honest_n_trials_t391.py`
+
+### 2.1 Before and after, on the real inputs, read-only
+
+The registry is opened `mode=ro`. Its md5 is `83e474412a37075db16d419ad3dea414` before and after (`md5 -q`). The
+pin verifies.
+
+| | before (main) | after (this branch) |
+|---|---|---|
+| N_raw | 231 (registry) | 231 registry + 53 standalone = **284** |
+| N_eff, gated | **36.92** | **89.92** (R2) |
+| N_eff, reported | — | R3 **324.28** (40.28 executed-252 + 231 + 53) |
+| MinBTL @ SR 1 (exact) | 4.66 y | 6.22 y (R3 8.53 y) |
+| SR required: 5 y / 12 y / 26 y | 0.965 / 0.623 / 0.423 | 1.115 / 0.720 / 0.489 (R3 1.306 / 0.843 / 0.573) |
+| `honest_n_pin --verify` | PIN OK (2 files) | PIN OK (2 files), and the trials record's "digest OK, NOT YET PINNED by sha256 (re-pin #2 adds it), reconciled with the registry, standalone S = 53" |
+| `honest_n_trials check` | — | TRIALS CHECK OK: 63 rows, S = 53, 12 unresolved, 0 findings. The registry cross-check is OK on its 106 ledger rows. |
+
+The lint's ledger parse, checked by hand, totals 125 declared trials:
+- the 26 T-336 tasks (106);
+- T-337 1, T-339/b 2, T-340-6 2, T-365 4, T-379 2, T-380 2, T-381 2, T-382 1, T-383 1, T-385 2 (19).
+
+**So 19 trials the ledger itself declared after the 08-06 backfill never reached the registry.** The other 34 of S
+(53 = 19 + T-365's +2 + 32) are stated only in their verdict and result docs.
+
+### 2.2 Tests and the reversion proof
+
+- **`tests/test_honest_n_trials_t391.py`:** 42 pass. This covers §1.7 (1)–(7), the production no-argument call, `check_mbl_gate`, `resolve_cycle_n_trials`, every `method`, and the explicit-artifact bypass.
+- **The existing honest-N locks** (`test_honest_n_pin`, `test_honest_n_rr3`, `test_referee_repairs_proposed`, `test_repin1_code_2026_11_05`, `test_mbl_gate`, `test_oos_lock_activation_t336`): 102 pass and 8 xfail. Their expected values are unchanged (the fixture's S = 0), per §1.7 (8).
+- **The reversion harness** mutates one exact string in the code (asserting it occurs exactly once), runs only the locking tests, restores the bytes, and asserts the md5 matches. **All 20 modes CAUGHT**, each with its first `E` line:
+
+| mode | first failing line |
+|---|---|
+| M1 the digest check off | DID NOT RAISE (hand edit) |
+| M2 empty record accepted | DID NOT RAISE |
+| M3 n_trials type/sign check loosened | DID NOT RAISE |
+| M4 duplicate trial_id accepted | DID NOT RAISE |
+| M5 registry reconcile off | DID NOT RAISE (both directions) |
+| M6 S not added to the gated N | `assert 36.92397058823529 == 89.924 ± 0.001` |
+| M7 pinned-record sha verify off | DID NOT RAISE |
+| M8 production path returns the registry part | `assert 20.4534… == 27.4534…` |
+| M9 schema check off | DID NOT RAISE |
+| M10 `--verify` skips the reconcile | `assert (0 == 3)` |
+| M11 `--verify` skips the pinned sha | `assert 0 == 3` |
+| M12 `write_pin` skips the reconcile | DID NOT RAISE |
+| M13 the recorder's duplicate check off | `HonestNUnavailableError` raised **by the write path's own load-validation, not the recorder's `RecordError`**. The duplicate is still refused, one rail deeper. The test failed on the exception type. |
+| M14 the recorder's path-exists check off | DID NOT RAISE `RecordError` |
+| M15 the recorder's source-line bound off | DID NOT RAISE `RecordError` |
+| M16 lint: declared-N check off | `assert False` |
+| M17 lint: forward states-N off | `assert False` |
+| M18 lint: forward record-row off | `assert False` |
+| M19 lint: dangling ledger_id off | `assert False` |
+| M20 lint: the B-series `N_trials +k` form dropped | the real ledger and the clean fixture both fail |
+
+The harness lives in the session scratchpad. It is reproducible from this table: one string per mode, `count == 1`,
+and `pytest -q -p no:cacheprovider -x <ids>`.
+
+## §3. Impact, and what the user decides
+
+### 3.1 Live gates that read N
+
+| gate | reads | what changes on merge |
+|---|---|---|
+| **MBL Gate-0** (Discovery `validate_candidate`, `engines/engine_d_discovery/discovery.py:1281` → `check_mbl_gate`; the cycle's `orchestration/mode_controller.py:1320` → `resolve_cycle_n_trials`) | `compute_n_effective_correlated()` | N_eff 36.92 → 89.92. At `mbl_sr_target` 1.0 (`discovery.py:1158`) MinBTL goes 4.66 → 6.22 y, so a candidate window of 4.66–6.22 y that passed now fails Gate 0. The cycle's log carries the breakdown (`_n_info["breakdown"]`). |
+| **DSR / Discovery Gate 8** (`discovery.py:2009` → `deflated_sharpe_ratio`, `:2028`) | the same | The selection benchmark E[max_N] goes 2.158 → 2.493 (×1.155; R3 would be 2.920, ×1.353), so DSR falls for every candidate. Cloud `--discover` stays halted by ruling RR-3B regardless. |
+| **DSR in `core/measurement_reporter.py:99`** | an explicit `n_trials_for_dsr` (default 1) | Unchanged. Aside, not acted on: a default of 1 is a vacuous DSR, the RR-6a class. |
+| **The submit gate** (`scripts/submit_arms_campaign.py` `enforce_substrate_gate`) | the anchors and the substrate manifest; it reads no N | Unchanged. The record is committed source, not a `HONEST_N_FILES` data file, so the manifest digest does not move. The image build's `honest_n_pin --verify` (`Dockerfile.backtest:168`) now also fails the build on a bad record. |
+| Verdict scripts that read the gate (`scripts/tilt_decision_measure_t318_t320.py:678-679`, `scripts/b5_levered_diversified.py:778-782`) | the no-argument call | A re-run would read 89.92. |
+
+### 3.2 Recorded verdicts whose MBL or DSR line would move
+
+All are lines quoting the gate's N or a hand N. A higher N only raises a bar, so no refutation can flip to a pass. A
+"CLEARS" line can only lose margin. The numbers are not recomputed here.
+
+- **Quoting the gate's 36.92 / 37.08:**
+  - B-10 `docs/Audit/b10_gold_leg_verdict_2026-11-11.md:74, :315, :317`
+  - B-9 `b9_combo_tilts_verdict_2026-11-11.md:149, :153, :159`
+  - B-5 `b5_levered_diversified_verdict_2026-11-11.md:193-194`
+  - B-2 `b2_smallcap_t265_verdict_2026-11-11.md:166, :243, :321`
+  - B-1 `b1_raw_signal_decile_verdict_2026-10-14.md:389`
+  - B-8 `docs/Sources/prereg_b8_execution_timing_2026-11-11.md:598` (closed)
+- **Quoting the 267 or a hand count:**
+  - B-5 `:194` (0.375 at 267)
+  - B-10 `:317` (≥ 282, ≈ 289): resolved here to **inside** for the T-306 series, and **≥ 283 + 37** for the rest
+  - B-2 `:243` (N ≈ 260)
+  - B-6 `b6_lazy_prices_verdict_2026-11-12.md:132` (a 5.75 y MinBTL bar)
+- **The T-306 arc, quoting N = 76–78 at 64 y** (already re-framed by `mbl_framing_correction_t306_arc_2026_07_28.md:19-21`):
+  - T-311 `deep_reverify_sleeve_t311_2026_07_27.md:41`
+  - T-260 `deep_reverify_speeds_t260_2026_07_27.md:46`
+  - T-314 `adaptation_rule_t314_2026_07_27.md:97`
+  - At 64 y the exact form needs SR 0.312 at R2 and 0.365 at R3.
+- **Older lines quoting a family or hand N:**
+  - T-269 `asymmetric_exits_verdict_t269_2026_07_02.md:29` (N_eff 16)
+  - T-255 `fair_t236_rerun_t255_2026_07_02.md:43` (N = 16)
+  - T-265 `smallcap_pead_pilot_t265_2026_07_02.md:45` (~1.05 at honest N)
+  - T-270 `intraday_probe_preregistration_t270_2026_07_02.md:51` (~263)
+  - T-342 `volterm_conditioner_prereg_t342_2026_08_15.md:121` (≈ 260+)
+  - T-336 `honest_n_plumbing_t336_part1_2026_08_05.md:34, :51` (N = 231)
+- **The doctrine text:** CLAUDE.md `[NN-MBL]` ("N_eff ≈ 37 … 5 y ≥ 0.97, 12 y ≥ 0.62, 26 y ≥ 0.42") and the `CURRENT_STATE.md` honest-N lines become stale on merge. Under R2 they read 1.115 / 0.720 / 0.489. CLAUDE.md is the user's.
+
+### 3.3 For the user to approve or rule
+
+1. **The merge itself.** It is a referee change, so the gate moves 36.92 → 89.92 from the merge.
+   - The alternative is to count the record only from re-pin #2 (cutover day). It needs a small code change (count only when the pin names the record). It leaves the gate knowingly short until then, which is why the branch does not do it.
+2. **R2 gated vs R3 gated.** R3 = 324.28 is ruling 9.2 applied to the registry's own 231 curve-less rows, and it is computable from pinned inputs today.
+   - Adopting it changes one key in `honest_n_breakdown` (`n_eff` ← `n_eff_ruling_9_2_all`) plus one test expectation.
+   - The branch gates R2 and reports R3, because stripping the registry's credit belongs with the Option B build.
+3. **The 12 unresolved items** (§1.2 D). Each needs a count ruling. The largest is U1 (T-193's 35, VOID).
+4. **Re-pin #2:** `honest_n_pin --pin <artifact> --replace` will write v2 with the record's sha256. On that day:
+   - `test_honest_n_pin.py::test_the_committed_pin_is_well_formed` (which asserts `honest_n_pin/v1`) is updated in the same act;
+   - after it, every `honest_n_trials record` is followed by a re-pin in the same commit.
+5. **The ledger** (the director's): T-365's row says 4 where its verdict says 6. T-214 and T-220 still read `dispatched`. T-391's own row is the director's to add at merge.
+6. **Not built (proposed):** wiring `honest_n_trials check` into the nightly janitor. Today the enforcement is the pytest lock `test_the_lint_passes_on_the_REAL_ledger_and_the_REAL_record` in the full suite.

@@ -1562,6 +1562,25 @@ reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; t
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
 
+### Standalone-harness trials — the third input (T-391, PROPOSAL branch `referee/honest-n-trials-recorder-t391`)
+
+The registry cannot see a trial a research script ran, so the committed record `config/honest_n_trials.json` carries
+them. The gate adds them at raw (R2) and FAILS CLOSED on an absent, empty, edited or registry-inconsistent record.
+Design and inventory: `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md`.
+
+```bash
+python -m scripts.honest_n_trials check     # the lint: every ledger N>0 recorded; forward verdicts state N (exit 0 / 1 findings / 3 unreadable)
+python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: registry part, S, R2 (gated), R3 (reported)
+python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date YYYY-MM-DD --n-trials k \
+    --family "..." --substrate "..." --prereg docs/Sources/prereg_x.md --verdict docs/Audit/x_verdict.md \
+    --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
+```
+
+`record` refuses a duplicate trial_id and any citation that does not exist (a path, or a line past EOF). After re-pin #2
+the pin names the record's sha256 (`honest_n_pin --pin … --replace` writes `honest_n_pin/v2`), so every `record` is
+followed by a re-pin in the same commit. `honest_n_pin --verify` now also loads the record and reconciles it with the
+registry.
+
 ## T-219 cap-at-delist — the shares snapshot and the hermetic recompute (re-pin #1, added 2026-11-05)
 
 `scripts/build_pit_cap_history_t219.py` has two EXPLICIT modes (T-375 C4); the bare live-fetch `main()` that
