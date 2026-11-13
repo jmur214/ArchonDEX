@@ -10,4 +10,5 @@
 - [T-387 cutover era_tr writer](project_t387_cutover_era_tr_writer_2026_11_12.md) — (a′) in tr_writer, byte-identical to v4 (2cee41ef…); parquet-from-text [us]; label inheritance; k≈1 hides the splice rail.
 - [Report a check at its actual scope](feedback_report_the_checks_actual_scope_2026_11_12.md) — "post-seam identical" overclaimed a from-seam+14 check; record digest recipes or cite the committed manifest.
 - [Reversion harness + worktree bash refusals](feedback_reversion_harness_and_worktree_bash_2026_11_12.md) — mutate-run-restore, print the first E-line; split git calls; Python via scratchpad files.
+- [T-391 honest-N: what the 231/267 contain + standalone gap](project_t391_honest_n_standalone_trials_2026_11_12.md) — 267 is an N_eff; S=53 outside; branch unmerged, R2 89.92 gated / R3 324.28 reported.
 - [Stooq transient blocks + yfinance quirks](reference_stooq_transient_blocks_and_yf_quirks.md) — 4,517 one-dividend reverting blocks fool ex-date probes; widening the window backfired; yf empty dividends for delisted; processed-read lock marker.
