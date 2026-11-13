@@ -28,10 +28,15 @@ class PinExistsError(FileExistsError):
 
 
 def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None, db_path: Optional[Path] = None,
-              pin_path: Optional[Path] = None, note: str = "", replace: bool = False) -> Dict:
+              pin_path: Optional[Path] = None, note: str = "", replace: bool = False,
+              trials_path: Optional[Path] = None) -> Dict:
     """Pin the gate to `artifact_dir/artifact_name` AND the current run registry, recording each file's
     sha256. Refuses to pin anything the gate could not read, and refuses to overwrite an existing pin
-    unless `replace=True`. Defaults are resolved from `mbl_gate` at call time."""
+    unless `replace=True`. Defaults are resolved from `mbl_gate` at call time.
+
+    T-391 / re-pin #2: with `trials_path` (the CLI always passes the record beside the pin) the pin also
+    records the standalone-trials record's sha256 (schema honest_n_pin/v2) — refused unless the record
+    loads AND reconciles with the registry being pinned. Without it the pin is v1, as before."""
     artifact_dir = Path(artifact_dir) if artifact_dir is not None else mbl.DEFAULT_ARTIFACT_DIR
     db_path = Path(db_path) if db_path is not None else mbl.DEFAULT_DB_PATH
     pin_path = Path(pin_path) if pin_path is not None else mbl.DEFAULT_PIN_PATH
@@ -48,6 +53,17 @@ def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None, db_pat
            "artifact": {"file": artifact_name, "sha256": mbl.sha256_file(art)},
            "registry": {"file": db_path.name, "sha256": mbl.sha256_file(db_path), "rows_at_pin": rows},
            "pinned_on": _dt.date.today().isoformat(), "note": note}
+    if trials_path is not None:
+        trials_path = Path(trials_path)
+        if trials_path.name != mbl.TRIALS_FILE_NAME or trials_path.parent.resolve() != pin_path.parent.resolve():
+            raise mbl.HonestNUnavailableError(
+                f"the trials record must be {mbl.TRIALS_FILE_NAME} beside the pin ({pin_path.parent}); "
+                f"got {trials_path} — the gate reads it from there by name")
+        rec = mbl.load_trials_record(trials_path)            # refuse what the gate couldn't read
+        mbl.reconcile_trials_with_registry(rec, db_path)     # ... or would refuse to combine
+        pin["schema"] = "honest_n_pin/v2"
+        pin["trials"] = {"file": trials_path.name, "sha256": mbl.sha256_file(trials_path),
+                         "standalone_at_pin": mbl.standalone_trials_total(rec)}
     pin_path.write_text(json.dumps(pin, indent=2) + "\n")
     return pin
 
@@ -62,20 +78,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     a = ap.parse_args(argv)
     if a.pin:
         try:
-            pin = write_pin(a.pin, note=a.note, replace=a.replace)
+            pin = write_pin(a.pin, note=a.note, replace=a.replace, trials_path=mbl.default_trials_path())
         except PinExistsError as exc:
             print(f"REFUSED: {exc}", file=sys.stderr)
             return 4
         print(f"pinned artifact {pin['artifact']['file']} + registry {pin['registry']['file']} "
-              f"({pin['registry']['rows_at_pin']} rows) -> {mbl.DEFAULT_PIN_PATH} (commit it to take effect)")
+              f"({pin['registry']['rows_at_pin']} rows) + trials record {pin['trials']['file']} "
+              f"(S = {pin['trials']['standalone_at_pin']}) -> {mbl.DEFAULT_PIN_PATH} (commit it to take effect)")
         return 0
     try:
         art = mbl.pinned_n_effective_artifact()
         reg = mbl.verify_pinned_registry()
+        # T-391: the standalone-trials record is a gate input too — loaded, digest-checked, reconciled
+        # with the pinned registry, and (once re-pin #2 names it) sha256-verified.
+        tp = mbl.default_trials_path()
+        trials_pinned = mbl.verify_pinned_trials(tp)
+        rec = mbl.load_trials_record(tp)
+        mbl.reconcile_trials_with_registry(rec, reg)
     except mbl.HonestNUnavailableError as exc:
         print(f"PIN INVALID: {exc}")
         return 3
-    print(f"PIN OK: {art.name} and {reg.name} both match their pinned sha256")
+    state = ("matches its pinned sha256" if trials_pinned
+             else "digest OK, NOT YET PINNED by sha256 (re-pin #2 adds it)")
+    print(f"PIN OK: {art.name} and {reg.name} both match their pinned sha256; trials record {tp.name} "
+          f"{state}, reconciled with the registry, standalone S = {mbl.standalone_trials_total(rec)}")
     return 0
 
 

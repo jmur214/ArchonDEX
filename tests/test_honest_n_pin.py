@@ -25,6 +25,7 @@ from core.measurement.mbl_gate import (
     verify_pinned_registry,
 )
 from scripts.honest_n_pin import PinExistsError, main as pin_main, write_pin
+from tests._honest_n_trials_fixture import write_fixture_trials_record
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,6 +52,7 @@ def pinned(tmp_path):
     reg = _registry(tmp_path / "run_registry.sqlite", 231)
     art = _artifact(tmp_path, "n_effective_2026-09-30.json", rho=0.43, comp=0.16)
     pin = tmp_path / "honest_n_pin.json"
+    write_fixture_trials_record(tmp_path)          # T-391: the gate requires the record beside the pin (S = 0)
     write_pin(art.name, artifact_dir=tmp_path, db_path=reg, pin_path=pin)
     return tmp_path, reg, art, pin
 

@@ -498,6 +498,8 @@ def _synthetic_pair(d: Path):
     art.write_text(json.dumps({"rho_bar": 0.43, "onc_compression": 0.16,
                                "gate_inputs": {"rho_bar": 0.43, "onc_compression": 0.16}}))
     pin = d / "honest_n_pin.json"
+    from tests._honest_n_trials_fixture import write_fixture_trials_record
+    write_fixture_trials_record(d)                 # T-391: --verify loads the record beside the pin (S = 0)
     write_pin(art.name, artifact_dir=d, db_path=reg, pin_path=pin)
     return reg, art, pin
 

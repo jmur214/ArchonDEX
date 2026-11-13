@@ -247,6 +247,8 @@ def test_layer4_the_cycle_resolves_N_from_ITS_OWN_root(tmp_path):
     (tmp_path / "config").mkdir()
     pin = tmp_path / "config" / "honest_n_pin.json"
     from scripts.honest_n_pin import write_pin
+    from tests._honest_n_trials_fixture import write_fixture_trials_record
+    write_fixture_trials_record(pin.parent)        # T-391: the record beside the cycle's own pin (S = 0)
     write_pin(art.name, artifact_dir=obs, db_path=obs / "run_registry.sqlite", pin_path=pin)
     info = mbl.resolve_cycle_n_trials(10, db_path=obs / "run_registry.sqlite", artifact_dir=obs,
                                       pin_path=pin)

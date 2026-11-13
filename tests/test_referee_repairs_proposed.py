@@ -314,6 +314,8 @@ def _honest_n_fixture(root, n_runs: int = 231, rho: float = 0.43, comp: float = 
         {"gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
     pin = root / "config" / "honest_n_pin.json"
     pin.parent.mkdir(parents=True, exist_ok=True)
+    from tests._honest_n_trials_fixture import write_fixture_trials_record
+    write_fixture_trials_record(pin.parent)        # T-391: the gate requires the record beside the pin (S = 0)
     write_pin("n_effective_2026-10-13.json", artifact_dir=obs, db_path=obs / "run_registry.sqlite",
               pin_path=pin, note="test fixture")
     return compute_n_effective_correlated(obs / "run_registry.sqlite", artifact_dir=obs, pin_path=pin)
