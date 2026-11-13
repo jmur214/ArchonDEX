@@ -175,6 +175,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 ### `data_manager.py`
 - **Class `CacheUnreadableError`**: A cache file could not be read. It was QUARANTINED (renamed), never deleted.
   - `def __init__()`
+- **Class `FundamentalsFixtureRefused`**: The explicit fundamentals test fixture was named where it may not be read.
 - **Class `DataManager`**: No docstring
   - `def __init__()`
   - `def prefetch_fundamentals()`: Fetch fundamentals for every ticker that has NO cached file. Call during data loading.
@@ -192,6 +193,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `fundamentals_miss_summary()`**: Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
 - **Function `ticker_fundamentals_blind()`**: The per-ticker fundamentals blind count for a set of LOADED edges. `consumers` are the
 - **Function `reset_fundamentals_log()`**: Forget the recorded misses (tests, or a fresh run in a long-lived process).
+- **Function `fundamentals_fixture_path()`**: The explicitly named fixture file, or None when no fixture is named (the default: the
 
 ### `earnings_data.py`
 **Module Docstring:** yfinance-backed earnings calendar + surprise data pipeline.

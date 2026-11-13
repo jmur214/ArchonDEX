@@ -295,6 +295,13 @@ python scripts/update_data.py
 python -m scripts.rebake_fundamentals --tickers CVNA,KG
 python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.json   # the census's refused set
 
+# The static fundamentals TEST FIXTURE (T-392a, 2026-11-12): TESTS ONLY. Nothing reads a default
+# static file (data/fundamentals_static.csv is dead). A test names its own planted fixture:
+#   ARCHONDEX_FUNDAMENTALS_FIXTURE=/abs/path/fixture.csv   (columns Ticker,Date,...)
+# Refused (FundamentalsFixtureRefused) under ARCHONDEX_REFUSE_YFINANCE_FALLBACK or ARCHONDEX_HERMETIC,
+# and when the path is not a file. Served rows carry fundamentals_source=fixture; the census FAILS
+# the run (fundamentals_misses.fixture, invariant 7c).
+
 # SimFin panel RE-BAKE (2026-10-22): the ONE declared entrypoint that rebuilds
 # data/processed/fundamentals_simfin.parquet, and with --download refreshes data/raw/simfin from
 # SimFin first (needs SIMFIN_API_KEY). A READ of the panel (simfin_adapter.load_panel) never

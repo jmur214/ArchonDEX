@@ -2,6 +2,9 @@
 import os
 import socket
 from pathlib import Path
+from typing import Optional
+
+import numpy as np
 import pandas as pd
 import threading
 import time
@@ -97,8 +100,11 @@ READS_TICKER_FUNDAMENTALS = "READS_TICKER_FUNDAMENTALS"
 
 def fundamentals_miss_summary() -> dict:
     """Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
-    network source of every miss that reached the network (so the census alone diagnoses one)."""
-    out: dict = {"refused": [], "blocked": [], "fetched": [], "empty": [], "sources": {}}
+    network source of every miss that reached the network (so the census alone diagnoses one).
+    `fixture` lists the names served from an explicitly named test fixture (T-392a) — always
+    present, so an empty list is a measured zero, never an absent key."""
+    out: dict = {"refused": [], "blocked": [], "fetched": [], "empty": [], "fixture": [],
+                 "sources": {}}
     for t, outcome in sorted(_FUNDAMENTALS_LOG.items()):
         out.setdefault(outcome, []).append(t)
         if outcome in ("fetched", "empty"):
@@ -128,6 +134,50 @@ def ticker_fundamentals_blind(edges: dict) -> dict:
 def reset_fundamentals_log() -> None:
     """Forget the recorded misses (tests, or a fresh run in a long-lived process)."""
     _FUNDAMENTALS_LOG.clear()
+
+
+# ── the static fundamentals FIXTURE (T-392a, 2026-11-12) ─────────────────────────────────────
+# `data/fundamentals_static.csv` was a 7-row hand-made toy (AAPL PE 12.0, a flat market cap,
+# SYNTH-A rows; no producer anywhere) that this module read IMPLICITLY — whenever it existed beside
+# the cache — and served as real fundamentals BEFORE the canonical refusal, recorded by nothing
+# (on main, `fetch_historical_fundamentals("AAPL")` under the canonical switch returned 1,412 toy
+# rows and an empty miss log). Decision (option 1 of the T-392 brief): the static path is REFUSED
+# in every run except an explicit TEST flag that NAMES its fixture file. Nothing is read from a
+# default location, so the on-disk toy is dead (archivable). With the flag:
+#   * a canonical (REFUSE_YFINANCE_ENV) or hermetic (ARCHONDEX_HERMETIC) run REFUSES the flag
+#     itself — FundamentalsFixtureRefused, raised before any read, and prefetch does not swallow it;
+#   * a flag naming a missing file is refused (an explicit input that is not there is not "no data");
+#   * every served row carries `fundamentals_source == "fixture"`, the ticker is logged "fixture",
+#     and the census's `fundamentals_misses.fixture` makes `assert_census` FAIL the run (7c).
+FUNDAMENTALS_FIXTURE_ENV = "ARCHONDEX_FUNDAMENTALS_FIXTURE"
+FIXTURE_SOURCE_COLUMN = "fundamentals_source"
+FIXTURE_SOURCE_VALUE = "fixture"
+
+
+class FundamentalsFixtureRefused(RuntimeError):
+    """The explicit fundamentals test fixture was named where it may not be read."""
+
+
+def fundamentals_fixture_path(ticker: str = "") -> Optional[Path]:
+    """The explicitly named fixture file, or None when no fixture is named (the default: the
+    static path is closed). Raises FundamentalsFixtureRefused when one is named in a canonical or
+    hermetic run, or names a file that does not exist."""
+    raw = os.environ.get(FUNDAMENTALS_FIXTURE_ENV, "").strip()
+    if not raw:
+        return None
+    from core.hermetic import hermetic_mode
+    if os.environ.get(REFUSE_YFINANCE_ENV) or hermetic_mode() != "off":
+        if ticker:
+            _FUNDAMENTALS_LOG[ticker] = "refused"   # a census trail even if a caller eats the raise
+        raise FundamentalsFixtureRefused(
+            f"[DATA_MANAGER] {FUNDAMENTALS_FIXTURE_ENV}={raw!r} is set in a canonical "
+            f"({REFUSE_YFINANCE_ENV}) or hermetic run — a test fixture is never a measurement input "
+            f"([NN-FAIL-CLOSED], T-392a). Unset it.")
+    path = Path(raw)
+    if not path.is_file():
+        raise FundamentalsFixtureRefused(
+            f"[DATA_MANAGER] {FUNDAMENTALS_FIXTURE_ENV} names {path}, which is not a file.")
+    return path
 
 
 class DataManager:
@@ -221,6 +271,34 @@ class DataManager:
     def _fundamentals_cache_path(self, ticker: str) -> Path:
         return self.cache_dir / "parquet" / f"{ticker}_fundamentals.parquet"
 
+    def _fixture_fundamentals(self, path: Path, ticker: str) -> pd.DataFrame:
+        """One ticker's rows of an EXPLICITLY named fixture (`fundamentals_fixture_path`), forward-
+        filled daily to today, every row labelled `fundamentals_source == "fixture"` and the ticker
+        logged "fixture" (the census fails on it). Empty when the fixture does not cover the ticker.
+        A malformed fixture raises — the caller named it, so a bad one is never "no data"."""
+        cached = getattr(self, "_fixture_cache", None)
+        if cached is None or cached[0] != path:
+            raw = pd.read_csv(path)
+            missing = {"Ticker", "Date"} - set(raw.columns)
+            if missing:
+                raise FundamentalsFixtureRefused(
+                    f"[DATA_MANAGER] fixture {path} lacks column(s) {sorted(missing)}")
+            raw["Date"] = pd.to_datetime(raw["Date"])
+            cached = (path, raw.set_index("Date").sort_index())
+            self._fixture_cache = cached
+        rows = cached[1][cached[1]["Ticker"] == ticker]
+        if rows.empty:
+            return pd.DataFrame()
+        daily = rows.reindex(pd.date_range(rows.index[0], pd.Timestamp.now(), freq="D")).ffill()
+        for col in ("PE_Ratio", "Market_Cap", "EPS_TTM"):
+            if col not in daily.columns:
+                daily[col] = np.nan
+        daily[FIXTURE_SOURCE_COLUMN] = FIXTURE_SOURCE_VALUE
+        _FUNDAMENTALS_LOG[ticker] = "fixture"
+        print(f"[DATA_MANAGER][WARN] {ticker}: fundamentals served from the TEST FIXTURE {path} "
+              f"({len(daily)} rows) — not real data; the census fails this run (T-392a)")
+        return daily
+
     def prefetch_fundamentals(self, tickers, force=False, max_age_days=7):
         """Fetch fundamentals for every ticker that has NO cached file. Call during data loading.
 
@@ -242,6 +320,8 @@ class DataManager:
             try:
                 df = self.fetch_historical_fundamentals(t)
                 # fetch_historical_fundamentals already caches to parquet internally
+            except FundamentalsFixtureRefused:
+                raise   # a misconfigured run, never a per-ticker hiccup (T-392a)
             except Exception as e:
                 if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
                     print(f"[DATA_MANAGER][WARN] Failed to prefetch fundamentals for {t}: {e}")
@@ -251,7 +331,9 @@ class DataManager:
         Reconstructs DEEP historical fundamental time-series.
 
         Order: the cached parquet if one exists (returned whatever its age — never re-fetched); a
-        SYNTH- ticker's generated frame; the static CSV if it covers the ticker; otherwise a cache
+        SYNTH- ticker's generated frame; an EXPLICITLY named test fixture (FUNDAMENTALS_FIXTURE_ENV)
+        if it covers the ticker — refused in a canonical or hermetic run, labelled and census-failed
+        everywhere else; nothing is read from a default static file (T-392a); otherwise a cache
         MISS. In a canonical run (REFUSE_YFINANCE_ENV) a miss is REFUSED — recorded, empty, never
         fetched or written; under ARCHONDEX_HERMETIC it is BLOCKED; otherwise it is fetched from
         yfinance and written into the pinned cache scope (see `_FUNDAMENTALS_LOG`).
@@ -294,44 +376,15 @@ class DataManager:
             # We need to ensure it matches the return format.
             # generate_fundamentals returns daily sampled df with PE, EPS, etc. Perfect.
             return fund_df
-        else:
-            # Check for Static CSV (Reliable Backtesting Path)
-            static_path = self.cache_dir.parent / "fundamentals_static.csv"
-            if static_path.exists():
-                try:
-                    # Logic to read static file
-                    # Expected format: Ticker,Date,PE_Ratio,Market_Cap,...
-                    # Efficiently we might want to split this by ticker on load, but for now just filter.
-                    # Optimization: load once per DM instance?
-                    if not hasattr(self, "_static_fundamentals_cache"):
-                        if is_debug_enabled("DATA_MANAGER") or is_info_enabled():
-                            print(f"[DATA_MANAGER] Loading static fundamentals from {static_path}")
-                        df_stat = pd.read_csv(static_path)
-                        df_stat["Date"] = pd.to_datetime(df_stat["Date"])
-                        df_stat = df_stat.set_index("Date").sort_index()
-                        self._static_fundamentals_cache = df_stat
 
-                    df_this = self._static_fundamentals_cache[self._static_fundamentals_cache["Ticker"] == ticker]
-                    if not df_this.empty:
-                         # Forward fill daily? The file might be sparse (quarterly).
-                         # We invoke 'resample' to days and ffill.
-                         # Note: the df_this index is DatetimeIndex.
-                         start_dt = df_this.index[0]
-                         end_dt = pd.Timestamp.now() # or max date in file
-                         daily_idx = pd.date_range(start=start_dt, end=end_dt, freq='D')
-                         df_daily = df_this.reindex(daily_idx).ffill()
-                         
-                         # Ensure required columns exist with defaults if missing
-                         for col in ["PE_Ratio", "Market_Cap", "EPS_TTM"]:
-                             if col not in df_daily.columns:
-                                 df_daily[col] = np.nan
-                                 
-                         return df_daily
-                except Exception as e:
-                    print(f"[DATA_MANAGER][WARN] Failed to load static fundamentals for {ticker}: {e}")
-
-            # Standard YFinance Path (Live/Current only)
-            pass
+        # The static path (T-392a): read ONLY from an explicitly named test fixture, never from a
+        # default location; refused outright in a canonical or hermetic run (see
+        # `fundamentals_fixture_path`). No flag -> straight on to the miss handling below.
+        fixture = fundamentals_fixture_path(ticker)
+        if fixture is not None:
+            served = self._fixture_fundamentals(fixture, ticker)
+            if not served.empty:
+                return served
 
         # T-2026-06-13-164 (P0): hermetic gate on the LIVE fundamentals fetch.
         # This fall-through was the ONE network path T-155 left unguarded (cf.
