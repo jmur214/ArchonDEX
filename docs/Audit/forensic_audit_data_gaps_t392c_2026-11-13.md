@@ -14,7 +14,9 @@
 nor the Alpaca leg it was merged from (`data/processed_alpaca_backup_2026_05_23`, 730 files) carries any part of
 the signature. A run on files overwritten before 2026-04-18 (including the three CSVs committed in January 2026)
 is **NOT ESTABLISHED**: nothing records one, and on those files a run would have left nothing detectable. That
-question does not reach the canonical cache, because every surviving file was rewritten afterwards.
+question does not reach the canonical cache: every surviving file was rewritten afterwards, and none shows the
+plateau a clip carried through a later incremental rewrite would leave (below). The exact-ratio test proves "no
+clip since each file's last write"; the plateau scan is the only evidence about anything older.
 
 **Relation to the band HIGH: a DIFFERENT mechanism.** The script cannot be the HIGH's cause. The HIGH's
 attribution to the write-time band stands, unaffected.
@@ -43,7 +45,7 @@ High/Low keep moving.
 | Close max/median == 1.5 or min/median == 0.5 (to 1e-9) | **0 files**; 668 have closes outside the band, so a run would have marked at least 668 | **0 files**; 598 would have been marked |
 | Open, same test | 0 (669 would) | 0 |
 | csv vs parquet Close, common dates | 730 twins, 0 diffs > 1e-6, 0 date-set differences | 727 twins (3 absent), 0 diffs, 0 date-set differences |
-| File mtimes | 729 at 2026-05-23 11:05:50 UTC; SPY at 2026-06-14 04:10 UTC | 2026-04-18 → 2026-05-22 |
+| File mtimes | 729 written 2026-05-23 11:05:50 → 11:06:31 UTC (the merge run); SPY at 2026-06-14 04:10 UTC | 2026-04-18 → 2026-05-22 |
 
 - **Near-hits are coincidences.**
   - 12 canonical files have ≥ 2 bars landing exactly on 1.5× or 0.5× their median. Every one has max/median between
@@ -58,7 +60,8 @@ High/Low keep moving.
   - CFC 286, NCC 206 and BMC 134 are acquired names with High == Low;
   - VRT 22 is the 2018 GSAH SPAC at about $9.70.
 - **The merge record agrees.**
-  - `_merge_meta.json` was `generated_at` 2026-05-23T11:05:50.92Z, the canonical mtimes to the second.
+  - `_merge_meta.json` was `generated_at` 2026-05-23T11:05:50.92Z; the 729 canonical mtimes start in that
+    second and end 41 s later (the merge's write loop). Corrected from "to the second" in commit b1c4c45.
     `alpaca_source` was `data/processed`; the result was 626 `both` and 104 `alpaca_only`.
   - The merge read each leg CSV with `df["Date"]`. That is `scripts/merge_stooq_alpaca_substrate.py:111-112`, and
     a `KeyError` there is not caught, so a lowercased leg would have crashed it.
