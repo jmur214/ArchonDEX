@@ -249,10 +249,6 @@
 **Module Docstring:** scripts/asymmetric_exits_gauntlet_t269.py
 - **Function `main()`**: No docstring
 
-### `audit_data_gaps.py`
-- **Function `audit_file()`**: No docstring
-- **Function `main()`**: No docstring
-
 ### `audit_feature_archive.py`
 **Module Docstring:** 90-day archive enforcement for the Feature Foundry.
 - **Class `AuditDecision`**: No docstring
