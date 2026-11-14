@@ -565,3 +565,143 @@ Outputs: `data/t398_local/`.
 
 See `docs/Sources/census_t398_stacked_trend_overlay_2026-11-14.md` §8. Every command there is
 read-only and uses no network.
+
+---
+
+## AMENDMENT 1 — 2026-11-14: DIRECTOR ACKNOWLEDGMENT + RULINGS (binding; recorded BEFORE the metadata fetch)
+
+**Freeze.** The director acknowledged the pre-registration at `ac01413` on 2026-11-14. Everything above
+this amendment (frontmatter, §1–§19 and "Reproduce the census"; lines 1–567) is byte-identical to
+`ac01413`: sha256 `b6ac769a45cf689d5173d9f76e5fb83272ca433821ae0aae83e26edb3888ff2b`. The frontmatter
+`status:` line above therefore still reads DRAFT. **This amendment supersedes it: the prereg is
+FROZEN.** This amendment is committed alone, before any fetch, so git proves the order. **N_trials
+consumed: +1** on this acknowledgment (one family).
+
+**Rulings.**
+- **R-9 — RUN level 1 once, as an estimate. Not closed on power.** The director's reason, to open the
+  verdict: this is a class-(2) question — a long-lived premium whose adoption is the owner's belief,
+  not a gate pass. The decision-relevant outputs are therefore the investable estimate itself, the
+  pre-named `h_L` secondary read against the two break-evens (6.56 and 2.00 %/yr), the 2011–2019
+  drought cost, the worst 3-year relative shortfall and the crash-window correlation. **H1 is still
+  scored exactly as frozen.** "H1 NOT MET, interval straddles zero" is the expected outcome and is
+  reported as that, never as "inconclusive but promising".
+- **R-1 confirmed.** +100% is the decision arm; +50% and +25% are reported.
+- **R-2 confirmed.**
+- **R-3 yes.** 1.0 %/yr in the decision cell; S5 is zero. **Added by the director:** a 2.0 %/yr
+  survivorship haircut is also reported, as labelled sensitivity **S6**.
+- **R-4, R-5, R-6, R-7 confirmed.**
+- **R-8 — level 2.**
+  - **SG Trend / SG CTA: no registration, and no contact detail sent to any service.** The question
+    goes to the owner from the director. Level 2 on SG does not run in this unit.
+  - **BTOP50:** the public page and its terms of use may be read. If the monthly table is served
+    without a login AND the terms do not forbid personal research use, level 2 runs on BTOP50 with the
+    pre-declared 1.0 %/yr haircut, as **REPORTED CONTEXT with no decision weight**, inside the same +1.
+    If either condition fails, or the page refuses the fetch, level 2 does not run. Which one is
+    recorded. No mirror is looked for.
+- **R-10 confirmed.** Metadata first; the membership-and-ER amendment is committed alone before any
+  price is loaded. Where a memory-sourced start date or ER differs from the metadata, the metadata
+  value is taken and the difference is listed.
+- **R-11 confirmed** (can close, cannot open). **R-12 confirmed** (not built).
+- **R-13 noted.** The verdict may carry the forward-clock proposal. `paper_trader/` stays untouched.
+- **Yahoo Adj Close and the December distributions.** §9's halt stands. If a D-flag fires, the harness
+  stops and the per-fund evidence goes to the director for a ruling. Nothing is auto-fixed.
+
+**Process (director).** Writes go only under `data/t398_local/` in this worktree. Follow-up commits
+only, never an amend. New CLI goes into `docs/Core/execution_manual.md`. `python scripts/sync_docs.py`
+runs on the branch before the last commit. The full suite runs on the branch. The verdict goes to a
+fresh-context reviewer by execution before any merge.
+
+### A1.1 Implementation decisions — recorded BEFORE any data (operational; they alter NO frozen term)
+
+They fill in what §4–§9 leave implicit, so that none can be chosen after seeing a number.
+
+1. **Script and outputs.** `scripts/t398_stacked_trend_overlay.py`, subcommands `meta`, `fetch`,
+   `btop50`, `integrity`, `gates`, `smoke`, `run --tag <A|B>`. `meta`, `fetch` and `btop50` each refuse
+   to run twice. Everything is written under `data/t398_local/`. Tests:
+   `tests/test_t398_stacked_trend_overlay.py`. B-5's simulator pieces (the H.15 and SOFR parsers, the
+   financing arrays, the bootstrap replay, the substrate loader) are imported from
+   `scripts/b5_levered_diversified.py`, never edited.
+2. **Metadata fields.** Per ticker, yfinance `Ticker.info` and `Ticker.actions`, stored raw.
+   - **Category:** `info["category"]`; if absent, the fund overview's category name. Rule (b) reads
+     this value only.
+   - **ER:** `info["netExpenseRatio"]`; if absent, `info["annualReportExpenseRatio"]`. **Units are
+     fixed by SPY's value in the same field**, fetched in the same step: a SPY value in [0.05, 0.15]
+     means the field is in percent, one in [0.0005, 0.0015] means a fraction; anything else makes the
+     field unusable for every fund. A fund's converted ER outside [0.20%, 5.00%] is discarded for the
+     fallback and listed. The cap is 2.00%.
+   - **Inception date:** listed against memory. Membership uses the first *price*, per rule (c).
+3. **Price files.** `start="1990-01-01"`, `asof="2026-01-01"`; columns `Date, adj_close, raw_close`.
+   A candidate that returns nothing is retried once after 60 seconds with the provider's output kept
+   unfiltered; it then fails rule (a). Any row dated 2026 halts.
+4. **Calendar.** The T-306 equity calendar. Each fund's Adj Close is placed on it from its first to its
+   last price and forward-filled inside that span (D3 bounds the fill). The daily return is the
+   change of that series. Fund price dates that are not equity-calendar days are dropped and counted.
+5. **Entry.** B-5's convention: a fund enters on the first equity-calendar day of the calendar month
+   after the month of its first price. It is a member through the date of its last price.
+6. **Arms.** With `x'_t = x_t − h_surv/252`:
+   - +100%: `R_t = e_t + x'_t − s·Δcal_t/360 − 1.00 %/252`.
+   - +50%, +25%: two drifting sleeves (equity sleeve; stacked sleeve as above), reset to target after
+     the close of each month's last trading day; cost `5 bp × (|Δ equity sleeve| + |Δ stacked
+     sleeve|)/NAV`.
+7. **Bootstrap engine.** B-5's vectorized replay of `MetricsEngine.bootstrap_distribution`'s exact
+   draws. Before any curve is computed the harness asserts the replay equals `MetricsEngine` on the
+   decision cell (|Δci_low|, |Δci_high|, |Δmean| < 1e-9) or halts. The decision cell's quoted numbers
+   are `MetricsEngine`'s own.
+8. **Monthly series.** Daily returns compound to calendar months. The composite's monthly excess is
+   `Π(1 + x_t) − 1`. Months are the full calendar months inside W-L3. The AQR arm is B-5's
+   `arm_iv_monthly` at w ∈ {1.00, 0.50, 0.25}. `h_L`'s interval comes from the monthly difference
+   series with 1-month (primary), automatic and 12-month blocks.
+9. **§8.4, exactly.**
+   - Worst 3-year shortfall: the minimum rolling 756-day sum of `d_t`.
+   - Drought: the longest run of days on which cumulative `Σ d_t` is below its running maximum, and
+     the deepest point below it.
+   - Flat decade: `Σ d_t` from 2011-01-03 to 2019-12-31.
+   - **Episodes.** From the benchmark's wealth inside W-L3: an episode is a stretch between two
+     successive all-time highs whose deepest point is at least 10% below the first. Its days run from
+     the day after that high to the day of the low. The last episode may be unrecovered.
+   - Per episode: days, depth, the daily correlation of the composite's `x_t` (gross of fund ERs, no
+     survivorship haircut) with `e_t`; the same on non-overlapping 5-day sums counted from the first
+     day (reported only with at least 6 such sums); the composite's compounded excess return; the
+     +100% arm's and the benchmark's return and MaxDD over the same days.
+   - Pooled: all episode days joined in time order; Pearson correlation; interval by a paired 21-day
+     moving-block bootstrap, 1,000 resamples, seed 0.
+10. **Sensitivities.** S1–S6 are each run on the +100% arm with everything else as in the decision
+    cell. A sensitivity composite with fewer than 3 members on part of W-L3 runs on the sub-window
+    where it has at least 3, and the decision composite is reported on that same sub-window beside it.
+    S3 makes one screener call; if it fails or returns nothing usable, S3 is recorded as not run.
+11. **Validations.**
+    - **E2:** the Pearson correlation of monthly excess returns, composite without DBMF against DBMF,
+      over DBMF's full months to 2025-12.
+    - **V1:** `252 × mean[ln(1 + r_RSST) − ln(1 + r_syn)]`, tracking error, correlation and a 21-day
+      block interval, from the first full month after RSST's first price to 2025-12-31. `r_syn` is the
+      +100% arm with `h_surv = 0`.
+    - **V2:** monthly correlation and annualized mean difference of each of DBMF, KMLM and CTA against
+      the composite without that fund. For the stacked anchors, the monthly correlation of
+      `r_BLNDX − 0.5·r_VT` and of `r_MAFIX − 0.5·r_SPY` with the composite. The 0.5 equity shares are
+      from memory, which is why these two lines are shape only.
+    - **V3:** monthly correlation of the composite with AQR TSMOM on W-L3.
+12. **Integrity checks, exactly.** They run on every candidate that passes rule (a), over its whole
+    price span to 2025-12-31. Flags on a candidate halt. Flags on an anchor are listed and the
+    affected validation line is marked; they do not halt.
+    - **D1:** a raw-close one-day return of −3.0% or lower; no dividend or capital-gain row in the
+      fund's `actions` dated from the previous to the next equity-calendar day; and the median Adj
+      Close return of the other priced candidates that day above −1.0% (counted as met when fewer than
+      two others are priced).
+    - **D2:** five or more consecutive identical raw closes on the fund's own price dates.
+    - **D3:** more than five consecutive equity-calendar days without a price between the fund's first
+      and last price.
+    - **D4:** an absolute one-day Adj Close return above 8.0%.
+13. **BTOP50 (R-8).** At most four GET requests to `barclayhedge.com`, with a generic client name and
+    no contact detail, saved raw under `data/t398_local/inputs/btop50/`. The two conditions are read
+    from what is returned and recorded with the passages they rest on. If level 2 runs: monthly;
+    `R^S_m = e_m + (I_m − C_m − 1.0 %/12) − s/12 − 1.00 %/12`; the index's first month to 2025-12;
+    1-month, automatic and 12-month blocks; the +100% structure only. Before 1993 the equity leg is
+    T-306's broad-market series and is labelled as such.
+14. **Accumulation scorecard.** $10,000 at the window's base date; $5,000 added at the close before
+    the first trading day of each later calendar year.
+15. **MBL line.** `E[max]` at the pinned gate's N_eff + 1 (B-5's `honest_n`) and at 372.28 (T-391's
+    R3 count + 1).
+16. **Determinism.** `run` outputs carry no wall-clock time. Runs A and B must match by md5, file for
+    file.
+17. **Halt on a failed gate.** `gates` writes its verdict; `run` refuses unless every evaluability
+    gate passed and the integrity file shows no unruled flag on a candidate.
