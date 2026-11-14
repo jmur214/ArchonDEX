@@ -828,10 +828,18 @@ def full_refetch(ticker: str, cache_dir: Path, providers: Dict[str, Provider], *
 def era_tr_rewrite(ticker: str, cache_dir: Path, *, stooq: Optional[pd.Series],
                    reference_px: Optional[pd.DataFrame], reference_divs: Optional[pd.Series],
                    write: bool = True, conventions: Optional[Dict[str, dict]] = None,
-                   provenance: Optional[dict] = None, log_path: Optional[Path] = None) -> dict:
+                   provenance: Optional[dict] = None, log_path: Optional[Path] = None,
+                   stooq_corrections: Optional[Any] = None) -> dict:
     """Rewrite the PRE-seam span of `<ticker>_1d` under `cache_dir` from the T-082b drip to `era_tr`
     (option (a′)) — OFFLINE (no provider call), or refuse. Returns the record as written (or, with
     `write=False`, as it would be written — the proof-on-a-copy mode; nothing is touched).
+
+    `stooq_corrections` (T-394): the PINNED Tier-1 table (`stooq_tier1.load_tier1()`). This file's rows — and
+    only they — are applied through `era_tr.build_file(changes=…)`; a row that names a date the file does not
+    have, lands on or after the seam, or sits at an ex-date the distribution guard touched, REFUSES the file.
+    The record's `era_tr` block then carries `stooq_corrections` (the table's sha256 and each applied row) and
+    `unverified_stooq_corrections` (the file's Tier-2 label: corrections found and NOT applied). With no table
+    the output is v5, and the block says the label was not recorded (`unverified_stooq_corrections: null`).
 
     Inputs: the merge record under `cache_dir` (`_merge_meta.json`: the seam, the drip slope b, the
     kept bar count — never fabricated), the raw Stooq close series (`stooq`), and the yfinance
@@ -890,15 +898,28 @@ def era_tr_rewrite(ticker: str, cache_dir: Path, *, stooq: Optional[pd.Series],
     header, lines = et.read_cache_text(csv_path)
     frame = et.read_cache_frame(csv_path)
     ref = et.analyse_reference(ticker, stooq, reference_px, reference_divs, seam)
+    changes, applied_rows = None, []
+    if stooq_corrections is not None:
+        from engines.data_manager import stooq_tier1 as st1
+        applied_rows = stooq_corrections.rows_for(ticker)
+        if applied_rows:
+            lab = ref.labels
+            guard_days = (pd.DatetimeIndex(lab.loc[lab["refused"].to_numpy(dtype=bool), "day"])
+                          if len(lab) and "refused" in lab.columns else None)
+            try:
+                changes = st1.changes_for_file(ticker, applied_rows, pd.DatetimeIndex(frame["Date"]), seam, guard_days)
+            except st1.StooqTier1Refusal as e:
+                raise WriterRefusal(f"{ticker}: the pinned Stooq corrections cannot be applied — {e}",
+                                    detail={"rows": applied_rows}) from e
     try:
-        res = et.build_file(ticker, entry, header, lines, frame, stooq, ref)
+        res = et.build_file(ticker, entry, header, lines, frame, stooq, ref, changes=changes)
     except et.EraTrRefusal as e:
         raise WriterRefusal(f"{ticker}: the (a′) build refused — {e}", detail={"reference": ref.status}) from e
     # the WRITE-TIME rails, on the build's output
     new_close = pd.Series(res.frame["Close"].to_numpy(dtype=float), index=pd.DatetimeIndex(res.frame["Date"]))
     cache_close = pd.Series(frame["Close"].to_numpy(dtype=float), index=pd.DatetimeIndex(frame["Date"]))
-    steps = et.step_audit(new_close, stooq, ref.labels, seam)
-    splice = et.splice_audit(new_close, cache_close, stooq, ref.labels, seam, res.record["splice"])
+    steps = et.step_audit(new_close, stooq, ref.labels, seam, changes=changes)
+    splice = et.splice_audit(new_close, cache_close, stooq, ref.labels, seam, res.record["splice"], changes=changes)
     carried = et.carried_text_identical(res.text, header, lines)
     rails = {"step_audit": steps, "splice_audit": splice, "carried_columns_identical": carried}
     if not (steps["pass"] and splice["pass"] and carried):
@@ -908,7 +929,14 @@ def era_tr_rewrite(ticker: str, cache_dir: Path, *, stooq: Optional[pd.Series],
                             f"not writing", detail={"rails": rails})
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     block = {**res.record, "rails": rails, "rewritten_at": now, "inputs": dict(provenance or {}),
-             "prior_pre_seam": {k: v for k, v in kept.items() if k != "era_tr"}}
+             "prior_pre_seam": {k: v for k, v in kept.items() if k != "era_tr"},
+             # T-394: what the pinned table did to this file, and what it found and did NOT apply
+             "stooq_corrections": ({"table_sha256": stooq_corrections.sha256, "tier": "1", "applied": applied_rows}
+                                   if stooq_corrections is not None else
+                                   {"table_sha256": None, "tier": None, "applied": [],
+                                    "note": "no corrections table was given: the output is v5"}),
+             "unverified_stooq_corrections": (stooq_corrections.unverified_for(ticker)
+                                              if stooq_corrections is not None else None)}
     seam_date = str(seam.date())
     if prior is not None:
         conv = dict(prior.get("convention") or {})

@@ -25,6 +25,7 @@ from core.measurement.mbl_gate import (
     verify_pinned_registry,
 )
 from scripts.honest_n_pin import PinExistsError, main as pin_main, write_pin
+from tests._honest_n_trials_fixture import write_fixture_trials_record
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,6 +42,7 @@ def _registry(path: Path, n: int = 100) -> Path:
 def _artifact(d: Path, name: str, rho: float, comp: float) -> Path:
     p = d / name
     p.write_text(json.dumps({"rho_bar": rho, "onc_compression": comp,
+                             "funnel": {"after_dedupe": 100},   # T-391 R3: the executed population
                              "gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
     return p
 
@@ -51,6 +53,7 @@ def pinned(tmp_path):
     reg = _registry(tmp_path / "run_registry.sqlite", 231)
     art = _artifact(tmp_path, "n_effective_2026-09-30.json", rho=0.43, comp=0.16)
     pin = tmp_path / "honest_n_pin.json"
+    write_fixture_trials_record(tmp_path)          # T-391: the gate requires the record beside the pin (S = 0)
     write_pin(art.name, artifact_dir=tmp_path, db_path=reg, pin_path=pin)
     return tmp_path, reg, art, pin
 
@@ -59,8 +62,12 @@ def _gate(d, reg, pin):
     return compute_n_effective_correlated(reg, artifact_dir=d, pin_path=pin)
 
 
-def _expected(n):
-    return max(mbl.n_eff_equicorrelated(n, 0.43), n * 0.16)
+EXECUTED = 100   # the fixture artifact's executed (curve-bearing) population
+
+
+def _expected(n, rho=0.43, comp=0.16):
+    """T-391 R3 (ruling 9.2): the registry's curve-less rows at RAW + the executed population's N_eff."""
+    return n + max(mbl.n_eff_equicorrelated(EXECUTED, rho), EXECUTED * comp)
 
 
 def test_the_pinned_pair_gates_normally(pinned):

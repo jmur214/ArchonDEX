@@ -227,3 +227,51 @@ pre-2003 spans; the second unit (the spin-off / transient-block repair, held to 
   matched it (0 missing / 0 extra / 0 changed) after the work. The listing md5 quoted in the T-387 report,
   `cb1ceca452b1fd196e1ad288f66858a8`, reproduces only with this exact recipe (macOS `md5`, C collation):
   `cd /Users/jacksonmurphy/Dev/trading_machine-2/data/processed && find . -type f | LC_ALL=C sort | xargs md5 -r | md5 -q`.
+
+
+## 7. Amendment, 2026-11-14 (T-393 + T-394): S1b as it now stands — the v5 guard and the 11 Tier-1 rows
+
+**Appended; §0–§6 above are kept as written.** Two units changed what S1b writes. The command is the same.
+
+**What S1b writes now.**
+- **v5, not v4 (T-393, merged `7cb64dd`).** `era_tr` runs a distribution guard: a "missed dividend" is refused
+  where no aligned bar of the reference's own close shows the drop, and a refused one whose Stooq spin-off is
+  unapplied is repaired from the close. Three files differ from v4: DHR, ETN, XRX
+  (`config/era_tr_v5_delta_t393.json`).
+- **Plus 11 pinned Tier-1 Stooq corrections (T-394, branch `feat/era-tr-tier1-corrections-t394`, not merged at
+  writing).** The driver loads `config/stooq_corrections_tier1.json` by default — 7 spin-off steps and 4 one-bar
+  blocks that T-265 covers and agrees with — and applies exactly those rows. Ten files differ from v5: APD, CAG,
+  DOC, HLT, HON, HPE, IBM, KG, MRK, TJX (`config/era_tr_tier1_bytes_t394.json`).
+- **Tier 2 is NOT applied.** 1,579 yfinance-derived, unverified corrections ride as a label
+  (`unverified_stooq_corrections`) in each file's write record, with three known omissions (GE 2019-02-26,
+  HON 2018-10-01, APD 2016-09-29).
+
+**The command (as §6 S1b, step 3).**
+`python -m scripts.cutover_step1_pass era-tr --copy /Users/jacksonmurphy/Dev/_substrate_candidates/cutover_copy_a_prime_<date>`
+- It REFUSES before the first write if the table's sha256 is not the pin in
+  `engines/data_manager/stooq_tier1.py`, or if a row names a file the copy does not have.
+- It refuses a single file whose row names a date the file lacks, lands on or after the seam, or sits at an
+  ex-date the guard touched.
+- `--stooq-corrections none` writes v5 only and records that in every row. It is not the cutover's setting.
+
+**The acceptance line that replaces §6's "equals v4's `processed/`, aggregate md5 `2cee41ef…`".**
+- On a copy of the canonical inputs: 562 files equal v4's `MANIFEST.md5`; DHR, ETN, XRX equal
+  `config/era_tr_v5_delta_t393.json`; the ten Tier-1 files equal `config/era_tr_tier1_bytes_t394.json`.
+  Measured 2026-11-14 on `t394_writer_check_2026-11-14/`: 575 of 575.
+- On the real step-1 copy the pre-seam bars are those × one constant per file (§6), so the check there is the
+  T-387 dry-run comparison, not an md5.
+- Every record's `era_tr.stooq_corrections.table_sha256` is the pin; the records name 11 applied rows in all.
+
+**S6 and S11, added.**
+- S6: the class of 575 pre-seam rewrites is unchanged in size. Thirteen of its files differ from the v4 bytes
+  the T-387 acceptance quoted.
+- S11: the census also reports `n_stooq_tier1_applied` (10), `n_stooq_tier1_rows` (11),
+  `n_unverified_stooq_corrections` (374 on the full set) and `n_stooq_label_not_recorded` (must be 0).
+
+**Pre-condition, added.** The T-394 branch merged on main after independent review by execution. Until then
+S1b writes v5 with no label, and the census counts every file under `n_stooq_label_not_recorded`.
+
+**Added 2026-11-14 (T-394 review follow-up).** A copy written with `--stooq-corrections none` is a scratch copy.
+`cutover_step1_pass label` exits 5 on it, `cutover_step1_pass stage` refuses it, and a run census fails it
+(`n_stooq_label_not_recorded > 0`). The P3 label reading on cutover day therefore also checks this: exit 0 is
+required.

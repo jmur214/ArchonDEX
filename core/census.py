@@ -204,6 +204,18 @@ def assert_census(
                 f"substrate_convention: {len(names)} name(s) in the panel carry NO convention label "
                 f"(the pre-seam span — drip, or era_tr after the cutover — is labelled, never defaulted): "
                 f"{', '.join(f'{n} ({bad[n]})' for n in names[:5])}{' …' if len(names) > 5 else ''}")
+        # T-394 (review follow-up, 2026-11-14): an era_tr file written WITHOUT the pinned Stooq corrections
+        # table (`cutover_step1_pass era-tr --stooq-corrections none`, a scratch mode) has neither its
+        # Tier-1 rows applied nor its Tier-2 label recorded. A run on such a file is a measurement on a
+        # substrate that is not the cutover's — non-canonical, never read as "nothing unverified".
+        n_unrec = int(sc.get("n_stooq_label_not_recorded") or 0)
+        if n_unrec > 0:
+            names = sorted(t for t, v in (sc.get("stooq_corrections") or {}).items()
+                           if isinstance(v, dict) and not v.get("recorded"))
+            failures.append(
+                f"substrate_convention: {n_unrec} era_tr file(s) in the panel were written WITHOUT the pinned "
+                f"Stooq corrections table (Tier-1 rows not applied, Tier-2 label not recorded — a scratch "
+                f"write, never the cutover's): {', '.join(names[:5])}{' …' if len(names) > 5 else ''}")
     elif sc is None:
         warnings.append("census has no substrate_convention record (summary predates 2026-10-22) — "
                         "the pre-seam drip is unlabelled")

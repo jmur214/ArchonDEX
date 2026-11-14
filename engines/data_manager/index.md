@@ -159,6 +159,8 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `derive_drip_witness_text()`**: THE recipe of `config/drip_cache_witness_repin1.json`, as text (its exact bytes): from re-pin #1's
 - **Function `load_drip_witness()`**: The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
 - **Function `is_drip_witnessed()`**: None when the file under `cache_dir` IS the drip the witness pinned (csv always; parquet where
+- **Function `stooq_corrections_label()`**: T-394: what an era_tr write record says about the Stooq corrections — the Tier-1 rows applied to the
+- **Function `era_tr_files_without_stooq_label()`**: T-394: the names whose write record says the pre-seam span is era_tr but carries no Stooq-corrections
 - **Function `era_tr_records_present()`**: The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr.
 - **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
 - **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the
@@ -222,6 +224,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `probe_exdates()`**: The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
 - **Function `distribution_guard()`**: T-393 (as amended, §7): of the ex-dates the labels call missed, what is ADDED.
 - **Function `label_exdates()`**: missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
+- **Function `correction_factor()`**: T-394: the factor on the pre-seam bars for a set of PINNED corrections, given as (date → change of the
 - **Function `missed_log_factor()`**: Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
 - **Function `empty_labels()`**: The labelled-ex-date frame of a name with no usable reference (no ex-date labelled).
 - **Function `analyse_reference()`**: Probe every reference ex-date up to `until` (the seam) and label it.
@@ -292,6 +295,17 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `load_membership()`**: Membership intervals. `end` is NaT for current members.
 - **Function `members_on()`**: No docstring
 - **Function `in_index()`**: Boolean (date x ticker) membership mask, vectorized over intervals.
+
+### `stooq_tier1.py`
+**Module Docstring:** T-394 — the PINNED Tier-1 Stooq corrections the cutover writer applies, and the Tier-2 LABEL it carries.
+- **Class `StooqTier1Refusal`**: The pinned corrections cannot be applied as given (fail closed; nothing is written).
+- **Class `Tier1Table`**: The pinned table as loaded: rows per file, and the Tier-2 label per file.
+  - `def n_rows()`
+  - `def rows_for()`
+  - `def unverified_for()`: The file's Tier-2 label: counts and spans of the corrections NOT applied, and its known omissions.
+- **Function `load_tier1()`**: Both pinned files, or REFUSE: a missing file, a sha256 that is not the pin, a row count that is not 11,
+- **Function `check_universe()`**: Every row must name a merged file with pre-seam bars — checked for the WHOLE table before any write.
+- **Function `changes_for_file()`**: One file's rows as (date → change of the daily log return on that bar), or REFUSE.
 
 ### `tr_writer.py`
 **Module Docstring:** The TOTAL-RETURN writer for the processed price cache (data/processed/<TICKER>_1d.{csv,parquet}).

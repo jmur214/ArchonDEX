@@ -29,13 +29,24 @@ def lev_daily(eq_ret: pd.Series, cash: pd.Series, L: float) -> pd.Series:
     return L * gross - (L - 1.0) * (cash + SPREAD / TD) - (SSO_ER / TD if L > 1.0 else 0.0)
 
 
+def year_change_mask(index: pd.DatetimeIndex) -> np.ndarray:
+    """True on the first bar of the series and on the first bar of each later calendar year.
+
+    POSITIONAL by construction (T-399). The July 2026 line compared `index.to_period("Y")` with its own
+    `.shift(1)`; on a PeriodIndex `.shift` moves the PERIOD, so that mask was true on every row and the
+    annual cost was charged daily (~1.29 %/yr). Amendment 1 of static_leverage_t315_2026_07_27.md."""
+    years = np.asarray(index.year)
+    first = np.ones(len(years), dtype=bool)
+    first[1:] = years[1:] != years[:-1]
+    return first
+
+
 def static_arm(eq_ret, cash, L: float, rebal_per_yr: int = 1) -> pd.Series:
     """Held FOREVER: no gate, no turnover except the annual rebalance (0.51bps on that only)."""
     r = lev_daily(eq_ret, cash, L)
     if L > 1.0:
         cost = pd.Series(0.0, index=r.index)
-        yr = r.index.to_period("Y")
-        cost[yr != yr.shift(1)] = SLIP_EQ * rebal_per_yr    # ~nothing
+        cost[year_change_mask(r.index)] = SLIP_EQ * rebal_per_yr    # once per year-change
         r = r - cost
     return r.dropna()
 
@@ -156,6 +167,11 @@ def main():
     erp58 = float((1 + e58).prod() ** (252 / len(e58)) - 1 - ((1 + c58).prod() ** (252 / len(c58)) - 1))
     for hc, lab in [(0.0, "none"), (0.02, "-2%"), (0.03, "-3%")]:
         print(f"    {lab:6} ERP {erp58-hc:.2%} -> L* = {(erp58-hc)/sig**2:.2f}")
+    # T-399 erratum (amendment A1.6): Kelly takes the ARITHMETIC mean excess return, not the CAGR gap above.
+    mu58 = float((e58 - c58).mean() * TD)
+    print("  Kelly-optimal L, CORRECTED (= arithmetic mean excess / sigma^2; the lines above use the CAGR gap):")
+    for hc, lab in [(0.0, "none"), (0.02, "-2%"), (0.03, "-3%")]:
+        print(f"    {lab:6} mean excess {mu58-hc:.2%} -> L* = {(mu58-hc)/sig**2:.2f}")
 
     # ---- the 1929 ruin test in DOLLARS + years-to-recover ----
     print("\n=== THE 1929 RUIN TEST (~99yr window) — trough in DOLLARS from $10k, and years to recover ===")
