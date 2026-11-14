@@ -71,6 +71,13 @@ DURABLE_PATHS: List[str] = [
     # ephemeral slice would show a null day_change forever, the quiet kind of
     # broken this program keeps finding.
     "data/state/fleet_mirror_slice.json",
+    # 2026-11-10: the price-basis marks — the close each ticker was last seen at,
+    # which the corporate-action gate's feed-INDEPENDENT guard compares today's
+    # (vendor split-adjusted) close against. Durable because the comparison is
+    # ACROSS runs: on an ephemeral disk every run would be the first run, the
+    # guard would have no reference, and a dead split feed would again be the
+    # only witness (the 2026-11-05 MTUM buy).
+    "data/state/price_basis_marks.json",
     # T-326: the thesis books — TWO channel sub-books (machine / user_seeded) kept
     # separate so the records never blend (the bias firewall applies to scoring
     # attribution). Theses hold for MONTHS, so durability is load-bearing: an

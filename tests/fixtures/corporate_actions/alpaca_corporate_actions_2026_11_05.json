@@ -1,0 +1,55 @@
+{
+ "_captured": "2026-11-10",
+ "_request": {
+  "end": "2026-11-10",
+  "start": "2026-11-01",
+  "symbols": [
+   "MTUM",
+   "QUAL",
+   "VOO",
+   "SGOV"
+  ]
+ },
+ "response": {
+  "cash_dividends": [
+   {
+    "cusip": "46436E718",
+    "ex_date": "2026-11-02",
+    "foreign": false,
+    "id": "d81b84a1-41ac-4e82-b3f7-82c28e8da927",
+    "payable_date": "2026-11-05",
+    "process_date": "2026-11-05",
+    "rate": 0.328581,
+    "record_date": "2026-11-02",
+    "special": false,
+    "symbol": "SGOV"
+   }
+  ],
+  "forward_splits": [
+   {
+    "cusip": "46432F396",
+    "due_bill_redemption_date": "2026-11-05",
+    "ex_date": "2026-11-05",
+    "id": "51ba02af-ef5c-46d9-b3b5-9b3f74d58bac",
+    "new_rate": 4,
+    "old_rate": 1,
+    "payable_date": "2026-11-04",
+    "process_date": "2026-11-05",
+    "record_date": "2026-11-03",
+    "symbol": "MTUM"
+   },
+   {
+    "cusip": "46432F339",
+    "due_bill_redemption_date": "2026-11-05",
+    "ex_date": "2026-11-05",
+    "id": "2e113411-d20b-44ec-897b-42381beea12d",
+    "new_rate": 4,
+    "old_rate": 1,
+    "payable_date": "2026-11-04",
+    "process_date": "2026-11-05",
+    "record_date": "2026-11-03",
+    "symbol": "QUAL"
+   }
+  ]
+ }
+}
