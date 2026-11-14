@@ -269,6 +269,9 @@ def test_label_rule_neighbours_and_blocks():
     probe = pd.DataFrame({"day": days, "m": [1.0, np.nan, 1.0, np.nan, 0.0, np.nan],
                           "sm": [0.01, 9.0, 0.01, 9.0, 0.01, 9.0],
                           "confident": [True, False, True, False, True, False]})
+    # T-393: the distribution guard reads the dividend's size and the reference close's ex-day move; an
+    # ordinary 1 % dividend whose close fell 1 % (σ 1 %) passes it, so the label RULE is what is tested here
+    probe = probe.assign(log_f=-0.01, close_move=-0.01, close_sigma=0.01)
     lab = fix.label_exdates(probe)
     # 1998-05: both neighbours measured missed → missed (a pre-2003 per-name missed era, BA class)
     # 2004-02: neighbours disagree → the global rule (missed era) decides
@@ -279,7 +282,7 @@ def test_label_rule_neighbours_and_blocks():
     # a one-sided neighbour in ANOTHER block does not lend its label: the global rule decides
     probe2 = pd.DataFrame({"day": pd.DatetimeIndex(["2004-02-02", "2012-02-01"]), "m": [np.nan, 0.0],
                            "sm": [9.0, 0.01], "confident": [False, True]})
-    lab2 = fix.label_exdates(probe2)
+    lab2 = fix.label_exdates(probe2.assign(log_f=-0.01, close_move=-0.01, close_sigma=0.01))
     assert lab2["missed"].tolist() == [True, False]
     assert lab2["label_source"].tolist() == ["global", "measured"]
 
