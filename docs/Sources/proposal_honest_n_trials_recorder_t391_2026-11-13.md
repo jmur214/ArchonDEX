@@ -737,3 +737,27 @@ what remains".
 - **Tests:** `tests/test_honest_n_trials_t391.py` is 58 tests; 57 pass and the real-ledger lock is red as above. The
   other honest-N and MBL modules: 102 pass, 8 xfail. Their fixture artifacts now carry an executed population of 100,
   and their expected N is "registry rows at raw + N_eff(executed)".
+
+---
+
+## §7. State at hand-off (2026-11-14): the record after the refresh merges
+
+**§6.3's S and gated figure are superseded by this section by one trial.** The rule (R3) is unchanged.
+
+- **Main is merged into the branch through `da5b3a1`.** The ledger is identical to main's.
+- **Record rows added with the recorder since §6:**
+  - at `n_trials 0`: T-390, T-394, T-396 and T-400 (each closed on main with `N_trials 0` stated). T-390's and
+    T-396's docs are on their own branches, so those rows cite the ledger row.
+  - **at +1: T-398**, on the director's ruling of 2026-11-14. It is counted as stated, the T-340-6 precedent: a
+    committed trial is counted when committed, not when it reports. Its prereg
+    (`docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md` at `ac01413` on
+    `research/stacked-trend-overlay-t398`) is not on main yet, so the row cites the ledger row. **When T-398's verdict
+    merges it must not be recorded again.**
+- **S = 101** (61 firm + 40 pending a ruling). The record has 83 rows and 9 unresolved items.
+- **Gated N_eff (R3) = 40.28 + 231 + 101 = 372.28**, computed by `honest_n_trials show` on the real inputs, not
+  assumed. Without the pending rows it is 332.28. Reported, not gated: R2′ 178.20, R0 36.92.
+- At 372.28: MinBTL at SR 1 is 8.78 y, and the SR required at 5 / 12 / 26 years is 1.325 / 0.855 / 0.581 (the same to
+  three decimals as at 371.28).
+- `check` on the merged ledger: 0 findings. The real-ledger lock is green: the director wrote `N_trials 0.` on the
+  closed rows.
+- **§6.5's proposed CLAUDE.md text** should read "101 at 2026-11-14" and "N_eff ≈ 372". The three bars are unchanged.
