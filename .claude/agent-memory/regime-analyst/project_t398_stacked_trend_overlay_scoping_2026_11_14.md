@@ -29,6 +29,18 @@ DRAFT awaiting the director's rulings — check the TASK_LEDGER row before quoti
   It is the complement of the bond stack, which fails in ρ(stock, bond) > 0 inflation regimes
   ([[project-b5-route-c-closed-correlation-regime-bet-2026-11-11]]).
 
+**Data-source facts learned in Phase 2 (2026-11-14, before any return was computed):**
+- Yahoo Adj Close DOES neutralize trend mutual funds' big December distributions (70 of 70 raw falls
+  ≥ 3% with a recorded distribution were neutral; e.g. ASFYX 2022-12-29 raw −24%, adjusted +0.05%).
+  The real defects are different: one-day bad prints that reverse (RYMFX 2017-04-21/24), stale NAVs
+  that catch up a day later, and thin-ETF close noise (FMF carries 17 of 45 integrity flags).
+- yfinance `info["category"]` is empty for mutual funds; the fund overview's `categoryName` has it.
+  `netExpenseRatio` is in percent (SPY 0.0945). AQMIX's reads 3.09% (annual-report ratio) — cap it.
+  `fundInceptionDate` is unreliable; `firstTradeDateMilliseconds` matches the first price.
+- CSAIX (Credit Suisse Managed Futures) is gone from Yahoo — survivorship, witnessed.
+- BarclayHedge's BTOP50 page serves only the last five years without a login; history is gated.
+  SG Trend/CTA are registration-gated. No free long net CTA index exists.
+
 **Why:** B-5 left the overlay "neither closed nor opened"; the owner asked about futures and options
 with constraints relaxed.
 
