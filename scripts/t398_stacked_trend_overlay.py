@@ -1007,7 +1007,7 @@ def gates_payload(panel: Panel) -> Dict:
     live = rsst.pct_change().dropna()
     live = live[live.index.to_period("M") >= m1]
     syn = pd.Series(arm_returns(w, 1.0, h_surv=0.0), index=w["dates"])
-    j = pd.concat({"live": live, "syn": syn}, axis=1).dropna()
+    j = pd.concat({"live": live, "syn": syn}, axis=1, sort=True).dropna()
     dv = (np.log1p(j["live"]) - np.log1p(j["syn"])).values
     st = boot.stat(dv, BLOCK_DAILY, scale=TD / len(dv))
     v1 = {"from": str(j.index[0].date()), "to": str(j.index[-1].date()), "n": int(len(j)),
