@@ -26,7 +26,8 @@ REAL_OBS = ROOT / "data" / "observability"
 REAL_PIN = ROOT / "config" / "honest_n_pin.json"
 REAL_RECORD = ROOT / "config" / "honest_n_trials.json"
 RHO, COMP = 0.43, 0.16
-BACKFILL_FLOOR = 96      # the backfill's S (60 firm + 36 counted pending the user's ruling), 2026-11-13
+BACKFILL_FLOOR = 100     # the backfill's S (60 firm + 40 counted pending the user's ruling), 2026-11-13
+EXECUTED = 50            # the fixture artifact's funnel.after_dedupe (the executed population)
 
 
 # ----------------------------------------------------------------------------- fixtures
@@ -47,9 +48,10 @@ def _setup(tmp_path: Path, rows: list, ledger: dict | None = None, n_plain: int 
     cfg = tmp_path / "config"; cfg.mkdir()
     reg = _registry(obs / "run_registry.sqlite", n_plain, ledger)
     art = obs / "n_effective_2026-09-30.json"
-    art.write_text(json.dumps({"funnel": {"after_dedupe": 50},
+    art.write_text(json.dumps({"funnel": {"after_dedupe": EXECUTED},
                                "gate_inputs": {"rho_bar": RHO, "onc_compression": COMP}}))
     rec = write_fixture_trials_record(cfg, rows)
+    (tmp_path / "fixture").write_text("the fixture rows' `source` — a citation that exists\n")
     pin = cfg / "honest_n_pin.json"
     write_pin(art.name, artifact_dir=obs, db_path=reg, pin_path=pin,
               trials_path=rec if pin_trials else None)
@@ -64,6 +66,11 @@ def _registry_part(n_raw: int) -> float:
     return max(mbl.n_eff_equicorrelated(n_raw, RHO), max(mbl.N_EFF_FLOOR, min(float(n_raw), n_raw * COMP)))
 
 
+def _both(n_raw: int) -> float:
+    """R2' without S: the registry's N_eff + the executed population's own N_eff."""
+    return _registry_part(n_raw) + _registry_part(EXECUTED)
+
+
 def _raw_record(path: Path, rows: list, unresolved: list | None = None, **over) -> Path:
     """A record with a CORRECT digest, so the row/shape checks (not the digest) are what is exercised."""
     unresolved = unresolved or []
@@ -75,7 +82,7 @@ def _raw_record(path: Path, rows: list, unresolved: list | None = None, **over) 
 
 
 # ----------------------------------------------------------------------------- §1.7(1) the real inputs, from COPIES
-def test_the_real_record_and_a_COPY_of_the_real_registry_gate_to_registry_plus_53(tmp_path):
+def test_the_real_record_and_a_COPY_of_the_real_registry_gate_to_registry_plus_executed_plus_S(tmp_path):
     missing = [n for n in ("run_registry.sqlite", "n_effective_2026-09-30.json") if not (REAL_OBS / n).is_file()]
     if missing:
         pytest.skip(f"the pinned honest-N files are not on this host: {missing}")
@@ -93,7 +100,9 @@ def test_the_real_record_and_a_COPY_of_the_real_registry_gate_to_registry_plus_5
     assert s >= BACKFILL_FLOOR
     assert b["n_raw_registry"] == 231 and b["n_standalone"] == s and b["n_raw_total"] == 231 + s
     assert b["n_eff_registry"] == pytest.approx(36.9240, abs=1e-3)
-    assert b["n_eff"] == pytest.approx(36.9240 + s, abs=1e-3)
+    assert b["n_eff_executed"] == pytest.approx(40.2807, abs=1e-3)      # 252 executed trials, the gate's own bounds
+    assert b["n_eff"] == pytest.approx(36.9240 + 40.2807 + s, abs=1e-3)   # R2'
+    assert b["n_eff_omitting_executed"] == pytest.approx(36.9240 + s, abs=1e-3)
     assert b["n_eff_ruling_9_2_all"] == pytest.approx(40.2807 + 231 + s, abs=1e-3)
     assert b["n_eff_excluding_pending"] == pytest.approx(b["n_eff"] - b["n_standalone_pending_ruling"])
     assert b["executed_population"] == 252
@@ -161,9 +170,54 @@ def test_a_registry_task_re_added_as_a_standalone_row_is_refused(tmp_path):
     _raw_record(rec, [reg_row, dup])
     with pytest.raises(HonestNUnavailableError, match="double-counted"):
         _gate(obs, reg, pin)
-    dup["also_in_registry_as"] = "T-9"                      # a DIFFERENT trial of the same task, named
+    other = fixture_row("T-8", 0, "registry_ledger", "T-8")
+    for twin, rows in (("T-9b", [reg_row, dup]),            # naming itself
+                       ("T-8", [reg_row, other, dup]),      # another task's registry row (T-137 naming T-135)
+                       ("T-9", [reg_row, dup]),             # the right row, but the SAME date: not a distinct trial
+                       ("T-404", [reg_row, dup])):          # a row that does not exist
+        dup["also_in_registry_as"] = twin
+        _raw_record(rec, rows)
+        with pytest.raises(HonestNUnavailableError, match="not a different-dated registry row"):
+            _gate(obs, reg, pin)
+    dup["also_in_registry_as"], dup["date"] = "T-9", "2026-11-20"   # same task, a DIFFERENT date: distinct
     _raw_record(rec, [reg_row, dup])
-    assert _gate(obs, reg, pin) == pytest.approx(_registry_part(104) + 4)
+    assert _gate(obs, reg, pin) == pytest.approx(_both(104) + 4)
+
+
+def test_the_recorder_can_name_the_distinct_registry_trial(tmp_path):
+    reg_row = fixture_row("T-9", 4, "registry_ledger", "T-9")
+    obs, reg, rec, pin = _setup(tmp_path, [reg_row], ledger={"T-9": 4})
+    root = _repo(tmp_path)
+    with pytest.raises(HonestNUnavailableError, match="double-counted"):
+        hnt.record_trial(record_path=rec, root=root, **_rec_kwargs(trial_id="T-9@2", task_id="T-9", ledger_id="T-9"))
+    hnt.record_trial(record_path=rec, root=root, also_in_registry_as="T-9",
+                     **_rec_kwargs(trial_id="T-9@2", task_id="T-9", ledger_id="T-9"))
+    assert _gate(obs, reg, pin) == pytest.approx(_both(104) + 2)
+
+
+def test_an_artifact_without_the_executed_population_is_refused(tmp_path):
+    """R2': the registry holds none of the controller/cloud runs, so the artifact's executed count is
+    load-bearing — its absence halts the gate (it used to make R3 quietly None)."""
+    obs, reg, rec, pin = _setup(tmp_path, [fixture_row()])
+    art = obs / "n_effective_2026-09-30.json"
+    art.write_text(json.dumps({"gate_inputs": {"rho_bar": RHO, "onc_compression": COMP}}))
+    write_pin(art.name, artifact_dir=obs, db_path=reg, pin_path=pin, replace=True)
+    with pytest.raises(HonestNUnavailableError, match="funnel.after_dedupe"):
+        _gate(obs, reg, pin)
+
+
+def test_the_pin_refuses_a_missing_citation_and_records_the_check(tmp_path):
+    """Review round 2 F6: the image has no docs/, so --pin verifies citations and the pin says so."""
+    obs, reg, rec, pin = _setup(tmp_path, [fixture_row("S-1", 2)], pin_trials=True)
+    entry = json.loads(pin.read_text())["trials"]
+    assert entry["citations_verified"] is True and entry["citations_verified_on"]
+    assert mbl.honest_n_breakdown(reg, artifact_dir=obs, pin_path=pin)["citations_verified_at_pin"] is True
+    (tmp_path / "fixture").rename(tmp_path / "fixture_moved")
+    before = pin.read_bytes()
+    with pytest.raises(HonestNUnavailableError, match="does not exist"):
+        write_pin("n_effective_2026-09-30.json", artifact_dir=obs, db_path=reg, pin_path=pin, replace=True,
+                  trials_path=rec)
+    assert pin.read_bytes() == before
 
 
 def test_a_citation_that_does_not_exist_is_refused_where_the_docs_tree_exists(tmp_path):
@@ -211,7 +265,7 @@ def test_a_duplicate_trial_id_is_refused(tmp_path):
 def test_registry_ledger_rows_are_mirrored_never_summed_again(tmp_path):
     rows = [fixture_row("T-9", 4, "registry_ledger", "T-9"), fixture_row("S-1", 3)]
     obs, reg, _, pin = _setup(tmp_path, rows, ledger={"T-9": 4}, n_plain=100)
-    assert _gate(obs, reg, pin) == pytest.approx(_registry_part(104) + 3)
+    assert _gate(obs, reg, pin) == pytest.approx(_both(104) + 3)
 
 
 @pytest.mark.parametrize("record_k, registry", [(3, {"T-9": 4}), (5, {"T-9": 4}), (4, {"T-9": 4, "T-10": 1})])
@@ -226,13 +280,13 @@ def test_a_record_that_disagrees_with_the_registrys_ledger_rows_is_refused(tmp_p
 def test_once_PINNED_a_changed_record_is_refused_until_re_pinned(tmp_path):
     obs, reg, rec, pin = _setup(tmp_path, [fixture_row("S-1", 2)], pin_trials=True)
     assert json.loads(pin.read_text())["schema"] == "honest_n_pin/v2"
-    assert _gate(obs, reg, pin) == pytest.approx(_registry_part(100) + 2)
+    assert _gate(obs, reg, pin) == pytest.approx(_both(100) + 2)
     hnt.write_record(rec, FIXTURE_HEADER, [fixture_row("S-1", 2), fixture_row("S-2", 1)], [])
     with pytest.raises(HonestNUnavailableError, match="does not match its pin"):
         _gate(obs, reg, pin)
     write_pin("n_effective_2026-09-30.json", artifact_dir=obs, db_path=reg, pin_path=pin, replace=True,
               trials_path=rec)                                            # the reviewed re-pin
-    assert _gate(obs, reg, pin) == pytest.approx(_registry_part(100) + 3)
+    assert _gate(obs, reg, pin) == pytest.approx(_both(100) + 3)
 
 
 def test_write_pin_refuses_a_record_the_gate_could_not_combine(tmp_path):
@@ -269,7 +323,7 @@ def test_the_no_argument_production_call_counts_the_record(tmp_path, monkeypatch
     monkeypatch.setattr(mbl, "DEFAULT_ARTIFACT_DIR", obs)
     monkeypatch.setattr(mbl, "DEFAULT_DB_PATH", reg)
     monkeypatch.setattr(mbl, "DEFAULT_PIN_PATH", pin)
-    want = _registry_part(100) + 7
+    want = _both(100) + 7
     assert mbl.compute_n_effective_correlated() == pytest.approx(want)
     assert mbl.check_mbl_gate(t_years=26.0)["n_effective"] == pytest.approx(want, abs=1e-4)
     info = mbl.resolve_cycle_n_trials(3, db_path=reg, artifact_dir=obs, pin_path=pin)
@@ -280,8 +334,9 @@ def test_the_no_argument_production_call_counts_the_record(tmp_path, monkeypatch
 def test_standalone_trials_enter_at_RAW_under_every_method(tmp_path, method):
     obs, reg, _, pin = _setup(tmp_path, [fixture_row("S-1", 11)])
     b = mbl.honest_n_breakdown(reg, method=method, artifact_dir=obs, pin_path=pin)
-    assert b["n_eff"] == pytest.approx(b["n_eff_registry"] + 11)
-    assert b["n_eff_ruling_9_2_all"] >= b["n_eff"], "R3 can never be looser than R2"
+    assert b["n_eff"] == pytest.approx(b["n_eff_registry"] + b["n_eff_executed"] + 11)
+    assert b["n_eff_executed"] > 0 and b["n_eff_omitting_executed"] == pytest.approx(b["n_eff_registry"] + 11)
+    assert b["n_eff_ruling_9_2_all"] >= b["n_eff"] > b["n_eff_omitting_executed"], "R3 >= R2' > the old R2"
 
 
 def test_an_explicit_artifact_path_counts_the_record_only_when_named(tmp_path):
@@ -360,7 +415,7 @@ def _row(tid: str, date: str, status: str, outcome: str, doc: str = "`x_verdict.
 
 def _lint(tmp_path: Path, rows: list, *ledger_rows: str) -> list:
     rec = _raw_record(tmp_path / "rec.json", rows)
-    return hnt.lint(mbl.load_trials_record(rec), hnt.parse_ledger(_ledger(tmp_path, *ledger_rows)), root=tmp_path)
+    return hnt.lint(mbl.load_trials_record(rec), hnt.parse_ledger(_ledger(tmp_path, *ledger_rows)))
 
 
 def test_lint_passes_a_clean_ledger(tmp_path):
@@ -394,30 +449,44 @@ def test_lint_forward_rule_a_verdict_needs_a_record_row_even_at_zero(tmp_path):
     assert any("has no trials-record row" in x for x in f)
 
 
-# --- review F3: the three planted bypasses of the forward rule, plus the undated row -----------------
-def _result_file(tmp_path: Path) -> None:
-    (tmp_path / "docs" / "Audit").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "docs" / "Audit" / "x_result_t5.md").write_text("ran\n")
-
-
-def test_lint_bypass_1_a_doc_cell_that_says_neither_verdict_nor_prereg(tmp_path):
-    _result_file(tmp_path)
+# --- review rounds 1-2: the planted bypasses of the forward rule ------------------------------------
+def test_lint_a_closed_row_needs_a_record_whatever_its_doc_cell_says(tmp_path):
     f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20", "refuted", "H0", doc="`x_result_t5.md`"))
     assert any("has no trials-record row" in x for x in f) and any("without stating N_trials" in x for x in f)
 
 
-def test_lint_bypass_2_a_row_left_at_dispatched_after_it_ran(tmp_path):
-    _result_file(tmp_path)
-    by_file = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20", "dispatched", "ran", doc="`x_result_t5.md`"))
-    by_count = _lint(tmp_path, [fixture_row()], _row("T-6", "2026-11-20", "dispatched", "N_trials 0 so far", doc="—"))
-    assert any("T-5" in x and "has no trials-record row" in x for x in by_file)
-    assert any("T-6" in x and "has no trials-record row" in x for x in by_count)
-
-
-def test_lint_bypass_3_a_date_written_as_a_range_reads_by_its_first_date(tmp_path):
-    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20→24", "refuted", "H0"))
+def test_lint_bypass_a_range_closing_AFTER_activation_reads_by_its_LATEST_date(tmp_path):
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-12→14", "done", "N_trials 0"))
     assert any("has no trials-record row" in x for x in f)
-    assert _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-01→2026-11-20", "refuted", "H0, no N")) == []
+    for cell in ("2026-11-01→2026-11-20", "2026-10-30→11-13", "2026-11-12 to 2026-11-14"):
+        assert any("T-5" in x for x in _lint(tmp_path, [fixture_row()], _row("T-5", cell, "done", "N_trials 0"))), cell
+    assert _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-01→12", "refuted", "H0, no N")) == []
+
+
+def test_lint_bypass_dispatched_with_a_doc_cell_naming_a_file_not_yet_on_disk(tmp_path):
+    f = _lint(tmp_path, [fixture_row()],
+              _row("T-5", "2026-11-14", "dispatched", "S&P arm ran; N_trials +1 so far", doc="`not_written_yet_verdict.md`"))
+    assert any("T-5" in x and "has no trials-record row" in x for x in f)
+
+
+def test_lint_bypass_dispatched_with_a_feature_branch_doc_cell(tmp_path):
+    """How T-214 and T-220 sat after running: `dispatched`, a `feature/...` doc cell, a stated count."""
+    f = _lint(tmp_path, [fixture_row()],
+              _row("T-5", "2026-11-14", "dispatched", "6 arms. N_trials += 6", doc="`feature/trend-wider-breadth`"))
+    assert any("T-5 declares N_trials 6" in x for x in f) and any("has no trials-record row" in x for x in f)
+
+
+def test_lint_bypass_in_flight_stating_N_trials_equals_3(tmp_path):
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-14", "in-flight", "N_trials = 3 treatment configs", doc="—"))
+    assert any("T-5 declares N_trials 3" in x for x in f) and any("has no trials-record row" in x for x in f)
+
+
+def test_lint_exempts_a_row_only_while_it_states_no_count_and_is_not_closed(tmp_path):
+    assert _lint(tmp_path, [fixture_row()],
+                 _row("T-5", "2026-11-14", "dispatched", "dispatched; nothing run", doc="`prereg_x.md`"),
+                 _row("T-6", "2026-11-14", "blocked", "waiting on cutover day", doc="—")) == []
+    f = _lint(tmp_path, [fixture_row()], _row("T-6", "2026-11-14", "blocked", "N_trials 0 so far", doc="—"))
+    assert any("T-6" in x and "has no trials-record row" in x for x in f)
 
 
 def test_lint_a_row_with_no_parseable_date_is_treated_as_forward(tmp_path):

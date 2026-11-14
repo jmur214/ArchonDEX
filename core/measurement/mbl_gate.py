@@ -380,15 +380,26 @@ def load_trials_record(path: Optional[Path] = None) -> Dict[str, Any]:
     # Review F5c — the double-count lock's second half: a task the registry already counts may not
     # ALSO appear as a standalone row (T-137 re-added at raw would be counted twice), unless the row
     # names the registry trial it is a DIFFERENT trial from (T-260: 2026-07-02 vs 2026-07-27).
+    # Review round 2 F5: the named twin must be an EXISTING registry row of the SAME task with a
+    # DIFFERENT date — naming any registry id (T-137 naming itself, or T-135) is not a distinction.
     reg_rows = [r for r in rows if r["counted_in"] == "registry_ledger"]
     by_task = {r["task_id"]: r["trial_id"] for r in reg_rows}
     by_lid = {r["ledger_id"]: r["trial_id"] for r in reg_rows}
-    reg_ids = {r["trial_id"] for r in reg_rows}
+    reg_by_id = {r["trial_id"]: r for r in reg_rows}
     for row in rows:
+        twin_id = row.get("also_in_registry_as")
         if row["counted_in"] != "standalone":
+            if twin_id is not None:
+                raise _refuse(p, f"registry row {row['trial_id']!r} may not carry also_in_registry_as")
             continue
         clash = by_task.get(row["task_id"]) or by_lid.get(row.get("ledger_id"))
-        if clash and row.get("also_in_registry_as") not in reg_ids:
+        if twin_id is not None:
+            twin = reg_by_id.get(twin_id)
+            if (twin is None or twin["task_id"] != row["task_id"] or twin["date"] == row["date"]
+                    or twin["trial_id"] == row["trial_id"]):
+                raise _refuse(p, f"standalone row {row['trial_id']!r} names also_in_registry_as {twin_id!r}, "
+                                 f"which is not a different-dated registry row of task {row['task_id']!r}")
+        elif clash:
             raise _refuse(p, f"standalone row {row['trial_id']!r} names a task the registry already counts "
                              f"({clash!r}) — it would be double-counted")
     for i, item in enumerate(unresolved):
@@ -509,14 +520,27 @@ def honest_n_breakdown(
     — once pinned — the trials record are pin-verified; the record is digest-checked and
     reconciled with the registry).
 
-    `n_eff` (GATED, rule R2) = the registry's correlation-aware N_eff + S at raw. S's trials have
-    no return stream in any measured population, so no correlation credit is borrowed for them
-    (ruling 9.2); adding independent groups is the upper bound, any correlation only lowers it.
+    Three DISJOINT populations (the pinned artifact says of the registry: it "registers none of
+    these runs — the two sets are disjoint"; S excludes both by construction):
+      registry   231 rows — 125 pre-2026-05-09 run rows + 106 ledger rows
+      executed   the artifact's `funnel.after_dedupe` distinct controller/cloud trials (252)
+      standalone S — research-script trials, from the committed record
+
+    `n_eff` (GATED, rule R2′) = N_eff(registry) + N_eff(executed) + S at raw. Each of the first two
+    is compressed with the gate's conservative ρ̄/ONC bounds WITHIN its own population only; the
+    terms are ADDED, which claims NO correlation credit BETWEEN populations — the sum of group
+    N_effs is what independent groups give, and any cross-population correlation only lowers the
+    true N_eff, so the sum errs strict. S gets no credit at all (no return streams: ruling 9.2).
+    (ρ̄ was measured ON the executed population, so its credit there is not borrowed; the
+    registry's is the merged Option-A treatment — R3 strips it.)
+
+    `n_eff_omitting_executed` (REPORTED, the first build's R2) = N_eff(registry) + S. It counts
+    NONE of the executed controller/cloud runs and is kept only so the correction is visible.
 
     `n_eff_ruling_9_2_all` (REPORTED, rule R3) also strips the borrowed credit from the registry's
-    own 231 curve-less rows: N_eff(the artifact's executed population) + N_raw + S. It is the
-    honest number under ruling 9.2 and is NOT gated here — adopting it is the user's decision
-    (proposal §1.4); every caller that quotes `n_eff` has it beside it."""
+    own curve-less rows: N_eff(executed) + N_raw + S. It is the honest number under ruling 9.2 and
+    is NOT gated here — adopting it is the user's decision; every caller that quotes `n_eff` has
+    it beside it."""
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
     db = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
@@ -536,18 +560,28 @@ def honest_n_breakdown(
     s = standalone_trials_total(record)
     pending = int(sum(int(r["n_trials"]) for r in record["rows"]
                       if r["counted_in"] == "standalone" and r.get("pending_ruling")))
-    executed = (art.get("funnel") or {}).get("after_dedupe")
-    r3 = (_registry_n_eff(executed, gi, method) + n_raw + s
-          if isinstance(executed, int) and not isinstance(executed, bool) and executed > 0 else None)
+    funnel = art.get("funnel")
+    executed = funnel.get("after_dedupe") if isinstance(funnel, dict) else None
+    if isinstance(executed, bool) or not isinstance(executed, int) or executed < 0:
+        raise HonestNUnavailableError(
+            "the pinned n_effective artifact carries no integer `funnel.after_dedupe` — the executed "
+            "controller/cloud population cannot be counted, and the registry holds none of those runs")
+    n_eff_executed = _registry_n_eff(executed, gi, method) if executed > 0 else 0.0
+    r3 = n_eff_executed + n_raw + s
+    pin_trials = load_pin(pin_path).get("trials") or {}
     return {
-        "n_eff": n_eff_registry + s,
-        "rule": "R2 additive: registry N_eff + standalone trials at raw (no borrowed credit)",
+        "n_eff": n_eff_registry + n_eff_executed + s,
+        "rule": "R2': registry N_eff + executed-population N_eff (each compressed within itself, no "
+                "cross-population credit) + standalone trials at raw",
+        "n_eff_executed": n_eff_executed,
+        "n_eff_omitting_executed": n_eff_registry + s,
+        "citations_verified_at_pin": bool(pin_trials.get("citations_verified", False)),
         "method": method,
         "n_raw_registry": n_raw,
         "n_eff_registry": n_eff_registry,
         "n_standalone": s,
         "n_standalone_pending_ruling": pending,
-        "n_eff_excluding_pending": n_eff_registry + s - pending,
+        "n_eff_excluding_pending": n_eff_registry + n_eff_executed + s - pending,
         "citations_checked": citations_checked,
         "n_raw_total": n_raw + s,
         "n_eff_ruling_9_2_all": r3,

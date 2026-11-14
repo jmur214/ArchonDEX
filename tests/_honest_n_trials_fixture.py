@@ -24,5 +24,8 @@ def fixture_row(trial_id: str = "FIX-0", n_trials: int = 0, counted_in: str = "s
 
 def write_fixture_trials_record(directory: Path, rows: list | None = None) -> Path:
     path = Path(directory) / "honest_n_trials.json"
+    # The rows cite `source: "fixture"`; the pin (and the gate, where docs/ exists) checks that a citation
+    # EXISTS under the record's root (<record dir>/..), so the fixture supplies the cited file too.
+    (Path(directory).resolve().parent / "fixture").write_text("the fixture rows' cited source\n")
     write_record(path, FIXTURE_HEADER, rows if rows is not None else [fixture_row()], [])
     return path

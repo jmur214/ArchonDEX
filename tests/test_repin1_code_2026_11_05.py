@@ -496,6 +496,7 @@ def _synthetic_pair(d: Path):
     c.commit(); c.close()
     art = d / "n_effective_2026-09-30.json"
     art.write_text(json.dumps({"rho_bar": 0.43, "onc_compression": 0.16,
+                               "funnel": {"after_dedupe": 0},   # T-391 R2': executed population, empty here
                                "gate_inputs": {"rho_bar": 0.43, "onc_compression": 0.16}}))
     pin = d / "honest_n_pin.json"
     from tests._honest_n_trials_fixture import write_fixture_trials_record

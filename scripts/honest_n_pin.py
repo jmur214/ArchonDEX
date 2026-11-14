@@ -29,7 +29,7 @@ class PinExistsError(FileExistsError):
 
 def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None, db_path: Optional[Path] = None,
               pin_path: Optional[Path] = None, note: str = "", replace: bool = False,
-              trials_path: Optional[Path] = None) -> Dict:
+              trials_path: Optional[Path] = None, cited_root: Optional[Path] = None) -> Dict:
     """Pin the gate to `artifact_dir/artifact_name` AND the current run registry, recording each file's
     sha256. Refuses to pin anything the gate could not read, and refuses to overwrite an existing pin
     unless `replace=True`. Defaults are resolved from `mbl_gate` at call time.
@@ -61,9 +61,14 @@ def write_pin(artifact_name: str, *, artifact_dir: Optional[Path] = None, db_pat
                 f"got {trials_path} — the gate reads it from there by name")
         rec = mbl.load_trials_record(trials_path)            # refuse what the gate couldn't read
         mbl.reconcile_trials_with_registry(rec, db_path)     # ... or would refuse to combine
+        # Review round 2 F6: the image ships no docs/, so the gate there cannot check a citation.
+        # The pin does it HERE, on the host that has the cited tree, and records the result: the
+        # image then inherits a citation-verified record through the sha256 it verifies.
+        mbl.verify_trials_citations(rec, Path(cited_root) if cited_root is not None else pin_path.parent.parent)
         pin["schema"] = "honest_n_pin/v2"
         pin["trials"] = {"file": trials_path.name, "sha256": mbl.sha256_file(trials_path),
-                         "standalone_at_pin": mbl.standalone_trials_total(rec)}
+                         "standalone_at_pin": mbl.standalone_trials_total(rec),
+                         "citations_verified": True, "citations_verified_on": _dt.date.today().isoformat()}
     pin_path.write_text(json.dumps(pin, indent=2) + "\n")
     return pin
 

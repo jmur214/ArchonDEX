@@ -19,11 +19,11 @@ appends `counted_in = standalone` rows ONLY; the `registry_ledger` rows are the 
 
 THE LINT (`check`), fail closed:
   * every TASK_LEDGER.md row declaring N > 0 has record rows with that ledger_id summing >= the declared N;
-  * forward-only from the record's activation_date (a date RANGE reads by its first date; a row with no
-    parseable date is treated as forward): a row that states a trial count, OR whose status is closed
-    (done/refuted/superseded), OR whose doc cell names an existing audit/prereg/result file — whatever its
-    status, `dispatched` included — must have >= 1 record row (an n_trials 0 row counts); a closed row must
-    also STATE N (`N_trials 0` counts);
+  * forward-only from the record's activation_date (a date RANGE reads by its LATEST date; a row with no
+    parseable date is treated as forward): a row that states a trial count in ANY status (`dispatched`
+    and `in-flight` included), OR whose status is closed (done/refuted/superseded), must have >= 1 record
+    row (an n_trials 0 row counts); a closed row must also STATE N (`N_trials 0` counts). A row is exempt
+    only while it states no count and is not closed;
   * no record row names a ledger_id the ledger lacks;
   * every citation in the record exists (path, and line within the file);
   * the registry cross-check where the registry exists on this host (SKIPPED, said so, where it does not —
@@ -46,16 +46,16 @@ ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs" / "State" / "TASK_LEDGER.md"
 ROW_KEYS = ("trial_id", "task_id", "date", "n_trials", "counted_in", "ledger_id", "family", "substrate",
             "prereg", "verdict", "source", "pending_ruling", "also_in_registry_as", "note")
-# Where a ledger doc cell's file name is looked for (the forward lint's "names an existing file" trigger).
-DOC_DIRS = ("docs/Audit", "docs/Sources", "docs/State", "docs/Core", "docs/Measurements", "scripts")
-_DOC_TOKEN = re.compile(r"[\w./\-]+\.(?:md|json|py)")
 HEADER_KEYS = ("schema", "task", "activation_date", "grandfathered_through", "rule", "note")
 FORWARD_STATUSES = ("done", "refuted", "superseded")
 
 # The N-declaration forms the ledger actually uses (T-336's two, plus the B-series `N_trials +k`,
 # `n_trials_consumed k` and `N_trials consumed: k`). Case-sensitive on purpose: prose like "n+1" is not one.
 _N_DECL = re.compile(r"(?:\bN_trials|\bN)\s*\+=?\s*(\d+)|\bn_trials_consumed\s*:?\s*(\d+)"
-                     r"|\bN_trials consumed:?\s*\**\s*\+?(\d+)")
+                     r"|\bN_trials consumed:?\s*\**\s*\+?(\d+)|\bN_trials\s*[:=]\s*\**\s*\+?([1-9]\d*)")
+# A ledger date cell: a full date, optionally a range whose end may be abbreviated (2026-11-12→14,
+# 2026-07-30→08-06, 2026-11-01→2026-11-20). The forward rule reads the LATEST date.
+_RANGE_END = re.compile(r"(?:→|->|–|—|\bto\b)\s*(?:(\d{4})-)?(?:(\d{2})-)?(\d{2})\b")
 _N_ZERO = re.compile(r"\b0 N_trials\b|\b[Zz]ero N_trials\b|\bno N_trials\b|\bN_trials:?\s*\**0\b"
                      r"|\bN ?\+= ?0\b|\b0 N\b|N_trials consumed:?\s*\**0\b")
 _TASK_CELL = re.compile(r"^\|\s*((?:T|B|RR)-[^|]+?)\s*\|")
@@ -123,7 +123,8 @@ def _check_source(source: str, root: Path) -> None:
 
 def record_trial(*, trial_id: str, task_id: str, date: str, n_trials: int, family: str, substrate: str,
                  prereg: str, verdict: str, source: str, ledger_id: Optional[str] = None,
-                 note: str = "", pending_ruling: bool = False, record_path: Optional[Path] = None,
+                 note: str = "", pending_ruling: bool = False, also_in_registry_as: Optional[str] = None,
+                 record_path: Optional[Path] = None,
                  root: Path = ROOT) -> Dict[str, Any]:
     """Append ONE standalone trial row. Refuses a duplicate trial_id, a non-ISO date, a negative count,
     and any citation (prereg, verdict, source line) that does not exist in the repo."""
@@ -141,7 +142,8 @@ def record_trial(*, trial_id: str, task_id: str, date: str, n_trials: int, famil
     row = {"trial_id": trial_id, "task_id": task_id, "date": date, "n_trials": n_trials,
            "counted_in": "standalone", "ledger_id": ledger_id or None, "family": family,
            "substrate": substrate, "prereg": prereg, "verdict": verdict, "source": source,
-           "pending_ruling": bool(pending_ruling), "also_in_registry_as": None, "note": note}
+           "pending_ruling": bool(pending_ruling), "also_in_registry_as": also_in_registry_as or None,
+           "note": note}
     write_record(record_path, rec, rec["rows"] + [row], rec["unresolved"])
     return row
 
@@ -158,6 +160,19 @@ class LedgerRow:
     states_n: bool
 
 
+def latest_date(cell: str) -> Optional[str]:
+    """The LATEST date a ledger date cell names (None when it names none). A range closes on its
+    end date, so a row opened before activation and closed after it is a forward row."""
+    first = _DATE.search(cell)
+    if not first:
+        return None
+    dates = _DATE.findall(cell)
+    y, mth, _ = first.group(0).split("-")
+    for ey, em, ed in _RANGE_END.findall(cell[first.end():]):
+        dates.append(f"{ey or y}-{em or mth}-{ed}")
+    return max(dates)
+
+
 def parse_ledger(path: Path = LEDGER) -> List[LedgerRow]:
     out: List[LedgerRow] = []
     for i, line in enumerate(path.read_text().splitlines(), 1):
@@ -165,32 +180,16 @@ def parse_ledger(path: Path = LEDGER) -> List[LedgerRow]:
         if not m or m.group(1).strip() == "T-ID":
             continue
         cells = [c.strip() for c in line.split("|")]
-        date = _DATE.search(cells[2]) if len(cells) > 2 else None
         status = cells[4].lower() if len(cells) > 4 else ""
         doc = cells[-2] if len(cells) >= 3 else ""
         hits = _N_DECL.findall(line)
-        declared = sum(int(a or b or c) for a, b, c in hits)
-        out.append(LedgerRow(i, m.group(1).strip(), date.group(0) if date else None, status, doc, declared,
-                             bool(hits) or bool(_N_ZERO.search(line))))
+        declared = sum(int(next(g for g in h if g)) for h in hits)
+        out.append(LedgerRow(i, m.group(1).strip(), latest_date(cells[2] if len(cells) > 2 else ""), status,
+                             doc, declared, bool(hits) or bool(_N_ZERO.search(line))))
     return out
 
 
-def _names_existing_file(doc: str, root: Path) -> bool:
-    """Does the ledger's doc cell name a file that exists (as given, or under a DOC_DIRS directory)?"""
-    for tok in _DOC_TOKEN.findall(doc):
-        rel = Path(tok)
-        if ".." in rel.parts or rel.is_absolute():
-            continue
-        if (root / rel).is_file():
-            return True
-        for d in DOC_DIRS:
-            base = root / d
-            if (base / rel.name).is_file() or (d == "docs/Measurements" and any(base.glob(f"*/{rel.name}"))):
-                return True
-    return False
-
-
-def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow], root: Path = ROOT) -> List[str]:
+def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow]) -> List[str]:
     """The findings; [] is a pass."""
     findings: List[str] = []
     by_ledger: Dict[str, int] = {}
@@ -214,7 +213,7 @@ def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow], root: Path = ROOT)
         if row.date is not None and row.date < activation:          # an unparseable date is FORWARD
             continue
         closed = row.status in FORWARD_STATUSES
-        if not (closed or row.states_n or _names_existing_file(row.doc, root)):
+        if not (closed or row.states_n):        # exempt ONLY while it states no count and is not closed
             continue
         if closed and not row.states_n:
             findings.append(f"TASK_LEDGER.md:{row.line} {row.ledger_id} ({row.status}, {row.date}) closes "
@@ -268,6 +267,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     r.add_argument("--n-trials", type=int, required=True)
     r.add_argument("--ledger-id", default=None)
     r.add_argument("--note", default="")
+    r.add_argument("--also-in-registry-as", default=None, metavar="REGISTRY_TRIAL_ID",
+                   help="this is a DIFFERENT trial of a task the registry already counts: name that registry row")
     r.add_argument("--pending-ruling", action="store_true",
                    help="counted now, flagged for the user's ruling (the fail-closed default for a run trial)")
     sub.add_parser("check", help="the lint (exit 0 / 1 findings / 3 unreadable input)")
@@ -278,7 +279,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             row = record_trial(trial_id=a.trial_id, task_id=a.task_id, date=a.date, n_trials=a.n_trials,
                                family=a.family, substrate=a.substrate, prereg=a.prereg, verdict=a.verdict,
                                source=a.source, ledger_id=a.ledger_id, note=a.note,
-                               pending_ruling=a.pending_ruling)
+                               pending_ruling=a.pending_ruling, also_in_registry_as=a.also_in_registry_as)
         except (RecordError, mbl.HonestNUnavailableError) as exc:
             print(f"REFUSED: {exc}", file=sys.stderr)
             return 4
@@ -295,9 +296,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"HONEST N UNAVAILABLE: {exc}")
         return 3
     print(json.dumps(b, indent=2, default=str))
-    print(f"as of {_dt.date.today().isoformat()}: gated N_eff {b['n_eff']:.2f} (R2); "
-          f"ruling-9.2-for-all {b['n_eff_ruling_9_2_all']:.2f} (R3, reported)" if b["n_eff_ruling_9_2_all"] is not None
-          else f"gated N_eff {b['n_eff']:.2f} (R2); R3 unavailable (artifact lacks funnel.after_dedupe)")
+    print(f"as of {_dt.date.today().isoformat()}: gated N_eff {b['n_eff']:.2f} (R2'); "
+          f"{b['n_eff_excluding_pending']:.2f} without the rows pending a ruling; "
+          f"ruling-9.2-for-all {b['n_eff_ruling_9_2_all']:.2f} (R3, reported)")
     return 0
 
 

@@ -42,6 +42,7 @@ def _registry(path: Path, n: int = 100) -> Path:
 def _artifact(d: Path, name: str, rho: float, comp: float) -> Path:
     p = d / name
     p.write_text(json.dumps({"rho_bar": rho, "onc_compression": comp,
+                             "funnel": {"after_dedupe": 0},   # T-391 R2': executed population, empty here
                              "gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
     return p
 

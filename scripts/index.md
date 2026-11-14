@@ -1055,6 +1055,7 @@
 - **Class `LedgerRow`**: No docstring
 - **Function `write_record()`**: Serialise with ONE row per line (a row's diff is one line) and the digest the gate re-derives.
 - **Function `record_trial()`**: Append ONE standalone trial row. Refuses a duplicate trial_id, a non-ISO date, a negative count,
+- **Function `latest_date()`**: The LATEST date a ledger date cell names (None when it names none). A range closes on its
 - **Function `parse_ledger()`**: No docstring
 - **Function `lint()`**: The findings; [] is a pass.
 - **Function `check()`**: No docstring
