@@ -31,6 +31,13 @@ if that put them in the gate; only R3 had them). Now R2′ = 36.92 + N_eff(execu
 40 pending); gated 177.20, R3 371.28. Lesson: when a rule sums populations, list every population and name the term
 each one lands in before calling anything "covered".
 
+DIRECTOR'S CORRECTION (2026-11-13): I offered "R2′ or R3" as the user's choice; ruling 9.2 (no borrowed credit,
+curve-less at raw) had ALREADY decided it. Gate = R3 = N_eff(executed 252) 40.28 + registry 231 at raw + S 100 =
+371.28 (331.28 without pending rows). Lesson: before listing a referee choice as open, check whether a standing
+ruling already closes it. Also: the session scratchpad does NOT survive between sessions — the reversion harness
+and the backfill builder were lost; the harness now lives at `tests/_drivers/t391_reversion_harness.py`. Commit
+any harness a reviewer must re-run.
+
 **Why:** the brief's "hand count ≥ 283" assumed the 267 covered all pre-10-13 trials; it does not.
 **How to apply:** before quoting honest N, run `python -m scripts.honest_n_trials show` if merged; otherwise cite the
 proposal `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md` §1.2. Any new pin-input requirement

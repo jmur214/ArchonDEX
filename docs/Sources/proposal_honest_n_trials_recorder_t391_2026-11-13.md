@@ -610,3 +610,130 @@ harness: **34 modes, all caught.** New this round: N2b the twin rule, N7 a range
 `N_trials = k` form dropped, N9 the executed term dropped (`assert 136.92… == 177.2047`), N10 a missing executed
 population tolerated, N11 `--pin` skipping citations, N12 the feature-branch row. N10 fails on a `TypeError` one line
 below the removed check, not on the targeted refusal.
+
+---
+
+## §6. The director's correction (2026-11-13): the gated rule is R3
+
+**§1.4's "the choice", §3.3 item 2, §5.1's gated rule and §5.3's bold row are superseded by this section.** I listed
+"R2′ or R3" as the user's choice. It was not a free choice. Ruling 9.2 had already decided it.
+
+### 6.1 The rule
+
+The director's ruling 9.2 (2026-10-13; `docs/Sources/referee_repair_proposal_RR-3B_2026-10-13.md` §9.2 and
+`docs/State/CURRENT_STATE.md:124`): **no borrowed credit. Correlation credit applies only where correlation is
+MEASURED; curve-less trials count at raw.**
+
+R2′ compressed the registry's 231 curve-less rows (125 lost-evidence run rows + 106 ledger rows) with a ρ̄ measured on
+a different population. That is the borrowed credit 9.2 forbids, and it was inconsistent with counting S at raw.
+
+**The gated value is now R3:**
+
+    N_eff = N_eff(executed, curve-bearing) + N_raw(registry, curve-less) + S (curve-less)
+          =          40.28                 +            231              + 100   =  371.28
+
+- The only compression is of the executed population, by bounds measured on that same population.
+- The three populations are disjoint, and the terms are added. No credit is claimed between populations, and any real
+  correlation only lowers the true N_eff, so the sum errs strict.
+- `method` now selects the estimator for the executed term only.
+- **Reported, never gated**, each with its reason in the breakdown's `not_gated_why`:
+  - `n_eff_r2_prime` (177.20): borrows credit for the registry's curve-less rows.
+  - `n_eff_r0` (36.92), the pre-T-391 gate: the same borrowed credit, and it omits the executed runs and every
+    standalone trial.
+- An explicit `artifact_path` call is still the bare estimator on a count. It is a tool path and no production
+  caller uses it.
+
+### 6.2 What this realises of Option B, and what remains
+
+**Realised:** ruling 9.2's arithmetic at the gate's input. The standing caveat ("the merged honest-N gate understates
+N by at least half … until Option B lands", `CURRENT_STATE.md:124`) is closed for the number the gates read: the
+gate now returns the no-borrowed-credit N, plus the standalone trials 9.2's 267.5 never saw.
+
+**Not realised; still Option B's build:**
+1. **The pinned artifact pointer (9.3's act).** The pin still names `n_effective_2026-09-30.json`: 252 executed
+   trials, ONC bound 0.1598, N_eff 40.28. Option B's own data pass (2026-10-13) measured 258 trials and 36.5
+   (`rr3b_rho_2026-10-13.json`, unpinned). Moving the pointer is a `honest_n_pin --pin … --replace` and a reviewed
+   commit. The gate would then read 36.5 + 231 + 100 = 367.5. Re-pin #2 is the natural moment.
+2. **`validate_candidate` persisting each candidate's attribution stream (9.1).** Until it does, Discovery's own
+   candidate trials stay curve-less and count at raw. T-196's 35 are in the registry's ledger rows.
+3. **The registry rebuilt from the run evidence** (RR-3B §2A–C): multi-source ingest, `trial_key`, `evidence`,
+   `substrate`. Today the executed population enters only as the artifact's count, not as registry rows.
+4. **The same-population hash lock** (§2E), **the 26-task substrate table** (§2D) and **durability** (§2F).
+
+### 6.3 The numbers
+
+S = 100 (60 firm + 40 pending a ruling). The record now has 78 rows: three `n_trials: 0` rows were added with the
+recorder (T-392, T-393, T-389). 9 items are unresolved. The registry md5 is `83e47441…`, unchanged. PIN OK.
+
+Each cell is N_eff · MinBTL at SR 1 · the SR required at 5 y / 12 y / 26 y.
+
+| rule | all rows (S = 100) | without T-193 (S = 65) | without any pending row (S = 60) |
+|---|---|---|---|
+| R0 pre-T-391 (reported) | 36.92 · 4.66 y · 0.965 / 0.623 / 0.423 | same | same |
+| R1 pooled (rejected) | 52.91 · 5.28 y · 1.028 / 0.663 / 0.451 | 47.31 · 5.09 y · 1.008 / 0.651 / 0.442 | 46.51 · 5.06 y · 1.006 / 0.649 / 0.441 |
+| R2 old (omits the executed runs) | 136.92 · 6.97 y · 1.180 / 0.762 / 0.518 | 101.92 · 6.44 y · 1.135 / 0.732 / 0.498 | 96.92 · 6.35 y · 1.127 / 0.727 / 0.494 |
+| R2′ (reported: borrowed credit) | 177.20 · 7.43 y · 1.219 / 0.787 / 0.535 | 142.20 · 7.03 y · 1.186 / 0.766 / 0.520 | 137.20 · 6.97 y · 1.181 / 0.762 / 0.518 |
+| **R3 GATED (ruling 9.2)** | **371.28 · 8.77 y · 1.325 / 0.855 / 0.581** | 336.28 · 8.59 y · 1.311 / 0.846 / 0.575 | 331.28 · 8.56 y · 1.309 / 0.845 / 0.574 |
+
+At R3 = 371.28, the SR required at 55 y is 0.399 and at 64 y is 0.370.
+
+### 6.4 Impact, restated at the gated R3 (replaces §3.1's and §3.2's numbers; the cited lines are unchanged)
+
+- **MBL Gate-0:** N_eff 36.92 → 371.28. At `mbl_sr_target` 1.0, MinBTL goes 4.66 → 8.77 y. A candidate window
+  between 4.66 and 8.77 years that passed Gate 0 now fails it.
+- **DSR / Discovery Gate 8:** the selection benchmark E[max_N] goes 2.158 → 2.962 (×1.373). DSR falls for every
+  candidate. Cloud `--discover` stays halted by ruling RR-3B regardless.
+- **Unchanged:** the reporter's explicit-N DSR and the submit gate (it reads no N).
+- **Recorded verdict lines that would move** (the same lines as §3.2; no verdict is recomputed, and no refutation
+  can flip to a pass):
+  - quoting the gate's 36.92 / 37.08: B-10 `:74, :315`; B-9 `:149, :153, :159`; B-5 `:193-194`; B-2
+    `:166, :243, :321`; B-1 `:389`; B-8 prereg `:598`. Each bar rises by the R0 → R3 step: at 26 y from 0.423 to
+    0.581, at 55 y from 0.291 to 0.399.
+  - quoting the 267 or a hand count (B-5 `:194`; B-10 `:317`; B-2 `:243`; B-6 `:132`). These were the closest to
+    right. The gate now reads 267-equivalent (271.28 on the pinned artifact) + S.
+  - the T-306 arc at N = 76–78, 64 y (T-311 `:41`, T-260 `:46`, T-314 `:97`): the exact form needs SR 0.370 at R3.
+  - older family-N lines (T-269 `:29`, T-255 `:43`, T-265 `:45`, T-270 `:51`, T-342 `:121`, T-336 `:34, :51`).
+
+### 6.5 CLAUDE.md `[NN-MBL]`: replacement text for the USER to approve (not edited here)
+
+Current (`CLAUDE.md:138-142`):
+
+> `compute_n_effective_correlated()` — the run registry's count (231 at 2026-09-30) adjusted by the measured trial
+> correlation (ρ̄ 0.46–0.61; the gate reads the conservative bound) to N_eff ≈ 37. At that N_eff a 5-year window needs
+> SR ≥ 0.97, 12 years ≥ 0.62, 26 years ≥ 0.42.
+
+Proposed:
+
+> `compute_n_effective_correlated()` — three disjoint populations with NO borrowed correlation credit (ruling 9.2):
+> the executed runs' N_eff under their own measured correlation (252 trials → 40.3; the gate reads the conservative
+> ρ̄ bound), plus the registry's 231 curve-less rows at raw, plus the standalone-harness trials in
+> `config/honest_n_trials.json` at raw (100 at 2026-11-13, 40 of them pending a ruling) — N_eff ≈ 371. At that N_eff
+> a 5-year window needs SR ≥ 1.33, 12 years ≥ 0.86, 26 years ≥ 0.58.
+
+(The exact figures are 1.325 / 0.855 / 0.581. If the six pending rows are ruled out, N_eff ≈ 331 and the bars are
+1.31 / 0.85 / 0.57.) `docs/Core/NON_NEGOTIABLES.md` carries the duplicate and needs the same edit, and
+`docs/State/CURRENT_STATE.md:124`'s standing caveat can be retired to "realised at the gate by T-391; see §6.2 for
+what remains".
+
+### 6.6 The merge of main, the ledger, and the one red lock
+
+- **Main (`bc4549c`) is merged into the branch** (`7b7ea31`). `docs/State/TASK_LEDGER.md` is main's file
+  byte-for-byte (`git diff main -- docs/State/TASK_LEDGER.md` is empty). Both sides of the two quant-dev memory files
+  are kept.
+- **Record rows added with the recorder, each at `--n-trials 0`:** T-392, T-393 and T-389 (T-389 is dated 2026-11-12,
+  before activation; recorded at the director's instruction). T-391's own row was already there. T-390 is `blocked`
+  and states no count: exempt.
+- **The real-ledger lock is RED on the branch, by design, on three findings:** the rows T-391, T-392 and T-393 are
+  `done` and state no N. The ledger is the director's. The text each row needs, appended to its outcome cell:
+  **` N_trials 0.`**
+  - Verified on a scratch copy of the ledger with exactly that text appended to the three outcome cells: `lint`
+    returns no findings.
+  - T-389 needs no text: it predates activation.
+- **The reversion harness is now committed** at `tests/_drivers/t391_reversion_harness.py`. The scratchpad copy did
+  not survive between sessions, and neither did the backfill builder. The record is maintained by the recorder from
+  here on. **36 modes, all caught.** New: N13 and N13b, the gate put back on R2′ (`assert 20.45… == 100.0` on the
+  fixture; `assert 177.20… == 371.2807` on the real inputs). Three modes are caught one rail away from the targeted
+  check: M13, N10, and N2b (the test fails, but on the registry-reconcile message).
+- **Tests:** `tests/test_honest_n_trials_t391.py` is 58 tests; 57 pass and the real-ledger lock is red as above. The
+  other honest-N and MBL modules: 102 pass, 8 xfail. Their fixture artifacts now carry an executed population of 100,
+  and their expected N is "registry rows at raw + N_eff(executed)".

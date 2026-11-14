@@ -1581,13 +1581,14 @@ bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (e
 ### Standalone-harness trials — the third input (T-391, PROPOSAL branch `referee/honest-n-trials-recorder-t391`)
 
 The registry cannot see a trial a research script ran, so the committed record `config/honest_n_trials.json` carries
-them. The gate adds them at raw, beside the registry's N_eff and the executed population's own N_eff (R2′), and FAILS
-CLOSED on an absent, empty, edited or registry-inconsistent record.
+them. The gate (rule R3, the director's ruling 9.2) is N_eff(executed runs, measured correlation) + the registry's
+curve-less rows at raw + these trials at raw, with no borrowed credit. It FAILS CLOSED on an absent, empty, edited or
+registry-inconsistent record.
 Design and inventory: `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md`.
 
 ```bash
 python -m scripts.honest_n_trials check     # the lint: every ledger N>0 recorded; forward verdicts state N (exit 0 / 1 findings / 3 unreadable)
-python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: registry, executed, S; R2′ (gated), R3 (reported)
+python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: executed, registry, S; R3 (gated); R2′ and R0 (reported)
 python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date YYYY-MM-DD --n-trials k \
     --family "..." --substrate "..." --prereg docs/Sources/prereg_x.md --verdict docs/Audit/x_verdict.md \
     --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
