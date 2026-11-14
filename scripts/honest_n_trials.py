@@ -19,9 +19,13 @@ appends `counted_in = standalone` rows ONLY; the `registry_ledger` rows are the 
 
 THE LINT (`check`), fail closed:
   * every TASK_LEDGER.md row declaring N > 0 has record rows with that ledger_id summing >= the declared N;
-  * forward-only from the record's activation_date: a done/refuted/superseded row whose doc cell names a
-    verdict or a prereg must STATE N (N_trials 0 counts) and have >= 1 record row (an n_trials 0 row counts);
+  * forward-only from the record's activation_date (a date RANGE reads by its first date; a row with no
+    parseable date is treated as forward): a row that states a trial count, OR whose status is closed
+    (done/refuted/superseded), OR whose doc cell names an existing audit/prereg/result file — whatever its
+    status, `dispatched` included — must have >= 1 record row (an n_trials 0 row counts); a closed row must
+    also STATE N (`N_trials 0` counts);
   * no record row names a ledger_id the ledger lacks;
+  * every citation in the record exists (path, and line within the file);
   * the registry cross-check where the registry exists on this host (SKIPPED, said so, where it does not —
     the gate itself refuses on a mismatch wherever it runs).
 """
@@ -41,7 +45,10 @@ import core.measurement.mbl_gate as mbl
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs" / "State" / "TASK_LEDGER.md"
 ROW_KEYS = ("trial_id", "task_id", "date", "n_trials", "counted_in", "ledger_id", "family", "substrate",
-            "prereg", "verdict", "source", "note")
+            "prereg", "verdict", "source", "pending_ruling", "also_in_registry_as", "note")
+# Where a ledger doc cell's file name is looked for (the forward lint's "names an existing file" trigger).
+DOC_DIRS = ("docs/Audit", "docs/Sources", "docs/State", "docs/Core", "docs/Measurements", "scripts")
+_DOC_TOKEN = re.compile(r"[\w./\-]+\.(?:md|json|py)")
 HEADER_KEYS = ("schema", "task", "activation_date", "grandfathered_through", "rule", "note")
 FORWARD_STATUSES = ("done", "refuted", "superseded")
 
@@ -65,8 +72,8 @@ def write_record(path: Path, header: Dict[str, Any], rows: List[Dict[str, Any]],
                  unresolved: List[Dict[str, Any]]) -> str:
     """Serialise with ONE row per line (a row's diff is one line) and the digest the gate re-derives.
     Refuses to write anything `mbl_gate.load_trials_record` would refuse to read. Returns the digest."""
-    rows = [{k: r.get(k) for k in ROW_KEYS} for r in rows]
-    digest = mbl.trials_digest(rows, unresolved)
+    rows = [{k: (bool(r.get(k, False)) if k == "pending_ruling" else r.get(k)) for k in ROW_KEYS} for r in rows]
+    digest = mbl.trials_digest(rows, unresolved, header.get("activation_date"))
     head = {k: header[k] for k in HEADER_KEYS if k in header}
     head["schema"] = mbl.TRIALS_SCHEMA
     lines = ["{"]
@@ -116,7 +123,8 @@ def _check_source(source: str, root: Path) -> None:
 
 def record_trial(*, trial_id: str, task_id: str, date: str, n_trials: int, family: str, substrate: str,
                  prereg: str, verdict: str, source: str, ledger_id: Optional[str] = None,
-                 note: str = "", record_path: Optional[Path] = None, root: Path = ROOT) -> Dict[str, Any]:
+                 note: str = "", pending_ruling: bool = False, record_path: Optional[Path] = None,
+                 root: Path = ROOT) -> Dict[str, Any]:
     """Append ONE standalone trial row. Refuses a duplicate trial_id, a non-ISO date, a negative count,
     and any citation (prereg, verdict, source line) that does not exist in the repo."""
     record_path = Path(record_path) if record_path is not None else mbl.default_trials_path()
@@ -132,7 +140,8 @@ def record_trial(*, trial_id: str, task_id: str, date: str, n_trials: int, famil
     _check_source(source, root)
     row = {"trial_id": trial_id, "task_id": task_id, "date": date, "n_trials": n_trials,
            "counted_in": "standalone", "ledger_id": ledger_id or None, "family": family,
-           "substrate": substrate, "prereg": prereg, "verdict": verdict, "source": source, "note": note}
+           "substrate": substrate, "prereg": prereg, "verdict": verdict, "source": source,
+           "pending_ruling": bool(pending_ruling), "also_in_registry_as": None, "note": note}
     write_record(record_path, rec, rec["rows"] + [row], rec["unresolved"])
     return row
 
@@ -153,7 +162,7 @@ def parse_ledger(path: Path = LEDGER) -> List[LedgerRow]:
     out: List[LedgerRow] = []
     for i, line in enumerate(path.read_text().splitlines(), 1):
         m = _TASK_CELL.match(line)
-        if not m:
+        if not m or m.group(1).strip() == "T-ID":
             continue
         cells = [c.strip() for c in line.split("|")]
         date = _DATE.search(cells[2]) if len(cells) > 2 else None
@@ -166,7 +175,22 @@ def parse_ledger(path: Path = LEDGER) -> List[LedgerRow]:
     return out
 
 
-def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow]) -> List[str]:
+def _names_existing_file(doc: str, root: Path) -> bool:
+    """Does the ledger's doc cell name a file that exists (as given, or under a DOC_DIRS directory)?"""
+    for tok in _DOC_TOKEN.findall(doc):
+        rel = Path(tok)
+        if ".." in rel.parts or rel.is_absolute():
+            continue
+        if (root / rel).is_file():
+            return True
+        for d in DOC_DIRS:
+            base = root / d
+            if (base / rel.name).is_file() or (d == "docs/Measurements" and any(base.glob(f"*/{rel.name}"))):
+                return True
+    return False
+
+
+def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow], root: Path = ROOT) -> List[str]:
     """The findings; [] is a pass."""
     findings: List[str] = []
     by_ledger: Dict[str, int] = {}
@@ -187,12 +211,14 @@ def lint(record: Dict[str, Any], ledger: Sequence[LedgerRow]) -> List[str]:
                             f"holds {by_ledger.get(lid, 0)} — record it (`honest_n_trials record`)")
     activation = record["activation_date"]
     for row in ledger:
-        if not (row.date and row.date >= activation and row.status in FORWARD_STATUSES
-                and re.search(r"verdict|prereg", row.doc, re.I)):
+        if row.date is not None and row.date < activation:          # an unparseable date is FORWARD
             continue
-        if not row.states_n:
-            findings.append(f"TASK_LEDGER.md:{row.line} {row.ledger_id} ({row.status}, {row.date}) closes a "
-                            f"verdict without stating N_trials (write `N_trials 0` if none was consumed)")
+        closed = row.status in FORWARD_STATUSES
+        if not (closed or row.states_n or _names_existing_file(row.doc, root)):
+            continue
+        if closed and not row.states_n:
+            findings.append(f"TASK_LEDGER.md:{row.line} {row.ledger_id} ({row.status}, {row.date}) closes "
+                            f"without stating N_trials (write `N_trials 0` if none was consumed)")
         if rows_for.get(row.ledger_id, 0) == 0:
             findings.append(f"TASK_LEDGER.md:{row.line} {row.ledger_id} ({row.status}, {row.date}) has no "
                             f"trials-record row (an n_trials 0 row counts) — run `honest_n_trials record`")
@@ -208,6 +234,7 @@ def check(record_path: Optional[Path] = None, ledger_path: Path = LEDGER,
           db_path: Optional[Path] = None) -> int:
     try:
         rec = mbl.load_trials_record(record_path)
+        mbl.verify_trials_citations(rec, ROOT)
         ledger = parse_ledger(ledger_path)
     except (mbl.HonestNUnavailableError, OSError) as exc:
         print(f"TRIALS CHECK DEFECT: {exc}")
@@ -241,6 +268,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     r.add_argument("--n-trials", type=int, required=True)
     r.add_argument("--ledger-id", default=None)
     r.add_argument("--note", default="")
+    r.add_argument("--pending-ruling", action="store_true",
+                   help="counted now, flagged for the user's ruling (the fail-closed default for a run trial)")
     sub.add_parser("check", help="the lint (exit 0 / 1 findings / 3 unreadable input)")
     sub.add_parser("show", help="the gate's itemised honest N, read-only")
     a = ap.parse_args(argv)
@@ -248,7 +277,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             row = record_trial(trial_id=a.trial_id, task_id=a.task_id, date=a.date, n_trials=a.n_trials,
                                family=a.family, substrate=a.substrate, prereg=a.prereg, verdict=a.verdict,
-                               source=a.source, ledger_id=a.ledger_id, note=a.note)
+                               source=a.source, ledger_id=a.ledger_id, note=a.note,
+                               pending_ruling=a.pending_ruling)
         except (RecordError, mbl.HonestNUnavailableError) as exc:
             print(f"REFUSED: {exc}", file=sys.stderr)
             return 4

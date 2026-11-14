@@ -26,6 +26,7 @@ REAL_OBS = ROOT / "data" / "observability"
 REAL_PIN = ROOT / "config" / "honest_n_pin.json"
 REAL_RECORD = ROOT / "config" / "honest_n_trials.json"
 RHO, COMP = 0.43, 0.16
+BACKFILL_FLOOR = 96      # the backfill's S (60 firm + 36 counted pending the user's ruling), 2026-11-13
 
 
 # ----------------------------------------------------------------------------- fixtures
@@ -67,7 +68,7 @@ def _raw_record(path: Path, rows: list, unresolved: list | None = None, **over) 
     """A record with a CORRECT digest, so the row/shape checks (not the digest) are what is exercised."""
     unresolved = unresolved or []
     rec = {"schema": mbl.TRIALS_SCHEMA, "activation_date": "2026-11-13", "rows": rows,
-           "unresolved": unresolved, "rows_sha256": mbl.trials_digest(rows, unresolved)}
+           "unresolved": unresolved, "rows_sha256": mbl.trials_digest(rows, unresolved, "2026-11-13")}
     rec.update(over)
     path.write_text(json.dumps(rec))
     return path
@@ -85,11 +86,17 @@ def test_the_real_record_and_a_COPY_of_the_real_registry_gate_to_registry_plus_5
     shutil.copyfile(REAL_PIN, cfg / REAL_PIN.name)
     shutil.copyfile(REAL_RECORD, cfg / REAL_RECORD.name)
     b = mbl.honest_n_breakdown(obs / "run_registry.sqlite", artifact_dir=obs, pin_path=cfg / REAL_PIN.name)
-    assert b["n_raw_registry"] == 231 and b["n_standalone"] == 53 and b["n_raw_total"] == 284
+    # S is read from the record itself, never a literal: a legitimate `record` must not turn this red.
+    # BACKFILL_FLOOR is the floor the backfill established — S may grow, and only a RULING lowers it
+    # (then this floor is lowered in the same reviewed commit).
+    s = mbl.standalone_trials_total(mbl.load_trials_record(REAL_RECORD))
+    assert s >= BACKFILL_FLOOR
+    assert b["n_raw_registry"] == 231 and b["n_standalone"] == s and b["n_raw_total"] == 231 + s
     assert b["n_eff_registry"] == pytest.approx(36.9240, abs=1e-3)
-    assert b["n_eff"] == pytest.approx(36.9240 + 53, abs=1e-3)
-    assert b["n_eff_ruling_9_2_all"] == pytest.approx(40.2807 + 231 + 53, abs=1e-3)
-    assert b["executed_population"] == 252 and b["n_unresolved_items"] == 12
+    assert b["n_eff"] == pytest.approx(36.9240 + s, abs=1e-3)
+    assert b["n_eff_ruling_9_2_all"] == pytest.approx(40.2807 + 231 + s, abs=1e-3)
+    assert b["n_eff_excluding_pending"] == pytest.approx(b["n_eff"] - b["n_standalone_pending_ruling"])
+    assert b["executed_population"] == 252
     assert _gate(obs, obs / "run_registry.sqlite", cfg / REAL_PIN.name) == pytest.approx(b["n_eff"])
 
 
@@ -97,8 +104,9 @@ def test_the_committed_record_is_valid_and_mirrors_exactly_the_registrys_26_ledg
     rec = mbl.load_trials_record(REAL_RECORD)
     reg_rows = [r for r in rec["rows"] if r["counted_in"] == "registry_ledger"]
     assert len({r["ledger_id"] for r in reg_rows}) == 26 and sum(r["n_trials"] for r in reg_rows) == 106
-    assert mbl.standalone_trials_total(rec) == 53
+    assert mbl.standalone_trials_total(rec) >= BACKFILL_FLOOR
     assert rec["activation_date"] == "2026-11-13"
+    mbl.verify_trials_citations(rec, ROOT)                 # every citation exists, line within its file
 
 
 # ----------------------------------------------------------------------------- §1.7(2) the record itself
@@ -130,6 +138,49 @@ def test_a_HAND_EDIT_that_bypasses_the_recorder_is_refused_by_the_digest(tmp_pat
     rec.write_text(text)
     with pytest.raises(HonestNUnavailableError, match="rows_sha256"):
         _gate(obs, reg, pin)
+
+
+def test_the_activation_date_is_under_the_digest(tmp_path):
+    """Review F4: moving the date to 2099 would silence the forward lint; it must not verify."""
+    obs, reg, rec, pin = _setup(tmp_path, [fixture_row()])
+    text = rec.read_text().replace('"activation_date": "2026-11-13"', '"activation_date": "2099-01-01"')
+    assert text != rec.read_text()
+    rec.write_text(text)
+    with pytest.raises(HonestNUnavailableError, match="rows_sha256"):
+        _gate(obs, reg, pin)
+
+
+def test_a_registry_task_re_added_as_a_standalone_row_is_refused(tmp_path):
+    """Review F5c: T-137 (24 registry rows) re-added at raw would be counted twice."""
+    obs, reg, rec, pin = _setup(tmp_path, [fixture_row()], ledger={"T-9": 4})
+    reg_row = fixture_row("T-9", 4, "registry_ledger", "T-9")
+    _raw_record(rec, [reg_row, fixture_row("T-9-again", 4, ledger_id="T-9")])
+    with pytest.raises(HonestNUnavailableError, match="double-counted"):
+        _gate(obs, reg, pin)
+    dup = fixture_row("T-9b", 4); dup["task_id"] = "T-9"
+    _raw_record(rec, [reg_row, dup])
+    with pytest.raises(HonestNUnavailableError, match="double-counted"):
+        _gate(obs, reg, pin)
+    dup["also_in_registry_as"] = "T-9"                      # a DIFFERENT trial of the same task, named
+    _raw_record(rec, [reg_row, dup])
+    assert _gate(obs, reg, pin) == pytest.approx(_registry_part(104) + 4)
+
+
+def test_a_citation_that_does_not_exist_is_refused_where_the_docs_tree_exists(tmp_path):
+    """Review F5a. The gate checks citations wherever <root>/docs exists (the image ships none)."""
+    obs, reg, rec, pin = _setup(tmp_path, [fixture_row()])
+    assert mbl.honest_n_breakdown(reg, artifact_dir=obs, pin_path=pin)["citations_checked"] is False
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "v.md").write_text("one\ntwo\n")
+    good = fixture_row("S-1", 1); good["source"] = "docs/v.md:2"; good["verdict"] = "docs/v.md"
+    hnt.write_record(rec, FIXTURE_HEADER, [good], [])
+    assert mbl.honest_n_breakdown(reg, artifact_dir=obs, pin_path=pin)["citations_checked"] is True
+    for field, value, match in (("source", "docs/v.md:3", "past the end"), ("source", "docs/gone.md:1", "does not exist"),
+                                ("verdict", "docs/gone.md", "does not exist")):
+        bad = dict(good); bad[field] = value
+        hnt.write_record(rec, FIXTURE_HEADER, [bad], [])
+        with pytest.raises(HonestNUnavailableError, match=match):
+            _gate(obs, reg, pin)
 
 
 # ----------------------------------------------------------------------------- §1.7(3) malformed rows
@@ -309,7 +360,7 @@ def _row(tid: str, date: str, status: str, outcome: str, doc: str = "`x_verdict.
 
 def _lint(tmp_path: Path, rows: list, *ledger_rows: str) -> list:
     rec = _raw_record(tmp_path / "rec.json", rows)
-    return hnt.lint(mbl.load_trials_record(rec), hnt.parse_ledger(_ledger(tmp_path, *ledger_rows)))
+    return hnt.lint(mbl.load_trials_record(rec), hnt.parse_ledger(_ledger(tmp_path, *ledger_rows)), root=tmp_path)
 
 
 def test_lint_passes_a_clean_ledger(tmp_path):
@@ -317,7 +368,7 @@ def test_lint_passes_a_clean_ledger(tmp_path):
     assert _lint(tmp_path, rows,
                  _row("T-5", "2026-11-20", "refuted", "H0. N_trials +2."),
                  _row("T-6", "2026-11-21", "superseded", "closed without running (N_trials 0)"),
-                 _row("T-7", "2026-11-22", "done", "infra, no verdict", doc="`proposal_x.md`")) == []
+                 _row("T-7", "2026-11-22", "in-flight", "started; nothing run", doc="—")) == []
 
 
 def test_lint_flags_a_declared_N_with_no_record_row(tmp_path):
@@ -343,6 +394,37 @@ def test_lint_forward_rule_a_verdict_needs_a_record_row_even_at_zero(tmp_path):
     assert any("has no trials-record row" in x for x in f)
 
 
+# --- review F3: the three planted bypasses of the forward rule, plus the undated row -----------------
+def _result_file(tmp_path: Path) -> None:
+    (tmp_path / "docs" / "Audit").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "Audit" / "x_result_t5.md").write_text("ran\n")
+
+
+def test_lint_bypass_1_a_doc_cell_that_says_neither_verdict_nor_prereg(tmp_path):
+    _result_file(tmp_path)
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20", "refuted", "H0", doc="`x_result_t5.md`"))
+    assert any("has no trials-record row" in x for x in f) and any("without stating N_trials" in x for x in f)
+
+
+def test_lint_bypass_2_a_row_left_at_dispatched_after_it_ran(tmp_path):
+    _result_file(tmp_path)
+    by_file = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20", "dispatched", "ran", doc="`x_result_t5.md`"))
+    by_count = _lint(tmp_path, [fixture_row()], _row("T-6", "2026-11-20", "dispatched", "N_trials 0 so far", doc="—"))
+    assert any("T-5" in x and "has no trials-record row" in x for x in by_file)
+    assert any("T-6" in x and "has no trials-record row" in x for x in by_count)
+
+
+def test_lint_bypass_3_a_date_written_as_a_range_reads_by_its_first_date(tmp_path):
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-20→24", "refuted", "H0"))
+    assert any("has no trials-record row" in x for x in f)
+    assert _lint(tmp_path, [fixture_row()], _row("T-5", "2026-11-01→2026-11-20", "refuted", "H0, no N")) == []
+
+
+def test_lint_a_row_with_no_parseable_date_is_treated_as_forward(tmp_path):
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "mid-November", "done", "N_trials 0"))
+    assert any("has no trials-record row" in x for x in f)
+
+
 def test_lint_grandfathers_pre_activation_rows_that_state_no_N(tmp_path):
     assert _lint(tmp_path, [fixture_row()], _row("T-5", "2026-07-02", "refuted", "H0, no N line")) == []
 
@@ -350,6 +432,13 @@ def test_lint_grandfathers_pre_activation_rows_that_state_no_N(tmp_path):
 def test_lint_flags_a_dangling_ledger_id(tmp_path):
     f = _lint(tmp_path, [fixture_row("T-5", 1, ledger_id="T-404")], _row("T-5", "2026-06-01", "done", "x"))
     assert any("T-404" in x and "no TASK_LEDGER.md row" in x for x in f)
+
+
+def test_check_refuses_a_record_whose_citation_is_gone(tmp_path, capsys):
+    bad = fixture_row("S-1", 1); bad["source"] = "docs/Audit/no_such_verdict_t999.md:1"
+    rec = hnt.write_record(tmp_path / "honest_n_trials.json", FIXTURE_HEADER, [bad], []) and tmp_path / "honest_n_trials.json"
+    assert hnt.check(record_path=rec, ledger_path=_ledger(tmp_path), db_path=tmp_path / "absent.sqlite") == 3
+    assert "does not exist" in capsys.readouterr().out
 
 
 def test_the_lint_passes_on_the_REAL_ledger_and_the_REAL_record(capsys):

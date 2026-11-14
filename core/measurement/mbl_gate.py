@@ -306,11 +306,14 @@ def default_trials_path(pin_path: Optional[Path] = None) -> Path:
     return (Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH).parent / TRIALS_FILE_NAME
 
 
-def trials_digest(rows: List[Dict[str, Any]], unresolved: List[Dict[str, Any]]) -> str:
-    """sha256 of the canonical JSON of both blocks. The recorder writes it; the gate re-derives it,
-    so a hand edit that bypasses the recorder (or a truncated file) is refused, not read."""
-    payload = json.dumps({"rows": rows, "unresolved": unresolved}, sort_keys=True,
-                         separators=(",", ":"), ensure_ascii=False)
+def trials_digest(rows: List[Dict[str, Any]], unresolved: List[Dict[str, Any]],
+                  activation_date: Any = None) -> str:
+    """sha256 of the canonical JSON of both blocks AND the activation date (review F4: the date
+    decides which ledger rows the forward lint binds, so moving it to 2099 must not verify). The
+    recorder writes it; the gate re-derives it, so a hand edit that bypasses the recorder (or a
+    truncated file) is refused, not read."""
+    payload = json.dumps({"activation_date": activation_date, "rows": rows, "unresolved": unresolved},
+                         sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -340,6 +343,11 @@ def _validate_trial_row(row: Any, i: int, path: Path) -> None:
         raise _refuse(path, f"row {i} ({tid!r}) ledger_id must be a non-empty string or null")
     if row["counted_in"] == "registry_ledger" and lid is None:
         raise _refuse(path, f"row {i} ({tid!r}) is counted in the registry but names no ledger_id")
+    if not isinstance(row.get("pending_ruling", False), bool):
+        raise _refuse(path, f"row {i} ({tid!r}) pending_ruling must be true or false")
+    twin = row.get("also_in_registry_as")
+    if twin is not None and (not isinstance(twin, str) or not twin.strip()):
+        raise _refuse(path, f"row {i} ({tid!r}) also_in_registry_as must name a registry trial_id or be null")
 
 
 def load_trials_record(path: Optional[Path] = None) -> Dict[str, Any]:
@@ -358,7 +366,7 @@ def load_trials_record(path: Optional[Path] = None) -> Dict[str, Any]:
         raise _refuse(p, "holds no rows — an empty record is not evidence of zero standalone trials")
     if not isinstance(unresolved, list):
         raise _refuse(p, "`unresolved` must be a list (empty when nothing is pending a ruling)")
-    if rec.get("rows_sha256") != trials_digest(rows, unresolved):
+    if rec.get("rows_sha256") != trials_digest(rows, unresolved, rec.get("activation_date")):
         raise _refuse(p, "rows_sha256 does not match its rows — edited outside the recorder "
                          "(`python -m scripts.honest_n_trials record`)")
     if not (isinstance(rec.get("activation_date"), str) and _ISO_DATE.fullmatch(rec["activation_date"])):
@@ -369,11 +377,57 @@ def load_trials_record(path: Optional[Path] = None) -> Dict[str, Any]:
         if row["trial_id"] in seen:
             raise _refuse(p, f"duplicate trial_id {row['trial_id']!r} — one trial, one row")
         seen.add(row["trial_id"])
+    # Review F5c — the double-count lock's second half: a task the registry already counts may not
+    # ALSO appear as a standalone row (T-137 re-added at raw would be counted twice), unless the row
+    # names the registry trial it is a DIFFERENT trial from (T-260: 2026-07-02 vs 2026-07-27).
+    reg_rows = [r for r in rows if r["counted_in"] == "registry_ledger"]
+    by_task = {r["task_id"]: r["trial_id"] for r in reg_rows}
+    by_lid = {r["ledger_id"]: r["trial_id"] for r in reg_rows}
+    reg_ids = {r["trial_id"] for r in reg_rows}
+    for row in rows:
+        if row["counted_in"] != "standalone":
+            continue
+        clash = by_task.get(row["task_id"]) or by_lid.get(row.get("ledger_id"))
+        if clash and row.get("also_in_registry_as") not in reg_ids:
+            raise _refuse(p, f"standalone row {row['trial_id']!r} names a task the registry already counts "
+                             f"({clash!r}) — it would be double-counted")
     for i, item in enumerate(unresolved):
         if not isinstance(item, dict) or any(
                 not isinstance(item.get(k), str) or not item[k].strip() for k in _UNRESOLVED_STR_FIELDS):
             raise _refuse(p, f"unresolved item {i} lacks one of {_UNRESOLVED_STR_FIELDS}")
     return rec
+
+
+def verify_trials_citations(record: Dict[str, Any], root: Path) -> None:
+    """Review F5a: every citation must EXIST — `source` (path[:line[-line]], the line within the
+    file) and `prereg` / `verdict` (unless '—'). FAILS CLOSED. Callers run it wherever the cited
+    tree exists; the backtest image carries no docs/ (.dockerignore), so there the gate reports
+    `citations_checked: False` instead of refusing every cloud run for a file it never ships."""
+    root = Path(root)
+
+    def _exists(rel: str, what: str, tid: str) -> Path:
+        q = root / rel
+        if rel.startswith("/") or ".." in Path(rel).parts or not q.is_file():
+            raise HonestNUnavailableError(
+                f"standalone-trials record: {tid!r} cites {what} {rel!r}, which does not exist under {root}")
+        return q
+
+    for item in list(record["rows"]) + list(record["unresolved"]):
+        tid = item.get("trial_id") or item.get("item_id")
+        m = re.fullmatch(r"(?P<path>[^:]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?)?", item["source"])
+        if not m:
+            raise HonestNUnavailableError(
+                f"standalone-trials record: {tid!r} source {item['source']!r} is not path[:line]")
+        q = _exists(m["path"], "source", tid)
+        if m["a"]:
+            n_lines = len(q.read_text(errors="replace").splitlines())
+            if not (1 <= int(m["a"]) <= int(m["b"] or m["a"]) <= n_lines):
+                raise HonestNUnavailableError(
+                    f"standalone-trials record: {tid!r} cites {item['source']!r}, past the end of the "
+                    f"file ({n_lines} lines)")
+        for key in ("prereg", "verdict"):
+            if key in item and item[key] != "—":
+                _exists(item[key], key, tid)
 
 
 def registry_ledger_counts(db_path: Optional[Path] = None) -> Dict[str, int]:
@@ -475,7 +529,13 @@ def honest_n_breakdown(
     trials_pinned = verify_pinned_trials(tp, pin_path)
     record = load_trials_record(tp)
     reconcile_trials_with_registry(record, db)
+    cited_root = tp.resolve().parent.parent
+    citations_checked = (cited_root / "docs").is_dir()
+    if citations_checked:
+        verify_trials_citations(record, cited_root)
     s = standalone_trials_total(record)
+    pending = int(sum(int(r["n_trials"]) for r in record["rows"]
+                      if r["counted_in"] == "standalone" and r.get("pending_ruling")))
     executed = (art.get("funnel") or {}).get("after_dedupe")
     r3 = (_registry_n_eff(executed, gi, method) + n_raw + s
           if isinstance(executed, int) and not isinstance(executed, bool) and executed > 0 else None)
@@ -486,6 +546,9 @@ def honest_n_breakdown(
         "n_raw_registry": n_raw,
         "n_eff_registry": n_eff_registry,
         "n_standalone": s,
+        "n_standalone_pending_ruling": pending,
+        "n_eff_excluding_pending": n_eff_registry + s - pending,
+        "citations_checked": citations_checked,
         "n_raw_total": n_raw + s,
         "n_eff_ruling_9_2_all": r3,
         "executed_population": executed,
