@@ -308,9 +308,10 @@ reproduced beside the corrected one in every table.
 ## R.1 How it was run, and what was checked before any number was read
 
 - **The fix:** `scripts/offense_campaign_t312_t315.py`, `year_change_mask` (positional) in `static_arm`.
-  Regression: `tests/test_offense_campaign_static_cost_t399.py` (15 tests). **Proven by reversion:** with
-  the July line restored, 8 fail (520 bars charged where 2 are due on a two-year series; 784 where 4 are
-  due) and the 7 that pin the unaffected arms and the idiom still pass.
+  Regression: `tests/test_offense_campaign_static_cost_t399.py` (15 tests at the fix; 24 after review
+  round 1 added the acceptance-halt tests). **Proven by reversion:** with the July line restored, 8 fail
+  (520 bars charged where 2 are due on a two-year series; 784 where 4 are due) and the rest — 7 at the fix,
+  16 at 24 tests — which pin the unaffected arms, the idiom and the acceptance halt, still pass.
 - **The runner:** `scripts/t315_static_cost_rerun_t399.py`. ORIGINAL = the July cost path reproduced on
   purpose; CORRECTED = the fixed campaign functions, imported.
 - **Acceptance: PASS.** The reproduced ORIGINAL equals the published D-B table, the haircut table, the
@@ -627,8 +628,11 @@ It was the wrong word for "leverage loses": the July run showed that only throug
 ---
 # REVIEW ROUND 1 (2026-11-14) — what changed in the T-399 part of this document, and why
 
-An independent review by execution reproduced every frontier cell, CI, haircut, the race, the 1929 path,
-S1 and S2 from a from-scratch implementation, and confirmed the reversion split and the unaffected arms. It
+An independent review by execution reproduced from scratch every static-arm frontier and haircut cell with
+its CI, the static rows of the race, the 1929 path, the regime split and the lost-decades overlay, S1
+terminal values (22 cells, no CIs) and S2 on four cells; the glide and gated arms were checked by pre/post
+identity and against the published values, not re-implemented (wording corrected by the director after the
+delta review, 2026-11-14). It confirmed the reversion split and the unaffected arms. It
 found the write-up claimed more than the run shows at 1.25×. No code in the fix changed and nothing was
 re-run. Edits are confined to the part of this document T-399 appended (from "AMENDMENT 1 — RESULTS" down);
 the July text and the pre-declared amendment are untouched.
