@@ -152,7 +152,80 @@ def test_s1_blend_equals_the_fund_at_two_x_and_pays_less_fee_below():
         t399.blend_arm(eq, cash, 2.5)
 
 
-def test_acceptance_halts_when_the_reproduction_does_not_reproduce():
-    """A refusal lock with its positive control: an empty result set must halt, never pass."""
-    with pytest.raises((t399.T399Halt, KeyError)):
-        t399.acceptance({"windows": {}, "haircuts": {}, "crisis_1929": {}, "accumulation_race": {}})
+# ---- the acceptance check: its pass branch and its halt branch, each driven by a real result shape ----
+_DB, _DA, _99 = "D-B ~58yr (1968+)", "D-A ~64yr (1962+)", "~99yr (1926+)"
+
+
+def _matching_result() -> dict:
+    """A result dict built from the published record itself, in the exact shape `run()` produces for the
+    keys `acceptance()` reads. It must PASS; each halt test below changes one number in it."""
+    def cell(w, c=10.0, dd=-50.0, ci=None):
+        d = {"wealth": float(w), "cagr": c / 100.0, "maxdd": dd / 100.0}
+        if ci is not None:
+            d["dw_lo"], d["dw_hi"] = float(ci[0]), float(ci[1])
+        return d
+
+    windows = {}
+    for wl, (bw, gw) in t399.PUB_T312.items():
+        windows[wl] = {"bar": cell(bw), "gated": cell(gw), "glide": cell(1.0),
+                       "static": {str(L): {"original": cell(1.0), "corrected": cell(100.0 + L)}
+                                  for L in t399.STATIC_L},
+                       "s1_blend": {str(L): cell(100.0 + L) for L in t399.STATIC_L}}
+    for key, (w, c, dd, ci) in t399.PUB_DB.items():
+        if key == "bar":
+            windows[_DB]["bar"] = cell(w, c, dd)
+        elif key == "glide":
+            windows[_DB]["glide"] = cell(w, c, dd, ci)
+        else:
+            windows[_DB]["static"][str(key)]["original"] = cell(w, c, dd, ci)
+    haircuts = {lab: {"bar_wealth": float(bw),
+                      "static": {str(L): {"original": cell(w)} for L, w in arms.items()}}
+                for lab, (bw, arms) in t399.PUB_HAIRCUT.items()}
+    c29 = {"static": {}}
+    for key, (dd, tr, yr) in t399.PUB_1929.items():
+        row = {"dd": dd / 100.0, "trough": float(tr), "recover_yrs": float(yr)}
+        if key in ("bar", "gated"):
+            c29[key] = row
+        else:
+            c29["static"][str(key)] = {"original": row}
+    race = {"static": {}}
+    for key, m in t399.PUB_RACE_M.items():
+        if key in ("bar", "glide", "gated"):
+            race[key] = m * 1e6
+        else:
+            race["static"][str(key)] = {"original": m * 1e6}
+    return {"windows": windows, "haircuts": haircuts, "crisis_1929": c29, "accumulation_race": race}
+
+
+def test_acceptance_passes_on_a_result_that_equals_the_published_record():
+    res = _matching_result()
+    t399.acceptance(res)
+    assert res["acceptance"].startswith("PASS")
+
+
+def test_acceptance_halts_on_one_dollar_of_original_wealth():
+    """The mismatch branch itself: the July 1.25x terminal value off by $1 must halt and name the cell."""
+    res = _matching_result()
+    res["windows"][_DB]["static"]["1.25"]["original"]["wealth"] += 1.0
+    with pytest.raises(t399.T399Halt, match=r"D-B 1\.25 wealth: reproduced 1,740,849\.00 != published 1,740,848"):
+        t399.acceptance(res)
+    assert "acceptance" not in res
+
+
+@pytest.mark.parametrize("mutate, names", [
+    (lambda r: r["windows"][_DB]["static"]["1.25"]["original"].__setitem__("dw_hi", -5.0), "D-B 1.25 CI"),
+    (lambda r: r["windows"][_DB]["glide"].__setitem__("cagr", 0.1160), "D-B glide CAGR"),
+    (lambda r: r["haircuts"]["-2%"]["static"]["2.0"]["original"].__setitem__("wealth", 410_132.0), "haircut -2% 2.0x"),
+    (lambda r: r["crisis_1929"]["static"]["2.0"]["original"].__setitem__("trough", 158.0), "1929 2.0"),
+    (lambda r: r["accumulation_race"].__setitem__("glide", 86.3e6), "race glide"),
+    (lambda r: r["windows"][_DA]["gated"].__setitem__("wealth", 7_988_177.0), "D-A ~64yr (1962+) gated (T-312)"),
+    (lambda r: r["windows"][_99]["bar"].__setitem__("wealth", 146.0e6), "~99yr (1926+) bar/gated (T-312)"),
+    (lambda r: r["windows"][_DA]["s1_blend"]["2.0"].__setitem__("wealth", 103.0), "S1 self-check D-A"),
+])
+def test_acceptance_halts_on_each_kind_of_mismatch(mutate, names):
+    res = _matching_result()
+    mutate(res)
+    with pytest.raises(t399.T399Halt) as exc:
+        t399.acceptance(res)
+    assert names in str(exc.value)
+    assert "acceptance" not in res
