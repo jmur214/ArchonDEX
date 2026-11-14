@@ -193,6 +193,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `fundamentals_miss_summary()`**: Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
 - **Function `ticker_fundamentals_blind()`**: The per-ticker fundamentals blind count for a set of LOADED edges. `consumers` are the
 - **Function `reset_fundamentals_log()`**: Forget the recorded misses (tests, or a fresh run in a long-lived process).
+- **Function `refuse_fixture_flag_in_measured_run()`**: Raise FundamentalsFixtureRefused when the fixture flag is set in a canonical or hermetic run.
 - **Function `fundamentals_fixture_path()`**: The explicitly named fixture file, or None when no fixture is named (the default: the
 
 ### `earnings_data.py`

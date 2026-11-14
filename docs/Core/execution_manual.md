@@ -299,7 +299,8 @@ python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.
 # static file (data/fundamentals_static.csv is dead). A test names its own planted fixture:
 #   ARCHONDEX_FUNDAMENTALS_FIXTURE=/abs/path/fixture.csv   (columns Ticker,Date,...)
 # Refused (FundamentalsFixtureRefused) under ARCHONDEX_REFUSE_YFINANCE_FALLBACK or ARCHONDEX_HERMETIC,
-# and when the path is not a file. Served rows carry fundamentals_source=fixture; the census FAILS
+# and when the path is not a file — at run start (ModeController.run_backtest) and at the static path;
+# scripts.rebake_fundamentals refuses it too. Served rows carry fundamentals_source=fixture; the census FAILS
 # the run (fundamentals_misses.fixture, invariant 7c).
 
 # SimFin panel RE-BAKE (2026-10-22): the ONE declared entrypoint that rebuilds

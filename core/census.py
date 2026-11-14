@@ -22,7 +22,8 @@ the audit's invariants fail:
   7b. fundamentals_misses.fetched non-empty        (an unpinned input entered mid-run: a fundamentals
       cache miss fetched from the network into the pinned scope — re-pin #1's decision, 2026-10-15)
   7c. fundamentals_misses.fixture non-empty        (a name's fundamentals were served from an explicitly
-      named TEST fixture — fabricated rows; the data layer refuses it in canonical/hermetic runs, T-392a)
+      named TEST fixture — fabricated rows; the data layer refuses it in canonical/hermetic runs, T-392a),
+      or fundamentals_misses.fixture_refused non-empty (the flag was set in such a run and refused)
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
@@ -331,6 +332,11 @@ def assert_census(
     # 7c — fundamentals served from an explicitly named TEST FIXTURE (T-392a). The data layer
     # refuses the fixture in a canonical/hermetic run; anywhere else a served row is fabricated
     # data, so a run that carries one is never canonical.
+    if isinstance(fm, dict) and "error" not in fm and fm.get("fixture_refused"):
+        fr = list(fm["fixture_refused"])
+        failures.append(f"fundamentals_misses: the TEST FIXTURE flag was set in this canonical/hermetic "
+                        f"run and refused for {len(fr)} name(s) ({fr[:10]}{' …' if len(fr) > 10 else ''}) "
+                        f"— a misconfigured run ([NN-FAIL-CLOSED], T-392a)")
     if isinstance(fm, dict) and "error" not in fm and fm.get("fixture"):
         fx = list(fm["fixture"])
         failures.append(f"fundamentals_misses: {len(fx)} name(s) served fundamentals from a TEST "

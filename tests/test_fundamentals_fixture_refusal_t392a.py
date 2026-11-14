@@ -153,7 +153,45 @@ def test_flag_under_the_CANONICAL_switch_is_REFUSED_before_any_read(tmp_path, mo
         dm.fetch_historical_fundamentals("AAPL")
     assert getattr(dm, "_fixture_cache", None) is None, "the fixture was read"
     s = dmmod.fundamentals_miss_summary()
-    assert s["fixture"] == [] and s["refused"] == ["AAPL"]
+    assert s["fixture"] == [] and s["refused"] == [] and s["fixture_refused"] == ["AAPL"]
+    v = assert_census({"census": {"fundamentals_misses": s}, "bootstrap_ci_skip_reason": "t"})
+    assert any("TEST FIXTURE flag" in f for f in v.failures) and not v.canonical
+
+
+@pytest.mark.parametrize("switch", ["canonical", "hermetic"])
+def test_RUN_START_refuses_the_flag_even_when_no_name_would_reach_the_static_path(tmp_path, monkeypatch, switch):
+    """The lazy refusal never fires when every name is cached; ModeController.run_backtest must
+    refuse before it reads anything (the first statement after the log resets)."""
+    from orchestration.mode_controller import ModeController
+    _plant_fixture(tmp_path, monkeypatch)
+    if switch == "canonical":
+        monkeypatch.setenv(dmmod.REFUSE_YFINANCE_ENV, "1")
+    else:
+        monkeypatch.setenv("ARCHONDEX_HERMETIC", "1")
+    mc = ModeController.__new__(ModeController)          # no config/data read: the refusal comes first
+    with pytest.raises(dmmod.FundamentalsFixtureRefused):
+        mc.run_backtest()
+
+
+def test_RUN_START_check_is_silent_without_the_flag_and_outside_measured_runs(tmp_path, monkeypatch):
+    dmmod.refuse_fixture_flag_in_measured_run()                       # no flag
+    monkeypatch.setenv(dmmod.REFUSE_YFINANCE_ENV, "1")
+    dmmod.refuse_fixture_flag_in_measured_run()                       # canonical, no flag
+    monkeypatch.delenv(dmmod.REFUSE_YFINANCE_ENV)
+    _plant_fixture(tmp_path, monkeypatch)
+    dmmod.refuse_fixture_flag_in_measured_run()                       # flag, local run
+
+
+def test_the_REBAKE_refuses_the_flag_before_any_read_or_write(tmp_path, monkeypatch):
+    """With the flag set the rebake recorded fixture rows as `source: yfinance` (review, 2026-11-13)."""
+    from scripts import rebake_fundamentals as rb
+    _plant_fixture(tmp_path, monkeypatch)
+    _no_network(monkeypatch)
+    cache = Path(tmp_path) / "processed"
+    with pytest.raises(rb.RebakeRefused, match=dmmod.FUNDAMENTALS_FIXTURE_ENV):
+        rb.rebake(["AAPL"], cache_dir=cache)
+    assert not cache.exists(), "the rebake created or wrote under the cache before refusing"
+    assert dmmod.fundamentals_miss_summary()["fixture"] == []
 
 
 def test_flag_under_HERMETIC_is_REFUSED_before_any_read(tmp_path, monkeypatch):

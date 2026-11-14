@@ -104,7 +104,7 @@ def fundamentals_miss_summary() -> dict:
     `fixture` lists the names served from an explicitly named test fixture (T-392a) — always
     present, so an empty list is a measured zero, never an absent key."""
     out: dict = {"refused": [], "blocked": [], "fetched": [], "empty": [], "fixture": [],
-                 "sources": {}}
+                 "fixture_refused": [], "sources": {}}
     for t, outcome in sorted(_FUNDAMENTALS_LOG.items()):
         out.setdefault(outcome, []).append(t)
         if outcome in ("fetched", "empty"):
@@ -145,7 +145,9 @@ def reset_fundamentals_log() -> None:
 # in every run except an explicit TEST flag that NAMES its fixture file. Nothing is read from a
 # default location, so the on-disk toy is dead (archivable). With the flag:
 #   * a canonical (REFUSE_YFINANCE_ENV) or hermetic (ARCHONDEX_HERMETIC) run REFUSES the flag
-#     itself — FundamentalsFixtureRefused, raised before any read, and prefetch does not swallow it;
+#     itself — FundamentalsFixtureRefused — at RUN START (`refuse_fixture_flag_in_measured_run`,
+#     called by ModeController.run_backtest) and again before any read; prefetch does not swallow
+#     it; a name that reached the static path is logged "fixture_refused" and the census fails (7c);
 #   * a flag naming a missing file is refused (an explicit input that is not there is not "no data");
 #   * every served row carries `fundamentals_source == "fixture"`, the ticker is logged "fixture",
 #     and the census's `fundamentals_misses.fixture` makes `assert_census` FAIL the run (7c).
@@ -158,6 +160,25 @@ class FundamentalsFixtureRefused(RuntimeError):
     """The explicit fundamentals test fixture was named where it may not be read."""
 
 
+def refuse_fixture_flag_in_measured_run(ticker: str = "") -> None:
+    """Raise FundamentalsFixtureRefused when the fixture flag is set in a canonical or hermetic run.
+    Called at RUN START (ModeController.run_backtest) so a run whose names are all cached still
+    refuses, and again lazily at the static path. With a ticker, the name is logged
+    "fixture_refused" first: the census FAILS on that list (7c) whatever a caller does with the
+    raise — it does not depend on a consumer being loaded or on the collector recording an error."""
+    raw = os.environ.get(FUNDAMENTALS_FIXTURE_ENV, "").strip()
+    if not raw:
+        return
+    from core.hermetic import hermetic_mode
+    if os.environ.get(REFUSE_YFINANCE_ENV) or hermetic_mode() != "off":
+        if ticker:
+            _FUNDAMENTALS_LOG[ticker] = "fixture_refused"
+        raise FundamentalsFixtureRefused(
+            f"[DATA_MANAGER] {FUNDAMENTALS_FIXTURE_ENV}={raw!r} is set in a canonical "
+            f"({REFUSE_YFINANCE_ENV}) or hermetic run — a test fixture is never a measurement input "
+            f"([NN-FAIL-CLOSED], T-392a). Unset it.")
+
+
 def fundamentals_fixture_path(ticker: str = "") -> Optional[Path]:
     """The explicitly named fixture file, or None when no fixture is named (the default: the
     static path is closed). Raises FundamentalsFixtureRefused when one is named in a canonical or
@@ -165,14 +186,7 @@ def fundamentals_fixture_path(ticker: str = "") -> Optional[Path]:
     raw = os.environ.get(FUNDAMENTALS_FIXTURE_ENV, "").strip()
     if not raw:
         return None
-    from core.hermetic import hermetic_mode
-    if os.environ.get(REFUSE_YFINANCE_ENV) or hermetic_mode() != "off":
-        if ticker:
-            _FUNDAMENTALS_LOG[ticker] = "refused"   # a census trail even if a caller eats the raise
-        raise FundamentalsFixtureRefused(
-            f"[DATA_MANAGER] {FUNDAMENTALS_FIXTURE_ENV}={raw!r} is set in a canonical "
-            f"({REFUSE_YFINANCE_ENV}) or hermetic run — a test fixture is never a measurement input "
-            f"([NN-FAIL-CLOSED], T-392a). Unset it.")
+    refuse_fixture_flag_in_measured_run(ticker)
     path = Path(raw)
     if not path.is_file():
         raise FundamentalsFixtureRefused(
