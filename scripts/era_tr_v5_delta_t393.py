@@ -10,7 +10,7 @@ Rule and acceptance PRE-DECLARED in `docs/Sources/proposal_era_tr_distribution_g
 
 Read-only inputs: the canonical cache + `_merge_meta.json`, raw Stooq, the pinned yfinance cache (verified
 against `config/era_tr_reference_yf_manifest.sha256`), v4 (labels, records, MANIFEST), T-265. No network.
-Writes only under --out (default `Dev/_substrate_candidates/era_tr_v5_delta_t393/`); HALTS below 10 GiB free.
+Writes only under --out (default `Dev/_substrate_candidates/era_tr_v5_delta_t393/`); HALTS below 9.5 GiB free.
 """
 from __future__ import annotations
 
@@ -37,10 +37,11 @@ V4_DIR = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_v
 YF_DIR = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/drip_fix_a_prime_2026_11_11/yf")
 YF_MANIFEST = REPO / "config" / "era_tr_reference_yf_manifest.sha256"
 DEFAULT_OUT = Path("/Users/jacksonmurphy/Dev/_substrate_candidates/era_tr_v5_delta_t393")
-MIN_FREE_GIB = 10.0
+MIN_FREE_GIB = 9.5
 OUT_BUDGET_BYTES = 50 * 1024 ** 2
-LABEL_KEYS = ["ticker", "ex_date", "day", "D", "P_prev", "m", "label_source", "close_move", "close_sigma", "z_drop",
-              "refusal_reason"]
+LABEL_KEYS = ["ticker", "ex_date", "day", "D", "P_prev", "m", "label_source", "close_move", "close_move_best",
+              "close_sigma", "z_drop", "refusal_reason", "spinoff_repaired", "log_f", "log_f_dividend",
+              "unresolved_reason"]
 
 
 def check_disk(path: Path) -> None:
@@ -114,8 +115,9 @@ class V5InMemory:
                 now = pd.Series(lab["missed"].to_numpy(dtype=bool), index=pd.DatetimeIndex(lab["day"]))
                 if not was.index.equals(now.index):
                     raise SystemExit(f"{t}: the labelled ex-dates differ from v4's (not only their labels)")
-                diff = lab[(was.to_numpy() != now.to_numpy())].assign(ticker=t)
-                self.label_changes += diff.assign(v4_missed=was.to_numpy()[was.to_numpy() != now.to_numpy()])[
+                moved = (was.to_numpy() != now.to_numpy()) | lab["spinoff_repaired"].to_numpy(dtype=bool)
+                diff = lab[moved].assign(ticker=t)
+                self.label_changes += diff.assign(v4_missed=was.to_numpy()[moved])[
                     LABEL_KEYS + ["v4_missed", "missed"]].to_dict("records")
                 self.unresolved += lab[lab["unresolved"].to_numpy(dtype=bool)].assign(ticker=t)[LABEL_KEYS].to_dict("records")
             if (n + 1) % 100 == 0:
@@ -154,7 +156,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     delta = {"yf_manifest_sha256": yf_sha, "v4": str(V4_DIR), "files": len(v5.written),
              "unchanged_md5_equal_v4": len(v5.written) - len(v5.changed_text),
              "changed": {t: {"v4_md5": v5.v4_md5[t], "v5_md5": hashlib.md5(v5.changed_text[t].encode()).hexdigest(),
-                             "refused": [f"{r['ex_date']}:{r['reason']}" for r in v5.changed_record[t]["refused_distributions"]]}
+                             "refused": [f"{r['ex_date']}:{r['reason']}" for r in v5.changed_record[t]["refused_distributions"]],
+                             "repaired": [f"{r['ex_date']}:{r['log_step']:.6f}" for r in v5.changed_record[t]["stooq_spinoff_repaired"]]}
                          for t in sorted(v5.changed_text)},
              "n_label_changes": len(v5.label_changes), "n_unresolved": len(v5.unresolved)}
     (out / "delta.json").write_text(json.dumps(delta, indent=2))
