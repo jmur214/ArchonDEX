@@ -36,16 +36,18 @@ T-391 (PROPOSAL, docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.
 REGISTRY CANNOT SEE A STANDALONE-HARNESS TRIAL. It ingests only controller run directories, so
 every trial a research script runs (the frontier program requires them) was missing from N.
 The committed record `config/honest_n_trials.json` (written by ONE recorder,
-`scripts/honest_n_trials.py`) carries them; the gate ADDS them at raw (rule R2: no correlation
-credit is borrowed from a population that excludes them — ruling 9.2), cross-checks the
-record's registry-ledger rows against the registry (no double count, no omission), and FAILS
-CLOSED on an absent, empty, edited or inconsistent record.
+`scripts/honest_n_trials.py`) carries them. THE GATED RULE IS R3, the director's ruling 9.2 —
+no borrowed correlation credit: N_eff = N_eff(the executed controller/cloud runs, under the
+correlation measured ON them) + the registry's curve-less rows at raw + the standalone trials
+at raw. The three populations are disjoint. The gate cross-checks the record's registry-ledger
+rows against the registry (no double count, no omission) and FAILS CLOSED on an absent, empty,
+edited or inconsistent record, and on an artifact that does not state the executed population.
 
 Public API
 ----------
 - `compute_n_effective(db_path)`                  raw registry count; FAILS CLOSED
-- `compute_n_effective_correlated(db_path, ...)`  correlation-aware N_eff + standalone trials; FAILS CLOSED
-- `honest_n_breakdown(...)`                       the same, itemised (registry part, S, R2 gated, R3 reported)
+- `compute_n_effective_correlated(db_path, ...)`  the gated honest N (R3, ruling 9.2); FAILS CLOSED
+- `honest_n_breakdown(...)`                       the same, itemised (executed, registry, S; R3 gated; R2′ and R0 reported)
 - `load_trials_record(path)`                      the standalone-trials record, validated; FAILS CLOSED
 - `expected_max_normal(n)`                        E[max of n iid N(0,1)] (Euler-γ)
 - `n_eff_equicorrelated(n, rho_bar)`              the equicorrelated-trials identity
