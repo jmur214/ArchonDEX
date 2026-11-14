@@ -296,9 +296,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"HONEST N UNAVAILABLE: {exc}")
         return 3
     print(json.dumps(b, indent=2, default=str))
-    print(f"as of {_dt.date.today().isoformat()}: gated N_eff {b['n_eff']:.2f} (R2'); "
-          f"{b['n_eff_excluding_pending']:.2f} without the rows pending a ruling; "
-          f"ruling-9.2-for-all {b['n_eff_ruling_9_2_all']:.2f} (R3, reported)")
+    print(f"as of {_dt.date.today().isoformat()}: gated N_eff {b['n_eff']:.2f} (R3, ruling 9.2); "
+          f"{b['n_eff_excluding_pending']:.2f} without the rows pending a ruling; reported, not gated: "
+          f"R2' {b['n_eff_r2_prime']:.2f}, R0 {b['n_eff_r0']:.2f}")
     return 0
 
 

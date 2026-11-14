@@ -522,25 +522,25 @@ def honest_n_breakdown(
 
     Three DISJOINT populations (the pinned artifact says of the registry: it "registers none of
     these runs — the two sets are disjoint"; S excludes both by construction):
-      registry   231 rows — 125 pre-2026-05-09 run rows + 106 ledger rows
-      executed   the artifact's `funnel.after_dedupe` distinct controller/cloud trials (252)
-      standalone S — research-script trials, from the committed record
+      executed   the artifact's `funnel.after_dedupe` distinct controller/cloud trials (252) —
+                 CURVE-BEARING: ρ̄ and the ONC compression were measured on exactly these
+      registry   231 rows — 125 lost-evidence run rows + 106 ledger rows — CURVE-LESS
+      standalone S — research-script trials, from the committed record — CURVE-LESS
 
-    `n_eff` (GATED, rule R2′) = N_eff(registry) + N_eff(executed) + S at raw. Each of the first two
-    is compressed with the gate's conservative ρ̄/ONC bounds WITHIN its own population only; the
-    terms are ADDED, which claims NO correlation credit BETWEEN populations — the sum of group
-    N_effs is what independent groups give, and any cross-population correlation only lowers the
-    true N_eff, so the sum errs strict. S gets no credit at all (no return streams: ruling 9.2).
-    (ρ̄ was measured ON the executed population, so its credit there is not borrowed; the
-    registry's is the merged Option-A treatment — R3 strips it.)
+    `n_eff` (GATED, rule R3) = N_eff(executed) + N_raw(registry) + S. This REALISES THE DIRECTOR'S
+    RULING 9.2 (2026-10-13, RR-3B §9.2: "NO borrowed credit — correlation credit only where
+    correlation is MEASURED; curve-less trials count at raw") for the gate's input: the only
+    compression is of the executed population, by its own measured, conservative bounds; every
+    curve-less trial counts once. The terms are ADDED — no cross-population credit is claimed, and
+    any real correlation between or within the curve-less groups only lowers the true N_eff, so
+    the sum errs strict. `method` selects the estimator for the executed term only.
 
-    `n_eff_omitting_executed` (REPORTED, the first build's R2) = N_eff(registry) + S. It counts
-    NONE of the executed controller/cloud runs and is kept only so the correction is visible.
-
-    `n_eff_ruling_9_2_all` (REPORTED, rule R3) also strips the borrowed credit from the registry's
-    own curve-less rows: N_eff(executed) + N_raw + S. It is the honest number under ruling 9.2 and
-    is NOT gated here — adopting it is the user's decision; every caller that quotes `n_eff` has
-    it beside it."""
+    REPORTED, never gated (each with the reason it is not):
+      `n_eff_r2_prime` = N_eff(registry) + N_eff(executed) + S — compresses the registry's 231
+          curve-less rows with a ρ̄ measured on a DIFFERENT population: the borrowed credit 9.2
+          forbids, and inconsistent with counting S at raw.
+      `n_eff_r0`       = N_eff(registry) alone, the pre-T-391 gate — the same borrowed credit, and
+          it counts none of the executed runs and none of the standalone trials."""
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
     db = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
@@ -567,24 +567,29 @@ def honest_n_breakdown(
             "the pinned n_effective artifact carries no integer `funnel.after_dedupe` — the executed "
             "controller/cloud population cannot be counted, and the registry holds none of those runs")
     n_eff_executed = _registry_n_eff(executed, gi, method) if executed > 0 else 0.0
-    r3 = n_eff_executed + n_raw + s
     pin_trials = load_pin(pin_path).get("trials") or {}
     return {
-        "n_eff": n_eff_registry + n_eff_executed + s,
-        "rule": "R2': registry N_eff + executed-population N_eff (each compressed within itself, no "
-                "cross-population credit) + standalone trials at raw",
+        "n_eff": n_eff_executed + n_raw + s,
+        "rule": "R3 (ruling 9.2): executed-population N_eff (measured correlation) + the registry's "
+                "curve-less rows at raw + standalone trials at raw — no borrowed credit",
         "n_eff_executed": n_eff_executed,
-        "n_eff_omitting_executed": n_eff_registry + s,
+        "n_eff_r2_prime": n_eff_registry + n_eff_executed + s,
+        "n_eff_r0": n_eff_registry,
+        "not_gated_why": {
+            "n_eff_r2_prime": "compresses the registry's curve-less rows with a rho measured on another "
+                              "population — the borrowed credit ruling 9.2 forbids",
+            "n_eff_r0": "the pre-T-391 gate: the same borrowed credit, and it omits the executed runs and "
+                        "every standalone trial",
+        },
         "citations_verified_at_pin": bool(pin_trials.get("citations_verified", False)),
         "method": method,
         "n_raw_registry": n_raw,
         "n_eff_registry": n_eff_registry,
         "n_standalone": s,
         "n_standalone_pending_ruling": pending,
-        "n_eff_excluding_pending": n_eff_registry + n_eff_executed + s - pending,
+        "n_eff_excluding_pending": n_eff_executed + n_raw + s - pending,
         "citations_checked": citations_checked,
         "n_raw_total": n_raw + s,
-        "n_eff_ruling_9_2_all": r3,
         "executed_population": executed,
         "trials_record": tp.name,
         "trials_pinned": trials_pinned,
@@ -600,9 +605,14 @@ def compute_n_effective_correlated(
     pin_path: Optional[Path] = None,
     trials_path: Optional[Path] = None,
 ) -> float:
-    """Correlation-aware N_eff of the registry PLUS the standalone-harness trials it cannot see
-    (T-391). FAILS CLOSED (registry, pin, pinned artifact, or trials record missing, mismatched or
-    inconsistent → raise).
+    """The honest trial count the gates read (T-391, rule R3 = the director's ruling 9.2): the
+    executed population's correlation-aware N_eff + the registry's curve-less rows at raw + the
+    standalone-harness trials at raw. FAILS CLOSED (registry, pin, pinned artifact, or trials
+    record missing, mismatched or inconsistent → raise).
+
+    The `method` text below describes the estimator; in the production path it now applies to the
+    EXECUTED population only (the population ρ̄ was measured on). With an explicit `artifact_path`
+    the function is the bare estimator on the registry count — a tool, never the gate.
 
     method="conservative" (default): the LARGER of the two below. On the 2026-09-30
                        measurement the estimators disagree (equicorrelated ~33, ONC ~21
@@ -613,8 +623,8 @@ def compute_n_effective_correlated(
                        silhouette criterion favours coarse splits when clusters overlap, so
                        it is the LESS conservative estimator on our data.
     method="equicorr": the equicorrelated identity at the measured ρ̄.
-    The method applies to the REGISTRY part; standalone trials are added at raw under every
-    method (`honest_n_breakdown` itemises both).
+    Curve-less trials (the registry's rows, the standalone record) are added at raw under every
+    method (`honest_n_breakdown` itemises all three populations).
 
     The artifact's `gate_inputs` are the CONSERVATIVE CI bounds, not the point estimates
     (`[NN-SHARPE-CI]`'s logic applied to the trial count): ρ̄'s ci_LOW and the ONC

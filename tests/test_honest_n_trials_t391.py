@@ -67,8 +67,8 @@ def _registry_part(n_raw: int) -> float:
 
 
 def _both(n_raw: int) -> float:
-    """R2' without S: the registry's N_eff + the executed population's own N_eff."""
-    return _registry_part(n_raw) + _registry_part(EXECUTED)
+    """R3 (ruling 9.2) without S: the registry's rows at RAW + the executed population's own N_eff."""
+    return n_raw + _registry_part(EXECUTED)
 
 
 def _raw_record(path: Path, rows: list, unresolved: list | None = None, **over) -> Path:
@@ -99,11 +99,11 @@ def test_the_real_record_and_a_COPY_of_the_real_registry_gate_to_registry_plus_e
     s = mbl.standalone_trials_total(mbl.load_trials_record(REAL_RECORD))
     assert s >= BACKFILL_FLOOR
     assert b["n_raw_registry"] == 231 and b["n_standalone"] == s and b["n_raw_total"] == 231 + s
-    assert b["n_eff_registry"] == pytest.approx(36.9240, abs=1e-3)
     assert b["n_eff_executed"] == pytest.approx(40.2807, abs=1e-3)      # 252 executed trials, the gate's own bounds
-    assert b["n_eff"] == pytest.approx(36.9240 + 40.2807 + s, abs=1e-3)   # R2'
-    assert b["n_eff_omitting_executed"] == pytest.approx(36.9240 + s, abs=1e-3)
-    assert b["n_eff_ruling_9_2_all"] == pytest.approx(40.2807 + 231 + s, abs=1e-3)
+    assert b["n_eff"] == pytest.approx(40.2807 + 231 + s, abs=1e-3)       # R3 GATED: ruling 9.2, no borrowed credit
+    assert b["n_eff_r2_prime"] == pytest.approx(36.9240 + 40.2807 + s, abs=1e-3)   # reported, not gated
+    assert b["n_eff_r0"] == b["n_eff_registry"] == pytest.approx(36.9240, abs=1e-3)   # reported, not gated
+    assert set(b["not_gated_why"]) == {"n_eff_r2_prime", "n_eff_r0"}
     assert b["n_eff_excluding_pending"] == pytest.approx(b["n_eff"] - b["n_standalone_pending_ruling"])
     assert b["executed_population"] == 252
     assert _gate(obs, obs / "run_registry.sqlite", cfg / REAL_PIN.name) == pytest.approx(b["n_eff"])
@@ -262,6 +262,15 @@ def test_a_duplicate_trial_id_is_refused(tmp_path):
 
 
 # ----------------------------------------------------------------------------- §1.7(4) the double-count lock
+def test_ruling_9_2_curve_less_registry_rows_count_at_RAW_whatever_the_measured_rho(tmp_path):
+    """The gate borrows NO correlation credit for the registry's rows: a ρ̄ of 0.43 measured on the
+    executed population must not shrink them. (Under R2′ / R0 this read 20.45 for 100 rows.)"""
+    obs, reg, _, pin = _setup(tmp_path, [fixture_row()], n_plain=100)
+    b = mbl.honest_n_breakdown(reg, artifact_dir=obs, pin_path=pin)
+    assert b["n_eff"] - b["n_eff_executed"] == pytest.approx(100.0)
+    assert b["n_eff_r0"] < 100 and "9.2" in b["rule"]
+
+
 def test_registry_ledger_rows_are_mirrored_never_summed_again(tmp_path):
     rows = [fixture_row("T-9", 4, "registry_ledger", "T-9"), fixture_row("S-1", 3)]
     obs, reg, _, pin = _setup(tmp_path, rows, ledger={"T-9": 4}, n_plain=100)
@@ -334,9 +343,10 @@ def test_the_no_argument_production_call_counts_the_record(tmp_path, monkeypatch
 def test_standalone_trials_enter_at_RAW_under_every_method(tmp_path, method):
     obs, reg, _, pin = _setup(tmp_path, [fixture_row("S-1", 11)])
     b = mbl.honest_n_breakdown(reg, method=method, artifact_dir=obs, pin_path=pin)
-    assert b["n_eff"] == pytest.approx(b["n_eff_registry"] + b["n_eff_executed"] + 11)
-    assert b["n_eff_executed"] > 0 and b["n_eff_omitting_executed"] == pytest.approx(b["n_eff_registry"] + 11)
-    assert b["n_eff_ruling_9_2_all"] >= b["n_eff"] > b["n_eff_omitting_executed"], "R3 >= R2' > the old R2"
+    assert b["n_eff"] == pytest.approx(b["n_raw_registry"] + b["n_eff_executed"] + 11)
+    assert b["n_eff_executed"] > 0
+    assert b["n_eff_r2_prime"] == pytest.approx(b["n_eff_registry"] + b["n_eff_executed"] + 11)
+    assert b["n_eff"] >= b["n_eff_r2_prime"] > b["n_eff_r0"], "the gated R3 is never looser than what it replaced"
 
 
 def test_an_explicit_artifact_path_counts_the_record_only_when_named(tmp_path):
@@ -496,6 +506,12 @@ def test_lint_a_row_with_no_parseable_date_is_treated_as_forward(tmp_path):
 
 def test_lint_grandfathers_pre_activation_rows_that_state_no_N(tmp_path):
     assert _lint(tmp_path, [fixture_row()], _row("T-5", "2026-07-02", "refuted", "H0, no N line")) == []
+
+
+def test_lint_reads_the_B_series_plus_k_form(tmp_path):
+    """`N_trials +2.` (no `=`) is how the B-series rows state their count."""
+    f = _lint(tmp_path, [fixture_row()], _row("T-5", "2026-06-01", "refuted", "H1 not met. N_trials +2."))
+    assert any("T-5 declares N_trials 2" in x for x in f)
 
 
 def test_lint_flags_a_dangling_ledger_id(tmp_path):

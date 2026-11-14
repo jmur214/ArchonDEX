@@ -47,7 +47,7 @@ def _registry(path: Path, n: int) -> Path:
 def _artifact(d: Path, rho: float = 0.43, comp: float = 0.16, name="n_effective_2026-09-30.json") -> Path:
     p = d / name
     p.write_text(json.dumps({"rho_bar": 0.6, "onc_compression": 0.06,
-                             "funnel": {"after_dedupe": 0},   # T-391 R2': executed population, empty here
+                             "funnel": {"after_dedupe": 100},   # T-391 R3: the executed population
                              "gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
     return p
 
@@ -254,7 +254,8 @@ def test_layer4_the_cycle_resolves_N_from_ITS_OWN_root(tmp_path):
     info = mbl.resolve_cycle_n_trials(10, db_path=obs / "run_registry.sqlite", artifact_dir=obs,
                                       pin_path=pin)
     assert info["source"] == "registry_correlated" and info["batch_len"] == 10
-    assert info["n_trials"] == max(n_eff_equicorrelated(50, 0.43), 50 * 0.16)
+    # T-391 R3 (ruling 9.2): the registry's 50 curve-less rows at raw + the executed population's N_eff
+    assert info["n_trials"] == 50 + max(n_eff_equicorrelated(100, 0.43), 100 * 0.16)
 
 
 # ----------------------------------------------------------------------------- the script

@@ -42,7 +42,7 @@ def _registry(path: Path, n: int = 100) -> Path:
 def _artifact(d: Path, name: str, rho: float, comp: float) -> Path:
     p = d / name
     p.write_text(json.dumps({"rho_bar": rho, "onc_compression": comp,
-                             "funnel": {"after_dedupe": 0},   # T-391 R2': executed population, empty here
+                             "funnel": {"after_dedupe": 100},   # T-391 R3: the executed population
                              "gate_inputs": {"rho_bar": rho, "onc_compression": comp}}))
     return p
 
@@ -62,8 +62,12 @@ def _gate(d, reg, pin):
     return compute_n_effective_correlated(reg, artifact_dir=d, pin_path=pin)
 
 
-def _expected(n):
-    return max(mbl.n_eff_equicorrelated(n, 0.43), n * 0.16)
+EXECUTED = 100   # the fixture artifact's executed (curve-bearing) population
+
+
+def _expected(n, rho=0.43, comp=0.16):
+    """T-391 R3 (ruling 9.2): the registry's curve-less rows at RAW + the executed population's N_eff."""
+    return n + max(mbl.n_eff_equicorrelated(EXECUTED, rho), EXECUTED * comp)
 
 
 def test_the_pinned_pair_gates_normally(pinned):
