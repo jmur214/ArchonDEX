@@ -1565,20 +1565,24 @@ bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (e
 ### Standalone-harness trials — the third input (T-391, PROPOSAL branch `referee/honest-n-trials-recorder-t391`)
 
 The registry cannot see a trial a research script ran, so the committed record `config/honest_n_trials.json` carries
-them. The gate adds them at raw (R2) and FAILS CLOSED on an absent, empty, edited or registry-inconsistent record.
+them. The gate adds them at raw, beside the registry's N_eff and the executed population's own N_eff (R2′), and FAILS
+CLOSED on an absent, empty, edited or registry-inconsistent record.
 Design and inventory: `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md`.
 
 ```bash
 python -m scripts.honest_n_trials check     # the lint: every ledger N>0 recorded; forward verdicts state N (exit 0 / 1 findings / 3 unreadable)
-python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: registry part, S, R2 (gated), R3 (reported)
+python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: registry, executed, S; R2′ (gated), R3 (reported)
 python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date YYYY-MM-DD --n-trials k \
     --family "..." --substrate "..." --prereg docs/Sources/prereg_x.md --verdict docs/Audit/x_verdict.md \
     --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
 ```
 
-From the activation date (2026-11-13) EVERY closed ledger row needs a record row, infra included (`--n-trials 0`), and
-so does any row that states a trial count or whose doc cell names an existing file, whatever its status. Add
-`--pending-ruling` for a trial that ran but whose count awaits the user's ruling (counted until ruled otherwise).
+From the activation date (2026-11-13; a date range reads by its LATEST date) EVERY closed ledger row needs a record
+row, infra included (`--n-trials 0`), and so does any row that states a trial count, whatever its status
+(`dispatched` and `in-flight` included). A row is exempt only while it states no count and is not closed. Add
+`--pending-ruling` for a trial that ran but whose count awaits the user's ruling (counted until ruled otherwise), and
+`--also-in-registry-as <registry trial_id>` for a DIFFERENT trial of a task the registry already counts.
+`honest_n_pin --pin` refuses a record with a missing citation and writes `citations_verified` into the v2 pin.
 
 `record` refuses a duplicate trial_id and any citation that does not exist (a path, or a line past EOF). After re-pin #2
 the pin names the record's sha256 (`honest_n_pin --pin … --replace` writes `honest_n_pin/v2`), so every `record` is

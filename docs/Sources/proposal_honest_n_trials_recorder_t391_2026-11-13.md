@@ -461,19 +461,17 @@ blocked) were already counted.
 it is 9 or 0. The rest stay unresolved because no count is stated for a run (T-216 §3, T-250, T-254), no run is
 evidenced (T-217, T-349), the doc contradicts itself (T-148), or its own pre-registered policy says 0 (T-157).
 
-**Found and deliberately NOT in the record: controller-harness runs.** They wrote run directories, so they belong to
-the executed universe (the 252 / 258 that R3 already counts). Adding them to S would double-count under R3:
+**Found and deliberately NOT in the record: controller-harness runs.** *(Rewritten 2026-11-13 on review round 2. The
+first wording read as if the gated R2 covered these runs. **It did not:** R2 = N_eff(registry) + S, and the registry
+holds none of them. They were counted only in the reported R3. §5.1 fixes the gated rule. T-153 and T-154 have left
+this list, see §5.2.)* They wrote run directories, so their population is the executed universe (252 distinct trials
+in the pinned artifact, 258 in RR-3B). They are counted through that population's own term, not through S:
 - T-055g, 4 (`vol_target_multiplier_sensitivity_t055g_2026_05_24.md:169`)
 - T-057, 3 (`confidence_gated_execution_2026_05_12.md:118`)
 - T-092, 10 (`deep_substrate_baseline_t092_2026_05_31.md:33`)
 - T-118, 36 (`hmm_transition_trigger_overlay_t118_2026_06_06.md:86`)
 - T-128r, 1 (`spot_sleeve_closeout_clean_t128r_2026_06_14.md:96`)
-- T-154, 1 pit arm (`scripts/measure_pit_strategy_t154.py:35`)
 - T-215, 1 (`phase1_cloud_run_t215_2026_06_19.md:200`)
-- T-153, 10 cells (`vol_estimator_fix_t153_2026_06_11.md:81`)
-
-T-154 and T-153 are classified as controller runs from their own text (a canon md5 of the trade log; campaign
-cells). I did not verify that their run directories are among the 252.
 
 ### 4.2 The new totals and N
 
@@ -522,3 +520,93 @@ modules together: 152 pass, 8 xfail. The reversion harness: **28 modes, all caug
 activation date out of the digest, N2 both-classes check off, N3 gate citation check off, N4 / N4b / N4c the forward
 trigger narrowed three ways, N5 undated rows skipped, N6 `check` skipping citations). M13 still fails one rail
 deeper than targeted, as in §2.2.
+
+---
+
+## §5. Review round 2 (2026-11-13): NOT READY on one HIGH, addressed in follow-up commits
+
+**§4.2's table and totals are superseded by §5.3.** The re-sweep held. The gated rule did not.
+
+### 5.1 HIGH: the gated rule counted none of the controller/cloud runs. Now R2′
+
+**The defect.** R2 was N_eff(registry) + S. The registry's 125 run rows all predate 2026-05-09, and the pinned
+artifact says of the registry that it "registers none of these runs — the two sets are disjoint". So the 252
+distinct executed trials (T-055g, T-057, T-092, T-118, T-128r, T-215 and the rest) were in neither R2 term. I had
+written "inside the executed universe" as if that put them in the gate. It put them only in R3.
+
+**The gated rule is now R2′:**
+
+    N_eff = N_eff(registry 231) + N_eff(executed 252) + S at raw
+          =       36.92         +       40.28        + S
+
+**The 40.28 is reproduced, not taken on trust:** `_registry_n_eff(252, gate_inputs, "conservative")` on the pinned
+artifact's own `funnel.after_dedupe = 252`, with the gate's conservative bounds (ρ̄ ci_low 0.43249, ONC ci_high
+0.15984). The equicorrelated estimate and the ONC estimate are both computed and the larger is taken, as for the
+registry. The result is 40.2807.
+
+**Why the two compressed terms may be added.** Each term is compressed only by correlation WITHIN its own
+population. Adding them claims NO correlation credit BETWEEN the populations. The sum of group N_effs is what fully
+independent groups give, and any real cross-population correlation only lowers the true N_eff. So the sum errs on
+the strict side. One caveat, stated: ρ̄ was measured ON the executed population, so its credit there is measured. The
+registry's credit is the merged Option-A treatment, borrowed from that same measurement. R3 strips it, and that
+remains the user's decision.
+
+**Fail closed.** An artifact with no integer `funnel.after_dedupe` now halts the gate. Before, it made R3 quietly
+`None`. The first build's rule is kept in the breakdown as `n_eff_omitting_executed`, reported only.
+
+### 5.2 The other findings
+
+- **T-153 moved to `unresolved`.** Its A/B never ran (`vol_estimator_fix_t153_2026_06_11.md:5`, "NOT run"; :81
+  pre-registers `N_trials += 5`). My "10 controller cells" was wrong.
+- **T-154 is now a standalone row, +1, pending a ruling.** Its PIT arm ran and states its N
+  (`scripts/measure_pit_strategy_t154.py:35`). It postdates the registry and has no campaign in the executed
+  universe, so it was in neither term.
+- **The "ran until ruled otherwise" rule, applied evenly.** T-250, T-254 and T-216's §3 re-measure ran and state no
+  N. Each is now counted at **1, as a floor**, with `pending_ruling` (at least one configuration ran; the true count
+  may be higher, and T-250's own text argues 2–3). Left unresolved, with the reason each differs:
+  - T-205 and T-157: their own pre-registered policy says 0 for the run.
+  - T-217, T-349, T-148, T-153: no run is evidenced.
+  - T-178: a result doc exists and states no N, but it reads as a controller A/B. If so, its population is the
+    executed universe, and a floor row in S would double-count it. I did not establish which.
+- **The lint (four planted bypasses, now tests).**
+  - A range reads by its LATEST date (`2026-11-12→14`, `2026-10-30→11-13`, `… to …`).
+  - A row that states a trial count needs a record in ANY status, including `dispatched` with a not-yet-written
+    file or a `feature/…` doc cell, and `in-flight`.
+  - The `N_trials = k` and `N_trials: k` forms are now read as declarations.
+  - A row is exempt only while it states no count and is not closed.
+  - The round-1 "doc cell names an existing file" arm is removed. It demanded rows for T-390, T-392 and T-393 while
+    they are merely dispatched, which contradicts the exemption rule.
+- **The double-count lock.** `also_in_registry_as` must name an existing registry row of the SAME task with a
+  DIFFERENT date. Naming itself, another task's row, a same-dated row or a missing row is refused. `record` has
+  `--also-in-registry-as`.
+- **Citations into the pin.** `honest_n_pin --pin` refuses a record with a missing citation and writes
+  `citations_verified: true` and the date into the v2 pin. The image verifies the record's sha256 against that pin,
+  so it inherits a citation-verified record. The breakdown reports `citations_verified_at_pin`.
+- **The merge's own row.** The record carries T-391 at `n_trials: 0`. `docs/State/TASK_LEDGER.md` on this branch is
+  now main's copy (`d170129`, taken with `git checkout main -- <file>`, no edit of mine), so the real-ledger lock
+  runs against the ledger that has the T-391 row. T-390, T-392 and T-393 are `dispatched` and state no count, so they
+  are exempt today. **Each needs a record row when it closes.**
+
+### 5.3 The numbers
+
+**S = 100:** 60 firm + 40 pending a ruling (T-193 35, T-237 1, T-154 1, T-250 1, T-254 1, T-216 §3 1). The record
+holds 75 rows and 9 unresolved items, digest `6049626e…`. The registry md5 is `83e47441…`, unchanged. PIN OK.
+
+Each cell is N_eff, then MinBTL at SR 1, then the SR required at 12 y and at 26 y.
+
+| rule | all rows (S = 100) | without T-193 (S = 65) | without any pending row (S = 60) |
+|---|---|---|---|
+| R0 today | 36.92 · 4.66 y · 0.623 · 0.423 | same | same |
+| R1 pooled (rejected) | 52.91 · 5.28 y · 0.663 · 0.451 | 47.31 · 5.09 y · 0.651 · 0.442 | 46.51 · 5.06 y · 0.649 · 0.441 |
+| R2 old (omits the executed runs) | 136.92 · 6.97 y · 0.762 · 0.518 | 101.92 · 6.44 y · 0.732 · 0.498 | 96.92 · 6.35 y · 0.727 · 0.494 |
+| **R2′ gated** | **177.20 · 7.43 y · 0.787 · 0.535** | 142.20 · 7.03 y · 0.766 · 0.520 | 137.20 · 6.97 y · 0.762 · 0.518 |
+| R3 reported | 371.28 · 8.77 y · 0.855 · 0.581 | 336.28 · 8.59 y · 0.846 · 0.575 | 331.28 · 8.56 y · 0.845 · 0.574 |
+
+The reviewer's check figures reproduce exactly under R2′: 173.20 at S = 96, 138.20 at S = 61, 137.20 at S = 60.
+
+**Tests:** `tests/test_honest_n_trials_t391.py` is 56 tests. The honest-N and MBL modules together: 158 pass, 8 xfail.
+The existing fixtures' artifacts declare `funnel.after_dedupe: 0`, so their expected N is unchanged. The reversion
+harness: **34 modes, all caught.** New this round: N2b the twin rule, N7 a range read by its first date, N8 the
+`N_trials = k` form dropped, N9 the executed term dropped (`assert 136.92… == 177.2047`), N10 a missing executed
+population tolerated, N11 `--pin` skipping citations, N12 the feature-branch row. N10 fails on a `TypeError` one line
+below the removed check, not on the targeted refusal.

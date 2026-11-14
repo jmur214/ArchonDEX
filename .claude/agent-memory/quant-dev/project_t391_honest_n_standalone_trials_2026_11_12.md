@@ -25,6 +25,12 @@ ruling: T-193 35, T-237 1); R2 132.92, R3 367.28. Lesson: an inventory sweep mus
 every assignment form, and a "not on main" claim must be grepped before it is written. docs/ is NOT in the backtest
 image, so the gate can only check citation existence where docs/ exists.
 
+REVIEW ROUND 2 (2026-11-13): my gated rule R2 = N_eff(registry) + S counted NONE of the 252 executed
+controller/cloud trials (registry and artifact population are DISJOINT — I wrote "inside the executed universe" as
+if that put them in the gate; only R3 had them). Now R2′ = 36.92 + N_eff(executed 252) 40.28 + S; S = 100 (60 firm +
+40 pending); gated 177.20, R3 371.28. Lesson: when a rule sums populations, list every population and name the term
+each one lands in before calling anything "covered".
+
 **Why:** the brief's "hand count ≥ 283" assumed the 267 covered all pre-10-13 trials; it does not.
 **How to apply:** before quoting honest N, run `python -m scripts.honest_n_trials show` if merged; otherwise cite the
 proposal `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md` §1.2. Any new pin-input requirement
