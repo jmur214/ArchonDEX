@@ -23,7 +23,7 @@ basis_legend: "D = read from disk today; B5 = B-5's merged record; M = FROM MEMO
    ±6 %/yr (§5.3).
 4. **A stacked overlay has a fixed hurdle before it adds anything.** Per 100% of overlay: the stack's
    expense-ratio increment (1.00 − 0.09 = 0.91 %/yr), the financing spread (0.10–0.50 %/yr) and the
-   variance cost of the added leg (σ²/2 ≈ 0.4–0.8 %/yr). The trend leg must earn **about 1.5–2.2 %/yr
+   variance cost of the added leg (σ²/2 ≈ 0.4–0.8 %/yr). The trend leg must earn **about 1.5–2.3 %/yr
    over cash, gross of its own fund fee**, to break even. Net CTA indices earned roughly 1–3 %/yr over
    cash since 2000 and about zero over 2011–2019 (M).
 5. **No investable record can confirm an effect of the plausible size at the program's standard.** A
@@ -229,7 +229,7 @@ Sharpe): `E[max_N]/√T`, with `E[max]` = 2.1594 at N_eff 37.08 (the pinned gate
 
 | window | set by | T (yr) | IR for `ci_low > 0` (50% power) | IR needed @ 37.08 | IR needed @ ~371 |
 |---|---|---|---|---|---|
-| Live composite, ≥ 3 funds (expected 2010-09 → 2025-12) | fund inceptions (M) | 15.4 | 0.499 | 0.550 | **0.754** |
+| Live composite, ≥ 3 funds (expected 2010-08 or 2010-09 → 2025-12) | fund inceptions (M) | 15.3–15.4 | 0.499 | 0.550 | **0.754** |
 | Live composite, ≥ 1 fund (expected 2007-04 → 2025-12) | RYMFX (M) | 18.75 | 0.453 | 0.499 | 0.684 |
 | SG Trend / SG CTA, if the owner allows registration | index start | 26.0 | 0.384 | 0.423 | 0.581 |
 | BTOP50, if a ruling allows it | index start 1987 | 39.0 | 0.314 | 0.346 | 0.474 |
