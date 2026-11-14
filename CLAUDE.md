@@ -135,11 +135,15 @@ MetaLearner variant, each HRP slice, each Discovery cycle adds
 to N_trials). MinBTL uses the exact form `E[max_N]² / SR²` (`2·ln N` is its
 upper bound, kept only for comparison). Honest N is
 correlation-aware and FAILS CLOSED:
-`compute_n_effective_correlated()` — the run registry's count
-(231 at 2026-09-30) adjusted by the measured trial correlation
-(ρ̄ 0.46–0.61; the gate reads the conservative bound) to N_eff ≈
-37. At that N_eff a 5-year window needs SR ≥ 0.97, 12 years ≥
-0.62, 26 years ≥ 0.42. An N that cannot be established halts the
+`compute_n_effective_correlated()` — three disjoint populations
+with NO borrowed correlation credit (ruling 9.2): the executed
+runs' N_eff under their own measured correlation (252 trials →
+40.3; the gate reads the conservative ρ̄ bound), plus the
+registry's 231 curve-less rows at raw, plus the standalone-harness
+trials in `config/honest_n_trials.json` at raw (101 at 2026-11-14,
+40 of them pending a ruling) — N_eff ≈ 372. At that N_eff a
+5-year window needs SR ≥ 1.33, 12 years ≥ 0.86, 26 years ≥ 0.58.
+An N that cannot be established halts the
 measurement; it is never 1. **The 5-year window is exploratory; no 
 measurement on it should be quoted as deployment evidence until 
 the multi-decade extension lands.** Pre-register every future 
