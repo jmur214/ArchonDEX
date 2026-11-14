@@ -175,6 +175,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 ### `data_manager.py`
 - **Class `CacheUnreadableError`**: A cache file could not be read. It was QUARANTINED (renamed), never deleted.
   - `def __init__()`
+- **Class `FundamentalsFixtureRefused`**: The explicit fundamentals test fixture was named where it may not be read.
 - **Class `DataManager`**: No docstring
   - `def __init__()`
   - `def prefetch_fundamentals()`: Fetch fundamentals for every ticker that has NO cached file. Call during data loading.
@@ -192,6 +193,8 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `fundamentals_miss_summary()`**: Every fundamentals cache miss this process: sorted ticker lists by outcome, and the
 - **Function `ticker_fundamentals_blind()`**: The per-ticker fundamentals blind count for a set of LOADED edges. `consumers` are the
 - **Function `reset_fundamentals_log()`**: Forget the recorded misses (tests, or a fresh run in a long-lived process).
+- **Function `refuse_fixture_flag_in_measured_run()`**: Raise FundamentalsFixtureRefused when the fixture flag is set in a canonical or hermetic run.
+- **Function `fundamentals_fixture_path()`**: The explicitly named fixture file, or None when no fixture is named (the default: the
 
 ### `earnings_data.py`
 **Module Docstring:** yfinance-backed earnings calendar + surprise data pipeline.
@@ -217,6 +220,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `year_identity()`**: Per calendar year: is the reference the SAME security as the Stooq series?
 - **Function `transient_offsets()`**: Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
 - **Function `probe_exdates()`**: The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
+- **Function `distribution_guard()`**: T-393 (as amended, §7): of the ex-dates the labels call missed, what is ADDED.
 - **Function `label_exdates()`**: missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
 - **Function `missed_log_factor()`**: Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
 - **Function `empty_labels()`**: The labelled-ex-date frame of a name with no usable reference (no ex-date labelled).

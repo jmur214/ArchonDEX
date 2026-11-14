@@ -769,6 +769,10 @@ class ModeController:
         from engines.data_manager.data_manager import reset_feed_log, reset_fundamentals_log
         reset_feed_log()
         reset_fundamentals_log()       # this run's fundamentals cache misses, not an earlier run's
+        # T-392a: a canonical/hermetic run with the fundamentals TEST-fixture flag set refuses HERE,
+        # before any data is read — the lazy refusal never fires when every name is cached.
+        from engines.data_manager.data_manager import refuse_fixture_flag_in_measured_run
+        refuse_fixture_flag_in_measured_run()
         from engines.data_manager.exclusions import reset_exclusion_log
         reset_exclusion_log()
         import os

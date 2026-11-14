@@ -295,6 +295,14 @@ python scripts/update_data.py
 python -m scripts.rebake_fundamentals --tickers CVNA,KG
 python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.json   # the census's refused set
 
+# The static fundamentals TEST FIXTURE (T-392a, 2026-11-12): TESTS ONLY. Nothing reads a default
+# static file (data/fundamentals_static.csv is dead). A test names its own planted fixture:
+#   ARCHONDEX_FUNDAMENTALS_FIXTURE=/abs/path/fixture.csv   (columns Ticker,Date,...)
+# Refused (FundamentalsFixtureRefused) under ARCHONDEX_REFUSE_YFINANCE_FALLBACK or ARCHONDEX_HERMETIC,
+# and when the path is not a file — at run start (ModeController.run_backtest) and at the static path;
+# scripts.rebake_fundamentals refuses it too. Served rows carry fundamentals_source=fixture; the census FAILS
+# the run (fundamentals_misses.fixture, invariant 7c).
+
 # SimFin panel RE-BAKE (2026-10-22): the ONE declared entrypoint that rebuilds
 # data/processed/fundamentals_simfin.parquet, and with --download refreshes data/raw/simfin from
 # SimFin first (needs SIMFIN_API_KEY). A READ of the panel (simfin_adapter.load_panel) never
@@ -849,6 +857,14 @@ python scripts/drip_fix_candidate_t384.py manifest                              
 # T-387: the era model, probe, labels and per-file build MOVED to engines/data_manager/era_tr.py (shared with the
 # cutover writer); the script imports them — its commands and outputs are unchanged (build re-verified on 12 names
 # byte-identical to v4, 2026-11-12).
+# T-393 (2026-11-13, as amended): era_tr now runs a DISTRIBUTION GUARD — a missed dividend is refused only where no
+# aligned bar of the reference close shows the drop (z* > 6), and a refused one with an unapplied Stooq spin-off is
+# repaired from the close; `build` therefore differs from v4 on 3 files (DHR, ETN, XRX) — config/era_tr_v5_delta_t393.json.
+# `accept` runs through run_acceptance(out, yf_dir, adir, candidate=None, extra_steps=None, labels=None): the providers
+# let the SAME test run on a candidate held in memory; the defaults are the on-disk behaviour.
+# Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
+python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
+python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
