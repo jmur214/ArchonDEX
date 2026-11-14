@@ -295,3 +295,260 @@ def test_a_price_row_inside_the_2026_holdout_halts(tmp_path, monkeypatch):
     pd.DataFrame({"adj_close": [1.0, 1.0, 1.0], "raw_close": [1.0, 1.0, 1.0]}, index=idx).to_csv(tmp_path / "yf_ZZZ.csv")
     with pytest.raises(h.T398Halt, match="2026 holdout"):
         h.load_px("ZZZ")
+
+
+# =========================================================================== review round 1
+# The tests below DRIVE the harness's own Panel, halts and bindings on a synthetic snapshot
+# (tmp_path + monkeypatched paths). Each was proven by reversion: see the verdict's review section.
+_RATE = 0.036          # a flat 3.6 %/yr financing base => cash accrual 1e-4 per calendar day
+_FUND_ER = {"RYMFX": 0.0199, "AQMIX": 0.0125, "ASFYX": 0.0145, "WTMF": 0.0066}
+
+
+class _FakeSub:
+    """Stands in for b5.Substrate: the equity calendar, the leg returns and the benchmark, built the
+    way the real loader builds them (T-311 buyhold_equity = equity return − 0.09 %/252)."""
+
+    def __init__(self, cal: pd.DatetimeIndex, base: pd.Series, seed: int = 11) -> None:
+        rng = np.random.default_rng(seed)
+        self.px2 = pd.DataFrame({"equity": 100.0 * np.cumprod(1.0 + rng.normal(0.0004, 0.01, len(cal))),
+                                 "bond": 100.0 * np.cumprod(1.0 + rng.normal(0.0001, 0.003, len(cal)))}, index=cal)
+        self.base = base
+
+    def window(self, start: str, end: str, gold: bool) -> dict:
+        idx = self.px2.index
+        wd = idx[(idx >= pd.Timestamp(start)) & (idx <= pd.Timestamp(end))]
+        i0 = idx.get_loc(wd[0])
+        dates = idx[i0 - 1: i0 + len(wd)]
+        rets = self.px2.loc[dates].pct_change().iloc[1:]
+        r, dcal = h.b5.financing_arrays(dates, self.base)
+        return {"dates": wd, "base_date": dates[0], "e": rets["equity"].values, "b": rets["bond"].values,
+                "r": r, "dcal": dcal, "bench": rets["equity"].values - h.ER_E / h.TD}
+
+
+def _snapshot(tmp_path, monkeypatch, funds=("RYMFX", "AQMIX", "ASFYX"), short: dict | None = None):
+    """A synthetic snapshot: each fund's total return is pnl + cash − its own fee, so the excess
+    return the harness must recover is exactly pnl. Returns (panel, pnl_by_fund, cal)."""
+    cal = pd.bdate_range("2010-06-01", "2011-12-30")
+    base = pd.Series(_RATE, index=pd.bdate_range("2010-01-04", "2011-12-30"))
+    dcal = np.concatenate([[1.0], (cal[1:] - cal[:-1]).days.values.astype(float)])
+    cash = _RATE * dcal / 360.0
+    monkeypatch.setattr(h, "INPUTS", tmp_path)
+    pnl, files = {}, {}
+    for k, tk in enumerate(funds):
+        rng = np.random.default_rng(100 + k)
+        p = rng.normal(0.0002 * (k + 1), 0.004, len(cal))
+        tr = p + cash - _FUND_ER[tk] / h.TD
+        level = pd.Series(10.0 * np.cumprod(1.0 + tr), index=cal)
+        first = cal[5 + 3 * k]                               # first prices in early June 2010
+        last = cal[-1] if not short or tk not in short else pd.Timestamp(short[tk])
+        s = level.loc[first:last]
+        df = pd.DataFrame({"adj_close": s, "raw_close": s})
+        df.index.name = "Date"
+        df.to_csv(tmp_path / f"yf_{tk}.csv", float_format="%.17g")
+        files[f"yf_{tk}.csv"] = {"md5": h.b5.md5_file(tmp_path / f"yf_{tk}.csv")}
+        pnl[tk] = pd.Series(p, index=cal)
+    frozen = {tk: {"rule_b": True, "er": _FUND_ER.get(tk, 0.01), "er_source": "test"} for tk in h.CANDIDATES}
+    monkeypatch.setattr(h, "MEMBERSHIP_FROZEN", frozen)
+    panel = h.Panel(man={"files": files}, base=base, sub=_FakeSub(cal, base))
+    return panel, pnl, cal
+
+
+def test_panel_excess_is_the_funds_return_minus_cash_plus_its_own_fee(tmp_path, monkeypatch):
+    panel, pnl, _ = _snapshot(tmp_path, monkeypatch)
+    assert panel.members == ["RYMFX", "AQMIX", "ASFYX"]
+    for tk in panel.members:
+        x = panel.excess(tk)
+        assert x.index[0] == pd.Timestamp("2010-07-01")       # the month after the month of its first price
+        # cash subtracted ONCE and the fund's own fee added back ONCE: what is left is the futures P&L
+        np.testing.assert_allclose(x.values, pnl[tk].reindex(x.index).values, atol=1e-12)
+        net = panel.excess(tk, gross_up=False)
+        np.testing.assert_allclose((x - net).values, _FUND_ER[tk] / h.TD, atol=1e-15)
+
+
+def test_panel_composite_is_the_equal_weight_mean_and_counts_members(tmp_path, monkeypatch):
+    panel, pnl, _ = _snapshot(tmp_path, monkeypatch)
+    x, cnt = panel.composite()
+    want = pd.DataFrame({tk: pnl[tk] for tk in panel.members}).mean(axis=1).reindex(x.index)
+    np.testing.assert_allclose(x.values, want.values, atol=1e-12)
+    assert int(cnt.min()) == 3 and int(cnt.max()) == 3
+    x2, cnt2 = panel.composite(["RYMFX", "AQMIX"])
+    np.testing.assert_allclose(x2.values, ((pnl["RYMFX"] + pnl["AQMIX"]) / 2.0).reindex(x2.index).values, atol=1e-12)
+    assert int(cnt2.max()) == 2
+    # an ER override moves only that fund, by the difference in fees over the member count
+    x3, _ = panel.composite(er_override={"AQMIX": 0.0200})
+    np.testing.assert_allclose((x3 - x).values, (0.0200 - 0.0125) / h.TD / 3.0, atol=1e-15)
+
+
+def test_panel_window_feeds_the_arm_the_composite_and_matches_the_benchmark(tmp_path, monkeypatch):
+    panel, pnl, _ = _snapshot(tmp_path, monkeypatch)
+    x, cnt = panel.composite()
+    w = panel.window(x, cnt, h.MIN_MEMBERS, end=pd.Timestamp("2011-12-30"))
+    assert w["dates"][0] == pd.Timestamp("2010-07-01") and int(w["n_members"].min()) == 3
+    np.testing.assert_allclose(w["x"], x.reindex(w["dates"]).values, atol=0.0)
+    r = h.arm_returns(w, 1.0, s=0.0, h_surv=0.0)
+    np.testing.assert_allclose(r - w["bench"], w["x"] - (h.ER_S - h.ER_E) / h.TD, atol=1e-15)
+
+
+def test_window_halts_when_the_composite_drops_below_three_members(tmp_path, monkeypatch):
+    panel, _, _ = _snapshot(tmp_path, monkeypatch, short={"ASFYX": "2011-06-30"})
+    x, cnt = panel.composite()
+    with pytest.raises(h.T398Halt, match="fewer than 3 members"):
+        panel.window(x, cnt, h.MIN_MEMBERS, end=pd.Timestamp("2011-12-30"))
+    # positive control: the same panel is fine up to the day the third fund ends
+    w = panel.window(x, cnt, h.MIN_MEMBERS, end=pd.Timestamp("2011-06-30"))
+    assert int(w["n_members"].min()) == 3
+
+
+def test_window_halts_when_there_are_never_three_members(tmp_path, monkeypatch):
+    panel, _, _ = _snapshot(tmp_path, monkeypatch, funds=("RYMFX", "AQMIX"))
+    x, cnt = panel.composite()
+    with pytest.raises(h.T398Halt, match="never has 3 members"):
+        panel.window(x, cnt, h.MIN_MEMBERS, end=pd.Timestamp("2011-12-30"))
+
+
+def _pinned_snapshot(tmp_path, monkeypatch):
+    """A manifest + files that verify_snapshot accepts (the positive control for the md5 halts)."""
+    inputs, sub = tmp_path / "inputs", tmp_path / "sub"
+    inputs.mkdir()
+    sub.mkdir()
+    pinned = {}
+    files = {}
+    for name in ("frb_h15_all_sdmx.zip", "nyfed_sofr.csv", "aqr_tsmom_monthly_t296.xlsx", "yf_AAA.csv"):
+        (inputs / name).write_text(f"content of {name}\n")
+        files[name] = {"md5": h.b5.md5_file(inputs / name)}
+        if not name.startswith("yf_"):
+            pinned[name] = files[name]["md5"]
+    for name in ("equity_tr_daily.csv", "bond_tr_daily.csv"):
+        (sub / name).write_text(f"content of {name}\n")
+        pinned[name] = h.b5.md5_file(sub / name)
+    (inputs / "MANIFEST.json").write_text(__import__("json").dumps({"files": files}))
+    monkeypatch.setattr(h, "INPUTS", inputs)
+    monkeypatch.setattr(h, "MANIFEST", inputs / "MANIFEST.json")
+    monkeypatch.setattr(h, "SUB", sub)
+    monkeypatch.setattr(h, "PINNED_MD5", pinned)
+    return inputs, sub
+
+
+def test_verify_snapshot_passes_a_clean_snapshot_and_halts_on_any_changed_byte(tmp_path, monkeypatch):
+    inputs, sub = _pinned_snapshot(tmp_path, monkeypatch)
+    assert set(h.verify_snapshot()["files"]) >= {"yf_AAA.csv"}            # positive control
+    (inputs / "yf_AAA.csv").write_text("a different price file\n")
+    with pytest.raises(h.T398Halt, match="md5 != manifest"):
+        h.verify_snapshot()
+
+
+def test_verify_snapshot_halts_on_a_changed_substrate(tmp_path, monkeypatch):
+    _, sub = _pinned_snapshot(tmp_path, monkeypatch)
+    (sub / "equity_tr_daily.csv").write_text("rebuilt\n")
+    with pytest.raises(h.T398Halt, match="re-verify required"):
+        h.verify_snapshot()
+
+
+def test_verify_snapshot_halts_when_a_pinned_input_no_longer_matches_the_prereg(tmp_path, monkeypatch):
+    _pinned_snapshot(tmp_path, monkeypatch)
+    pinned = dict(h.PINNED_MD5)
+    pinned["nyfed_sofr.csv"] = "0" * 32                                   # the prereg's md5 no longer matches
+    monkeypatch.setattr(h, "PINNED_MD5", pinned)
+    with pytest.raises(h.T398Halt, match="md5 != prereg"):
+        h.verify_snapshot()
+
+
+def test_fp_guard_uses_tolerance_on_a_tiny_but_nonzero_std():
+    """[NN-FP-GUARDS]: a std of ~1e-17 is NOT zero, so a bare `== 0` guard would let it through and
+    return a meaningless correlation. The guard must use tolerance."""
+    a = np.full(60, 0.1)
+    a[0] = np.nextafter(0.1, 1.0)
+    sd = float(np.std(a, ddof=1))
+    assert 0.0 < sd < 1e-12                                 # tiny, and genuinely non-zero
+    b = np.random.default_rng(5).normal(size=60)
+    assert h._corr(a, b) is None and h._corr(b, a) is None
+    assert h._ann_ratio(a - 0.1, h.TD) == 0.0
+    assert h._corr(b, b) == pytest.approx(1.0)               # positive control
+
+
+def _bound_files(tmp_path, monkeypatch, unruled: int = 0):
+    """manifest + rulings + integrity.json + gates.json, each bound to the ones before it."""
+    import json
+    man, rul = tmp_path / "MANIFEST.json", tmp_path / "integrity_rulings.json"
+    integ, gates = tmp_path / "integrity.json", tmp_path / "gates.json"
+    man.write_text('{"files": {}}')
+    rul.write_text("{}")
+    for name, path in (("MANIFEST", man), ("RULINGS", rul), ("INTEGRITY", integ), ("GATES", gates)):
+        monkeypatch.setattr(h, name, path)
+    integ.write_text(json.dumps({"unruled_candidate_flags": unruled, "candidates": {}, "anchors": {},
+                                 "bound_to": {"manifest_md5": h.b5.md5_file(man), "rulings_md5": h.b5.md5_file(rul)}}))
+    gates.write_text(json.dumps({"evaluable": True, "bound_to": {"manifest_md5": h.b5.md5_file(man),
+                                                                 "integrity_md5": h.b5.md5_file(integ)}}))
+    return man, rul, integ, gates
+
+
+def test_bindings_pass_when_consistent_and_halt_on_each_stale_file(tmp_path, monkeypatch):
+    import json
+    man, rul, integ, gates = _bound_files(tmp_path, monkeypatch)
+    h.check_bindings(json.loads(gates.read_text()), json.loads(integ.read_text()))        # positive control
+    g, i = json.loads(gates.read_text()), json.loads(integ.read_text())
+    man.write_text('{"files": {"re-pinned": 1}}')                         # the manifest changed under them
+    with pytest.raises(h.T398Halt, match="integrity.json was not computed against this snapshot manifest"):
+        h.check_bindings(g, i)
+    man.write_text('{"files": {}}')
+    rul.write_text('{"a new ruling": 1}')
+    with pytest.raises(h.T398Halt, match="rulings file"):
+        h.check_bindings(g, i)
+    rul.write_text("{}")
+    integ.write_text(json.dumps({**i, "extra": 1}))                       # integrity re-run after the gates
+    with pytest.raises(h.T398Halt, match="gates.json was not computed against this integrity file"):
+        h.check_bindings(g, i)
+    with pytest.raises(h.T398Halt, match="missing"):
+        h.check_bindings(None, i)
+    with pytest.raises(h.T398Halt, match="snapshot manifest"):
+        h.check_bindings(g, {"unruled_candidate_flags": 0})               # an unbound (old-format) file
+
+
+def test_run_refuses_an_unruled_flag_and_stale_gate_files(tmp_path, monkeypatch):
+    _bound_files(tmp_path, monkeypatch, unruled=2)
+    with pytest.raises(h.T398Halt, match="no recorded ruling"):
+        h.cmd_run("A")
+    man, _, _, _ = _bound_files(tmp_path, monkeypatch, unruled=0)
+    man.write_text('{"files": {"re-pinned": 1}}')                         # gates/integrity now stale
+    with pytest.raises(h.T398Halt, match="stale"):
+        h.cmd_run("A")
+
+
+def test_determinism_command_exits_nonzero_on_a_mismatch_or_a_missing_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(h, "OUT", tmp_path)
+    monkeypatch.setattr(h, "DETERMINISM", tmp_path / "determinism.json")
+    assert h.cmd_determinism() == 2                                       # no runs at all
+    for tag in ("A", "B"):
+        (tmp_path / f"run_{tag}").mkdir()
+        (tmp_path / f"run_{tag}" / "results.json").write_text('{"x": 1}')
+        (tmp_path / f"run_{tag}" / "returns.csv").write_text("a,b\n1,2\n")
+    assert h.cmd_determinism() == 0 and h.compare_runs(tmp_path / "run_A", tmp_path / "run_B")["identical"]
+    (tmp_path / "run_B" / "results.json").write_text('{"x": 2}')
+    out = h.compare_runs(tmp_path / "run_A", tmp_path / "run_B")
+    assert out["mismatch"] == ["results.json"] and not out["identical"]
+    assert h.cmd_determinism() == 2
+    (tmp_path / "run_B" / "results.json").write_text('{"x": 1}')
+    (tmp_path / "run_B" / "extra.csv").write_text("only in B\n")
+    assert h.cmd_determinism() == 2                                       # a file present in one run only
+
+
+def test_ratio_ci_brackets_the_point_and_is_the_metrics_engines_bootstrap():
+    rng = np.random.default_rng(9)
+    x = rng.normal(0.0002, 0.01, 1500)
+    out = h.ratio_ci(x, h.TD, h.BLOCK_DAILY)
+    assert out["point"] == pytest.approx(h._ann_ratio(x, h.TD))
+    assert out["ci_low"] < out["point"] < out["ci_high"]
+    assert out["block_length"] == h.BLOCK_DAILY and out["n_iterations"] == h.N_ITER
+
+
+def test_since_start_frame_differs_from_the_peak_relative_frame():
+    """The review's MAJOR-1: 'behind its own earlier high' is not 'behind since the start'."""
+    d = np.concatenate([np.full(100, 0.002), np.full(50, -0.002), np.full(50, 0.0)])   # +20 %, then −10 %
+    dates = _cal(200, "2011-01-03")
+    ss = h.since_start_frame(d, dates, [str(dates[99].date()), str(dates[-1].date())])
+    assert ss["share_of_days_behind"] == 0.0                              # never behind since the start
+    assert ss["at"][str(dates[-1].date())]["relative_wealth_pct"] == pytest.approx(np.expm1(0.1) * 100)
+    dr = h.drought(d, dates)
+    assert dr["longest_days"] == 100 and dr["below_peak_at_window_end"]   # yet below its own high for 100 days
+    assert h.share_behind(d, dates, str(dates[100].date()), str(dates[-1].date()))[
+        "share_of_days_behind_since_start"] == 0.0

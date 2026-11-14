@@ -15,6 +15,8 @@ Subcommands (A1.1-1):
     gates      E1-E4 evaluability gates + V1-V3 reported validations
     smoke      mechanics on the FIRST 12 months of each window (never quoted)
     run --tag  the measurement; run twice (A, B) to identical md5s
+    determinism  prereg §18: compare run A and run B md5s; exit non-zero on a mismatch
+    probes     POST-HOC descriptions asked for by the review (not pre-registered; decide nothing)
 
 Everything is written under data/t398_local/ (worktree-local; nothing through data/research).
 """
@@ -67,7 +69,8 @@ PINNED_SRC = {
     "nyfed_sofr.csv": B5_INPUTS / "nyfed_sofr.csv",
     "aqr_tsmom_monthly_t296.xlsx": AQR_SRC,
 }
-PREREG_REF = "ac01413 + amendment 1 + amendment 2 (membership and ER)"
+PREREG_REF = ("ac01413 + amendment 1 (3136454, rulings) + amendment 2 (28ef661, membership and ER) "
+              "+ amendment 3 (cddef75, integrity rulings; AQMIX ER 1.25 % from memory, unverified)")
 
 # §4.1 the candidate list, fixed in the prereg (15 tickers) with the from-memory fallback ERs.
 CANDIDATES: Dict[str, Dict] = {
@@ -108,7 +111,8 @@ BLOCK_MONTHLY, SENS2_MONTHLY = 1, 12
 MIN_MEMBERS = 3
 E1_MIN_YEARS = 12.0
 E2_MIN_CORR = 0.50
-N_EFF_T391_PLUS1 = 372.28                               # T-391 R3 count 371.28 + 1 (not merged)
+N_EFF_T391_PLUS1 = 372.28                               # T-391 R3 count 371.28 + T-398's own row (merged on
+#                                                         main at 9fed69f: the gate itself now reads 372.28)
 D1_DROP, D1_MEDIAN, D2_RUN, D3_GAP, D4_MOVE = -0.03, -0.01, 5, 5, 0.08
 EPISODE_DEPTH = -0.10
 T316_CORR_BAR = 0.30                                    # T-316 GATE_A_CORR_MAX, quoted (never imported)
@@ -513,6 +517,8 @@ def cmd_integrity() -> int:
         print(f"  anchor {tk}: {len(fl)} flag(s) {[(f['check'], f['date']) for f in fl][:12]}")
     out["unruled_candidate_flags"] = int(unruled)
     out["halt"] = bool(unruled > 0)
+    out["bound_to"] = {"manifest_md5": b5.md5_file(MANIFEST),
+                       "rulings_md5": b5.md5_file(RULINGS) if RULINGS.exists() else None}
     b5.write_json(INTEGRITY, out)
     print(f"integrity written: {INTEGRITY}; unruled candidate flags: {unruled}")
     return 2 if unruled else 0
@@ -593,11 +599,14 @@ def member_returns(adj: pd.Series, cal: pd.DatetimeIndex) -> Tuple[pd.Series, pd
 class Panel:
     """Everything the measurement reads, built once from the md5-verified snapshot."""
 
-    def __init__(self) -> None:
-        self.man = verify_snapshot()
+    def __init__(self, man: Optional[Dict] = None, base: Optional[pd.Series] = None, sub=None) -> None:
+        """The measurement always calls Panel() — the md5-verified snapshot, B-5's financing base and
+        B-5's substrate. The three arguments exist so tests can drive the SAME code on a synthetic
+        snapshot; they are never passed in the measurement path."""
+        self.man = verify_snapshot() if man is None else man
         frozen = _require_frozen()
-        self.base = financing_base()
-        self.sub = b5.Substrate(self.base)
+        self.base = financing_base() if base is None else base
+        self.sub = b5.Substrate(self.base) if sub is None else sub
         cal = self.sub.px2.index
         self.cal = pd.DatetimeIndex(cal[cal <= WINDOW_END])
         fin_cal = self.cal[self.cal >= pd.Timestamp("2006-12-01")]
@@ -717,6 +726,24 @@ def mbl_line(ir: float, years: float, hn: Dict) -> Dict:
             "clears_gate_n": bool(ir >= a), "clears_n_372": bool(ir >= b)}
 
 
+def _ann_ratio(x, periods: int) -> float:
+    """mean / std * sqrt(periods), with the tolerance guard ([NN-FP-GUARDS]): never a bare == 0."""
+    x = np.asarray(x, dtype=float)
+    sd = float(np.std(x, ddof=1)) if len(x) > 1 else float("nan")
+    if not np.isfinite(sd) or sd < 1e-12:
+        return 0.0
+    return float(np.mean(x) / sd * math.sqrt(periods))
+
+
+def ratio_ci(x: np.ndarray, periods: int, block: Optional[int]) -> Dict:
+    """[NN-SHARPE-CI]: a Sharpe or an IR with its block-bootstrap interval, from
+    MetricsEngine.bootstrap_distribution (1,000 resamples, seed 0)."""
+    r = b5.ME.bootstrap_distribution(pd.Series(np.asarray(x, dtype=float)), lambda v: _ann_ratio(v, periods),
+                                     n_iterations=N_ITER, block_length=block, seed=SEED)
+    return {"point": float(r["point_estimate"]), "ci_low": float(r["ci_low"]), "ci_high": float(r["ci_high"]),
+            "block_length": int(r["block_length"]), "n_iterations": int(r["n_iterations"])}
+
+
 def _per_year(st: Dict, years: float) -> Dict:
     st["per_year"] = {k: st[k] / years for k in ("point", "ci_low", "ci_high", "mean")}
     return st
@@ -733,7 +760,8 @@ def cell(R: np.ndarray, bench: np.ndarray, dates: pd.DatetimeIndex, base_date: p
     prim, s1, s2 = (_per_year(boot.stat(d, L), years) for L in blocks)
     ir = b5.ir_of(d, periods)
     out = {"n": n, "years": years, "dlogTW": prim, "dlogTW_sens_auto": s1, "dlogTW_sens_long": s2,
-           "ir": ir, "mbl": mbl_line(ir, years, hn), "_d": d, "_R": R}
+           "ir": ir, "ir_ci": ratio_ci(d, periods, blocks[0]), "ir_ci_auto": ratio_ci(d, periods, blocks[1]),
+           "mbl": mbl_line(ir, years, hn), "_d": d, "_R": R}
     if periods == TD:
         out["arm"] = b5.wealth_stats(R, dates, base_date, periods)
     if sortino:
@@ -1025,7 +1053,33 @@ def gates_payload(panel: Panel) -> Dict:
            "V1_synthetic_vs_RSST": v1, "V2": v2,
            "V3_corr_composite_aqr_monthly": mb["V3_corr_composite_aqr"]}
     out["evaluable"] = bool(all(out[k]["pass"] for k in ("E1_depth", "E2_composite_vs_DBMF", "E3_integrity", "E4_md5")))
+    # A1.1-12: flags on an anchor are LISTED and the validation line that uses the anchor is MARKED.
+    anch = {} if integ is None else {a: len(v.get("flags", [])) for a, v in integ.get("anchors", {}).items()}
+    out["V1_synthetic_vs_RSST"]["anchor_flags_listed_not_ruled"] = {"RSST": anch.get("RSST")}
+    for tk, eq in (("BLNDX", "VT"), ("MAFIX", "SPY")):
+        out["V2"][tk]["anchor_flags_listed_not_ruled"] = {tk: anch.get(tk), eq: anch.get(eq)}
+    out["bound_to"] = {"manifest_md5": b5.md5_file(MANIFEST),
+                       "integrity_md5": b5.md5_file(INTEGRITY) if INTEGRITY.exists() else None}
     return out
+
+
+def check_bindings(gates: Optional[Dict], integ: Optional[Dict]) -> None:
+    """MINOR-9a: `run` does not trust gates.json / integrity.json by existence. Each must have been
+    computed against THIS manifest (and the integrity file against THESE rulings, the gates against
+    THIS integrity file), or the run HALTS."""
+    if gates is None or integ is None:
+        raise T398Halt("gates.json or integrity.json is missing; H1 is NOT EVALUABLE")
+    man_md5 = b5.md5_file(MANIFEST)
+    ib, gb = integ.get("bound_to") or {}, gates.get("bound_to") or {}
+    if ib.get("manifest_md5") != man_md5:
+        raise T398Halt("integrity.json was not computed against this snapshot manifest (stale); re-run `integrity`")
+    rul = b5.md5_file(RULINGS) if RULINGS.exists() else None
+    if ib.get("rulings_md5") != rul:
+        raise T398Halt("integrity.json was not computed against this rulings file (stale); re-run `integrity`")
+    if gb.get("manifest_md5") != man_md5:
+        raise T398Halt("gates.json was not computed against this snapshot manifest (stale); re-run `gates`")
+    if gb.get("integrity_md5") != b5.md5_file(INTEGRITY):
+        raise T398Halt("gates.json was not computed against this integrity file (stale); re-run `gates`")
 
 
 def cmd_gates() -> int:
@@ -1090,7 +1144,8 @@ def _compact(c: Dict) -> Dict:
             "ci_low_per_year_auto": c["dlogTW_sens_auto"]["per_year"]["ci_low"],
             "ci_low_per_year_252": c["dlogTW_sens_long"]["per_year"]["ci_low"],
             "ci_high_per_year_252": c["dlogTW_sens_long"]["per_year"]["ci_high"],
-            "ir": c["ir"], "max_dd": c["arm"]["max_dd"], "cagr": c["arm"]["cagr"]}
+            "ir": c["ir"], "ir_ci_low": c["ir_ci"]["ci_low"], "ir_ci_high": c["ir_ci"]["ci_high"],
+            "max_dd": c["arm"]["max_dd"], "cagr": c["arm"]["cagr"]}
 
 
 def composite_stats(panel: Panel, w: Dict, funds: Optional[Sequence[str]] = None) -> Dict:
@@ -1105,6 +1160,8 @@ def composite_stats(panel: Panel, w: Dict, funds: Optional[Sequence[str]] = None
             "net_excess_per_year": float(np.mean(xn) * TD),
             "gross_excess_per_year": float(np.mean(xg) * TD),
             "net_excess_sharpe": float(np.mean(xn) / b5._guard_std(float(np.std(xn, ddof=1)), "composite") * math.sqrt(TD)),
+            "net_excess_sharpe_ci": ratio_ci(xn, TD, BLOCK_DAILY),
+            "net_excess_sharpe_ci_252": ratio_ci(xn, TD, SENS2_DAILY),
             "corr_with_equity_daily": _corr(w["e"], xg),
             "max_dd_of_gross_excess": _maxdd(xg)}
 
@@ -1188,9 +1245,10 @@ def cmd_run(tag: str) -> int:
     gates = json.loads(GATES.read_text()) if GATES.exists() else None
     if gates is None or not gates.get("evaluable"):
         raise T398Halt("an evaluability gate has not passed (run `gates`); H1 is NOT EVALUABLE")
-    integ = json.loads(INTEGRITY.read_text())
-    if integ.get("unruled_candidate_flags") != 0:
+    integ = json.loads(INTEGRITY.read_text()) if INTEGRITY.exists() else None
+    if integ is None or integ.get("unruled_candidate_flags") != 0:
         raise T398Halt("an integrity flag on a candidate has no recorded ruling")
+    check_bindings(gates, integ)
     panel = Panel()
     boot = b5.Boot()
     hn = honest_n()
@@ -1213,7 +1271,7 @@ def cmd_run(tag: str) -> int:
     yrs = w3["years"]
     lo252 = dec["dlogTW_sens_long"]["per_year"]["ci_low"]
     h1 = bool(me["ci_low"] > 0)
-    res["H1"] = {"cell": "+100 %, level-1 composite (14 members), ER gross-up on (AQMIX 1.25 % per amendment 3), "
+    res["H1"] = {"cell": "+100 %, level-1 composite (14 members), ER gross-up on (AQMIX 1.25 % FROM MEMORY, UNVERIFIED, per amendment 3), "
                          "h_surv 1.0 %/yr, s 50 bp, ER_S 1.00 %, W-L3, 21-day MBB x1000 seed 0",
                  "window": [blk3["start"], blk3["end"]], "years": yrs,
                  "dlogTW_total": {k: me[k] for k in ("point_estimate", "ci_low", "ci_high", "mean", "p_above_zero")},
@@ -1441,6 +1499,157 @@ def screener_sensitivity(panel: Panel, w3: Dict, boot: b5.Boot, hn: Dict) -> Dic
             "h_surv": H_SURV, "gross_up": True, **_compact(c)}
 
 
+# --------------------------------------------------------------------------- determinism (prereg §18)
+DETERMINISM = OUT / "determinism.json"
+
+
+def compare_runs(a: Path, b: Path) -> Dict:
+    """File-for-file md5 comparison of two run directories. Identical only if both hold the same
+    non-empty set of files with equal md5s."""
+    fa = {q.name: b5.md5_file(q) for q in sorted(a.iterdir()) if q.is_file()} if a.is_dir() else {}
+    fb = {q.name: b5.md5_file(q) for q in sorted(b.iterdir()) if q.is_file()} if b.is_dir() else {}
+    names = sorted(set(fa) | set(fb))
+    diff = [n for n in names if fa.get(n) is None or fa.get(n) != fb.get(n)]
+    return {"files": {n: {"A": fa.get(n), "B": fb.get(n)} for n in names}, "mismatch": diff,
+            "identical": bool(names) and not diff}
+
+
+def cmd_determinism() -> int:
+    """Prereg §18: runs A and B must match by md5, file for file, or the harness exits non-zero."""
+    out = compare_runs(OUT / "run_A", OUT / "run_B")
+    b5.write_json(DETERMINISM, out)
+    for n, v in out["files"].items():
+        print(f"  {n}: A {v['A']} | B {v['B']} | {'ok' if n not in out['mismatch'] else 'MISMATCH'}")
+    print("determinism: " + ("IDENTICAL" if out["identical"] else "MISMATCH — no number may be quoted"))
+    return 0 if out["identical"] else 2
+
+
+# --------------------------------------------------------------------------- post-hoc probes (review round 1)
+PROBES = OUT / "probes.json"
+
+
+def since_start_frame(d: np.ndarray, dates: pd.DatetimeIndex, marks: Sequence[str]) -> Dict:
+    """Relative wealth SINCE THE WINDOW START (cumulative Σd), as opposed to relative to the arm's
+    own earlier relative high. Both frames are true; they answer different questions."""
+    cum = np.cumsum(d)
+    pct = np.expm1(cum) * 100.0
+    yrs = dates.year
+    year_end = {str(y): float(pct[np.where(yrs == y)[0][-1]]) for y in sorted(set(yrs))}
+    at = {}
+    for m in marks:
+        i = int(dates.searchsorted(pd.Timestamp(m), side="right")) - 1
+        if i >= 0:
+            at[m] = {"date": str(dates[i].date()), "relative_wealth_pct": float(pct[i])}
+    below = cum < 0
+    runs = _runs(below)
+    j = int(np.argmin(cum))
+    out: Dict = {"year_end_relative_wealth_pct": year_end, "at": at,
+                 "share_of_days_behind": float(below.mean()),
+                 "lowest_relative_wealth_pct": float(pct[j]), "lowest_date": str(dates[j].date()),
+                 "highest_relative_wealth_pct": float(pct.max()),
+                 "highest_date": str(dates[int(np.argmax(cum))].date())}
+    if runs:
+        s0, ln = max(runs, key=lambda r: r[1])
+        out["longest_stretch_behind"] = {"days": int(ln), "years": float(ln / TD), "start": str(dates[s0].date()),
+                                         "end": str(dates[s0 + ln - 1].date())}
+    return out
+
+
+def share_behind(d: np.ndarray, dates: pd.DatetimeIndex, a: str, b: str) -> Dict:
+    cum = np.cumsum(d)
+    m = np.asarray((dates >= pd.Timestamp(a)) & (dates <= pd.Timestamp(b)))
+    return {"from": a, "to": b, "days": int(m.sum()), "share_of_days_behind_since_start": float((cum[m] < 0).mean())}
+
+
+def cmd_probes() -> int:
+    """POST-HOC DESCRIPTIONS requested by the independent review (round 1). NOT pre-registered, NOT a
+    new trial, none decides anything: every number is arithmetic on the frozen run's own series."""
+    panel = Panel()
+    boot = b5.Boot()
+    x, cnt = panel.composite()
+    w = panel.window(x, cnt, MIN_MEMBERS)
+    dates = w["dates"]
+    out: Dict = {"label": "POST-HOC descriptions for review round 1; not pre-registered; no decision weight"}
+    arms = {k: b5.log_diff(arm_returns(w, wt), w["bench"]) for k, wt in (("w100", 1.0), ("w50", 0.5), ("w25", 0.25))}
+    d = arms["w100"]
+    dr = drought(d, dates)
+    peak = dates[max(int(dates.get_loc(pd.Timestamp(dr["longest_start"]))) - 1, 0)]
+    w3y = worst_rolling(d, dates)
+    marks = ["2010-12-31", str(peak.date()), "2019-12-31", dr["longest_end"], w3y["start"], w3y["end"],
+             dr["deepest_date"], "2025-05-31", "2025-06-30", "2025-12-31"]
+    out["since_start"] = {k: since_start_frame(v, dates, marks) for k, v in arms.items()}
+    out["since_start"]["w100"]["inside_the_longest_below_peak_stretch"] = share_behind(
+        d, dates, dr["longest_start"], dr["longest_end"])
+    out["below_own_relative_high"] = {"peak_date": str(peak.date()), **dr}
+    # MINOR-8: calendar-year contributions; removing any one large year moves the total
+    yrs = dates.year
+    total = float(d.sum())
+    by_year = {str(y): float(d[np.asarray(yrs == y)].sum()) for y in sorted(set(yrs))}
+    out["by_year_w100"] = {"total_sum_d": total, "sum_d": by_year,
+                           "total_without_year": {y: total - v for y, v in by_year.items()},
+                           "years_larger_than_total": [y for y, v in by_year.items() if abs(v) > abs(total)],
+                           "years_whose_removal_flips_the_sign": [y for y, v in by_year.items()
+                                                                  if (total - v) * total < 0]}
+    # MINOR-14: leave-one-episode-out on the pooled drawdown correlation
+    eps = find_episodes(w["bench"])
+    loo = []
+    for i, (a, b, _) in enumerate(eps):
+        keep = [k for k in range(len(eps)) if k != i]
+        e = np.concatenate([w["e"][eps[k][0]:eps[k][1] + 1] for k in keep])
+        xx = np.concatenate([w["x"][eps[k][0]:eps[k][1] + 1] for k in keep])
+        r = paired_corr_boot(e, xx)
+        loo.append({"left_out_trough": str(dates[b].date()), "days_left_out": int(b - a + 1), **r})
+    out["drawdown_corr_leave_one_out"] = {
+        "rows": loo, "n_whose_ci_excludes_zero": int(sum(1 for r in loo if r.get("ci_high", 1.0) < 0)),
+        "n": len(loo)}
+    # MINOR-7: the AQR factor's own mean by era (a description; the eras were not pre-registered)
+    hn = honest_n()
+    mb = monthly_block(w, boot, hn)
+    tau_all = load_aqr(INPUTS / "aqr_tsmom_monthly_t296.xlsx")
+    first = mb["_tau"].index[0]
+    before = tau_all[tau_all.index < first]
+    after = mb["_tau"]
+
+    def era(sr: pd.Series) -> Dict:
+        r = b5.ME.bootstrap_distribution(pd.Series(sr.values), lambda v: float(np.mean(np.asarray(v)) * 12.0),
+                                         n_iterations=N_ITER, block_length=None, seed=SEED)
+        return {"months": [str(sr.index[0]), str(sr.index[-1])], "n": int(len(sr)),
+                "mean_per_year": float(sr.mean() * 12.0), "ci_low": float(r["ci_low"]), "ci_high": float(r["ci_high"]),
+                "block_length": int(r["block_length"]), "vol_ann": float(sr.std(ddof=1) * math.sqrt(12.0))}
+
+    gap = float((before.mean() - after.mean()) * 12.0)
+    se = float(math.sqrt(before.var(ddof=1) / len(before) + after.var(ddof=1) / len(after)) * 12.0)
+    out["aqr_factor_by_era"] = {"before_W-L3": era(before), "W-L3": era(after), "gap_per_year": gap,
+                                "gap_naive_se": se, "gap_naive_t": gap / se,
+                                "note": "naive SE assumes independent months; eras chosen after the fact"}
+    # NOTE-16: h_L's interval across bootstrap seeds (the frozen seed 0 is the one quoted)
+    diff = mb["_tau"].values - mb["_x_m"].values
+    n = len(diff)
+    seeds = []
+    for sd in range(50):
+        sums = b5.mbb_sums(diff, b5.mbb_starts(n, BLOCK_MONTHLY, seed=sd), BLOCK_MONTHLY) * 12.0 / n
+        seeds.append((float(np.percentile(sums, 2.5)), float(np.percentile(sums, 97.5))))
+    lows = sorted(v[0] for v in seeds)
+    out["h_L_seed_spread_1m_block"] = {
+        "n_seeds": len(seeds), "seed0_ci": list(seeds[0]),
+        "ci_low_min": lows[0], "ci_low_median": float(np.median(lows)), "ci_low_max": lows[-1],
+        "seed0_ci_low_rank_from_lowest": int(lows.index(seeds[0][0]) + 1),
+        "ci_high_median": float(np.median([v[1] for v in seeds]))}
+    out["h_L_frozen"] = mb["h_L"]
+    out["aqr_arms_on_W-L3"] = {k: {"point": v["dlogTW"]["per_year"]["point"],
+                                   "ci_1m": [v["dlogTW"]["per_year"]["ci_low"], v["dlogTW"]["per_year"]["ci_high"]],
+                                   "ci_auto": [v["dlogTW_sens_auto"]["per_year"]["ci_low"],
+                                               v["dlogTW_sens_auto"]["per_year"]["ci_high"]],
+                                   "auto_block": v["dlogTW_sens_auto"]["block_length"],
+                                   "ci_12m": [v["dlogTW_sens_long"]["per_year"]["ci_low"],
+                                              v["dlogTW_sens_long"]["per_year"]["ci_high"]],
+                                   "ir": v["ir"], "ir_ci_auto": v["ir_ci_auto"]}
+                               for k, v in mb["aqr_arms"].items()}
+    b5.write_json(PROBES, out)
+    print(json.dumps(b5._jsonable(out), indent=1))
+    return 0
+
+
 # --------------------------------------------------------------------------- BTOP50 (R-8, A1.1-13)
 BTOP_HOST = "barclayhedge.com"
 BTOP_MAX_GETS = 4
@@ -1486,7 +1695,8 @@ def cmd_btop50_get(url: str, name: str) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sp = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("meta", "meta-table", "fetch", "integrity", "record-rulings", "screen", "fetch-s3", "gates", "smoke"):
+    for name in ("meta", "meta-table", "fetch", "integrity", "record-rulings", "screen", "fetch-s3", "gates", "smoke", "determinism",
+                 "probes"):
         sp.add_parser(name)
     bp = sp.add_parser("btop50-get")
     bp.add_argument("--url", required=True)
@@ -1506,6 +1716,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return cmd_gates()
     if a.cmd == "smoke":
         return cmd_smoke()
+    if a.cmd == "determinism":
+        return cmd_determinism()
+    if a.cmd == "probes":
+        return cmd_probes()
     if a.cmd == "run":
         return cmd_run(a.tag)
     if a.cmd == "meta":
