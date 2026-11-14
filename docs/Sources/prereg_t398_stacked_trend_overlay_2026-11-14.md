@@ -705,3 +705,65 @@ They fill in what §4–§9 leave implicit, so that none can be chosen after see
     file.
 17. **Halt on a failed gate.** `gates` writes its verdict; `run` refuses unless every evaluability
     gate passed and the integrity file shows no unruled flag on a candidate.
+
+---
+
+## AMENDMENT 2 — 2026-11-14: THE MEMBERSHIP-AND-ER TABLE (R-10; recorded BEFORE any price is loaded)
+
+**What was fetched.** Metadata only: yfinance 1.2.0 `Ticker.info`, `Ticker.actions` and the fund
+overview for the 15 candidates and 5 anchors, 2026-11-14 06:27 UTC, stored raw under
+`data/t398_local/meta/` (`META_MANIFEST.json` md5 `8485fd61a5abd3aa7f9e4d1ab92670b2`). **No price
+history has been requested or loaded.** This amendment is committed alone, before the price fetch.
+
+**The ER field (A1.1-2).** SPY's `netExpenseRatio` reads 0.0945, inside [0.05, 0.15], so the field is
+in **percent**. `annualReportExpenseRatio` is empty for SPY and is not used.
+
+**The category (A1.1-2).** `info["category"]` is empty for every mutual fund; the fund overview's
+category name supplies it. Every candidate with a category reads "Systematic Trend".
+
+| ticker | Yahoo's name for it | category | rule (b) | ER, metadata | **ER used** (cap 2.00%) | ER, memory | Yahoo first trade | first bar, memory |
+|---|---|---|---|---|---|---|---|---|
+| RYMFX | Guggenheim Managed Futures Strategy **P** | Systematic Trend | in | 1.99% | **1.99%** | 1.70% | 2007-02-22 | 2007-03 |
+| AQMIX | AQR Managed Futures Strategy I | Systematic Trend | in | 3.09% | **2.00% (capped)** | 1.25% | 2010-01-05 | 2010-01 |
+| ASFYX | Virtus AlphaSimplex Mgd Futs Strat **I** | Systematic Trend | in | 1.45% | **1.45%** | 1.45% | 2010-08-03 | 2010-07 |
+| WTMF | WisdomTree Managed Futures Strategy Fund | Systematic Trend | in | 0.66% | **0.66%** | 0.65% | 2011-01-05 | 2011-01 |
+| EVOIX | **Winton Managed Futures Trend I** | Systematic Trend | in | 1.34% | **1.34%** | 1.60% | 2011-10-31 | 2011-10 |
+| GMSSX | Goldman Sachs Managed Futs Strat Instl | Systematic Trend | in | 0.80% | **0.80%** | 1.00% | 2012-02-29 | 2012-02 |
+| CSAIX | Credit Suisse Managed Futures Strategy Fund | *(empty)* | in (empty field) | none | **1.30% (fallback)** | 1.30% | **2026-07-17** | 2012-09 |
+| FMF | First Trust Managed Futures Strategy Fund | Systematic Trend | in | 0.98% | **0.98%** | 0.95% | 2013-08-02 | 2013-08 |
+| PQTIX | PIMCO TRENDS Fund Institutional | Systematic Trend | in | 1.51% | **1.51%** | 1.40% | 2014-01-06 | 2013-12 |
+| ABYIX | Abbey Capital Futures Strategy I | Systematic Trend | in | 1.79% | **1.79%** | 1.79% | 2014-07-03 | 2014-07 |
+| LOTIX | LoCorr Market Trend I | Systematic Trend | in | 1.81% | **1.81%** | 1.75% | 2014-07-02 | 2014-07 |
+| AHLIX | American Beacon AHL Mgd Futs Strat **R5** | Systematic Trend | in | 1.56% | **1.56%** | 1.50% | 2014-08-20 | 2014-08 |
+| DBMF | iMGP DBi Managed Futures Strategy ETF | Systematic Trend | in | 0.85% | **0.85%** | 0.85% | 2019-05-08 | 2019-05 |
+| KMLM | KraneShares Mount Lucas Managed Futures Index Strategy ETF | Systematic Trend | in | 0.90% | **0.90%** | 0.90% | 2020-12-02 | 2020-12 |
+| CTA | Simplify Managed Futures Strategy ETF | Systematic Trend | in | 0.86% | **0.86%** | 0.75% | 2022-03-08 | 2022-03 |
+
+**Frozen by this amendment:** rule (b) for all 15 (none is excluded on category) and the **ER used**
+column. Rules (a) and (c) are decided mechanically by the price fetch, from each fund's first price.
+
+**Differences from memory, listed (R-10: the metadata value is taken).**
+- **AQMIX's ER is the one that matters.** Yahoo reports 3.09%, the annual-report ratio, against about
+  1.25% from memory. The pre-declared cap makes it 2.00%. That grosses AQMIX up by 0.75 %/yr more than
+  memory would have. It is **in the arm's favour**: about +0.25 %/yr on the composite while there are
+  three members (2010–2011), less as members are added. The rule is frozen and is applied as written.
+  S4 (no gross-up at all) bounds it from below.
+- RYMFX 1.99% against 1.70%: the ticker is the P class, which carries a distribution fee.
+- EVOIX 1.34% against 1.60%; GMSSX 0.80% against 1.00%; PQTIX 1.51% against 1.40%; CTA 0.86% against
+  0.75%; LOTIX, AHLIX, FMF and WTMF within 0.06 pp. ASFYX, ABYIX, DBMF and KMLM agree.
+- Mean ER used, 14 funds excluding CSAIX: 1.32%, against 1.25% from memory.
+- **Start dates.** RYMFX's first trade is 2007-02-22, so it would enter 2007-03-01, a month before
+  the expected 2007-04. ASFYX's is 2010-08-03, so it would enter 2010-09-01 and **W-L3 is expected to
+  open 2010-09-01** (15.3 years). PQTIX's is 2014-01-06. The rest match memory to the month.
+- **CSAIX.** Yahoo's first trade date for the ticker is 2026-07-17 and it has no fund data. The
+  history under this ticker is not the 2012 fund's. It is expected to fail rule (c) at the price
+  fetch. The fund this census remembered appears to be gone, which is the survivorship problem in one
+  line.
+- **Names.** EVOIX is now "Winton Managed Futures Trend I"; ASFYX is labelled class I; AHLIX is the R5
+  class. The tickers are the pre-registered ones and are used as listed.
+- Yahoo's `fundInceptionDate` field gives share-class dates that contradict its own first-trade dates
+  (AQMIX 2014-09-02, ASFYX 2017-05-01, PQTIX 2023-05-26). It is not used; A1.1-2 already set
+  membership on the first price.
+
+**Anchors.** RSST's metadata ER is 0.99% and its category is "Multi-Asset Overlay". The stack ER stays
+at the frozen 1.00% (§5.1). BLNDX's first trade is 2020-01-02 and MAFIX's is 2018-04-11.
