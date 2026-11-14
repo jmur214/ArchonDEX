@@ -12,3 +12,4 @@
 - [Probe plugin for hidden test deps + clip fingerprints](feedback_probe_plugin_and_clip_fingerprints_2026_11_12.md) — pytest probe finds path-takers; a median clip reads max/median == bound EXACTLY; worktree governor copy; registry-check scope.
 - [Reversion harness + worktree bash refusals](feedback_reversion_harness_and_worktree_bash_2026_11_12.md) — mutate-run-restore, print the first E-line; a CLI lock must isolate its class; split git calls; Python via scratchpad.
 - [Stooq transient blocks + yfinance quirks](reference_stooq_transient_blocks_and_yf_quirks.md) — 4,517 one-dividend reverting blocks fool ex-date probes; widening the window backfired; yf empty dividends for delisted; processed-read lock marker.
+- [T-394 Tier-1 wiring](project_t394_tier1_wiring_2026_11_14.md) — 11 pinned rows in the cutover writer; 575/575 byte-identical to T-390; two-step multiplication keeps bit identity.

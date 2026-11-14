@@ -115,3 +115,83 @@ If any of these fails, it is reported as a failure.
 - It does not touch the canonical cache. The cutover itself is a separate, approved act.
 - Its evidence is in-sample, as T-390 §10.0 states. Tier 1 is defined by T-265, so "(i) = 54" restates
   that definition; the per-row agreement is the evidence.
+
+---
+
+## §2. What was built
+
+- **The tables.** `config/stooq_corrections_tier1.json` (the 11 rows; each with T-265's measurement and the
+  8-K filings within five business days) and `config/stooq_corrections_unverified.json` (the Tier-2 label:
+  1,579 rows on 374 files, plus the three known omissions). Both are pinned by sha256 constants in
+  `engines/data_manager/stooq_tier1.py` (`fa53978c…` and `60902ac0…`).
+- **The build.** `era_tr.build_file(changes=…)` and `era_tr.correction_factor`. The correction is a second
+  multiplication after the (a′) factor. `era_tr.step_audit` and `era_tr.splice_audit` take the same
+  `changes`.
+- **The writer.** `tr_writer.era_tr_rewrite(stooq_corrections=…)` validates the file's rows
+  (`stooq_tier1.changes_for_file`) or refuses, then records `stooq_corrections` (table sha256, tier, each
+  applied row) and `unverified_stooq_corrections` in the `era_tr` block.
+- **The driver.** `cutover_step1_pass era-tr` loads the pinned table by default and checks that every row
+  names a merged file of the copy before the first write. `--stooq-corrections none` writes v5 and says so.
+- **The census.** `convention.substrate_convention_record` reports `n_stooq_tier1_applied`,
+  `n_stooq_tier1_rows`, `n_unverified_stooq_corrections`, `n_stooq_label_not_recorded` and the per-name
+  `stooq_corrections`.
+- **The target bytes.** `config/era_tr_tier1_bytes_t394.json` holds the md5s of T-390's own render for the
+  10 files. It was written from T-390's export before the wired path was measured.
+
+## §3. The result against §1.7
+
+**1 and 2 — byte identity, in memory** (`python scripts/era_tr_tier1_measure_t394.py run`):
+- the 10 Tier-1 files: **10 of 10 equal T-390's v5 + Tier 1 render**;
+- the other 565: **565 of 565 equal v5** (and T-390's render of them);
+- the write-time step and splice audits pass on all 575.
+
+**3 — T-384 §1, unchanged, in memory:**
+
+| test | v5 | v5 + Tier 1 (wired) |
+|---|---|---|
+| (i) failing name-years (strict passes) | 57 (1,743) | **54 (1,746)** |
+| (ii) years passing | 15 of 16 | 15 of 16; the largest change in any of 6,423 rows is 9e-14 pp |
+| (iii)(a) / (b) / (c) | 110 of 110 / 6 names fail / 14 of 14 | identical |
+| (iv) bytes | 575 of 575 | 575 of 575 |
+| step audit: steps, unexpected | 11,094, 0 | 11,109, 0 |
+| verdict | FAIL | FAIL |
+
+Every acceptance CSV equals T-390's Tier-1 run row for row (`DataFrame.equals`, all eight files).
+
+**4 — the real writer, end to end.** A fresh copy of the 575 canonical seam files and the merge record
+(`~/Dev/_substrate_candidates/t394_writer_check_2026-11-14/`, 818 MB), then
+`python -m scripts.cutover_step1_pass era-tr --copy … --tag t394_check`:
+- 575 written, 0 refused;
+- **575 of 575 written csv files equal T-390's render** (10 Tier-1, 565 v5);
+- the 10 changed parquet twins parse to their csv;
+- the records name 11 applied rows in total, each file's rows equal the table's, and every record carries
+  the table's sha256;
+- the records carry 1,579 Tier-2 labels on 374 files (GE: 5 blocks and its known omission);
+- the census on the written copy: 575 `era_tr`, 0 unlabelled, 10 files with Tier-1 rows (11 rows), 374
+  with an unverified label, 0 not recorded.
+
+**The full suite** on this branch: 4,888 passed, 1 failed, 56 skipped, 11 xfailed. The one failure is the
+`edges.yml` capability-ledger contract, which needs a gitignored file this worktree does not have.
+
+**Tests:** `tests/test_era_tr_tier1_t394.py`, 15 locks. 15 reversion runs, every one failing. Three fail
+through a different rail than the one named, and are reported as such:
+- with the duplicate check off, the row-count check refuses instead;
+- with the "already era_tr" check off, the build's proportionality rail refuses a second rewrite (two
+  rails stand between a file and a double rewrite);
+- with the record's label removed, the test fails reading the missing label.
+
+## §4. What changes on cutover day
+
+`docs/Sources/runbook_cutover_day_2026-11-05.md` §7 (appended) states S1b as it now stands. In short:
+- one command, unchanged: `cutover_step1_pass era-tr`. It now writes v5 + Tier 1;
+- the acceptance line becomes "565 files equal v5; 10 equal `config/era_tr_tier1_bytes_t394.json`";
+- re-pin #2's class of 575 pre-seam rewrites is the same class; 13 of its files differ from v4 (3 by the
+  guard, 10 by Tier 1).
+
+## §5. Still open, for the user
+
+- **Tier 2 stays unapplied.** 374 files carry the label. Whether any part is ever wired is a later,
+  pre-registered decision (T-390 §11.4).
+- **The three known omissions** (§1.6) remain in v5 + Tier 1: GE 2019 (−3.95 pp), HON 2018 (−1.14 pp),
+  APD 2016 (+0.59 pp) in test (i).
+- **The verdict on T-384's unchanged test is still FAIL.**

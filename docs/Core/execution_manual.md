@@ -865,6 +865,13 @@ python scripts/drip_fix_candidate_t384.py manifest                              
 # Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
 python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
 python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
+# T-394 (2026-11-14): `cutover_step1_pass era-tr` applies the 11 PINNED Tier-1 Stooq corrections by default
+# (config/stooq_corrections_tier1.json, pinned in engines/data_manager/stooq_tier1.py; refused on a sha256
+# mismatch or a row naming a file the copy lacks); Tier 2 rides as a label in each write record.
+python -m scripts.cutover_step1_pass era-tr --copy <copy> [--stooq-corrections none]   # 'none' = v5 only, recorded in every row; NOT the cutover's setting
+python scripts/era_tr_tier1_measure_t394.py export-table   # (re)write the two config tables from T-390's v5-based corrections.parquet; prints the sha256s for the pins
+python scripts/era_tr_tier1_measure_t394.py run            # rebuild 575 files in memory with the pinned table; bytes vs T-390's render; T-384's acceptance -> Dev/_substrate_candidates/era_tr_tier1_t394/ (~2 min)
+python scripts/era_tr_tier1_measure_t394.py manifest       # <out>/MANIFEST.md5
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh

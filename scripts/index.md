@@ -845,6 +845,21 @@
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
 - **Function `main()`**: No docstring
 
+### `era_tr_tier1_measure_t394.py`
+**Module Docstring:** T-394 — export the pinned Tier-1 corrections table, and measure the wired writer path against T-390's render.
+- **Class `Tier1InMemory`**: No docstring
+  - `def __init__()`
+  - `def build_all()`
+  - `def candidate()`
+  - `def labels_for()`
+  - `def changes_for()`
+- **Function `check_disk()`**: No docstring
+- **Function `out_dir()`**: No docstring
+- **Function `cmd_export_table()`**: No docstring
+- **Function `cmd_run()`**: No docstring
+- **Function `cmd_manifest()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `era_tr_v5_delta_t393.py`
 **Module Docstring:** T-393 — measure the era_tr DISTRIBUTION GUARD against (a′) v4 without writing a full candidate (disk).
 - **Class `V5InMemory`**: Every file rebuilt through the guarded era_tr; only the texts that differ from v4 are kept.
