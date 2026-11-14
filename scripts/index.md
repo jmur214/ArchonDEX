@@ -1367,6 +1367,7 @@
 ### `offense_campaign_t312_t315.py`
 **Module Docstring:** T-312 + T-315 — the offense campaign (ONE family, jointly reported), FROZEN terms.
 - **Function `lev_daily()`**: Daily-reset L-x LETF (the honest SSO mechanic): L*gross - (L-1)*(cash+spread) - ER.
+- **Function `year_change_mask()`**: True on the first bar of the series and on the first bar of each later calendar year.
 - **Function `static_arm()`**: Held FOREVER: no gate, no turnover except the annual rebalance (0.51bps on that only).
 - **Function `glide_arm()`**: Age-glide: hold L0, then de-lever linearly to 1x over the FINAL taper_yrs.
 - **Function `gated_t298()`**: T-298: e = min(2*ensemble,2); damp re-entry (band 2/3 on e2), NEVER damp de-risking.
@@ -2183,6 +2184,22 @@
 
 ### `t139_fixture_data.py`
 **Module Docstring:** Frozen T-139 fixture — REAL closes from data/processed/<T>_1d.csv,
+
+### `t315_static_cost_rerun_t399.py`
+**Module Docstring:** T-399 — the defect-corrected re-run of T-315 (static un-gated leverage), ORIGINAL beside CORRECTED.
+- **Class `T399Halt`**: A fail-closed halt in the measurement path. Never caught inside the runner.
+- **Function `static_arm_as_published()`**: THE DEFECT, REPRODUCED ON PURPOSE for the ORIGINAL column: the 0.51 bp cost on EVERY bar.
+- **Function `blend_arm()`**: S1: hold (2-L) of the 1x fund and (L-1) of the 2x fund; SSO's ER on the SSO slice only.
+- **Function `b5_cash_argument()`**: S2: the `cash` argument that makes lev_daily's `(cash + SPREAD/TD)` equal B-5's daily charge,
+- **Function `paired_boot()`**: oc.paired_dw's draws EXACTLY (same generator, same order, same np.prod), returning the frozen
+- **Function `span_years()`**: Calendar years from the first to the last bar (the convention of T-311's `cagr`).
+- **Function `arm_stats()`**: Terminal wealth, CAGR, MaxDD, d(log growth)/yr vs the bar and (boot=True) the frozen paired CI.
+- **Function `accumulate()`**: The July race, verbatim (offense_campaign_t312_t315.main.accumulate is nested, so it is copied).
+- **Function `crisis_1929()`**: The July 1929 read: drawdown and trough from $10,000 over 1929-09..1932-07, years to recover.
+- **Function `run()`**: Every table of amendment A1.4 and A1.5, then the fail-closed acceptance check.
+- **Function `acceptance()`**: The reproduced ORIGINAL must equal the published record, and S1 at 2.0x must equal the corrected
+- **Function `tables_md()`**: The result dict as markdown tables (headline first, then S1 and S2, each labelled).
+- **Function `main()`**: Run once and write results.json + tables.md under <out>/run_<tag>/; print the result md5.
 
 ### `tail_rescore_t234.py`
 **Module Docstring:** T-234 tail re-score — robos (monthly-rebal) vs T-215 base/composition. No new backtest.
