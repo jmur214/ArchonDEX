@@ -1,0 +1,108 @@
+{
+  "_what": "T-393: the files whose (a') bytes differ between v4 and v5 (= v4's inputs through the guarded era_tr), measured by scripts/era_tr_v5_delta_t393.py run; every other file is byte-identical to v4's MANIFEST.md5",
+  "v4_processed_aggregate_md5": "2cee41ef7d2e0bd8fa858d500f99dda2",
+  "yf_manifest_sha256": "e516573f46248ff06589315c0d3eeba91afa2e1b95059f4d74711e445ffcd32e",
+  "files": 575,
+  "unchanged_md5_equal_v4": 561,
+  "changed": {
+    "ABT": {
+      "v4_md5": "de16c728bc4c80898263ce8d1cb864ed",
+      "v5_md5": "3ffdee5265f7fb7b09e4a9258be4e0aa",
+      "refused": [
+        "2004-05-03:m_above_band+no_drop_in_reference_close"
+      ]
+    },
+    "ADBE": {
+      "v4_md5": "8d4be27d2ebab4e6f43a9c7e66c712ba",
+      "v5_md5": "b795446e6ef97c3202604acef43d8388",
+      "refused": [
+        "2005-03-24:m_above_band"
+      ]
+    },
+    "ADM": {
+      "v4_md5": "b3e0122f36a6c260040cfbd38d70be1f",
+      "v5_md5": "baa930fedea57de708e12615367ddf32",
+      "refused": [
+        "2006-05-17:m_above_band"
+      ]
+    },
+    "ATO": {
+      "v4_md5": "94bc0da6d2c7fed776474f6c3f761715",
+      "v5_md5": "793a6ec5a02c05ecc05161bfc5f1c3c8",
+      "refused": [
+        "2010-08-23:m_above_band"
+      ]
+    },
+    "CNP": {
+      "v4_md5": "ff272ecb5013b040e5d1d0829cc2a035",
+      "v5_md5": "4a8c0bf177d90bb7ff4070df7a57f308",
+      "refused": [
+        "2002-10-01:m_above_band"
+      ]
+    },
+    "DHR": {
+      "v4_md5": "0c1e332773523de87a2a3922c1602eba",
+      "v5_md5": "61f8393c4259cb77875572ea28d11454",
+      "refused": [
+        "2016-07-05:no_drop_in_reference_close"
+      ]
+    },
+    "ETN": {
+      "v4_md5": "17ef4f7669be94c63045342f2a2a52f4",
+      "v5_md5": "6333bc515916ad9d08faff3fc080c9e2",
+      "refused": [
+        "2001-01-02:no_drop_in_reference_close"
+      ]
+    },
+    "HPQ": {
+      "v4_md5": "e2b07fa3c98bd3a367e3ed7f0aa1b5a1",
+      "v5_md5": "c7f0b4eff6151646d3186969853137e9",
+      "refused": [
+        "1972-10-04:no_drop_in_reference_close"
+      ]
+    },
+    "MMM": {
+      "v4_md5": "5f83ba7892a93d57a2e0e60292c73add",
+      "v5_md5": "ba68df4420dea27c5531db2e3cb26c4d",
+      "refused": [
+        "1996-07-16:no_drop_in_reference_close"
+      ]
+    },
+    "SPG": {
+      "v4_md5": "f7f935e15765ccc6b85c1f0d164b8b8d",
+      "v5_md5": "d53112e9cea3987e15f3d3dc0780d403",
+      "refused": [
+        "2009-08-13:m_above_band",
+        "2009-11-12:m_above_band"
+      ]
+    },
+    "SRE": {
+      "v4_md5": "b679f731c238a6d24e8bb323d1d502bd",
+      "v5_md5": "b394bb4d106448aa462f9dbffdb0b78e",
+      "refused": [
+        "2006-09-06:no_drop_in_reference_close"
+      ]
+    },
+    "STE": {
+      "v4_md5": "9622816fbacaddc36ed4ba2cb00905db",
+      "v5_md5": "096af36a4c7bb7ea18f9b400325ed331",
+      "refused": [
+        "2010-08-20:m_above_band"
+      ]
+    },
+    "TGT": {
+      "v4_md5": "6a073aa385db6229848e940c893b8a9d",
+      "v5_md5": "d87c3990796d41f922b66024cb0ef834",
+      "refused": [
+        "2007-08-16:m_above_band"
+      ]
+    },
+    "XRX": {
+      "v4_md5": "6818c8dbe8109973c08706bf4825a905",
+      "v5_md5": "492b337734b7961a36fbe4e9042e1eb0",
+      "refused": [
+        "2017-01-03:m_above_band+no_drop_in_reference_close"
+      ]
+    }
+  }
+}

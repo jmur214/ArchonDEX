@@ -217,6 +217,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `year_identity()`**: Per calendar year: is the reference the SAME security as the Stooq series?
 - **Function `transient_offsets()`**: Bars that sit inside a TRANSIENT level offset of Stooq against the reference (amendment A1).
 - **Function `probe_exdates()`**: The fraction of each dividend Stooq MISSED, measured against the reference (amendment A1:
+- **Function `distribution_guard()`**: T-393: of the ex-dates the labels call missed, which may be ADDED. Sets `refusal_reason` ('' = none),
 - **Function `label_exdates()`**: missed / captured per ex-date. MEASURED where confident; otherwise the confident neighbours
 - **Function `missed_log_factor()`**: Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
 - **Function `empty_labels()`**: The labelled-ex-date frame of a name with no usable reference (no ex-date labelled).

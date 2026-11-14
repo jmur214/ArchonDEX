@@ -125,3 +125,116 @@ the 11,096.
 - **Partial double counts** (PEP, AN and the f ≈ −0.4 to −0.75 band): yfinance's D for a spin-off
   overstates the price drop by an amount this evidence cannot size. Labelled `unresolved`, not changed.
 - The merge script, `_merge_meta.json`, post-seam rows.
+
+---
+
+## §2. What was built
+
+- **The guard** is `era_tr.distribution_guard`, run at the end of `era_tr.label_exdates`. The cutover writer
+  (`tr_writer.era_tr_rewrite`) and the T-384 script reach it through the same call, so there is one
+  implementation. `probe_exdates` now also measures the reference close's ex-day return and its robust σ.
+- **The write record** gains `refused_distributions` and `unresolved_distributions`.
+- **Tests:** `tests/test_era_tr_distribution_guard_t393.py`, 10 locks. Eight plant the cases on a synthetic
+  name through the real probe (pure double count, zero-move day, mis-sized spin-off, ordinary dividend on
+  a 5σ up-day, real large distribution, partial drop). Each was proven by reverting its rule (8 reversion
+  runs, all fail for the intended reason).
+- **The byte-identity statement is restated, not deleted.** The identity "the writer equals v4 on all 575
+  files" was a measurement (T-387), not a test in the suite. It now reads: 561 files equal v4's
+  `MANIFEST.md5`; 14 are the declared new bytes in `config/era_tr_v5_delta_t393.json`. Two locks hold it:
+  one on the config, one that rebuilds an unaffected file (KO) and an affected one (DHR) where the
+  candidate is on disk.
+- **Measurement:** `python scripts/era_tr_v5_delta_t393.py run` rebuilds all 575 files in memory and writes
+  only the 14 changed ones to `~/Dev/_substrate_candidates/era_tr_v5_delta_t393/` (29 MB).
+
+## §3. The result against §1.3
+
+**Acceptance items 2, 3 and 4 hold exactly as declared.**
+- 575 files rebuilt; **561 byte-identical to v4; 14 changed**: ABT, ADBE, ADM, ATO, CNP, DHR, ETN, HPQ,
+  MMM, SPG, SRE, STE, TGT, XRX.
+- **15 labels changed, the 15 of §1.2, and no other** among 34,575.
+- The nine named cases resolve as predicted (§1.2).
+- Step audit on v5: 11,081 expected steps (v4: 11,096), 0 unexpected, max deviation 9.4e-16.
+
+**The 15 refused ex-dates:**
+
+| file | ex-date | D/P | m | close move | σ | z | reason |
+|---|---|---|---|---|---|---|---|
+| DHR | 2016-07-05 | 35.7 % | 1.00 | +3.6 % | 0.62 % | 76.6 | (b) |
+| ETN | 2001-01-02 | 16.0 % | 0.95 | +3.1 % | 1.76 % | 11.7 | (b) |
+| SRE | 2006-09-06 | 5.0 % | 1.00 | 0.00 % | 0.98 % | 5.2 | (b) |
+| MMM | 1996-07-16 | 3.75 % | 1.00 | −0.4 % | 0.85 % | 4.0 | (b) |
+| HPQ | 1972-10-04 | 10.0 % | (neighbour) | +0.5 % | 1.62 % | 6.8 | (b) |
+| XRX | 2017-01-03 | 13.0 % | 4.01 | +18.1 % | 1.22 % | 26.2 | (a) and (b) |
+| ABT | 2004-05-03 | 6.9 % | 1.93 | +2.7 % | 1.17 % | 8.4 | (a) and (b) |
+| CNP | 2002-10-01 | 10.0 % | 2.62 | +5.9 % | 4.68 % | 3.5 | (a) |
+| ATO | 2010-08-23 | 1.17 % | 1.83 | −0.8 % | 0.83 % | 0.5 | (a) |
+| STE | 2010-08-20 | 0.50 % | 1.87 | −1.8 % | 1.42 % | −0.9 | (a) |
+| ADM | 2006-05-17 | 0.23 % | 1.88 | −4.5 % | 2.42 % | −1.8 | (a) |
+| TGT | 2007-08-16 | 0.24 % | 1.88 | +2.8 % | 1.98 % | 1.5 | (a) |
+| SPG | 2009-08-13 | 0.19 % | 4.77 | +0.9 % | 2.96 % | 0.4 | (a) |
+| SPG | 2009-11-12 | 0.17 % | 4.75 | −0.7 % | 2.69 % | −0.2 | (a) |
+| ADBE | 2005-03-24 | 0.02 % | 1.76 | +0.4 % | 1.54 % | 0.3 | (a) |
+
+MMM passes the 4σ line by 0.02σ. It is the rule's most marginal refusal.
+
+**12 ex-dates are ADDED and labelled `unresolved`** (a partial drop): AN 1995-04-27, PEP 1997-10-07,
+BAX 1996-10-01, HPQ 2000-06-05, JCI 2016-10-31, VRSN 2011-05-05, SPGI 2012-12-14, WRB 2012-12-20,
+DUK 2005-08-10, MAT 2004-12-01, AEE 2003-12-08, XOM 1984-08-07. BAX 2000-04-03 carries no label (untestable).
+
+**Acceptance item 1 — T-384's unchanged test, v4 beside v5: still FAIL.**
+
+| test | v4 | v5 |
+|---|---|---|
+| (i) failing name-years (strict passes) | 59 (1,741) | **58 (1,742)** |
+| (ii) years passing | 15 of 16 (2013 p95 0.350) | 15 of 16, every year's verdict unchanged |
+| (iii)(a) / (b) / (c) | 110 of 110 / 6 names fail / 14 of 14 | identical |
+| (iv) bytes | 575 of 575 | 575 of 575 |
+
+- **(i), 2 name-years move.** DHR 2016: +44.21 → +0.03 pp, now passes. XRX 2017: −27.87 → −41.74 pp,
+  still fails; v5 is raw Stooq there, with the Conduent spin-off unapplied and nothing added.
+- **(ii), 10 name-years move, all AWAY from yfinance**, because the reference is the series that counts
+  twice or the guard declined to add: ETN 2001 (+0.83 → −16.65), CNP 2002 (−17.13 → −27.66), ABT 2004
+  (−6.66 → −13.82), SRE 2006 (−0.01 → −5.17), ATO 2010 (−0.99 → −2.17), STE 2010 (−0.44 → −0.94),
+  SPG 2009 (−1.35 → −1.71), ADM 2006 (−0.01 → −0.24), TGT 2007 (0.00 → −0.24), ADBE 2005 (0.00 → −0.02).
+  The largest p95 change is 2006: 0.037 → 0.041.
+- So the guard **costs** agreement with (ii)'s reference and **gains** agreement with (i)'s. That is the
+  expected direction when the defect is the reference's.
+
+## §4. What the evidence does not support — for the user
+
+1. **PEP 1997, AN 1995 and BAX 2000 are not refused, against the brief.** Their closes fell 44 %, 61 %
+   and 18 % of D/P on the ex-day. PEP and AN sit in the band where known-real distributions sit (SPGI
+   2012 at 38 %, VRSN 2011 at 56 %, JCI 2016 at 72 % with T-265 confirming its drop). BAX 2000 is inside
+   its own noise. v5 keeps v4's add for all three; PEP and AN are labelled unresolved. If they are partial
+   double counts, v5 still over-counts PEP by up to 4.6 pp and AN by up to 6 pp in those years. No source
+   on disk sizes it.
+2. **The (a)-only refusals are a judgement the user should see.** For ATO, STE, ADM, TGT, SPG ×2 and ADBE
+   the probe says Stooq lacks about two dividends where yfinance lists one. v4 added one; v5 adds none and
+   labels the ex-date. Each of these name-years moves further from yfinance by one dividend (0.02–1.2 pp).
+   The alternative is to add one and label. The brief specified the bound; the cost is stated here.
+3. **MMM 1996 was not in the brief.** It is a tenth case of the same defect (Imation; close −0.4 % on a
+   3.75 % distribution), refused at the margin.
+4. **T-390's AN 1995 reversal was wrong.** Its 3-day window read an 11 % rebound as "no drop".
+
+## §5. What this does to T-390's table
+
+- **R3 (`double_count_reversal`) becomes unnecessary.** DHR 2016 and ETN 2001 are now never added. AN 1995
+  must be DROPPED from it (§4.4). For XRX 2017 and CNP 2002, R3's positive amounts were R2's job done
+  under the wrong name.
+- **R2 should pick up XRX 2017, CNP 2002 and ABT 2004**, which v5 leaves as raw Stooq with the spin-off
+  unapplied. As written it cannot: R2 measures the step against `adj_close`, which double-counts on those
+  dates, and R2 stands down within three bars of a D/P ≥ 8 % distribution. R2 needs one change: at a
+  `refused_distribution`, measure the step against the reference `close`. That is a T-390 rule change to
+  pre-declare there, not here.
+- R1 and the other R2 rows are unaffected: the guard changes 14 files on 15 bars.
+- T-390's table was built on v4's timeline. It must be REBUILT on v5 before it is applied; its DHR/XRX/
+  ETN/CNP/AN rows are void.
+
+## §6. Cutover
+
+- v5 needs no new step. `cutover_step1_pass era-tr` already calls the guarded module; the 14 files differ
+  from v4 and the write records carry the refusals.
+- The runbook's acceptance line "equals v4's processed/, aggregate md5 2cee41ef…" becomes "561 files equal
+  v4; 14 equal `config/era_tr_v5_delta_t393.json`".
+- **The user's decision:** adopt v5 (= v4 + this guard) as the correction to the 2026-11-12 ruling; and,
+  separately, item §4.2.
