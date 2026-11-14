@@ -19,6 +19,11 @@ its failure line.
 Worktree-isolated bash: commands chaining `git` with `;`/`&&`, `ls` of main-tree paths inside a git
 compound, or Python heredocs naming main-tree paths alongside git were REFUSED as "too complex to verify".
 Use separate plain `git` calls run from the worktree, and write Python to the scratchpad and run it by path.
+Also refused (T-391): `cd <wt> && cat >> doc.md <<'EOF'` (append a doc via heredoc) and `mkdir -p … && cat > … <<EOF`
+— use the Edit/Write tools for doc appends. A scratch script named `numbers.py` shadows the stdlib `numbers` and
+breaks `import numpy` (circular-import error) — never name scratch files after stdlib modules.
+A table-driven harness (MODES = [(name, file, old, new, [test ids])], `-x`) scaled to 20 modes cleanly; one mode was
+caught by a DEEPER rail (the write path's own validation) than the one targeted — report it as such.
 
 **A CLI-level lock must ISOLATE its class (T-392b, 2026-11-12):** a reversion of the new `--check` gate
 (exit on `changes_file` only) was NOT CAUGHT at first — the planted anchor held only the pairs row, so the
