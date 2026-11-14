@@ -839,3 +839,68 @@ Every name-quarter's source, cause and the `shared_resolved` flag are in
 with shared T-265 tickers (PNR, CCL, COHR, CB, LDOS, PRGO, MDT, CI, DIS, STE, XRX, SNDK) needed no fill.
 
 - Review round 2 (2026-11-12, APPROVED): text-only errata LOW-1 to LOW-4 (renames as exits, unresolved exclusions, smoke timing, framing) are in docs/Audit/b6_lazy_prices_verdict_2026-11-12.md §6; no number and no amendment above changes.
+
+
+---
+
+## AMENDMENT 5 — a pre-registered OUT-OF-SAMPLE confirmation, on T-265, of the S&P arm's one table-suggested finding (director, 2026-11-14; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, while the T-265 text stream is still running and BEFORE any T-265 return, price join or
+signal ranking has been computed. **What exists for T-265 at this commit:** only the stream's per-filing text
+signals and section statuses under `data/b6_local/t265_signals/` (3,053 of 4,099 CIKs processed; latest file
+2026-11-14 00:13:29 local). No T-265 harness exists; B-6 has read no T-265 small-cap price, formed no
+ranking and computed no return. (The S&P harness read T-265 bars only for S&P member CIKs, as fills.) No
+distribution of any T-265 signal has been examined — only parse-coverage counts.
+
+### A5.1 Why
+On the S&P arm, under the brief's literal ADJACENT 10-Q pairing, the short leg (changers) had t_HAC **+2.23**
+(the review: +2.21) in the sense "universe minus changers"; under the ruled same-quarter pairing it had the
+wrong sign. That is a data-suggested slice and **cannot be certified on the data that suggested it.** The
+T-265 small-cap universe has not been looked at, so it is the one honest out-of-sample test.
+
+### A5.2 H_OOS (frozen now)
+On the T-265 universe, names in the BOTTOM tercile of adjacent-quarter similarity ("changers") underperform
+the equal-weight T-265 universe over the following quarter: **mean (changers − universe) monthly return < 0
+with t_HAC ≤ −2.0** — Newey-West, 3 lags, the same lag rule as the S&P diagnostic — as a GROSS relative
+return (net of nothing: it is a screen, not a traded short), on the T-265 arm's own window, with the same
+rebalance dates and inclusion rules as the T-265 gate (the ADV band at t, the freshness rule, the gate's
+death rule).
+
+**The construction is the S&P diagnostic's, exactly** (harness spec `q10_adjacent`, unchanged): a name
+whose latest usable filing at t is a 10-Q carries its MD&A cosine against the ADJACENT prior 10-Q (period
+end 60–200 days earlier; `qoq_mda_cos`); a name whose latest filing is a 10-K carries its YoY combo cosine;
+percentile rank within form, pooled terciles; changers = the bottom tercile; universe = all ranked names,
+equal weight. *Worker's note for the freeze:* the ruling's words are "10-Q filers in the bottom tercile";
+the statistic that produced +2.23 pooled both forms as above, so the identical pooled construction is the
+one pinned here as H_OOS. The 10-Q-names-only variant (changers and universe restricted to names whose
+latest filing is a 10-Q) is reported beside it as a labelled companion and cannot meet H_OOS. If the
+director means the narrower reading to be the test, that ruling must land at the T-265 freeze, before any
+T-265 return.
+
+### A5.3 Refutation, and what a pass licenses
+- **Refutation:** the wrong sign, or |t_HAC| < 2 ⇒ the adjacent-pairing finding is **closed permanently as
+  a one-window artifact. No re-slicing** (no other pairing, window, tercile cut, form subset or universe).
+- **If it holds:** it licenses ONLY a pre-registered **24-month forward paper book of a negative screen** (a
+  long book that excludes recent changers) — never a backtest claim, never a deployment.
+
+### A5.4 Accounting (proposed; the director rules at the T-265 freeze)
+- **This is one extra pre-declared test in the T-265 arm.** Proposed N: **+1** (the T-265 arm then consumes
+  +2 at its run: the gate family, and H_OOS) — H_OOS is a separately reported statistic that could be
+  quoted, which is what honest N counts (the B-1 ruling).
+- **Proposed family:** H_OOS is its own one-hypothesis family — a different hypothesis from H1 (it cannot
+  meet H1 and H1 cannot meet it), one-sided, at its own frozen threshold t_HAC ≤ −2.0 (≈ 2.3% one-sided).
+  The gate's Bonferroni family stays {similarity, Δtone} at the 1.25th percentile, unchanged. The
+  stricter alternative, if the director prefers one family of three: t_HAC ≤ −2.39.
+- **The T-265 GATE is unchanged:** its ruled primary 10-Q pairing remains the same fiscal quarter a year
+  earlier (R2); the adjacent pairing enters the T-265 arm only through H_OOS (and as the §7.5 diagnostic).
+
+### A5.5 Power (pre-data; assumptions stated, not measured)
+Expected sample: the T-265 window's 40 quarterly rebalances (120 months, 10.0 years) if the T-265 freeze
+keeps 2016-Q1 → 2025-Q4; roughly 1,000–1,500 ranked names per quarter, so ≈ 350–500 changers. With the
+monthly (changers − universe) spread at σ = 6%/yr (4–8%; §8's small-cap assumption), SE of the annualised
+mean = σ/√10 = 1.9%/yr (1.3–2.5%). **t_HAC = −2.0 is reached at a gap of −3.8%/yr (−2.5 to −5.1%); the gap
+detectable with 80% power is −5.4%/yr (−3.6 to −7.2%).** The S&P estimate was −1.96%/yr: at that size the
+test would reach t ≈ −1.0 and pass about one time in six. **So H_OOS can confirm only an effect roughly
+twice the S&P one** — which is what the literature's "stronger in low-attention names" would imply, and no
+more than that. A refutation here is therefore weak evidence against a small effect and is stated as such
+in advance; the closure rule in A5.3 holds regardless.
