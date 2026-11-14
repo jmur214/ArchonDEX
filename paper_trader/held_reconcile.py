@@ -20,16 +20,26 @@ unit-testable without a broker.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from paper_trader.order_manager import OrderRecord
 
 
-def journal_net_positions(orders: List[OrderRecord]) -> Dict[str, int]:
+def journal_net_positions(orders: List[OrderRecord],
+                          splits: Sequence[Any] = ()) -> Dict[str, int]:
     """Net signed quantity per ticker implied by OBSERVED fills in the
     journal (buy +filled_qty, sell -filled_qty). Belief only updates on an
     observed fill (the LedgerStore contract), so we count filled_qty, not
-    intended qty. Zero-net tickers are dropped."""
+    intended qty. Zero-net tickers are dropped.
+
+    ``splits`` (2026-11-10): the splits the LEDGER has journaled. A fill dated
+    before a split's ex-date is scaled by it — without this, the first split on
+    a held name makes the journal disagree with the broker FOREVER (5 shares
+    filled, 20 held), so the position would read UNEXPLAINED and never be
+    adopted again. Raises ValueError if a scaled fill is not whole shares."""
+    if splits:
+        from paper_trader.corporate_actions import split_adjusted_journal_net
+        return split_adjusted_journal_net(orders, splits)
     net: Dict[str, int] = {}
     for o in orders:
         fq = int(getattr(o, "filled_qty", 0) or 0)
@@ -43,14 +53,20 @@ def journal_net_positions(orders: List[OrderRecord]) -> Dict[str, int]:
 
 
 def explain_broker_positions(
-    broker_positions: Dict[str, int], orders: List[OrderRecord]
+    broker_positions: Dict[str, int], orders: List[OrderRecord],
+    splits: Sequence[Any] = (),
 ) -> Tuple[bool, Dict[str, int]]:
     """Is every held broker position attributable to known journal fills,
     and vice-versa? Strict equality: a mystery broker position (no fill
     explains it) OR a fill-implied position the broker doesn't show makes
     the state UNEXPLAINED. Returns (explained, journal_net)."""
     bpos = {t.upper(): int(q) for t, q in broker_positions.items() if int(q) != 0}
-    jnet = journal_net_positions(orders)
+    try:
+        jnet = journal_net_positions(orders, splits)
+    except ValueError:
+        # a pre-split fill that does not scale to whole shares (cash-in-lieu),
+        # or an undatable fill: NOT explainable by arithmetic → unexplained.
+        return False, {}
     return bpos == jnet, jnet
 
 
@@ -67,6 +83,7 @@ def known_tickers_for(orders: List[OrderRecord],
 def adopt_explained_broker_truth(
     ledger, broker_positions: Dict[str, int], broker_cash: float,
     orders: List[OrderRecord], *, reason: str,
+    splits: Sequence[Any] = (),
 ) -> bool:
     """Converge the ledger to broker truth IFF the held state is explained
     by known fills. Adopts positions + the associated cash (the cash moved
@@ -77,7 +94,7 @@ def adopt_explained_broker_truth(
     A flat-but-cash-drifted account is left to the reconcile's CASH_DRIFT
     check (we adopt cash only alongside explained POSITION changes, never
     to paper over a standalone cash mystery)."""
-    explained, _jnet = explain_broker_positions(broker_positions, orders)
+    explained, _jnet = explain_broker_positions(broker_positions, orders, splits)
     bpos = {t.upper(): int(q) for t, q in broker_positions.items() if int(q) != 0}
     # T-327 (2026-09-03, account-3's first FAILED run): the guard here used to read
     # ``if explained and bpos`` — "are there broker positions NOW" — which skipped

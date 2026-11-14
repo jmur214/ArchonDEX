@@ -649,6 +649,13 @@
 - **Function `run_config()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `corporate_action_ack.py`
+**Module Docstring:** Acknowledge a corporate-action FREEZE in a local copy of the price-basis marks file.
+- **Function `describe()`**: The freeze an operator is about to acknowledge, in full.
+- **Function `ack()`**: Stamp the acknowledgement; return the line that was journaled. Raises
+- **Function `reset_unreadable()`**: The operator's answer to a marks file that EXISTS but cannot be parsed.
+- **Function `main()`**: No docstring
+
 ### `crisis_replay_t118b.py`
 **Module Docstring:** T-143 — Crisis-replay harness implementing the LOCKED T-118b
 - **Class `Episode`**: No docstring
@@ -843,6 +850,21 @@
 - **Function `combined_stream()`**: Equal- or custom-weighted sum of per-edge daily return streams.
 - **Function `joint_alpha()`**: HAC FF5+Mom alpha t-stat with residual moving-block bootstrap CI
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
+- **Function `main()`**: No docstring
+
+### `era_tr_tier1_measure_t394.py`
+**Module Docstring:** T-394 — export the pinned Tier-1 corrections table, and measure the wired writer path against T-390's render.
+- **Class `Tier1InMemory`**: No docstring
+  - `def __init__()`
+  - `def build_all()`
+  - `def candidate()`
+  - `def labels_for()`
+  - `def changes_for()`
+- **Function `check_disk()`**: No docstring
+- **Function `out_dir()`**: No docstring
+- **Function `cmd_export_table()`**: No docstring
+- **Function `cmd_run()`**: No docstring
+- **Function `cmd_manifest()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `era_tr_v5_delta_t393.py`
@@ -1650,6 +1672,16 @@
 
 ### `registry_single_writer_reversion_proof.py`
 **Module Docstring:** edges.yml single-writer unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
+### `repair_live_book_split_2026_11_05.py`
+**Module Docstring:** Restate a LOCAL COPY of a live_book/v1 state file across a split it missed.
+- **Class `RepairRefused`**: The repair cannot be PROVEN, so nothing is written.
+- **Function `forbidden_data_roots()`**: Every ``data/`` this script must never write under: this checkout's, the MAIN
+- **Function `parse_split()`**: No docstring
+- **Function `derive_side()`**: The side a book held AFTER a day's rebalance, from that day's recorded
+- **Function `load_feed_events()`**: The corroborating feed payload: the provider's corporate-actions response,
+- **Function `restate()`**: Pure: (recorded state, splits, closes) → (restated state, table rows).
+- **Function `main()`**: No docstring
 
 ### `reprice_lps_auction_t157.py`
 **Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED

@@ -865,6 +865,15 @@ python scripts/drip_fix_candidate_t384.py manifest                              
 # Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
 python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
 python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
+# T-394 (2026-11-14): `cutover_step1_pass era-tr` applies the 11 PINNED Tier-1 Stooq corrections by default
+# (config/stooq_corrections_tier1.json, pinned in engines/data_manager/stooq_tier1.py; refused on a sha256
+# mismatch or a row naming a file the copy lacks); Tier 2 rides as a label in each write record.
+python -m scripts.cutover_step1_pass era-tr --copy <copy> [--stooq-corrections none]   # 'none' = v5 only, recorded in every row; NOT the cutover's setting
+#   a copy written with 'none' is a SCRATCH copy: `label` exits 5 on it, `stage` REFUSES it, and the run census FAILS it
+#   (substrate_convention.n_stooq_label_not_recorded > 0). Exit codes of `label`: 0 ok · 3 unlabelled names · 5 no Stooq label.
+python scripts/era_tr_tier1_measure_t394.py export-table   # (re)write the two config tables from T-390's v5-based corrections.parquet; prints the sha256s for the pins
+python scripts/era_tr_tier1_measure_t394.py run            # rebuild 575 files in memory with the pinned table; bytes vs T-390's render; T-384's acceptance -> Dev/_substrate_candidates/era_tr_tier1_t394/ (~2 min)
+python scripts/era_tr_tier1_measure_t394.py manifest       # <out>/MANIFEST.md5
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
@@ -1754,6 +1763,101 @@ python -m scripts.rescore_b1_ey_exposure \
   --recorded data/research/b1/run1/results_5de36b89e0ad.json --out data/research/b1/rescore_value_ex3/
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
+
+### Corporate-action (split) feed, and the live-book split repair (added 2026-11-10)
+The daily paper run (`scripts.run_paper_cloud_day`) now asks Alpaca's corporate-actions DATA
+endpoint about every ticker the account holds or has ever ordered, on every run — no new flag.
+A confirmed split is journaled into the ledger once (`split:<TICKER>:<ex_date>:ratio=<r>`); a
+ticker whose share basis or price basis cannot be proven consistent FREEZES the book for the day
+(nothing staged, exit 70, the reason in the heartbeat's `corporate_actions` block). The design
+and the one decision it makes are in `paper_trader/corporate_actions.py`.
+
+The repair script restates a LOCAL COPY of a `live_book/v1` state file across a split it missed.
+It derives the pre-split share state from the last clean day's recorded nav, PROVES that by
+replaying the recorded (wrong) days to within `--tol`, then replays them with the split applied.
+It writes to a NEW path, refuses to overwrite, refuses any path under this repo's `data/`, and
+never touches S3. `--closes` is a JSON file `{"YYYY-MM-DD": {"SYM": px}}` covering the last clean
+pre-split day (in that day's pre-split basis) and every recorded day from the ex-date on.
+
+```bash
+python -m scripts.repair_live_book_split_2026_11_05 \
+  --state /path/to/copy/book_momentum_satellite.json --book momentum_satellite \
+  --split MTUM:2026-11-05:4 --closes /path/to/closes.json \
+  --feed-json tests/fixtures/corporate_actions/alpaca_corporate_actions_2026_11_05.json \
+  --out /path/to/book_momentum_satellite.restated.json
+python -m pytest tests/test_corporate_action_feed_2026_11_10.py -q
+```
+
+`--feed-json` is required: the provider's corporate-actions payload (the captured-fixture format
+or the bare response) must contain the exact split (ticker, ex-date, ratio), the ticker must be
+held at the anchor, and the restated ex-date day must not itself be split-shaped — otherwise
+REFUSED. Exit 2 = REFUSED (the reason is printed; nothing was written). It refuses any output
+under a `data/` of this checkout, the main repo, or any worktree, and any spelling of `s3:`.
+Publishing a restated file to the live S3 prefix is a separate, manual, propose-first step.
+
+#### Acknowledging a corporate-action freeze (added 2026-11-10)
+The gate persists every freeze in `data/state/price_basis_marks.json` (per account) and never
+releases one because the price drifted. A freeze releases by (a) a feed-confirmed split whose
+ratio matches the move, (b) the feed answering "no split" on 3 consecutive sessions — ONLY when
+the move matched a ratio class below 2:1 (1.25, 1.5 and their reciprocals, where a real
+one-session move is plausible); a move of 2:1 or more NEVER releases on feed silence — or (c) an
+operator acknowledgement — this tool, on a LOCAL copy of the marks file. A live BOOK parked on a
+2:1-or-more unconfirmed move has no ack tool: if the feed never confirms, its state file must be
+repaired by an operator (the park reason says so).
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json --list
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --account <the account's S3 prefix name, e.g. paper_state_offense_sso> \
+  --ticker MTUM --who <name> --reason "why this freeze may be lifted (12+ characters)" \
+  --i-have-checked-the-feed
+```
+
+`--account` is required and must equal the `account` the daily run stamped into the file (the
+run's S3 prefix name); a file for another account, or one carrying no account, is refused. The
+tool prints the freeze being acknowledged (kind, reason, reference mark, matched ratio) before it
+stamps anything. `--i-have-checked-the-feed` is required for the kinds whose release lets orders
+trade in the ticker on the next run (`unconfirmed`, `basis_lag`, `blind`, `blind_split`). A
+second ack is appended to the journal; the first signer stays on the entry. `--reset-unreadable`
+takes `--account` too and stamps the fresh file with it.
+
+**A live BOOK parked on a ≥2:1 unconfirmed move** (no ack tool). Preferred route: the repair
+script above (`scripts.repair_live_book_split_2026_11_05`) on a local copy with the corroborating
+feed payload. If that is not possible, the exact manual edit of the book's state file, all four
+fields together, for a split of ratio R (new shares per old) on symbol S:
+1. `side.book.shares[S]` and `side.twin.shares[S]` — multiply each by R (where S is held);
+2. `last_px[S]` — divide by R (it is the pre-split mark the park was measured from);
+3. `splits_applied` — append `"S:<ex-date YYYY-MM-DD>"`, so the feed can never apply it again;
+4. `frozen` — delete the `S` entry.
+Deleting `frozen` alone does nothing: the next session re-parks against the unchanged `last_px`.
+If the move was real and NOT a split, change nothing but `last_px[S]` (set it to the current
+price) and delete the `frozen` entry — the book then records the move as a return.
+
+It stamps `ack: {who, why, at}` on the freeze and appends to the file's journal; the next daily
+run reads it, releases, journals the release and lays a fresh mark. It refuses without a reason
+or a name, on a ticker that is not frozen, and on any `s3:` path (exit 2, nothing written). An ack
+cannot make an unprovable share basis provable: a `ledger`-kind freeze (mixed pre/post-split
+fills) is re-frozen by the same run if the position is still mixed. Getting the file from and
+back to the account's S3 prefix is a separate, manual, propose-first step.
+
+An account's FIRST run after this deploys has no marks: it is a SEEDING day (marks recorded,
+nothing staged, exit 70, reason "seeding price-basis marks (first run)"). One per account. The
+seeding day and the run after it carry `corporate_actions.marks_age_sessions` 0 then 1 in the
+heartbeat: the price guard has no, or only a one-day-old, reference on those two sessions.
+
+A marks file that EXISTS but cannot be parsed is not a first run — it may have held freezes. The
+book stands down on every run (exit 70, "price-basis marks unreadable — operator must restore or
+acknowledge"), the file is left untouched and no marks are laid, until an operator either
+restores a valid file or resets it:
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --reset-unreadable --who <name> --reason "why it is safe to start over (12+ characters)"
+```
+
+The reset moves the bad file aside (`…json.unreadable-<UTC stamp>`, kept), leaves an empty valid
+file whose journal records who and why, and the next run is an ordinary seeding day. It refuses a
+readable file, a missing name or reason, and any `s3:` path (exit 2, nothing moved).
 
 ## B-6 Lazy Prices — the repaired 10-K + 10-Q text panel (T-383 Phase 1, added 2026-11-11)
 

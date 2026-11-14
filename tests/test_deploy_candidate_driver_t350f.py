@@ -90,6 +90,15 @@ def _drive(tmp_path, cap="10000", positions=None, journal=None):
     px = {"VOO": 600.0, "MTUM": 230.0, "SGOV": 100.0,
           "SPY": 600.0, "AGG": 98.0, "GLD": 420.0}
     series = {t: pd.Series([v] * len(idx), index=idx) for t, v in px.items()}
+    # 2026-11-10: an account's FIRST run only seeds its price-basis marks and
+    # stands the book down (the corporate-action gate; locked in
+    # tests/test_corporate_action_feed_2026_11_10.py). These tests are about
+    # the branch's trading behaviour, so the account is past its seeding day.
+    _mp = tmp_path / "data/state/price_basis_marks.json"
+    _mp.parent.mkdir(parents=True, exist_ok=True)
+    _mp.write_text(json.dumps({"marks": {
+        t: {"px": v, "run_date": (today - dt.timedelta(days=1)).isoformat()}
+        for t, v in px.items()}}))
 
     class _C(FakePaperClient):
         def get_account(self):
