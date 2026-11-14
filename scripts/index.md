@@ -649,6 +649,13 @@
 - **Function `run_config()`**: No docstring
 - **Function `main()`**: No docstring
 
+### `corporate_action_ack.py`
+**Module Docstring:** Acknowledge a corporate-action FREEZE in a local copy of the price-basis marks file.
+- **Function `describe()`**: The freeze an operator is about to acknowledge, in full.
+- **Function `ack()`**: Stamp the acknowledgement; return the line that was journaled. Raises
+- **Function `reset_unreadable()`**: The operator's answer to a marks file that EXISTS but cannot be parsed.
+- **Function `main()`**: No docstring
+
 ### `crisis_replay_t118b.py`
 **Module Docstring:** T-143 — Crisis-replay harness implementing the LOCKED T-118b
 - **Class `Episode`**: No docstring
@@ -1638,6 +1645,16 @@
 
 ### `registry_single_writer_reversion_proof.py`
 **Module Docstring:** edges.yml single-writer unit — proof by reversion: revert ONE fix, run ONLY its locks, require FAIL.
+
+### `repair_live_book_split_2026_11_05.py`
+**Module Docstring:** Restate a LOCAL COPY of a live_book/v1 state file across a split it missed.
+- **Class `RepairRefused`**: The repair cannot be PROVEN, so nothing is written.
+- **Function `forbidden_data_roots()`**: Every ``data/`` this script must never write under: this checkout's, the MAIN
+- **Function `parse_split()`**: No docstring
+- **Function `derive_side()`**: The side a book held AFTER a day's rebalance, from that day's recorded
+- **Function `load_feed_events()`**: The corroborating feed payload: the provider's corporate-actions response,
+- **Function `restate()`**: Pure: (recorded state, splits, closes) → (restated state, table rows).
+- **Function `main()`**: No docstring
 
 ### `reprice_lps_auction_t157.py`
 **Module Docstring:** T-157: re-price T-135's LPS overnight harvest under the SHIPPED

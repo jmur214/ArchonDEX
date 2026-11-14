@@ -308,6 +308,44 @@ class AlpacaPaperClient:
             out[t] = s.sort_index()
         return out
 
+    def fetch_corporate_actions(self, symbols, start, end) -> Dict[str, Any]:
+        """RAW corporate actions for ``symbols`` with ex/process date in
+        [start, end] — the split feed's source (2026-11-10). READ-ONLY market
+        data on the DATA API (never the trading endpoint), same paper creds.
+
+        Returns the provider's mapping UNPARSED (``{"forward_splits": [...],
+        ...}``); ``paper_trader.corporate_actions`` owns the parsing and the
+        OK-vs-UNAVAILABLE distinction. RAISES on any failure — deliberately not
+        swallowed to ``{}``, because an empty mapping means "asked, and there
+        were none" and a failed call must never be able to say that.
+
+        alpaca-py >= 0.21 ships ``CorporateActionsClient``; an older SDK falls
+        back to a plain authenticated GET on the same documented endpoint."""
+        syms = [str(s).upper() for s in symbols]
+        try:
+            from alpaca.data.historical.corporate_actions import CorporateActionsClient
+            from alpaca.data.requests import CorporateActionsRequest
+        except ImportError:
+            import requests
+            resp = requests.get(
+                "https://data.alpaca.markets/v1/corporate-actions",
+                params={"symbols": ",".join(syms), "start": str(start),
+                        "end": str(end), "limit": 1000},
+                headers={"APCA-API-KEY-ID": self._key,
+                         "APCA-API-SECRET-KEY": self._secret}, timeout=20)
+            resp.raise_for_status()
+            body = resp.json()
+            if body.get("next_page_token"):
+                raise RuntimeError("corporate-actions response is paginated; "
+                                   "refusing a partial page")
+            return dict(body.get("corporate_actions") or {})
+        cac = CorporateActionsClient(self._key, self._secret, raw_data=True)
+        raw = cac.get_corporate_actions(
+            CorporateActionsRequest(symbols=syms, start=start, end=end))
+        if not isinstance(raw, dict):
+            raise RuntimeError(f"corporate-actions raw payload is {type(raw).__name__}")
+        return raw
+
     def fetch_btc_usd_history(self, lookback_days: int = 420) -> "Optional[pd.Series]":
         """Daily BTC/USD closes for the T-276 report-only BTC-shadow signal (T-307).
 
@@ -379,6 +417,10 @@ class FakePaperClient:
         self._unknown_coids: set = set()
         self._cancel_fail_ids: set = set()
         self._submit_raises: Dict[str, Exception] = {}
+        # corporate-actions cassette: the raw provider mapping, or an exception.
+        self._corporate_actions: Dict[str, Any] = {}
+        self._corporate_actions_raises: Optional[Exception] = None
+        self.corporate_action_calls: List[Dict[str, Any]] = []
 
     # --- scripting helpers ---
     def script_submit(self, coid: str, status: str = "accepted",
@@ -402,6 +444,23 @@ class FakePaperClient:
 
     def script_cancel_fails(self, broker_order_id: str) -> None:
         self._cancel_fail_ids.add(broker_order_id)
+
+    def script_corporate_actions(self, raw: Dict[str, Any]) -> None:
+        """The raw provider mapping fetch_corporate_actions will return."""
+        self._corporate_actions = dict(raw)
+
+    def script_corporate_actions_raises(self, exc: Exception) -> None:
+        self._corporate_actions_raises = exc
+
+    def fetch_corporate_actions(self, symbols, start, end) -> Dict[str, Any]:
+        """The fake is authoritative (as for get_order): with nothing scripted
+        it ANSWERS "no corporate actions" — a real, empty answer, not a failed
+        ask. Script a raise to exercise the UNAVAILABLE path."""
+        self.corporate_action_calls.append(
+            {"symbols": list(symbols), "start": start, "end": end})
+        if self._corporate_actions_raises is not None:
+            raise self._corporate_actions_raises
+        return dict(self._corporate_actions)
 
     def set_positions(self, positions: List[Dict[str, Any]]) -> None:
         self._positions = list(positions)
