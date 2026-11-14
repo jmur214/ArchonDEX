@@ -814,3 +814,62 @@ for.
 **Disclosure.** While checking that page's text for its notices, a printed passage showed the BTOP50's
 monthly figures for late 2025 and for 2026 (the index's own page, not a fund). They are not loaded,
 stored as a series or used anywhere. The 2026 holdout of the fund and equity series is intact.
+
+---
+
+## AMENDMENT 3 — 2026-11-14: DIRECTOR RULINGS ON THE INTEGRITY HALT (binding; recorded BEFORE any measurement code or return exists)
+
+Committed alone. At this commit the harness holds only its acquisition commands; no composite, arm or
+benchmark return has been computed.
+
+**1. The 45 flags are ACCEPTED AS-IS.** No price is changed, dropped, smoothed or re-sourced. The
+director's grounds:
+- the failure the halt was built for, an unadjusted distribution, did not occur: raw equals adjusted
+  on all 36 D1 flags, and 70 distribution days were neutralized;
+- the reversing prints and the stale-then-catch-up days are wealth-neutral;
+- the market-day losses are real, and removing them would flatter the arm.
+
+**FMF stays in the decision composite as pre-registered.** Taking it out now would be a membership
+change made after seeing data. S1 already answers "what if the four flagged-strategy funds' data is
+bad". The verdict lists all 45 flags by class in an appendix and states that the crash-window
+correlation figures carry extra daily noise from the reversing prints.
+
+**2. AQMIX's expense ratio — a conservative correction, made before any return is computed, AGAINST
+the arm.**
+- Yahoo's 3.09% is almost certainly not the net ratio a holder paid, and the gross-up adds it back to
+  the arm. The director ruled that the decision cell grosses AQMIX up by its net expense ratio from the
+  fund's own summary prospectus, read from sec.gov with the project's existing SEC client constant;
+  failing that, by **1.25%, labelled "from memory, unverified"**.
+- **The fallback applies.** The permission layer refused the first step (reading the existing constant)
+  before any request was sent. No request went to sec.gov. No work-around was attempted.
+- **Decision cell: AQMIX ER = 1.25% (from memory, unverified).**
+- **Direction and size:** against the arm. The gross-up on AQMIX falls by 0.75 %/yr, which is about
+  **−0.25 %/yr on the composite while there are three members** (2010-09 to 2011-01), and less as
+  members are added (about −0.05 %/yr at 14).
+- **The as-written result is reported beside the decision cell** as labelled sensitivity **S7** (AQMIX
+  at Yahoo's figure capped at 2.00%, amendment 2's value).
+- **The same check on every other member.** No other member's Yahoo ratio exceeds 2.00% before the
+  cap. The nearest is RYMFX at 1.99%; then LOTIX 1.81%, ABYIX 1.79%. **No other ER changes.**
+
+**3. KMLM 2022-12-28** (raw −10.29%, adjusted −3.32%, with a recorded distribution) is accepted as-is.
+The verdict names it as a possible under-recorded distribution of about 3%. If it is one, the error is
+against the arm.
+
+**4. CSAIX** is out under rule (a) as fetched. **14 members.** The verdict says in plain words that a
+dead fund left the composite and that the 1.0 %/yr survivorship haircut is the only allowance for it.
+
+**5. BTOP50** does not run, as recorded in A2.1. The verdict discloses that late-2025 and 2026 index
+figures were seen on the public page. Any later use of 2026 as a holdout for a trend INDEX must carry
+that disclosure. The fund and equity holdout is intact.
+
+**6. Trial count.** T-398 is already recorded at +1 in `config/honest_n_trials.json` on main (merged
+as `9fed69f`; the gate reads 372.28). It is not recorded again at the verdict. The verdict's N line
+reads "+1, recorded on acknowledgment".
+
+**Sensitivities, final list:** S1 pure-play; S2 ETFs only; S3 screener; S4 no ER gross-up; S5 no
+survivorship haircut; S6 a 2.0 %/yr survivorship haircut (amendment 1); S7 AQMIX's ER as written at
+2.00% (this amendment).
+
+**How the ruling enters the harness.** `data/t398_local/integrity_rulings.json` carries one entry per
+flag, each reading "accepted as-is (amendment 3, ruling 1)". With it, `integrity` exits 0 and still
+lists every flag. No price file is touched; the snapshot md5s are unchanged.
