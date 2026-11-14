@@ -137,6 +137,7 @@ then LOW. Within each severity, list newest at the top.
   - **The gate rule:** the gate adds the standalone trials at raw (R2) and fails closed on an absent, edited or registry-inconsistent record.
   - **The inventory found the hand count short:** the 267 covers standalone trials only through the registry's 106 ledger rows. The July T-306 series is INSIDE. 37 earlier trials (June to August) are in neither the 231 nor the 267, on top of the 16 since the 267. S = 53.
   - **The numbers:** gated N_eff 36.92 → 89.92. R3 (ruling 9.2 for every curve-less row) is reported at 324.28.
+  - **2026-11-13, after review round 1 (the three lines above are superseded; proposal §4):** the first inventory was itself short. A wider re-sweep added 7 trials (T-236, T-247, T-249, T-252 ×3, T-263), and 36 more are counted pending the user's ruling (T-193's 35 VOID, T-237's 1). S = 96. Gated N_eff 36.92 → 132.92 (97.92 without T-193); R3 reported at 367.28. The forward lint was widened, and the activation date is now under the record's digest.
 
 ### [MEDIUM→HIGH] Importing the data manager loads `.env` with override at IMPORT — in the main tree a test session goes LIVE and the agentic pulse test makes a REAL model call (the "#156 hang", root cause found by B 2026-10-14)
 - Engine: `engines/data_manager/data_manager.py:34` (`load_dotenv(<repo>/.env, override=True)` at module import); consumer `intelligence/analyst/intel_pulse.py:101,111` (goes live when `ANTHROPIC_API_KEY` is present)

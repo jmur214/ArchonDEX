@@ -17,6 +17,14 @@ docs): committed record `config/honest_n_trials.json`, gate = registry N_eff + S
 (9.2 for all curve-less, computable from the pinned 09-30 artifact's funnel.after_dedupe 252) reported 324.28.
 UNMERGED — user decides merge, R2 vs R3, 12 unresolved items (U1 T-193's 35 VOID is the big one).
 
+REVIEW ROUND 1 (2026-11-13, NOT READY → follow-ups): my first inventory was itself short by 7 (T-236, T-247, T-249,
+T-252 ×3, T-263) — I had swept only docs/Audit|Sources|Measurements for `+=`/`+k` forms and missed `N_trials = k`,
+lineage tallies, script docstrings (`scripts/*_tNNN.py`) and `docs/State/conditional_shelf.md`; and I had withheld
+T-263 on a reason I never checked ("no doc on main" — the script was on main). Now S = 96 (60 firm + 36 pending a
+ruling: T-193 35, T-237 1); R2 132.92, R3 367.28. Lesson: an inventory sweep must cover scripts + State files and
+every assignment form, and a "not on main" claim must be grepped before it is written. docs/ is NOT in the backtest
+image, so the gate can only check citation existence where docs/ exists.
+
 **Why:** the brief's "hand count ≥ 283" assumed the 267 covered all pre-10-13 trials; it does not.
 **How to apply:** before quoting honest N, run `python -m scripts.honest_n_trials show` if merged; otherwise cite the
 proposal `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md` §1.2. Any new pin-input requirement

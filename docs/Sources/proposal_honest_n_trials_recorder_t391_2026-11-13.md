@@ -402,3 +402,123 @@ All are lines quoting the gate's N or a hand N. A higher N only raises a bar, so
    - after it, every `honest_n_trials record` is followed by a re-pin in the same commit.
 5. **The ledger** (the director's): T-365's row says 4 where its verdict says 6. T-214 and T-220 still read `dispatched`. T-391's own row is the director's to add at merge.
 6. **Not built (proposed):** wiring `honest_n_trials check` into the nightly janitor. Today the enforcement is the pytest lock `test_the_lint_passes_on_the_REAL_ledger_and_the_REAL_record` in the full suite.
+
+---
+
+## §4. Review round 1 (2026-11-13): NOT READY, addressed in follow-up commits
+
+**§1.2's totals, §2.1's numbers and §3's "89.92" are superseded by this section.** They are left as written. The
+review found the inventory short and the forward lint bypassable. Both were true.
+
+### 4.1 The inventory was short: the re-sweep
+
+**Why the first sweep missed them.** It searched only `docs/Audit`, `docs/Sources` and `docs/Measurements`, and only
+the `+=` / `+k` / `consumed` forms. It missed `N_trials = k`, lineage tallies, counts stated in `scripts/*_tNNN.py`
+docstrings, and results that live only in `docs/State/conditional_shelf.md`.
+
+**The re-sweep, reproducible.** Two passes over `git ls-files` (`.md` and `.py`; `Archive` and `Sessions` excluded):
+
+1. **Every line in `docs/`, `scripts/`, `core/`, `engines/`, `orchestration/`, `config/` and root `*.md`** matching
+   any of:
+   `N_trials\s*\+=\s*\d` · `N_trials\s*\+\s*\d` · `N_trials\s*=\s*\d` · `N_trials\s*:\s*\**\s*\+?\d` ·
+   `\bN\s*\+=\s*\d` · `n_trials_consumed` · `N_trials[ _]consumed` · `N_TRIALS\w*\s*=\s*\d` · `n_trials\s*[:=]\s*\d` ·
+   `trials? consumed` · `consumes? \w+ (?:N_)?trials?` · `N_trials\s*(?:→|->)\s*\d` · `\(→\s*\d+\)` ·
+   `N_trials\s+\d` · `\d+\s+N_trials` · `honest[- ]N\s*(?:\+=|→|->)\s*\d` · `\+\d+\s+(?:N_)?trials?\b` ·
+   `family[- ]N\s*=\s*\d`
+2. **Every file in `docs/` and `scripts/` whose NAME carries a task id not yet in the record**, searched with a wide
+   net:
+   `N_trials|n_trials|N_TRIALS|N_trial\b|honest[- ]N|N_eff|\bN\s*\+=|family[- ]N|\bN\s*[=≈~]\s*\d|\+\s*1 trial|ONE (?:pre-registered )?(?:config|trial)`,
+   plus "trial(s)" within 40 characters of `consum`, `pre-regist` or `count`.
+   This returned 130 files across 97 task ids. Each was read and classified.
+3. **The State files** (`conditional_shelf.md`, `forward_plan.md`, `ROADMAP.md`, `lessons_learned.md`,
+   `capability_ledger.md`) with `N_trials|n_trials|family N|N ?\+=|honest-N ≈|\+1 trial`.
+
+**Limit, stated:** pass 2 keys on a task id in the file NAME. A trial recorded only inside a file with no task id in
+its name, in a form pass 1 does not match, would still be missed.
+
+**Added to the record: 5 entries, 7 trials (firm):**
+
+| task | date | n | source |
+|---|---|---|---|
+| T-236 | 2026-06-25 | 1 | `docs/Audit/trend_sleeve_gauntlet_t236_2026_06_25.md:35-36` (a lineage tally: T-204 9 + T-214 6 + T-234 0 + T-236 1 = 16) |
+| T-247 | 2026-06-30 | 1 | `scripts/carry_sleeve_gauntlet_t247.py:22`; the result is at `docs/State/conditional_shelf.md:340-348` |
+| T-249 | 2026-06-26 | 1 | `docs/Audit/smallcap_momentum_gauntlet_t249_2026_06_26.md:47` ("N_trials = 1") |
+| T-252 | 2026-06-26 | 3 | `docs/Audit/conditional_voltarget_gauntlet_t252_2026_06_26.md:26` ("N_trials = 3 treatment configs") |
+| T-263 | 2026-07-02 | 1 | `scripts/multiasset_carry_gauntlet_t263.py:10` (merged `091e0f7`; ledger :183 `refuted`). **My U6 reason ("branch only, no doc on main, no stated N") was false**: the script is on main and states the count. |
+
+**Counted pending the user's ruling: 2 entries, 36 trials** (`pending_ruling: true` in the record). The rule is now
+one rule: a trial that ran counts until a ruling says otherwise, which is how T-339, T-339b and T-337 (all VOID or
+blocked) were already counted.
+
+| task | n | source | the open question |
+|---|---|---|---|
+| T-193 | 35 | `docs/Audit/phase0b_local_discover_t193_2026_06_17.md:95` ("consumed 35 trials … VOID") | It may be the same 35 foundry candidates T-196 re-ran on a fixed baseline. |
+| T-237 | 1 | `scripts/lazy_prices/backtest_lazy_prices_t237.py:25` | The run is evidenced only second-hand (`TASK_LEDGER.md:284`: "the T-237 'leaning H0' had no valid panel behind it"). |
+
+**Unresolved, not counted: now 11.** U1 (T-193) and U6 (T-263) left the list because they are counted. One was added:
+**T-205** (`defensive_tilt_screens_t205_2026_06_18.md:45`): 9 arms ran descriptively, and its own pre-registration says
+"N is consumed at the eventual beat-the-robo gate measurement, NOT here". That later measurement is not on record, so
+it is 9 or 0. The rest stay unresolved because no count is stated for a run (T-216 §3, T-250, T-254), no run is
+evidenced (T-217, T-349), the doc contradicts itself (T-148), or its own pre-registered policy says 0 (T-157).
+
+**Found and deliberately NOT in the record: controller-harness runs.** They wrote run directories, so they belong to
+the executed universe (the 252 / 258 that R3 already counts). Adding them to S would double-count under R3:
+- T-055g, 4 (`vol_target_multiplier_sensitivity_t055g_2026_05_24.md:169`)
+- T-057, 3 (`confidence_gated_execution_2026_05_12.md:118`)
+- T-092, 10 (`deep_substrate_baseline_t092_2026_05_31.md:33`)
+- T-118, 36 (`hmm_transition_trigger_overlay_t118_2026_06_06.md:86`)
+- T-128r, 1 (`spot_sleeve_closeout_clean_t128r_2026_06_14.md:96`)
+- T-154, 1 pit arm (`scripts/measure_pit_strategy_t154.py:35`)
+- T-215, 1 (`phase1_cloud_run_t215_2026_06_19.md:200`)
+- T-153, 10 cells (`vol_estimator_fix_t153_2026_06_11.md:81`)
+
+T-154 and T-153 are classified as controller runs from their own text (a canon md5 of the trade log; campaign
+cells). I did not verify that their run directories are among the 252.
+
+### 4.2 The new totals and N
+
+**S = 96:** 60 firm (16 after the 267, 44 before it) + 36 pending a ruling. The record holds 70 rows, digest
+`378e6ac7…`. The registry md5 is `83e47441…`, unchanged. `honest_n_pin --verify` prints PIN OK with S = 96.
+
+| rule | with T-193 (S = 96) | without T-193 (S = 61) | firm only (S = 60) |
+|---|---|---|---|
+| R0 today | 36.92 | 36.92 | 36.92 |
+| R1 pooled (rejected) | 52.27 | 46.67 | 46.51 |
+| **R2 gated** | **132.92** | 97.92 | 96.92 |
+| R3 reported | 367.28 | 332.28 | 331.28 |
+
+At R2 = 132.92: MinBTL at SR 1 is 6.91 y, and the SR required at 12 y / 26 y is 0.759 / 0.516. Without T-193 it is
+6.37 y and 0.728 / 0.495. At R3 = 367.28 it is 8.75 y and 0.854 / 0.580. `honest_n_breakdown` now also returns
+`n_standalone_pending_ruling` (36) and `n_eff_excluding_pending` (96.92), so both readings travel with every quote.
+
+### 4.3 The code findings
+
+- **F3, the forward lint could be bypassed.** It bound only rows whose doc cell said `verdict` or `prereg` AND whose
+  status was closed. Now, for any row dated on or after activation (a range reads by its first date; a row with no
+  parseable date is treated as forward), a record row is required when the row states a trial count, OR its status is
+  closed, OR its doc cell names an existing file under `docs/Audit`, `docs/Sources`, `docs/State`, `docs/Core`,
+  `docs/Measurements/*` or `scripts`, whatever the status. A closed row must also state N.
+  - **Consequence for the director:** from 2026-11-13 every closed ledger row needs a record row, infra included
+    (`--n-trials 0`).
+- **F4, `activation_date` was outside the digest.** It is now inside it. Setting it to 2099 fails the digest check.
+- **F5a, citations were checked for presence, not existence.** `verify_trials_citations` now checks that each
+  `source` path exists and its line is within the file, and that `prereg` / `verdict` exist. It runs in the gate, in
+  `check`, and in the backfill build.
+  - **Limit:** the backtest image ships no `docs/` (`.dockerignore:77`). An unconditional check at load would refuse
+    every cloud gate call. So the gate checks wherever `<root>/docs` exists and returns `citations_checked: false`
+    where it does not. `honest_n_pin --verify` (which runs in the image build) does not check citations.
+- **F5b, the `== 53` asserts.** They now read S from the record and assert a floor (`BACKFILL_FLOOR = 96`). The
+  workflow: a `record` raises S and no test moves. Only a ruling lowers S, and the floor is lowered in that same
+  commit.
+- **F5c, a registry task re-added as a standalone row was accepted.** It is now refused by task id or ledger id,
+  unless the row names the registry trial it is distinct from (`also_in_registry_as`). T-260's 2026-07-02 trial is the
+  one legitimate case. The recorder cannot set that field.
+- **F6, T-365.** The record's note reads "the verdict says 6, the ledger row says 4 (the record follows the verdict)".
+  The ledger is untouched.
+
+**Tests:** `tests/test_honest_n_trials_t391.py` is now 50 tests, including the three planted lint bypasses, the
+undated row, the activation-date tamper, the both-classes refusal and the citation checks. The honest-N and MBL
+modules together: 152 pass, 8 xfail. The reversion harness: **28 modes, all caught** (the original 20 plus N1
+activation date out of the digest, N2 both-classes check off, N3 gate citation check off, N4 / N4b / N4c the forward
+trigger narrowed three ways, N5 undated rows skipped, N6 `check` skipping citations). M13 still fails one rail
+deeper than targeted, as in §2.2.

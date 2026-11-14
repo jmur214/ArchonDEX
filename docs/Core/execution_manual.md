@@ -1576,6 +1576,10 @@ python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date
     --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
 ```
 
+From the activation date (2026-11-13) EVERY closed ledger row needs a record row, infra included (`--n-trials 0`), and
+so does any row that states a trial count or whose doc cell names an existing file, whatever its status. Add
+`--pending-ruling` for a trial that ran but whose count awaits the user's ruling (counted until ruled otherwise).
+
 `record` refuses a duplicate trial_id and any citation that does not exist (a path, or a line past EOF). After re-pin #2
 the pin names the record's sha256 (`honest_n_pin --pin … --replace` writes `honest_n_pin/v2`), so every `record` is
 followed by a re-pin in the same commit. `honest_n_pin --verify` now also loads the record and reconciles it with the
