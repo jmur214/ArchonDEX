@@ -94,3 +94,7 @@ literature's verdict. **Do NOT pursue without paid survivorship-free data — an
 cost makes the prior low.** The cost model + the survivor-biased universe builder are kept (reusable
 if paid data ever lands).
 
+
+---
+
+**Dated erratum, 2026-11-11 (director; found by B-2 / T-381, confirmed by its independent reviewer by re-running this script on its own inputs):** the Sharpe and Sortino figures above are inflated by √21 ≈ 4.58×. `scripts/smallcap_momentum_gauntlet_t249.py` sets `TD=252` and passes it as the annualization periods for MONTHLY returns (lines 7, 81, 86; line 82 also passes it into the bootstrap). Corrected with periods=12: gross Sharpe 3.21 → **0.70**, net (tier) Sharpe 2.47 → **0.54** (point estimates; this doc never bootstrapped its Sharpe); gross Sortino **1.07** (ci_low 0.33), net Sortino ci_low 0.49 → **0.11**. The CAGRs are unaffected. The doc's reasoning that "Sharpe 3.2 is fake, it's survivorship" rested partly on this arithmetic. The kill itself now stands as MEASURED, not assumed: B-2 ran the strategy on the T-265 survivorship-corrected panel and it fails (`docs/Audit/b2_smallcap_t265_verdict_2026-11-11.md`). The actual window is 2006-02 → 2026-05 (244 months).

@@ -1,0 +1,103 @@
+{
+  "last_run": {
+    "run_date": "2026-11-10",
+    "run_ts": "2026-11-10T14:51:28.024671+00:00",
+    "canonical": false,
+    "reason": "reconcile 0/3; halted; UNEXPLAINED position",
+    "reconcile_clean_cycles": 0,
+    "reconcile_total_cycles": 3,
+    "halted": true,
+    "submitted": 0,
+    "fills": 12,
+    "account_explained": false,
+    "census_failures": []
+  },
+  "alert": true,
+  "alert_reason": "today's run is NON-CANONICAL: reconcile 0/3; halted; UNEXPLAINED position",
+  "updated_ts": "2026-11-10T14:51:28.024725+00:00",
+  "_schema": "paper_heartbeat/v1",
+  "alert_ts": "2026-11-10T14:51:28.025338+00:00",
+  "econ_health": {
+    "degraded": false,
+    "findings": [
+      {
+        "channel": "no_trade",
+        "status": "ok",
+        "detail": "0 trading days since last order (\u2264 20)",
+        "value": 0.0
+      },
+      {
+        "channel": "stale_data",
+        "status": "ok",
+        "detail": "freshest bar 2026-11-09 is 1 trading days old (\u2264 3)",
+        "value": 1.0
+      },
+      {
+        "channel": "orphan_positions",
+        "status": "ok",
+        "detail": "all holdings are inside the managed universe",
+        "value": 0.0
+      }
+    ],
+    "_schema": "paper_econ_health/v1",
+    "ts": "2026-11-10T14:51:28.718488+00:00"
+  },
+  "exec_cost": {
+    "n_rows": 12,
+    "n_instruments": 3,
+    "per_instrument": {
+      "offense-sso|MTUM": {
+        "account": "offense-sso",
+        "instrument": "MTUM",
+        "n": 2,
+        "median_slippage_bps": 1.53,
+        "median_latency_s": 1.21,
+        "notional_wt_mean_bps": 1.35,
+        "first_date": "2026-09-15",
+        "last_date": "2026-11-05"
+      },
+      "offense-sso|SGOV": {
+        "account": "offense-sso",
+        "instrument": "SGOV",
+        "n": 9,
+        "median_slippage_bps": 0.5,
+        "median_latency_s": 0.46,
+        "notional_wt_mean_bps": 0.66,
+        "first_date": "2026-09-15",
+        "last_date": "2026-11-05"
+      },
+      "offense-sso|VOO": {
+        "account": "offense-sso",
+        "instrument": "VOO",
+        "n": 1,
+        "median_slippage_bps": 1.65,
+        "median_latency_s": 0.76,
+        "notional_wt_mean_bps": 1.65,
+        "first_date": "2026-09-15",
+        "last_date": "2026-09-15"
+      }
+    },
+    "_schema": "exec_cost_agg/v1",
+    "ts": "2026-11-10T14:51:28.721344+00:00"
+  },
+  "altdata": {
+    "degraded": true,
+    "reason": "3/4 snapshot sources fresh for 2026-11-10: {'kalshi': 14, 'kxfed': 258, 'polymarket': 492, 'cef': 0} | STALE/UNMONITORABLE BEYOND BUDGET: ['cef(22d>4d)', 'credit_oas(no-date)']",
+    "fresh_rows": {
+      "kalshi": 14,
+      "kxfed": 258,
+      "polymarket": 492,
+      "cef": 0
+    },
+    "ts": "2026-11-10T14:51:55.299589+00:00",
+    "_schema": "paper_altdata/v1"
+  },
+  "news": {
+    "degraded": false,
+    "n_new": 4,
+    "n_total": 3762,
+    "reason": null,
+    "ts": "2026-11-10T14:51:58.527336+00:00",
+    "_schema": "paper_news/v1"
+  }
+}

@@ -39,6 +39,7 @@ from scripts.janitor_guard import vet_branch                      # noqa: E402
 from scripts.doc_lint import ANCHOR_CHECK_NAME                  # noqa: E402
 from scripts.launchd_canon import audit_live                      # noqa: E402
 from scripts import ledger_backup                                 # noqa: E402
+from scripts import fleet_health                                  # noqa: E402
 from core import substrate_stamp                                 # noqa: E402
 
 # Runtime artifacts live in the gitignored data/ tree, beside the ledger. A TRACKED
@@ -356,6 +357,18 @@ def _stamp_error(digest: str, error: str) -> str:
         return f"and the janitor could not write an ERROR stamp either ({type(exc).__name__}: {exc})"
 
 
+def check_fleet_health() -> Check:
+    """Is the paper fleet healthy BY ITS OWN RECORD — every account canonical, no book
+    carrying a corrupt day or parked for a week? Read-only (S3). Added 2026-11-10: the
+    deploy-candidate account sat halted for three sessions, its alarm firing, while
+    every row here was green — nothing in the loop read the fleet. Unknown is a FAIL."""
+    try:
+        v = fleet_health.evaluate(ledger_backup.read_remote)
+    except Exception as exc:   # a broken reader must be REPORTED, not end the night
+        return Check("fleet_health", False, f"evaluate raised {type(exc).__name__}: {exc}")
+    return Check("fleet_health", v.ok, v.detail)
+
+
 def check_substrate_verify() -> Check:
     """The FULL data-hashing verify of the canonical substrate against the manifest committed
     in this tree, STAMPED by digest for the campaign submit gate (the stamp proposal §2;
@@ -444,7 +457,8 @@ def survival_syncs(as_of: str) -> List[tuple]:
 
 def run_checks() -> List[Check]:
     return [check_runner_canon(), check_relay_gap(), check_worktree_canon(), check_launchd_canon(),
-            check_ledger_backup(), check_observability_backup(), check_doc_lint(),
+            check_ledger_backup(), check_observability_backup(), check_fleet_health(),
+            check_doc_lint(),
             check_index_drift(), check_substrate_verify(), check_census(), check_suite()]
 
 

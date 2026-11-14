@@ -1,0 +1,528 @@
+{
+  "_schema": "live_book/v1",
+  "book": "damped_offense_t298",
+  "side": {
+    "book": null,
+    "twin": null
+  },
+  "days": [
+    {
+      "date": "2026-07-29",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-07-30",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-07-31",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-03",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-04",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-05",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-06",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-07",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-10",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-11",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-12",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-13",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-14",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-17",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-18",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-19",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-20",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-21",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-24",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-25",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-26",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-27",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-28",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-08-31",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-01",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-02",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-03",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-04",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-08",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-09",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-10",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-11",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-14",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-15",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-16",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-17",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-18",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-21",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-22",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-23",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-24",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-25",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-28",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-29",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-09-30",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-01",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-02",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-05",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-06",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-07",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-08",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-09",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-12",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-13",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-14",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-15",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-16",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-19",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-20",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-21",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-22",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-23",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-26",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-27",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-28",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-29",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-10-30",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-02",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-03",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-04",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-05",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-06",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-09",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    },
+    {
+      "date": "2026-11-10",
+      "degraded": true,
+      "reason": "strategy stance unavailable \u2192 parked (no fabricated exposure)",
+      "book_nav": null,
+      "twin_nav": null
+    }
+  ]
+}

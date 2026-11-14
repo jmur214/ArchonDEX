@@ -21,6 +21,9 @@ the audit's invariants fail:
   7. data_feed.yfinance_tickers non-empty         (network fed yfinance: source + basis switch — C-2)
   7b. fundamentals_misses.fetched non-empty        (an unpinned input entered mid-run: a fundamentals
       cache miss fetched from the network into the pinned scope — re-pin #1's decision, 2026-10-15)
+  7c. fundamentals_misses.fixture non-empty        (a name's fundamentals were served from an explicitly
+      named TEST fixture — fabricated rows; the data layer refuses it in canonical/hermetic runs, T-392a),
+      or fundamentals_misses.fixture_refused non-empty (the flag was set in such a run and refused)
   Invariants 2 and 5 apply to a BACKTEST census; a census declaring census_kind "candidate"
   (Discovery's Gate-1) is not asked for them. An undeclared census is treated as a backtest.
   8. any `<block>_error` record, or an errored data_feed / data_exclusions / ticker_exclusions /
@@ -188,7 +191,8 @@ def assert_census(
     # 13 — option (a)'s UNIVERSAL convention label (2026-10-22; invariant 10 on the cutover branch,
     # renumbered at the merge onto main behind 10 post_run_failure / 11 bootstrap_book /
     # 12 share_price_basis): every name in the panel carries
-    # what each span of its file IS (the pre-seam drip vs exact total return). A name with no label
+    # what each span of its file IS (the pre-seam drip — era_tr after the cutover, T-387 — vs exact
+    # total return). A name with no label
     # — no write record, no override, no merge record, or a merge record the run's own frame proves
     # stale — is a measurement on an unknown convention, never a default; the run is non-canonical.
     sc = census.get("substrate_convention")
@@ -198,7 +202,7 @@ def assert_census(
             names = sorted(bad)
             failures.append(
                 f"substrate_convention: {len(names)} name(s) in the panel carry NO convention label "
-                f"(the pre-seam drip is labelled, never defaulted): "
+                f"(the pre-seam span — drip, or era_tr after the cutover — is labelled, never defaulted): "
                 f"{', '.join(f'{n} ({bad[n]})' for n in names[:5])}{' …' if len(names) > 5 else ''}")
     elif sc is None:
         warnings.append("census has no substrate_convention record (summary predates 2026-10-22) — "
@@ -325,6 +329,19 @@ def assert_census(
         failures.append(f"fundamentals_misses: {len(got)} unpinned input(s) entered mid-run — a "
                         f"fundamentals cache miss fetched from the network and written into the "
                         f"pinned scope: {got[:10]}{' …' if len(got) > 10 else ''}")
+    # 7c — fundamentals served from an explicitly named TEST FIXTURE (T-392a). The data layer
+    # refuses the fixture in a canonical/hermetic run; anywhere else a served row is fabricated
+    # data, so a run that carries one is never canonical.
+    if isinstance(fm, dict) and "error" not in fm and fm.get("fixture_refused"):
+        fr = list(fm["fixture_refused"])
+        failures.append(f"fundamentals_misses: the TEST FIXTURE flag was set in this canonical/hermetic "
+                        f"run and refused for {len(fr)} name(s) ({fr[:10]}{' …' if len(fr) > 10 else ''}) "
+                        f"— a misconfigured run ([NN-FAIL-CLOSED], T-392a)")
+    if isinstance(fm, dict) and "error" not in fm and fm.get("fixture"):
+        fx = list(fm["fixture"])
+        failures.append(f"fundamentals_misses: {len(fx)} name(s) served fundamentals from a TEST "
+                        f"FIXTURE ({fx[:10]}{' …' if len(fx) > 10 else ''}) — fabricated rows, "
+                        f"never a measurement input ([NN-FAIL-CLOSED], T-392a)")
 
     # WARN — CI presence (CLAUDE.md ci_low rule)
     if "bootstrap_distribution" not in summary and not summary.get("bootstrap_ci_skip_reason"):
