@@ -238,3 +238,92 @@ DUK 2005-08-10, MAT 2004-12-01, AEE 2003-12-08, XOM 1984-08-07. BAX 2000-04-03 c
   v4; 14 equal `config/era_tr_v5_delta_t393.json`".
 - **The user's decision:** adopt v5 (= v4 + this guard) as the correction to the 2026-11-12 ruling; and,
   separately, item §4.2.
+
+---
+
+## §7. Amendment A1 — a POST-REVIEW correction to §1.1, committed alone before re-measuring
+
+The independent review (2026-11-13) returned NOT READY. The bytes were clean, but only 4 of the 15 label
+changes moved toward the truth. This amendment changes the rule. §1–§6 above are kept as written; where
+they conflict with this section, this section governs, and §3's result table describes the SUPERSEDED rule.
+
+### 7.0 Disclosure: the rule is IN-SAMPLE, before and after this amendment
+
+- §1.2 listed all 15 changes with their z to the decimal because the candidate rule had been run on all
+  34,575 labels before it was declared. "Pre-declared" there means "committed before the code", not
+  "chosen blind". The predictions were a restatement of a measurement.
+- The same is true of this amendment. The best-aligned-bar statistic below was computed on the 23
+  testable adds before this text was written, and the margin was chosen with those numbers in view.
+- **The only out-of-sample evidence** is against T-265, which no rule reads: DHR 2016 (v4 +44.21 pp;
+  expected ≈ 0 after the guard) and, after 7.3, XRX 2017 (T-265 +30.99 %).
+
+### 7.1 Rule (a) no longer refuses
+
+A measured label with m > 1.5 is **ADDED and LABELLED** (`unresolved_distributions`, reason
+`m_above_band`, with its m). Refusal comes from rule (b) only.
+- Why: the review showed by execution that ADM 2006-05-17 and TGT 2007-08-16 are one real missed dividend
+  each. Their m of 1.88 came from a 0.2 % one-day blip on the prior bar, inside the probe's three-return
+  window and under `BLIP_MIN`. For ATO, STE, SPG ×2 and ADBE the dividend is real and missed, and Stooq
+  carries a further, separate offset. Refusing them was wrong; the upper bound in the brief was the
+  coordinator's and is withdrawn.
+- Consequence: **CNP 2002-10-01 is added again, as in v4** (m 2.62). Rule (b) cannot test it (q = 2.2 σ).
+  It is labelled, not repaired. That is a known remaining error.
+
+### 7.2 Rule (b) tests the best-aligned bar and needs a clear margin
+
+- **The statistic.** r* = the LOWEST of the reference close's log returns on the bars e−1, e, e+1 (the
+  bar that looks most like the drop). z* = (r* + q)/σ. A mis-dated ex-date no longer defeats the test.
+- **Testable** iff q ≥ 4 σ, as before.
+- **Refused** iff r* > −q/2 AND z* > **6**.
+- **Marginal:** r* > −q/2 AND 4 < z* ≤ 6 → **ADDED and labelled** `unresolved_distributions`, reason
+  `marginal_no_drop`. Not refused.
+- Why 6: the test threshold is 4; taking the lowest of three bars and estimating σ are each worth about
+  one σ of slack. In the data nothing lies between 5.0 and 10.3, so the line is not near any case.
+- **What the cases become** (design input, in-sample):
+
+| case | z on the ex-day | z* | becomes |
+|---|---|---|---|
+| DHR 2016-07-05 | 76.6 | 71.3 | refused |
+| XRX 2017-01-03 | 26.2 | 11.5 | refused, and repaired (7.3) |
+| ETN 2001-01-02 | 11.7 | 10.3 | refused |
+| ABT 2004-05-03 | 8.4 | 5.0 | ADDED, unresolved (marginal; also m 1.93) |
+| HPQ 1972-10-04 | 6.8 | 4.2 | ADDED, unresolved (marginal) |
+| SRE 2006-09-06 | 5.2 | 4.1 | ADDED, unresolved (marginal): the prior bar fell 1.1 % |
+| **MMM 1996-07-16** | 4.0 | **−0.9** | **ADDED, no label**: the bar BEFORE the ex-date fell 4.58 % on a 3.75 % distribution. §3's refusal was wrong |
+
+- So ABT, HPQ 1972 and SRE return to v4's bytes. If they are double counts (SRE's ex-day close moved
+  0.00 %), v5 still carries them, labelled. This rule prefers a labelled possible over-count to a wrong
+  refusal.
+
+### 7.3 A refused distribution whose Stooq spin-off is unapplied is repaired in the same step
+
+Refusing yfinance's dividend where Stooq also left the spin-off unapplied leaves the file WORSE than v4
+(XRX 2017: −27.9 → −41.7 pp against T-265). So:
+- **Condition.** The ex-date is refused by (b), its label is MEASURED, and m > 1.5. Together these say
+  the reference close did not fall and Stooq fell by more than half a distribution beyond it.
+- **Amount.** s = Σ over the probe's own window of (Δlog Stooq − Δlog reference CLOSE) = y − x, a
+  negative number. Every earlier bar is multiplied by exp(s), exactly as a missed dividend is applied.
+  It is sized from `close`, never from `adj_close`.
+- **Label.** `stooq_spinoff_repaired` in the write record, marked reference-derived, with s, m and the
+  close's move. The step audit expects −s on that bar.
+- Expected to fire on XRX 2017-01-03 only (s ≈ −0.4175). ABT and CNP are not refused under 7.1/7.2, so
+  they are not repaired; they stay v4's.
+
+### 7.4 The `unresolved` label, restated
+
+An ADDED ex-date is labelled `unresolved_distributions` with one reason:
+- `m_above_band` (7.1);
+- `marginal_no_drop` (7.2);
+- `partial_drop`: q ≥ 2 σ and z* > 2, otherwise (as §1.1, now on z*).
+
+### 7.5 Expected result, and the acceptance
+
+- **Changed files: DHR, ETN, XRX** (3, down from 14). Changed labels: DHR and ETN refused; XRX refused
+  and repaired. Nothing else among 34,575.
+- Acceptance as §1.3, with "the 15 ex-dates" replaced by these three, plus: XRX 2017 against T-265 moves
+  from −27.87 pp toward 0.
+
+### 7.6 T-390's corrections table is INVALID on v5
+
+It was built on v4's timeline. Its DHR, ETN and AN reversals would subtract a second time, and its R2
+skips XRX and CNP. It must be rebuilt on v5 before any use. It is not rebuilt here.
