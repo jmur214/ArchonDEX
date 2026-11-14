@@ -443,12 +443,14 @@ def check_post_seam_bytes(cand_lines: List[str], cache_lines: List[str], n_pre: 
 LARGE_DISTRIBUTION = 0.08      # D/P_prev at or above this: a spin-off / special (vendors differ)
 
 
-def year_diagnostics(out: Path, ticker: str) -> Dict[int, dict]:
+def year_diagnostics(out: Path, ticker: str, lab: Optional[pd.DataFrame] = None) -> Dict[int, dict]:
     """Per calendar year, from the labelled ex-dates: the witnesses the §1.2 cause classes read."""
-    p = out / "probe" / "labels" / f"{ticker}.parquet"
-    if not p.exists():
-        return {}
-    lab = pd.read_parquet(p)
+    if lab is None:
+        p = out / "probe" / "labels" / f"{ticker}.parquet"
+        if not p.exists():
+            return {}
+        lab = pd.read_parquet(p)
+    lab = lab.copy()
     if lab.empty:
         return {}
     lab["year"] = pd.DatetimeIndex(lab["day"]).year
@@ -501,7 +503,24 @@ def _membership_sectors() -> Dict[str, str]:
 
 def cmd_accept(args: argparse.Namespace) -> int:
     out = assert_outside_canon(Path(args.out))
-    adir = out / "acceptance"
+    return run_acceptance(out, Path(args.yf_dir), out / "acceptance")
+
+
+#: A candidate provider (T-390): ticker -> (closes, data lines). None = read `<out>/processed/<T>_1d.csv`.
+CandidateProvider = Callable[[str], Tuple[pd.Series, List[str]]]
+#: Extra expected step-audit steps (T-390): ticker -> Series(date -> daily log-return change), or None.
+ExtraSteps = Callable[[str], Optional[pd.Series]]
+#: The candidate's labelled ex-dates held in memory (T-393): ticker -> labels frame (None = no labels).
+#: When no provider is given the labels are read from `<out>/probe/labels/<T>.parquet`.
+LabelsProvider = Callable[[str], Optional[pd.DataFrame]]
+
+
+def run_acceptance(out: Path, yf_dir: Path, adir: Path, candidate: Optional[CandidateProvider] = None,
+                   extra_steps: Optional[ExtraSteps] = None, labels: Optional[LabelsProvider] = None) -> int:
+    """The pre-declared §1 test on the candidate under `out` (records, labels) — or, for T-390, on a candidate
+    held in MEMORY (`candidate`), with the step audit also expecting `extra_steps`. The outputs land in
+    `adir`. The defaults are the T-384 behaviour, unchanged."""
+    adir = assert_outside_canon(adir)
     adir.mkdir(parents=True, exist_ok=True)
     meta = load_meta()
     raw_idx = raw_stooq_index()
@@ -521,12 +540,15 @@ def cmd_accept(args: argparse.Namespace) -> int:
     for n, t in enumerate(written):
         r = recs[t]
         seam = pd.Timestamp(r["seam"])
-        cand, cache = _cand_close(out, t), _cache_close(t)
+        if candidate is None:
+            cand = _cand_close(out, t)
+            _, cand_lines = read_cache_text(t, out / "processed")       # (iv) bytes, re-read from disk
+        else:
+            cand, cand_lines = candidate(t)
+        cache = _cache_close(t)
         n_pre = int(r["n_pre"])
         n_i0, n_ii0 = len(rows_i), len(rows_ii)
-        # (iv) bytes, re-read from disk
         _, cache_lines = read_cache_text(t)
-        _, cand_lines = read_cache_text(t, out / "processed")
         viol = check_post_seam_bytes(cand_lines, cache_lines, n_pre)
         rows_iv.append({"ticker": t, "pass": not viol, "violations": "; ".join(viol)})
         # era deltas (candidate − cache), pp per year
@@ -552,9 +574,10 @@ def cmd_accept(args: argparse.Namespace) -> int:
                 continue
             rows_era.append({"ticker": t, "era": name, "years": yrs,
                              "delta_pp_per_year": 100 * (end_v - start_v) / yrs, "seam": r["seam"]})
-        px, dv = read_yf(t, Path(args.yf_dir))
+        px, dv = read_yf(t, Path(yf_dir))
         raw = read_raw_stooq(raw_idx[t])
-        diag = year_diagnostics(out, t)
+        lab_mem = labels(t) if labels is not None else None
+        diag = year_diagnostics(out, t, lab_mem) if labels is None or lab_mem is not None else {}
         # (i) T-265
         t265 = read_t265(t)
         if t265 is not None:
@@ -632,11 +655,16 @@ def cmd_accept(args: argparse.Namespace) -> int:
         step = np.diff(np.log(pre_c.to_numpy() / raw_pre.to_numpy()))       # step[i-1] = bar i
         expected = np.zeros(len(pre_c) + 1)
         lab_p = out / "probe" / "labels" / f"{t}.parquet"
-        if lab_p.exists():
-            lab = pd.read_parquet(lab_p)
+        lab_all = lab_mem if labels is not None else (pd.read_parquet(lab_p) if lab_p.exists() else None)
+        if lab_all is not None and len(lab_all):
+            lab = lab_all
             lab = lab[lab["missed"].astype(bool) & (pd.DatetimeIndex(lab["day"]) < seam)]
             pos = pre_c.index.searchsorted(pd.DatetimeIndex(lab["day"]), side="left")
             np.add.at(expected, pos, -lab["log_f"].to_numpy())
+        xs = extra_steps(t) if extra_steps is not None else None
+        if xs is not None and len(xs):          # T-390: a correction's own daily log-return change
+            np.add.at(expected, pre_c.index.searchsorted(pd.DatetimeIndex(xs.index), side="left"),
+                      xs.to_numpy(dtype=float))
         exp_bar = expected[1:len(pre_c)]
         dev = np.abs(step - exp_bar)
         unexpected = (np.abs(step) > STEP_TOL) & (np.abs(exp_bar) == 0)

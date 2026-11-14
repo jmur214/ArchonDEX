@@ -830,6 +830,7 @@
 - **Function `year_diagnostics()`**: Per calendar year, from the labelled ex-dates: the witnesses the §1.2 cause classes read.
 - **Function `classify_failure()`**: The §1.2 cause classes, in order. A class EXPLAINS a failure; it never excuses one.
 - **Function `cmd_accept()`**: No docstring
+- **Function `run_acceptance()`**: The pre-declared §1 test on the candidate under `out` (records, labels) — or, for T-390, on a candidate
 - **Function `summarize_acceptance()`**: No docstring
 - **Function `main()`**: No docstring
 
@@ -842,6 +843,22 @@
 - **Function `combined_stream()`**: Equal- or custom-weighted sum of per-edge daily return streams.
 - **Function `joint_alpha()`**: HAC FF5+Mom alpha t-stat with residual moving-block bootstrap CI
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
+- **Function `main()`**: No docstring
+
+### `era_tr_v5_delta_t393.py`
+**Module Docstring:** T-393 — measure the era_tr DISTRIBUTION GUARD against (a′) v4 without writing a full candidate (disk).
+- **Class `V5InMemory`**: Every file rebuilt through the guarded era_tr; only the texts that differ from v4 are kept.
+  - `def __init__()`
+  - `def build_all()`
+  - `def candidate()`
+  - `def labels_for()`
+- **Function `check_disk()`**: No docstring
+- **Function `out_dir()`**: No docstring
+- **Function `v4_state()`**: No docstring
+- **Function `v4_missed()`**: No docstring
+- **Function `cmd_run()`**: No docstring
+- **Function `summary_vs_v4()`**: No docstring
+- **Function `cmd_manifest()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `event_interaction_t291.py`

@@ -79,6 +79,20 @@ PRE_REFERENCE_STUB_DAYS = 45   # A3: Stooq bars this close before the reference'
 NOISE_WINDOW = 127             # trading days around an ex-date for the robust noise scale
 CONFIDENT_SM = 0.15            # σ(m) at or below this → the ex-date is MEASURED (0/1 are ≥ 3.3σ apart)
 MISSED_M = 0.5                 # m ≥ 0.5 → Stooq missed the dividend
+# ── T-393: the DISTRIBUTION GUARD (docs/Sources/proposal_era_tr_distribution_guard_t393_2026-11-13.md §1.1 as
+# amended by §7, a post-review correction). yfinance applies some spin-offs as a split in `close` AND as a
+# dividend in `adj_close`; the probe then reads m ≈ 1 (or m ≫ 1 when Stooq also left the spin-off unapplied) and
+# v4 added a distribution that never reduced the price (DHR 2016: +75.38 % against T-265 +12.71 %).
+MISSED_M_MAX = 1.5             # (a) measured m above this is LABELLED (never refused): not one clean dividend
+DROP_TESTABLE_SIGMA = 4.0      # (b) testable iff q = −log(1−D/P) ≥ 4σ of the reference close's own daily return
+DROP_MARGINAL_Z = 4.0          # r* > −q/2 and 4 < z* ≤ 6 → ADDED, labelled marginal …
+DROP_REFUSE_Z = 6.0            # … and only z* > 6 is REFUSED (z* on the best-aligned bar of e−1, e, e+1)
+UNRESOLVED_SIGMA = 2.0         # a LABEL only: an added ex-date with q ≥ 2σ …
+UNRESOLVED_Z = 2.0             # … whose drop is doubtful at 2σ
+REFUSED_CLOSE = "no_drop_in_reference_close"
+UNRESOLVED_M = "m_above_band"
+UNRESOLVED_MARGINAL = "marginal_no_drop"
+UNRESOLVED_PARTIAL = "partial_drop"
 MAX_DIV_FRACTION = 0.95        # D/P_prev clip (a spin-off valued at most 95 % of the parent)
 IDENTITY_MED_ABS_D = 0.004     # a reference year is the SAME security when median |Δr| ≤ this …
 IDENTITY_CORR = 0.95           # … or the daily-return correlation is at least this
@@ -170,7 +184,7 @@ def probe_exdates(j: pd.DataFrame, divs: Optional[pd.Series], k_bars: int = PROB
     σ(m) = robust daily noise of (Δlog stooq − Δlog adj) on clean non-event bars × √(span) / |y|,
     span = the daily returns between the two nearest clean bars (+ 2(k−1)): 3 when no block is near."""
     cols = ["ex_date", "day", "pos", "D", "P_prev", "log_f", "y_lvl", "x_lvl", "m", "sm", "confident",
-            "offset_bars_near"]
+            "offset_bars_near", "close_move", "close_move_best", "close_sigma"]
     if divs is None or len(divs) == 0 or len(j) < 4 * k_bars + 4:
         return pd.DataFrame(columns=cols)
     lr = np.log(j).diff().fillna(0.0)
@@ -197,6 +211,11 @@ def probe_exdates(j: pd.DataFrame, divs: Optional[pd.Series], k_bars: int = PROB
     d_abs = pd.Series(np.abs(d)).where(~event & ~offset)
     sig = (d_abs.rolling(NOISE_WINDOW, center=True, min_periods=30).median() * 1.4826).to_numpy()[pos]
     near = pd.Series(offset.astype(int)).rolling(2 * k_bars + 5, center=True, min_periods=1).sum().to_numpy()[pos]
+    # T-393 (b): the reference CLOSE's own ex-day log return, and the robust daily σ of that close away from
+    # ex-dates — the evidence of whether the price actually fell by the distribution
+    r_close = lr["close"].to_numpy()
+    c_abs = pd.Series(np.abs(r_close)).where(~event)
+    sig_close = (c_abs.rolling(NOISE_WINDOW, center=True, min_periods=30).median() * 1.4826).to_numpy()[pos]
     p_prev = j["close"].to_numpy()[pos - 1]
     frac = np.minimum(dv.to_numpy() / p_prev, MAX_DIV_FRACTION)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -207,7 +226,66 @@ def probe_exdates(j: pd.DataFrame, divs: Optional[pd.Series], k_bars: int = PROB
     return pd.DataFrame({
         "ex_date": dv.index, "day": j.index[pos], "pos": pos, "D": dv.to_numpy(), "P_prev": p_prev,
         "log_f": np.log1p(-frac), "y_lvl": y_lvl, "x_lvl": x_lvl, "m": m, "sm": sm,
-        "confident": np.isfinite(m) & (sm <= CONFIDENT_SM), "offset_bars_near": near.astype(int)})
+        "confident": np.isfinite(m) & (sm <= CONFIDENT_SM), "offset_bars_near": near.astype(int),
+        "close_move": r_close[pos], "close_sigma": sig_close,
+        # the best-aligned bar: the LOWEST close return of e−1, e, e+1 (a mis-dated ex-date must not defeat (b))
+        "close_move_best": np.minimum(np.minimum(r_close[pos - 1], r_close[pos]),
+                                      r_close[np.minimum(pos + 1, len(j) - 1)])})
+
+
+def distribution_guard(labels: pd.DataFrame) -> pd.DataFrame:
+    """T-393 (as amended, §7): of the ex-dates the labels call missed, what is ADDED.
+
+    (b) REFUSAL — the only refusal. q = −log(1 − D/P); r* = the lowest reference-close log return of the bars
+        e−1, e, e+1; z* = (r* + q)/σ. Testable iff q ≥ 4σ. Refused iff r* > −q/2 AND z* > 6: the reference's
+        own close shows no drop on any aligned bar. A refused ex-date is NOT added (`refused`,
+        `refusal_reason`) — unless it is REPAIRED:
+    REPAIR — a refused, MEASURED ex-date with m > 1.5: Stooq fell where the close did not (an unapplied
+        spin-off). The step s = y − x = Σ(Δlog Stooq − Δlog CLOSE) over the probe window replaces the dividend's
+        log factor (`log_f`; the dividend's own is kept in `log_f_dividend`), flagged `spinoff_repaired`.
+    LABELS with no price effect (`unresolved`, `unresolved_reason`) on ADDED rows: measured m > 1.5
+        (`m_above_band` — rule (a) never refuses); r* > −q/2 with 4 < z* ≤ 6 (`marginal_no_drop`); else q ≥ 2σ
+        with z* > 2 (`partial_drop`)."""
+    out = labels.copy()
+    new_cols = {"z_drop": float, "log_f_dividend": float, "refusal_reason": object, "refused": bool,
+                "spinoff_repaired": bool, "unresolved": bool, "unresolved_reason": object}
+    if out.empty:
+        for c, dt in new_cols.items():
+            out[c] = pd.Series(dtype=dt)
+        return out
+    n = len(out)
+    missed = out["missed"].to_numpy(dtype=bool)
+    log_f = out["log_f"].to_numpy(dtype=float)
+    q = -log_f
+    r = out["close_move_best"].to_numpy(dtype=float)
+    sig = out["close_sigma"].to_numpy(dtype=float)
+    has = np.isfinite(sig) & (sig > 1e-12) & np.isfinite(r)
+    safe = np.where(has, sig, 1.0)
+    snr = np.where(has, q / safe, np.nan)
+    z = np.where(has, (r + q) / safe, np.nan)
+    m = out["m"].to_numpy(dtype=float)
+    measured = (out["label_source"] == "measured").to_numpy()
+    above = missed & measured & (m > MISSED_M_MAX)
+    no_drop = missed & (snr >= DROP_TESTABLE_SIGMA) & (r > -q / 2)
+    refused = no_drop & (z > DROP_REFUSE_Z)
+    marginal = no_drop & (z > DROP_MARGINAL_Z) & ~refused
+    step = (out["y_lvl"].to_numpy(dtype=float) - out["x_lvl"].to_numpy(dtype=float)
+            if {"x_lvl", "y_lvl"} <= set(out.columns) else np.full(n, np.nan))
+    repaired = refused & above & np.isfinite(step) & (step < 0)
+    added = missed & (~refused | repaired)
+    partial = added & ~repaired & (snr >= UNRESOLVED_SIGMA) & (z > UNRESOLVED_Z)
+    reason = np.where(above & ~refused, UNRESOLVED_M,
+                      np.where(marginal, UNRESOLVED_MARGINAL, np.where(partial, UNRESOLVED_PARTIAL, ""))).astype(object)
+    out["z_drop"] = z
+    out["log_f_dividend"] = log_f
+    out["log_f"] = np.where(repaired, step, log_f)
+    out["refusal_reason"] = np.where(refused, REFUSED_CLOSE, "").astype(object)
+    out["refused"] = refused
+    out["spinoff_repaired"] = repaired
+    out["missed"] = added
+    out["unresolved"] = reason != ""
+    out["unresolved_reason"] = reason
+    return out
 
 
 def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
@@ -217,7 +295,7 @@ def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
     if out.empty:
         out["missed"] = pd.Series(dtype=bool)
         out["label_source"] = pd.Series(dtype=object)
-        return out
+        return distribution_guard(out)
     out = out.sort_values("day").reset_index(drop=True)
     days = pd.DatetimeIndex(out["day"])
     blk = global_block(days)
@@ -237,7 +315,7 @@ def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
                        default="global")
     out["missed"] = final.astype(bool)
     out["label_source"] = source
-    return out
+    return distribution_guard(out)
 
 
 def missed_log_factor(dates: pd.DatetimeIndex, ex_days: pd.DatetimeIndex, log_f: np.ndarray) -> np.ndarray:
@@ -312,6 +390,31 @@ def analyse_reference(ticker: str, stooq_full: pd.Series, px: Optional[pd.DataFr
     yy, n_y = grp.sum(), grp.size()
     yy = yy[yy.index.isin(valid) & (n_y >= FULL_YEAR_BARS)]   # full years only, for the medians
     return NameReference(ticker, "reference", labels, valid, invalid, j.index[0], yy)
+
+
+def _distribution_rows(labels: pd.DataFrame, flag: str) -> List[dict]:
+    """The write record's rows for the guard's `refused` / `unresolved` / `spinoff_repaired` ex-dates (T-393):
+    what was measured, and what was done."""
+    if labels.empty or flag not in labels.columns:
+        return []
+    sel = labels[labels[flag].to_numpy(dtype=bool)]
+    rows = []
+    for r in sel.itertuples(index=False):
+        row = {"ex_date": str(pd.Timestamp(r.ex_date).date()), "day": str(pd.Timestamp(r.day).date()),
+               "D": float(r.D), "P_prev": float(r.P_prev), "m": float(r.m), "label_source": str(r.label_source),
+               "close_move": float(r.close_move), "close_move_best": float(r.close_move_best),
+               "close_sigma": float(r.close_sigma), "z_drop": float(r.z_drop)}
+        if flag == "refused":
+            row["reason"] = str(r.refusal_reason)
+            row["repaired"] = bool(r.spinoff_repaired)
+        elif flag == "unresolved":
+            row["reason"] = "added; " + str(r.unresolved_reason)
+        else:
+            row["log_step"] = float(r.log_f)
+            row["sized_from"] = "reference close (reference-derived); the refused dividend's own factor was " \
+                                f"{float(r.log_f_dividend):.6f}"
+        rows.append(row)
+    return rows
 
 
 def era_runs(labels: pd.DataFrame) -> List[dict]:
@@ -574,6 +677,9 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
         "n_measured": int((lab["label_source"] == "measured").sum()) if n_lab else 0,
         "measured_exceptions_to_global": exceptions,
         "missed_runs": era_runs(lab),
+        "refused_distributions": _distribution_rows(lab, "refused"),
+        "unresolved_distributions": _distribution_rows(lab, "unresolved"),
+        "stooq_spinoff_repaired": _distribution_rows(lab, "spinoff_repaired"),
         "approx_bars": 0, "approx_years": [],          # v4: the approximation is never applied
         "unverified_missed_era_bars": int(unverified_missed.sum()),
         "unverified_missed_era_spans": mask_runs(pre_dates, unverified_missed),
