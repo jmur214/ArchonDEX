@@ -1922,6 +1922,26 @@ diff <(cd data/research/b5/run_A && md5 -r * | sort) <(cd data/research/b5/run_B
 python -m pytest tests/test_b5_levered_simulator.py -q
 ```
 
+## T-315 static leverage — the defect-corrected re-run (T-399, added 2026-11-14)
+The July 2026 run charged the static arms' annual rebalance cost every day (a `PeriodIndex.shift`
+mask true on every row). `scripts/offense_campaign_t312_t315.py` now charges it once per year-change.
+Spec: amendment 1 of `docs/Audit/static_leverage_t315_2026_07_27.md`. N_trials 0.
+- `offense_campaign_t312_t315.py` prints the T-312 + T-315 campaign (corrected) to stdout; it writes
+  no file.
+- `t315_static_cost_rerun_t399.py` reports ORIGINAL (the defect reproduced on purpose, labelled)
+  beside CORRECTED for every arm, window and haircut, then the two labelled sensitivities (S1 blended
+  fee; S2 B-5 H.15/SOFR financing). It halts unless the reproduced ORIGINAL equals the published
+  tables. It reads `data/research/substrate_multidecade/` and `data/research/b5/inputs/` (md5-verified)
+  and writes only under `--out` (default `data/t399_local/`; it refuses `data/research`).
+
+```bash
+python scripts/offense_campaign_t312_t315.py                 # the corrected campaign, stdout only (~1 min)
+python scripts/t315_static_cost_rerun_t399.py --tag A        # -> data/t399_local/run_A/{results.json,tables.md} (~4 min)
+python scripts/t315_static_cost_rerun_t399.py --tag B        # determinism twin
+md5 -q data/t399_local/run_A/results.json data/t399_local/run_B/results.json
+python -m pytest tests/test_offense_campaign_static_cost_t399.py -q
+```
+
 ## B-2 (T-381) — small-cap momentum + insider clusters on the T-265 panel (added 2026-11-11)
 These are standalone harnesses for the frozen prereg `docs/Sources/prereg_b2_smallcap_t265_2026-11-11.md`
 (+ AMENDMENT 1). They read the T-265 stages (`data/research/t265/`), the SEC Form 345 zips
