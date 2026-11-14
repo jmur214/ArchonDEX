@@ -330,7 +330,7 @@ reproduced beside the corrected one in every table.
 
 ## R.2 The frontier — ORIGINAL beside CORRECTED
 
-**D-B ~58yr (1968+).** Bar $3,363,893, CAGR 10.50 %, MaxDD −55.2 %.
+**D-B ~58yr (1968-01-02 to 2026-04-17).** Bar $3,363,893, CAGR 10.50 %, MaxDD −55.2 %. Δlog and "ahead" are reported, not gating.
 
 | arm | ORIGINAL $10k→ | ORIGINAL Δwealth CI | CORRECTED $10k→ | CAGR | MaxDD | Δlog %/yr [95 % CI] | ahead | CORRECTED Δwealth CI (the gate) |
 |---|---|---|---|---|---|---|---|---|
@@ -342,7 +342,7 @@ reproduced beside the corrected one in every table.
 | glide 2×→1× (unaffected) | 5,865,931 | [−66, +55,141] | 5,865,931 | 11.57 % | −88.3 % | +0.95 [−3.16, +4.78] | 64 % | [−66, +55,141] straddles |
 | gated T-298 (unaffected) | 3,294,909 | [−1,486, +1,438] | 3,294,909 | 10.48 % | −47.9 % | −0.04 [−2.94, +3.22] | 51 % | [−1,486, +1,438] straddles |
 
-**D-A ~64yr (1962+).** Bar $5,647,734, CAGR 10.37 %.
+**D-A ~64yr (1962-01-02 to 2026-04-17).** Bar $5,647,734, CAGR 10.37 %. Δlog and "ahead" are reported, not gating.
 
 | arm | ORIGINAL $10k→ | ORIGINAL Δwealth CI | CORRECTED $10k→ | CAGR | Δlog %/yr [95 % CI] | ahead | CORRECTED Δwealth CI |
 |---|---|---|---|---|---|---|---|
@@ -352,8 +352,9 @@ reproduced beside the corrected one in every table.
 | static 1.75× | 6,141,082 | [−118, +43,990] | 13,967,219 | 11.95 % | +1.41 [−1.77, +4.43] | 82 % | [−39, +109,712] straddles |
 | static 2.00× | 7,789,320 | [−121, +111,875] | 17,716,503 | 12.37 % | +1.78 [−2.50, +5.83] | 80 % | [−53, +264,238] straddles |
 | glide (unaffected) | 11,727,107 | [−84, +148,810] | 11,727,107 | 11.65 % | +1.14 [−2.62, +4.97] | 74 % | same |
+| gated T-298 (unaffected) | 7,988,176 | [−2,635, +6,285] | 7,988,176 | 10.95 % | +0.53 [−2.14, +3.78] | 63 % | same |
 
-**~99yr (1926+).** Bar $145,842,174, CAGR 10.08 %, MaxDD −84.1 %.
+**~99yr (1926-07-02 to 2026-04-17).** Bar $145,842,174, CAGR 10.08 %, MaxDD −84.1 %. Δlog and "ahead" are reported, not gating.
 
 | arm | ORIGINAL $10k→ | ORIGINAL Δwealth CI | CORRECTED $10k→ | CAGR | MaxDD | Δlog %/yr [95 % CI] | ahead | CORRECTED Δwealth CI |
 |---|---|---|---|---|---|---|---|---|
@@ -363,17 +364,22 @@ reproduced beside the corrected one in every table.
 | static 1.75× | 221,489,542 | [−2,003, +8,721,526] | 839,080,344 | 12.02 % | −97.1 % | +1.75 [−1.29, +4.40] | 86 % | [−317, +34,254,804] straddles |
 | static 2.00× | 344,512,747 | [−1,864, +34,240,093] | 1,305,205,777 | 12.52 % | −98.4 % | +2.20 [−1.88, +5.75] | 84 % | [−464, +130,929,167] straddles |
 | glide (unaffected) | 865,542,460 | [−756, +84,302,633] | 865,542,460 | 12.06 % | −98.4 % | +1.78 [−2.17, +5.20] | 82 % | same |
+| gated T-298 (unaffected) | 1,960,925,542 | [+86, +5,133,571] SIGNIFICANT | 1,960,925,542 | 12.99 % | −54.3 % | +2.61 [+0.01, +5.41] | 98 % | same — T-312's published single-episode result (1929 alone; see T-312) |
 
 - **In every window, no static arm CI-beats the bar and no static arm CI-loses to it.** The July
   "1.25× LOSES" appears in all three windows and disappears in all three.
-- **On point every static arm is ahead of the bar at the realized premium, and the frontier rises with L.**
-  The July "non-monotone" shape, with 1.25× at about half the bar, was the daily cost.
+- **On point, inside the frozen model, every static arm at 1.35× and above is ahead of the bar at the
+  realized premium in all three windows, and the frontier rises with L.** The July "non-monotone" shape,
+  with 1.25× at about half the bar, was the daily cost.
+- **At 1.25× on D-B and D-A the sign of the point estimate is not established.** The +0.15 and
+  +0.16 %/yr leads are smaller than the frozen model's two leverage-favouring conventions, which are
+  worth about 0.10 and 0.07 %/yr there (R.8).
 - The effect of the fix is the same in every row: about +1.4 pp of CAGR, a terminal value about 2.1× the
   July figure on D-B and about 3.8× on the ~99yr window (more bars, and six-day weeks before 1952).
 
 ## R.3 Forward-ERP haircuts — D-B
 
-Terminal $10k and its multiple of the bar. The July run printed no haircut CIs; both columns carry them now.
+Terminal $10k and its multiple of the bar. The July run printed no haircut CIs; both columns carry them now. Δlog and "ahead" are reported, not gating.
 
 | haircut | arm | bar | ORIGINAL (× bar) | ORIGINAL Δwealth CI | CORRECTED (× bar) | Δlog %/yr [95 % CI] | ahead | CORRECTED Δwealth CI |
 |---|---|---|---|---|---|---|---|---|
@@ -421,6 +427,10 @@ both unaffected):
 | 1962–1989 | 6.6 % | 9.97 % | 8.55 % | **9.95 %** | 8.79 % | **10.19 %** | 12.81 % |
 | 1990–2026 | 2.7 % | 10.64 % | 10.94 % | 12.37 % | 12.54 % | 13.99 % | 9.45 % |
 
+The split has no CI. To three decimals 1962–1989 reads bar 9.974 %, 1.5× 9.946 %, 2× 10.191 %. That era
+is entirely before the 1993 splice, where convention (b) of R.8 is worth 0.135 and 0.180 pp, so both
+gaps are inside the model's convention error.
+
 **Lost-decades overlay** (final 20 years at −2 %/yr; bar $2,255,147):
 
 | arm | ORIGINAL | CORRECTED (× bar) |
@@ -444,7 +454,7 @@ $35,000,003; glide 2×→1× $86,453,022 and gated $26,581,118, both unaffected:
 
 SPY + SSO in the proportions that give L. Against the headline fund model it saves
 `(2 − L) × (0.89 % − 2 × 0.09 %)` a year: 0.53 %/yr at 1.25×, 0.36 % at 1.5×, 0.18 % at 1.75×, nothing at 2×
-(self-check: S1 at 2.0× equals the headline arm in every window).
+(self-check: S1 at 2.0× equals the headline arm in every window). Δlog and "ahead" are reported, not gating.
 
 | window | arm | headline CORRECTED $ | S1 blend $ | Δlog %/yr [95 % CI] | ahead | S1 Δwealth CI |
 |---|---|---|---|---|---|---|
@@ -468,14 +478,16 @@ S1 under the haircuts, D-B (terminal $ and × bar; every CI straddles zero):
 
 - **No S1 arm excludes zero in any window.** The 1.25× blend on the ~99yr window is at the line, as
   pre-declared: 95 % of draws ahead, CI [−39, +1,956,903].
-- **Under S1 the −2 % conclusion changes sign at low leverage:** 1.25–1.5× ends 11–13 % above the bar,
-  1.75× level, 2× below. At −3 % every blend still ends below.
+- **Under S1 the −2 % point estimate changes sign at low leverage:** 1.25–1.5× ends 11–13 % above the bar,
+  1.75× level, 2× below. At −3 % every blend still ends below. This is a sensitivity and a point
+  estimate: the leads are +0.18 to +0.20 %/yr, and the two conventions of R.8 are worth 0.10–0.21 %/yr on
+  those blends, so the sign of the flip is not established.
 - S1 accumulation race: 1.25× $55.5M, 1.5× $80.7M, 1.75× $107.4M, 2× $130.7M. S1 1929 path: 1.25×
   −90.8 % / $928 / 13.2 yr; 2× unchanged.
 
 ## R.6 SENSITIVITY S2 — B-5's H.15 / SOFR financing (labelled; not the headline)
 
-Windows end 2025-12-31. On the borrowed fraction the T-306 cash leg + 60 bp charged 4.96 %/yr on D-B and
+Windows end 2025-12-31. Δlog is reported, not gating. On the borrowed fraction the T-306 cash leg + 60 bp charged 4.96 %/yr on D-B and
 4.88 %/yr on D-A; B-5's base + 60 bp charges **5.25 %** and **5.17 %** — about 0.29 pp/yr more.
 
 | window | arm | T-306 cash: $ / Δlog %/yr | B-5 financing: $ / Δlog %/yr [95 % CI] | B-5 Δwealth CI |
@@ -492,7 +504,9 @@ Windows end 2025-12-31. On the borrowed fraction the T-306 cash leg + 60 bp char
 - **The T-306 cash leg was slightly generous to leverage.** It is Fama-French's one-month bill rate on
   trading days; B-5's base is the three-month bill and SOFR accrued on calendar days over 360. The gap is
   not decomposed here. B-5's financing lowers every arm by 0.07–0.30 %/yr and changes no verdict.
-- 1.35× and the full S2 rows are in `data/t399_local/run_A/tables.md` (worktree-local, not committed).
+- The 1.35× rows, the 1.75× D-A row and the D-A glide are not printed here. Regenerate them with the
+  runner (`python scripts/t315_static_cost_rerun_t399.py --tag A`): `results.json` md5 `5238dff1…`,
+  `tables.md` md5 `36ce2589…`. The run directory is worktree-local and not committed.
 
 ## R.7 Against the expectation stated in A1.7 before the run
 
@@ -510,6 +524,71 @@ t here is Δlog divided by a standard error read off its own bootstrap interval 
 
 Nothing came out differently from what was declared.
 
+## R.8 Two leverage-favouring conventions of the frozen model (pre-existing; outside this fix)
+
+The fix removed a cost that was not in the specification. Two things that are in the frozen model lean
+toward the levered arms. Neither was changed and no arm was re-run under a changed model: that would be a
+new configuration and needs its own pre-registration. The sizes below are arithmetic on bar counts and on
+the tables above.
+
+- **(a) The cash leg.** S2 measures it. With B-5's bill / SOFR financing the Δlog of the 1.25× arm falls
+  by 0.07 %/yr (D-B +0.14 → +0.07, D-A +0.15 → +0.08, windows to 2025-12-31), 1.35× by 0.10, 1.5× by
+  0.15, 1.75× by 0.22 and 2× by 0.29.
+- **(b) The fund fee.** `scripts/offense_campaign_t312_t315.py:28` adds the 1× fund's 9 bp back to the
+  equity return before multiplying by L (`gross = eq_ret + ER["equity"] / TD`), and the bar at `:143`
+  subtracts 9 bp (`bar = (er - ER["equity"] / TD).dropna()`). The equity leg is a gross index before the
+  1993-02-01 splice (Fama-French broad market) and SPY's adjusted close, already net of SPY's fee, after
+  it (`data/research/substrate_multidecade/provenance.json`). Before the splice the add-back gives the
+  fund L × 9 bp/yr it should not have; after it the bar pays 9 bp/yr twice. Arm minus bar is overstated by
+  L × 9 bp/yr before the splice and 9 bp/yr after. Bars before / after the splice: D-B 6,310 / 8,360,
+  D-A 7,821 / 8,360, ~99yr 17,863 / 8,360.
+
+| overstatement of Δlog from (b), %/yr | 1.25× | 1.35× | 1.50× | 1.75× | 2.00× |
+|---|---|---|---|---|---|
+| D-B | 0.100 | 0.103 | 0.109 | 0.119 | 0.129 |
+| D-A | 0.101 | 0.105 | 0.112 | 0.122 | 0.133 |
+| ~99yr | 0.110 | 0.116 | 0.126 | 0.142 | 0.158 |
+| 1962–1989 (all before the splice) | 0.112 | 0.121 | 0.135 | 0.157 | 0.180 |
+
+What that does to the point estimates (Δlog %/yr; subtraction, not a re-run):
+
+| arm | frozen model | less (b) | less (a) as well |
+|---|---|---|---|
+| D-B 1.25× | +0.15 | +0.05 | **−0.02** |
+| D-A 1.25× | +0.16 | +0.06 | **−0.01** |
+| ~99yr 1.25× | +0.28 | +0.17 | S2 does not cover this window |
+| D-B 1.35× | +0.44 | +0.34 | +0.24 |
+| D-A 1.35× | +0.46 | +0.36 | +0.26 |
+| D-B 2.00× | +1.66 | +1.53 | +1.24 |
+
+- **At 1.35× and above the point lead survives both conventions in every window. At 1.25× on D-B and D-A
+  it does not:** the sign of the point estimate is not established. No interval is affected in kind; every
+  static-arm CI straddled zero before this subtraction and would after it.
+- **Both columns carry both conventions.** ORIGINAL and CORRECTED are shifted alike, and so are the
+  haircut rows: on point the shortfalls at −2 % and −3 % are about 0.17 %/yr (1.25×) to 0.42 %/yr (2×)
+  deeper than printed.
+- **S1 carries less of (b)**, because only the SSO slice gets the add-back: 0.03 %/yr at 1.25×, 0.06 at
+  1.5×, 0.10 at 1.75× on D-B. With (a), the S1 leads at −2 % (+0.18, +0.20, +0.19 %/yr at 1.25×, 1.35×,
+  1.5×) become about +0.08, +0.06 and −0.02. At the realized premium the 1.25× blend goes from +0.68 to
+  about +0.58.
+- The gated arm mixes the two conventions by its exposure and is not sized here.
+- Recorded as an open MEDIUM in `docs/State/health_check.md`.
+
+## R.9 Notes on the frozen mechanics
+
+- **The first-bar reading.** The fix charges the cost on the first bar of the series and on the first bar
+  of each later calendar year. The first-bar charge is one 0.51 bp entry cost the bar does not pay; on the
+  ~99yr window, which starts mid-year (1926-07-02), it is an extra charge relative to "once per calendar
+  year". It is immaterial: about $190 of $3.67M on D-B 1.25×, about $66,000 of $1.305bn on ~99yr 2×.
+- **The bootstrap** is a fixed 21-day moving block, 1,000 draws, seed 0. That is T-315's frozen setting,
+  not the Politis–White automatic block length.
+- **Per-bar accrual.** Fees and the spread accrue at 1/252 per bar. 1927–1951 has about 294 bars a year
+  (six-day weeks), so those years are charged about 17 % too much. Pre-existing; it touches only the
+  ~99yr window.
+- **S1's direction was known before it was declared.** T-396 §1.2 had already computed that the fund model
+  overcharges low leverage, so S1 could only help the low arms. A1.5 fixed its form before the run, not
+  its sign.
+
 ---
 # CORRECTED VERDICT (T-399) — which sentences of the verdict above survive
 
@@ -518,27 +597,54 @@ The verdict section above is left as written. This section supersedes it.
 | Sentence of the July verdict | Status | What the corrected run says |
 |---|---|---|
 | "No static arm CI-beats buy-hold at any leverage in any window." | **SURVIVES** | Every static arm straddles zero in D-B, D-A and ~99yr, and in both sensitivities. |
-| "The only CI-significant static result is 1.25× LOSING … its mechanism is the ER-amortization non-monotonicity." | **DOES NOT SURVIVE** | It was the daily cost. Corrected 1.25× is ahead on point in all three windows (D-B $3.67M vs $3.36M, +0.15 %/yr [−0.95, +1.17]) and straddles. |
-| "The pre-registered non-monotonicity is CONFIRMED, and it is the headline"; "'Modest leverage is the safe version' is false on cost." | **DOES NOT SURVIVE** | At the realized premium the corrected frontier rises with L and every arm is above the bar. The fund model does overcharge low leverage (0.53 %/yr at 1.25×, S1), but not enough to sink it. |
-| "At a −2 % forward-ERP haircut EVERY static arm loses." | **SURVIVES on point in the frozen model, not in size, not as a CI, and not under S1** | 0.81–0.91× of the bar, not "less than half"; every CI straddles; with the blended fee 1.25–1.5× ends 11–13 % above. |
+| "The only CI-significant static result is 1.25× LOSING … its mechanism is the ER-amortization non-monotonicity." | **DOES NOT SURVIVE** | It was the daily cost. Corrected 1.25× straddles in all three windows (D-B $3.67M vs $3.36M, +0.15 %/yr [−0.95, +1.17]). Its point estimate is positive inside the frozen model, but on D-B and D-A the sign is not established: the lead is smaller than the model's two leverage-favouring conventions (R.8). |
+| "The pre-registered non-monotonicity is CONFIRMED, and it is the headline"; "'Modest leverage is the safe version' is false on cost." | **DOES NOT SURVIVE** | At the realized premium the corrected frontier rises with L, and inside the frozen model every arm at 1.35× and above is above the bar on point. At 1.25× the arm is level with the bar within the model's conventions (R.8). The fund model does overcharge low leverage (0.53 %/yr at 1.25×, S1). |
+| "At a −2 % forward-ERP haircut EVERY static arm loses." | **SURVIVES on point in the frozen model, not in size, not as a CI, and not under S1** | 0.81–0.91× of the bar, not "less than half"; every CI straddles. In the S1 sensitivity 1.25–1.5× ends 11–13 % above on point, a lead whose sign is not established (R.5, R.8). |
 | "At −3 % the ordering fully inverts: more leverage = strictly less wealth." | **SURVIVES on point** | 0.70× at 1.25× down to 0.46× at 2×; under S1 0.96× down to 0.46×. No CI excludes zero. |
 | "Kelly agrees: L* = 2.20 → 1.49 → 1.13"; "fractional-Kelly discipline alone argues for ≈1×." | **NUMBERS WITHDRAWN; the half-Kelly reading survives** | Kelly on the arithmetic mean is 2.55 → 1.83 → 1.48, before costs. Half of that is 1.28, 0.92, 0.74. |
-| "The entire static-leverage case is a bet on the forward equity premium being at or above its realized history." | **SURVIVES, restated** | The break-even haircut sits between 0 and −2 % for every arm in the frozen model, and between −2 % and −3 % for the 1.25–1.75× blends under S1. |
+| "The entire static-leverage case is a bet on the forward equity premium being at or above its realized history." | **SURVIVES, restated** | On point the break-even haircut sits between 0 and −2 % for every arm in the frozen model (at 1.25× it is at about zero once R.8 is counted), and near −2 % for the low blends in the S1 sensitivity. |
 | "The 1929 dollar test disqualifies the high arms" ($10,000 → $152, 20.6 yr). | **SURVIVES** | $158 and 19.0 years at 2×. At 1.25× the recovery is 13.3 years, not 18.1, against the bar's 12.5. |
-| "Static leverage LOSES to buy-hold in the high-cash-rate era and wins only in the low-rate era." | **"LOSES" DOES NOT SURVIVE; the concentration survives** | 1962–89: 1.5× 9.95 % vs 9.97 % (level), 2× 10.19 % (ahead). 1990–2026: +1.7 and +3.4 pp. The edge is still almost all in the cheap-financing era. |
+| "Static leverage LOSES to buy-hold in the high-cash-rate era and wins only in the low-rate era." | **"LOSES" IS NOT ESTABLISHED, and neither is "ahead"; the concentration survives** | 1962–89: bar 9.974 %, 1.5× 9.946 %, 2× 10.191 %. That era is all before the 1993 splice, where convention (b) is worth 0.135 and 0.180 pp (R.8), so both gaps are inside the model's convention error, and the split has no CI. The July gaps (−1.42 and −1.18 pp) were the daily cost. 1990–2026: +1.73 and +3.35 pp. The point edge is still almost all in the cheap-financing era. |
 | "Japan path: every static arm loses, monotonically worse as the path degrades." | **DOES NOT SURVIVE** | 1.25× 0.99× of the bar, 1.5× 1.33×, 2× 1.77×. |
 | "The glide wins the dollar-weighted race." | **DOES NOT SURVIVE** | Static 2× ($130.7M) and 1.75× ($98.5M) finish ahead of the glide ($86.5M). One cohort, the full premium, no CI. |
-| "SSO's cost structure … is what pushes 1.25× below break-even." | **DOES NOT SURVIVE** | 1.25× is not below break-even at the realized premium. |
-| "Recommendation: no static-leverage arm earns a row." | **SURVIVES on the frozen gate** | No CI excludes zero. |
-| "(a) accepting 1× buy-hold as the wealth-maximizing choice under any haircut." | **RESTATED** | 1× is not beaten with confidence at any haircut. On point it is behind every static arm at the realized premium and ahead of every one at −2 % and −3 % in the frozen model. |
+| "SSO's cost structure … is what pushes 1.25× below break-even." | **DOES NOT SURVIVE as stated** | The July 1.25× shortfall was the daily cost, not SSO's fee. Whether 1.25× sits just above or just below break-even at the realized premium is not established (R.8). |
+| "Recommendation: no static-leverage arm earns a row." | **SURVIVES on the frozen gate** | No static-arm CI excludes zero. |
+| "(a) accepting 1× buy-hold as the wealth-maximizing choice under any haircut." | **RESTATED** | 1× is not beaten with confidence by any static arm at any haircut. On point, inside the frozen model, it is behind every static arm at 1.35× and above at the realized premium (at 1.25× the sign is not established) and ahead of every one at −2 % and −3 %. |
 
 **The corrected verdict in three sentences.** Static leverage on this vehicle is not refuted and not
-supported: at the realized 1968–2025 premium every arm ends ahead of 1× on point (+0.15 %/yr at 1.25× to
-+1.66 %/yr at 2×) with a drawdown of −65 % to −88 % against −55 %, and no interval excludes zero in any
-window. A −2 % haircut turns the frozen model negative by 0.2–0.4 %/yr and a −3 % haircut by 0.6–1.3 %/yr,
+supported: at the realized premium of the D-B window (1968-01-02 to 2026-04-17), inside the frozen model,
+every arm at 1.35× and above ends ahead of 1× on point (+0.44 %/yr at 1.35× to +1.66 %/yr at 2×) and at
+1.25× the sign of the point estimate is not established (+0.15 %/yr, smaller than the model's two
+leverage-favouring conventions, R.8); the drawdown is −65 % to −88 % against −55 %, and no static-arm
+interval excludes zero in any window. A −2 % haircut turns the frozen model negative by 0.2–0.4 %/yr and a −3 % haircut by 0.6–1.3 %/yr,
 again inside the noise. It is a decision about how much equity-premium risk to hold and what forward
 premium to believe (T-396 §4), and the 1929 path still says what the high arms cost when that belief is
 wrong.
 
 **T-315's status.** "refuted" was the right word for "does any static arm CI-beat the bar" and remains so.
 It was the wrong word for "leverage loses": the July run showed that only through the defect.
+
+---
+# REVIEW ROUND 1 (2026-11-14) — what changed in the T-399 part of this document, and why
+
+An independent review by execution reproduced every frontier cell, CI, haircut, the race, the 1929 path,
+S1 and S2 from a from-scratch implementation, and confirmed the reversion split and the unaffected arms. It
+found the write-up claimed more than the run shows at 1.25×. No code in the fix changed and nothing was
+re-run. Edits are confined to the part of this document T-399 appended (from "AMENDMENT 1 — RESULTS" down);
+the July text and the pre-declared amendment are untouched.
+
+| Where | Was | Now | Why |
+|---|---|---|---|
+| R.2, second bullet | "On point every static arm is ahead of the bar at the realized premium" | 1.35× and above ahead on point inside the frozen model; at 1.25× on D-B and D-A the sign is not established | The +0.15 / +0.16 %/yr lead is smaller than two leverage-favouring conventions of the frozen model (new R.8): the cash leg (S2: −0.07) and the fund-fee add-back (−0.10). |
+| Verdict rows on "1.25× LOSING", the non-monotone frontier, "below break-even", and "wealth-maximizing under any haircut" | "ahead on point in all three windows"; "every arm is above the bar"; "not below break-even"; "behind every static arm" | Each now says 1.35× and above, with the sign at 1.25× not established | The same finding. |
+| The three-sentence verdict | "at the realized 1968–2025 premium every arm ends ahead of 1× on point (+0.15 … +1.66 %/yr) … no interval excludes zero in any window" | The D-B span as run (1968-01-02 to 2026-04-17); 1.35× and above ahead; 1.25× sign not established; "no static-arm interval" | Only S2 ends 2025-12-31. The gated arm's ~99yr interval [+86, +5,133,571] excludes zero (T-312's published single-episode result), so "no interval" was too broad. |
+| Verdict row on the regime split; R.4 | "1.5× 9.95 % vs 9.97 % (level), 2× 10.19 % (ahead) … +1.7 and +3.4 pp" | "LOSES" not established and neither is "ahead"; 9.974 / 9.946 / 10.191 %; +1.73 and +3.35 pp; no CI for the split | 1962–89 is all before the splice, where convention (b) is worth 0.135 and 0.180 pp. |
+| Verdict rows on the −2 % haircut and the break-even; R.5 bullet | "with the blended fee 1.25–1.5× ends 11–13 % above"; "changes sign" | Called a sensitivity and a point estimate whose sign is not established | The S1 leads at −2 % (+0.18 to +0.20 %/yr) are the size of the same two conventions on a blend. This one was not asked for by the review; it follows from R.8. |
+| R.2, D-A and ~99yr tables | no gated row | gated row added | The ~99yr gated interval is the one that excludes zero; leaving it out hid that. |
+| R.2, R.3, R.5, R.6 leads | the non-gating label stated once, in R.1 | stated on each table that shows Δlog or "ahead"; R.2 leads carry the exact spans | A table is read on its own. |
+| R.6, last bullet | pointed at `data/t399_local/run_A/tables.md` | how to regenerate, with the md5s | That file is not committed. |
+| New R.8 | — | the two conventions, sized by arithmetic | Finding 2. Convention (b) is a pre-existing property of the frozen model, outside this fix; changing it is a new pre-registration. |
+| New R.9 | — | the first-bar reading, the bootstrap setting, per-bar accrual, S1's direction | Disclosures the review asked for. |
+
+The corrected verdict's first row ("no static arm CI-beats"), the 1929 row, the Kelly row, the Japan-path
+row and the glide row are unchanged.
