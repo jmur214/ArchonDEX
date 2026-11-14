@@ -904,3 +904,23 @@ test would reach t ≈ −1.0 and pass about one time in six. **So H_OOS can con
 twice the S&P one** — which is what the literature's "stronger in low-attention names" would imply, and no
 more than that. A refutation here is therefore weak evidence against a small effect and is stated as such
 in advance; the closure rule in A5.3 holds regardless.
+
+---
+
+## AMENDMENT 6 — director rulings on AMENDMENT 5 (2026-11-14; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, still before any T-265 return, price join or signal ranking has been computed (the only
+T-265 outputs are the stream's per-filing text signals and statuses; no T-265 harness exists).
+
+- **A6.1 Population — the worker's reading is RATIFIED.** H_OOS uses the IDENTICAL construction that
+  produced the S&P statistic: ranked within form — a name whose latest filing is a 10-Q on adjacent-quarter
+  MD&A similarity, a name whose latest filing is a 10-K on the year-on-year combo — then pooled; changers =
+  the bottom tercile; universe = all ranked names, equal weight. Only the same construction is a
+  confirmation; the ruling's "10-Q filers" wording in AMENDMENT 5 was loose. The 10-Q-names-only version is
+  reported beside it as a diagnostic that CANNOT meet H_OOS.
+- **A6.2 Accounting — ACCEPTED.** +1 N for H_OOS: the T-265 arm consumes **+2** at its run (the gate family;
+  H_OOS). H_OOS is its own one-hypothesis family at **t_HAC ≤ −2.0**. The gate's Bonferroni family
+  ({similarity, Δtone}, 1.25th-percentile `ci_low`) is unchanged.
+- **A6.3 Power — to be stated in the verdict's FIRST paragraph, as in A5.5:** a pass at about 1-in-6 odds if
+  the true gap equals the S&P estimate; a refutation is weak evidence against a small effect and closes
+  only the adjacent-pairing finding as a certifiable claim.
