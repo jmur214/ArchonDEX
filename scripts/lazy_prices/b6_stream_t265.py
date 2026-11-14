@@ -51,13 +51,23 @@ def t265_ciks() -> list[int]:
     return sorted(int(c) for c in ct[ct.ticker.isin(files)].cik.unique())
 
 
-def _done() -> set[int]:
+def _done(retry_errors: bool = False) -> set[int]:
+    """CIKs already processed. With retry_errors, a CIK whose ONLY records are transient failures
+    ('error:...' or a failed submissions fetch) is not done and is re-attempted; it wrote no signal
+    or filing row when it failed, so a retry cannot duplicate anything. A legitimate empty result
+    ('no_periodic_filings_since_2015') stays done."""
     if not OUT_DIR.is_dir():
         return set()
-    done: set[int] = set()
-    for p in OUT_DIR.glob("done_*.parquet"):
-        done |= set(pd.read_parquet(p).cik.astype(int))
-    return done
+    parts = [pd.read_parquet(p) for p in OUT_DIR.glob("done_*.parquet")]
+    if not parts:
+        return set()
+    d = pd.concat(parts, ignore_index=True)
+    d["cik"] = d["cik"].astype(int)
+    if not retry_errors:
+        return set(d.cik)
+    transient = d["error"].fillna("").str.startswith(("error:", "submissions_"))
+    ok = set(d.loc[~transient, "cik"])
+    return ok
 
 
 def company_filings(cik: int) -> tuple[list[dict], str]:
@@ -105,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-interval", type=float, default=E.MIN_INTERVAL)
     ap.add_argument("--flush-ciks", type=int, default=10)
     ap.add_argument("--shard", default="0/1", help="k/n: this worker takes CIKs with index %% n == k")
+    ap.add_argument("--retry-errors", action="store_true",
+                    help="re-attempt CIKs whose only record is a transient failure")
     ap.add_argument("--disk-floor", type=float, default=E.DISK_FLOOR_GB)
     args = ap.parse_args(argv)
     E.MIN_INTERVAL = args.min_interval
@@ -115,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     if not 0 <= k_shard < n_shard:
         raise SystemExit(f"bad --shard {args.shard}")
     ciks = [c for i, c in enumerate(ciks) if i % n_shard == k_shard]
-    done = _done()
+    done = _done(args.retry_errors)
     todo = [c for c in ciks if c not in done]
     if args.limit_ciks:
         todo = todo[: args.limit_ciks]
