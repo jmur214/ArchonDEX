@@ -195,3 +195,25 @@ through a different rail than the one named, and are reported as such:
 - **The three known omissions** (§1.6) remain in v5 + Tier 1: GE 2019 (−3.95 pp), HON 2018 (−1.14 pp),
   APD 2016 (+0.59 pp) in test (i).
 - **The verdict on T-384's unchanged test is still FAIL.**
+
+## §6. Review follow-up (2026-11-14) — appended; the review's verdict was APPROVE with two LOW findings
+
+1. **The duplicate check is now tested where it alone can catch the defect.** A 12-row table that repeats
+   APD's row has 11 distinct (file, date) keys, so the row-count check is satisfied; only the duplicate check
+   stands between it and APD's step applied twice (0.1556 instead of 0.0778). The new lock plants exactly
+   that table. Reverted, the table loads. The earlier 11-row case could not show this, and is now a separate
+   lock on the row count.
+2. **A copy written without the table now fails closed where it matters.**
+   `--stooq-corrections none` stays available for scratch runs, and the driver prints a SCRATCH MODE line
+   when it is used. A copy written that way is refused in three places:
+   - **the run census** (`core/census.assert_census`): a panel with `n_stooq_label_not_recorded > 0` is a
+     FAILURE, naming the files — the same pattern as an unlabelled name;
+   - **`cutover_step1_pass label`** exits 5 and names the files;
+   - **`cutover_step1_pass stage`** refuses to stage the copy for a candidate manifest.
+   The scan behind the two driver checks reads the write records alone
+   (`convention.era_tr_files_without_stooq_label`).
+   On the real check copy (`t394_writer_check_2026-11-14/`) `label` reports 575 `era_tr`, 10 files with
+   Tier-1 rows, 11 rows, 374 with the unverified label and 0 not recorded. (That command exits 3 there for
+   an unrelated reason: the check copy holds only the 575 seam files of the merge record's 730 names.)
+3. **Tests:** 19 locks in `tests/test_era_tr_tier1_t394.py` (4 new); 7 further reversion runs, each failing for
+   the intended reason.

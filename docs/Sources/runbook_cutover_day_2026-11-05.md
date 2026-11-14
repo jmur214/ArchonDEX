@@ -270,3 +270,8 @@ pre-2003 spans; the second unit (the spin-off / transient-block repair, held to 
 
 **Pre-condition, added.** The T-394 branch merged on main after independent review by execution. Until then
 S1b writes v5 with no label, and the census counts every file under `n_stooq_label_not_recorded`.
+
+**Added 2026-11-14 (T-394 review follow-up).** A copy written with `--stooq-corrections none` is a scratch copy.
+`cutover_step1_pass label` exits 5 on it, `cutover_step1_pass stage` refuses it, and a run census fails it
+(`n_stooq_label_not_recorded > 0`). The P3 label reading on cutover day therefore also checks this: exit 0 is
+required.

@@ -160,6 +160,7 @@ integration test gated behind `UNIVERSE_LIVE_TEST=1`.
 - **Function `load_drip_witness()`**: The frozen witness's per-name hashes, or None when the file is absent (then NOTHING is labelled
 - **Function `is_drip_witnessed()`**: None when the file under `cache_dir` IS the drip the witness pinned (csv always; parquet where
 - **Function `stooq_corrections_label()`**: T-394: what an era_tr write record says about the Stooq corrections — the Tier-1 rows applied to the
+- **Function `era_tr_files_without_stooq_label()`**: T-394: the names whose write record says the pre-seam span is era_tr but carries no Stooq-corrections
 - **Function `era_tr_records_present()`**: The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr.
 - **Function `label_of()`**: One string per name: `exact_tr` (whole), or `drip<2018-01-02|exact_tr` (pre-seam, seam date,
 - **Function `cache_first_bar_frames()`**: One-row frames at each file's FIRST bar, read from the cache's own `<T>_1d.csv` files — the

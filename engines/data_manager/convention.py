@@ -56,7 +56,7 @@ import hashlib
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
@@ -179,6 +179,22 @@ def stooq_corrections_label(block: dict) -> dict:
     return {"tier1_applied": len(applied), "recorded": True, "n_steps": int(lab.get("n_steps", 0)),
             "n_blocks": int(lab.get("n_blocks", 0)), "n_known_unapplied": len(lab.get("known_unapplied") or []),
             "table_sha256": (block.get("stooq_corrections") or {}).get("table_sha256")}
+
+
+def era_tr_files_without_stooq_label(records_dir: Path) -> List[str]:
+    """T-394: the names whose write record says the pre-seam span is era_tr but carries no Stooq-corrections
+    label (`unverified_stooq_corrections` absent or null) — written without the pinned table. Read from the
+    records alone, so a driver can refuse a copy before anything is staged or pinned."""
+    out: List[str] = []
+    if not Path(records_dir).is_dir():
+        return out
+    for p in sorted(Path(records_dir).glob("*.json")):
+        rec = json.loads(p.read_text())
+        if (rec.get("convention") or {}).get("pre_seam") != ERA_TR:
+            continue
+        if not stooq_corrections_label(rec.get("era_tr") or {})["recorded"]:
+            out.append(p.stem)
+    return out
 
 
 def era_tr_records_present(records_dir: Path) -> bool:

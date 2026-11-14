@@ -98,14 +98,26 @@ def test_a_tampered_table_or_label_file_is_refused(tmp_path):
         st1.load_tier1(path=tmp_path / "nope.json")
 
 
-def test_a_table_with_a_duplicate_row_or_the_wrong_count_is_refused(tmp_path):
-    """Reversion: `if key in seen:` → `if False:` (the duplicate then slips to the count check: the message differs)."""
+def test_a_duplicate_row_is_refused_where_only_the_duplicate_check_can_catch_it(tmp_path):
+    """The 11 rows PLUS a second copy of APD's: 12 rows, 11 distinct (file, date) keys — so the row-count check
+    is satisfied, and only the duplicate check stands between the table and APD's step applied twice
+    (0.1556 instead of 0.0778). Reversion: `if key in seen:` → `if False:` in stooq_tier1.load_tier1."""
     doc = json.loads(st1.TIER1_PATH.read_text())
-    dup = dict(doc, rows=doc["rows"][:-1] + [doc["rows"][0]])
-    p = tmp_path / "dup.json"
-    p.write_text(json.dumps(dup))
-    with pytest.raises(st1.StooqTier1Refusal, match="two rows for one file and date"):
+    apd = next(r for r in doc["rows"] if r["ticker"] == "APD")
+    p = tmp_path / "twelve.json"
+    p.write_text(json.dumps(dict(doc, rows=doc["rows"] + [dict(apd)])))
+    assert len(json.loads(p.read_text())["rows"]) == 12
+    with pytest.raises(st1.StooqTier1Refusal, match="APD 2016-10-03: two rows for one file and date"):
         st1.load_tier1(path=p, expected_sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+    # what the refusal prevents: two rows for one date SUM in the change series
+    dates = pd.bdate_range("2016-09-01", "2016-12-30")
+    doubled = st1.changes_for_file("APD", [apd, dict(apd)], dates, dates[-1])
+    assert doubled.loc[pd.Timestamp("2016-10-03")] == pytest.approx(-2 * apd["log_amount"])
+
+
+def test_a_table_with_the_wrong_row_count_is_refused(tmp_path):
+    """Reversion: `if len(seen) != N_TIER1_ROWS:` → `if False:`."""
+    doc = json.loads(st1.TIER1_PATH.read_text())
     short = tmp_path / "short.json"
     short.write_text(json.dumps(dict(doc, rows=doc["rows"][:-1])))
     with pytest.raises(st1.StooqTier1Refusal, match="10 rows, not 11"):
@@ -262,6 +274,60 @@ def test_no_changes_is_exactly_the_a_prime_factor():
     dates = pd.bdate_range("2017-01-02", periods=30)
     assert (et.correction_factor(dates, dates[-1] + pd.Timedelta(days=3), None) == 1.0).all()
     assert (et.correction_factor(dates, dates[-1] + pd.Timedelta(days=3), pd.Series(dtype=float)) == 1.0).all()
+
+
+# ── a copy written WITHOUT the table is never taken for a cutover candidate (review follow-up) ─────────
+
+def _census_gate(block):
+    from core.census import assert_census
+    return assert_census({"census": {"n_resolved": 1, "n_in_panel": 1, "n_trades": 3, "trades_canon_md5": "0" * 32,
+                                     "regime_total_bars": 10, "regime_unknown_frac": 0.0,
+                                     "substrate_convention": block},
+                          "bootstrap_ci_skip_reason": "test"})
+
+
+def test_the_run_census_fails_an_era_tr_file_written_without_the_table(tmp_path, planted):
+    """A measured run on a scratch write (`--stooq-corrections none`) is NON-CANONICAL.
+    Reversion: `if n_unrec > 0:` → `if False:` in core/census.assert_census."""
+    scratch, _ = _rewrite(tmp_path, "scratch", planted)
+    v = _census_gate(fx._label(scratch))
+    assert any("written WITHOUT the pinned Stooq corrections table" in f and TICKER in f for f in v.failures)
+    wired, _ = _rewrite(tmp_path, "wired", planted, stooq_corrections=table(tier2=TIER2))
+    v2 = _census_gate(fx._label(wired))
+    assert not any("Stooq corrections" in f for f in v2.failures)            # the positive control
+    assert not any("Stooq corrections" in f for f in _census_gate({"unlabelled": {}}).failures)   # a pre-T-394 record
+
+
+def test_the_driver_label_and_stage_refuse_a_copy_written_without_the_table(tmp_path, planted, monkeypatch, capsys):
+    """`label` exits 5 and `stage` refuses a copy whose era_tr files carry no label; both accept a wired copy.
+    Reversions: `if unrecorded:\n        print(f"[label] FAIL` → `if False:\n        print(f"[label] FAIL`;
+    `if unrecorded:\n        raise SystemExit(f"REFUSED: {len(unrecorded)} era_tr file(s) in {copy}` → `if False:…`."""
+    monkeypatch.setattr(fx.cs, "CANDIDATES_ROOT", tmp_path)
+    scratch, _ = _rewrite(tmp_path, "scratch", planted)
+    wired, _ = _rewrite(tmp_path, "wired", planted, stooq_corrections=table())
+    assert fx.cs.main(["label", "--cache", str(scratch)]) == 5
+    out = capsys.readouterr().out
+    assert '"n_stooq_label_not_recorded": 1' in out and "not a cutover candidate" in out
+    assert fx.cs.main(["label", "--cache", str(wired)]) == 0
+    assert '"n_stooq_label_not_recorded": 0' in capsys.readouterr().out
+    with pytest.raises(SystemExit, match="carry no Stooq-corrections label"):
+        fx.cs.main(["stage", "--copy", str(scratch), "--root", str(tmp_path / "root_scratch"), "--main", str(tmp_path)])
+    assert not (tmp_path / "root_scratch").exists()
+    for d in ("raw", "governor", "macro", "universe"):
+        (tmp_path / "data" / d).mkdir(parents=True, exist_ok=True)
+    assert fx.cs.main(["stage", "--copy", str(wired), "--root", str(tmp_path / "root_wired"), "--main", str(tmp_path)]) == 0
+
+
+def test_the_scratch_mode_is_marked_when_the_driver_runs_it(tmp_path, planted, monkeypatch, capsys):
+    monkeypatch.setattr(fx.cs, "CANDIDATES_ROOT", tmp_path)
+    copy = fx._seed_merged_cache(tmp_path / "copy", planted)
+    yf = tmp_path / "yf"
+    yf.mkdir()
+    (yf / "_fetch_log.jsonl").write_text(json.dumps({"ticker": TICKER, "prices": "no_data"}) + "\n")
+    (tmp_path / "raw").mkdir()
+    fx.cs.main(["era-tr", "--copy", str(copy), "--yf-dir", str(yf), "--raw-stooq", str(tmp_path / "raw"),
+                "--yf-manifest", "none", "--dry-run", "--out-dir", str(tmp_path / "rows"), "--stooq-corrections", "none"])
+    assert "SCRATCH MODE" in capsys.readouterr().out
 
 
 # ── the declared bytes, on the real files ──────────────────────────────────────

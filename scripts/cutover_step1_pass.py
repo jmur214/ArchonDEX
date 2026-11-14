@@ -361,6 +361,9 @@ def cmd_era_tr(args) -> int:
     from engines.data_manager import stooq_tier1 as st1
     if args.stooq_corrections == "none":
         corrections, corr_pin = None, "NOT APPLIED: --stooq-corrections none (the output is v5)"
+        print("[era-tr] SCRATCH MODE — --stooq-corrections none: the 11 pinned Tier-1 rows are NOT applied and no "
+              "Tier-2 label is recorded. A copy written this way is NOT a cutover candidate: `label` exits 5 on "
+              "it, `stage` refuses it, and the run census fails it (n_stooq_label_not_recorded).", flush=True)
     else:
         try:
             corrections = st1.load_tier1()
@@ -482,7 +485,8 @@ def cmd_guard(args) -> int:
 
 
 def cmd_label(args) -> int:
-    from engines.data_manager.convention import cache_first_bar_frames, substrate_convention_record
+    from engines.data_manager.convention import (cache_first_bar_frames, era_tr_files_without_stooq_label,
+                                                 substrate_convention_record)
     cache = Path(args.cache).resolve()
     # The witness for a cache-wide label (R9, 2026-11-04): each merge-record label is checked
     # against the FILE's first bar — the file on disk is what a run would load. Unwitnessed, a
@@ -492,10 +496,24 @@ def cmd_label(args) -> int:
                                    "n_unwitnessed", "n_names", "n_labelled", "n_pre_seam_drip", "labels",
                                    "seams", "sources")}
     summary["unlabelled"] = rec["unlabelled"]
+    # T-394: the Stooq-corrections label of the era_tr files — and the check that a copy written WITHOUT the
+    # pinned table (a scratch write) is never taken for a cutover candidate.
+    for k in ("n_pre_seam_era_tr", "n_stooq_tier1_applied", "n_stooq_tier1_rows", "n_unverified_stooq_corrections",
+              "n_stooq_label_not_recorded"):
+        summary[k] = rec[k]
+    unrecorded = era_tr_files_without_stooq_label(cache / w.WRITE_RECORDS_DIR)
+    summary["stooq_label_not_recorded"] = unrecorded[:20]
     print(json.dumps(summary, indent=1))
     if args.out:
         Path(args.out).write_text(json.dumps(rec, indent=1))
-    return 0 if not rec["unlabelled"] else 3
+    if rec["unlabelled"]:
+        return 3
+    if unrecorded:
+        print(f"[label] FAIL: {len(unrecorded)} era_tr file(s) were written WITHOUT the pinned Stooq corrections "
+              f"table (--stooq-corrections none) — not a cutover candidate: {unrecorded[:5]}"
+              f"{' …' if len(unrecorded) > 5 else ''}")
+        return 5
+    return 0
 
 
 # ── the manifest staging root ─────────────────────────────────────────────────────
@@ -505,6 +523,13 @@ def cmd_stage(args) -> int:
     so `gen_substrate_manifest.py generate --root <root> --manifest ../<candidate>.sha256 --stamp-root <root>`
     pins the copy (never the canonical); without --manifest/--stamp-root `generate` REFUSES (exit 4, re-pin #1 C3)."""
     copy = assert_is_a_copy(Path(args.copy))
+    # T-394: a copy whose era_tr files were written without the pinned Stooq corrections table is a scratch
+    # copy — it is never staged for a candidate manifest.
+    from engines.data_manager.convention import era_tr_files_without_stooq_label
+    unrecorded = era_tr_files_without_stooq_label(copy / w.WRITE_RECORDS_DIR)
+    if unrecorded:
+        raise SystemExit(f"REFUSED: {len(unrecorded)} era_tr file(s) in {copy} carry no Stooq-corrections label "
+                         f"(written with --stooq-corrections none): {unrecorded[:5]} — not a cutover candidate")
     root = Path(args.root)
     if root.exists():
         raise SystemExit(f"REFUSED: {root} exists")
