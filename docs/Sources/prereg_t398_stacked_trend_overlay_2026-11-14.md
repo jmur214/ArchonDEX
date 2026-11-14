@@ -873,3 +873,34 @@ survivorship haircut; S6 a 2.0 %/yr survivorship haircut (amendment 1); S7 AQMIX
 **How the ruling enters the harness.** `data/t398_local/integrity_rulings.json` carries one entry per
 flag, each reading "accepted as-is (amendment 3, ruling 1)". With it, `integrity` exits 0 and still
 lists every flag. No price file is touched; the snapshot md5s are unchanged.
+
+---
+
+## RESULT (appended 2026-11-14; nothing above this line altered)
+
+**H1 NOT MET — the interval straddles zero.** Decision cell (+100%, the 14-fund live composite, ER
+gross-up on with AQMIX at 1.25%, h_surv 1.0 %/yr, s 50 bp, ER_S 1.00%, W-L3 2010-09-01 → 2025-12-31,
+15.33 years): Δ log wealth **+0.37 %/yr, 95% CI [−3.89, +4.17]**; 252-day blocks [−4.49, +4.04]; IR
+0.047 against an MBL line of 0.551 (pinned gate + 1) and 0.757 (372.28). Per §10: **not supported on
+investable evidence; the door is shut for deployment; the interval is the record.**
+
+- +50%: +0.26 [−1.86, +2.16]. +25%: +0.15 [−0.91, +1.10].
+- `h_L` = +1.10 %/yr, CI [−4.17, +5.78]: the pre-named transport reading is "still not pinned".
+- Flat decade −10.2%; worst three years −25.1% (2022-06 → 2025-06); pooled drawdown correlation −0.14
+  [−0.31, −0.02], two of seven episodes above +0.30.
+- Runs A and B are bit-identical (`results.json` md5 `d2e73967846574d724e13e4b6b2052aa`).
+- Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md`.
+
+**Operational notes on the run (they alter no frozen term).**
+- **Order.** The measurement code was committed (`9fe85c9`) after amendment 3 (`cddef75`) and before
+  it was run on the data.
+- **S3.** The one screener call returned 60 mutual-fund quotes in the category. The selection rule was
+  fixed in code before the S3 prices were fetched: one share class per fund family not already in the
+  decision composite; the oldest class, ties broken by the lowest net ER and then the symbol; rules
+  (c) and (d) applied. It added four families (MFTTX, GPAIX, LCSCX, LFMIX). Their integrity flags are
+  listed in `data/t398_local/inputs_s3/MANIFEST.json` and were not ruled, because S3 decides nothing.
+- **Two helper subcommands beyond A1.1-1's list:** `meta-table` (read-only) and `record-rulings` (writes
+  the amendment-3 rulings file once); and S3's `screen` and `fetch-s3`.
+- **Level 2 did not run** on either index (A2.1; amendment 3, ruling 5).
+- **N_trials:** +1, recorded on acknowledgment (`config/honest_n_trials.json` on main). Not recorded
+  again.
