@@ -200,3 +200,101 @@ liquidation, financing defined by implied vol rather than a fund ER, and no dail
 financing at $125k+** (borrow at near-treasury rates against portfolio margin). Both change the break-even table
 directly by attacking `ER + spread`; neither is validated here and each requires its own pre-registration.
 N_trials += 1 (one family with T-312).
+
+---
+---
+# AMENDMENT 1 (T-399, 2026-11-14) — a cost defect in the static arms; the corrected re-run, PRE-DECLARED
+
+**Nothing above this line is edited.** This amendment is committed alone, before the fix and before any
+re-run. Found by the T-396 design note (`docs/Sources/design_note_lifecycle_leverage_t396_2026-11-14.md`
+§1.2, branch `research/lifecycle-leverage-note-t396`); verified by the director by execution.
+
+## A1.1 The defect
+
+`scripts/offense_campaign_t312_t315.py:37-38`, inside `static_arm`:
+
+```python
+yr = r.index.to_period("Y")
+cost[yr != yr.shift(1)] = SLIP_EQ * rebal_per_yr    # ~nothing
+```
+
+`PeriodIndex.shift(1)` shifts each PERIOD forward one year; it does not shift positions. The mask is true
+on every row, so every static arm above 1× paid the 0.51 bp "annual rebalance" cost every DAY — about
+1.29 %/yr of phantom cost. The published D-B table above fits a fixed cost of 2.00 %/yr across its five
+static arms (largest residual 0.2 bp) against the specified 0.71 %/yr; the gap is 0.51 bp × 252.
+
+- **Affected:** every `static_arm` result above — the frontier table in all three windows, the haircut
+  table, the 1929 table's static rows, the cash-rate regime split's static columns, the lost-decades
+  overlay, and the static rows of the $7k/yr accumulation race.
+- **Not affected:** the 1× bar (built without `static_arm`), the glide arm and the gated T-312/T-298 arm
+  (both charge cost on `diff()` of the exposure).
+
+## A1.2 The fix
+
+A positional year-change mask: the cost is charged on the first bar of the series and on the first bar of
+each later calendar year — the positional reading the original line intended. One regression test plants a
+two-year series and asserts the count of charged bars; it is proven by reversion.
+
+## A1.3 What is unchanged
+
+Arms {1.25, 1.35, 1.5, 1.75, 2.0}× and the 2×→1× glide over the final 12 years; windows D-B (1968+),
+D-A (1962+) and ~99yr (1926+), each to the substrate's last bar; the fund model
+(`L·gross − (L−1)·(cash + 60 bp) − 0.89 %` on the whole balance); costs 0.51 bp and 2.2 bp; financing from
+the T-306 cash leg; haircuts 0 / −2 % / −3 % on D-B; the bootstrap (`paired_dw`, 21-day blocks, 1,000
+draws, seed 0); the 1929 window; the regime split; the lost-decades overlay; the $7k/yr race. The gate is
+the frozen one: the paired Δwealth 95 % CI vs buy-hold 1× excludes zero.
+
+**N_trials: 0 new** (director ruling, the B-5 A2.2 precedent): a defect-corrected re-run of a frozen
+pre-registration consumes no trial provided the spec is otherwise unchanged and both runs stay on the
+record.
+
+## A1.4 What the re-run will report
+
+- **ORIGINAL beside CORRECTED** for every static arm in every window and haircut: terminal wealth, CAGR,
+  MaxDD, Δ log growth per year vs the bar, and the paired Δwealth CI.
+- **The ORIGINAL column is reproduced by code**, because the July run's output was not stored: a labelled
+  function in the T-399 runner charges the cost every day, exactly as the defect did. **Acceptance check,
+  fail-closed:** the reproduction must equal the published D-B table (`:113-118`), the haircut table
+  (`:137-139`), the 1929 table (`:149-154`) and the accumulation race (`:175`) to the printed precision,
+  and the bar and the gated arm must equal the published T-312 values
+  (`deep_reverify_offense_t312_2026_07_27.md:93-95`). If any differs, the run halts and nothing is quoted.
+- **Per-haircut CIs.** The gate text (`:87`) asks for a CI "per arm per ERP scenario"; the July run printed
+  wealth only for the haircut rows. The re-run adds the CI for both columns.
+- The wealth race (the glide against the static arms), the 1929 path, the regime split and the overlay,
+  each ORIGINAL beside CORRECTED.
+- Determinism ×2 by md5 of the result file.
+
+## A1.5 Two SENSITIVITIES, declared now — labelled, never the headline
+
+- **(S1) The blended-fee model for L < 2.** A holder who wants L holds SPY and SSO in the proportions that
+  give L, and pays SSO's expense ratio on the SSO slice only:
+  `r = (2 − L)·(equity − 0.09 %/252) + (L − 1)·lev_daily(equity, cash, 2.0)` — the expression the gated arm
+  already uses (`scripts/offense_campaign_t312_t315.py:70-73`) — less the corrected annual cost. Arms 1.25,
+  1.35, 1.5, 1.75; at 2.0 it must equal the headline arm (a self-check). All three windows; haircuts on D-B.
+- **(S2) Financing from B-5's H.15 / SOFR snapshot** (`data/research/b5/inputs/`, md5-verified against its
+  manifest) instead of the T-306 cash leg, which is quantized to 1 bp/day. B-5's `financing_base()` and
+  `financing_arrays()` are imported unchanged: the daily charge on the borrowed fraction is
+  `(base[t−1] + 60 bp) × calendar days / 360`. The snapshot's SOFR ends 2025-12-31 and its bill begins 1954,
+  so S2 runs on D-B and D-A **truncated to 2025-12-31** and not on the ~99yr window. Its comparison column
+  is the corrected headline arm recomputed on the same truncated window. All five static arms and the
+  glide. The 1× bar holds no cash and is unchanged.
+- S1 and S2 are separate tables. They are not combined.
+
+## A1.6 Erratum to the pre-run section — Kelly and the break-even comparison
+
+`L* = ERP / σ²` above (`:82-84`, `:143`) used the difference of CAGRs as the ERP. Kelly takes the
+arithmetic mean excess return. The re-run prints both, labelled. The break-even formula (`:22-23`) also
+takes an arithmetic mean, so the "implied pre-run expectation" table (`:45-49`), which subtracts it from a
+CAGR gap, understates leverage by about ½σ² per unit borrowed. Neither changes a run number.
+
+## A1.7 Expectation, stated before the re-run
+
+From arithmetic on the published table (T-396 §1.2): corrected 1.25× is about +0.16 %/yr against the bar
+and straddles zero; corrected 2× is about +1.7 %/yr with t ≈ 0.76; no arm is expected to CI-beat the bar on
+D-B. At −2 % every arm is expected still to trail the bar, by roughly 9–18 % rather than by more than
+half; at −3 % the ordering is expected still to invert. The glide's win in the accumulation race is
+expected to disappear. Under S1 the 1.25× arm on the ~99yr window is expected near the line (t ≈ 1.8). If
+it excludes zero, that is a labelled sensitivity on a window in which no such fund existed for eighty
+years, below the deflated bar (T-396 §4), and not a pass.
+
+**Frozen at this commit.** Results and the corrected verdict are appended below; nothing above is rewritten.
