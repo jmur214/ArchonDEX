@@ -2184,6 +2184,66 @@
 ### `t139_fixture_data.py`
 **Module Docstring:** Frozen T-139 fixture — REAL closes from data/processed/<T>_1d.csv,
 
+### `t398_stacked_trend_overlay.py`
+**Module Docstring:** T-398 — a buy-and-hold stacked trend overlay (100 % equity + trend, the RSST structure) vs 1x
+- **Class `T398Halt`**: A fail-closed halt in the measurement path. Never caught inside the harness.
+- **Class `Panel`**: Everything the measurement reads, built once from the md5-verified snapshot.
+  - `def __init__()`
+  - `def excess()`: §4.1: x_f = r_f − c + ER_f/252 (cash subtracted ONCE; the fund's own fee added back).
+  - `def composite()`: Equal-weight mean of member excess returns per equity-calendar day, and the member count.
+  - `def window()`
+- **Function `er_unit_from_spy()`**: A1.1-2: the ER field's units are fixed by SPY's value in the same field.
+- **Function `convert_er()`**: Metadata ER -> decimal, or None when unusable (outside [0.20 %, 5.00 %], A1.1-2).
+- **Function `cmd_meta()`**: One-time metadata fetch: BEFORE any price (R-10). Stores the provider's output raw.
+- **Function `read_meta()`**: No docstring
+- **Function `meta_table()`**: The mechanical reading of the metadata (A1.1-2). Prints what amendment 2 freezes.
+- **Function `cmd_meta_table()`**: No docstring
+- **Function `cmd_fetch()`**: One-time price fetch + byte copies of the pinned inputs. Refuses before amendment 2.
+- **Function `verify_snapshot()`**: E4: every pinned input and every snapshot file matches its md5, or HALT.
+- **Function `load_px()`**: No docstring
+- **Function `load_actions()`**: No docstring
+- **Function `equity_calendar()`**: No docstring
+- **Function `have_prices()`**: No docstring
+- **Function `distribution_dates()`**: No docstring
+- **Function `integrity_flags()`**: A1.1-12, exactly. Returns one dict per flag; never fixes anything.
+- **Function `cmd_integrity()`**: D1-D4 on every candidate with prices. An unruled flag on a candidate HALTS (exit 2).
+- **Function `cmd_record_rulings()`**: Amendment 3, ruling 1: the director accepted every flag as-is. One entry per flag in the
+- **Function `cmd_screen()`**: S3 (A1.1-10): ONE yfinance fund-screen call on the category; the response is stored raw.
+- **Function `financing_base()`**: B-5 §5.1 unchanged: the H.15 3-month bill (money-market-converted) to 2018-04-02, SOFR from
+- **Function `member_returns()`**: A1.1-4/5: Adj Close on the equity calendar from first to last price, forward-filled inside;
+- **Function `equity_sleeve()`**: No docstring
+- **Function `stacked_sleeve()`**: R^S = e + (x − h_surv/252) − s·Δcal/360 − ER_S/252. x is already an EXCESS return, so no cash
+- **Function `arm_returns()`**: +100 %: the stacked sleeve. +50 % / +25 %: two drifting sleeves reset at each month-end,
+- **Function `honest_n()`**: No docstring
+- **Function `mbl_line()`**: No docstring
+- **Function `cell()`**: One arm on one window: Δ log wealth with the three bootstraps, wealth stats, IR, MBL.
+- **Function `curve()`**: §8.5: Δ per year at each spread 0..400 bp with the SAME draws (monotone by construction).
+- **Function `worst_rolling()`**: No docstring
+- **Function `drought()`**: Longest stretch with cumulative Σd below its running maximum, and the deepest point below.
+- **Function `span_sum()`**: No docstring
+- **Function `find_episodes()`**: A1.1-9: stretches between successive all-time highs of the benchmark's wealth whose deepest
+- **Function `paired_corr_boot()`**: Pearson correlation with a PAIRED moving-block bootstrap: both series are drawn at the same
+- **Function `episode_table()`**: No docstring
+- **Function `accumulation()`**: A1.1-14: $10k at the base date; $5k at the close before the first trading day of each later year.
+- **Function `load_aqr()`**: No docstring
+- **Function `monthly_block()`**: A1.1-8: the AQR arm on the months of the window, the composite's monthly excess, h_L, V3.
+- **Function `transport_reading()`**: §10, pre-named. Closing rows read h_L alone; the surviving row reads h_L + h_surv.
+- **Function `gates_payload()`**: No docstring
+- **Function `cmd_gates()`**: No docstring
+- **Function `cmd_smoke()`**: Mechanics on the FIRST 12 months of each window. Booleans and counts only.
+- **Function `composite_stats()`**: No docstring
+- **Function `window_block()`**: All arms on one window. `full` adds the curve, §8.4, the regime split and the scorecard.
+- **Function `sensitivity()`**: One sensitivity on the +100 % arm (A1.1-10). A composite with fewer than three members on
+- **Function `b5_quoted()`**: Level 3: B-5's arm (iv) results, QUOTED from its results file (never re-run).
+- **Function `cmd_run()`**: No docstring
+- **Function `sensitivity_spread_zero()`**: Reported (§5.1): the decision cell at s = 0 instead of 50 bp.
+- **Function `fund_family()`**: A fund's name without its trailing share-class token (S3's 'one share class per fund').
+- **Function `s3_selection()`**: S3, mechanically: every fund family the screen returns that the decision composite does not
+- **Function `cmd_fetch_s3()`**: S3 only: prices for the additional fund families the one screener call returned. Once.
+- **Function `screener_sensitivity()`**: S3: the decision composite plus one share class of every additional fund family the one
+- **Function `cmd_btop50_get()`**: One GET to barclayhedge.com with a generic client name and no contact detail; the response
+- **Function `main()`**: No docstring
+
 ### `tail_rescore_t234.py`
 **Module Docstring:** T-234 tail re-score — robos (monthly-rebal) vs T-215 base/composition. No new backtest.
 - **Function `load_close()`**: No docstring

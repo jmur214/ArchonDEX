@@ -1957,4 +1957,14 @@ python scripts/t398_stacked_trend_overlay.py meta-table    # read-only: the mech
 python scripts/t398_stacked_trend_overlay.py fetch         # one time: fetch_yf_tr prices + md5-checked copies of H.15, SOFR, AQR -> data/t398_local/inputs/
 python scripts/t398_stacked_trend_overlay.py integrity     # D1-D4 on fund prices -> data/t398_local/integrity.json (exit 2 on an unruled flag)
 python scripts/t398_stacked_trend_overlay.py btop50-get --url <barclayhedge.com URL> --name <label>   # one logged GET, raw response kept; four at most
+python scripts/t398_stacked_trend_overlay.py record-rulings # one time: writes the director's "accepted as-is" ruling per flag (amendment 3) -> integrity_rulings.json
+python scripts/t398_stacked_trend_overlay.py screen        # one time: ONE yfinance fund-screen call on the category (S3) -> data/t398_local/screen/
+python scripts/t398_stacked_trend_overlay.py fetch-s3      # one time: prices for the extra fund families the screen returned -> data/t398_local/inputs_s3/
+python scripts/t398_stacked_trend_overlay.py gates         # E1-E4 + the reported validations -> data/t398_local/gates.json (exit 2 if NOT EVALUABLE)
+python scripts/t398_stacked_trend_overlay.py smoke         # first 12 months of each window -> smoke.json (mechanics only; never quoted)
+python scripts/t398_stacked_trend_overlay.py run --tag A   # the measurement -> data/t398_local/run_A/ (refuses without a passed gate)
+python scripts/t398_stacked_trend_overlay.py run --tag B   # determinism twin; md5 -r run_A/* run_B/* must match
+python -m pytest tests/test_t398_stacked_trend_overlay.py -q   # simulator identities, frozen constants, integrity checks, refusals (synthetic)
 ```
+Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md` (H1 NOT MET; the interval
+straddles zero).
