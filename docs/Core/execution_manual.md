@@ -849,11 +849,12 @@ python scripts/drip_fix_candidate_t384.py manifest                              
 # T-387: the era model, probe, labels and per-file build MOVED to engines/data_manager/era_tr.py (shared with the
 # cutover writer); the script imports them — its commands and outputs are unchanged (build re-verified on 12 names
 # byte-identical to v4, 2026-11-12).
-# T-393 (2026-11-13): era_tr now runs a DISTRIBUTION GUARD (m <= 1.5 AND the reference close does not contradict the
-# drop); `build` therefore no longer reproduces v4 on 14 files — the declared bytes are config/era_tr_v5_delta_t393.json.
+# T-393 (2026-11-13, as amended): era_tr now runs a DISTRIBUTION GUARD — a missed dividend is refused only where no
+# aligned bar of the reference close shows the drop (z* > 6), and a refused one with an unapplied Stooq spin-off is
+# repaired from the close; `build` therefore differs from v4 on 3 files (DHR, ETN, XRX) — config/era_tr_v5_delta_t393.json.
 # `accept` runs through run_acceptance(out, yf_dir, adir, candidate=None, extra_steps=None, labels=None): the providers
 # let the SAME test run on a candidate held in memory; the defaults are the on-disk behaviour.
-# Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 10 GiB free; ~3 min):
+# Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
 python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
 python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
 ```

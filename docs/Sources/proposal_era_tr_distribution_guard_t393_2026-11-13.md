@@ -327,3 +327,63 @@ An ADDED ex-date is labelled `unresolved_distributions` with one reason:
 
 It was built on v4's timeline. Its DHR, ETN and AN reversals would subtract a second time, and its R2
 skips XRX and CNP. It must be rebuilt on v5 before any use. It is not rebuilt here.
+
+## §8. The result under amendment A1 (supersedes §3)
+
+Re-measured in memory with `python scripts/era_tr_v5_delta_t393.py run`, after §7 and its implementation
+were committed. In-sample, as §7.0 says.
+
+**572 of 575 files are byte-identical to v4. Three change: DHR, ETN, XRX** — as §7.5 expected.
+`config/era_tr_v5_delta_t393.json` holds the declared bytes. The 11 files the superseded rule had also
+changed are v4's bytes again; their old outputs are kept under `superseded_rule_pre_A1/` in the delta
+directory.
+
+**The three changed ex-dates** (calendar-year return, last bar to last bar, in %):
+
+| file, ex-date | what v5 does | raw Stooq | yfinance close | yfinance adj | T-265 | v4 | **v5** |
+|---|---|---|---|---|---|---|---|
+| DHR 2016-07-05 | dividend refused (z* 71.3) | +11.29 | +10.54 | +73.07 | — (see (i)) | +73.11 | **+11.29** |
+| XRX 2017-01-03 | dividend refused (z* 11.5); Stooq spin-off repaired, step −0.4174 from the close | −13.71 | +26.72 | +50.49 | **+30.99** | −0.87 | **+30.99** |
+| ETN 2001-01-02 | dividend refused (z* 10.3) | +17.95 | +14.06 | +39.32 | none | +40.49 | **+17.95** |
+
+- T-265 has no 2015 year-end bar, so DHR's row has no T-265 calendar-year figure; test (i) measures it
+  from 2016-01-04: v4 +44.21 pp, v5 +0.03 pp.
+- XRX's raw Stooq and yfinance close differ by the spin-off Stooq left unapplied. v5's +30.99 % equals
+  T-265's to two decimals. No rule reads T-265.
+- ETN 2001 has no independent check. It rests on the close test alone.
+
+**Acceptance — T-384's unchanged test, v4 beside v5: still FAIL.**
+
+| test | v4 | v5 (amended) |
+|---|---|---|
+| (i) failing name-years (strict passes) | 59 (1,741) | **57 (1,743)** |
+| (ii) years passing | 15 of 16 (2013 p95 0.350) | 15 of 16, every year's verdict unchanged |
+| (iii)(a) / (b) / (c) | 110 of 110 / 6 names fail / 14 of 14 | identical |
+| (iv) bytes | 575 of 575 | 575 of 575 |
+| step audit | 11,096 steps, 0 unexpected | 11,094 steps, 0 unexpected, max deviation 9.4e-16 |
+
+- (i): two name-years move and both now pass. DHR 2016 +44.21 → +0.03 pp. XRX 2017 −27.87 → +0.0006 pp.
+  These are the unit's only out-of-sample evidence.
+- (ii): one name-year moves, away from the reference: ETN 2001 +0.83 → −16.65 pp.
+
+**21 added ex-dates carry the `unresolved` label** (no price effect):
+- `m_above_band` (8): ADM 2006, TGT 2007, ATO 2010, STE 2010, SPG 2009 ×2, ADBE 2005, CNP 2002.
+- `marginal_no_drop` (3): ABT 2004 (z* 5.00), HPQ 1972 (4.21), SRE 2006 (4.10).
+- `partial_drop` (10): AN 1995, PEP 1997, BAX 1996, HPQ 2000, JCI 2016, VRSN 2011, SPGI 2012, DUK 2005,
+  MAT 2004, XOM 1984.
+- MMM 1996 carries no label: the bar before its ex-date shows the whole drop.
+
+**What v5 knowingly still carries** (labelled, as v4 has them):
+- **ABT 2004 and CNP 2002.** Both have a yfinance dividend that looks spurious and a Stooq spin-off that
+  looks unapplied, but neither clears the refusal margin (ABT z* 5.0; CNP untestable at q = 2.2 σ). v5
+  leaves them exactly as v4. Refusing without repairing would have left them worse; the amended rule
+  does neither.
+- **SRE 2006 and HPQ 1972.** The ex-day close shows no drop; the best-aligned bar leaves them marginal.
+  If they are double counts, v5 over-counts SRE by about 5 pp and HPQ by about 10 pp in those years.
+- **PEP 1997, AN 1995, BAX 2000** as §4.1.
+
+**Tests:** 12 locks, 12 reversion runs, each failing for the intended reason. The declared-bytes lock now
+rebuilds KO, MMM, ADM and SRE (must equal v4) and DHR, XRX (must equal the declared bytes; XRX repaired).
+
+**For the user:** adopt v5 = v4 + this amended guard. It changes three files. Items §4.2 and §4.3 are
+withdrawn by the amendment (the band no longer refuses; MMM is no longer refused).
