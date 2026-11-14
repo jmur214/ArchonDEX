@@ -1,14 +1,29 @@
 ---
 name: project-t398-stacked-trend-overlay-scoping-2026-11-14
-description: T-398 scoping (2026-11-14) of a buy-and-hold stacked trend overlay (RSST structure) on investable returns — the overlay's fixed cost hurdle, the break-even haircuts on B-5's AQR arm, and why no investable record can decide it
+description: T-398 (2026-11-14) stacked trend overlay (RSST structure) on investable fund returns — H1 NOT MET, +0.37 %/yr [−3.89, +4.17] on 2010-09→2025-12; the overlay's cost hurdle, how trend behaves across equity regimes, AQR break-even haircuts, and why no investable record can decide it
 metadata:
   type: project
 ---
 
-T-398 Phase 1 (census + prereg, no returns computed) for "100% equity + trend overlay vs 1× equity on
-terminal wealth, with INVESTABLE trend returns". Prereg:
-`docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md`; census beside it. Status at writing:
-DRAFT awaiting the director's rulings — check the TASK_LEDGER row before quoting any of this as a result.
+T-398: "100% equity + trend overlay vs 1× equity on terminal wealth, with INVESTABLE trend returns".
+Prereg `docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md`; verdict
+`docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md`. Verdict written 2026-11-14 and awaiting
+independent review — check the TASK_LEDGER row before quoting.
+
+**RESULT (run as an estimate by the director's ruling; H1 scored as frozen):** +100% overlay on a
+14-fund live composite, 15.3 yr: Δ log wealth **+0.37 %/yr, CI [−3.89, +4.17]**, active IR 0.05 (MBL
+needs 0.55 / 0.76). NOT MET, straddles zero. Regime facts measured, reusable:
+- Composite net excess over cash +1.9 %/yr at 7.9% vol (Sharpe 0.24); daily corr with equity +0.07.
+- **Payoff is one year:** 2022 = +15.8 log points of a +5.7 total; ex-2022 the overlay lost 0.7 %/yr.
+- 2011–2019 cost 1.2 %/yr (−10% relative); worst 3 yr −25% (2022-06→2025-06); 6.9 years below peak.
+- **In 7 equity falls ≥10% the arm lost MORE than SPY in 5.** Pooled corr −0.14 [−0.31, −0.02], but
+  +0.61 (Feb 2018) and +0.51 (Feb–Apr 2025): long equity after a rally, hit at the onset. Helped only
+  in the slow falls (2015–16, 2022). Slow-bear hedge, not a crash hedge.
+- **The paper factor's own edge is era-bound:** AQR +50% overlay is +5.11 on 1985–2025 but +1.40
+  [−1.91, +4.50] on 2010–2025. Measured live over-capture h_L = +1.1 %/yr [−4.2, +5.8] — small point,
+  still unpinned. The gap to B-5's headline is the era, not fees.
+- Sign of the point flips with the survivorship haircut (0 → +1.37; 2% → −0.62) and with the fee
+  gross-up (none → −0.94). Pre-data forecast (±4 CI around ~0) was right: run the power line first.
 
 **Durable facts worth reusing:**
 - **A stacked overlay has a fixed hurdle**: per 100% of overlay, ER increment 0.91 + financing spread
