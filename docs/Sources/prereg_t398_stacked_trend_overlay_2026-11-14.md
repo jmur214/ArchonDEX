@@ -767,3 +767,50 @@ column. Rules (a) and (c) are decided mechanically by the price fetch, from each
 
 **Anchors.** RSST's metadata ER is 0.99% and its category is "Multi-Asset Overlay". The stack ER stays
 at the frozen 1.00% (§5.1). BLNDX's first trade is 2020-01-02 and MAFIX's is 2018-04-11.
+
+### A2.1 Run log — 2026-11-14: the price fetch, the INTEGRITY HALT, and BTOP50 (operational; alters NO frozen term; recorded BEFORE any ruling and before any composite, arm or benchmark return exists)
+
+**Price fetch (once; `data/t398_local/inputs/MANIFEST.json`).**
+- 14 of the 15 candidates returned prices, all ending 2025-12-31. First prices: RYMFX 2007-02-22,
+  AQMIX 2010-01-05, ASFYX 2010-08-03, WTMF 2011-01-05, EVOIX 2011-10-31, GMSSX 2012-02-29, FMF
+  2013-08-02, PQTIX 2014-01-06, LOTIX 2014-07-02, ABYIX 2014-07-03, AHLIX 2014-08-20, DBMF 2019-05-08,
+  KMLM 2020-12-02, CTA 2022-03-08.
+- **CSAIX fails rule (a).** Yahoo returned no rows on either attempt ("possibly delisted; no price
+  data found … Data doesn't exist for startDate = 631170000"). It is out. **14 members.**
+- Every one of the 14 passes rule (c). By the entry rule the third member (ASFYX) enters 2010-09-01.
+- No price date falls off the equity calendar. No row is dated 2026.
+
+**The integrity checks fired: 45 flags on 10 of the 14 candidates. The harness HALTED (exit 2).** Nothing
+was fixed, dropped or adjusted. No composite, arm or benchmark return has been computed. The per-flag
+evidence is in `data/t398_local/integrity_evidence.json` and went to the director for a ruling.
+
+| check | flags | funds |
+|---|---|---|
+| D1 (raw fall ≥ 3%, no recorded distribution, quiet day for the others) | 36 | FMF 15, DBMF 4, KMLM 4, LOTIX 4, RYMFX 2, PQTIX 2, CTA 2, WTMF 1, EVOIX 1, GMSSX 1 |
+| D2 (five or more identical closes) | 5 | EVOIX 3, RYMFX 1, FMF 1 |
+| D3 (gap of more than five days) | 0 | — |
+| D4 (one-day move above 8%) | 4 | RYMFX 1, FMF 1, LOTIX 1, CTA 1 |
+
+AQMIX, ASFYX, ABYIX and AHLIX have no flag.
+
+**What the halt was built for did not happen.** The large December distributions are all recorded in
+Yahoo's actions and neutralized in Adj Close: for example ASFYX 2022-12-29 (raw −24.4%, adjusted
++0.05%), AHLIX 2022-12-22 (−15.0%, +0.06%), LOTIX 2022-12-08 (−15.3%, −0.04%), AQMIX 2022-12-19
+(−10.9%, +0.59%). Across the 14 funds, 70 raw falls of 3% or more were matched to a recorded
+distribution and so were not flagged. Three of the 36 D1 flags fall in December: FMF 2016-12-07, which
+reversed the next day, and DBMF 2021-12-01 and CTA 2023-12-13, both days on which other trend funds
+and markets moved. None has the clear shape of a missed year-end distribution; the ruling is the
+director's.
+
+**BTOP50 (R-8): level 2 does NOT run. The condition that failed is the first.** Two requests were made
+(of four allowed), with a generic client name and no contact detail:
+`https://www.barclayhedge.com/` (which the publisher redirects to its page at `ionanalytics.com`) and
+the BTOP50 page it links to on `portal.barclayhedge.com`. Without a login that page serves the
+monthly table for **2022 to 2026 only**. "Since Inception" and "Download Spreadsheet" sit behind the
+site's log-in. The history from 1987 that level 2 needs is therefore not served without a login. The
+terms of use were not requested, because the first condition had already failed. No mirror was looked
+for.
+
+**Disclosure.** While checking that page's text for its notices, a printed passage showed the BTOP50's
+monthly figures for late 2025 and for 2026 (the index's own page, not a fund). They are not loaded,
+stored as a series or used anywhere. The 2026 holdout of the fund and equity series is intact.
