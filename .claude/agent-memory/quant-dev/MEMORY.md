@@ -11,4 +11,6 @@
 - [Report a check at its actual scope](feedback_report_the_checks_actual_scope_2026_11_12.md) — "post-seam identical" overclaimed a from-seam+14 check; record digest recipes or cite the committed manifest.
 - [Probe plugin for hidden test deps + clip fingerprints](feedback_probe_plugin_and_clip_fingerprints_2026_11_12.md) — pytest probe finds path-takers; a median clip reads max/median == bound EXACTLY; worktree governor copy; registry-check scope.
 - [Reversion harness + worktree bash refusals](feedback_reversion_harness_and_worktree_bash_2026_11_12.md) — mutate-run-restore, print the first E-line; a CLI lock must isolate its class; split git calls; Python via scratchpad.
+- [T-391 honest-N: what the 231/267 contain + standalone gap](project_t391_honest_n_standalone_trials_2026_11_12.md) — 267 is an N_eff; three disjoint populations; ruling 9.2 gates R3; branch unmerged.
 - [Stooq transient blocks + yfinance quirks](reference_stooq_transient_blocks_and_yf_quirks.md) — 4,517 one-dividend reverting blocks fool ex-date probes; widening the window backfired; yf empty dividends for delisted; processed-read lock marker.
+- [T-394 Tier-1 wiring](project_t394_tier1_wiring_2026_11_14.md) — 11 pinned rows in the cutover writer; 575/575 byte-identical to T-390; two-step multiplication keeps bit identity.

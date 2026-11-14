@@ -865,6 +865,15 @@ python scripts/drip_fix_candidate_t384.py manifest                              
 # Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
 python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
 python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
+# T-394 (2026-11-14): `cutover_step1_pass era-tr` applies the 11 PINNED Tier-1 Stooq corrections by default
+# (config/stooq_corrections_tier1.json, pinned in engines/data_manager/stooq_tier1.py; refused on a sha256
+# mismatch or a row naming a file the copy lacks); Tier 2 rides as a label in each write record.
+python -m scripts.cutover_step1_pass era-tr --copy <copy> [--stooq-corrections none]   # 'none' = v5 only, recorded in every row; NOT the cutover's setting
+#   a copy written with 'none' is a SCRATCH copy: `label` exits 5 on it, `stage` REFUSES it, and the run census FAILS it
+#   (substrate_convention.n_stooq_label_not_recorded > 0). Exit codes of `label`: 0 ok · 3 unlabelled names · 5 no Stooq label.
+python scripts/era_tr_tier1_measure_t394.py export-table   # (re)write the two config tables from T-390's v5-based corrections.parquet; prints the sha256s for the pins
+python scripts/era_tr_tier1_measure_t394.py run            # rebuild 575 files in memory with the pinned table; bytes vs T-390's render; T-384's acceptance -> Dev/_substrate_candidates/era_tr_tier1_t394/ (~2 min)
+python scripts/era_tr_tier1_measure_t394.py manifest       # <out>/MANIFEST.md5
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
@@ -1577,6 +1586,34 @@ unpinned — a rebuild after loss would have handed it a smaller N with no alarm
 reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; the referee module
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
+
+### Standalone-harness trials — the third input (T-391, PROPOSAL branch `referee/honest-n-trials-recorder-t391`)
+
+The registry cannot see a trial a research script ran, so the committed record `config/honest_n_trials.json` carries
+them. The gate (rule R3, the director's ruling 9.2) is N_eff(executed runs, measured correlation) + the registry's
+curve-less rows at raw + these trials at raw, with no borrowed credit. It FAILS CLOSED on an absent, empty, edited or
+registry-inconsistent record.
+Design and inventory: `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md`.
+
+```bash
+python -m scripts.honest_n_trials check     # the lint: every ledger N>0 recorded; forward verdicts state N (exit 0 / 1 findings / 3 unreadable)
+python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: executed, registry, S; R3 (gated); R2′ and R0 (reported)
+python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date YYYY-MM-DD --n-trials k \
+    --family "..." --substrate "..." --prereg docs/Sources/prereg_x.md --verdict docs/Audit/x_verdict.md \
+    --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
+```
+
+From the activation date (2026-11-13; a date range reads by its LATEST date) EVERY closed ledger row needs a record
+row, infra included (`--n-trials 0`), and so does any row that states a trial count, whatever its status
+(`dispatched` and `in-flight` included). A row is exempt only while it states no count and is not closed. Add
+`--pending-ruling` for a trial that ran but whose count awaits the user's ruling (counted until ruled otherwise), and
+`--also-in-registry-as <registry trial_id>` for a DIFFERENT trial of a task the registry already counts.
+`honest_n_pin --pin` refuses a record with a missing citation and writes `citations_verified` into the v2 pin.
+
+`record` refuses a duplicate trial_id and any citation that does not exist (a path, or a line past EOF). After re-pin #2
+the pin names the record's sha256 (`honest_n_pin --pin … --replace` writes `honest_n_pin/v2`), so every `record` is
+followed by a re-pin in the same commit. `honest_n_pin --verify` now also loads the record and reconciles it with the
+registry.
 
 ## T-219 cap-at-delist — the shares snapshot and the hermetic recompute (re-pin #1, added 2026-11-05)
 

@@ -852,6 +852,21 @@
 - **Function `sharpe_with_ci()`**: Block-bootstrap Sharpe CI of a combined attribution stream.
 - **Function `main()`**: No docstring
 
+### `era_tr_tier1_measure_t394.py`
+**Module Docstring:** T-394 — export the pinned Tier-1 corrections table, and measure the wired writer path against T-390's render.
+- **Class `Tier1InMemory`**: No docstring
+  - `def __init__()`
+  - `def build_all()`
+  - `def candidate()`
+  - `def labels_for()`
+  - `def changes_for()`
+- **Function `check_disk()`**: No docstring
+- **Function `out_dir()`**: No docstring
+- **Function `cmd_export_table()`**: No docstring
+- **Function `cmd_run()`**: No docstring
+- **Function `cmd_manifest()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `era_tr_v5_delta_t393.py`
 **Module Docstring:** T-393 — measure the era_tr DISTRIBUTION GUARD against (a′) v4 without writing a full candidate (disk).
 - **Class `V5InMemory`**: Every file rebuilt through the guarded era_tr; only the texts that differ from v4 are kept.
@@ -1071,6 +1086,18 @@
 **Module Docstring:** Pin or verify the honest-N gate's two inputs — the ρ̄ artifact and the run registry (RR-3 §9.3).
 - **Class `PinExistsError`**: A pin already exists and `replace` was not requested.
 - **Function `write_pin()`**: Pin the gate to `artifact_dir/artifact_name` AND the current run registry, recording each file's
+- **Function `main()`**: No docstring
+
+### `honest_n_trials.py`
+**Module Docstring:** The standalone-trials record behind the honest-N gate (T-391): the ONE recorder, the lint, a read-only show.
+- **Class `RecordError`**: A recorder refusal: the row would make the record wrong or uncitable.
+- **Class `LedgerRow`**: No docstring
+- **Function `write_record()`**: Serialise with ONE row per line (a row's diff is one line) and the digest the gate re-derives.
+- **Function `record_trial()`**: Append ONE standalone trial row. Refuses a duplicate trial_id, a non-ISO date, a negative count,
+- **Function `latest_date()`**: The LATEST date a ledger date cell names (None when it names none). A range closes on its
+- **Function `parse_ledger()`**: No docstring
+- **Function `lint()`**: The findings; [] is a pass.
+- **Function `check()`**: No docstring
 - **Function `main()`**: No docstring
 
 ### `income_leg_screener_t261.py`
