@@ -9,3 +9,4 @@
 - [B-9 multi-factor tilts REFUTED (2026-11-11)](project_b9_combo_tilts_inputs_2026_11_11.md) — 60/20/20 ci_low −0.24, t 1.24 vs 2.2; long-only active ρ −0.07 (not −0.3), small-value TE 20%; gain all 2000–13; no local TR for MTUM/AVUV.
 - [B-10 gold leg REFUTED (2026-11-11)](project_b10_gold_leg_prereg_2026_11_11.md) — wealth Δ ci_low<0; 5.2pp MDD cut is mostly 10% de-equitization (cash gives 3.95); ALWAYS add a same-weight cash control.
 - [T-398 stacked trend overlay NOT MET (2026-11-14)](project_t398_stacked_trend_overlay_scoping_2026_11_14.md) — +0.37%/yr [−3.89,+4.17] 2010–25; any big year flips the sign; worse than SPY in 5 of 7 falls; keep since-start vs below-own-high apart.
+- [T-396 lifecycle leverage note (2026-11-14)](project_t396_lifecycle_leverage_note_2026_11_14.md) — leverage t ≤ 2.6 < gate 2.96 by construction; T-315 static arms carry a phantom 1.29%/yr; hold 1×.
