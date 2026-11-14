@@ -356,6 +356,18 @@ def cmd_era_tr(args) -> int:
     raw_idx = et.raw_stooq_index(raw_dir)
     targets = sorted(t for t, r in meta.items()
                      if r.get("merge_case") == "both" and int(r.get("n_stooq_pre_seam") or 0) > 0)
+    # T-394: the PINNED Tier-1 Stooq corrections (11 rows) — loaded by default, refused on a sha256 mismatch,
+    # and every row must name a merged file of THIS copy before the first file is written.
+    from engines.data_manager import stooq_tier1 as st1
+    if args.stooq_corrections == "none":
+        corrections, corr_pin = None, "NOT APPLIED: --stooq-corrections none (the output is v5)"
+    else:
+        try:
+            corrections = st1.load_tier1()
+            st1.check_universe(corrections, targets)
+        except st1.StooqTier1Refusal as e:
+            raise SystemExit(f"REFUSED: {e}")
+        corr_pin = corrections.sha256
     if args.only:
         wanted = [t.strip() for t in args.only.split(",") if t.strip()]
         missing = sorted(set(wanted) - set(targets))
@@ -372,6 +384,7 @@ def cmd_era_tr(args) -> int:
                   "yf_manifest": (None if args.yf_manifest == "none" else str(Path(args.yf_manifest).resolve())),
                   "yf_manifest_sha256": yf_pin,
                   "raw_stooq_dir": str(raw_dir), "writer_sha256": _writer_sha(), "head": _head(),
+                  "stooq_corrections_tier1_sha256": corr_pin,
                   "era_tr_sha256": hashlib.sha256((REPO / "engines" / "data_manager" / "era_tr.py").read_bytes()).hexdigest()}
     print(f"[era-tr] {len(targets)} merged files with pre-seam bars, {len(done)} done, {len(todo)} to do; "
           f"dry_run={args.dry_run}; {provenance}")
@@ -391,8 +404,12 @@ def cmd_era_tr(args) -> int:
                     raise w.WriterRefusal(f"{t}: {ref_state}")
                 stooq = et.read_raw_stooq(raw_idx[t]) if t in raw_idx else None
                 rec = w.era_tr_rewrite(t, copy, stooq=stooq, reference_px=px, reference_divs=dv,
-                                       write=not args.dry_run, provenance=provenance, log_path=write_log)
+                                       write=not args.dry_run, provenance=provenance, log_path=write_log,
+                                       stooq_corrections=corrections)
                 b = rec["era_tr"]
+                row["stooq_corrections_applied"] = len(b["stooq_corrections"]["applied"])
+                row["unverified_stooq_corrections"] = (None if b["unverified_stooq_corrections"] is None else
+                                                       {k: b["unverified_stooq_corrections"][k] for k in ("n_steps", "n_blocks")})
                 row.update({"written": not args.dry_run, "would_write": True, "convention": rec["convention"],
                             "reference": b["reference"], "n_div_added": b["n_div_added"],
                             "splice": b["splice"], "k_splice": b["k_splice"],
@@ -526,6 +543,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     s.add_argument("--out-dir", default=None, help="where the report rows go (default: beside the copy)")
     s.add_argument("--dry-run", action="store_true", help="measure only: nothing in the copy is written")
     s.add_argument("--min-free-gb", type=float, default=11.0)
+    s.add_argument("--stooq-corrections", choices=["pinned", "none"], default="pinned",
+                   help="T-394: apply the 11 pinned Tier-1 rows (default); 'none' writes v5 and says so in every row")
     s.set_defaults(fn=cmd_era_tr)
     s = sub.add_parser("guard")
     s.add_argument("--cache", required=True)

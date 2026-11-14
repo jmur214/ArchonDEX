@@ -167,6 +167,20 @@ def is_drip_witnessed(cache_dir: Path, t: str, witness: Optional[Dict[str, dict]
     return None
 
 
+def stooq_corrections_label(block: dict) -> dict:
+    """T-394: what an era_tr write record says about the Stooq corrections — the Tier-1 rows applied to the
+    file and its Tier-2 label (found, NOT applied). A block with no label (`unverified_stooq_corrections`
+    absent or null: written without the pinned table) reads `recorded: False`, never as zero."""
+    applied = ((block.get("stooq_corrections") or {}).get("applied")) or []
+    lab = block.get("unverified_stooq_corrections")
+    if lab is None:
+        return {"tier1_applied": len(applied), "recorded": False, "n_steps": None, "n_blocks": None,
+                "n_known_unapplied": None}
+    return {"tier1_applied": len(applied), "recorded": True, "n_steps": int(lab.get("n_steps", 0)),
+            "n_blocks": int(lab.get("n_blocks", 0)), "n_known_unapplied": len(lab.get("known_unapplied") or []),
+            "table_sha256": (block.get("stooq_corrections") or {}).get("table_sha256")}
+
+
 def era_tr_records_present(records_dir: Path) -> bool:
     """The cache is post-(a′): at least one pinned write record labels a pre-seam span era_tr."""
     if not records_dir.is_dir():
@@ -249,6 +263,7 @@ def _resolve(t: str, records_dir: Path, overrides: Dict[str, dict], meta: Option
                                        f"in the span is unknown; never read as fully verified")}
             out["unverified"] = {"missed_era_spans": list(block["unverified_missed_era_spans"] or []),
                                  "pre2003_span": block["unverified_pre2003_span"]}
+            out["stooq"] = stooq_corrections_label(block)
         if conv.get("pre_seam") in PRE_SEAM_CONVENTIONS and conv.get("seam_date"):
             seam = rec.get("seam") or {}
             kept = seam.get("n_pre_seam_bars_kept")
@@ -313,6 +328,7 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
     sources: Counter = Counter()
     n_unwitnessed = 0
     unverified: Dict[str, dict] = {}
+    stooq: Dict[str, dict] = {}
     for t in names:
         r = _resolve(t, records_dir, overrides, meta, data_map.get(t) if witnessed else None, witnessed,
                      drip_witness, post_a_prime)
@@ -325,6 +341,8 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
         u = r.get("unverified")
         if u and (u["missed_era_spans"] or u["pre2003_span"]):
             unverified[t] = u
+        if r.get("stooq") is not None:
+            stooq[t] = r["stooq"]
     labels = Counter(per_name.values())
     seams = Counter(v.split(SEAM_SEP, 1)[1].split(SIDE_SEP, 1)[0] for v in per_name.values() if SEAM_SEP in v)
     return {"cache_dir": str(cache_dir), "merge_meta_present": meta is not None,
@@ -340,6 +358,17 @@ def substrate_convention_record(cache_dir: Path, run_names: Optional[Iterable[st
             "n_unverified_missed_era": sum(1 for u in unverified.values() if u["missed_era_spans"]),
             "n_unverified_pre2003": sum(1 for u in unverified.values() if u["pre2003_span"]),
             "unverified": unverified,
+            # T-394: the pinned Tier-1 Stooq corrections each era_tr file received, and its Tier-2 LABEL —
+            # corrections found and NOT applied (yfinance-derived, unverified). "not_recorded" is a file
+            # written without the table: its label is unknown, never read as "nothing unverified".
+            "n_stooq_tier1_applied": sum(1 for v in stooq.values() if v["tier1_applied"]),
+            "n_stooq_tier1_rows": sum(v["tier1_applied"] for v in stooq.values()),
+            "n_unverified_stooq_corrections": sum(1 for v in stooq.values()
+                                                  if v["recorded"] and (v["n_steps"] or v["n_blocks"] or v["n_known_unapplied"])),
+            "n_stooq_label_not_recorded": sum(1 for v in stooq.values() if not v["recorded"]),
+            "stooq_corrections": {t: v for t, v in stooq.items()
+                                  if v["tier1_applied"] or not v["recorded"] or v["n_steps"] or v["n_blocks"]
+                                  or v["n_known_unapplied"]},
             "labels": dict(labels), "seams": dict(seams), "sources": dict(sources),
             "per_name": per_name, "unlabelled": unlabelled}
 
