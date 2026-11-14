@@ -318,6 +318,21 @@ def label_exdates(probe: pd.DataFrame) -> pd.DataFrame:
     return distribution_guard(out)
 
 
+def correction_factor(pre_dates: pd.DatetimeIndex, seam: pd.Timestamp, changes: Optional[pd.Series]) -> np.ndarray:
+    """T-394: the factor on the pre-seam bars for a set of PINNED corrections, given as (date → change of the
+    daily log return on that bar): exp(Corr(t) − Corr(seam)), Corr(t) = −Σ_{events dated after t} change. Only
+    events dated in (t, seam] move bar t — an event after the seam moves nothing, and the seam bar itself is
+    never touched (ONE constant at the seam). No changes → exactly 1.0 on every bar."""
+    if changes is None or len(changes) == 0:
+        return np.ones(len(pre_dates))
+    dates = pre_dates.append(pd.DatetimeIndex([seam]))
+    pos = dates.searchsorted(pd.DatetimeIndex(changes.index), side="left")
+    acc = np.zeros(len(dates) + 1)
+    np.add.at(acc, pos, changes.to_numpy(dtype=float))
+    prof = -(acc.sum() - np.cumsum(acc)[: len(dates)])
+    return np.exp(prof[:-1] - prof[-1])
+
+
 def missed_log_factor(dates: pd.DatetimeIndex, ex_days: pd.DatetimeIndex, log_f: np.ndarray) -> np.ndarray:
     """Back-adjustment for the missed dividends: logM(t) = Σ_{e > t} log(1 − D_e/P_e,prev), on the
     Stooq calendar `dates` (an ex-date that is not a bar lands on the next bar). Ex-dates after the
@@ -570,8 +585,14 @@ def check_text_bytes(new_lines: List[str], cache_lines: List[str], n_pre: int) -
 
 
 def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List[str],
-               cache_df: pd.DataFrame, stooq_raw: pd.Series, ref: NameReference) -> BuildResult:
+               cache_df: pd.DataFrame, stooq_raw: pd.Series, ref: NameReference,
+               changes: Optional[pd.Series] = None) -> BuildResult:
     """Option (a′) for one merged file. Pure: every input is passed in; nothing is read or written.
+
+    `changes` (T-394): PINNED corrections for this file as (date → change of the daily log return on that bar),
+    already validated against the file (`stooq_tier1.changes_for_file`). They are applied as a SECOND
+    multiplication, exp(Corr(t) − Corr(seam)), after the (a′) factor — so the result is, to the bit, the (a′)
+    bytes read back and corrected. With no changes the output is the (a′) bytes themselves.
 
     A bar with no same-security payer reference is NEVER moved off raw Stooq — not even inside a
     global missed era. It is LABELLED instead (`unverified_missed_era_spans`, with the bias
@@ -626,11 +647,14 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
         k = float(cache_df["Close"].iloc[n_pre - 1]) / float(base[-1])
         splice = "cache_seam_return_kept (raw Stooq has no seam bar)"
     factor = undrift * np.exp(log_m + log_a) * k
+    corr = correction_factor(pre_dates, seam, changes) if changes is not None and len(changes) else None
 
     out = cache_df[["Date"] + OHLC + ["Volume"]].copy()
     for col in OHLC:
         vals = out[col].to_numpy(dtype=float).copy()
         vals[:n_pre] = vals[:n_pre] * factor
+        if corr is not None:              # a second multiplication, never folded into `factor` (bit identity)
+            vals[:n_pre] = vals[:n_pre] * corr
         out[col] = vals
     out = recompute_derived(out)
     # post-seam derived fields beyond the seam's reach are the cache's own values (text-identical)
@@ -690,6 +714,8 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
         "log_added_total": float(log_m[0] + log_a[0]) if n_pre else 0.0,
         "post_seam_derived_rows_changed": int(min(SEAM_TEXT_ROWS, n_post)),
         "carried_columns": list(extra),
+        "stooq_correction_changes": ([[str(pd.Timestamp(d).date()), float(v)] for d, v in changes.items()]
+                                     if changes is not None and len(changes) else []),
     }
     return BuildResult(ticker, text, out, record)
 
@@ -698,10 +724,12 @@ def build_file(ticker: str, meta_rec: dict, cache_header: str, cache_lines: List
 # Write-time rails on a build's OUTPUT (the writer runs them before anything lands)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def step_audit(new_close: pd.Series, stooq_raw: pd.Series, labels: pd.DataFrame, seam: pd.Timestamp) -> dict:
+def step_audit(new_close: pd.Series, stooq_raw: pd.Series, labels: pd.DataFrame, seam: pd.Timestamp,
+               changes: Optional[pd.Series] = None) -> dict:
     """R3 at write time: the pre-seam daily log returns may differ from raw Stooq's ONLY at the
-    labelled ADDED ex-dates, and there by exactly −log(1 − D/P_prev). Anything else is a price that
-    entered from somewhere other than raw Stooq and the restored dividends."""
+    labelled ADDED ex-dates, and there by exactly −log(1 − D/P_prev) — and (T-394) at the bars of the
+    PINNED corrections passed as `changes`, by exactly each change. Anything else is a price that
+    entered from somewhere other than raw Stooq, the restored dividends and the pinned table."""
     pre_c = new_close[new_close.index < seam]
     raw_pre = stooq_raw.reindex(pre_c.index)
     step = np.diff(np.log(pre_c.to_numpy() / raw_pre.to_numpy()))        # step[i-1] = bar i
@@ -710,31 +738,41 @@ def step_audit(new_close: pd.Series, stooq_raw: pd.Series, labels: pd.DataFrame,
         lab = labels[labels["missed"].to_numpy(dtype=bool) & (pd.DatetimeIndex(labels["day"]) < seam)]
         pos = pre_c.index.searchsorted(pd.DatetimeIndex(lab["day"]), side="left")
         np.add.at(expected, pos, -lab["log_f"].to_numpy(dtype=float))
+    n_corr = 0
+    if changes is not None and len(changes):
+        cpos = pre_c.index.searchsorted(pd.DatetimeIndex(changes.index), side="left")
+        np.add.at(expected, cpos, changes.to_numpy(dtype=float))
+        n_corr = int(((cpos >= 1) & (cpos < len(pre_c))).sum())
     exp_bar = expected[1:len(pre_c)]
     dev = np.abs(step - exp_bar)
     unexpected = (np.abs(step) > STEP_TOL) & (exp_bar == 0)
-    return {"n_steps_expected": int((exp_bar != 0).sum()), "n_unexpected_steps": int(unexpected.sum()),
+    return {"n_steps_expected": int((exp_bar != 0).sum()), "n_correction_steps": n_corr,
+            "n_unexpected_steps": int(unexpected.sum()),
             "max_abs_dev": float(dev.max()) if len(dev) else 0.0,
             "pass": bool(not unexpected.any() and (dev.max() <= STEP_TOL if len(dev) else True))}
 
 
 def splice_audit(new_close: pd.Series, cache_close: pd.Series, stooq_raw: pd.Series,
-                 labels: pd.DataFrame, seam: pd.Timestamp, splice: str) -> dict:
+                 labels: pd.DataFrame, seam: pd.Timestamp, splice: str,
+                 changes: Optional[pd.Series] = None) -> dict:
     """The ONE constant at the seam, at write time. The written seam-day log return must be Stooq's
     own seam-day return less the missed dividends whose ex-date maps to the seam bar (splice
-    `stooq_seam_return`), or the cache's own seam-day return (when raw Stooq has no seam bar)."""
+    `stooq_seam_return`), or the cache's own seam-day return (when raw Stooq has no seam bar) — plus
+    (T-394) any pinned correction change that lands ON the seam bar (a block that ends there)."""
     n_pre = int((new_close.index < seam).sum())
     got = float(np.log(new_close.iloc[n_pre] / new_close.iloc[n_pre - 1]))
+    at_seam_corr = (float(changes[pd.DatetimeIndex(changes.index) == seam].sum())
+                    if changes is not None and len(changes) else 0.0)
     if splice == "stooq_seam_return":
         prev_day = new_close.index[n_pre - 1]
         at_seam = 0.0
         if not labels.empty:
             sel = labels["missed"].to_numpy(dtype=bool) & (pd.DatetimeIndex(labels["day"]) == seam)
             at_seam = float(labels.loc[sel, "log_f"].sum())
-        want = float(np.log(stooq_raw.loc[seam] / stooq_raw.loc[prev_day])) - at_seam
+        want = float(np.log(stooq_raw.loc[seam] / stooq_raw.loc[prev_day])) - at_seam + at_seam_corr
         tol = 10 * PROPORTIONAL_TOL          # the proportionality slack of rule 1, plus float noise
     else:
-        want = float(np.log(cache_close.iloc[n_pre] / cache_close.iloc[n_pre - 1]))
+        want = float(np.log(cache_close.iloc[n_pre] / cache_close.iloc[n_pre - 1])) + at_seam_corr
         tol = 1e-12
     return {"splice": splice, "seam_log_return": got, "target_log_return": want,
             "abs_dev": abs(got - want), "tolerance": tol, "pass": bool(abs(got - want) <= tol)}
