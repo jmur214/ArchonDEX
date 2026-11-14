@@ -1937,3 +1937,24 @@ python -m scripts.b10_gold_leg --out data/b10_local/b10_results_run2.json   # de
 md5 -q data/b10_local/b10_results.json data/b10_local/b10_results_run2.json # must match
 python -m pytest tests/test_b10_gold_leg_guards.py -q                       # planted-hole / flat-tail / parity locks (synthetic)
 ```
+
+## T-398 — a stacked trend overlay on investable fund returns (added 2026-11-14)
+A standalone harness (the T-311 / B-5 pattern; never `BacktestController`) for the frozen prereg
+`docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md` (frozen at `ac01413`; amendment 1 =
+the director's rulings, amendment 2 = the membership-and-ER table).
+- B-5's simulator pieces are imported from `scripts/b5_levered_diversified.py`, never edited.
+- Network: yfinance only (metadata, then prices), plus at most four GETs to `barclayhedge.com`.
+- `meta` and `fetch` each run ONCE and refuse a second time. `fetch` refuses until the membership
+  table is frozen in the script.
+- Outputs are worktree-LOCAL under `data/t398_local/`, a real directory, never via the
+  `data/research` symlink. Nothing dated 2026 is loaded (the holdout).
+- Fail-closed: `integrity` exits 2 while any flag on a candidate fund has no recorded ruling.
+  Nothing is auto-fixed.
+
+```bash
+python scripts/t398_stacked_trend_overlay.py meta          # one time: yfinance Ticker.info + actions per ticker -> data/t398_local/meta/
+python scripts/t398_stacked_trend_overlay.py meta-table    # read-only: the mechanical reading of the metadata (category, ER, dates)
+python scripts/t398_stacked_trend_overlay.py fetch         # one time: fetch_yf_tr prices + md5-checked copies of H.15, SOFR, AQR -> data/t398_local/inputs/
+python scripts/t398_stacked_trend_overlay.py integrity     # D1-D4 on fund prices -> data/t398_local/integrity.json (exit 2 on an unruled flag)
+python scripts/t398_stacked_trend_overlay.py btop50-get --url <barclayhedge.com URL> --name <label>   # one logged GET, raw response kept; four at most
+```

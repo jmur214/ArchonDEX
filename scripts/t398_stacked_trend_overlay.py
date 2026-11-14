@@ -516,13 +516,59 @@ def cmd_integrity() -> int:
     return 2 if unruled else 0
 
 
+# --------------------------------------------------------------------------- BTOP50 (R-8, A1.1-13)
+BTOP_HOST = "barclayhedge.com"
+BTOP_MAX_GETS = 4
+BTOP_LOG = BTOP_DIR / "REQUESTS.json"
+
+
+def cmd_btop50_get(url: str, name: str) -> int:
+    """One GET to barclayhedge.com with a generic client name and no contact detail; the response
+    (or the refusal) is stored raw. At most four requests in total, each logged. No mirror."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    host = urllib.parse.urlparse(url).netloc.lower()
+    if not (host == BTOP_HOST or host.endswith("." + BTOP_HOST)):
+        raise T398Halt(f"{url}: only {BTOP_HOST} may be read (R-8: no mirror)")
+    BTOP_DIR.mkdir(parents=True, exist_ok=True)
+    log = json.loads(BTOP_LOG.read_text()) if BTOP_LOG.exists() else {"requests": []}
+    if len(log["requests"]) >= BTOP_MAX_GETS:
+        raise T398Halt(f"the {BTOP_MAX_GETS}-request budget for {BTOP_HOST} is spent (A1.1-13)")
+    rec: Dict = {"url": url, "name": name, "requested_utc": _now()}
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (research-script)"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read()
+            rec.update({"status": int(resp.status), "final_url": resp.geturl(),
+                        "content_type": resp.headers.get("Content-Type")})
+    except urllib.error.HTTPError as exc:
+        body = exc.read() if hasattr(exc, "read") else b""
+        rec.update({"status": int(exc.code), "error": f"HTTPError: {exc.reason}"})
+    except (OSError, ValueError) as exc:
+        body = b""
+        rec.update({"status": None, "error": f"{type(exc).__name__}: {exc}"})
+    p = BTOP_DIR / f"{len(log['requests']) + 1}_{name}.raw"
+    p.write_bytes(body)
+    rec.update({"file": p.name, "bytes": len(body), "md5": b5.md5_file(p)})
+    log["requests"].append(rec)
+    b5.write_json(BTOP_LOG, log)
+    print(json.dumps(rec, indent=1))
+    return 0
+
+
 # --------------------------------------------------------------------------- CLI
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sp = ap.add_subparsers(dest="cmd", required=True)
     for name in ("meta", "meta-table", "fetch", "integrity"):
         sp.add_parser(name)
+    bp = sp.add_parser("btop50-get")
+    bp.add_argument("--url", required=True)
+    bp.add_argument("--name", required=True)
     a = ap.parse_args(argv)
+    if a.cmd == "btop50-get":
+        return cmd_btop50_get(a.url, a.name)
     if a.cmd == "meta":
         return cmd_meta()
     if a.cmd == "meta-table":
