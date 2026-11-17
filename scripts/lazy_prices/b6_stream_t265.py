@@ -18,8 +18,13 @@ overlap; output files carry the shard in their name; SIGTERM/SIGINT flush the in
 before exit (exit 5), so a stopped worker loses no finished CIK. Keep the workers' combined rate
 under the SEC ceiling with margin (two at --min-interval 0.45 <= 4.5 req/s).
 
+AMENDMENT 7 (the overlap gap fill): `--overlap-fill` streams ONLY the S&P-overlap CIKs whose text has
+a hole (`b6_census.overlap_gap_ciks`: 2015+ filings outside their S&P fetch window), each over its FULL
+2015+ history through the same `process_cik`; its output files carry `fill_` in the tag.
+
 Usage:
   python -m scripts.lazy_prices.b6_stream_t265 [--shard 0/1] [--min-interval 0.45]
+  python -m scripts.lazy_prices.b6_stream_t265 --overlap-fill [--retry-errors]
 """
 from __future__ import annotations
 
@@ -49,6 +54,20 @@ def t265_ciks() -> list[int]:
     ct = pd.read_parquet(T265 / "cik_ticker_final.parquet")
     files = {p.stem for p in (T265 / "prices").glob("*.parquet")}
     return sorted(int(c) for c in ct[ct.ticker.isin(files)].cik.unique())
+
+
+def select_ciks(overlap_fill: bool, sp: set[int], universe: list[int],
+                fill_ciks: list[int] | None = None) -> list[int]:
+    """The CIKs this run streams: the default run takes the T-265 CIKs NOT in the S&P fetch list;
+    `--overlap-fill` (AMENDMENT 7) takes exactly the gap CIKs, which must all be S&P-overlap T-265
+    CIKs (anything else is a selection defect and halts)."""
+    if not overlap_fill:
+        return [c for c in universe if c not in sp]
+    fill = sorted(fill_ciks or [])
+    stray = [c for c in fill if c not in sp or c not in set(universe)]
+    if stray:
+        raise SystemExit(f"FATAL: overlap-fill CIKs outside the S&P-overlap T-265 set: {stray[:5]}")
+    return fill
 
 
 def _done(retry_errors: bool = False) -> set[int]:
@@ -118,11 +137,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--retry-errors", action="store_true",
                     help="re-attempt CIKs whose only record is a transient failure")
     ap.add_argument("--disk-floor", type=float, default=E.DISK_FLOOR_GB)
+    ap.add_argument("--overlap-fill", action="store_true",
+                    help="AMENDMENT 7: stream only the S&P-overlap CIKs with unfetched 2015+ filings, "
+                         "full history (b6_census.overlap_gap_ciks)")
     args = ap.parse_args(argv)
     E.MIN_INTERVAL = args.min_interval
     S.load_lm()
     sp = set(pd.read_parquet(B.FETCH_LIST).cik.astype(int)) if B.FETCH_LIST.is_file() else set()
-    ciks = [c for c in t265_ciks() if c not in sp]
+    universe = t265_ciks()
+    fill_ciks = None
+    if args.overlap_fill:
+        from scripts.lazy_prices.b6_census import overlap_gap_ciks
+        fill_ciks = overlap_gap_ciks(set(universe))
+    ciks = select_ciks(args.overlap_fill, sp, universe, fill_ciks)
     k_shard, n_shard = (int(x) for x in args.shard.split("/"))
     if not 0 <= k_shard < n_shard:
         raise SystemExit(f"bad --shard {args.shard}")
@@ -132,11 +159,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit_ciks:
         todo = todo[: args.limit_ciks]
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    B._log(f"[t265] CIKs {len(ciks)} (S&P overlap skipped {len(sp & set(t265_ciks()))}); done "
+    B._log(f"[t265{' fill' if args.overlap_fill else ''}] CIKs {len(ciks)} (S&P overlap "
+           f"{'FILL' if args.overlap_fill else 'skipped'} {len(sp & set(universe))}); done "
            f"{len(done)}; to do {len(todo)}; free {E.disk_free_gb():.2f} GB", LOG)
     sig_buf, meta_buf, done_buf = [], [], []
     t0, n_docs = time.time(), 0
-    tag = f"s{k_shard}of{n_shard}_{int(t0)}"
+    tag = f"{'fill_' if args.overlap_fill else ''}s{k_shard}of{n_shard}_{int(t0)}"
     n_flush = [0]
 
     def flush() -> None:

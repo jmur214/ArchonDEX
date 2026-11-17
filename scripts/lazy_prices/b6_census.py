@@ -170,25 +170,145 @@ def t265_universe_ciks() -> set[int]:
     return set(ct[ct.ticker.isin(files)].cik.astype(int))
 
 
+SP_FETCH_LIST = LOCAL / "sp_fetch_list.parquet"
+SP_CANDIDATES = LOCAL / "sp_candidate_filings.parquet"
+FILL_SINCE = "2015-01-01"
+FILL_TOL_PP = 3.0          # AMENDMENT 7, condition (a): two-sided, percentage points
+FILL_MAX_FAIL = 0.01       # AMENDMENT 7, condition (a): filing-level fetch failures
+
+
+def overlap_gap_ciks(universe: set[int] | None = None) -> list[int]:
+    """AMENDMENT 7 (A7.1) — the overlap firms whose text has a hole: T-265 priced CIKs in the S&P
+    fetch list (the stream skipped them) with >= 1 10-K/10-Q accepted from 2015 in the cached S&P
+    candidate list that the fetch list lacks (outside their S&P fetch window). Deterministic from
+    the two files; keyed on (cik, accession) so a co-registrant's shared accession never hides a
+    gap."""
+    universe = t265_universe_ciks() if universe is None else universe
+    fl = pd.read_parquet(SP_FETCH_LIST, columns=["cik", "accession"])
+    cand = pd.read_parquet(SP_CANDIDATES, columns=["cik", "form", "accession", "acceptance_dt"])
+    fl["cik"] = fl.cik.astype(int)
+    cand["cik"] = cand.cik.astype(int)
+    ov = universe & set(fl.cik)
+    c = cand[cand.cik.isin(ov) & cand.form.isin(["10-K", "10-Q"])
+             & (cand.acceptance_dt.astype(str).str[:10] >= FILL_SINCE)]
+    have = set(zip(fl.cik, fl.accession))
+    miss = c[[(a, b) not in have for a, b in zip(c.cik, c.accession)]]
+    return sorted(int(x) for x in miss.cik.unique())
+
+
+def overlap_gap_accessions(universe: set[int] | None = None) -> set[tuple[int, str]]:
+    """The (cik, accession) pairs of the hole itself (the A7.1 5,502), for the gap-only report."""
+    universe = t265_universe_ciks() if universe is None else universe
+    fl = pd.read_parquet(SP_FETCH_LIST, columns=["cik", "accession"])
+    cand = pd.read_parquet(SP_CANDIDATES, columns=["cik", "form", "accession", "acceptance_dt"])
+    fl["cik"] = fl.cik.astype(int)
+    cand["cik"] = cand.cik.astype(int)
+    ov = universe & set(fl.cik)
+    c = cand[cand.cik.isin(ov) & cand.form.isin(["10-K", "10-Q"])
+             & (cand.acceptance_dt.astype(str).str[:10] >= FILL_SINCE)]
+    have = set(zip(fl.cik, fl.accession))
+    return {(int(a), b) for a, b in zip(c.cik, c.accession) if (a, b) not in have}
+
+
+def harness_grid(start: str, end: str) -> list[pd.Timestamp]:
+    """AMENDMENT 7 (A7.2) — the S&P harness's rebalance rule, imported (one code path): the last
+    SPY TR twin bar on or before each calendar quarter-end. Reads the twin's bar DATES only."""
+    from scripts.lazy_prices.b6_harness_sp import TWINS, rebalance_dates
+    d = pd.read_csv(TWINS / "SPY_1d.csv", usecols=["Date"], parse_dates=["Date"])
+    cal = pd.DatetimeIndex(d["Date"]).drop_duplicates().sort_values()
+    return rebalance_dates(cal, start, end)
+
+
+def _rates(name: str, f: pd.DataFrame, g: pd.DataFrame) -> list[dict]:
+    """The six A7.1 rates per form: parse rates on acceptance from 2015, pair rates from 2016."""
+    a = f[f.acceptance_dt.astype(str).str[:4] >= "2015"]
+    b = g[g.acceptance_dt.astype(str).str[:4] >= "2016"]
+    rows = []
+    for form in ("10-K", "10-Q"):
+        x, y = a[a.form == form], b[b.form == form]
+        pre = x.risk_status.astype(str).str.startswith("NOT_COVERED")
+        rows.append({"panel": name, "form": form, "filings": len(x),
+                     "risk_ok_pct": round(100 * (x.risk_status == "OK").mean(), 1),
+                     "risk_ok_excl_not_covered_pct": round(100 * (x.risk_status[~pre] == "OK").mean(), 1),
+                     "risk_not_covered_pct": round(100 * pre.mean(), 1),
+                     "mda_ok_pct": round(100 * (x.mda_status == "OK").mean(), 1),
+                     "combo_pair_pct_2016on": round(100 * (y.yoy_combo_why == "ok").mean(), 1),
+                     "mda_pair_pct_2016on": round(100 * (y.yoy_mda_why == "ok").mean(), 1),
+                     "qoq_mda_pair_pct_2016on": round(100 * (y.qoq_mda_why == "ok").mean(), 1)
+                     if form == "10-Q" else float("nan")})
+    return rows
+
+
+FILL_RATES = ("risk_ok_pct", "risk_ok_excl_not_covered_pct", "mda_ok_pct", "combo_pair_pct_2016on",
+              "mda_pair_pct_2016on", "qoq_mda_pair_pct_2016on")
+
+
+def fill_check(rates: pd.DataFrame, base: str, fill: str) -> pd.DataFrame:
+    """AMENDMENT 7 condition (a), rates half: |fill − base| <= 3.0 pp on each rate, per form."""
+    rows = []
+    for form in ("10-K", "10-Q"):
+        b = rates[(rates.panel == base) & (rates.form == form)].iloc[0]
+        f = rates[(rates.panel == fill) & (rates.form == form)].iloc[0]
+        for k in FILL_RATES:
+            if pd.isna(b[k]) and pd.isna(f[k]):
+                continue
+            diff = float(f[k]) - float(b[k])
+            ok = bool(abs(diff) <= FILL_TOL_PP) if pd.notna(diff) else False
+            rows.append({"form": form, "rate": k, "base": b[k], "fill": f[k], "diff_pp": round(diff, 1),
+                         "within_3pp": ok})
+    return pd.DataFrame(rows)
+
+
+def _eligibility(allsig: pd.DataFrame, dates: list[pd.Timestamp], overlap: set[int]) -> pd.DataFrame:
+    """Per rebalance: CIKs whose latest usable filing (floor <= t, accepted within 6 months — the
+    harness's `signals_at` rule) carries a defined gate / H_OOS ranking signal. Counts only."""
+    reb = []
+    for t in dates:
+        s_ = allsig[(allsig.floor <= t) & (allsig.acc > t - pd.DateOffset(months=6))]
+        latest = s_.groupby("cik").tail(1)
+        ov = latest[latest.cik.isin(overlap)]
+        reb.append({"rebalance": t.date().isoformat(), "ciks_with_recent_filing": len(latest),
+                    "gate_usable": int(latest.gate_ok.sum()),
+                    "gate_usable_10k": int((latest.gate_ok & (latest.form == "10-K")).sum()),
+                    "gate_usable_10q": int((latest.gate_ok & (latest.form == "10-Q")).sum()),
+                    "hoos_usable": int(latest.hoos_ok.sum()),
+                    "hoos_usable_10q": int((latest.hoos_ok & (latest.form == "10-Q")).sum()),
+                    "overlap_with_recent_filing": len(ov),
+                    "overlap_without_recent_filing": len(overlap) - len(ov)})
+    return pd.DataFrame(reb).set_index("rebalance")
+
+
 def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str, pd.DataFrame]:
     """The T-265 arm's parse-coverage census under b6_parse/2. Counts only: no signal VALUE or
     distribution is read (H_OOS stays clean), no price, ADV, ranking or return. CIKs that are
-    also in the S&P panel take their text from signals_sp_v2 (the stream skipped them)."""
+    also in the S&P panel take their text from signals_sp_v2 (the stream skipped them) — except
+    the AMENDMENT-7 fill CIKs, whose full 2015+ history the stream now holds."""
     done, fil, sig = _t265_frames()
     out: dict[str, pd.DataFrame] = {}
     universe = t265_universe_ciks()
-    streamed = set(done.cik.astype(int))
+    done["cik"] = done.cik.astype(int)
+    streamed = set(done.cik)
+    gap = set(overlap_gap_ciks(universe))
+    fill = gap & streamed
+    base = streamed - fill
     overlap = universe - streamed
-    fil = fil.drop_duplicates("accession", keep="last")
-    sig = sig.drop_duplicates("accession", keep="last")
+    # (cik, accession): a co-registrant filing is one accession under two CIKs — both rows are real
+    fil = fil.assign(cik=fil.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
+    sig = sig.assign(cik=sig.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
     last_err = done.drop_duplicates("cik", keep="last")
+    transient = last_err.error.fillna("").str.startswith(("error:", "submissions_"))
+    ff = fil[fil.cik.isin(fill)]
     out["completeness"] = pd.DataFrame([{
-        "t265_priced_ciks": len(universe), "streamed_ciks": len(streamed),
+        "t265_priced_ciks": len(universe), "streamed_ciks": len(base),
+        "fill_ciks_streamed": len(fill), "fill_ciks_selected": len(gap),
         "overlap_ciks_from_sp_panel": len(overlap),
         "no_periodic_filings_since_2015": int((last_err.error == "no_periodic_filings_since_2015").sum()),
-        "transient_errors_remaining": int(last_err.error.fillna("").str.startswith(("error:", "submissions_")).sum()),
+        "transient_errors_remaining": int(transient.sum()),
+        "fill_transient_errors_remaining": int((transient & last_err.cik.isin(gap)).sum()),
         "filings": len(fil), "fetch_ok": int(fil.fetch_ok.fillna(False).sum()),
-        "fetch_failed": int((~fil.fetch_ok.fillna(False)).sum())}])
+        "fetch_failed": int((~fil.fetch_ok.fillna(False)).sum()),
+        "fill_filings": len(ff), "fill_fetch_failed": int((~ff.fetch_ok.fillna(False)).sum()),
+        "fill_fetch_failed_share": round(float((~ff.fetch_ok.fillna(False)).mean()), 5) if len(ff) else float("nan")}])
     out["fetch_failures"] = fil.loc[~fil.fetch_ok.fillna(False),
                                     ["cik", "form", "accession", "acceptance_dt", "fetch_status", "fetch_reason"]]
     f = fil.assign(year=fil.acceptance_dt.str[:4], risk_ok=fil.risk_status == "OK",
@@ -205,36 +325,32 @@ def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str,
     out["by_year_form"] = tab
     out["status"] = pd.concat({"risk": f.groupby("form").risk_status.value_counts(),
                                "mda": f.groupby("form").mda_status.value_counts()}).rename("n").reset_index()
-    # rates vs the S&P panel (b6_parse/2), same acceptance years
-    sp = pd.concat([pd.read_parquet(p, columns=["accession", "form", "acceptance_dt", "fetch_ok",
+    # rates: the 4,099 streamed (the T-265 panel's own), the AMENDMENT-7 fill, its gap-only subset,
+    # all streamed, and the S&P panel (b6_parse/2), same acceptance years
+    sp = pd.concat([pd.read_parquet(p, columns=["cik", "accession", "form", "acceptance_dt", "fetch_ok",
                                                 "risk_status", "mda_status"])
                     for p in sorted(SP_V2_SHARDS.glob("shard_*.parquet"))], ignore_index=True)
-    sp = sp.drop_duplicates("accession", keep="last")
-    sp = sp[sp.acceptance_dt.str[:4] >= "2015"]
-    spsig = pd.read_parquet(SP_V2_SIGNALS, columns=["accession", "form", "acceptance_dt", "yoy_combo_why",
-                                                    "yoy_mda_why", "qoq_mda_why"])
-    spsig = spsig[spsig.acceptance_dt.str[:4] >= "2016"]
-    rows = []
-    for name, a, b in (("T-265", f[f.acceptance_dt.str[:4] >= "2015"], g[g.acceptance_dt.str[:4] >= "2016"]),
-                       ("S&P (v2)", sp.assign(risk_ok=sp.risk_status == "OK", mda_ok=sp.mda_status == "OK"),
-                        spsig)):
-        for form in ("10-K", "10-Q"):
-            x, y = a[a.form == form], b[b.form == form]
-            pre = x.risk_status.str.startswith("NOT_COVERED")
-            rows.append({"panel": name, "form": form, "filings": len(x),
-                         "risk_ok_pct": round(100 * (x.risk_status == "OK").mean(), 1),
-                         "risk_ok_excl_not_covered_pct": round(100 * (x.risk_status[~pre] == "OK").mean(), 1),
-                         "risk_not_covered_pct": round(100 * pre.mean(), 1),
-                         "mda_ok_pct": round(100 * (x.mda_status == "OK").mean(), 1),
-                         "combo_pair_pct_2016on": round(100 * (y.yoy_combo_why == "ok").mean(), 1),
-                         "mda_pair_pct_2016on": round(100 * (y.yoy_mda_why == "ok").mean(), 1),
-                         "qoq_mda_pair_pct_2016on": round(100 * (y.qoq_mda_why == "ok").mean(), 1)
-                         if form == "10-Q" else float("nan")})
+    sp = sp.assign(cik=sp.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
+    spsig = pd.read_parquet(SP_V2_SIGNALS, columns=["cik", "accession", "form", "acceptance_dt",
+                                                    "yoy_combo_why", "yoy_mda_why", "qoq_mda_why"])
+    gap_acc = overlap_gap_accessions(universe)
+    in_gap_f = pd.Series([(c, a) in gap_acc for c, a in zip(fil.cik, fil.accession)], index=fil.index, dtype=bool)
+    in_gap_g = pd.Series([(c, a) in gap_acc for c, a in zip(sig.cik, sig.accession)], index=sig.index, dtype=bool)
+    rows = (_rates("T-265 streamed", fil[fil.cik.isin(base)], sig[sig.cik.isin(base)])
+            + (_rates("fill", fil[fil.cik.isin(fill)], sig[sig.cik.isin(fill)]) if fill else [])
+            + (_rates("fill gap-only", fil[in_gap_f], sig[in_gap_g]) if fill else [])
+            + _rates("T-265 all streamed", fil, sig)
+            + _rates("S&P (v2)", sp, spsig))
     out["rates_vs_sp"] = pd.DataFrame(rows)
-    # per-rebalance text eligibility (counts of CIKs; calendar quarter-ends)
+    if fill:
+        out["fill_check"] = fill_check(out["rates_vs_sp"], "T-265 streamed", "fill")
+    # per-rebalance text eligibility (counts of CIKs) on the S&P harness's grid (A7.2), and the
+    # difference from the 6e52752 calendar-quarter-end grid
     cols = ["cik", "form", "acceptance_dt", "decision_floor_date", "yoy_combo_why", "yoy_mda_why", "qoq_mda_why"]
-    allsig = pd.concat([sig[cols], pd.read_parquet(SP_V2_SIGNALS, columns=cols).query("cik in @overlap")],
-                       ignore_index=True)
+    spov = pd.read_parquet(SP_V2_SIGNALS, columns=cols)
+    spov = spov[spov.cik.astype(int).isin(overlap)]
+    allsig = pd.concat([sig[cols], spov], ignore_index=True)
+    allsig["cik"] = allsig.cik.astype(int)
     allsig["floor"] = pd.to_datetime(allsig.decision_floor_date)
     allsig["acc"] = pd.to_datetime(allsig.acceptance_dt.str[:10])
     allsig = allsig.sort_values(["floor", "acceptance_dt"])
@@ -242,20 +358,14 @@ def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str,
         (allsig.form == "10-Q") & (allsig.yoy_mda_why == "ok"))
     allsig["hoos_ok"] = ((allsig.form == "10-K") & (allsig.yoy_combo_why == "ok")) | (
         (allsig.form == "10-Q") & (allsig.qoq_mda_why == "ok"))
-    reb = []
-    for t in pd.date_range(start, end, freq="QE"):
-        s_ = allsig[(allsig.floor <= t) & (allsig.acc > t - pd.DateOffset(months=6))]
-        latest = s_.groupby("cik").tail(1)
-        ov = latest[latest.cik.isin(overlap)]
-        reb.append({"rebalance": t.date().isoformat(), "ciks_with_recent_filing": len(latest),
-                    "gate_usable": int(latest.gate_ok.sum()),
-                    "gate_usable_10k": int((latest.gate_ok & (latest.form == "10-K")).sum()),
-                    "gate_usable_10q": int((latest.gate_ok & (latest.form == "10-Q")).sum()),
-                    "hoos_usable": int(latest.hoos_ok.sum()),
-                    "hoos_usable_10q": int((latest.hoos_ok & (latest.form == "10-Q")).sum()),
-                    "overlap_with_recent_filing": len(ov),
-                    "overlap_without_recent_filing": len(overlap) - len(ov)})
-    out["rebalance_text_eligibility"] = pd.DataFrame(reb).set_index("rebalance")
+    grid = harness_grid(start, end)
+    elig = _eligibility(allsig, grid, overlap)
+    cal_q = _eligibility(allsig, list(pd.date_range(start, end, freq="QE")), overlap)
+    out["rebalance_text_eligibility"] = elig
+    diff = elig.reset_index(drop=True) - cal_q.reset_index(drop=True)
+    diff.insert(0, "calendar_qe", list(cal_q.index))
+    diff.insert(0, "rebalance", list(elig.index))
+    out["grid_vs_calendar"] = diff.set_index("rebalance")
     return out
 
 
@@ -268,8 +378,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.t265:
         res = census_t265()
         for k, v in res.items():
-            v.to_csv(OUT / f"t265_{k}.csv", index=k in ("by_year_form", "rebalance_text_eligibility"))
-            print(f"\n## T-265 {k}\n" + md(v, index=k in ("by_year_form", "rebalance_text_eligibility")))
+            ix = k in ("by_year_form", "rebalance_text_eligibility", "grid_vs_calendar")
+            v.to_csv(OUT / f"t265_{k}.csv", index=ix)
+            print(f"\n## T-265 {k}\n" + md(v, index=ix))
         return 0
     if not args.skip_before:
         before = census_before()
