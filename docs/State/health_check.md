@@ -109,6 +109,14 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: USER/DIRECTOR-GATED. Dispatch RR-1, RR-2, RR-3, RR-7 in parallel (P0); do not quote any new equity-book number until RR-1 and RR-5 merge; run B-1 (raw-signal decile re-evaluation) as the first research brief — it does not touch the referee.
 - Anchor: `config/alpha_settings.prod.json:37` contains `"news_sentiment_edge"` — (11) RR-7
 
+### [MEDIUM] The analyst eval harness and the performance digest WRITE INTO THE CODE TREE, ignoring the run's state root — any simulation of the daily run rooted at a checkout overwrites that checkout's `data/` (director, 2026-11-17; it bit: a merge gate went red)
+- Engine: paper fleet / intelligence — `intelligence/analyst/eval_harness.py:35` (`SUMMARY = ROOT / "data" / "intel" / "analyst_eval_summary.json"`), `paper_trader/performance_digest.py:30,244` (first noted in passing in the split-fix HIGH row's review, 2026-11-10).
+- Description: both paths resolve from the module's own location, not from the state root the run was given.
+  - On 2026-11-17 at 17:12:55 a reviewer's reset simulation (`run_paper_cloud_day.main()` against a fake broker) overwrote the MAIN tree's `data/intel/analyst_eval_summary.json` with an empty summary (`n_records: 0`). The B-6 merge gate's data-write guard then failed the full suite: 5,175 passed, 0 failed, exit 1, attributed by ctime to an unrelated test.
+  - The fleet is unaffected (the cloud runs sync this key to and from S3, per `paper_trader/cloud_state.py:151`), but the local copy's prior content is lost.
+  - A test or simulation that drives the real daily run is unsafe in any checkout someone else is using.
+- Status: OPEN. Fix: thread the state root into both writers, with a lock that runs the daily `main()` under a tmp root and asserts nothing under the checkout's `data/` changed. Paper path, so propose-first for the deploy; the code change is small. Until then, simulations must run against a `git archive` copy.
+
 ### [MEDIUM] The `damped_offense_t298` live book has been PARKED for 77 sessions — a durable consumer that is never fed (director, 2026-11-14; found by fleet_health after the split-fix deploy)
 - Engine: paper fleet — `paper_trader/live_books.py` (`_offense_weights`, `DAMPED_OFFENSE`), `scripts/run_paper_cloud_day.py` (the live-books block)
 - Description: the book's weights need `_offense_expo_SSO`, which the daily run supplies only when `args.strategy == "offense_sso"`; no account has run that strategy since account 2 was repurposed to `deploy_candidate`, so every day records "strategy stance unavailable → parked". The parking is correct fail-closed behaviour; the defect is a clock that looks alive and accrues nothing. The config it tracks (T-298 damped offense) straddled in backtest and the gated-offense family is refuted (T-312).
