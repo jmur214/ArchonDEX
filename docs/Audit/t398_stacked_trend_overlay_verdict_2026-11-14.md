@@ -48,7 +48,7 @@ compares the holder with the best lead over SPY they had already reached.
 |---|---|
 | What the overlay added, after every cost | +0.37 %/yr, anywhere from −3.9 to +4.2 |
 | 2011–2019, the drought | cost 1.2 %/yr over those nine years. A holder who started in January 2011 was **10.2% behind SPY** at the end of 2019; the holder from the 2010-09 start was **3.7% behind** |
-| The worst three years | relative wealth **fell 25.1%** between 2022-06-14 and 2025-06-20: from 30.9% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high |
+| The worst three years | relative wealth **fell 25.1%** between the 2022-06-14 close and 2025-06-20 (the 756-day window's first return day is 2022-06-15, the date §5's table uses): from 30.9% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high |
 | In stock-market falls | correlation with stocks −0.14 [−0.31, −0.02] across seven falls of 10% or more; the exclusion of zero rests on two of the seven (§5). **It lost more than SPY in five of the seven**, and saved 20 points in 2022 |
 | Is AQR's paper factor too rich by enough to matter? | Over-capture `h_L` = +1.1 %/yr, CI [−4.2, +5.8]. **Still not pinned** |
 
@@ -112,10 +112,17 @@ overlay loses. Nothing here is a reason to buy it.
     merged in: the gate still reads 372.28). Of the 2,285 values in the first file, 3 differ: that
     gate reading and two label strings (the prereg reference now names amendment 3; the decision-cell
     string now says AQMIX's ratio is unverified). 137 values were added: an interval on every IR and
-    on the composite's Sharpe ratio, the anchors' flag counts, and the file bindings. No number in the
-    first file changed. The three return CSVs are byte-identical across all three.
+    on the composite's Sharpe ratio, the anchors' flag counts, and the file bindings. No measured number in
+    the first file changed (the gate reading is a number, but an input read from the live gate, not a
+    measurement of this study). The three return CSVs are byte-identical across all three. Note for anyone reading
+    `results.json` by key: `honest_n.n_eff_conservative_plus1` (37.08) and every
+    `mbl.ir_needed_neff_gate_plus1` (0.551) are the PRE-T-391 pin, not the gate in force; the gate in
+    force is `honest_n.n_eff_conservative` (372.28), and the IR it needs is 0.757 (§8).
 - **Independent recomputation** (`scripts/t398_independent_recompute.py`, committed in review round 1).
-  It shares no measurement code with the harness: its own calendar, membership, composite and arm. It
+  It shares no measurement code with the harness except the financing base, which it takes from
+  `h.financing_base()` (B-5's H.15/SOFR parser): its own calendar, membership, composite and arm. So it
+  cannot catch an error in the cash rate; the review's own from-scratch code parsed H.15 and SOFR itself
+  and matched the composite to 6.8e-20. It
   reproduces the decision cell's total (0.057262), the IR (0.0471), the flat decade, 2022 and the worst
   three years to within 1e-9 and exits non-zero otherwise. Its own-seed bootstrap gives
   [−3.75, +3.96] %/yr. The reviewer's separate implementation agreed to 1e-16 per bar.
@@ -163,8 +170,8 @@ Local times on 2026-11-14, from git and from the files' own times:
   before it was committed. It was not: before the commit it was only compiled and run through its 28
   synthetic tests. That is this author's account, not something the record proves.
 - **Three network steps ran from uncommitted code:** the metadata fetch, the two BarclayHedge requests
-  and the screener call. In each case the code was committed minutes later without change to the
-  command that had run.
+  and the screener call. In each case the code was committed minutes later; that it was committed without
+  change to the command that had run is this author's account, not something the record proves.
 - **Fund prices were looked at before the measurement code existed.** The integrity evidence, sent to
   the director for the halt ruling, shows one-day returns on the 45 flagged dates and around year-end
   distributions. It is data quality work and it is also exposure to the data.
@@ -242,7 +249,9 @@ which are listed and were never ruled** (A1.1-12):
 
 Why the anchors carry so many flags: the D1 check asks whether the *trend candidates* had a quiet day.
 A fund that holds equity falls 3% on an ordinary bad day for stocks while the trend funds do not, so
-the check fires. That makes most of these flags uninformative, not cleared. None was examined.
+the check fires. That makes most of these flags uninformative, not cleared. None was examined. The reason holds for
+SPY, VT, MAFIX and BLNDX (77 of their 81 D1 flags fall on days SPY fell at least 2 %), less well for
+RSST, the V1 anchor (3 of its 13); V1 decides nothing.
 
 ## 4. The arms
 
@@ -447,7 +456,8 @@ rather than the fees. The intervals do not establish that.**
 - What cuts against it, twice over. First, `h_L`'s interval is wide: its upper bound is 5.8 %/yr per
   100% of trend, which is 2.9 at +50% and of the same order as the 3.7 era gap. Second, `h_L` is
   measured on 2010–2025 only. It says nothing about what fees and trading costs would have taken
-  before 2010, when the paper premium was earned and no 1%-fee fund existed. "Era" and "fees" are not
+  before 2010, when the paper premium was earned and only one of these 14 funds (RYMFX, from 2007) existed
+  (whether any 1 %-fee trend fund existed then is from memory, unverified). "Era" and "fees" are not
   separable on this evidence.
 - **The factor's own mean by era — a post-hoc description; the eras were chosen after the fact**
   (`probes`; `MetricsEngine` block bootstrap, automatic block). 1985-01 → 2010-08 (308 months):
@@ -575,7 +585,7 @@ overlay was worth somewhere between −3.9 and +4.2 %/yr at +100%, and between �
 Three things are now on record that were not before:
 - **B-5's +5.11 %/yr is not an estimate of what the overlay is worth today.** The same paper factor on
   2010–2025 gives +1.40 with an interval through zero. On point estimates the headline was earned
-  before trend funds existed for retail investors: the factor's mean was +16.6 %/yr before 2010-09 and
+  mostly before 2010-09, when only one of these 14 funds existed: the factor's mean was +16.6 %/yr before 2010-09 and
   +4.3 after (a post-hoc description, §7).
 - **On point estimates, fees and frictions in 2010–2025 are the smaller part.** The measured
   over-capture is +1.1 %/yr, not the 2.9 or 5.3 of the two short readings. Its interval still spans
@@ -590,7 +600,8 @@ trend-following's long history continues. It is not something this program's evi
 honest description: roughly SPY's return, two more points of volatility, deeper losses at the start of
 most sell-offs, and one large payoff in a slow inflationary bear market. Against SPY since the start
 the holder was behind on four days in ten, never by more than 9%. Against the best lead they had
-already reached, they waited seven years to get it back once and are 20% below it now. 1× SPY remains
+already reached, they waited seven years (2015-04 → 2022-03) to regain the April 2015 lead once, and at
+the end of 2025 they are 20% below the higher October 2022 lead (10.1% below the April 2015 one). 1× SPY remains
 the honest default.
 
 **A forward clock (ruling R-13; a proposal, nothing built, `paper_trader/` untouched).** The only
@@ -786,7 +797,7 @@ restored. Before round 1 the first seven all left 28 tests passing.
 | 4 | the fewer-than-three-members halt removed | **caught** | `test_window_halts_when_the_composite_drops_below_three_members` |
 | 5 | `run`'s unruled-flag refusal removed | **caught** | `test_run_refuses_an_unruled_flag_and_stale_gate_files` |
 | 6 | `verify_snapshot` skips the md5 comparison | **caught** | `test_verify_snapshot_passes_a_clean_snapshot_and_halts_on_any_changed_byte` |
-| 7 | `_corr`'s guard changed to a bare `== 0` | **caught** | `test_fp_guard_uses_tolerance_on_a_tiny_but_nonzero_std` (std ≈ 1.8e-18, not 0) |
+| 7 | `_corr`'s guard changed to a bare `== 0` | **caught** | `test_fp_guard_uses_tolerance_on_a_tiny_but_nonzero_std` (the `_corr` input's std ≈ 4.2e-17; the `_ann_ratio` input's ≈ 1.8e-18; both non-zero, below 1e-12) |
 | 8 | `run` no longer checks the file bindings | **caught** | `test_run_refuses_an_unruled_flag_and_stale_gate_files` |
 | 9 | the determinism comparison always says "identical" | **caught** | `test_determinism_command_exits_nonzero_on_a_mismatch_or_a_missing_run` |
 | 10 | `_ann_ratio`'s guard changed to a bare `== 0` | **caught** | `test_fp_guard_uses_tolerance_on_a_tiny_but_nonzero_std` |
@@ -802,3 +813,8 @@ restored. Before round 1 the first seven all left 28 tests passing.
 - **S3** is reported as run, with the difference from §4.4 stated. It was not re-run as written: that
   would mean fetching more unruled funds for a number that decides nothing.
 - **The 41 S3 flags and the anchors' flags** remain unruled.
+
+
+## Review round 2 (2026-11-17) — text only, applied by the director
+
+The delta review at `edca72b` found the code, tests, numbers, gates and merge ready and three sentences false as worded. Fixed in place, no number changed, no re-run: (A) the independent-recompute script takes the financing base from the harness (`h.financing_base()`), so the claim it shares no measurement code was false — now stated with its consequence; (B) "before trend funds existed for retail investors" was contradicted by RYMFX (2007) — now "mostly before 2010-09, when only one of these 14 funds existed", and "no 1%-fee fund existed" labelled from memory; (C) "No number in the first file changed" → "No measured number". Notes applied: the pre-T-391 keys in `results.json` named (D); the two dates of the worst three years reconciled (E); the "it" in the closing paragraph split into the 2015 and 2022 leads (F); the uncommitted-network-step claim labelled the author's account (G); both FP-guard stds and the RSST anchor-flag exception stated (H). The prereg's in-place label edit (I) is left as disclosed.
