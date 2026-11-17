@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Test stub for the ops scripts — NEVER calls AWS. Maps s3://<bucket>/<key> to $FAKE_S3/<key>,
 # serves `scheduler get-schedule` from the JSON file $FAKE_SCHED, and answers
-# `batch describe-job-definitions` with "$FAKE_REV<TAB>$FAKE_IMAGE".
+# `batch describe-job-definitions` with "$FAKE_REV<TAB>$FAKE_IMAGE", and `batch list-jobs` (only the
+# JOB_DEFINITION filter form on the expected queue) with the "<jobName><TAB><status>" lines of $FAKE_JOBS.
 # FAKE_FAIL injects ONE fault:
 #   read_live    a read (`s3 cp <live key> -`) of a key under $PFX/data/ is denied
 #   mv           every `s3 mv` is denied (the DeleteObject case)
@@ -9,14 +10,17 @@
 #   etag_wrong   head-object reports a wrong ETag for keys under archive_* prefixes
 #   head_denied  every head-object is AccessDenied (absence cannot be proven)
 #   corrupt_mv   every `s3 mv` lands different bytes at the destination
+#   list_denied  `batch list-jobs` is AccessDenied
 #   none         no fault (default)
 set -u
-pos=(); query=""; key=""; recursive=0
+pos=(); query=""; key=""; recursive=0; filters=""; jobq=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile|--region|--output|--bucket|--name|--job-definition-name|--status) shift 2 ;;
     --query) query="$2"; shift 2 ;;
     --key) key="$2"; shift 2 ;;
+    --filters) filters="$2"; shift 2 ;;
+    --job-queue) jobq="$2"; shift 2 ;;
     --recursive) recursive=1; shift ;;
     --no-progress) shift ;;
     *) pos+=("$1"); shift ;;
@@ -66,6 +70,12 @@ case "$cmd" in
     [ -f "${FAKE_SCHED:-/nonexistent}" ] || { echo "ResourceNotFoundException" >&2; exit 254; }
     if [ "$query" = "State" ]; then python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]))["State"])' "$FAKE_SCHED"
     else cat "$FAKE_SCHED"; fi ;;
+  "batch list-jobs")
+    if [ "$FAULT" = list_denied ]; then deny ListJobs; fi
+    [ "$jobq" = "${FAKE_QUEUE:-archondex-backtest-queue}" ] || { echo "ClientException: unknown queue '$jobq'" >&2; exit 254; }
+    [ "$filters" = "name=JOB_DEFINITION,values=${FAKE_JDNAME:-archondex-paper-offense-sso}" ] \
+      || { echo "fake_aws: unsupported list-jobs filter '$filters'" >&2; exit 254; }
+    if [ -f "${FAKE_JOBS:-/nonexistent}" ]; then cat "$FAKE_JOBS"; fi ;;
   "batch describe-job-definitions")
     printf '%s\t%s\n' "${FAKE_REV:?}" "${FAKE_IMAGE:?}" ;;
   *) echo "fake_aws: unsupported: $cmd" >&2; exit 2 ;;

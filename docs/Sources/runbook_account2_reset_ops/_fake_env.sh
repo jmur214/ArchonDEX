@@ -3,7 +3,7 @@
 # schedule and image is the placeholder 000000000000.
 HERE="${HERE:?set HERE before sourcing}"
 export P=placeholder-profile R=us-east-1 B=fakebucket PFX=paper_state_offense_sso D=2026-11-18
-export SCHED=archondex-paper-offense-sso-daily JDNAME=archondex-paper-offense-sso
+export SCHED=archondex-paper-offense-sso-daily JDNAME=archondex-paper-offense-sso Q=archondex-backtest-queue
 export EXPECT_IMAGE=paper-sha-716ca04
 export ARCH=$PFX/archive_deploy_candidate_epoch1_$D ASIDE=$PFX/reset_aside_$D
 export RELS="data/paper_state/ledger.jsonl data/paper_state/orders.jsonl data/paper_state/recon.jsonl data/state/deploy_candidate_tracking.json data/state/fleet_mirror_slice.json data/state/paper_alerts.log data/state/paper_heartbeat.json data/state/price_basis_marks.json data/state/tax_lots.jsonl"
@@ -21,7 +21,8 @@ content() {  # synthetic bytes for a key (the slice carries the positions step 2
 
 world() {  # world <schedule State> [nosnap] — a fresh fake S3 (+ the step-2 snapshot unless nosnap)
   W="$(mktemp -d "$ROOT/case.XXXX")"
-  export OPS="$W/ops" FAKE_S3="$W/s3" FAKE_SCHED="$W/sched.json" FAKE_FAIL=none
+  export OPS="$W/ops" FAKE_S3="$W/s3" FAKE_SCHED="$W/sched.json" FAKE_FAIL=none FAKE_JOBS="$W/jobs.txt"
+  printf "paper-offense-sso-day\tFAILED\nreset-a2-dry-2026-11-18\tSUCCEEDED\n" > "$FAKE_JOBS"   # terminal only
   export FAKE_REV=21 FAKE_IMAGE="000000000000.dkr.ecr.us-east-1.amazonaws.com/archondex-backtest:paper-sha-716ca04"
   python3 -I - "$FAKE_SCHED" "$1" <<'PY'
 import json, sys

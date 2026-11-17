@@ -5,6 +5,8 @@
 # equal the archive's. Refuses unless the schedule is DISABLED. Never deletes.
 # Use RELS from the manifest so a partial archive restores exactly what was moved:
 #   RELS="$(cut -d' ' -f1 "$OPS/MANIFEST_md5.txt")" bash restore.sh
+# A PARTLY finished restore is re-run with RELS = the manifest keys still under $ASIDE (the
+# already-restored keys are now occupied live keys and would be refused) — runbook §7.6.
 # Required env: B PFX ARCH ASIDE RELS SCHED (and P R for the aws profile/region).
 set -uo pipefail
 AWS="${AWS:-aws}"

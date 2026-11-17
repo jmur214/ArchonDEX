@@ -1,4 +1,4 @@
-# ACCOUNT 2 RESET RUNBOOK — PROPOSED, REVISION 3 (risk lens, 2026-11-17; propose-first)
+# ACCOUNT 2 RESET RUNBOOK — PROPOSED, REVISION 4 (risk lens, 2026-11-17; propose-first)
 
 **Status:** PROPOSED. Nothing in this document has been run. Every command below is text for a later,
 explicitly approved session. This revision changed no state: no S3 or AWS writes, no broker calls, no
@@ -15,8 +15,8 @@ the command that re-runs its test. All of them run locally with no network, no b
 - `sim_variant.py`, which covers the three variants: the $10,000 re-base, and option A at $10,000 with and without the re-base.
 - `sim_stray.py` (the delta reviewer's): a stray run after the archive and before the liquidation, in `wedge` mode and in `recover` mode.
 - `run_sims.sh <repo_root>`, which runs all six simulations and asserts every D+1/D+2/D+3 expectation quoted in §0.1, §7 and §8 (38 checks, ALL PASS on 2026-11-17). It needs the repo's venv interpreter and STOPs with a clear message otherwise.
-- `check_archive.sh`, `check_restore.sh`, `check_gate.sh`, `check_step2.sh`, `check_sched_state.py`, `check_reset_a2.py` and `check_postcheck.py`, which test the §7 scripts against a fake S3 / schedule / jobdef and fake broker modules (74 cases).
-- `mutate.py`, the mutation harness (the delta reviewer's list plus 28 new mutants). 59 mutants: 57 caught, 2 declared equivalent with their reasons.
+- `check_archive.sh`, `check_restore.sh`, `check_gate.sh`, `check_step2.sh`, `check_sched_state.py`, `check_reset_a2.py` and `check_postcheck.py`, which test the §7 scripts against a fake S3 / schedule / jobdef and fake broker modules (79 cases).
+- `mutate.py`, the mutation harness (the delta reviewer's list plus 33 new mutants). 64 mutants: 62 caught, 2 declared equivalent with their reasons.
 - `check_embedded.py`, which proves that the §7.1–7.4 text in this runbook is byte-identical to the committed files.
 
 The reviewer's original evidence (`/tmp/runbook_review_fresh/`) is ephemeral and is cited only where it
@@ -35,7 +35,8 @@ balance is not a valid seed … so the reset restarts at a clean $10,000 tier wi
   - All 15 FIXED; the re-base path is executable as written.
   - Option B: READY WITH REQUIRED FIXES (N1 only).
   - Option A: NOT READY, unchanged.
-  - Revision 3 fixes N1–N7; the map is in §11.1.
+  - Revision 3 fixed N1–N7; the map is in §11.1.
+- **Final check of revision 3 (`d45d0d4`):** option B READY; option A NOT READY (unchanged). Revision 4 closes its two optional minors (§11.2).
 
 **Tags.** Each claim carries `[VERIFIED: source]` (a file:line, an S3 key or AWS response read on
 2026-11-17, a public doc URL read on 2026-11-17, or a named simulation) or `[UNVERIFIED]`.
@@ -328,7 +329,7 @@ fires after the archive (step 5) but before the liquidation (step 10).
 
 The guards:
 1. `archive.sh` and `restore.sh` refuse to run unless the schedule is DISABLED.
-2. `gate_live_clean.sh` runs at steps 7, 9.5 and 12. It passes only when the schedule is DISABLED and the live prefix holds nothing but `data/state/exec_cost_ledger.jsonl`.
+2. `gate_live_clean.sh` runs at steps 7, 9.5 and 12. It passes only when the schedule is DISABLED, NO job on account 2's jobdef (any revision) is still in flight, and the live prefix holds nothing but `data/state/exec_cost_ledger.jsonl`. The in-flight check catches a stray that is still RUNNING and has written nothing yet. In flight means SUBMITTED, PENDING, RUNNABLE, STARTING or RUNNING, and any unknown status is refused too. A failed `list-jobs` call refuses.
 3. §7.6 is the recovery path if a stray run happens anyway.
 
 [VERIFIED: committed `sim_stray.py`. In wedge mode stray-D, D+1, D+2 and D+3 all exit 70 and D+1..D+3 are halted. In recover mode the exits are 70 / 70 / 0 / 0, with D+1's init cash 103,514.78; `check_sims.py` asserts both.]
@@ -356,7 +357,7 @@ EXPECT_IMAGE=paper-sha-716ca04     # under U2 = re-base: the tag step 0.5 deploy
 RELS="data/paper_state/ledger.jsonl data/paper_state/orders.jsonl data/paper_state/recon.jsonl \
 data/state/deploy_candidate_tracking.json data/state/fleet_mirror_slice.json data/state/paper_alerts.log \
 data/state/paper_heartbeat.json data/state/price_basis_marks.json data/state/tax_lots.jsonl"
-export P R B PFX D OPS ARCH ASIDE SCHED JDNAME EXPECT_IMAGE RELS
+export P R B PFX D OPS ARCH ASIDE SCHED JDNAME Q EXPECT_IMAGE RELS
 submit() {  # submit a one-shot body on the LIVE pinned jobdef $JD (never the laptop — F8)
   python3 -c "import json,sys;print(json.dumps({'command':['python','-c',open(sys.argv[1]).read()]}))" "$1" > "$OPS/ov_$2.json"
   aws batch submit-job --job-name "reset-a2-$2-$D" --job-queue $Q --job-definition "$JD" \
@@ -379,12 +380,12 @@ done
 | 2 | READ | **Snapshot + live revision:** `bash $OPS/step2_snapshot.sh && . $OPS/step2.env` (N4: a committed script). It refuses a reused OPS dir, a schedule pin that is not the latest ACTIVE revision, and an image that is not `$EXPECT_IMAGE` [VERIFIED: `check_step2.sh`, 7/7]. The same reads, run by hand read-only on 2026-11-17, gave `archondex-paper-offense-sso:21`, `paper-sha-716ca04` and `{"MTUM": 92, "SGOV": 6, "VOO": 12}`. | `STEP2 OK: JD=… image=… EXPECT=…`; `$JD` and `$EXPECT` now set | — |
 | 3 | DIRECTOR | **Probe `s3:DeleteObject` first (finding 4):** `echo "account-2 reset probe $D" > $OPS/probe.txt`; `aws s3 cp $OPS/probe.txt s3://$B/$ASIDE/_probe/created.txt --profile $P --region $R`; `aws s3 mv s3://$B/$ASIDE/_probe/created.txt s3://$B/$ASIDE/_probe/moved.txt --profile $P --region $R`. **N6:** the probe writes and moves ONLY under `reset_aside_<D>/_probe/`, never under `data/`, so no run can read it. Even if the probe passes and the REAL move is later denied at step 5, the denial still lands before the irreversible step 10: `archive.sh` stops, `restore.sh` puts back whatever moved, and the broker is untouched. | `aws s3 ls s3://$B/$ASIDE/_probe/` shows only `moved.txt`. **Denied: STOP.** Nothing live has changed. | — |
 | 4 | DIRECTOR | **Disable** from a FRESH GET: `aws scheduler get-schedule --name $SCHED --profile $P --region $R --output json > $OPS/sched_now.json`; `python3 $OPS/sched_state.py $OPS/sched_now.json DISABLED $JD $OPS/sched_off.json`; `aws scheduler update-schedule --cli-input-json file://$OPS/sched_off.json --profile $P --region $R` [VERIFIED pattern: `scripts/redeploy_one_account.py:94-124`; `docs/Core/execution_manual.md:1115-1124`; `check_sched_state.py` 7/7] | Readback `--query '[State,Target.Input]'`: `DISABLED`, pin `$JD` | `sched_state.py … ENABLED $JD` from a fresh GET |
-| 5 | DIRECTOR | **Archive + move aside:** `bash $OPS/archive.sh` (§7.2). It refuses unless the schedule is DISABLED (N1), refuses an existing manifest (N3), and refuses to overwrite an archive or aside key [VERIFIED: `check_archive.sh` 14/14]. | `DONE`; 9 rows `<rel> <bytes> <md5>` in `MANIFEST_md5.txt`; every archive md5 = the snapshot md5 = the live md5 at the move | **Restore** (verified, N3): `RELS="$(cut -d' ' -f1 $OPS/MANIFEST_md5.txt)" bash $OPS/restore.sh`. It refuses an occupied destination and checks md5 against the archive. Valid until a run writes the live keys [VERIFIED: `check_restore.sh` 10/10]. |
+| 5 | DIRECTOR | **Archive + move aside:** `bash $OPS/archive.sh` (§7.2). It refuses unless the schedule is DISABLED (N1), refuses an existing manifest (N3), and refuses to overwrite an archive or aside key [VERIFIED: `check_archive.sh` 14/14]. | `DONE`; 9 rows `<rel> <bytes> <md5>` in `MANIFEST_md5.txt`; every archive md5 = the snapshot md5 = the live md5 at the move | **Restore** (verified, N3): `RELS="$(cut -d' ' -f1 $OPS/MANIFEST_md5.txt)" bash $OPS/restore.sh`. It refuses an occupied destination and checks md5 against the archive. Valid until a run writes the live keys [VERIFIED: `check_restore.sh` 11/11]. |
 | 6 | DIRECTOR | **Exec-cost snapshot + labels:** `aws s3 cp s3://$B/$PFX/data/state/exec_cost_ledger.jsonl s3://$B/$ARCH/data/state/exec_cost_ledger.jsonl …`; append its `<rel> <bytes> <md5>` row to the manifest; upload `README_ASIDE.txt` to `$ASIDE/` and the manifest to `$ARCH/`. README_VOID is uploaded at step 11, once the P&L is known. | All three objects are listed; the exec-cost copy's md5 = live | — |
-| 7 | READ | **Gate:** `bash $OPS/gate_live_clean.sh` [VERIFIED: `check_gate.sh` 5/5] | `GATE OK: schedule DISABLED; live prefix holds only data/state/exec_cost_ledger.jsonl` | step-5 restore |
+| 7 | READ | **Gate:** `bash $OPS/gate_live_clean.sh` [VERIFIED: `check_gate.sh` 10/10; its `list-jobs` call (`--filters name=JOB_DEFINITION,values=archondex-paper-offense-sso`) was run read-only on real AWS on 2026-11-17. It lists the jobs of revisions :20 and :21 as tab-separated `name` / `status`, and the parse found none in flight.] | `GATE OK: schedule DISABLED; no job in flight on archondex-paper-offense-sso; live prefix holds only data/state/exec_cost_ledger.jsonl` | step-5 restore |
 | 8 | DIRECTOR | **Pre-liquidation flat-check:** `python3 $OPS/render.py $OPS/postcheck_a2.tmpl.py $OPS/pc_pre.py D=$D ATTEMPT=1 'TICKERS=[]'`; `submit $OPS/pc_pre.py pre`. Then re-run step 1's idle loop. | `FLATCHECK` positions = `$EXPECT`; `n_open_orders` 0; `account_number` recorded; the `CLOCK` line (ET) reads ≥ 10:00 and ≥ 30 min before the close. The liquidation body ENFORCES both (N5) [VERIFIED: `check_reset_a2.py`]. **Otherwise: STOP**, then the step-5 restore and re-enable. | step-5 restore + re-enable |
 | 9 | DIRECTOR | **(B) Dry run:** `python3 $OPS/render.py $OPS/reset_a2.tmpl.py $OPS/r_dry.py D=$D EXPECT="$EXPECT" ATTEMPT=1 EXECUTE=False`; `submit $OPS/r_dry.py dry` | Log: `positions_before` = EXPECT; `broker_avg_entry` and `clock_et` printed; three `DRY-RUN would sell` lines; `RESULT ok`; exit 0. **A REFUSED line or a non-zero exit: STOP.** | step-5 restore + re-enable |
-| 9.5 | DIRECTOR — **IMMEDIATELY before step 10 (N1)** | **Gate again:** `bash $OPS/gate_live_clean.sh` | `GATE OK`. **Anything else means a stray wrote state: STOP. Do NOT run step 10; go to §7.6 "before step 10".** | §7.6 |
+| 9.5 | DIRECTOR — **IMMEDIATELY before step 10 (N1)** | **Gate again:** `bash $OPS/gate_live_clean.sh`. Our own step-8/9 jobs must be terminal first: a still-running dry run also refuses, so wait for it and re-run the gate. | `GATE OK`. **A job in flight that is not ours, or extra live keys, means a stray: STOP. Do NOT run step 10; go to §7.6 "before step 10".** | §7.6 |
 | 10 | DIRECTOR — **(B) point of no return** | **Execute:** render with `EXECUTE=True`, then `submit $OPS/r_exec.py exec` | three `submitted` lines (coids `reset-a2-<D>-<T>-sell-a1`); `RESULT ok` | **Partial / FAILED:** never re-buy. Run step 11. Then either re-run with `ATTEMPT=2` and `EXPECT` = the REMAINING positions, before 15:30 ET (the coids become `-a2`, tested), or stop with the account halted. |
 | 11 | DIRECTOR | **Post-check:** render §7.4 with `'TICKERS=["MTUM", "SGOV", "VOO"]'`, then `submit $OPS/pc_post.py post`. Fill README_VOID's P&L from the FILL lines and step 9's `broker_avg_entry`, then upload it to `$ARCH/`. | `FLAT=True`; equity ≈ cash ≈ $103.5k; the same `account_number` as step 8 | — |
 | 8A–11A | USER, then DIRECTOR (option A instead of 9–11) | The user creates the account, generates keys, and puts them into the secret (console). The director runs `pc_pre.py` again. | A NEW `account_number`; `FLAT=True`; `equity` = the chosen balance exactly | Put the old key pair back; possible only while the old account and its keys exist |
@@ -517,7 +518,7 @@ nothing moved:
 
 With `pipefail` a failed `aws … - | md5 -q` assignment now returns non-zero; without it, the same line
 yields `d41d8cd9…` and exits 0, as demonstrated. All 14 cases PASS [VERIFIED: committed check, run
-2026-11-17]. The rollback, `restore.sh`, is tested by `check_restore.sh` (10/10).
+2026-11-17]. The rollback, `restore.sh`, is tested by `check_restore.sh` (11/11).
 
 ### 7.3 `reset_a2.tmpl.py` — the liquidation body (finding 9; runs ONLY in account 2's container) (`runbook_account2_reset_ops/reset_a2.tmpl.py`)
 
@@ -704,7 +705,20 @@ bash $OPS/gate_live_clean.sh  # must print GATE OK: the live prefix is clean aga
   - It refuses any live key that is already occupied.
   - It requires each aside object's md5 to equal its archive copy before moving it back.
   - It checks the live md5 after the move.
-  - A partial archive restores exactly the keys in the manifest [VERIFIED: `check_restore.sh` 10/10].
+  - A partial archive restores exactly the keys in the manifest [VERIFIED: `check_restore.sh` 11/11].
+  - **Re-running a PARTLY finished restore** (it stopped at a key, e.g. one a stray occupied): the keys
+    already restored are now occupied live keys, so re-running with the full manifest is refused at the
+    first one. First deal with the cause (R1 for a stray), then re-run with `RELS` = the manifest keys
+    still under `$ASIDE` [VERIFIED: `check_restore.sh` case 11 — 3 of 9 restored, the full re-run refused,
+    this re-run completes with all 9 byte-exact]:
+
+```bash
+set -o pipefail
+aws s3 ls --recursive "s3://$B/$ASIDE/data/" --profile $P --region $R | awk '{print $4}' \
+  | sed "s#^$ASIDE/##" | sort > "$OPS/still_aside.txt"   # an empty prefix = nothing left aside
+cut -d' ' -f1 "$OPS/MANIFEST_md5.txt" | sort > "$OPS/manifest_keys.txt"
+RELS="$(comm -12 "$OPS/manifest_keys.txt" "$OPS/still_aside.txt")" bash $OPS/restore.sh
+```
 - **The "before step 10" path is tested end to end** in `check_gate.sh` case 6: the gate STOPs, R1
   archives the 3 stray keys, the gate passes, and `restore.sh` puts epoch 1 back byte-exact.
 
@@ -727,6 +741,12 @@ mirror values marked EXPECTED-WRONG, means:
   - STOP.
   - From 10:15 ET, UNKNOWN in `fleet_health` is NOT "expected".
 - **Branch B — the job exits anything other than 70.** STOP.
+- **Branch C — exit 70, but the reason is "reconcile 0/3; halted" instead of the seeding reason.**
+  That is the STRAY WEDGE: a run between step 5 and step 10 seeded the ledger from the pre-liquidation
+  cash, which is now CASH_DRIFT on a flat ledger [VERIFIED: `sim_stray.py wedge`, D+1 reason "reconcile 0/3;
+  halted"]. Disable the schedule (step 4's procedure), then recover by §7.6 "after step 10" (R1 archives
+  every live key except `exec_cost_ledger.jsonl`, then the gate). Then re-enable. The next scheduled run
+  is the seeding day.
   - Exit 0 means marks existed, or nothing was traded.
   - 64–69 means a fail-closed refusal elsewhere. The next run then becomes the seeding day, and every later expectation shifts by one session.
 - **Expected** [VERIFIED: simulation]:
@@ -836,7 +856,7 @@ mirror values marked EXPECTED-WRONG, means:
 
 | Finding | Fix | Test |
 |---|---|---|
-| N1 (REQUIRED) stray run wedges the account | (i) step 9.5 gate immediately before step 10 (and at steps 7 and 12); (ii) `archive.sh` (and `restore.sh`) refuse unless the schedule is DISABLED; (iii) §7.6 recovery before and after step 10 | `check_gate.sh` (6, incl. the §7.6 path end to end); `check_archive.sh` case 9; `check_restore.sh` case 4; `sim_stray.py` wedge + recover (10 assertions) |
+| N1 (REQUIRED) stray run wedges the account | (i) step 9.5 gate immediately before step 10 (and at steps 7 and 12); (ii) `archive.sh` (and `restore.sh`) refuse unless the schedule is DISABLED; (iii) §7.6 recovery before and after step 10 | `check_gate.sh` (10, incl. the §7.6 path end to end and a job still in flight); `check_archive.sh` case 9; `check_restore.sh` case 4; `sim_stray.py` wedge + recover (10 assertions) |
 | N2 six mutation gaps | corrupted archive copy (md5) and wrong ETag, separately; empty snapshot with `-s`; `ATTEMPT=2` in both templates; flat-check with an open order | `check_archive.sh` 6/7/8; `check_reset_a2.py`; `check_postcheck.py`; `mutate.py`: 59 mutants, 57 caught, 2 equivalent |
 | N3 untested rollback | `restore.sh` (pipefail, md5 against the archive, refuses an occupied destination, post-move check, DISABLED-only); `archive.sh` refuses an existing manifest and an occupied archive or aside key | `check_restore.sh` 10/10; `check_archive.sh` 10/11/12/13 |
 | N4 an escaped pipe inside a table cell (step 1) | step-1 commands in the §7.0 fenced block; the snapshot is the committed `step2_snapshot.sh` | `check_step2.sh` 7/7 |
@@ -844,3 +864,13 @@ mirror values marked EXPECTED-WRONG, means:
 | N6 probe location | step 3 states the probe lives under `reset_aside_<D>/_probe/`, never `data/`, and that a denied real move still lands before step 10 | — |
 | N7 option-A label | §7.5 option-A README_VOID text | — |
 | interpreter | `run_sims.sh` STOPs (exit 2) when `$PY` / `<repo>/.venv/bin/python` is missing or cannot import pandas, python-dotenv and alpaca-py | run in the worktree: exit 2 with the message; with `/usr/bin/python3`: exit 2 |
+
+### 11.2 The final check of revision 3 → the two optional minors (revision 4)
+
+The narrow check of revision 3 (`d45d0d4`) returned **option B: READY** and option A unchanged (NOT
+READY). Revision 4 closes its two optional minors.
+
+| Minor | Fix | Test |
+|---|---|---|
+| 1 the gate cannot see a stray that is still running | `gate_live_clean.sh` also refuses while any job on account 2's jobdef (all revisions; `list-jobs --filters name=JOB_DEFINITION,values=archondex-paper-offense-sso`) is not SUCCEEDED or FAILED, and fails closed if `list-jobs` errors. §8 gains Branch C: a D+1 reason of "reconcile 0/3; halted" is the stray wedge, recovered by §7.6 "after step 10". | `check_gate.sh` 7–10 (each of the 5 in-flight statuses, an unknown status, list-jobs denied, no jobs); 5 new mutants in `mutate.py`; the call and its parse run read-only on real AWS (jobs of :20 and :21, none in flight) |
+| 2 a partly finished restore cannot be re-run as written | §7.6 gives the re-run: `RELS` = the manifest keys still under `$ASIDE` | `check_restore.sh` case 11 |

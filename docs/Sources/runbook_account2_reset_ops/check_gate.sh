@@ -34,4 +34,19 @@ OPS="$OPS1" RELS="$(cut -d' ' -f1 "$OPS1/MANIFEST_md5.txt")" bash "$HERE/restore
 bad=0; for REL in $RELS; do cmp -s "$FAKE_S3/$PFX/$REL" "$OPS1/snapshot/$REL" || bad=$((bad+1)); done
 expect "$pre/$(echo "$STRAY_RELS" | wc -l | tr -d ' ')/$r1/$post/$rr/$bad/$(n_files "$FAKE_S3/$PFX/stray_aside_${D}_1")" "1/3/0/0/0/0/3" \
   "6 stray before step 10: gate STOPs; R1 archives the 3 stray keys; gate OK; restore puts epoch 1 back byte-exact"
+
+# 7–10 — a stray STILL RUNNING has written nothing yet: only the jobs list can see it.
+refused=""
+for st in SUBMITTED PENDING RUNNABLE STARTING RUNNING; do
+  archived; printf "paper-offense-sso-day\tFAILED\npaper-offense-sso-day\t%s\n" "$st" > "$FAKE_JOBS"; gate
+  [ "$RC/$(has "$OUT" "not yet terminal")" = "1/yes" ] && refused="$refused $st"
+done
+expect "$refused" " SUBMITTED PENDING RUNNABLE STARTING RUNNING" \
+  "7 a job in flight on the jobdef (each of the 5 non-terminal statuses), live prefix still clean: STOP"
+archived; printf "reset-a2-exec-2026-11-18\tSOMETHING_NEW\n" > "$FAKE_JOBS"; gate
+expect "$RC/$(has "$OUT" "not yet terminal")" "1/yes" "8 an unknown job status: STOP (fail closed)"
+archived; FAKE_FAIL=list_denied gate
+expect "$RC/$(has "$OUT" "cannot list the jobs")" "1/yes" "9 list-jobs denied: STOP (a job in flight cannot be ruled out)"
+archived; : > "$FAKE_JOBS"; gate
+expect "$RC/$(has "$OUT" "GATE OK")" "0/yes" "10 no jobs at all on the jobdef: GATE OK"
 finish

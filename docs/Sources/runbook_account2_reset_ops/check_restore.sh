@@ -39,4 +39,19 @@ expect "$RC/$(aside_n)/$(has "$OUT" "cannot prove")" "1/9/yes" "9 head-object de
 archived; : > "$FAKE_S3/$ARCH/$A1"; : > "$FAKE_S3/$ASIDE/$A1"; restore
 expect "$RC/$(live_n)/$(has "$OUT" "archive copy of $A1 is empty")" "1/1/yes" \
   "10 archive AND aside copies both empty: STOP (equal-but-empty is not a restore)"
+
+# 11 — a PARTLY finished restore, re-run as runbook §7.6 says (RELS = the manifest keys still aside).
+archived; K4=data/state/deploy_candidate_tracking.json
+echo '{"stray": true}' > "$FAKE_S3/$PFX/$K4"; restore; first="$RC/$(n_files "$FAKE_S3/$ASIDE/data")"
+restore; naive="$RC/$(has "$OUT" "is occupied")"                      # the full manifest again: refused
+mkdir -p "$W/held"; mv "$FAKE_S3/$PFX/$K4" "$W/held/"                 # the stray dealt with (R1 in the runbook)
+set -o pipefail
+$AWS s3 ls --recursive "s3://$B/$ASIDE/data/" --profile "$P" --region "$R" | awk '{print $4}' \
+  | sed "s#^$ASIDE/##" | sort > "$OPS/still_aside.txt"
+cut -d' ' -f1 "$OPS/MANIFEST_md5.txt" | sort > "$OPS/manifest_keys.txt"
+set +o pipefail
+OUT=$(RELS="$(comm -12 "$OPS/manifest_keys.txt" "$OPS/still_aside.txt")" bash "$HERE/restore.sh" 2>&1); RC=$?
+expect "$first/$naive/$(wc -l < "$OPS/still_aside.txt" | tr -d ' ')/$RC/$(live_n)/$(n_files "$FAKE_S3/$ASIDE/data")/$(same_as_snapshot)" \
+  "1/6/1/yes/6/0/10/0/0" \
+  "11 partial restore (3 of 9, stopped by an occupied key): the full re-run is refused; the re-run with RELS = keys still aside completes, all 9 byte-exact"
 finish

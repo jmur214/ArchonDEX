@@ -68,6 +68,12 @@ M = [  # (name, file, [(old, new), ...]) — the first 31 are the reviewer's lis
  ("gate: drop schedule-DISABLED refusal", "gate_live_clean.sh", [('[ "$ST" = "DISABLED" ] || die', 'true || die')]),
  ("gate: drop the clean-prefix compare", "gate_live_clean.sh", [('[ "$KEYS" = "$PFX/data/state/exec_cost_ledger.jsonl" ] \\\n  || die', 'true \\\n  || die')]),
  ("gate: accept any listing that CONTAINS exec_cost", "gate_live_clean.sh", [('[ "$KEYS" = "$PFX/data/state/exec_cost_ledger.jsonl" ]', '[[ "$KEYS" == *exec_cost_ledger.jsonl* ]]')]),
+ # --- added for the final check's minor 1 (a stray still RUNNING) ------------------------ #
+ ("gate: drop the in-flight-job refusal", "gate_live_clean.sh", [('[ -z "$INFLIGHT" ] || die', 'true || die')]),
+ ("gate: ignore a list-jobs error", "gate_live_clean.sh", [('|| die "cannot list the jobs on $JDNAME', '|| true "cannot list the jobs on $JDNAME')]),
+ ("gate: filter by job NAME instead of jobdef", "gate_live_clean.sh", [('"name=JOB_DEFINITION,values=$JDNAME"', '"name=JOB_NAME,values=$JDNAME"')]),
+ ("gate: only RUNNING counts as in flight", "gate_live_clean.sh", [("awk 'NF && $2 != \"SUCCEEDED\" && $2 != \"FAILED\"'", "awk 'NF && $2 == \"RUNNING\"'")]),
+ ("gate: allow-list the 5 statuses (unknown passes)", "gate_live_clean.sh", [("awk 'NF && $2 != \"SUCCEEDED\" && $2 != \"FAILED\"'", "awk 'NF && $2 ~ /^(SUBMITTED|PENDING|RUNNABLE|STARTING|RUNNING)$/'")]),
  ("step2: drop fresh-OPS refusal", "step2_snapshot.sh", [('[ ! -e "$OPS/snapshot" ] || die', 'true || die')]),
  ("step2: drop pin==latest-revision check", "step2_snapshot.sh", [('[ "$JD" = "$JDNAME:$REV" ] || die', 'true || die')]),
  ("step2: drop image check", "step2_snapshot.sh", [('*) die "latest ACTIVE image $IMG is not $EXPECT_IMAGE" ;;', '*) true ;;')]),

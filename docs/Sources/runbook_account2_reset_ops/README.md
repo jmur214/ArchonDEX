@@ -24,9 +24,9 @@ Run every command from the repo root. Each test exits 0 when every case passes. 
 |---|---|---|
 | `step2_snapshot.sh` | Runbook step 2. Snapshots the live prefix, md5-lists it, reads the schedule pin and the latest ACTIVE revision and image, and writes `step2.env` (`JD`, `EXPECT`). Refuses a reused OPS dir, a pin that is not the latest revision, and an image that is not `$EXPECT_IMAGE`. | `bash $C/check_step2.sh` |
 | `archive.sh` | Step 5. It refuses unless the schedule is DISABLED, refuses an existing manifest, and refuses an occupied archive or aside key. Per key it proves live = snapshot, copies to the archive, and proves the copy (md5 + ETag) before it moves the original aside. `pipefail`. Never deletes, never overwrites. | `bash $C/check_archive.sh` |
-| `restore.sh` | The rollback of `archive.sh` (the step-5 rollback, and §7.6). DISABLED-only; refuses an occupied live key; requires aside md5 = archive md5; verifies the live md5 after the move; restores exactly the manifest's keys. | `bash $C/check_restore.sh` |
-| `gate_live_clean.sh` | Steps 7, 9.5 and 12: the stray-run gate. Passes only when the schedule is DISABLED and the live prefix holds only `data/state/exec_cost_ledger.jsonl`. | `bash $C/check_gate.sh` |
-| `fake_aws.sh` | Test stub for every `aws` call above: `s3 cp` (incl. `--recursive` and `-`), `s3 mv`, `s3 ls`, `s3api head-object` (404 → rc 254, like the real CLI), `scheduler get-schedule`, `batch describe-job-definitions`. `FAKE_FAIL` injects one fault: `read_live`, `mv`, `corrupt_copy`, `etag_wrong`, `head_denied` or `corrupt_mv`. | (used by the four `check_*.sh`) |
+| `restore.sh` | The rollback of `archive.sh` (the step-5 rollback, and §7.6). DISABLED-only; refuses an occupied live key; requires aside md5 = archive md5; verifies the live md5 after the move; restores exactly the manifest's keys. A partly finished restore is re-run with `RELS` = the manifest keys still aside (§7.6). | `bash $C/check_restore.sh` |
+| `gate_live_clean.sh` | Steps 7, 9.5 and 12: the stray-run gate. Passes only when (1) the schedule is DISABLED, (2) no job on account 2's jobdef (any revision; `list-jobs --filters name=JOB_DEFINITION,values=…`) is anything but SUCCEEDED or FAILED, and (3) the live prefix holds only `data/state/exec_cost_ledger.jsonl`. Fails closed if `list-jobs` errors. | `bash $C/check_gate.sh` |
+| `fake_aws.sh` | Test stub for every `aws` call above: `s3 cp` (incl. `--recursive` and `-`), `s3 mv`, `s3 ls`, `s3api head-object` (404 → rc 254, like the real CLI), `scheduler get-schedule`, `batch describe-job-definitions`, `batch list-jobs` (only the JOB_DEFINITION filter on the expected queue, serving `$FAKE_JOBS`). `FAKE_FAIL` injects one fault: `read_live`, `mv`, `corrupt_copy`, `etag_wrong`, `head_denied`, `corrupt_mv` or `list_denied`. | (used by the four `check_*.sh`) |
 | `_fake_env.sh` | Sourced by the four `check_*.sh`: builds the synthetic world (one-line objects, a placeholder schedule) and the PASS/FAIL helpers. | — |
 | `sched_state.py` | Steps 4 and 12. Turns a FRESH `get-schedule` JSON into an `update-schedule` input that changes only `State`, refusing unless the pin, DLQ and fast-fail retry match. | `python3 $C/check_sched_state.py` |
 | `render.py` | Fills `__D__` / `__EXPECT__` / `__ATTEMPT__` / `__EXECUTE__` / `__TICKERS__`, validates each value, and refuses any placeholder left unfilled. | (exercised by `check_reset_a2.py` and `check_postcheck.py`) |
@@ -37,23 +37,23 @@ Run every command from the repo root. Each test exits 0 when every case passes. 
 | `sim_stray.py` | The delta reviewer's stray-run simulation (N1), plus a mode argument: a stray firing after the archive and before the liquidation, then D+1..D+3. `wedge` = no recovery; `recover` = the stray's files moved aside first. | (run by `run_sims.sh`) |
 | `run_sims.sh` | Runs the six simulations under a fresh `mktemp` dir, then `check_sims.py`. **Needs the repo's venv interpreter.** It STOPs with exit 2 and names it when `$PY` / `<repo>/.venv/bin/python` is missing or cannot import pandas, python-dotenv and alpaca-py. | itself |
 | `check_sims.py` | 38 assertions over the six outputs (exit codes, the contributions line, arrival orders, mirror `tier_equity`, split-feed tickers, the D+1 ledger init, the seeding reason, and the stray wedge vs recovery). | (run by `run_sims.sh`) |
-| `mutate.py` | The mutation harness, adapted from the delta reviewer's `run_mut.py`: their 31 mutants (one pattern updated for the ET clock line) plus 28 new ones over every script. Two equivalents are declared with their reasons; every other mutant must be caught. | `PY=… $PY -I $C/mutate.py` (about 4 min) |
+| `mutate.py` | The mutation harness, adapted from the delta reviewer's `run_mut.py`: their 31 mutants (one pattern updated for the ET clock line) plus 33 new ones over every script. Two equivalents are declared with their reasons; every other mutant must be caught. | `PY=… $PY -I $C/mutate.py` (about 4 min) |
 | `check_embedded.py` | Proves the runbook's §7.1–7.4 code blocks are byte-identical to `sched_state.py`, `archive.sh`, `reset_a2.tmpl.py` and `postcheck_a2.tmpl.py`. | `python3 $C/check_embedded.py` |
 
-## Results on 2026-11-17 (branch `docs/account2-reset-runbook`, revision 3)
+## Results on 2026-11-17 (branch `docs/account2-reset-runbook`, revision 4)
 
 | Check | Result |
 |---|---|
 | `check_archive.sh` | 14/14 PASS |
-| `check_restore.sh` | 10/10 PASS |
-| `check_gate.sh` | 6/6 PASS (case 6 = the §7.6 "before step 10" recovery, end to end) |
+| `check_restore.sh` | 11/11 PASS (case 11 = a partial restore, then the §7.6 re-run) |
+| `check_gate.sh` | 10/10 PASS (case 6 = the §7.6 "before step 10" recovery, end to end; cases 7–10 = a job still in flight, an unknown status, list-jobs denied, no jobs) |
 | `check_step2.sh` | 7/7 PASS |
 | `check_sched_state.py` | 7/7 PASS |
 | `check_reset_a2.py` | 21/21 PASS |
 | `check_postcheck.py` | 9/9 PASS |
 | `run_sims.sh` → `check_sims.py` | 38/38 PASS |
-| `mutate.py` | 59 mutants: 57 CAUGHT, 2 declared EQUIVALENT, 0 not caught |
-| the reviewer's own `run_mut.py`, re-run with only its output dir changed | 31 mutants: 28 CAUGHT; 2 NOT CAUGHT, both the declared equivalents; 1 NOT APPLIED (its broker-date pattern predates the ET change, and `mutate.py` carries the updated pattern, CAUGHT) |
+| `mutate.py` | 64 mutants: 62 CAUGHT, 2 declared EQUIVALENT, 0 not caught |
+| the reviewer's own `run_mut.py`, re-run with only its output dir changed (on revision 3; the four files it mutates are unchanged in revision 4) | 31 mutants: 28 CAUGHT; 2 NOT CAUGHT, both the declared equivalents; 1 NOT APPLIED (its broker-date pattern predates the ET change, and `mutate.py` carries the updated pattern, CAUGHT) |
 | `run_sims.sh` with no venv / with `/usr/bin/python3` | exit 2 with the interpreter message (both) |
 | `check_embedded.py` | 4/4 IDENTICAL |
 
