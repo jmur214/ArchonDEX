@@ -1020,3 +1020,119 @@ script): it adds a minimal change so the stream reads its User-Agent from the en
 `B6_SEC_USER_AGENT` and refuses with a clear message and exit 3 when it is unset (tests for both;
 committed), then stops and hands back the exact command the user must run from the worktree. The address
 is never written anywhere.
+
+---
+
+## AMENDMENT 8 — director ruling on the failed condition (a): ONE population-controlled check, two-sided at 3.0 pp (2026-11-17; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, BEFORE any conditional count is computed, and before any T-265 price join, ranking or
+return. **What exists for T-265 at this commit:** the stream's per-filing text signals and statuses for the
+4,099 streamed CIKs and the 252 AMENDMENT-7 fill CIKs (`data/b6_local/t265_signals/`, `b6_parse/2`), the
+re-census of commit `ba1140d`'s tree (counts only), and the T-265 harness code (`43ab4bf`, `8b43a08`,
+`ba1140d`), which has run on synthetic data only. No T-265 small-cap price has been read.
+
+### A8.1 Condition (a) as written FAILED — on 5 of 11 rates, all on the HIGH side
+The fill itself is complete: 252 of 252 CIKs, 11,195 filings, 0 fetch failures, 0 CIK-level errors after
+one `--retry-errors` pass, every one of the 5,510 gap accessions fetched. The rates, as A7.1 fixed them
+(`data/b6_local/census/t265_fill_check.csv`, md5 `57d6cc6d76e13ace5ec25ee52ac6d8af`; "panel" = the 4,099
+streamed CIKs):
+
+| form | rate | panel | fill | difference (pp) | within 3 pp |
+|---|---|---|---|---|---|
+| 10-K | Risk OK | 95.7 | 98.3 | +2.6 | yes |
+| 10-K | Risk OK excl. not-covered | 98.8 | 98.3 | −0.5 | yes |
+| 10-K | MD&A OK | 98.7 | 98.9 | +0.2 | yes |
+| 10-K | combo pair (from 2016) | 87.9 | 95.4 | +7.5 | **no** |
+| 10-K | MD&A pair (from 2016) | 92.0 | 96.8 | +4.8 | **no** |
+| 10-Q | Risk OK | 90.4 | 93.8 | +3.4 | **no** |
+| 10-Q | Risk OK excl. not-covered | 97.2 | 97.9 | +0.7 | yes |
+| 10-Q | MD&A OK | 99.8 | 99.6 | −0.2 | yes |
+| 10-Q | combo pair (from 2016) | 82.6 | 90.5 | +7.9 | **no** |
+| 10-Q | MD&A pair (from 2016) | 93.2 | 97.3 | +4.1 | **no** |
+| 10-Q | adjacent MD&A pair (from 2016) | 97.6 | 98.7 | +1.1 | yes |
+
+The director rejected both readings the worker offered: a one-sided reading rewrites a tolerance after
+seeing which side the data fell on; a carve-rates-only reading drops four of the named rates. The worker's
+decomposition (no prior to pair with; Item 1A omitted) is a HYPOTHESIS until computed. It is tested by ONE
+pre-written check (A8.3). No pairing rate carries outcome information, so one pre-written check does not
+leak; it is one check, not a series of slices.
+
+### A8.2 The failure-reason decomposition — COUNTS per form, panel vs fill (status columns only; no signal value read)
+The code (`b6_signals.pair_signals`) emits exactly five values for a YoY pair: `ok`, `no_prior`,
+`current_not_ok`, `prior_not_ok`, `mda_source_switch`. It emits no separate "not covered" pair code: a
+filing whose Item 1A is NOT_COVERED yields `current_not_ok` (or `prior_not_ok`) for the combo; the
+filing-level Item 1A statuses are listed after the pair tables. Filings accepted from 2016,
+de-duplicated on (cik, accession):
+
+| 10-K `yoy_combo_why` | panel | fill | | 10-K `yoy_mda_why` | panel | fill |
+|---|---|---|---|---|---|---|
+| ok | 27,628 | 2,450 | | ok | 28,911 | 2,486 |
+| no_prior | 1,958 | 39 | | no_prior | 1,958 | 39 |
+| current_not_ok | 1,434 | 60 | | current_not_ok | 384 | 27 |
+| prior_not_ok | 293 | 8 | | prior_not_ok | 60 | 5 |
+| mda_source_switch | 103 | 12 | | mda_source_switch | 103 | 12 |
+| total | 31,416 | 2,569 | | total | 31,416 | 2,569 |
+
+| 10-Q `yoy_combo_why` | panel | fill | | 10-Q `yoy_mda_why` | panel | fill |
+|---|---|---|---|---|---|---|
+| ok | 79,169 | 7,014 | | ok | 89,297 | 7,546 |
+| no_prior | 5,967 | 125 | | no_prior | 5,967 | 125 |
+| current_not_ok | 8,371 | 451 | | current_not_ok | 138 | 33 |
+| prior_not_ok | 1,949 | 116 | | prior_not_ok | 54 | 2 |
+| mda_source_switch | 396 | 46 | | mda_source_switch | 396 | 46 |
+| total | 95,852 | 7,752 | | total | 95,852 | 7,752 |
+
+Item 1A status of the filing itself (accepted from 2015; the parse-rate population):
+
+| 10-K `risk_status` | panel | fill | | 10-Q `risk_status` | panel | fill |
+|---|---|---|---|---|---|---|
+| OK | 32,133 | 2,740 | | OK | 92,635 | 7,885 |
+| NOT_COVERED:not_required | 1,008 | 0 | | NOT_COVERED:item_absent | 5,121 | 331 |
+| NOT_COVERED:incorporated_by_reference | 33 | 1 | | NOT_COVERED:not_required | 1,971 | 26 |
+| NOT_LOCATED | 234 | 19 | | NOT_LOCATED | 1,441 | 50 |
+| NOT_LOCATED:unterminated | 5 | 0 | | NOT_LOCATED:unterminated | 209 | 4 |
+| TOO_SHORT | 150 | 27 | | TOO_SHORT | 1,057 | 112 |
+| | | | | CONTAMINATED | 2 | 0 |
+| | | | | FETCH_FAILED | 1 | 0 |
+| total | 33,563 | 2,787 | | total | 102,437 | 8,408 |
+
+### A8.3 The check — word for word as implemented (`b6_census.fill_population_check`)
+For each of the four failed pair rates — 10-K combo (`yoy_combo_why`), 10-K MD&A pair (`yoy_mda_why`),
+10-Q combo (`yoy_combo_why`), 10-Q MD&A pair (`yoy_mda_why`) — on signal rows of that form accepted from
+2016 (`acceptance_dt[:4] >= "2016"`), de-duplicated on (cik, accession), computed separately for the
+fill (the 252 CIKs) and the panel (the 4,099 streamed CIKs):
+- **numerator** = rows whose why value is `ok`;
+- **denominator** = rows that satisfy (a), and, for the two combo rates only, also (b):
+  - **(a)** the pairing rule's own prior exists in the CIK's fetched set: the row's `prior_accession` is
+    not null. `prior_accession` is set by `b6_signals.company_signals` from `find_prior(f, i, 270, 460)`
+    for a 10-K and `find_prior(f, i, 350, 380)` for a 10-Q, over every filing the stream recorded for that
+    CIK (the code's definition, not re-specified). Equivalently, why ≠ `no_prior`.
+  - **(b)** combo only: neither the current filing's `risk_status` nor the prior's (looked up by
+    (cik, `prior_accession`) among the same CIK's rows) starts with `NOT_COVERED` — the census's own
+    "not covered" definition, i.e. `NOT_COVERED:item_absent`, `NOT_COVERED:not_required`,
+    `NOT_COVERED:incorporated_by_reference`. A prior that cannot be looked up HALTS the check.
+- **Nothing else is excluded.** Every other failure stays in the denominator as a failure: `current_not_ok`
+  or `prior_not_ok` from any other status (NOT_LOCATED, NOT_LOCATED:unterminated, TOO_SHORT,
+  CONTAMINATED, FETCH_FAILED, an MD&A `NOT_COVERED:incorporated_by_reference_external`, anything else),
+  and `mda_source_switch`.
+- **rate** = 100 × numerator / denominator, rounded to 0.1; **difference** = fill − panel on the rounded
+  rates, as `t265_fill_check` computes it.
+- **10-Q Risk OK:** its population-controlled rate is the existing Risk OK excluding not-covered — panel
+  97.2, fill 97.9, +0.7, within the band. Nothing new is computed for it.
+
+**Pass rule:** all four conditioned pair rates within 3.0 pp, TWO-SIDED (|difference| ≤ 3.0), AND the seven
+rates that already passed in A8.1 still pass, unchanged.
+**Fail rule:** if ANY conditioned rate falls outside the band, condition (a) fails for good under this
+ruling. No freeze; the worker hands back with the table. No second check, no further slicing.
+
+### A8.4 Sequence
+If the check passes: the conditioned table is written as a census file and committed (the table in the
+commit; `data/` is gitignored, so the CSV's md5 is recorded with it), then **the freeze becomes
+AMENDMENT 9; A7.3's other terms are unchanged, with "amendment 8" read as "amendment 9".** The director
+ratifies, for AMENDMENT 9, the construction choices (1)–(7) of the worker's hand-back of 2026-11-17 as
+written. N_trials: **+2** at the T-265 run (the gate family +1, H_OOS +1), recorded by the director on main
+against AMENDMENT 9's hash; `config/honest_n_trials.json` is not touched here.
+
+*Erratum to A7.1 (text only):* A7.1's "5,502 missing accessions" was the accession-only count; keyed on
+(cik, accession), as `overlap_gap_accessions` computes it, the gap is **5,510** (8 co-registrant
+accessions fetched under another CIK in the S&P panel); still 252 CIKs, all 5,510 fetched.
