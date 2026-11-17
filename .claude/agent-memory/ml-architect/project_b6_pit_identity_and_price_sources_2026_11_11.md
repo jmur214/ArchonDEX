@@ -76,6 +76,23 @@ CIKs + 644 taken from the S&P panel; parse rates on small caps ≥ the S&P panel
 inherits that panel's fetch windows — 5,502 filings of 252 overlap CIKs were never fetched (outside
 their S&P membership windows). Always census borrowed coverage separately.
 
+**Amendment 7 (2026-11-17) traps:** (1) a CO-REGISTRANT filing is ONE accession under TWO CIKs (67 in
+T-265) — de-duplicate on (cik, accession), never accession alone (the 6e52752 census dropped them).
+(2) "Quarter-end" in a harness is the last TRADING day (`cal[cal <= QE].max()`), not the calendar date;
+a text census on calendar QE shifts 70–180 small-cap 10-Ks per March quarter (they file on the last
+Thursday/Friday, e.g. Good Friday 2024-03-29) — census on the harness's own grid by importing its
+function. (3) To apply another brief's FROZEN rules without merging main, copy its module from main
+byte-identical (`git show main:path > path`; prove with `git hash-object` = `git rev-parse main:path`).
+(4) Fill throughput for large filers is ~0.9–1.0 doc/s per worker; two `--shard k/2` workers at
+`--min-interval 0.45` halve wall time inside the SEC cap; SIGTERM flushes and the restart resumes by CIK.
+(5) **A fill-quality tolerance on PAIR rates measures the population, not the parse.** The 252-firm fill
+(11,195 filings, 0 failures) failed A7's two-sided 3 pp check on the HIGH side: combo pairs +7.5/+7.9 pp,
+MD&A pairs +4.8/+4.1, raw 10-Q risk OK +3.4 — because ex-S&P firms are old continuous filers (`no_prior`
+1.5% vs 6.2%; 11.1 vs 8.3 10-Ks per CIK) and rarely omit Item 1A; the carve rates (risk OK excl.
+not-covered, MD&A OK) were within 0.7 pp. I wrote the two-sided reading into the amendment myself, pre-data,
+and it bound (correctly — stop and hand back). Lesson: when operationalising a tolerance, split
+parse-quality rates from population-sensitive rates BEFORE the data, and say which the check is for.
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].

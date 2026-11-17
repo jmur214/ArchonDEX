@@ -654,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         (args.out / "results.md5").write_text(md5 + "\n")
         print(f"[b6-t265] results md5 {md5} -> {args.out / 'results.json'}")
         return 0
-    except cm.Halt as e:
+    except (cm.Halt, H.CensusHalt) as e:
         print(f"[b6-t265] HALT: {e}", flush=True)
         return 2
 
