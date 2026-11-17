@@ -2228,11 +2228,15 @@
 - **Function `tables_md()`**: The result dict as markdown tables (headline first, then S1 and S2, each labelled).
 - **Function `main()`**: Run once and write results.json + tables.md under <out>/run_<tag>/; print the result md5.
 
+### `t398_independent_recompute.py`
+**Module Docstring:** T-398 — an INDEPENDENT recomputation of the decision cell from the raw snapshot files.
+- **Function `main()`**: No docstring
+
 ### `t398_stacked_trend_overlay.py`
 **Module Docstring:** T-398 — a buy-and-hold stacked trend overlay (100 % equity + trend, the RSST structure) vs 1x
 - **Class `T398Halt`**: A fail-closed halt in the measurement path. Never caught inside the harness.
 - **Class `Panel`**: Everything the measurement reads, built once from the md5-verified snapshot.
-  - `def __init__()`
+  - `def __init__()`: The measurement always calls Panel() — the md5-verified snapshot, B-5's financing base and
   - `def excess()`: §4.1: x_f = r_f − c + ER_f/252 (cash subtracted ONCE; the fund's own fee added back).
   - `def composite()`: Equal-weight mean of member excess returns per equity-calendar day, and the member count.
   - `def window()`
@@ -2260,6 +2264,7 @@
 - **Function `arm_returns()`**: +100 %: the stacked sleeve. +50 % / +25 %: two drifting sleeves reset at each month-end,
 - **Function `honest_n()`**: No docstring
 - **Function `mbl_line()`**: No docstring
+- **Function `ratio_ci()`**: [NN-SHARPE-CI]: a Sharpe or an IR with its block-bootstrap interval, from
 - **Function `cell()`**: One arm on one window: Δ log wealth with the three bootstraps, wealth stats, IR, MBL.
 - **Function `curve()`**: §8.5: Δ per year at each spread 0..400 bp with the SAME draws (monotone by construction).
 - **Function `worst_rolling()`**: No docstring
@@ -2273,6 +2278,7 @@
 - **Function `monthly_block()`**: A1.1-8: the AQR arm on the months of the window, the composite's monthly excess, h_L, V3.
 - **Function `transport_reading()`**: §10, pre-named. Closing rows read h_L alone; the surviving row reads h_L + h_surv.
 - **Function `gates_payload()`**: No docstring
+- **Function `check_bindings()`**: MINOR-9a: `run` does not trust gates.json / integrity.json by existence. Each must have been
 - **Function `cmd_gates()`**: No docstring
 - **Function `cmd_smoke()`**: Mechanics on the FIRST 12 months of each window. Booleans and counts only.
 - **Function `composite_stats()`**: No docstring
@@ -2285,6 +2291,11 @@
 - **Function `s3_selection()`**: S3, mechanically: every fund family the screen returns that the decision composite does not
 - **Function `cmd_fetch_s3()`**: S3 only: prices for the additional fund families the one screener call returned. Once.
 - **Function `screener_sensitivity()`**: S3: the decision composite plus one share class of every additional fund family the one
+- **Function `compare_runs()`**: File-for-file md5 comparison of two run directories. Identical only if both hold the same
+- **Function `cmd_determinism()`**: Prereg §18: runs A and B must match by md5, file for file, or the harness exits non-zero.
+- **Function `since_start_frame()`**: Relative wealth SINCE THE WINDOW START (cumulative Σd), as opposed to relative to the arm's
+- **Function `share_behind()`**: No docstring
+- **Function `cmd_probes()`**: POST-HOC DESCRIPTIONS requested by the independent review (round 1). NOT pre-registered, NOT a
 - **Function `cmd_btop50_get()`**: One GET to barclayhedge.com with a generic client name and no contact detail; the response
 - **Function `main()`**: No docstring
 
