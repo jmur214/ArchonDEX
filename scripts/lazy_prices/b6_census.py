@@ -366,7 +366,32 @@ def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str,
     diff.insert(0, "calendar_qe", list(cal_q.index))
     diff.insert(0, "rebalance", list(elig.index))
     out["grid_vs_calendar"] = diff.set_index("rebalance")
+    out["text_halts"] = text_halts(out)
     return out
+
+
+LM_FROZEN_MD5 = "12dade0123e1d096c1d1192c755f08a3"
+
+
+def text_halts(res: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """AMENDMENT 7's reading of condition (b): the text-side halts, each with its value and rule.
+    The ADV-band floors themselves are price-side (the harness, after the band)."""
+    import hashlib
+    import json
+    lm = LOCAL / "lm"
+    man = json.loads((lm / "manifest.json").read_text())["md5"]
+    got = hashlib.md5((lm / "Loughran-McDonald_MasterDictionary_1993-2025.csv").read_bytes()).hexdigest()
+    comp = res["completeness"].iloc[0]
+    el = res["rebalance_text_eligibility"]
+    rows = [("lm_md5_file_eq_manifest_eq_frozen", got, LM_FROZEN_MD5, got == man == LM_FROZEN_MD5),
+            ("transient_cik_errors_remaining", int(comp.transient_errors_remaining), 0,
+             int(comp.transient_errors_remaining) == 0),
+            ("rebalances_on_harness_grid", len(el), 40, len(el) == 40),
+            ("min_gate_usable_upper_bound", int(el.gate_usable.min()), 300, int(el.gate_usable.min()) >= 300),
+            ("min_hoos_usable_upper_bound", int(el.hoos_usable.min()), 300, int(el.hoos_usable.min()) >= 300),
+            ("min_gate_tercile_upper_bound", int(el.gate_usable.min()) // 3, 40,
+             int(el.gate_usable.min()) // 3 >= 40)]
+    return pd.DataFrame(rows, columns=["check", "value", "rule", "ok"])
 
 
 def main(argv: list[str] | None = None) -> int:
