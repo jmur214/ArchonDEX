@@ -48,7 +48,7 @@ compares the holder with the best lead over SPY they had already reached.
 |---|---|
 | What the overlay added, after every cost | +0.37 %/yr, anywhere from −3.9 to +4.2 |
 | 2011–2019, the drought | cost 1.2 %/yr over those nine years. A holder who started in January 2011 was **10.2% behind SPY** at the end of 2019; the holder from the 2010-09 start was **3.7% behind** |
-| The worst three years | relative wealth **fell 25.1%** between mid-June 2022 and 2025-06-20: from about 30% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high |
+| The worst three years | relative wealth **fell 25.1%** between 2022-06-14 and 2025-06-20: from 30.9% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high |
 | In stock-market falls | correlation with stocks −0.14 [−0.31, −0.02] across seven falls of 10% or more; the exclusion of zero rests on two of the seven (§5). **It lost more than SPY in five of the seven**, and saved 20 points in 2022 |
 | Is AQR's paper factor too rich by enough to matter? | Over-capture `h_L` = +1.1 %/yr, CI [−4.2, +5.8]. **Still not pinned** |
 
@@ -87,7 +87,7 @@ overlay loses. Nothing here is a reason to buy it.
   - Each was committed alone, before the step it governs. The measurement code was committed at
     `9fe85c9`, after amendment 3; the first run is on `f1ee6eb`. What that ordering does and does not
     establish is set out under "Order of events" below.
-- **Harness:** `scripts/t398_stacked_trend_overlay.py`; 44 tests in
+- **Harness:** `scripts/t398_stacked_trend_overlay.py`; 42 tests in
   `tests/test_t398_stacked_trend_overlay.py` (28 at the first verdict; see the review section for the
   reversion proof). Standalone; never `BacktestController`. B-5's parsers, bootstrap replay and
   substrate loader are imported, never edited.
@@ -105,9 +105,11 @@ overlay loses. Nothing here is a reason to buy it.
   **`results.json` was re-stamped; the measurement was not re-done. This is not a new trial.**
   - `d2e73967…` is the first verdict's file. It embeds the honest-N gate as read on this branch before
     T-391 merged (N_eff 36.92).
-  - `b2a77c87564af43ddab891347efe30d9` is the **same code** run on the tree after main was merged in.
-    The file embeds the live gate reading, so that one field changed (36.92 → 372.28).
-  - `{RESULTS_MD5}` is the review-round-1 file. Of the 2,285 values in the first file, 3 differ: that
+  - `b2a77c87564af43ddab891347efe30d9` is the **same code** run on the tree after main `39c47aa` was
+    merged in (T-391's recorder). The file embeds the live gate reading, so that one field changed
+    (36.92 → 372.28).
+  - `a13fbc9fc9cbfd14cfd05781c86bbd2b` is the review-round-1 file (unchanged after main `fc7254b` was
+    merged in: the gate still reads 372.28). Of the 2,285 values in the first file, 3 differ: that
     gate reading and two label strings (the prereg reference now names amendment 3; the decision-cell
     string now says AQMIX's ratio is unverified). 137 values were added: an interval on every IR and
     on the composite's Sharpe ratio, the anchors' flag counts, and the file bindings. No number in the
@@ -266,9 +268,9 @@ points at +100% and lowers the Sortino ratio.
 | arm | Δ %/yr [95% CI] | 252 CI | CAGR | MaxDD (trough) | ΔMDD | IR [95% CI] (line: 0.68; pre-T-391 0.50) |
 |---|---|---|---|---|---|---|
 | benchmark | — | — | 10.68% | −55.3% (2009-03) | — | — |
-| +100% | +0.20 [−3.69, +4.10] | [−3.46, +4.06] | 10.90% | −50.4% | +4.9 | 0.02 [−0.45, +0.49] |
-| +50% | +0.18 [−1.76, +2.13] | [−1.66, +2.13] | 10.88% | −51.9% | +3.3 | 0.04 [−0.43, +0.51] |
-| +25% | +0.11 [−0.86, +1.08] | [−0.81, +1.09] | 10.81% | −53.4% | +1.8 | 0.05 [−0.42, +0.52] |
+| +100% | +0.20 [−3.69, +4.10] | [−3.46, +4.06] | 10.90% | −50.4% | +4.9 | 0.02 [−0.44, +0.49] |
+| +50% | +0.18 [−1.76, +2.13] | [−1.66, +2.13] | 10.88% | −51.9% | +3.3 | 0.04 [−0.42, +0.51] |
+| +25% | +0.11 [−0.86, +1.08] | [−0.81, +1.09] | 10.81% | −53.4% | +1.8 | 0.05 [−0.41, +0.52] |
 
 Adding 2007–2010 changes nothing in the wealth answer. It makes the 2008–2009 drawdown 4.9 points
 shallower, on the evidence of a single fund.
@@ -325,7 +327,7 @@ Year-end standing of the +100% arm since the start, in %: 2010 +7.3, 2011 +0.3, 
   3.7% behind, because the last four months of 2010 added 7.3%.
 - The drought cost less per year than predicted (1.2 %/yr against an expected 1.5–3).
 - **The worst three years are the most recent three.** Between mid-2022 and mid-2025 the overlay gave
-  back everything 2022 had paid and more: from about 30% ahead since the start to 2% behind.
+  back everything 2022 had paid and more: from 30.9% ahead since the start to 2.0% behind.
 
 ### In equity drawdowns
 
@@ -735,7 +737,7 @@ and the frozen prereg (lines 1–567) is byte-identical.
 |---|---|---|---|
 | 1 | "you would have spent seven years behind SPY (2015 to 2022), been paid back in a single year (2022), and then fallen 25% behind again by mid-2025" (§0) | "In April 2015 you were 17.8% ahead of SPY; it took 6.9 years, to March 2022, to regain that lead. During those years you were still ahead of SPY since the start on 58% of days, and behind at the ends of 2018, 2019 and 2020. Calendar 2022 took the lead to 32.7%. By May 2025 all of it was gone: you were 2.3% behind SPY since the start, which is 26% below that high." | **False as worded.** It stated the below-own-high frame as if it were since-start. |
 | 2 | "cost 1.2 %/yr for nine years: 10% behind SPY by the end of 2019" (§0 table) | "A holder who started in January 2011 was 10.2% behind SPY at the end of 2019; the holder from the 2010-09 start was 3.7% behind" | The 10% is a January 2011 starter. |
-| 3 | "25% behind SPY over 2022-06 → 2025-06; still behind its earlier peak at the end of 2025" (§0 table) | "relative wealth fell 25.1% between mid-June 2022 and 2025-06-20: from about 30% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high" | Same error: a fall, stated as a standing. |
+| 3 | "25% behind SPY over 2022-06 → 2025-06; still behind its earlier peak at the end of 2025" (§0 table) | "relative wealth fell 25.1% between 2022-06-14 and 2025-06-20: from 30.9% ahead of SPY since the start to 2.0% behind. At the end of 2025 the holder was 5.9% ahead since the start and 20% below their own high" | Same error: a fall, stated as a standing. |
 | 4 | "and stretches of seven years behind" (§10) | "Against SPY since the start the holder was behind on four days in ten, never by more than 9%. Against the best lead they had already reached, they waited seven years to get it back once and are 20% below it now." | Same error. |
 | 5 | §5 had one table mixing the frames | Two tables: the pre-registered spans and below-own-high rows, and a since-start table with year-end standings | So neither frame can be read as the other. |
 | 6 | "Calendar 2022 alone contributed +15.8. … The sign of the point estimate rests on one year and one quarter." (§0) | "any single large year moves the sign … Removing any one of 2022 (+15.8), 2014 (+10.9) or September–December 2010 (+7.0) turns the total negative. Removing any one of 2018, 2023, 2011 or 2012 more than doubles it." | Right arithmetic, one-sided. 2014 also exceeds the total. |
@@ -770,7 +772,7 @@ and the frozen prereg (lines 1–567) is byte-identical.
   in the file, and they decide nothing.
 - **Labels.** `PREREG_REF` names amendment 3. The T-391 comment says it is merged. The decision-cell
   string in `results.json` says AQMIX's ratio is from memory, unverified.
-- **Tests: 28 → {N_TESTS}.** The new ones drive `Panel.excess`, `Panel.composite` and `Panel.window`
+- **Tests: 28 → 42.** The new ones drive `Panel.excess`, `Panel.composite` and `Panel.window`
   on a synthetic snapshot instead of restating the formula in the test body.
 
 **Reversion proof.** Each line below was changed alone, the T-398 test module was run, and the file was
