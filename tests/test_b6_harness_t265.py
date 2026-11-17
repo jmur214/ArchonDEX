@@ -194,3 +194,78 @@ def test_manifest_halts_on_an_added_or_changed_file(tmp_path, monkeypatch):
         T.verify_manifest(man)
     with pytest.raises(T.Halt):
         T.verify_manifest(tmp_path / "absent.json")
+
+
+def _synthetic_world(seed: int = 3, mix: bool = True):
+    """A small end-to-end world: 30 names over three years, one death, random walks."""
+    rng = np.random.default_rng(seed)
+    cal = pd.bdate_range("2016-01-04", "2018-12-31")
+    n = len(cal)
+    closes, deaths = {}, {}
+    for k in range(30):
+        c = 10.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.02, n)))
+        sid = f"N{k:02d}#0"
+        if k == 0:
+            c[400:] = np.nan
+            deaths[sid] = 399
+        closes[sid] = c
+    P = _panel(n_days=n, closes=closes, deaths=deaths,
+               adv={s: 5e6 if i % 2 else 5e7 for i, s in enumerate(closes)})
+    P.cal = cal
+    P.spy = pd.Series(np.exp(np.cumsum(rng.normal(0.0004, 0.01, n))), index=cal)
+    P.iwm = pd.Series(np.exp(np.cumsum(rng.normal(0.0003, 0.012, n))), index=cal)
+    P.bil = pd.Series(np.linspace(1.0, 1.03, n), index=cal)
+    P.seg_by_ticker = {s.split("#")[0]: [(cal[0], cal[deaths.get(s, n - 1)], s)] for s in closes}
+    rows = []
+    for k in range(30):
+        for q, d in enumerate(pd.date_range("2016-02-01", "2018-11-15", freq="QS-FEB")):
+            form = "10-K" if ((q + k) if mix else q) % 4 == 0 else "10-Q"
+            v = float(rng.uniform(0.5, 1.0))
+            rows.append({"cik": k + 1, "form": form, "accession": f"{k}-{q}", "acceptance_dt": str(d.date()),
+                         "floor": d + pd.Timedelta(days=1), "acc": d,
+                         "yoy_combo_cos": v, "yoy_combo_why": "ok", "yoy_mda_cos": v, "yoy_mda_why": "ok",
+                         "qoq_mda_cos": 1 - v, "qoq_mda_why": "ok", "yoy_combo_dtone": v - 0.75,
+                         "yoy_mda_dtone": v - 0.75})
+    return P, pd.DataFrame(rows).sort_values(["floor", "acceptance_dt"]).reset_index(drop=True)
+
+
+def test_end_to_end_synthetic_run_is_deterministic_and_complete(monkeypatch):
+    monkeypatch.setattr(T, "MIN_RANKED", 5)
+    monkeypatch.setattr(T, "MIN_TERCILE", 2)
+    from scripts.lazy_prices import b6_harness_sp as H
+    P, sig = _synthetic_world()
+    grid = H.rebalance_dates(P.cal, "2016-03-31", "2018-09-30")
+    hold_end = P.cal[P.cal <= pd.Timestamp("2018-12-31")].max()
+    outs = []
+    for _ in range(2):
+        for name in ("gate_similarity", "hoos_adjacent", "stress_similarity"):
+            spec = T.SPECS[name]
+            panel, census = T.build_panel(spec, sig, P, grid)
+            assert T.check_census(census) == []
+            res = T.run_returns(spec, panel, P, P.cal, hold_end)
+            assert len(res["months"]) == 33 and np.all(np.isfinite(res["blend"]))
+            s = T.summarize(res, spec)
+            outs.append(T._json({name: s}))
+            if spec.hoos:
+                assert set(s["hoos"]) >= {"t_hac", "passes", "changers_minus_universe_mean_ann"}
+                assert res["universe"].shape == res["q10_universe"].shape
+                assert s["hoos"]["q10_only_companion_empty_quarters"] == 0
+                assert isinstance(s["hoos"]["q10_only_companion_t_hac"], float)
+    assert outs[:3] == outs[3:]
+    stress, base = json.loads(outs[2])["stress_similarity"], json.loads(outs[0])["gate_similarity"]
+    assert stress["deaths"] == base["deaths"]
+
+
+def test_hoos_companion_that_cannot_be_formed_reads_not_evaluable_and_hoos_still_runs(monkeypatch):
+    monkeypatch.setattr(T, "MIN_RANKED", 5)
+    monkeypatch.setattr(T, "MIN_TERCILE", 2)
+    from scripts.lazy_prices import b6_harness_sp as H
+    P, sig = _synthetic_world(mix=False)          # every name's first-quarter filing is a 10-K
+    grid = H.rebalance_dates(P.cal, "2016-03-31", "2018-09-30")
+    spec = T.SPECS["hoos_adjacent"]
+    panel, census = T.build_panel(spec, sig, P, grid)
+    res = T.run_returns(spec, panel, P, P.cal, P.cal[-1])
+    s = T.summarize(res, spec)
+    assert s["hoos"]["q10_only_companion_t_hac"] == "NOT-EVALUABLE"
+    assert s["hoos"]["q10_only_companion_empty_quarters"] >= 1
+    assert isinstance(s["hoos"]["t_hac"], float) and np.isfinite(s["hoos"]["t_hac"])

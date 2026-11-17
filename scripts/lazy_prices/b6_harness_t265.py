@@ -451,6 +451,7 @@ def run_returns(spec: T265Spec, panel: list[dict], P: Panel, cal_spy: pd.Datetim
     deaths = {k: 0 for k in ("long", "short", "universe")}
     new_share, prev_long = [], None
     q10 = {"short": [], "universe": []}          # the 10-Q-names-only companion (H_OOS)
+    q10_empty = 0
     for p, t1 in zip(panel, ends):
         t0, ranked = p["t"], p["ranked"]
         marks = H.month_marks(cal_spy, t0, t1)
@@ -476,12 +477,18 @@ def run_returns(spec: T265Spec, panel: list[dict], P: Panel, cal_spy: pd.Datetim
         if spec.hoos:
             rq = ranked[ranked.form == "10-Q"]
             rq = H.rank_terciles(rq.drop(columns=["pct", "leg"]))
-            for name, segs in (("short", rq[rq.leg == "short"].seg.tolist()), ("universe", rq.seg.tolist())):
-                if not segs:
-                    raise Halt(f"H_OOS 10-Q companion: empty {name} at {t0.date()}")
-                V, _ = name_values(P, segs, i0, mk, D, bil)
-                Vbar = V.mean(axis=0)
-                q10[name].extend((Vbar / np.concatenate([[1.0], Vbar[:-1]]) - 1.0).tolist())
+            legs_q = (("short", rq[rq.leg == "short"].seg.tolist()), ("universe", rq.seg.tolist()))
+            if not all(segs for _, segs in legs_q):
+                # the companion cannot be formed this quarter: recorded, and the companion reads
+                # NOT-EVALUABLE (it is descriptive; it never touches H_OOS itself)
+                q10_empty += 1
+                for name, _ in legs_q:
+                    q10[name].extend([float("nan")] * len(mk))
+            else:
+                for name, segs in legs_q:
+                    V, _ = name_values(P, segs, i0, mk, D, bil)
+                    Vbar = V.mean(axis=0)
+                    q10[name].extend((Vbar / np.concatenate([[1.0], Vbar[:-1]]) - 1.0).tolist())
         spy = twin_returns(P, "spy", i0, mk)
         iwm = twin_returns(P, "iwm", i0, mk)
         g_spy = np.cumprod(1.0 + spy)
@@ -501,6 +508,7 @@ def run_returns(spec: T265Spec, panel: list[dict], P: Panel, cal_spy: pd.Datetim
     if spec.hoos:
         res_all["q10_short"] = np.array(q10["short"])
         res_all["q10_universe"] = np.array(q10["universe"])
+        res_all["q10_empty_quarters"] = q10_empty
     return res_all
 
 
@@ -527,10 +535,14 @@ def summarize(res: dict, spec: T265Spec) -> dict:
         s = res["short"] - res["universe"]                       # changers - universe, GROSS
         t = H.newey_west_t(s)
         q = res["q10_short"] - res["q10_universe"]
-        tq = H.newey_west_t(q)
+        if res["q10_empty_quarters"] or not np.all(np.isfinite(q)):
+            qm, tq = cm.NOT_EVALUABLE, cm.NOT_EVALUABLE
+        else:
+            qm, tq = float(np.mean(q) * 12), H.newey_west_t(q)
         out["hoos"] = {"changers_minus_universe_mean_ann": float(np.mean(s) * 12), "t_hac": t,
                        "threshold": HOOS_T, "passes": bool(np.mean(s) < 0 and np.isfinite(t) and t <= HOOS_T),
-                       "q10_only_companion_mean_ann": float(np.mean(q) * 12), "q10_only_companion_t_hac": tq,
+                       "q10_only_companion_mean_ann": qm, "q10_only_companion_t_hac": tq,
+                       "q10_only_companion_empty_quarters": int(res["q10_empty_quarters"]),
                        "q10_only_companion_can_meet_hoos": False}
     return out
 
