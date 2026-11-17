@@ -1719,6 +1719,7 @@ python -m scripts.lazy_prices.b6_stream_t265 --retry-errors --min-interval 0.45 
 python -m scripts.lazy_prices.b6_stream_t265 --overlap-fill --min-interval 0.45 --disk-floor 10   # AMENDMENT 7: the 252 S&P-overlap firms with unfetched 2015+ filings, full history
 python -m scripts.lazy_prices.b6_stream_t265 --overlap-fill --shard 0/2 --min-interval 0.45 --disk-floor 10   # two workers (0/2 and 1/2) together <= 4.5 req/s; SIGTERM flushes, resumable by CIK
 python -m scripts.lazy_prices.b6_census --t265                # text-only census: coverage, rates vs S&P, the fill check, eligibility on the S&P harness's grid
+python -m scripts.lazy_prices.b6_census --t265-fill-pop       # AMENDMENT 8's ONE population-controlled fill check (exit 0 PASS / 2 FAIL)
 python -m scripts.lazy_prices.b6_harness_t265 --write-manifest   # once, at the freeze: every T-265 signal file + rows + md5, LM md5
 python -m scripts.lazy_prices.b6_harness_t265 --census-only --all --out data/b6_local/harness_t265/census
 python -m scripts.lazy_prices.b6_harness_t265 --smoke --out data/b6_local/harness_t265/smoke   # first 12 months, sanity only, never quoted
