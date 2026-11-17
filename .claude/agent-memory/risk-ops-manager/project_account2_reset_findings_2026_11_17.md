@@ -13,8 +13,23 @@ Drafted `docs/Sources/runbook_account2_reset_2026-11-17.md` (branch `docs/accoun
 - **Near-miss.** The tracker counted the 2026-11-05 defect day as clean (36). The valid count is 35 tracked sessions, 09-17 → 11-04. The tracker summary uses ALL points, including non-canonical ones.
 - **Near-miss.** The laptop `.env` holds ACCOUNT 1's Alpaca keys, and AlpacaPaperClient loads `.env`. Any broker action run locally hits account 1. Always go through the account's own jobdef (Batch command override).
 - **Fresh state.** A fresh prefix gives a seeding day (no marks, stand-down, exit 70); trading starts on the second run. A state-only reset with a non-flat broker gives an UNEXPLAINED halt forever.
-- **Mirror display defect.** The fleet mirror passes the BASE cap, not the contributed cap (run_paper_cloud_day.py:1592), so total_change includes contributions.
+- **Mirror display defects.** (1) It passes the BASE cap, not the contributed cap (run_paper_cloud_day.py:1592), so total_change includes contributions. (2) On arrival day it uses broker positions captured BEFORE trading (:621, :1585) with a post-fill basis, so it reads tier_equity 0 / −$10,000 until the next day. Both are tracked in T-401.
+- **Silent cash adoption.** Once positions are held, a cash-only broker correction is silently ADOPTED into the ledger (held_reconcile.py:116-118). CASH_DRIFT fires only on a flat account.
+- **The split feed asks about no tickers on the first two runs after a reset** (nothing is held or journaled yet). Only the price guard and a manual calendar check stand.
+
+**My own runbook near-misses, caught by the review of revision 1:**
+- An md5 gate without `pipefail` passed on two failed reads (md5 of an empty string on both sides).
+- Restoring a schedule from an early capture would silently revert a mid-window redeploy. Always rebuild from a FRESH GET and assert the expected revision.
+- The irreversible broker step was ordered before a possibly denied S3 move. Probe permissions first, and put reversible steps first.
+- I predicted the arrival-day mirror from code reading. A simulation of the real `main()` showed otherwise. Simulate artifact expectations instead of inferring them.
 
 **Why:** these decide whether a paper record can be restarted cleanly and what a real-money path inherits.
 
-**How to apply:** for any paper reset or re-tier, liquidate in place through the account's jobdef. Archive with a byte-verified copy before `mv` (bucket versioning is not available). Disable the schedule by the GET → State-only → cli-input-json pattern. Expect exit 70 on day 1. See [[live-paper-path-audit-2026-09-17]].
+**How to apply:** for any paper reset or re-tier:
+- Liquidate in place through the account's jobdef.
+- Archive with pipefail and a three-way md5 (step-1 snapshot, live object, archive copy) before `mv`; bucket versioning is not available.
+- Disable and re-enable the schedule from fresh GETs that change only State, and assert the revision pin.
+- Expect exit 70 on day 1.
+- Drive the real `main()` against a fake broker to set the day-1 to day-3 expectations.
+
+See [[live-paper-path-audit-2026-09-17]].
