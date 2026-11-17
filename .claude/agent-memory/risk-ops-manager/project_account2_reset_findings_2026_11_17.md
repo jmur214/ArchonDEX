@@ -22,6 +22,8 @@ Drafted `docs/Sources/runbook_account2_reset_2026-11-17.md` (branch `docs/accoun
 - Restoring a schedule from an early capture would silently revert a mid-window redeploy. Always rebuild from a FRESH GET and assert the expected revision.
 - The irreversible broker step was ordered before a possibly denied S3 move. Probe permissions first, and put reversible steps first.
 - I predicted the arrival-day mirror from code reading. A simulation of the real `main()` showed otherwise. Simulate artifact expectations instead of inferring them.
+- **Near-miss (delta review N1).** A run between the S3 archive and the broker liquidation seeds the new ledger from the PRE-liquidation cash. After the sells, CASH_DRIFT on a flat ledger is never adopted, so the account is wedged for good. Gate the irreversible step on "schedule DISABLED and the live prefix clean" immediately before it. Write and test the stray recovery and the rollback (`restore.sh`); an untested rollback is not a rollback.
+- Mutation-test the safety scripts (`mutate.py`). Six refusals were untested until mutants showed it. Declare equivalent mutants with a reason.
 - I hand-compacted two scripts when embedding them in the runbook, so the text there was not the tested file. Commit the ops scripts and their tests next to the runbook (`docs/Sources/runbook_account2_reset_ops/`), embed exact bytes, and gate the match with `check_embedded.py`. Never leave tested scripts only in the scratchpad.
 
 **Why:** these decide whether a paper record can be restarted cleanly and what a real-money path inherits.
