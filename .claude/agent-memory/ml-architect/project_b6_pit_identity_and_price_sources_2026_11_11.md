@@ -69,6 +69,51 @@ Corrected S&P (c): similarity −0.028 (ci_low −0.117), Δtone −0.037; short
 same-quarter pairing but +2.23 under the ADJACENT 10-Q pairing — the refutation half depends on the
 pairing choice; a negative-screen candidate. **A file end is not an exit; reconcile before booking.**
 
+**T-265 text census (b6_parse/2, 2026-11-17; no T-265 return yet):** 135,933 filings, 4,099 streamed
+CIKs + 644 taken from the S&P panel; parse rates on small caps ≥ the S&P panel's (10-K MD&A 98.7%,
+10-Q MD&A 99.8%, adjacent 10-Q pairs 97.6%); 3.1% of small-cap 10-Ks omit Item 1A legitimately
+("smaller reporting company"). Trap found: a sub-universe whose text is BORROWED from another panel
+inherits that panel's fetch windows — 5,502 filings of 252 overlap CIKs were never fetched (outside
+their S&P membership windows). Always census borrowed coverage separately.
+
+**Amendment 7 (2026-11-17) traps:** (1) a CO-REGISTRANT filing is ONE accession under TWO CIKs (67 in
+T-265) — de-duplicate on (cik, accession), never accession alone (the 6e52752 census dropped them).
+(2) "Quarter-end" in a harness is the last TRADING day (`cal[cal <= QE].max()`), not the calendar date;
+a text census on calendar QE shifts 70–180 small-cap 10-Ks per March quarter (they file on the last
+Thursday/Friday, e.g. Good Friday 2024-03-29) — census on the harness's own grid by importing its
+function. (3) To apply another brief's FROZEN rules without merging main, copy its module from main
+byte-identical (`git show main:path > path`; prove with `git hash-object` = `git rev-parse main:path`).
+(4) Fill throughput for large filers is ~0.9–1.0 doc/s per worker; two `--shard k/2` workers at
+`--min-interval 0.45` halve wall time inside the SEC cap; SIGTERM flushes and the restart resumes by CIK.
+(5) **A fill-quality tolerance on PAIR rates measures the population, not the parse.** The 252-firm fill
+(11,195 filings, 0 failures) failed A7's two-sided 3 pp check on the HIGH side: combo pairs +7.5/+7.9 pp,
+MD&A pairs +4.8/+4.1, raw 10-Q risk OK +3.4 — because ex-S&P firms are old continuous filers (`no_prior`
+1.5% vs 6.2%; 11.1 vs 8.3 10-Ks per CIK) and rarely omit Item 1A; the carve rates (risk OK excl.
+not-covered, MD&A OK) were within 0.7 pp. I wrote the two-sided reading into the amendment myself, pre-data,
+and it bound (correctly — stop and hand back). Lesson: when operationalising a tolerance, split
+parse-quality rates from population-sensitive rates BEFORE the data, and say which the check is for.
+The director's fix (A8): ONE pre-written check that removes exactly the hypothesised population factors
+(no prior; Item 1A NOT_COVERED for the combo) and stays two-sided — it PASSED (−0.1 to +0.7 pp). When I
+implement a ruling, count its stated numbers against the table first: A8 said "seven passing rates" where
+the table had six; my code asserted seven and halted BEFORE printing — fail closed, then a text-only
+erratum committed before computing.
+
+**T-265 RESULT (2026-11-17, frozen A9 6b98883; verdict docs/Audit/b6_lazy_prices_t265_verdict_2026-11-17.md):**
+H1 NOT MET — similarity Δlog W −0.093 (family ci_low −0.262), Δtone −0.125 (−0.317); short-leg t +1.09 /
++1.33 NET (gross +0.39 / −0.18); the long tercile behaved like the IWM sleeve (no beta estimated).
+**H_OOS FAILED with the wrong sign** (changers − universe +0.49%/yr, t +0.50): the S&P adjacent-pairing
+t +2.23 was a one-window artifact. Refutation holds in both arms (R6 text, YoY, quarterly; not other
+sections). Residue is weaker than I first wrote: risk-only short-leg t +4.76 NET is +2.80 GROSS (≈1.6%/yr
+of its spread is the changers' 3× cost), ~75% of it is 10-Q Part II Item 1A (the formatting flip R6
+excluded); the 10-Q combo +2.90 net is +1.93 gross. Ranked 1,416–2,339 per quarter after the band.
+
+**Review lessons (2026-11-17, APPROVE WITH REQUIRED FIXES):** (1) a short-leg "universe − changers"
+statistic on NET legs is inflated by the changers' higher turnover — always report the gross mechanism
+beside it; (2) round ONCE from full precision (I double-rounded −0.09348 → −0.0935 → −0.094; Sharpe
+ci_low 0.07498 → 0.08); (3) tests must lock the composite (signs, cut constants, percentile level, lags,
+band edges) — 12 of 28 mutations survived my suite; (4) pin EVERY input a frozen run reads (holder table,
+identity map, price files), not just the text; (5) never cite a paper's finding from memory as support.
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].

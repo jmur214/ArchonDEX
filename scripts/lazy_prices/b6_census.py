@@ -146,11 +146,343 @@ def rebalance_coverage(start: str = "2007-03-31", end: str = "2025-12-31") -> pd
     return pd.DataFrame(rows).set_index("rebalance")
 
 
+# --------------------------------------------------------------------------- #
+# T-265 arm census (text only, b6_parse/2) — no price, no ADV, no ranking, no return
+# --------------------------------------------------------------------------- #
+T265_DIR = LOCAL / "t265_signals"
+SP_V2_SHARDS = LOCAL / "sp_sections_v2"
+SP_V2_SIGNALS = LOCAL / "signals_sp_v2.parquet"
+T265_MAP = ROOT / "data" / "research" / "t265" / "cik_ticker_final.parquet"
+T265_PRICES = ROOT / "data" / "research" / "t265" / "prices"
+
+
+def _t265_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def cat(prefix):
+        parts = [pd.read_parquet(p) for p in sorted(T265_DIR.glob(f"{prefix}_*.parquet"))]
+        return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    return cat("done"), cat("filings"), cat("signals")
+
+
+def t265_universe_ciks() -> set[int]:
+    """The T-265 priced CIKs (file names only — no price is read)."""
+    ct = pd.read_parquet(T265_MAP)
+    files = {p.stem for p in T265_PRICES.glob("*.parquet")}
+    return set(ct[ct.ticker.isin(files)].cik.astype(int))
+
+
+SP_FETCH_LIST = LOCAL / "sp_fetch_list.parquet"
+SP_CANDIDATES = LOCAL / "sp_candidate_filings.parquet"
+FILL_SINCE = "2015-01-01"
+FILL_TOL_PP = 3.0          # AMENDMENT 7, condition (a): two-sided, percentage points
+FILL_MAX_FAIL = 0.01       # AMENDMENT 7, condition (a): filing-level fetch failures
+
+
+def overlap_gap_ciks(universe: set[int] | None = None) -> list[int]:
+    """AMENDMENT 7 (A7.1) — the overlap firms whose text has a hole: T-265 priced CIKs in the S&P
+    fetch list (the stream skipped them) with >= 1 10-K/10-Q accepted from 2015 in the cached S&P
+    candidate list that the fetch list lacks (outside their S&P fetch window). Deterministic from
+    the two files; keyed on (cik, accession) so a co-registrant's shared accession never hides a
+    gap."""
+    universe = t265_universe_ciks() if universe is None else universe
+    fl = pd.read_parquet(SP_FETCH_LIST, columns=["cik", "accession"])
+    cand = pd.read_parquet(SP_CANDIDATES, columns=["cik", "form", "accession", "acceptance_dt"])
+    fl["cik"] = fl.cik.astype(int)
+    cand["cik"] = cand.cik.astype(int)
+    ov = universe & set(fl.cik)
+    c = cand[cand.cik.isin(ov) & cand.form.isin(["10-K", "10-Q"])
+             & (cand.acceptance_dt.astype(str).str[:10] >= FILL_SINCE)]
+    have = set(zip(fl.cik, fl.accession))
+    miss = c[[(a, b) not in have for a, b in zip(c.cik, c.accession)]]
+    return sorted(int(x) for x in miss.cik.unique())
+
+
+def overlap_gap_accessions(universe: set[int] | None = None) -> set[tuple[int, str]]:
+    """The (cik, accession) pairs of the hole itself (the A7.1 5,502), for the gap-only report."""
+    universe = t265_universe_ciks() if universe is None else universe
+    fl = pd.read_parquet(SP_FETCH_LIST, columns=["cik", "accession"])
+    cand = pd.read_parquet(SP_CANDIDATES, columns=["cik", "form", "accession", "acceptance_dt"])
+    fl["cik"] = fl.cik.astype(int)
+    cand["cik"] = cand.cik.astype(int)
+    ov = universe & set(fl.cik)
+    c = cand[cand.cik.isin(ov) & cand.form.isin(["10-K", "10-Q"])
+             & (cand.acceptance_dt.astype(str).str[:10] >= FILL_SINCE)]
+    have = set(zip(fl.cik, fl.accession))
+    return {(int(a), b) for a, b in zip(c.cik, c.accession) if (a, b) not in have}
+
+
+def harness_grid(start: str, end: str) -> list[pd.Timestamp]:
+    """AMENDMENT 7 (A7.2) — the S&P harness's rebalance rule, imported (one code path): the last
+    SPY TR twin bar on or before each calendar quarter-end. Reads the twin's bar DATES only."""
+    from scripts.lazy_prices.b6_harness_sp import TWINS, rebalance_dates
+    d = pd.read_csv(TWINS / "SPY_1d.csv", usecols=["Date"], parse_dates=["Date"])
+    cal = pd.DatetimeIndex(d["Date"]).drop_duplicates().sort_values()
+    return rebalance_dates(cal, start, end)
+
+
+def _rates(name: str, f: pd.DataFrame, g: pd.DataFrame) -> list[dict]:
+    """The six A7.1 rates per form: parse rates on acceptance from 2015, pair rates from 2016."""
+    a = f[f.acceptance_dt.astype(str).str[:4] >= "2015"]
+    b = g[g.acceptance_dt.astype(str).str[:4] >= "2016"]
+    rows = []
+    for form in ("10-K", "10-Q"):
+        x, y = a[a.form == form], b[b.form == form]
+        pre = x.risk_status.astype(str).str.startswith("NOT_COVERED")
+        rows.append({"panel": name, "form": form, "filings": len(x),
+                     "risk_ok_pct": round(100 * (x.risk_status == "OK").mean(), 1),
+                     "risk_ok_excl_not_covered_pct": round(100 * (x.risk_status[~pre] == "OK").mean(), 1),
+                     "risk_not_covered_pct": round(100 * pre.mean(), 1),
+                     "mda_ok_pct": round(100 * (x.mda_status == "OK").mean(), 1),
+                     "combo_pair_pct_2016on": round(100 * (y.yoy_combo_why == "ok").mean(), 1),
+                     "mda_pair_pct_2016on": round(100 * (y.yoy_mda_why == "ok").mean(), 1),
+                     "qoq_mda_pair_pct_2016on": round(100 * (y.qoq_mda_why == "ok").mean(), 1)
+                     if form == "10-Q" else float("nan")})
+    return rows
+
+
+FILL_RATES = ("risk_ok_pct", "risk_ok_excl_not_covered_pct", "mda_ok_pct", "combo_pair_pct_2016on",
+              "mda_pair_pct_2016on", "qoq_mda_pair_pct_2016on")
+
+
+def fill_check(rates: pd.DataFrame, base: str, fill: str) -> pd.DataFrame:
+    """AMENDMENT 7 condition (a), rates half: |fill − base| <= 3.0 pp on each rate, per form."""
+    rows = []
+    for form in ("10-K", "10-Q"):
+        b = rates[(rates.panel == base) & (rates.form == form)].iloc[0]
+        f = rates[(rates.panel == fill) & (rates.form == form)].iloc[0]
+        for k in FILL_RATES:
+            if pd.isna(b[k]) and pd.isna(f[k]):
+                continue
+            diff = float(f[k]) - float(b[k])
+            ok = bool(abs(diff) <= FILL_TOL_PP) if pd.notna(diff) else False
+            rows.append({"form": form, "rate": k, "base": b[k], "fill": f[k], "diff_pp": round(diff, 1),
+                         "within_3pp": ok})
+    return pd.DataFrame(rows)
+
+
+def _eligibility(allsig: pd.DataFrame, dates: list[pd.Timestamp], overlap: set[int]) -> pd.DataFrame:
+    """Per rebalance: CIKs whose latest usable filing (floor <= t, accepted within 6 months — the
+    harness's `signals_at` rule) carries a defined gate / H_OOS ranking signal. Counts only."""
+    reb = []
+    for t in dates:
+        s_ = allsig[(allsig.floor <= t) & (allsig.acc > t - pd.DateOffset(months=6))]
+        latest = s_.groupby("cik").tail(1)
+        ov = latest[latest.cik.isin(overlap)]
+        reb.append({"rebalance": t.date().isoformat(), "ciks_with_recent_filing": len(latest),
+                    "gate_usable": int(latest.gate_ok.sum()),
+                    "gate_usable_10k": int((latest.gate_ok & (latest.form == "10-K")).sum()),
+                    "gate_usable_10q": int((latest.gate_ok & (latest.form == "10-Q")).sum()),
+                    "hoos_usable": int(latest.hoos_ok.sum()),
+                    "hoos_usable_10q": int((latest.hoos_ok & (latest.form == "10-Q")).sum()),
+                    "overlap_with_recent_filing": len(ov),
+                    "overlap_without_recent_filing": len(overlap) - len(ov)})
+    return pd.DataFrame(reb).set_index("rebalance")
+
+
+def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str, pd.DataFrame]:
+    """The T-265 arm's parse-coverage census under b6_parse/2. Counts only: no signal VALUE or
+    distribution is read (H_OOS stays clean), no price, ADV, ranking or return. CIKs that are
+    also in the S&P panel take their text from signals_sp_v2 (the stream skipped them) — except
+    the AMENDMENT-7 fill CIKs, whose full 2015+ history the stream now holds."""
+    done, fil, sig = _t265_frames()
+    out: dict[str, pd.DataFrame] = {}
+    universe = t265_universe_ciks()
+    done["cik"] = done.cik.astype(int)
+    streamed = set(done.cik)
+    gap = set(overlap_gap_ciks(universe))
+    fill = gap & streamed
+    base = streamed - fill
+    overlap = universe - streamed
+    # (cik, accession): a co-registrant filing is one accession under two CIKs — both rows are real
+    fil = fil.assign(cik=fil.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
+    sig = sig.assign(cik=sig.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
+    last_err = done.drop_duplicates("cik", keep="last")
+    transient = last_err.error.fillna("").str.startswith(("error:", "submissions_"))
+    ff = fil[fil.cik.isin(fill)]
+    out["completeness"] = pd.DataFrame([{
+        "t265_priced_ciks": len(universe), "streamed_ciks": len(base),
+        "fill_ciks_streamed": len(fill), "fill_ciks_selected": len(gap),
+        "overlap_ciks_from_sp_panel": len(overlap),
+        "no_periodic_filings_since_2015": int((last_err.error == "no_periodic_filings_since_2015").sum()),
+        "transient_errors_remaining": int(transient.sum()),
+        "fill_transient_errors_remaining": int((transient & last_err.cik.isin(gap)).sum()),
+        "filings": len(fil), "fetch_ok": int(fil.fetch_ok.fillna(False).sum()),
+        "fetch_failed": int((~fil.fetch_ok.fillna(False)).sum()),
+        "fill_filings": len(ff), "fill_fetch_failed": int((~ff.fetch_ok.fillna(False)).sum()),
+        "fill_fetch_failed_share": round(float((~ff.fetch_ok.fillna(False)).mean()), 5) if len(ff) else float("nan")}])
+    out["fetch_failures"] = fil.loc[~fil.fetch_ok.fillna(False),
+                                    ["cik", "form", "accession", "acceptance_dt", "fetch_status", "fetch_reason"]]
+    f = fil.assign(year=fil.acceptance_dt.str[:4], risk_ok=fil.risk_status == "OK",
+                   mda_ok=fil.mda_status == "OK")
+    f["both_ok"] = f.risk_ok & f.mda_ok
+    g = sig.assign(year=sig.acceptance_dt.str[:4],
+                   combo_pair=sig.yoy_combo_why == "ok", mda_pair=sig.yoy_mda_why == "ok",
+                   qoq_mda_pair=sig.get("qoq_mda_why", pd.Series(index=sig.index, dtype=object)) == "ok")
+    tab = (f.groupby(["form", "year"]).agg(filings=("accession", "size"), fetch_ok=("fetch_ok", "sum"),
+                                           risk_ok=("risk_ok", "sum"), mda_ok=("mda_ok", "sum"),
+                                           both_ok=("both_ok", "sum")).astype(int)
+           .join(g.groupby(["form", "year"])[["combo_pair", "mda_pair", "qoq_mda_pair"]].sum().astype(int),
+                 how="left").fillna(0).astype(int))
+    out["by_year_form"] = tab
+    out["status"] = pd.concat({"risk": f.groupby("form").risk_status.value_counts(),
+                               "mda": f.groupby("form").mda_status.value_counts()}).rename("n").reset_index()
+    # rates: the 4,099 streamed (the T-265 panel's own), the AMENDMENT-7 fill, its gap-only subset,
+    # all streamed, and the S&P panel (b6_parse/2), same acceptance years
+    sp = pd.concat([pd.read_parquet(p, columns=["cik", "accession", "form", "acceptance_dt", "fetch_ok",
+                                                "risk_status", "mda_status"])
+                    for p in sorted(SP_V2_SHARDS.glob("shard_*.parquet"))], ignore_index=True)
+    sp = sp.assign(cik=sp.cik.astype(int)).drop_duplicates(["cik", "accession"], keep="last")
+    spsig = pd.read_parquet(SP_V2_SIGNALS, columns=["cik", "accession", "form", "acceptance_dt",
+                                                    "yoy_combo_why", "yoy_mda_why", "qoq_mda_why"])
+    gap_acc = overlap_gap_accessions(universe)
+    in_gap_f = pd.Series([(c, a) in gap_acc for c, a in zip(fil.cik, fil.accession)], index=fil.index, dtype=bool)
+    in_gap_g = pd.Series([(c, a) in gap_acc for c, a in zip(sig.cik, sig.accession)], index=sig.index, dtype=bool)
+    rows = (_rates("T-265 streamed", fil[fil.cik.isin(base)], sig[sig.cik.isin(base)])
+            + (_rates("fill", fil[fil.cik.isin(fill)], sig[sig.cik.isin(fill)]) if fill else [])
+            + (_rates("fill gap-only", fil[in_gap_f], sig[in_gap_g]) if fill else [])
+            + _rates("T-265 all streamed", fil, sig)
+            + _rates("S&P (v2)", sp, spsig))
+    out["rates_vs_sp"] = pd.DataFrame(rows)
+    if fill:
+        out["fill_check"] = fill_check(out["rates_vs_sp"], "T-265 streamed", "fill")
+    # per-rebalance text eligibility (counts of CIKs) on the S&P harness's grid (A7.2), and the
+    # difference from the 6e52752 calendar-quarter-end grid
+    cols = ["cik", "form", "acceptance_dt", "decision_floor_date", "yoy_combo_why", "yoy_mda_why", "qoq_mda_why"]
+    spov = pd.read_parquet(SP_V2_SIGNALS, columns=cols)
+    spov = spov[spov.cik.astype(int).isin(overlap)]
+    allsig = pd.concat([sig[cols], spov], ignore_index=True)
+    allsig["cik"] = allsig.cik.astype(int)
+    allsig["floor"] = pd.to_datetime(allsig.decision_floor_date)
+    allsig["acc"] = pd.to_datetime(allsig.acceptance_dt.str[:10])
+    allsig = allsig.sort_values(["floor", "acceptance_dt"])
+    allsig["gate_ok"] = ((allsig.form == "10-K") & (allsig.yoy_combo_why == "ok")) | (
+        (allsig.form == "10-Q") & (allsig.yoy_mda_why == "ok"))
+    allsig["hoos_ok"] = ((allsig.form == "10-K") & (allsig.yoy_combo_why == "ok")) | (
+        (allsig.form == "10-Q") & (allsig.qoq_mda_why == "ok"))
+    grid = harness_grid(start, end)
+    elig = _eligibility(allsig, grid, overlap)
+    cal_q = _eligibility(allsig, list(pd.date_range(start, end, freq="QE")), overlap)
+    out["rebalance_text_eligibility"] = elig
+    diff = elig.reset_index(drop=True) - cal_q.reset_index(drop=True)
+    diff.insert(0, "calendar_qe", list(cal_q.index))
+    diff.insert(0, "rebalance", list(elig.index))
+    out["grid_vs_calendar"] = diff.set_index("rebalance")
+    out["text_halts"] = text_halts(out)
+    return out
+
+
+POP_RATES = (("10-K", "yoy_combo_why", True), ("10-K", "yoy_mda_why", False),
+             ("10-Q", "yoy_combo_why", True), ("10-Q", "yoy_mda_why", False))
+FILL_CHECK_MD5 = "57d6cc6d76e13ace5ec25ee52ac6d8af"     # AMENDMENT 8, A8.1
+
+
+def pop_rate(sig: pd.DataFrame, form: str, col: str, combo: bool) -> tuple[float, int, int]:
+    """AMENDMENT 8, A8.3, word for word: rows of `form` accepted from 2016; denominator = rows whose
+    pairing-rule prior exists (`prior_accession` not null) and, for the combo only, where neither the
+    current filing's nor the prior's Item 1A status starts with NOT_COVERED (the prior looked up by
+    (cik, prior_accession) among the same CIK's rows; a missing prior HALTS). Nothing else is
+    excluded. Returns (rate rounded to 0.1, numerator, denominator)."""
+    x = sig[(sig.form == form) & (sig.acceptance_dt.astype(str).str[:4] >= "2016")]
+    x = x[x.prior_accession.notna()]                                          # (a)
+    if combo:                                                                  # (b)
+        status = dict(zip(zip(sig.cik, sig.accession), sig.risk_status.astype(str)))
+        keys = list(zip(x.cik, x.prior_accession))
+        missing = [k for k in keys if k not in status]
+        if missing:
+            raise SystemExit(f"FATAL: {len(missing)} prior filing(s) not found among the CIK's rows, "
+                             f"e.g. {missing[:3]} (A8.3 halts)")
+        prior_nc = pd.Series([status[k].startswith("NOT_COVERED") for k in keys], index=x.index, dtype=bool)
+        cur_nc = x.risk_status.astype(str).str.startswith("NOT_COVERED")
+        x = x[~cur_nc & ~prior_nc]
+    num, den = int((x[col] == "ok").sum()), int(len(x))
+    if den == 0:
+        raise SystemExit(f"FATAL: empty A8.3 denominator for {form} {col}")
+    return round(100.0 * num / den, 1), num, den
+
+
+def fill_population_check() -> tuple[pd.DataFrame, bool]:
+    """AMENDMENT 8's ONE check. Pass = all four conditioned pair rates within 3.0 pp two-sided AND the
+    seven rates that passed in t265_fill_check.csv (md5-verified) still pass, unchanged."""
+    done, _, sig = _t265_frames()
+    universe = t265_universe_ciks()
+    streamed = set(done.cik.astype(int))
+    fill = set(overlap_gap_ciks(universe)) & streamed
+    base = streamed - fill
+    sig = sig[["cik", "form", "accession", "acceptance_dt", "risk_status", "prior_accession",
+               "yoy_combo_why", "yoy_mda_why"]].copy()
+    sig["cik"] = sig.cik.astype(int)
+    sig = sig.drop_duplicates(["cik", "accession"], keep="last")
+    rows = []
+    for form, col, combo in POP_RATES:
+        rp, n_p, d_p = pop_rate(sig[sig.cik.isin(base)], form, col, combo)
+        rf, n_f, d_f = pop_rate(sig[sig.cik.isin(fill)], form, col, combo)
+        diff = round(rf - rp, 1)
+        rows.append({"form": form, "rate": col.replace("yoy_", "").replace("_why", "") + "_pair_conditioned",
+                     "panel": rp, "fill": rf, "diff_pp": diff, "within_3pp": bool(abs(diff) <= FILL_TOL_PP),
+                     "panel_num": n_p, "panel_den": d_p, "fill_num": n_f, "fill_den": d_f})
+    tab = pd.DataFrame(rows)
+    fc_path = OUT / "t265_fill_check.csv"
+    import hashlib
+    if hashlib.md5(fc_path.read_bytes()).hexdigest() != FILL_CHECK_MD5:
+        raise SystemExit(f"FATAL: {fc_path} is not the A8.1 table (md5)")
+    fc = pd.read_csv(fc_path)
+    within = {(r.form, r.rate): bool(r.within_3pp) for r in fc.itertuples()}
+    # A8 erratum: the seven = the non-pair rates, 10-Q Risk OK read through its population-controlled
+    # rate (Risk OK excluding not-covered); A8.1 has six passing rows
+    seven = [("10-K", "risk_ok_pct"), ("10-K", "risk_ok_excl_not_covered_pct"), ("10-K", "mda_ok_pct"),
+             ("10-Q", "risk_ok_excl_not_covered_pct"),            # 10-Q Risk OK, population-controlled
+             ("10-Q", "risk_ok_excl_not_covered_pct"), ("10-Q", "mda_ok_pct"),
+             ("10-Q", "qoq_mda_pair_pct_2016on")]
+    if sum(within.values()) != 6:
+        raise SystemExit(f"FATAL: A8.1 has six passing rates; the table shows {sum(within.values())}")
+    passed = bool(tab.within_3pp.all() and all(within[k] for k in seven))
+    return tab, passed
+
+
+LM_FROZEN_MD5 = "12dade0123e1d096c1d1192c755f08a3"
+
+
+def text_halts(res: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """AMENDMENT 7's reading of condition (b): the text-side halts, each with its value and rule.
+    The ADV-band floors themselves are price-side (the harness, after the band)."""
+    import hashlib
+    import json
+    lm = LOCAL / "lm"
+    man = json.loads((lm / "manifest.json").read_text())["md5"]
+    got = hashlib.md5((lm / "Loughran-McDonald_MasterDictionary_1993-2025.csv").read_bytes()).hexdigest()
+    comp = res["completeness"].iloc[0]
+    el = res["rebalance_text_eligibility"]
+    rows = [("lm_md5_file_eq_manifest_eq_frozen", got, LM_FROZEN_MD5, got == man == LM_FROZEN_MD5),
+            ("transient_cik_errors_remaining", int(comp.transient_errors_remaining), 0,
+             int(comp.transient_errors_remaining) == 0),
+            ("rebalances_on_harness_grid", len(el), 40, len(el) == 40),
+            ("min_gate_usable_upper_bound", int(el.gate_usable.min()), 300, int(el.gate_usable.min()) >= 300),
+            ("min_hoos_usable_upper_bound", int(el.hoos_usable.min()), 300, int(el.hoos_usable.min()) >= 300),
+            ("min_gate_tercile_upper_bound", int(el.gate_usable.min()) // 3, 40,
+             int(el.gate_usable.min()) // 3 >= 40)]
+    return pd.DataFrame(rows, columns=["check", "value", "rule", "ok"])
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 parse-coverage census (before/after).")
     ap.add_argument("--skip-before", action="store_true")
+    ap.add_argument("--t265", action="store_true", help="the T-265 arm's text census only (b6_parse/2)")
+    ap.add_argument("--t265-fill-pop", action="store_true",
+                    help="AMENDMENT 8: the ONE population-controlled fill check (t265_fill_population_check.csv)")
     args = ap.parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.t265_fill_pop:
+        tab, passed = fill_population_check()
+        tab.to_csv(OUT / "t265_fill_population_check.csv", index=False)
+        print(md(tab, index=False))
+        print(f"\nAMENDMENT 8 check: {'PASS' if passed else 'FAIL'}")
+        return 0 if passed else 2
+    if args.t265:
+        res = census_t265()
+        for k, v in res.items():
+            ix = k in ("by_year_form", "rebalance_text_eligibility", "grid_vs_calendar")
+            v.to_csv(OUT / f"t265_{k}.csv", index=ix)
+            print(f"\n## T-265 {k}\n" + md(v, index=ix))
+        return 0
     if not args.skip_before:
         before = census_before()
         before.to_csv(OUT / "before_t237.csv")

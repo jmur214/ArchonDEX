@@ -1896,6 +1896,25 @@ python -m scripts.lazy_prices.b6_harness_sp --census-only --spec d_similarity --
 python -m pytest tests/test_b6_harness_sp.py -q
 ```
 
+T-265 arm (AMENDMENTS 5–8): the text stream's re-tries and gap fill, the text census, and the
+standalone T-265 harness (B-2's segment/death/ADV machinery by reference,
+`scripts/smallcap_t265_b2_common.py`). The harness verifies the freeze manifest, re-measures B-2's
+price census and HALTS (exit 2) on any mismatch or on a §7.7 floor (< 300 ranked / < 40 per tercile,
+after the ADV band) before any return.
+
+```bash
+python -m scripts.lazy_prices.b6_stream_t265 --retry-errors --min-interval 0.45 --disk-floor 10   # re-attempt CIKs whose only record is a transient failure
+python -m scripts.lazy_prices.b6_stream_t265 --overlap-fill --min-interval 0.45 --disk-floor 10   # AMENDMENT 7: the 252 S&P-overlap firms with unfetched 2015+ filings, full history
+python -m scripts.lazy_prices.b6_stream_t265 --overlap-fill --shard 0/2 --min-interval 0.45 --disk-floor 10   # two workers (0/2 and 1/2) together <= 4.5 req/s; SIGTERM flushes, resumable by CIK
+python -m scripts.lazy_prices.b6_census --t265                # text-only census: coverage, rates vs S&P, the fill check, eligibility on the S&P harness's grid
+python -m scripts.lazy_prices.b6_census --t265-fill-pop       # AMENDMENT 8's ONE population-controlled fill check (exit 0 PASS / 2 FAIL)
+python -m scripts.lazy_prices.b6_harness_t265 --write-manifest   # once, at the freeze: every T-265 signal file + rows + md5, LM md5
+python -m scripts.lazy_prices.b6_harness_t265 --census-only --all --out data/b6_local/harness_t265/census
+python -m scripts.lazy_prices.b6_harness_t265 --smoke --out data/b6_local/harness_t265/smoke   # first 12 months, sanity only, never quoted
+python -m scripts.lazy_prices.b6_harness_t265 --all --out data/b6_local/harness_t265/run1   # gate + H_OOS + diagnostics; run twice, compare results.md5
+python -m pytest tests/test_b6_t265_fill.py tests/test_b6_harness_t265.py -q
+```
+
 ## B-5 levered diversified book vs 1× SPY under Roth financing (T-382, added 2026-11-11)
 A standalone harness (the T-311 pattern; never `BacktestController`). Pre-registration:
 `docs/Sources/prereg_b5_levered_diversified_2026-11-11.md`, frozen at `535a3fc`, amendment 1 at

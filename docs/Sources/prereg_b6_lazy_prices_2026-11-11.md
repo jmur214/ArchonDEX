@@ -839,3 +839,416 @@ Every name-quarter's source, cause and the `shared_resolved` flag are in
 with shared T-265 tickers (PNR, CCL, COHR, CB, LDOS, PRGO, MDT, CI, DIS, STE, XRX, SNDK) needed no fill.
 
 - Review round 2 (2026-11-12, APPROVED): text-only errata LOW-1 to LOW-4 (renames as exits, unresolved exclusions, smoke timing, framing) are in docs/Audit/b6_lazy_prices_verdict_2026-11-12.md §6; no number and no amendment above changes.
+
+
+---
+
+## AMENDMENT 5 — a pre-registered OUT-OF-SAMPLE confirmation, on T-265, of the S&P arm's one table-suggested finding (director, 2026-11-14; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, while the T-265 text stream is still running and BEFORE any T-265 return, price join or
+signal ranking has been computed. **What exists for T-265 at this commit:** only the stream's per-filing text
+signals and section statuses under `data/b6_local/t265_signals/` (3,053 of 4,099 CIKs processed; latest file
+2026-11-14 00:13:29 local). No T-265 harness exists; B-6 has read no T-265 small-cap price, formed no
+ranking and computed no return. (The S&P harness read T-265 bars only for S&P member CIKs, as fills.) No
+distribution of any T-265 signal has been examined — only parse-coverage counts.
+
+### A5.1 Why
+On the S&P arm, under the brief's literal ADJACENT 10-Q pairing, the short leg (changers) had t_HAC **+2.23**
+(the review: +2.21) in the sense "universe minus changers"; under the ruled same-quarter pairing it had the
+wrong sign. That is a data-suggested slice and **cannot be certified on the data that suggested it.** The
+T-265 small-cap universe has not been looked at, so it is the one honest out-of-sample test.
+
+### A5.2 H_OOS (frozen now)
+On the T-265 universe, names in the BOTTOM tercile of adjacent-quarter similarity ("changers") underperform
+the equal-weight T-265 universe over the following quarter: **mean (changers − universe) monthly return < 0
+with t_HAC ≤ −2.0** — Newey-West, 3 lags, the same lag rule as the S&P diagnostic — as a GROSS relative
+return (net of nothing: it is a screen, not a traded short), on the T-265 arm's own window, with the same
+rebalance dates and inclusion rules as the T-265 gate (the ADV band at t, the freshness rule, the gate's
+death rule).
+
+**The construction is the S&P diagnostic's, exactly** (harness spec `q10_adjacent`, unchanged): a name
+whose latest usable filing at t is a 10-Q carries its MD&A cosine against the ADJACENT prior 10-Q (period
+end 60–200 days earlier; `qoq_mda_cos`); a name whose latest filing is a 10-K carries its YoY combo cosine;
+percentile rank within form, pooled terciles; changers = the bottom tercile; universe = all ranked names,
+equal weight. *Worker's note for the freeze:* the ruling's words are "10-Q filers in the bottom tercile";
+the statistic that produced +2.23 pooled both forms as above, so the identical pooled construction is the
+one pinned here as H_OOS. The 10-Q-names-only variant (changers and universe restricted to names whose
+latest filing is a 10-Q) is reported beside it as a labelled companion and cannot meet H_OOS. If the
+director means the narrower reading to be the test, that ruling must land at the T-265 freeze, before any
+T-265 return.
+
+### A5.3 Refutation, and what a pass licenses
+- **Refutation:** the wrong sign, or |t_HAC| < 2 ⇒ the adjacent-pairing finding is **closed permanently as
+  a one-window artifact. No re-slicing** (no other pairing, window, tercile cut, form subset or universe).
+- **If it holds:** it licenses ONLY a pre-registered **24-month forward paper book of a negative screen** (a
+  long book that excludes recent changers) — never a backtest claim, never a deployment.
+
+### A5.4 Accounting (proposed; the director rules at the T-265 freeze)
+- **This is one extra pre-declared test in the T-265 arm.** Proposed N: **+1** (the T-265 arm then consumes
+  +2 at its run: the gate family, and H_OOS) — H_OOS is a separately reported statistic that could be
+  quoted, which is what honest N counts (the B-1 ruling).
+- **Proposed family:** H_OOS is its own one-hypothesis family — a different hypothesis from H1 (it cannot
+  meet H1 and H1 cannot meet it), one-sided, at its own frozen threshold t_HAC ≤ −2.0 (≈ 2.3% one-sided).
+  The gate's Bonferroni family stays {similarity, Δtone} at the 1.25th percentile, unchanged. The
+  stricter alternative, if the director prefers one family of three: t_HAC ≤ −2.39.
+- **The T-265 GATE is unchanged:** its ruled primary 10-Q pairing remains the same fiscal quarter a year
+  earlier (R2); the adjacent pairing enters the T-265 arm only through H_OOS (and as the §7.5 diagnostic).
+
+### A5.5 Power (pre-data; assumptions stated, not measured)
+Expected sample: the T-265 window's 40 quarterly rebalances (120 months, 10.0 years) if the T-265 freeze
+keeps 2016-Q1 → 2025-Q4; roughly 1,000–1,500 ranked names per quarter, so ≈ 350–500 changers. With the
+monthly (changers − universe) spread at σ = 6%/yr (4–8%; §8's small-cap assumption), SE of the annualised
+mean = σ/√10 = 1.9%/yr (1.3–2.5%). **t_HAC = −2.0 is reached at a gap of −3.8%/yr (−2.5 to −5.1%); the gap
+detectable with 80% power is −5.4%/yr (−3.6 to −7.2%).** The S&P estimate was −1.96%/yr: at that size the
+test would reach t ≈ −1.0 and pass about one time in six. **So H_OOS can confirm only an effect roughly
+twice the S&P one** — which is what the literature's "stronger in low-attention names" would imply, and no
+more than that. A refutation here is therefore weak evidence against a small effect and is stated as such
+in advance; the closure rule in A5.3 holds regardless.
+
+---
+
+## AMENDMENT 6 — director rulings on AMENDMENT 5 (2026-11-14; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, still before any T-265 return, price join or signal ranking has been computed (the only
+T-265 outputs are the stream's per-filing text signals and statuses; no T-265 harness exists).
+
+- **A6.1 Population — the worker's reading is RATIFIED.** H_OOS uses the IDENTICAL construction that
+  produced the S&P statistic: ranked within form — a name whose latest filing is a 10-Q on adjacent-quarter
+  MD&A similarity, a name whose latest filing is a 10-K on the year-on-year combo — then pooled; changers =
+  the bottom tercile; universe = all ranked names, equal weight. Only the same construction is a
+  confirmation; the ruling's "10-Q filers" wording in AMENDMENT 5 was loose. The 10-Q-names-only version is
+  reported beside it as a diagnostic that CANNOT meet H_OOS.
+- **A6.2 Accounting — ACCEPTED.** +1 N for H_OOS: the T-265 arm consumes **+2** at its run (the gate family;
+  H_OOS). H_OOS is its own one-hypothesis family at **t_HAC ≤ −2.0**. The gate's Bonferroni family
+  ({similarity, Δtone}, 1.25th-percentile `ci_low`) is unchanged.
+- **A6.3 Power — to be stated in the verdict's FIRST paragraph, as in A5.5:** a pass at about 1-in-6 odds if
+  the true gap equals the S&P estimate; a refutation is weak evidence against a small effect and closes
+  only the adjacent-pairing finding as a certifiable claim.
+
+---
+
+## AMENDMENT 7 — director rulings on the T-265 text census (2026-11-17; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, BEFORE the overlap gap fill, any further stream, any T-265 price join, ranking or return.
+**What exists for T-265 at this commit:** the stream's per-filing text signals and section statuses for the
+4,099 streamed CIKs (`data/b6_local/t265_signals/`, parser `b6_parse/2`, DONE 2026-11-14 09:56:52Z) and the
+text census of commit `6e52752` (counts only; `data/b6_local/census/t265_*.csv`). No T-265 small-cap price
+has been read, no ranking formed, no return computed, and no distribution of any T-265 signal examined.
+
+### A7.1 Ruling 1 — the overlap text gap: FILL IT
+The director: stream the 252 overlap firms' 5,502 missing filings with the same stream code and parser
+`b6_parse/2`, ≤ 5 requests/s, worktree-local, then re-census. Grounds: the hole is non-random (those firms
+drop out of the ranking exactly in the quarters they were small caps), and filling it is a completeness
+action taken before any T-265 return exists, so no outcome informs it. The freeze waits for it.
+
+*Worker's operational definitions, fixed here before the fill (the A1.10 precedent; for the director's
+check; they alter no ruled term):*
+- **The 252 firms** = T-265 priced CIKs that the stream skipped because they are in the S&P fetch list
+  (`data/b6_local/sp_fetch_list.parquet`) AND that have at least one 10-K/10-Q accepted from 2015-01-01 in
+  the cached S&P candidate list (`sp_candidate_filings.parquet`, cached 2026-11-11) that the S&P fetch list
+  does not contain. Deterministic from those two files (code: `b6_census.overlap_gap_ciks`); re-derived at
+  this commit: 252 CIKs, 5,502 missing accessions, 11,047 candidate filings from 2015 in total.
+- **Each of the 252 is streamed over its FULL 2015+ history** through the unchanged `process_cik`, not
+  only the 5,502 missing accessions: pairing is within company, and a filing whose prior lies outside the
+  S&P fetch window can be paired only if that prior is fetched too. For these 252 firms every T-265 text
+  row then comes from the stream; their S&P-panel rows are not mixed in (one fetch per firm). The other
+  392 overlap firms keep their S&P-panel text (all their 2015+ candidate filings are in it).
+- **Condition (a) of ruling 3 is measured as follows.** Fetch: 0 CIK-level errors left after one
+  `--retry-errors` pass, and filing-level fetch failures ≤ 1% of the filings the fill streams. Rates: per
+  form, the six rates of the census table — Risk OK, Risk OK excluding not-covered, MD&A OK (acceptance
+  from 2015); combo pair, MD&A pair, adjacent MD&A pair (10-Q) (acceptance from 2016) — computed on ALL
+  filings the fill streams for the 252, each within **3.0 percentage points, two-sided as written**, of the
+  same rate on the 4,099 streamed CIKs (the T-265 panel's own). The 5,502-accession subset is reported
+  beside it and is not a condition.
+
+### A7.2 Ruling 2 — the rebalance grid is the S&P harness's, not a new one
+The director: H_OOS was ratified (A6.1) as the IDENTICAL construction that produced the S&P statistic, and
+the gate arm follows §6–§7; read the S&P harness's rebalance-date rule and use exactly that rule on T-265;
+if it is not calendar quarter-ends, re-run the per-rebalance census counts on that grid and report the
+difference. Do not choose a grid.
+
+**The rule, read from the code** (`scripts/lazy_prices/b6_harness_sp.py`, `rebalance_dates`, and
+`load_inputs`/`main`): rebalance t = **the last bar of the SPY TR twin calendar**
+(`data/processed/tr_reconciled/SPY_1d.csv`) **on or before each calendar quarter-end**
+(`pd.date_range(start, end, freq="QE")`); the last holding period ends at the last bar on or before
+2026-03-31; a filing is usable at t if `decision_floor_date` ≤ t and its acceptance date is later than
+t − 6 months (`signals_at`). This is §6's "last trading day of each calendar quarter". **It is NOT calendar
+quarter-ends:** the `6e52752` census evaluated eligibility at the calendar quarter-end date itself (e.g.
+Saturday 2016-12-31 instead of Friday 2016-12-30). The per-rebalance counts are re-run on the harness grid
+(reading the SPY twin's bar DATES only) and the difference is reported at the freeze. The T-265 harness
+imports the S&P harness's `rebalance_dates` and `month_marks` — one code path, no new grid.
+
+### A7.3 Ruling 3 — freeze and build: pre-authorized on conditions
+After the gap fill and re-census, IF all of the following hold, the worker commits AMENDMENT 8 = the
+T-265 FREEZE (alone), then builds the T-265 harness and runs it without stopping:
+- (a) the 252 firms' filings are fetched with ≤ 1% failures and their parse and pairing rates are within
+  3 percentage points of the T-265 panel's own (measured as A7.1 fixes);
+- (b) no text-side census halt fires;
+- (c) the window is still 40 rebalances 2016-Q1 → 2025-Q4 on the S&P harness's grid;
+- (d) nothing departs from amendments 5–7 except what amendment 8 names.
+
+If ANY condition fails, the worker stops and hands back instead. The harness then: the price join from
+the sources B-2's census names (re-read from that census, not from memory); the ADV band; the §7.7 floors
+checked AFTER the band (halt closed if short — no lowering a gate after it fires); the gate arm and H_OOS
+exactly as frozen; a smoke on the FIRST 12 months only (no number quoted); the run twice to identical
+md5s; the verdict with the power statement in its first paragraph; the full suite;
+`python scripts/sync_docs.py`; the CLI into `docs/Core/execution_manual.md`.
+
+*Worker's reading of (b), fixed here:* the text-side halts are §7.7's first bullet (the LM file md5 against
+its manifest; every T-265 signal file present with its recorded row count — the freeze records the file
+list, rows and md5s and the harness verifies them), 0 transient CIK errors left, and every rebalance's
+text-side upper bound (gate-usable names before the ADV band) at or above §7.7's 300 ranked and 3 × 40
+per tercile. The ADV-band floors themselves are price-side and are checked in the harness, after the band.
+
+### A7.4 Ruling 4 — trials
+The T-265 arm consumes **+2** (the gate family +1; H_OOS +1, its own family per A6.2). The director records
+it on main when amendment 8 lands; the worker does not touch `config/honest_n_trials.json`. The count is
+stated in the freeze text.
+
+### A7.5 Ruling 5 — disclosures carried into the verdict
+- 3.1% of small-cap 10-Ks omit Item 1A (smaller reporting companies — the smallest firms): no combo pair,
+  so they cannot be gate-ranked on 10-K quarters.
+- The one out-of-window fetch failure (HTTP 503; CIK 1837254, 10-Q 0001213900-26-057934, accepted
+  2026-05-15).
+- The census's text-side counts are upper bounds before the ADV band.
+
+### A7.6 The SEC contact
+Since 2026-11-14 a privacy control in this environment refuses commands that read or send the account's
+email, including scripts that hold it. The fill is tried exactly as before. If the permission layer
+refuses ANY step, the worker does not work around it (no copying the string, no new constant, no alternate
+script): it adds a minimal change so the stream reads its User-Agent from the environment variable
+`B6_SEC_USER_AGENT` and refuses with a clear message and exit 3 when it is unset (tests for both;
+committed), then stops and hands back the exact command the user must run from the worktree. The address
+is never written anywhere.
+
+---
+
+## AMENDMENT 8 — director ruling on the failed condition (a): ONE population-controlled check, two-sided at 3.0 pp (2026-11-17; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, BEFORE any conditional count is computed, and before any T-265 price join, ranking or
+return. **What exists for T-265 at this commit:** the stream's per-filing text signals and statuses for the
+4,099 streamed CIKs and the 252 AMENDMENT-7 fill CIKs (`data/b6_local/t265_signals/`, `b6_parse/2`), the
+re-census of commit `ba1140d`'s tree (counts only), and the T-265 harness code (`43ab4bf`, `8b43a08`,
+`ba1140d`), which has run on synthetic data only. No T-265 small-cap price has been read.
+
+### A8.1 Condition (a) as written FAILED — on 5 of 11 rates, all on the HIGH side
+The fill itself is complete: 252 of 252 CIKs, 11,195 filings, 0 fetch failures, 0 CIK-level errors after
+one `--retry-errors` pass, every one of the 5,510 gap accessions fetched. The rates, as A7.1 fixed them
+(`data/b6_local/census/t265_fill_check.csv`, md5 `57d6cc6d76e13ace5ec25ee52ac6d8af`; "panel" = the 4,099
+streamed CIKs):
+
+| form | rate | panel | fill | difference (pp) | within 3 pp |
+|---|---|---|---|---|---|
+| 10-K | Risk OK | 95.7 | 98.3 | +2.6 | yes |
+| 10-K | Risk OK excl. not-covered | 98.8 | 98.3 | −0.5 | yes |
+| 10-K | MD&A OK | 98.7 | 98.9 | +0.2 | yes |
+| 10-K | combo pair (from 2016) | 87.9 | 95.4 | +7.5 | **no** |
+| 10-K | MD&A pair (from 2016) | 92.0 | 96.8 | +4.8 | **no** |
+| 10-Q | Risk OK | 90.4 | 93.8 | +3.4 | **no** |
+| 10-Q | Risk OK excl. not-covered | 97.2 | 97.9 | +0.7 | yes |
+| 10-Q | MD&A OK | 99.8 | 99.6 | −0.2 | yes |
+| 10-Q | combo pair (from 2016) | 82.6 | 90.5 | +7.9 | **no** |
+| 10-Q | MD&A pair (from 2016) | 93.2 | 97.3 | +4.1 | **no** |
+| 10-Q | adjacent MD&A pair (from 2016) | 97.6 | 98.7 | +1.1 | yes |
+
+The director rejected both readings the worker offered: a one-sided reading rewrites a tolerance after
+seeing which side the data fell on; a carve-rates-only reading drops four of the named rates. The worker's
+decomposition (no prior to pair with; Item 1A omitted) is a HYPOTHESIS until computed. It is tested by ONE
+pre-written check (A8.3). No pairing rate carries outcome information, so one pre-written check does not
+leak; it is one check, not a series of slices.
+
+### A8.2 The failure-reason decomposition — COUNTS per form, panel vs fill (status columns only; no signal value read)
+The code (`b6_signals.pair_signals`) emits exactly five values for a YoY pair: `ok`, `no_prior`,
+`current_not_ok`, `prior_not_ok`, `mda_source_switch`. It emits no separate "not covered" pair code: a
+filing whose Item 1A is NOT_COVERED yields `current_not_ok` (or `prior_not_ok`) for the combo; the
+filing-level Item 1A statuses are listed after the pair tables. Filings accepted from 2016,
+de-duplicated on (cik, accession):
+
+| 10-K `yoy_combo_why` | panel | fill | | 10-K `yoy_mda_why` | panel | fill |
+|---|---|---|---|---|---|---|
+| ok | 27,628 | 2,450 | | ok | 28,911 | 2,486 |
+| no_prior | 1,958 | 39 | | no_prior | 1,958 | 39 |
+| current_not_ok | 1,434 | 60 | | current_not_ok | 384 | 27 |
+| prior_not_ok | 293 | 8 | | prior_not_ok | 60 | 5 |
+| mda_source_switch | 103 | 12 | | mda_source_switch | 103 | 12 |
+| total | 31,416 | 2,569 | | total | 31,416 | 2,569 |
+
+| 10-Q `yoy_combo_why` | panel | fill | | 10-Q `yoy_mda_why` | panel | fill |
+|---|---|---|---|---|---|---|
+| ok | 79,169 | 7,014 | | ok | 89,297 | 7,546 |
+| no_prior | 5,967 | 125 | | no_prior | 5,967 | 125 |
+| current_not_ok | 8,371 | 451 | | current_not_ok | 138 | 33 |
+| prior_not_ok | 1,949 | 116 | | prior_not_ok | 54 | 2 |
+| mda_source_switch | 396 | 46 | | mda_source_switch | 396 | 46 |
+| total | 95,852 | 7,752 | | total | 95,852 | 7,752 |
+
+Item 1A status of the filing itself (accepted from 2015; the parse-rate population):
+
+| 10-K `risk_status` | panel | fill | | 10-Q `risk_status` | panel | fill |
+|---|---|---|---|---|---|---|
+| OK | 32,133 | 2,740 | | OK | 92,635 | 7,885 |
+| NOT_COVERED:not_required | 1,008 | 0 | | NOT_COVERED:item_absent | 5,121 | 331 |
+| NOT_COVERED:incorporated_by_reference | 33 | 1 | | NOT_COVERED:not_required | 1,971 | 26 |
+| NOT_LOCATED | 234 | 19 | | NOT_LOCATED | 1,441 | 50 |
+| NOT_LOCATED:unterminated | 5 | 0 | | NOT_LOCATED:unterminated | 209 | 4 |
+| TOO_SHORT | 150 | 27 | | TOO_SHORT | 1,057 | 112 |
+| | | | | CONTAMINATED | 2 | 0 |
+| | | | | FETCH_FAILED | 1 | 0 |
+| total | 33,563 | 2,787 | | total | 102,437 | 8,408 |
+
+### A8.3 The check — word for word as implemented (`b6_census.fill_population_check`)
+For each of the four failed pair rates — 10-K combo (`yoy_combo_why`), 10-K MD&A pair (`yoy_mda_why`),
+10-Q combo (`yoy_combo_why`), 10-Q MD&A pair (`yoy_mda_why`) — on signal rows of that form accepted from
+2016 (`acceptance_dt[:4] >= "2016"`), de-duplicated on (cik, accession), computed separately for the
+fill (the 252 CIKs) and the panel (the 4,099 streamed CIKs):
+- **numerator** = rows whose why value is `ok`;
+- **denominator** = rows that satisfy (a), and, for the two combo rates only, also (b):
+  - **(a)** the pairing rule's own prior exists in the CIK's fetched set: the row's `prior_accession` is
+    not null. `prior_accession` is set by `b6_signals.company_signals` from `find_prior(f, i, 270, 460)`
+    for a 10-K and `find_prior(f, i, 350, 380)` for a 10-Q, over every filing the stream recorded for that
+    CIK (the code's definition, not re-specified). Equivalently, why ≠ `no_prior`.
+  - **(b)** combo only: neither the current filing's `risk_status` nor the prior's (looked up by
+    (cik, `prior_accession`) among the same CIK's rows) starts with `NOT_COVERED` — the census's own
+    "not covered" definition, i.e. `NOT_COVERED:item_absent`, `NOT_COVERED:not_required`,
+    `NOT_COVERED:incorporated_by_reference`. A prior that cannot be looked up HALTS the check.
+- **Nothing else is excluded.** Every other failure stays in the denominator as a failure: `current_not_ok`
+  or `prior_not_ok` from any other status (NOT_LOCATED, NOT_LOCATED:unterminated, TOO_SHORT,
+  CONTAMINATED, FETCH_FAILED, an MD&A `NOT_COVERED:incorporated_by_reference_external`, anything else),
+  and `mda_source_switch`.
+- **rate** = 100 × numerator / denominator, rounded to 0.1; **difference** = fill − panel on the rounded
+  rates, as `t265_fill_check` computes it.
+- **10-Q Risk OK:** its population-controlled rate is the existing Risk OK excluding not-covered — panel
+  97.2, fill 97.9, +0.7, within the band. Nothing new is computed for it.
+
+**Pass rule:** all four conditioned pair rates within 3.0 pp, TWO-SIDED (|difference| ≤ 3.0), AND the seven
+rates that already passed in A8.1 still pass, unchanged.
+**Fail rule:** if ANY conditioned rate falls outside the band, condition (a) fails for good under this
+ruling. No freeze; the worker hands back with the table. No second check, no further slicing.
+
+### A8.4 Sequence
+If the check passes: the conditioned table is written as a census file and committed (the table in the
+commit; `data/` is gitignored, so the CSV's md5 is recorded with it), then **the freeze becomes
+AMENDMENT 9; A7.3's other terms are unchanged, with "amendment 8" read as "amendment 9".** The director
+ratifies, for AMENDMENT 9, the construction choices (1)–(7) of the worker's hand-back of 2026-11-17 as
+written. N_trials: **+2** at the T-265 run (the gate family +1, H_OOS +1), recorded by the director on main
+against AMENDMENT 9's hash; `config/honest_n_trials.json` is not touched here.
+
+*Erratum to A7.1 (text only):* A7.1's "5,502 missing accessions" was the accession-only count; keyed on
+(cik, accession), as `overlap_gap_accessions` computes it, the gap is **5,510** (8 co-registrant
+accessions fetched under another CIK in the S&P panel); still 252 CIKs, all 5,510 fetched.
+
+**A8 erratum (text only; committed alone, BEFORE the check's result was computed or seen).** A8.1's table has
+**six** passing rates, not seven: 11 rates − 5 failed. The implementation of A8.3's pass rule halted on
+that count (it asserted seven passing rows and found six) before printing or writing any conditioned rate.
+"The seven rates" in the pass rule are the seven rates other than the four pair rates, with **10-Q Risk OK
+read through its population-controlled rate**, the existing Risk OK excluding not-covered (panel 97.2,
+fill 97.9, +0.7), as A8.3's own 10-Q Risk OK bullet and the director's ruling state. Concretely: 10-K Risk
+OK (+2.6), 10-K Risk OK excl. not-covered (−0.5), 10-K MD&A OK (+0.2), 10-Q Risk OK via excl. not-covered
+(+0.7), 10-Q Risk OK excl. not-covered (+0.7), 10-Q MD&A OK (−0.2), 10-Q adjacent MD&A pair (+1.1) —
+each unchanged from A8.1. Nothing else in A8 changes.
+
+---
+
+## AMENDMENT 9 — the T-265 FREEZE (worker, 2026-11-17, under A7.3 as amended by A8; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone (with its file list, below), after AMENDMENT 8's check PASSED (`d018f15`) and BEFORE any
+T-265 small-cap price is read, any ranking is formed or any return is computed. The T-265 harness has run on
+synthetic data only.
+
+### A9.1 The four conditions of A7.3 (A8 for (a)) — all hold
+- **(a)** Fetch: 252/252 CIKs, 11,195 filings, 0 failures, 0 CIK errors after one retry pass. Rates: under
+  AMENDMENT 8's ONE population-controlled check, the four pair rates are within the two-sided 3.0 pp band —
+  10-K combo 97.0 vs 96.9 (−0.1), 10-K MD&A 98.1 vs 98.3 (+0.2), 10-Q combo 96.2 vs 96.9 (+0.7), 10-Q
+  MD&A 99.3 vs 98.9 (−0.4) (panel vs fill; `t265_fill_population_check.csv`, md5
+  `4b65d2b58bdf61ff6291a29d6353f993`); the seven other rates pass unchanged (A8 erratum).
+- **(b)** No text-side halt (`t265_text_halts.csv`): LM md5 file = manifest = frozen; 0 transient CIK
+  errors; every rebalance's text upper bound ≥ 300 (min gate-usable 2,399; min H_OOS-usable 2,529) and
+  ≥ 3 × 40 per tercile (min 799).
+- **(c)** 40 rebalances, 2016-03-31 → 2025-12-31, on the S&P harness's grid; the last holding ends at the
+  last SPY TR bar on or before 2026-03-31.
+- **(d)** Nothing departs from AMENDMENTS 5–8 except what A9.3 names.
+
+### A9.2 The frozen inputs and code
+- **Text:** `data/b6_local/t265_signals/` — **1,317 files**: 412 `signals_*` (136,000 rows) + 27
+  `signals_fill_*` (11,195), 412 `filings_*` (136,000) + 27 `filings_fill_*` (11,195), 412 `done_*` (4,100)
+  + 27 `done_fill_*` (252); and `data/b6_local/signals_sp_v2.parquet` (46,040 rows, md5
+  `722b413770edfa9cb99d0da341308b22`) for the 392 overlap CIKs the stream did not take. Every file's rows
+  and md5 are in the freeze manifest `data/b6_local/t265_freeze_manifest.json`, committed byte-identical
+  beside this prereg as `docs/Sources/prereg_b6_t265_freeze_manifest_2026-11-17.json` (md5
+  `ea078498dd6ddb68569d389b3f875fc1`). The harness HALTS if any file is added, missing or changed (§7.7).
+- **LM dictionary:** md5 `12dade0123e1d096c1d1192c755f08a3`. **Parser:** `b6_parse/2`.
+- **Universe:** 4,743 T-265 priced CIKs = 4,099 streamed + 252 filled + 392 from the S&P panel.
+- **Code:** `scripts/lazy_prices/b6_harness_t265.py` as of `ba1140d` (md5
+  `ae76834b3f36e81fd9dbc2757f73a2b3`); `scripts/smallcap_t265_b2_common.py` byte-identical to main (blob
+  `8ce8224e1fce734e80639827554dad7f52650a5b`); the S&P harness's `rebalance_dates`, `month_marks`,
+  `signals_at`, `rank_terciles`, `summarize`, `boot`, `newey_west_t` imported unchanged.
+
+### A9.3 The construction — the director's ratified choices (1)–(7), plus the harness's frozen terms
+1. **Identity:** a T-265 priced CIK maps to exactly one priced ticker (checked; HALT otherwise). A ticker
+   shared by more than one CIK (66 tickers, 135 CIKs) or reused (its file splits into more than one
+   segment) is usable for a CIK at t only when the date-aware Form 3/4/5 holder set at t (first − 90 d ≤ t
+   ≤ last + 90 d) is exactly {that CIK} — AMENDMENT 4's rule. A name that cannot be attributed is left out
+   of that quarter's ranking and counted (`identity_unresolved`). The security at t is the segment alive
+   at t.
+2. **B-2's trading and band rules:** a traded bar ON t; 20-day median dollar ADV at t in [$1M, $200M).
+3. **B-2's death rule:** at a segment's last traded bar — BASE −30% (gate), STRESS −100%, LAST-PRICE 0 —
+   including a death on the formation day; proceeds in BIL TR. B-2's price census and A1.2 recount
+   (151 / 141) are re-measured and HALT on mismatch.
+4. **No ADV cap** (B-6's prereg has none).
+5. **H_OOS:** spec `hoos_adjacent` = the S&P `q10_adjacent` construction, GROSS, under the gate's
+   inclusion and BASE death rules; mean(changers − universe) < 0 with t_HAC ≤ −2.0 (NW 3 lags). Its own
+   panel meets the §7.7 floors or H_OOS is NOT EVALUABLE.
+6. **The 10-Q-names-only companion** reads NOT-EVALUABLE in any quarter it cannot be formed and never
+   affects H_OOS.
+7. **LM uncertainty and litigious rankings are not run** (parity with the S&P arm).
+- **Also frozen:** price source T-265 bars only (no `data/processed` fill); equal weight, buy-and-hold to
+  the next rebalance, month-end marks; costs per side 35 / 75 bps by ADV bucket at t (exits at the leaving
+  name's bucket, missing → 75; dead proceeds free), deducted in the leg's first month; flat 75 bps RT
+  sensitivity; 25% long + 75% SPY TR satellite, Δ log wealth vs SPY TR, paired month-index block bootstrap
+  (1,000, seed 0, auto block), H1 met if either signal's 1.25th-percentile `ci_low` > 0; the short-leg
+  diagnostic on net legs; the §7.7 floors (≥ 300 ranked, ≥ 40 per tercile) AFTER the band, halting with
+  no return and never lowered; diagnostics: flat 75 bps, STRESS, LAST-PRICE, SURVIVOR-ONLY, Jaccard,
+  TF-IDF, risk only, MD&A only, 10-Q combo, 10-Q adjacent (net), 10-K only, 10-Q only, the IWM sleeve
+  beside each — a diagnostic failing its own floors is recorded as halted; smoke on the first 12 months
+  (never quoted); two runs to identical md5s before any number is quoted.
+
+### A9.4 N_trials
+**+2 at the T-265 run: the gate family {similarity, Δtone} +1, and H_OOS +1 (its own family, A6.2).** The
+director records it on main against this amendment's hash.
+
+### A9.5 Disclosures carried into the verdict
+3.1% of small-cap 10-Ks omit Item 1A (no combo pair; cannot be gate-ranked on 10-K quarters); the one
+out-of-window HTTP 503 (CIK 1837254, accepted 2026-05-15); the census's text counts are upper bounds
+before the ADV band; the census correction (co-registrant rows keyed on (cik, accession)); B-2's
+survivorship caveat verbatim — a PASS here is an UPPER BOUND.
+
+---
+
+## REVIEW NOTE on AMENDMENTS 8–9 (2026-11-17; append-only; written after the T-265 run and its independent review — APPROVE WITH REQUIRED FIXES). It changes no term, rule or number above.
+
+Verdict: `docs/Audit/b6_lazy_prices_t265_verdict_2026-11-17.md`.
+
+**RN.1 The forking path in A8 — disclosed, not a clean pass.**
+- **Two of the four conditioned rates were already fixed by A8.2's committed counts.** Both MD&A pair rates are ok ÷ (total − no prior) from A8.2's table: 10-K 98.1 vs 98.3; 10-Q 99.3 vs 98.9.
+- **The combo rates under exclusion (a) alone were also arithmetic from that table:**
+  - 10-Q combo would have FAILED: 88.1 vs 92.0, +3.9;
+  - 10-K combo would have sat at the edge: 93.8 vs 96.8, +3.0.
+- **The deciding exclusion, (b) (Item 1A not covered), was ruled with those counts on the table.** The director chose it knowing the worker's hand-back narrative of the two population differences (Item 1A omission 3.1% vs 0.0%).
+- **No price or return was involved at any step,** so neither H1 nor H_OOS is biased by it. But the fill's admission rests on a check chosen after its inputs were seen.
+
+**RN.2 The A8 erratum's provenance.**
+- **Its header** ("committed alone, BEFORE the check's result was computed or seen") should read **"before the result was SEEN"**.
+  - The pre-erratum implementation built the conditioned table in memory, then halted on its count assertion before printing or writing anything. That code was never committed.
+  - The committed `fill_population_check` (`d018f15`) also builds the table before its count assertion.
+- **The implemented `seven` list names `("10-Q", "risk_ok_excl_not_covered_pct")` twice,** so it checks six distinct rates. That is consistent with the erratum's reading.
+- **DIRECTOR RATIFICATION (verbatim):** "The director ratifies the erratum: my ruling's 'seven' was the 11 rates minus the four conditioned pair rates, with 10-Q Risk OK taken through its population-controlled rate; 'already passed' was my error for that one rate. The erratum does not change the rule."
+
+**RN.3 Identity and price inputs (`[NN-FAIL-CLOSED]`).**
+- **A9's manifest pinned the TEXT inputs only.** A new file records the rest: `docs/Sources/prereg_b6_t265_freeze_manifest_addendum_2026-11-17.json` (md5 `7232c4d4cf9eef6a819afa54002ec8f0`). The frozen manifest is not edited. The addendum holds:
+  - the Form 3/4/5 holder table, md5 `6b9901eb9082622ac1dfbefb44246260`, 358 rows, with its tickers sidecar;
+  - `cik_ticker_final.parquet`, md5 `8c6b022f…`;
+  - the 4,674 T-265 price files, per file and as an aggregate md5 `36cd3ddd…`;
+  - the SPY / IWM / BIL TR twins.
+- **The holder table was built AFTER the freeze.** The first census run built it at 2026-11-17T21:50:38Z, 41 s after `6b98883`. The reviewer regenerated it from source byte-identical, and the results md5 was unchanged.
+- **The addendum was recorded after the run.** The re-run on these bytes (run5) reproduced results md5 `886b6b0c791fd705b1361a70f6efcd0a`.
+- **`b6_cik_map.symbol_users` now halts when there are no insider zips** (`e5980c0`), instead of returning an empty table that would silently drop every ambiguous ticker. It is outside the frozen harness md5.

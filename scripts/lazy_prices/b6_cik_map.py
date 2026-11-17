@@ -202,9 +202,21 @@ def t265_shared_ticker_users() -> pd.DataFrame:
     shared = ct[ct.ticker.isin(set(n[n > 1].index))]
     members = set(pd.read_parquet(UNIVERSE_MONTHS).dropna(subset=["cik"]).cik.astype(int))
     tickers = set(shared[shared.cik.isin(members)].ticker)
+    return symbol_users(tickers)
+
+
+def symbol_users(tickers: set[str]) -> pd.DataFrame:
+    """WHO used each symbol WHEN in the cached Form 3/4/5 data: one row per (ticker, cik) with the
+    first and last insider filing under that symbol (keys normalised by `symbol_keys` /
+    `ticker_key`). Shared by AMENDMENT 4 (S&P fill) and the T-265 arm's identity rule (AMENDMENT 9,
+    applying AMENDMENT 4's rule). No insider zips at all HALTS ([NN-FAIL-CLOSED]): an empty holder
+    table would silently drop every ambiguous ticker from the T-265 ranking."""
     keys = {ticker_key(t): t for t in tickers}
+    zips = sorted(INSIDER_DIR.glob("*_form345.zip"))
+    if not zips:
+        raise SystemExit(f"FATAL: no insider zips under {INSIDER_DIR} — the holder table cannot be built")
     parts = []
-    for zp in sorted(INSIDER_DIR.glob("*_form345.zip")):
+    for zp in zips:
         with zipfile.ZipFile(zp) as z, z.open("SUBMISSION.tsv") as fh:
             df = pd.read_csv(fh, sep="\t", dtype=str, quoting=3, on_bad_lines="skip",
                              usecols=["FILING_DATE", "ISSUERCIK", "ISSUERTRADINGSYMBOL"])
@@ -216,6 +228,8 @@ def t265_shared_ticker_users() -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["FILING_DATE"], format="%d-%b-%Y", errors="coerce")
         df["cik"] = pd.to_numeric(df["ISSUERCIK"], errors="coerce")
         parts.append(df.dropna(subset=["date", "cik"])[["key", "cik", "date"]])
+    if not parts:
+        return pd.DataFrame(columns=["ticker", "cik", "first", "last", "n"])
     d = pd.concat(parts, ignore_index=True)
     d["cik"] = d["cik"].astype(int)
     d["ticker"] = d["key"].map(keys)
