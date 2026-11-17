@@ -42,5 +42,24 @@ for name, (contrib, buys, mirror, init_cash) in EXPECT.items():
           f"{name}: D+1 ledger = one init row, cash {init_cash}, positions {{}}")
     check("seeding price-basis marks (first run) for MTUM, SGOV, VOO" in txt,
           f"{name}: D+1 reason is the seeding stand-down")
+# --- the stray-run simulations (finding N1) ----------------------------------------------- #
+for name, rcs_want, init_cash, extra in (
+        ("stray_wedge", ["70", "70", "70", "70"], "88702.86", "reconcile 0/3; halted"),
+        ("stray_recover", ["70", "70", "0", "0"], "103514.78", ">>> RECOVERY: the stray's files moved aside")):
+    txt = (OUT / f"{name}.txt").read_text()
+    rcs = [rc for _, rc in re.findall(r"^######## (\S+) rc=(\d+)", txt, re.M)]
+    check(rcs == rcs_want, f"{name}: exit codes stray-D / D+1 / D+2 / D+3 = {rcs_want} (got {rcs})")
+    check("ledger rows: 1 last: {'event': 'init', 'cash': 88702.86, 'positions': {}}" in txt,
+          f"{name}: the stray seeds its ledger init at the PRE-liquidation cash 88702.86")
+    after = txt.split(">>> liquidated", 1)[1]
+    inits = [f"{float(x):.2f}" for x in re.findall(r"'event': 'init', 'cash': ([0-9.]+),", after)]
+    check(inits[:1] == [init_cash], f"{name}: after the liquidation the ledger's init cash is {init_cash} (got {inits[:1]})")
+    check(extra in after, f"{name}: '{extra}' after the liquidation")
+    runs = [line for line in after.splitlines() if line.startswith("last_run: ")]
+    if name == "stray_wedge":
+        check(sum('"halted": true' in r for r in runs) == 3, f"{name}: D+1, D+2 and D+3 all halted (wedged)")
+    else:
+        check([('"canonical": true' in r) for r in runs] == [False, True, True],
+              f"{name}: after the recovery D+1 seeds (non-canonical), D+2 and D+3 canonical")
 print(f"{'ALL PASS' if not fails else f'{fails} FAIL(S)'}")
 sys.exit(1 if fails else 0)

@@ -1,12 +1,14 @@
 import datetime as dt, inspect, json, sys
 from paper_trader.paper_client import AlpacaPaperClient
+from paper_trader.market_calendar import ET     # America/New_York, as the daily run uses
 D = "__D__"; ATTEMPT = __ATTEMPT__; EXECUTE = __EXECUTE__      # the execute job changes ONLY EXECUTE
-EXPECT = __EXPECT__          # from step 1's slice, re-confirmed at step 8
+EXPECT = __EXPECT__          # from step 2's slice, re-confirmed at step 8
 NO_TRADE_DATES = {"2026-11-26", "2026-11-27"}         # Thanksgiving; the 13:00 ET early close
 c = AlpacaPaperClient()
 acct = c._client.get_account()                       # read-only
 clock = c._client.get_clock()                        # read-only
 mins_left = (clock.next_close - clock.timestamp).total_seconds() / 60.0
+et_now = clock.timestamp.astimezone(ET)              # the broker's clock, read in ET
 raw = c.list_positions()
 pos = {p["symbol"]: int(p["qty"]) for p in raw}
 entry = {p["symbol"]: p.get("avg_entry_price") for p in raw}
@@ -15,11 +17,12 @@ open_o = [o for o in c.list_orders() if str(o.get("status", "")).lower() not in 
 print("RESET-A2 account_number=%s equity=%s cash=%s" % (acct.account_number, acct.equity, acct.cash))
 print("RESET-A2 positions_before=" + json.dumps(pos, sort_keys=True))
 print("RESET-A2 broker_avg_entry=" + json.dumps(entry, sort_keys=True))
-print("RESET-A2 open_orders=%d market_open=%s minutes_to_close=%.0f attempt=%d execute=%s"
-      % (len(open_o), clock.is_open, mins_left, ATTEMPT, EXECUTE))
+print("RESET-A2 clock_et=%s open_orders=%d market_open=%s minutes_to_close=%.0f attempt=%d execute=%s"
+      % (et_now.isoformat(), len(open_o), clock.is_open, mins_left, ATTEMPT, EXECUTE))
 why = []
 if D in NO_TRADE_DATES: why.append(f"D={D} is excluded")
-if clock.timestamp.date().isoformat() != D: why.append(f"broker date {clock.timestamp.date()} != D {D}")
+if et_now.date().isoformat() != D: why.append(f"broker date (ET) {et_now.date()} != D {D}")
+if (et_now.hour, et_now.minute) < (10, 0): why.append(f"before 10:00 ET ({et_now:%H:%M})")
 if not clock.is_open: why.append("market closed")
 if mins_left < 30: why.append(f"only {mins_left:.0f} min to the close")
 if pos != EXPECT: why.append(f"positions {pos} != EXPECT {EXPECT}")

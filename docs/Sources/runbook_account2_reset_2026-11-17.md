@@ -1,4 +1,4 @@
-# ACCOUNT 2 RESET RUNBOOK — PROPOSED, REVISION 2 (risk lens, 2026-11-17; propose-first)
+# ACCOUNT 2 RESET RUNBOOK — PROPOSED, REVISION 3 (risk lens, 2026-11-17; propose-first)
 
 **Status:** PROPOSED. Nothing in this document has been run. Every command below is text for a later,
 explicitly approved session. This revision changed no state: no S3 or AWS writes, no broker calls, no
@@ -13,8 +13,10 @@ explicitly approved session. This revision changed no state: no S3 or AWS writes
 the command that re-runs its test. All of them run locally with no network, no broker and no AWS:
 - `sim_reset.py`, the independent reviewer's driver, which runs the REAL `run_paper_cloud_day.main()` for D+1/D+2/D+3 from an empty state against a fake flat broker at the 2026-11-16 closes. It is committed with one safety change: it refuses an existing or in-repo work path instead of deleting it.
 - `sim_variant.py`, which covers the three variants: the $10,000 re-base, and option A at $10,000 with and without the re-base.
-- `run_sims.sh <repo_root>`, which runs all four and asserts every D+1/D+2/D+3 expectation quoted in §0.1 and §8 (28 checks, ALL PASS on 2026-11-17).
-- `check_archive.sh`, `check_sched_state.py`, `check_reset_a2.py` and `check_postcheck.py`, which test the §7 scripts against a fake S3, a synthetic schedule and fake broker modules.
+- `sim_stray.py` (the delta reviewer's): a stray run after the archive and before the liquidation, in `wedge` mode and in `recover` mode.
+- `run_sims.sh <repo_root>`, which runs all six simulations and asserts every D+1/D+2/D+3 expectation quoted in §0.1, §7 and §8 (38 checks, ALL PASS on 2026-11-17). It needs the repo's venv interpreter and STOPs with a clear message otherwise.
+- `check_archive.sh`, `check_restore.sh`, `check_gate.sh`, `check_step2.sh`, `check_sched_state.py`, `check_reset_a2.py` and `check_postcheck.py`, which test the §7 scripts against a fake S3 / schedule / jobdef and fake broker modules (74 cases).
+- `mutate.py`, the mutation harness (the delta reviewer's list plus 28 new mutants). 59 mutants: 57 caught, 2 declared equivalent with their reasons.
 - `check_embedded.py`, which proves that the §7.1–7.4 text in this runbook is byte-identical to the committed files.
 
 The reviewer's original evidence (`/tmp/runbook_review_fresh/`) is ephemeral and is cited only where it
@@ -24,11 +26,16 @@ was the source.
 journaled basis adjustment, as recorded at `docs/State/CURRENT_STATE.md:177` on main: "The broker's own
 balance is not a valid seed … so the reset restarts at a clean $10,000 tier with a new record epoch".
 
-**Review verdict (2026-11-17):**
-- Option B: READY WITH REQUIRED FIXES (findings 2, 3, 4, 5). If U2 = re-base, B is NOT READY until finding 1 is fixed.
-- Option A: NOT READY.
-
-Revision 2 fixes every finding. The map is in §11.
+**Review verdicts (2026-11-17):**
+- **First review:**
+  - Option B: READY WITH REQUIRED FIXES (findings 2, 3, 4, 5). If U2 = re-base, B is NOT READY until finding 1 is fixed.
+  - Option A: NOT READY.
+  - Revision 2 fixed all 15; the map is in §11.
+- **Delta review of revision 2:**
+  - All 15 FIXED; the re-base path is executable as written.
+  - Option B: READY WITH REQUIRED FIXES (N1 only).
+  - Option A: NOT READY, unchanged.
+  - Revision 3 fixes N1–N7; the map is in §11.1.
 
 **Tags.** Each claim carries `[VERIFIED: source]` (a file:line, an S3 key or AWS response read on
 2026-11-17, a public doc URL read on 2026-11-17, or a named simulation) or `[UNVERIFIED]`.
@@ -123,7 +130,7 @@ The tracker is tier-honest only under A at $10,000. The Alpaca balance is never 
 | F9 | **Corrected (finding 2).** The mirror is passed the BASE cap of $10,000, not the contributed cap [VERIFIED: `scripts/run_paper_cloud_day.py:1592` vs `:861-862, 941-942`]. So from D+3 its `total_change` reads about **+$1,089.61** under U2-default: the deployed contributions minus about $76 of residual tier cash that is clipped to 0 [VERIFIED: `paper_trader/fleet_mirror.py:113-120`; simulation D+3]. It is NOT the "+$1,166 at arrival" that revision 1 stated. On arrival day it reads −$10,000 (F10). | This is not performance. The director is adding it to T-401. |
 | F10 | **The arrival-day mirror is wrong (finding 2).** The mirror takes `positions=broker_positions` [VERIFIED: `scripts/run_paper_cloud_day.py:1585`], captured once BEFORE trading [VERIFIED: `:621`], but takes its basis from the POST-fill journal [VERIFIED: `:1568-1574`]. On D+2 there are no position rows, and `cash = max(10000 − basis, 0)`, so `tier_equity` = 0.00 and `total_change` = −10,000 under U2-default, or about 89.52 / about −9,910 under re-base [VERIFIED: simulations]. It corrects on D+3. | Artifact 2 reads positions from the ledger, journal and lots (§8). The director is adding the stale-positions defect to T-401. The arrival-day mirror has never been observed live: the 09-15 arrival predates both the mirror and the corporate-action gate (deployed 2026-11-14) [VERIFIED: `docs/State/health_check.md:63`; `docs/Archive/state_history/CURRENT_STATE_full_history_to_2026_09_17.md:13`]. |
 | F11 | **The split feed asks nothing on D+1 or D+2 (finding 6).** Nothing is held or journaled, so `tickers == []` and `reason "no tickers to ask about"` [VERIFIED: `paper_trader/corporate_actions.py:256-260`; simulation D+1/D+2]. The feed first asks on D+3 (`tickers [MTUM, SGOV, VOO]`) [VERIFIED: simulation D+3]. | The arrival buys go through with no feed query. Only the price-basis guard (seeded D+1) and the manual calendar check (P2) stand. |
-| F12 | **The S3 objects are SSE-S3 single-part, and versioning is off for them.** `head-object` returns ETag = md5 and VersionId null [VERIFIED: `head-object` on `…/price_basis_marks.json`, ETag `3671af88…` = md5 of the snapshot copy; `ServerSideEncryption AES256`]. `GetBucketVersioning` is denied to the CLI user [VERIFIED: `scripts/ledger_backup.py:22`]. | The protections are the step-1 local snapshot plus the byte-verified archive copy. There is no versioning safety net. |
+| F12 | **The S3 objects are SSE-S3 single-part, and versioning is off for them.** `head-object` returns ETag = md5 and VersionId null [VERIFIED: `head-object` on `…/price_basis_marks.json`, ETag `3671af88…` = md5 of the snapshot copy; `ServerSideEncryption AES256`]. `GetBucketVersioning` is denied to the CLI user [VERIFIED: `scripts/ledger_backup.py:22`]. | The protections are the step-2 local snapshot plus the byte-verified archive copy. There is no versioning safety net. |
 
 ---
 
@@ -139,7 +146,7 @@ written by the 14:51 UTC run [VERIFIED: `aws s3 ls --recursive`].
 | `data/paper_state/orders.jsonl` | 33,463 | `OrderManager` [VERIFIED: `:585-588`] | reconcile, split-gate fill dating, mirror basis [VERIFIED: `paper_trader/held_reconcile.py:28-52`; `paper_trader/corporate_actions.py:778-799`; `scripts/run_paper_cloud_day.py:1568-1574`] | **ARCHIVE + MOVE ASIDE.** 27 orders: 12 filled, 15 STAGED and never submitted [VERIFIED: object read]. |
 | `data/paper_state/recon.jsonl` | 41,400 | `PaperScheduler` [VERIFIED: `:596-597`] | nothing reads it back [VERIFIED: `paper_trader/clock_census.py:523`] | **ARCHIVE + MOVE ASIDE.** |
 | `data/state/deploy_candidate_tracking.json` | 24,524 | `SleeveTracker` [VERIFIED: `:1479-1495`] | the next run; the summary covers ALL points [VERIFIED: `paper_trader/sleeve_tracker.py:265-283`] | **ARCHIVE + MOVE ASIDE + LABEL VOID.** The summary shows CAGR 0.1983 / Sharpe 1.651, which is the windfall. |
-| `data/state/fleet_mirror_slice.json` | 650 | mirror block [VERIFIED: `:1563-1598`] | the next run as `prev_tier_equity`; `day_change` is always null because of a swallowed NameError (no `import json`) [VERIFIED: `:1575-1581`]. The serving layer is not live. | **ARCHIVE + MOVE ASIDE.** `tier_equity` 14,811.92 includes the windfall. Its `positions` are the step-1 source of EXPECT (§7). |
+| `data/state/fleet_mirror_slice.json` | 650 | mirror block [VERIFIED: `:1563-1598`] | the next run as `prev_tier_equity`; `day_change` is always null because of a swallowed NameError (no `import json`) [VERIFIED: `:1575-1581`]. The serving layer is not live. | **ARCHIVE + MOVE ASIDE.** `tier_equity` 14,811.92 includes the windfall. Its `positions` are the step-2 source of EXPECT (§7). |
 | `data/state/paper_alerts.log` | 14,166 | `PaperHeartbeat._notify` (`DEFAULT_ALERT_LOG`) [VERIFIED: `paper_trader/heartbeat.py:33`] | no gate | **ARCHIVE + MOVE ASIDE.** |
 | `data/state/paper_heartbeat.json` | 5,375 | `PaperHeartbeat` (`DEFAULT_STATUS`) [VERIFIED: `paper_trader/heartbeat.py:32`; `scripts/run_paper_cloud_day.py:976-996`] | `scripts/fleet_health.py` [VERIFIED: `:26-30, 135-141`]; `hb.check()` reads only today's run [VERIFIED: `paper_trader/heartbeat.py:344-371`] | **ARCHIVE + MOVE ASIDE.** Account 2 reads UNKNOWN until D+1's run (§8 step-13 branch). |
 | `data/state/price_basis_marks.json` | 1,154 | gate save [VERIFIED: `paper_trader/corporate_actions.py:553-570, 1002-1007`] | the next run's gate [VERIFIED: `scripts/run_paper_cloud_day.py:638-653`] | **ARCHIVE + MOVE ASIDE.** It holds the ack-only MTUM `ledger` freeze [VERIFIED: object read; `paper_trader/corporate_actions.py:453, 695`]. |
@@ -274,7 +281,7 @@ signature, then execute [VERIFIED: `scripts/transition_acct2_to_deploy_candidate
 **Epoch 1, archived and labelled:**
 - VALID as mechanics evidence: 2026-09-15 → 11-04 (35 tracked clean sessions 09-17 → 11-04, plus 09-15/16 untracked).
 - VOID: 2026-11-05 → D, including 11-05, which the tracker records as clean.
-- **Two copies exist:** the step-1 local snapshot in `$OPS/snapshot/` (finding 12) and the S3 archive `$ARCH`. Plus the moved-aside originals in `$ASIDE`.
+- **Two copies exist:** the step-2 local snapshot in `$OPS/snapshot/` (finding 12) and the S3 archive `$ARCH`. Plus the moved-aside originals in `$ASIDE`.
 
 **Objects written into the archive** (§7.5 text):
 - `README_VOID.txt` — includes the liquidation's realized P&L and the wash-guard bypass;
@@ -300,7 +307,7 @@ signature, then execute [VERIFIED: `scripts/transition_acct2_to_deploy_candidate
 
 ---
 
-## 7. Sequence and roles (item 6) — reordered so everything reversible comes before the broker step (finding 4)
+## 7. Sequence and roles (item 6) — everything reversible before the broker step; a stray-run gate before it (findings 4, N1)
 
 **Roles:**
 - **USER:** the user's login, hands or word.
@@ -309,57 +316,79 @@ signature, then execute [VERIFIED: `scripts/transition_acct2_to_deploy_candidate
 
 **Points of no return:**
 - **Option B: step 10, the sells.**
-  - Before step 10, every step is reversible: restore the archived state (the step-5 rollback) and
-    re-enable the schedule, and the account is back to today's halted state.
-  - After step 10, restoring the old state still yields a halted account, which is a safe resting
-    state, but the positions are gone.
+  - Before step 10, every step is reversible: `restore.sh` puts the archived state back (§7.6), the schedule is re-enabled, and the account is back to today's halted state.
+  - After step 10, the broker is flat and the old state no longer explains it. The way forward is §7.6 "after step 10", never a restore.
 - **Option A: deleting the old account.**
+
+**Why there is a gate before step 10 (delta finding N1, reproduced by `sim_stray.py`).** Suppose a run
+fires after the archive (step 5) but before the liquidation (step 10).
+- It seeds a fresh ledger `init` from the PRE-liquidation broker cash: 88,702.86 on today's numbers.
+- After the sells, the broker shows about 103,514.78 cash on a flat account.
+- A flat ledger's cash is never adopted [VERIFIED: `paper_trader/held_reconcile.py:94-96, 116-118`], so every later run halts on CASH_DRIFT. The account is wedged.
+
+The guards:
+1. `archive.sh` and `restore.sh` refuse to run unless the schedule is DISABLED.
+2. `gate_live_clean.sh` runs at steps 7, 9.5 and 12. It passes only when the schedule is DISABLED and the live prefix holds nothing but `data/state/exec_cost_ledger.jsonl`.
+3. §7.6 is the recovery path if a stray run happens anyway.
+
+[VERIFIED: committed `sim_stray.py`. In wedge mode stray-D, D+1, D+2 and D+3 all exit 70 and D+1..D+3 are halted. In recover mode the exits are 70 / 70 / 0 / 0, with D+1's init cash 103,514.78; `check_sims.py` asserts both.]
 
 **Pre-conditions — all must hold before step 1:**
 - **P1:** U1–U3 have been given.
 - **P2:** D is chosen:
   - a full regular session, on or after 2026-11-18;
-  - not 2026-11-26 or 11-27 (Thanksgiving; the 11-27 13:00 ET close) [VERIFIED: RESOLVED-TRUE by the review];
+  - not 2026-11-26 or 11-27 (Thanksgiving; the 11-27 13:00 ET close) [VERIFIED: RESOLVED-TRUE by the review]. The liquidation body refuses both dates by itself;
   - D+1 and D+2 are trading days;
   - the operator has checked the corporate-action calendar for VOO / MTUM / SGOV from D to D+2. This is manual because the feed asks nothing on D+1 or D+2 (F11) [UNVERIFIED: no source checked yet].
 - **P3 (re-base only):** step 0.5 is complete and its readback is recorded.
 - **P4:** the scripts are copied from the COMMITTED folder, at a recorded commit, into `$OPS`. `$OPS` is a dated directory OUTSIDE the repo, e.g. `~/archondex_ops/acct2_reset_<D>/`:
-  - `C=docs/Sources/runbook_account2_reset_ops; git rev-parse HEAD > $OPS/ops_commit.txt; cp $C/{sched_state.py,archive.sh,render.py,reset_a2.tmpl.py,postcheck_a2.tmpl.py} $OPS/`.
-  - Before step 1, re-run their tests from that same commit. Each must end `ALL PASS`, or exit 0 for `check_embedded.py`: `bash $C/check_archive.sh`, `python3 $C/check_sched_state.py`, `python3 $C/check_reset_a2.py`, `python3 $C/check_postcheck.py`, `python3 $C/check_embedded.py`, `bash $C/run_sims.sh .` (details in [the folder README](runbook_account2_reset_ops/README.md)).
+  - `C=docs/Sources/runbook_account2_reset_ops; git rev-parse HEAD > $OPS/ops_commit.txt; cp $C/{step2_snapshot.sh,sched_state.py,archive.sh,restore.sh,gate_live_clean.sh,render.py,reset_a2.tmpl.py,postcheck_a2.tmpl.py} $OPS/`.
+  - Before step 1, re-run the folder's tests from that same commit, as [the folder README](runbook_account2_reset_ops/README.md) lists them. Every test must end `ALL PASS`; `check_embedded.py` and `mutate.py` must exit 0.
+
+### 7.0 Operator variables and the step-1 commands (fenced so they copy cleanly — finding N4)
 
 ```bash
 P=archondex; R=us-east-1; B=archondex-results-407539788432
 PFX=paper_state_offense_sso; D=<YYYY-MM-DD>; OPS=~/archondex_ops/acct2_reset_$D
 ARCH=$PFX/archive_deploy_candidate_epoch1_$D; ASIDE=$PFX/reset_aside_$D
 SCHED=archondex-paper-offense-sso-daily; JDNAME=archondex-paper-offense-sso; Q=archondex-backtest-queue
+EXPECT_IMAGE=paper-sha-716ca04     # under U2 = re-base: the tag step 0.5 deployed
 RELS="data/paper_state/ledger.jsonl data/paper_state/orders.jsonl data/paper_state/recon.jsonl \
 data/state/deploy_candidate_tracking.json data/state/fleet_mirror_slice.json data/state/paper_alerts.log \
 data/state/paper_heartbeat.json data/state/price_basis_marks.json data/state/tax_lots.jsonl"
-export P R B PFX D OPS ARCH ASIDE RELS
+export P R B PFX D OPS ARCH ASIDE SCHED JDNAME EXPECT_IMAGE RELS
 submit() {  # submit a one-shot body on the LIVE pinned jobdef $JD (never the laptop — F8)
   python3 -c "import json,sys;print(json.dumps({'command':['python','-c',open(sys.argv[1]).read()]}))" "$1" > "$OPS/ov_$2.json"
   aws batch submit-job --job-name "reset-a2-$2-$D" --job-queue $Q --job-definition "$JD" \
     --container-overrides "file://$OPS/ov_$2.json" --profile $P --region $R --query jobId --output text
 }   # read the log: describe-jobs → container.logStreamName; group /aws/batch/job [VERIFIED: jobdef logConfiguration]
+
+# STEP 1 — D's scheduled run is terminal, and the queue is idle  [VERIFIED: both forms run 2026-11-17]
+aws batch list-jobs --job-queue $Q --filters name=JOB_NAME,values=paper-offense-sso-day \
+  --profile $P --region $R --query 'jobSummaryList[0:3].[status,createdAt,container.exitCode]' --output text
+for s in SUBMITTED PENDING RUNNABLE STARTING RUNNING; do
+  aws batch list-jobs --job-queue $Q --job-status $s --profile $P --region $R --query 'length(jobSummaryList)' --output text
+done
 ```
 
 | # | Who | Step (command of record) | Artifact that proves it | Rollback |
 |---|---|---|---|---|
 | 0 | READ | `python -m scripts.fleet_health` (read the **account-2 line**); `python scripts/diff_live_paper_infra.py` [VERIFIED: `docs/Core/execution_manual.md:1010, 1342`] | Account-2 line still reads "reconcile 0/3; halted; UNEXPLAINED … FROZEN MTUM". Drift: `No drift.` **Anything else: STOP.** | — |
-| 0.5 | DIRECTOR on the USER's word — **re-base only**, completed BEFORE step 1 (finding 1) | (a) A branch sets `contributions.start_date` = the planned arrival date D+2 in `config/deploy_candidate.json`; review it and merge it to main (live path; never deploy unmerged code). (b) `git diff --stat 716ca04 <commit> -- paper_trader scripts/run_paper_cloud_day.py scripts/paper_cloud_entrypoint.sh Dockerfile.paper requirements.lock.txt config engines intelligence core`: **any change under `paper_trader/`, the driver, the entrypoint, `Dockerfile.paper` or the lock file → STOP and review.** Today (main `f13a1c5`) the diff is `core/census.py`, `core/measurement/mbl_gate.py`, `engines/data_manager/{convention,era_tr,stooq_tier1,tr_writer}.py` and four research configs. None runs on this path: the only import is `core.census` at `paper_trader/heartbeat.py:90`, reached only when a summary is passed, which the scheduler never does [VERIFIED: `paper_trader/scheduler.py:357, 361-373`]. (c) `scripts/build_paper_image.sh <commit> "$REF"` [VERIFIED: `docs/Core/execution_manual.md:975-976`]. (d) `python scripts/redeploy_one_account.py --account offense-sso --image "$REF"` (dry run), then `--execute` [VERIFIED: `docs/Core/execution_manual.md:1053`]. | Prints `diff-vs-LIVE: image ONLY ✓`. The schedule readback names the NEW `:N`. The drift gate prints `No drift.` | Redeploy the `paper-sha-716ca04` image the same way, which gives yet another new revision. |
-| 1 | READ | **Snapshot + live revision.** `aws s3 cp --recursive s3://$B/$PFX/data/ $OPS/snapshot/data/ --profile $P --region $R --no-progress`; `(cd $OPS/snapshot && find data -type f -exec md5 -r {} \; \| sort -k2) > $OPS/snapshot_md5.txt`; `aws scheduler get-schedule --name $SCHED --profile $P --region $R --output json > $OPS/sched_live.json`; `JD=$(python3 -c "import json,sys;print(json.loads(json.load(open(sys.argv[1]))['Target']['Input'])['JobDefinition'].rsplit('/',1)[-1])" $OPS/sched_live.json)`; `aws batch describe-job-definitions --job-definition-name $JDNAME --status ACTIVE --profile $P --region $R --query 'reverse(sort_by(jobDefinitions,&revision))[0].[revision,containerProperties.image]' --output text`; `EXPECT=$(python3 -c "import json,sys;print(json.dumps({p['ticker']:p['qty'] for p in json.load(open(sys.argv[1]))['positions']},sort_keys=True))" $OPS/snapshot/data/state/fleet_mirror_slice.json)` [VERIFIED: every command above run read-only on 2026-11-17, giving `archondex-paper-offense-sso:21`, `21 …:paper-sha-716ca04` and `{"MTUM": 92, "SGOV": 6, "VOO": 12}`] | `$JD` = `$JDNAME:<latest ACTIVE revision>`. Image = `paper-sha-716ca04` (U2-default) or the step-0.5 tag (re-base). `EXPECT` recorded. **A mismatch: STOP.** | — |
-| 2 | READ | **In flight / idle:** `aws batch list-jobs --job-queue $Q --filters name=JOB_NAME,values=paper-offense-sso-day --profile $P --region $R --query 'jobSummaryList[0:3].[status,createdAt,container.exitCode]' --output text`; `for s in SUBMITTED PENDING RUNNABLE STARTING RUNNING; do aws batch list-jobs --job-queue $Q --job-status $s --profile $P --region $R --query 'length(jobSummaryList)' --output text; done` [VERIFIED: both forms run 2026-11-17] | D's job is terminal and the heartbeat `run_date` = D. **Every status count is 0:** the queue is shared with backtests, and a busy queue would delay the one-shot jobs past the close. | — |
-| 3 | DIRECTOR | **Probe `s3:DeleteObject` first (finding 4):** `echo "account-2 reset probe $D" > $OPS/probe.txt`; `aws s3 cp $OPS/probe.txt s3://$B/$ASIDE/_probe/created.txt --profile $P --region $R`; `aws s3 mv s3://$B/$ASIDE/_probe/created.txt s3://$B/$ASIDE/_probe/moved.txt --profile $P --region $R` | `aws s3 ls s3://$B/$ASIDE/_probe/` shows only `moved.txt`. **Denied: STOP.** Nothing live has changed; the probe sits outside every key a run reads. | — |
-| 4 | DIRECTOR | **Disable** from a FRESH GET: `aws scheduler get-schedule … > $OPS/sched_now.json`; `python3 $OPS/sched_state.py $OPS/sched_now.json DISABLED $JD $OPS/sched_off.json`; `aws scheduler update-schedule --cli-input-json file://$OPS/sched_off.json --profile $P --region $R` [VERIFIED pattern: `scripts/redeploy_one_account.py:94-124`; `docs/Core/execution_manual.md:1115-1124`; `sched_state.py` tested on the live JSON] | Readback `--query '[State,Target.Input]'`: `DISABLED`, pin `$JD` | §7.1 with `ENABLED $JD` from a fresh GET |
-| 5 | DIRECTOR | **Archive + move aside:** `bash $OPS/archive.sh` (§7.2) | `DONE`; 9 rows in `MANIFEST_md5.txt`; every archive md5 = the snapshot md5 = the live md5 at the move | **Restore:** `for REL in $RELS; do aws s3 mv s3://$B/$ASIDE/$REL s3://$B/$PFX/$REL --profile $P --region $R; done`. Valid until a run writes those keys. The schedule is disabled, so no run can. |
-| 6 | DIRECTOR | **Exec-cost snapshot + labels:** `aws s3 cp s3://$B/$PFX/data/state/exec_cost_ledger.jsonl s3://$B/$ARCH/data/state/exec_cost_ledger.jsonl …`; append `<rel> <bytes> <md5>` to the manifest; upload `README_ASIDE.txt` to `$ASIDE/` and the manifest to `$ARCH/`. README_VOID is uploaded at step 11, once the P&L is known. | All three objects are listed; the exec-cost copy's md5 = live | — |
-| 7 | READ | `aws s3 ls --recursive s3://$B/$PFX/` | Live keys: ONLY `data/state/exec_cost_ledger.jsonl`, plus `archive_offense_2026-09-11/`, `$ARCH/`, `$ASIDE/` | step-5 restore |
-| 8 | DIRECTOR | **Pre-liquidation flat-check:** render §7.4 with `TICKERS=[]` and run `submit $OPS/pc_pre.py pre`. Re-run step 2's idle check. | `FLATCHECK` positions = `$EXPECT`; `n_open_orders` 0; `account_number` recorded. The clock is ≥ 10:00 ET and ≥ 30 min before the close. **Otherwise: STOP**, then step-5 restore and step-12 re-enable. | step-5 restore + re-enable |
-| 9 | DIRECTOR | **(B) Dry run:** `python3 $OPS/render.py $OPS/reset_a2.tmpl.py $OPS/r_dry.py D=$D EXPECT="$EXPECT" ATTEMPT=1 EXECUTE=False`; `submit $OPS/r_dry.py dry` | Log: `positions_before` = EXPECT; `broker_avg_entry` printed; three `DRY-RUN would sell` lines; `RESULT ok`; exit 0. **A REFUSED line or a non-zero exit: STOP.** | step-5 restore + re-enable |
-| 10 | DIRECTOR — **(B) point of no return** | **Execute:** render with `EXECUTE=True`, then `submit $OPS/r_exec.py exec` | three `submitted` lines (coids `reset-a2-<D>-<T>-sell-a1`); `RESULT ok` | **Partial / FAILED:** never re-buy. Run step 11. Then either re-run with `ATTEMPT=2` and `EXPECT` = the REMAINING positions, before 15:30 ET, or stop with the account halted (restore + re-enable). |
-| 11 | DIRECTOR | **Post-check:** render §7.4 with `TICKERS=["MTUM","SGOV","VOO"]`, then `submit $OPS/pc_post.py post`. Fill README_VOID's P&L from the FILL lines and step 9's `broker_avg_entry`, then upload it to `$ARCH/`. | `FLAT=True`; equity ≈ cash ≈ $103.5k; the same `account_number` as step 8 | — |
+| 0.5 | DIRECTOR on the USER's word — **re-base only**, completed BEFORE step 1 (finding 1) | (a) A branch sets `contributions.start_date` = the planned arrival date D+2 in `config/deploy_candidate.json`; review it and merge it to main (live path; never deploy unmerged code). (b) `git diff --stat 716ca04 <commit> -- paper_trader scripts/run_paper_cloud_day.py scripts/paper_cloud_entrypoint.sh Dockerfile.paper requirements.lock.txt config engines intelligence core`: **any change under `paper_trader/`, the driver, the entrypoint, `Dockerfile.paper` or the lock file → STOP and review.** Today (main `f13a1c5`) the diff is `core/census.py`, `core/measurement/mbl_gate.py`, `engines/data_manager/{convention,era_tr,stooq_tier1,tr_writer}.py` and four research configs. None runs on this path [VERIFIED: `paper_trader/heartbeat.py:90`; `paper_trader/scheduler.py:357, 361-373`; the delta review's import probe loaded none of them over three simulated days]. (c) `scripts/build_paper_image.sh <commit> "$REF"` [VERIFIED: `docs/Core/execution_manual.md:975-976`]. (d) `python scripts/redeploy_one_account.py --account offense-sso --image "$REF"` (dry run), then `--execute` [VERIFIED: `docs/Core/execution_manual.md:1053`]. | Prints `diff-vs-LIVE: image ONLY ✓`. The schedule readback names the NEW `:N`. The drift gate prints `No drift.` | Redeploy the `paper-sha-716ca04` image the same way, which gives yet another new revision. |
+| 1 | READ | **D's run is terminal; the queue is idle** (§7.0, "STEP 1"). This runs BEFORE the snapshot (N5), so the snapshot cannot catch D's run mid-write. | The newest `paper-offense-sso-day` is SUCCEEDED or FAILED, and its heartbeat `run_date` = D. Every status count is 0: the queue is shared with backtests, and a busy queue would delay the one-shot jobs past the close. | — |
+| 2 | READ | **Snapshot + live revision:** `bash $OPS/step2_snapshot.sh && . $OPS/step2.env` (N4: a committed script). It refuses a reused OPS dir, a schedule pin that is not the latest ACTIVE revision, and an image that is not `$EXPECT_IMAGE` [VERIFIED: `check_step2.sh`, 7/7]. The same reads, run by hand read-only on 2026-11-17, gave `archondex-paper-offense-sso:21`, `paper-sha-716ca04` and `{"MTUM": 92, "SGOV": 6, "VOO": 12}`. | `STEP2 OK: JD=… image=… EXPECT=…`; `$JD` and `$EXPECT` now set | — |
+| 3 | DIRECTOR | **Probe `s3:DeleteObject` first (finding 4):** `echo "account-2 reset probe $D" > $OPS/probe.txt`; `aws s3 cp $OPS/probe.txt s3://$B/$ASIDE/_probe/created.txt --profile $P --region $R`; `aws s3 mv s3://$B/$ASIDE/_probe/created.txt s3://$B/$ASIDE/_probe/moved.txt --profile $P --region $R`. **N6:** the probe writes and moves ONLY under `reset_aside_<D>/_probe/`, never under `data/`, so no run can read it. Even if the probe passes and the REAL move is later denied at step 5, the denial still lands before the irreversible step 10: `archive.sh` stops, `restore.sh` puts back whatever moved, and the broker is untouched. | `aws s3 ls s3://$B/$ASIDE/_probe/` shows only `moved.txt`. **Denied: STOP.** Nothing live has changed. | — |
+| 4 | DIRECTOR | **Disable** from a FRESH GET: `aws scheduler get-schedule --name $SCHED --profile $P --region $R --output json > $OPS/sched_now.json`; `python3 $OPS/sched_state.py $OPS/sched_now.json DISABLED $JD $OPS/sched_off.json`; `aws scheduler update-schedule --cli-input-json file://$OPS/sched_off.json --profile $P --region $R` [VERIFIED pattern: `scripts/redeploy_one_account.py:94-124`; `docs/Core/execution_manual.md:1115-1124`; `check_sched_state.py` 7/7] | Readback `--query '[State,Target.Input]'`: `DISABLED`, pin `$JD` | `sched_state.py … ENABLED $JD` from a fresh GET |
+| 5 | DIRECTOR | **Archive + move aside:** `bash $OPS/archive.sh` (§7.2). It refuses unless the schedule is DISABLED (N1), refuses an existing manifest (N3), and refuses to overwrite an archive or aside key [VERIFIED: `check_archive.sh` 14/14]. | `DONE`; 9 rows `<rel> <bytes> <md5>` in `MANIFEST_md5.txt`; every archive md5 = the snapshot md5 = the live md5 at the move | **Restore** (verified, N3): `RELS="$(cut -d' ' -f1 $OPS/MANIFEST_md5.txt)" bash $OPS/restore.sh`. It refuses an occupied destination and checks md5 against the archive. Valid until a run writes the live keys [VERIFIED: `check_restore.sh` 10/10]. |
+| 6 | DIRECTOR | **Exec-cost snapshot + labels:** `aws s3 cp s3://$B/$PFX/data/state/exec_cost_ledger.jsonl s3://$B/$ARCH/data/state/exec_cost_ledger.jsonl …`; append its `<rel> <bytes> <md5>` row to the manifest; upload `README_ASIDE.txt` to `$ASIDE/` and the manifest to `$ARCH/`. README_VOID is uploaded at step 11, once the P&L is known. | All three objects are listed; the exec-cost copy's md5 = live | — |
+| 7 | READ | **Gate:** `bash $OPS/gate_live_clean.sh` [VERIFIED: `check_gate.sh` 5/5] | `GATE OK: schedule DISABLED; live prefix holds only data/state/exec_cost_ledger.jsonl` | step-5 restore |
+| 8 | DIRECTOR | **Pre-liquidation flat-check:** `python3 $OPS/render.py $OPS/postcheck_a2.tmpl.py $OPS/pc_pre.py D=$D ATTEMPT=1 'TICKERS=[]'`; `submit $OPS/pc_pre.py pre`. Then re-run step 1's idle loop. | `FLATCHECK` positions = `$EXPECT`; `n_open_orders` 0; `account_number` recorded; the `CLOCK` line (ET) reads ≥ 10:00 and ≥ 30 min before the close. The liquidation body ENFORCES both (N5) [VERIFIED: `check_reset_a2.py`]. **Otherwise: STOP**, then the step-5 restore and re-enable. | step-5 restore + re-enable |
+| 9 | DIRECTOR | **(B) Dry run:** `python3 $OPS/render.py $OPS/reset_a2.tmpl.py $OPS/r_dry.py D=$D EXPECT="$EXPECT" ATTEMPT=1 EXECUTE=False`; `submit $OPS/r_dry.py dry` | Log: `positions_before` = EXPECT; `broker_avg_entry` and `clock_et` printed; three `DRY-RUN would sell` lines; `RESULT ok`; exit 0. **A REFUSED line or a non-zero exit: STOP.** | step-5 restore + re-enable |
+| 9.5 | DIRECTOR — **IMMEDIATELY before step 10 (N1)** | **Gate again:** `bash $OPS/gate_live_clean.sh` | `GATE OK`. **Anything else means a stray wrote state: STOP. Do NOT run step 10; go to §7.6 "before step 10".** | §7.6 |
+| 10 | DIRECTOR — **(B) point of no return** | **Execute:** render with `EXECUTE=True`, then `submit $OPS/r_exec.py exec` | three `submitted` lines (coids `reset-a2-<D>-<T>-sell-a1`); `RESULT ok` | **Partial / FAILED:** never re-buy. Run step 11. Then either re-run with `ATTEMPT=2` and `EXPECT` = the REMAINING positions, before 15:30 ET (the coids become `-a2`, tested), or stop with the account halted. |
+| 11 | DIRECTOR | **Post-check:** render §7.4 with `'TICKERS=["MTUM", "SGOV", "VOO"]'`, then `submit $OPS/pc_post.py post`. Fill README_VOID's P&L from the FILL lines and step 9's `broker_avg_entry`, then upload it to `$ARCH/`. | `FLAT=True`; equity ≈ cash ≈ $103.5k; the same `account_number` as step 8 | — |
 | 8A–11A | USER, then DIRECTOR (option A instead of 9–11) | The user creates the account, generates keys, and puts them into the secret (console). The director runs `pc_pre.py` again. | A NEW `account_number`; `FLAT=True`; `equity` = the chosen balance exactly | Put the old key pair back; possible only while the old account and its keys exist |
-| 12 | DIRECTOR | **Re-enable from a FRESH GET:** `get-schedule … > $OPS/sched_now2.json`; `python3 $OPS/sched_state.py $OPS/sched_now2.json ENABLED $JD $OPS/sched_on.json`; `update-schedule --cli-input-json file://$OPS/sched_on.json …`; repeat step 1's `describe-job-definitions` query; `python scripts/diff_live_paper_infra.py`. **Must finish before D+1 09:40 ET.** | `ENABLED`; pin = `$JD` (the NEW revision under re-base). The latest ACTIVE revision is still `$JD`: if a newer one was registered mid-window, STOP and decide; never write an old pin back (finding 1). `No drift.` | `sched_state.py … DISABLED $JD` |
+| 12 | DIRECTOR | **Gate, then re-enable from a FRESH GET:** `bash $OPS/gate_live_clean.sh`; a stray found here → §7.6 "after step 10". Then `aws scheduler get-schedule --name $SCHED … --output json > $OPS/sched_now2.json`; `python3 $OPS/sched_state.py $OPS/sched_now2.json ENABLED $JD $OPS/sched_on.json`; `aws scheduler update-schedule --cli-input-json file://$OPS/sched_on.json …`; repeat the step-2 revision query by hand; `python scripts/diff_live_paper_infra.py`. **Must finish before D+1 09:40 ET.** | `GATE OK`; `ENABLED`; pin = `$JD` (the NEW revision under re-base). The latest ACTIVE revision is still `$JD`: if a newer one was registered mid-window, STOP and decide; never write an old pin back (finding 1). `No drift.` | `sched_state.py … DISABLED $JD` |
 | 13 | READ | **D+1 09:50 ET: seeding** (§8 artifact 1, with its branches) | §8 | §8 stop rule |
 | 14 | READ | **D+2: arrival** (§8 artifact 2) | §8 | §8 stop rule |
 | 15 | READ | **D+3: first settled day** (§8 artifact 3) | §8 | §8 stop rule |
@@ -371,12 +400,15 @@ submit() {  # submit a one-shot body on the LIVE pinned jobdef $JD (never the la
 **NEW CLI** ([NN-NO-GUESS-CLI]; add each to the execution manual when first executed):
 - `aws s3 mv`, `aws s3api head-object`, `aws logs get-log-events`, `aws cloudwatch set-alarm-state`:
   syntax RESOLVED-TRUE by the review.
-- `aws batch list-jobs --filters` and `--job-status`, and the `describe-job-definitions` revision query:
-  run by me read-only on 2026-11-17.
+- `aws batch list-jobs --filters` and `--job-status`, the `describe-job-definitions` revision query,
+  `get-schedule --query State`, and head-object on a missing key (`(404)`, rc 254): run by me read-only
+  on 2026-11-17.
 
 **§7.1–7.4 are BYTE-IDENTICAL copies of the committed files** in
 [`runbook_account2_reset_ops/`](runbook_account2_reset_ops/README.md) (`check_embedded.py` exits 0). Copy
 the scripts from that folder, never from this page.
+`step2_snapshot.sh`, `restore.sh` and `gate_live_clean.sh` are not embedded; they are committed and
+tested in the same folder.
 
 ### 7.1 `sched_state.py` — State-only, pin-asserting (`runbook_account2_reset_ops/sched_state.py`)
 
@@ -418,25 +450,38 @@ replaced by `000000000000`); the same file was also run on the reviewer's live c
 
 All 7 cases PASS [VERIFIED: committed check, run 2026-11-17].
 
-### 7.2 `archive.sh` — pipefail, three-way md5, empty-md5 refusal, ETag, then move (finding 3) (`runbook_account2_reset_ops/archive.sh`)
+### 7.2 `archive.sh` — DISABLED-only, fresh manifest, never overwrites, pipefail, three-way md5, ETag, then move (findings 3, N1, N3) (`runbook_account2_reset_ops/archive.sh`)
 
 ```bash
 #!/usr/bin/env bash
-# Archive account-2 epoch-1 state: per key, prove the LIVE object is still the step-1
+# Archive account-2 epoch-1 state: per key, prove the LIVE object is still the step-2
 # snapshot, copy it to the dated archive prefix, prove the copy, then move the original
-# aside. Never deletes. Any failure exits non-zero BEFORE the next key is touched.
-# Required env: B PFX ARCH ASIDE OPS RELS (and P R for the aws profile/region).
+# aside. Never deletes, never overwrites. Any failure exits non-zero BEFORE the next key.
+# Refuses unless the schedule is DISABLED (a run mid-archive would wedge the account),
+# and refuses a re-run into an OPS dir that already holds a manifest.
+# Required env: B PFX ARCH ASIDE OPS RELS SCHED (and P R for the aws profile/region).
 set -uo pipefail
 AWS="${AWS:-aws}"
 EMPTY=d41d8cd98f00b204e9800998ecf8427e
 die() { echo "STOP: $*" >&2; exit 1; }
+absent() {  # 0 iff head-object proves the key absent (a 404); any other error is not proof
+  local err
+  err=$($AWS s3api head-object --bucket "$B" --key "$1" --profile "$P" --region "$R" 2>&1 >/dev/null) && return 1
+  case "$err" in *"(404)"*) return 0 ;; *) die "cannot prove $1 absent: ${err:-no error text}" ;; esac
+}
+ST=$($AWS scheduler get-schedule --name "$SCHED" --query State --output text --profile "$P" --region "$R") \
+  || die "cannot read the schedule State"
+[ "$ST" = "DISABLED" ] || die "schedule $SCHED is '$ST', not DISABLED — a run could write mid-archive"
+[ ! -e "$OPS/MANIFEST_md5.txt" ] || die "$OPS/MANIFEST_md5.txt exists — a previous run; use a fresh OPS dir"
 for REL in $RELS; do
   SNAP="$OPS/snapshot/$REL"
-  [ -s "$SNAP" ] || die "no non-empty step-1 snapshot for $REL"
+  [ -s "$SNAP" ] || die "no non-empty step-2 snapshot for $REL"
   S=$(md5 -q "$SNAP") || die "md5 of snapshot $REL"
   [ "$S" != "$EMPTY" ] || die "snapshot md5 is the empty-file md5 for $REL"
   L=$($AWS s3 cp "s3://$B/$PFX/$REL" - --profile "$P" --region "$R" | md5 -q) || die "read live $REL"
-  [ "$L" = "$S" ] || die "live $REL ($L) differs from the step-1 snapshot ($S) — something wrote it"
+  [ "$L" = "$S" ] || die "live $REL ($L) differs from the step-2 snapshot ($S) — something wrote it"
+  absent "$ARCH/$REL" || die "archive key $ARCH/$REL already exists — refusing to overwrite an archive"
+  absent "$ASIDE/$REL" || die "aside key $ASIDE/$REL already exists — refusing to overwrite"
   $AWS s3 cp "s3://$B/$PFX/$REL" "s3://$B/$ARCH/$REL" --profile "$P" --region "$R" --no-progress \
     || die "archive copy $REL"
   A=$($AWS s3 cp "s3://$B/$ARCH/$REL" - --profile "$P" --region "$R" | md5 -q) || die "read archive $REL"
@@ -456,29 +501,38 @@ echo "DONE: all keys archived and moved aside"
 **How it is tested:** `check_archive.sh` runs it with the stub `fake_aws.sh`, which maps `s3://` to a
 local directory, on SYNTHETIC one-line fixtures (no real state is committed). It was first run on the
 2026-11-17 snapshot, with the same results. The happy path archives 9, moves 9 aside, writes a 9-row
-manifest, and leaves only `exec_cost_ledger.jsonl` live. Four failure cases each STOP at the first key,
-with nothing moved:
+manifest, and leaves only `exec_cost_ledger.jsonl` live. Every failure case STOPs at the first key, with
+nothing moved:
 - the live read denied;
 - the move denied (10 live keys remain, 1 archive copy exists);
 - the live key changed since the snapshot;
-- the live key missing, which is the reviewer's empty-md5 case.
+- the live key missing, which is the reviewer's empty-md5 case;
+- a corrupted archive copy, which stops on the md5 compare;
+- a wrong ETag on intact bytes, which stops on the ETag compare;
+- an empty snapshot and an empty live object, which stop on `-s`;
+- the schedule ENABLED;
+- an existing manifest;
+- an occupied archive key, or an occupied aside key (the prior object is untouched);
+- head-object denied, so absence cannot be proven.
 
 With `pipefail` a failed `aws … - | md5 -q` assignment now returns non-zero; without it, the same line
-yields `d41d8cd9…` and exits 0, as demonstrated. All 5 cases PASS [VERIFIED: committed check, run
-2026-11-17].
+yields `d41d8cd9…` and exits 0, as demonstrated. All 14 cases PASS [VERIFIED: committed check, run
+2026-11-17]. The rollback, `restore.sh`, is tested by `check_restore.sh` (10/10).
 
 ### 7.3 `reset_a2.tmpl.py` — the liquidation body (finding 9; runs ONLY in account 2's container) (`runbook_account2_reset_ops/reset_a2.tmpl.py`)
 
 ```python
 import datetime as dt, inspect, json, sys
 from paper_trader.paper_client import AlpacaPaperClient
+from paper_trader.market_calendar import ET     # America/New_York, as the daily run uses
 D = "__D__"; ATTEMPT = __ATTEMPT__; EXECUTE = __EXECUTE__      # the execute job changes ONLY EXECUTE
-EXPECT = __EXPECT__          # from step 1's slice, re-confirmed at step 8
+EXPECT = __EXPECT__          # from step 2's slice, re-confirmed at step 8
 NO_TRADE_DATES = {"2026-11-26", "2026-11-27"}         # Thanksgiving; the 13:00 ET early close
 c = AlpacaPaperClient()
 acct = c._client.get_account()                       # read-only
 clock = c._client.get_clock()                        # read-only
 mins_left = (clock.next_close - clock.timestamp).total_seconds() / 60.0
+et_now = clock.timestamp.astimezone(ET)              # the broker's clock, read in ET
 raw = c.list_positions()
 pos = {p["symbol"]: int(p["qty"]) for p in raw}
 entry = {p["symbol"]: p.get("avg_entry_price") for p in raw}
@@ -487,11 +541,12 @@ open_o = [o for o in c.list_orders() if str(o.get("status", "")).lower() not in 
 print("RESET-A2 account_number=%s equity=%s cash=%s" % (acct.account_number, acct.equity, acct.cash))
 print("RESET-A2 positions_before=" + json.dumps(pos, sort_keys=True))
 print("RESET-A2 broker_avg_entry=" + json.dumps(entry, sort_keys=True))
-print("RESET-A2 open_orders=%d market_open=%s minutes_to_close=%.0f attempt=%d execute=%s"
-      % (len(open_o), clock.is_open, mins_left, ATTEMPT, EXECUTE))
+print("RESET-A2 clock_et=%s open_orders=%d market_open=%s minutes_to_close=%.0f attempt=%d execute=%s"
+      % (et_now.isoformat(), len(open_o), clock.is_open, mins_left, ATTEMPT, EXECUTE))
 why = []
 if D in NO_TRADE_DATES: why.append(f"D={D} is excluded")
-if clock.timestamp.date().isoformat() != D: why.append(f"broker date {clock.timestamp.date()} != D {D}")
+if et_now.date().isoformat() != D: why.append(f"broker date (ET) {et_now.date()} != D {D}")
+if (et_now.hour, et_now.minute) < (10, 0): why.append(f"before 10:00 ET ({et_now:%H:%M})")
 if not clock.is_open: why.append("market closed")
 if mins_left < 30: why.append(f"only {mins_left:.0f} min to the close")
 if pos != EXPECT: why.append(f"positions {pos} != EXPECT {EXPECT}")
@@ -520,16 +575,18 @@ sys.exit(70 if failed else 0)
 The same tool renders §7.4.
 
 **Tested by `check_reset_a2.py`**, which renders the committed template and drives it against a fake
-broker module. 12 cases PASS [VERIFIED: committed check, run 2026-11-17], including the render tool's
-refusal of an unfilled `__EXPECT__`. The results:
+broker module. 21 cases PASS [VERIFIED: committed check, run 2026-11-17], including the render tool's
+refusal of an unfilled `__EXPECT__`, a malformed `D`, `EXECUTE=yes`, a non-dict `EXPECT` and
+`ATTEMPT=0`. The results:
 - dry run: exit 0, nothing submitted;
-- execute: three coids with the `-a1` suffix;
+- execute: three coids with the `-a1` suffix; with `ATTEMPT=2`, three `-a2` coids;
 - one order failing: the other two still submit, then `RESULT FAILED SGOV`, exit 70;
-- REFUSED with exit 70 for: positions ≠ EXPECT, an open order, 25 min to the close, market closed, D = 2026-11-27, broker date ≠ D.
+- REFUSED with exit 70 for: positions ≠ EXPECT, an open order, 25 min to the close, market closed, **09:55 ET (before 10:00 ET, N5)**, broker date ≠ D, D = 2026-11-27, and D = 2026-11-26 even with an "open" clock;
+- a UTC broker timestamp (15:00Z) is read as 10:00 ET and allowed.
 
 **Field checks:**
 - `get_clock().is_open` and `next_close`, and `TradeAccount.account_number`, exist in `alpaca-py` 0.43.2 [VERIFIED: local introspection; review RESOLVED-TRUE].
-- Whether `clock.timestamp` carries the ET offset is [UNVERIFIED]. It does not matter before 15:30 ET, because the UTC date and the ET date agree then.
+- The broker clock is converted to ET with `paper_trader.market_calendar.ET` before the date and 10:00 checks, so its offset no longer matters. That module builds `ZoneInfo("America/New_York")` at import on the production path [VERIFIED: `paper_trader/market_calendar.py:22-24`].
 - Sell exactly what the BROKER reports. The coid prefix `reset-a2-` cannot collide with the stream token `deploycand-a2` [VERIFIED: `scripts/run_paper_cloud_day.py:70`]. The `submit_order` signature is [VERIFIED: `paper_trader/paper_client.py:206-217`].
 
 ### 7.4 `postcheck_a2.tmpl.py` — flat-check (`TICKERS=[]`) or post-liquidation check (`runbook_account2_reset_ops/postcheck_a2.tmpl.py`)
@@ -537,6 +594,7 @@ refusal of an unfilled `__EXPECT__`. The results:
 ```python
 import json
 from paper_trader.paper_client import AlpacaPaperClient
+from paper_trader.market_calendar import ET     # America/New_York, as the daily run uses
 D = "__D__"; ATTEMPT = __ATTEMPT__; TICKERS = __TICKERS__   # TICKERS=[] → a plain flat-check
 c = AlpacaPaperClient(); a = c._client.get_account(); pos = c.list_positions()
 TERM = {"filled", "canceled", "expired", "rejected", "done_for_day", "replaced"}
@@ -548,17 +606,21 @@ for t in TICKERS:
     o = c.get_order(f"reset-a2-{D}-{t}-sell-a{ATTEMPT}")
     print("FILL " + t + " " + (json.dumps({k: o.get(k) for k in ("status", "filled_qty",
           "filled_avg_price", "filled_at")}, default=str) if isinstance(o, dict) else repr(o)))
+clk = c._client.get_clock()                          # read-only: the operator sees the time
+print("CLOCK " + json.dumps({"et": clk.timestamp.astimezone(ET).isoformat(), "is_open": clk.is_open,
+      "next_close": clk.next_close.astimezone(ET).isoformat()}))
 print("FLAT=%s" % (not pos and not op))
 ```
 
 It derives from the execution manual's FLAT-CHECK [VERIFIED: `docs/Core/execution_manual.md:1020-1033`],
-adding `account_number` (finding 15) and the per-order fills. The order fields are as normalized by
-`_normalize_order` [VERIFIED: `paper_trader/paper_client.py:144-157`]. It is tested by
-`check_postcheck.py`: 5 cases PASS [VERIFIED: committed check, run 2026-11-17].
+adding `account_number` (finding 15), the per-order fills, and the broker `CLOCK` in ET (N5). The order
+fields are as normalized by `_normalize_order` [VERIFIED: `paper_trader/paper_client.py:144-157`]. It is
+tested by `check_postcheck.py`: 9 cases PASS [VERIFIED: committed check, run 2026-11-17]. They include
+an open order on a flat account reading `FLAT=False`, and `ATTEMPT=2` asking for the `-a2` coids.
 
 ### 7.5 Label texts (finding 12)
 
-`$ARCH/README_VOID.txt`:
+`$ARCH/README_VOID.txt` — **option B** (liquidation in place):
 
 > ACCOUNT 2 (deploy candidate, prefix paper_state_offense_sso) — EPOCH 1 ARCHIVE, reset on <D> by the
 > user's ruling of 2026-11-17. VALID as mechanics evidence only: 2026-09-15..2026-11-04 (35 tracked clean
@@ -581,6 +643,27 @@ adding `account_number` (finding 15) and the per-order fills. The order fields a
 The estimate comes from the journal's filled orders at the slice's 11-16 closes [VERIFIED: computed from
 the S3 `orders.jsonl` snapshot].
 
+`$ARCH/README_VOID.txt` — **option A** (a new Alpaca paper account; N7):
+
+> ACCOUNT 2 (deploy candidate, prefix paper_state_offense_sso) — EPOCH 1 ARCHIVE, reset on <D> by the
+> user's ruling of 2026-11-17, by switching the secret archondex/alpaca-paper-offense-sso to a NEW Alpaca
+> paper account (option A). VALID as mechanics evidence only: 2026-09-15..2026-11-04 (35 tracked clean
+> sessions 2026-09-17..2026-11-04; 09-15/16 untracked). VOID: 2026-11-05..<D> — MTUM 4:1 split ex
+> 2026-11-05 unhandled; a spurious buy of 18 @ 65.26; the paper broker scaled all 23 shares to 92 (true 38;
+> 54 phantom shares). The tracker summary's CAGR/Sharpe is the windfall, never the strategy.
+> `sleeve_equity` is BROKER equity, never tier equity.
+> NO LIQUIDATION: nothing was sold, so there is no realized P&L and no wash-guard bypass. The OLD account
+> was left holding 12 VOO / 92 MTUM / 6 SGOV and ~$88.7k cash (the ~$3.5k windfall stays there and never
+> enters epoch 2). The old account was <kept untouched | deleted on <date> by the user — irreversible,
+> its broker history is gone; this archive's orders.jsonl is the only fill record>. Its account number and
+> the new one are recorded in the step-8/8A FLATCHECK job logs (CloudWatch /aws/batch/job), not here. The
+> old key pair was <revoked on <date> | not yet revoked>. Epoch 2 starts on the new account at
+> <starting balance> broker equity; the tier is the notional cap (<$11,166 | $10,000>).
+> exec_cost_ledger.jsonl stays live, mixing epochs with no epoch field (epoch 2 = trade_date ≥ <D+2>);
+> its 2026-11-05 MTUM row is a real fill of a spurious order. Copies: this archive, the moved-aside
+> originals in reset_aside_<D>/, and the operator's local snapshot. Runbook:
+> docs/Sources/runbook_account2_reset_2026-11-17.md.
+
 `$ASIDE/README_ASIDE.txt`:
 
 > The moved-aside ORIGINALS of account 2's epoch-1 live state, moved on <D>; byte-identical to
@@ -590,6 +673,40 @@ the S3 `orders.jsonl` snapshot].
 
 `$ARCH/MANIFEST_md5.txt` has one row per archived object, `<rel> <bytes> <md5>`, written by
 `archive.sh`, plus the `exec_cost_ledger.jsonl` snapshot row from step 6.
+
+### 7.6 Stray-run recovery (N1 iii) and the archive rollback (N3)
+
+**A stray run is any account-2 job that ran after step 5:** a manual submit, a re-enabled schedule, or
+anything else. It is detected by `gate_live_clean.sh` (steps 7, 9.5 and 12), which reports extra live keys.
+- **Keep the schedule DISABLED throughout.**
+- **Never delete the stray's files.** They go to their own dated prefixes.
+
+```bash
+# R1 — archive the STRAY's files, from a FRESH ops dir (archive.sh refuses a reused manifest)
+OPS2=$OPS/stray1; mkdir -p "$OPS2/snapshot/data"
+aws s3 cp --recursive "s3://$B/$PFX/data/" "$OPS2/snapshot/data/" --profile $P --region $R --no-progress
+STRAY_RELS="$(cd "$OPS2/snapshot" && find data -type f ! -path data/state/exec_cost_ledger.jsonl | sort)"
+echo "$STRAY_RELS"            # what the stray wrote — record it, with the stray job's id and time
+OPS=$OPS2 RELS="$STRAY_RELS" ARCH=$PFX/archive_stray_${D}_1 ASIDE=$PFX/stray_aside_${D}_1 bash $OPS/archive.sh
+bash $OPS/gate_live_clean.sh  # must print GATE OK: the live prefix is clean again
+```
+
+- **Found BEFORE step 10** (the broker still holds 92 / 6 / 12). Run R1, then put epoch 1 back:
+  `RELS="$(cut -d' ' -f1 "$OPS/MANIFEST_md5.txt")" bash $OPS/restore.sh`. The account returns to its pre-reset
+  halted state. Re-enable (step 4's procedure with `ENABLED`; the gate does not apply because the epoch-1
+  keys are live again by design). Restart the reset another day from step 0, with a fresh `$OPS`.
+- **Found AFTER step 10** (the broker is flat). Run R1 and **do not restore epoch 1**: its journal no
+  longer explains a flat broker. Continue at step 11 or 12. The next scheduled run seeds the ledger from
+  the post-liquidation cash, and D+1..D+3 behave as §8 says [VERIFIED: `sim_stray.py recover`: 70 / 0 / 0
+  after the recovery, D+1 init cash 103,514.78].
+- **Plain rollback, no stray** (e.g. step 8 refused): `restore.sh` alone, as the step-5 rollback.
+  - It refuses unless the schedule is DISABLED.
+  - It refuses any live key that is already occupied.
+  - It requires each aside object's md5 to equal its archive copy before moving it back.
+  - It checks the live md5 after the move.
+  - A partial archive restores exactly the keys in the manifest [VERIFIED: `check_restore.sh` 10/10].
+- **The "before step 10" path is tested end to end** in `check_gate.sh` case 6: the gate STOPs, R1
+  archives the 3 stray keys, the gate passes, and `restore.sh` puts epoch 1 back byte-exact.
 
 ---
 
@@ -651,11 +768,13 @@ mirror values marked EXPECTED-WRONG, means:
 ## 9. Open risks (item 7)
 
 - **R1 — seeding from the windfall** (§0 U1). Under B the ledger cash and the broker equity carry about $3.5k of windfall for good. It is fenced off from sizing only while the cap is below equity: at a tier of about $100k or more on this account it becomes sizable.
-- **R2 — the scheduler firing mid-reset.** Closed by steps 4 and 12:
-  - the disable and re-enable are built from FRESH GETs, change State only, and assert the live pin;
-  - the re-enable also asserts the latest ACTIVE revision;
-  - never write a pin captured earlier back to the schedule (finding 1).
+- **R2 — a run firing mid-reset (a stray; delta N1).** A stray between step 5 and step 10 wedges the account (§7, `sim_stray.py`). Closed in layers:
+  - the step-4 disable and the step-12 re-enable are built from FRESH GETs, change State only, and assert the live pin; the re-enable also asserts the latest ACTIVE revision; never write a pin captured earlier back (finding 1);
+  - `archive.sh` and `restore.sh` refuse unless the schedule is DISABLED;
+  - `gate_live_clean.sh` at steps 7, 9.5 (immediately before the sells) and 12;
+  - §7.6 recovers a stray found before or after step 10.
   - The silent-stop alarm is NOT a backstop (finding 7).
+  - **Residual:** a stray that starts AFTER the step-9.5 gate and BEFORE the step-10 sells fill — a window of minutes, needing a manual submit or a re-enabled schedule. The step-12 gate finds it, and §7.6 "after step 10" recovers it.
 - **R3 — the wrong account's keys.** The laptop holds account 1's keys (F8). Under A, the step-8A `account_number` and `equity` check catches a mis-pasted pair.
 - **R4 — irreversible deletion under A** (F2). Do it last, after artifact 3, and only if forced.
 - **R5 — A at $10,000 breaks Rule-B on arrival day** (§4, finding 14).
@@ -667,7 +786,7 @@ mirror values marked EXPECTED-WRONG, means:
   - add the missing `json` import.
 - **R9 — the wash-guard bypass** (README_VOID). Option A has no sale.
 - **R10 — no dividends in paper** [VERIFIED: Alpaca page], so SGOV earns about 0 in the record.
-- **R11 — no versioning** (F12). The protections are the step-1 local snapshot plus the verified archive copy, and the step-3 probe proves the move works before anything moves.
+- **R11 — no versioning** (F12). The protections are the step-2 local snapshot plus the verified archive copy, and the step-3 probe proves the move works before anything moves.
 - **R12 — the new-prefix alternative was rejected.** It changes jobdef env (`redeploy_one_account.py` refuses a non-image diff), needs a job-role grant [VERIFIED: `docs/Core/execution_manual.md:1009`], a `fleet_health.py` edit, and hits R3-2 [VERIFIED: `docs/State/health_check.md:63`].
 - **R13 — a later Alpaca correction of the phantom shares under B** (finding 15, §4). A share correction halts visibly. A cash-only correction is adopted silently once positions are held. [UNVERIFIED whether Alpaca ever corrects.]
 
@@ -688,12 +807,12 @@ mirror values marked EXPECTED-WRONG, means:
 | 9 | CLI syntax of the NEW commands | RESOLVED-TRUE (review); `list-jobs` and the revision query run by me |
 | 10 | Thanksgiving dates; corporate actions VOO/MTUM/SGOV D..D+2 | dates RESOLVED-TRUE; corporate actions STILL UNVERIFIED (P2 manual check) |
 | 11 | Arrival share counts | RESOLVED by execution: 13 / 25 / 6 at $11,166, or 12 / 22 / 3 at $10,000, at 11-16 prices |
-| 12 | Whether `clock.timestamp` carries the ET offset | UNVERIFIED; harmless before 15:30 ET (§7.3) |
+| 12 | Whether `clock.timestamp` carries the ET offset | NO LONGER MATTERS: the body converts the broker clock to ET (`paper_trader.market_calendar.ET`) before the date and 10:00 checks. A UTC timestamp is tested (`check_reset_a2.py`). |
 | 13 | Whether Alpaca ever corrects phantom shares later (R13) | UNVERIFIED |
 
 ---
 
-## 11. Review findings → where each is fixed (revision 2)
+## 11. Review findings → where each is fixed (revision 2, with revision-2 step numbers; the delta review in §11.1)
 
 | Finding | Fix |
 |---|---|
@@ -712,3 +831,16 @@ mirror values marked EXPECTED-WRONG, means:
 | 13 cites | F1 full quotes; entrypoint `:32`; heartbeat `:32`/`:33`; the 09-15 arrival predates the gate and the mirror; F12 VersionId null. |
 | 14 A at $10,000 | §4 (c) rewritten: it breaks on arrival day (simulated). |
 | 15 B Alpaca correction | §4 / R13, with the refinement that a cash-only correction is silently adopted; A's check prints `account_number`. |
+
+### 11.1 Delta-review findings → where each is fixed (revision 3)
+
+| Finding | Fix | Test |
+|---|---|---|
+| N1 (REQUIRED) stray run wedges the account | (i) step 9.5 gate immediately before step 10 (and at steps 7 and 12); (ii) `archive.sh` (and `restore.sh`) refuse unless the schedule is DISABLED; (iii) §7.6 recovery before and after step 10 | `check_gate.sh` (6, incl. the §7.6 path end to end); `check_archive.sh` case 9; `check_restore.sh` case 4; `sim_stray.py` wedge + recover (10 assertions) |
+| N2 six mutation gaps | corrupted archive copy (md5) and wrong ETag, separately; empty snapshot with `-s`; `ATTEMPT=2` in both templates; flat-check with an open order | `check_archive.sh` 6/7/8; `check_reset_a2.py`; `check_postcheck.py`; `mutate.py`: 59 mutants, 57 caught, 2 equivalent |
+| N3 untested rollback | `restore.sh` (pipefail, md5 against the archive, refuses an occupied destination, post-move check, DISABLED-only); `archive.sh` refuses an existing manifest and an occupied archive or aside key | `check_restore.sh` 10/10; `check_archive.sh` 10/11/12/13 |
+| N4 an escaped pipe inside a table cell (step 1) | step-1 commands in the §7.0 fenced block; the snapshot is the committed `step2_snapshot.sh` | `check_step2.sh` 7/7 |
+| N5 order + 10:00 ET | in-flight check (step 1) before the snapshot (step 2); the liquidation body refuses before 10:00 ET (broker clock read in ET); the flat-check prints the clock | `check_reset_a2.py` (09:55 ET refused; UTC timestamp read in ET); `check_postcheck.py` (CLOCK line) |
+| N6 probe location | step 3 states the probe lives under `reset_aside_<D>/_probe/`, never `data/`, and that a denied real move still lands before step 10 | — |
+| N7 option-A label | §7.5 option-A README_VOID text | — |
+| interpreter | `run_sims.sh` STOPs (exit 2) when `$PY` / `<repo>/.venv/bin/python` is missing or cannot import pandas, python-dotenv and alpaca-py | run in the worktree: exit 2 with the message; with `/usr/bin/python3`: exit 2 |
