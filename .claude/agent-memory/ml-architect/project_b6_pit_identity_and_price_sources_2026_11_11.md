@@ -69,6 +69,13 @@ Corrected S&P (c): similarity −0.028 (ci_low −0.117), Δtone −0.037; short
 same-quarter pairing but +2.23 under the ADJACENT 10-Q pairing — the refutation half depends on the
 pairing choice; a negative-screen candidate. **A file end is not an exit; reconcile before booking.**
 
+**T-265 text census (b6_parse/2, 2026-11-17; no T-265 return yet):** 135,933 filings, 4,099 streamed
+CIKs + 644 taken from the S&P panel; parse rates on small caps ≥ the S&P panel's (10-K MD&A 98.7%,
+10-Q MD&A 99.8%, adjacent 10-Q pairs 97.6%); 3.1% of small-cap 10-Ks omit Item 1A legitimately
+("smaller reporting company"). Trap found: a sub-universe whose text is BORROWED from another panel
+inherits that panel's fetch windows — 5,502 filings of 252 overlap CIKs were never fetched (outside
+their S&P membership windows). Always census borrowed coverage separately.
+
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an
 upper bound; a short-leg null is biased toward zero. See [[t237-lazy-prices-parse-similarity]].

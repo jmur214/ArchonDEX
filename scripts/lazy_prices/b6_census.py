@@ -146,11 +146,131 @@ def rebalance_coverage(start: str = "2007-03-31", end: str = "2025-12-31") -> pd
     return pd.DataFrame(rows).set_index("rebalance")
 
 
+# --------------------------------------------------------------------------- #
+# T-265 arm census (text only, b6_parse/2) — no price, no ADV, no ranking, no return
+# --------------------------------------------------------------------------- #
+T265_DIR = LOCAL / "t265_signals"
+SP_V2_SHARDS = LOCAL / "sp_sections_v2"
+SP_V2_SIGNALS = LOCAL / "signals_sp_v2.parquet"
+T265_MAP = ROOT / "data" / "research" / "t265" / "cik_ticker_final.parquet"
+T265_PRICES = ROOT / "data" / "research" / "t265" / "prices"
+
+
+def _t265_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def cat(prefix):
+        parts = [pd.read_parquet(p) for p in sorted(T265_DIR.glob(f"{prefix}_*.parquet"))]
+        return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    return cat("done"), cat("filings"), cat("signals")
+
+
+def t265_universe_ciks() -> set[int]:
+    """The T-265 priced CIKs (file names only — no price is read)."""
+    ct = pd.read_parquet(T265_MAP)
+    files = {p.stem for p in T265_PRICES.glob("*.parquet")}
+    return set(ct[ct.ticker.isin(files)].cik.astype(int))
+
+
+def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str, pd.DataFrame]:
+    """The T-265 arm's parse-coverage census under b6_parse/2. Counts only: no signal VALUE or
+    distribution is read (H_OOS stays clean), no price, ADV, ranking or return. CIKs that are
+    also in the S&P panel take their text from signals_sp_v2 (the stream skipped them)."""
+    done, fil, sig = _t265_frames()
+    out: dict[str, pd.DataFrame] = {}
+    universe = t265_universe_ciks()
+    streamed = set(done.cik.astype(int))
+    overlap = universe - streamed
+    fil = fil.drop_duplicates("accession", keep="last")
+    sig = sig.drop_duplicates("accession", keep="last")
+    last_err = done.drop_duplicates("cik", keep="last")
+    out["completeness"] = pd.DataFrame([{
+        "t265_priced_ciks": len(universe), "streamed_ciks": len(streamed),
+        "overlap_ciks_from_sp_panel": len(overlap),
+        "no_periodic_filings_since_2015": int((last_err.error == "no_periodic_filings_since_2015").sum()),
+        "transient_errors_remaining": int(last_err.error.fillna("").str.startswith(("error:", "submissions_")).sum()),
+        "filings": len(fil), "fetch_ok": int(fil.fetch_ok.fillna(False).sum()),
+        "fetch_failed": int((~fil.fetch_ok.fillna(False)).sum())}])
+    out["fetch_failures"] = fil.loc[~fil.fetch_ok.fillna(False),
+                                    ["cik", "form", "accession", "acceptance_dt", "fetch_status", "fetch_reason"]]
+    f = fil.assign(year=fil.acceptance_dt.str[:4], risk_ok=fil.risk_status == "OK",
+                   mda_ok=fil.mda_status == "OK")
+    f["both_ok"] = f.risk_ok & f.mda_ok
+    g = sig.assign(year=sig.acceptance_dt.str[:4],
+                   combo_pair=sig.yoy_combo_why == "ok", mda_pair=sig.yoy_mda_why == "ok",
+                   qoq_mda_pair=sig.get("qoq_mda_why", pd.Series(index=sig.index, dtype=object)) == "ok")
+    tab = (f.groupby(["form", "year"]).agg(filings=("accession", "size"), fetch_ok=("fetch_ok", "sum"),
+                                           risk_ok=("risk_ok", "sum"), mda_ok=("mda_ok", "sum"),
+                                           both_ok=("both_ok", "sum")).astype(int)
+           .join(g.groupby(["form", "year"])[["combo_pair", "mda_pair", "qoq_mda_pair"]].sum().astype(int),
+                 how="left").fillna(0).astype(int))
+    out["by_year_form"] = tab
+    out["status"] = pd.concat({"risk": f.groupby("form").risk_status.value_counts(),
+                               "mda": f.groupby("form").mda_status.value_counts()}).rename("n").reset_index()
+    # rates vs the S&P panel (b6_parse/2), same acceptance years
+    sp = pd.concat([pd.read_parquet(p, columns=["accession", "form", "acceptance_dt", "fetch_ok",
+                                                "risk_status", "mda_status"])
+                    for p in sorted(SP_V2_SHARDS.glob("shard_*.parquet"))], ignore_index=True)
+    sp = sp.drop_duplicates("accession", keep="last")
+    sp = sp[sp.acceptance_dt.str[:4] >= "2015"]
+    spsig = pd.read_parquet(SP_V2_SIGNALS, columns=["accession", "form", "acceptance_dt", "yoy_combo_why",
+                                                    "yoy_mda_why", "qoq_mda_why"])
+    spsig = spsig[spsig.acceptance_dt.str[:4] >= "2016"]
+    rows = []
+    for name, a, b in (("T-265", f[f.acceptance_dt.str[:4] >= "2015"], g[g.acceptance_dt.str[:4] >= "2016"]),
+                       ("S&P (v2)", sp.assign(risk_ok=sp.risk_status == "OK", mda_ok=sp.mda_status == "OK"),
+                        spsig)):
+        for form in ("10-K", "10-Q"):
+            x, y = a[a.form == form], b[b.form == form]
+            pre = x.risk_status.str.startswith("NOT_COVERED")
+            rows.append({"panel": name, "form": form, "filings": len(x),
+                         "risk_ok_pct": round(100 * (x.risk_status == "OK").mean(), 1),
+                         "risk_ok_excl_not_covered_pct": round(100 * (x.risk_status[~pre] == "OK").mean(), 1),
+                         "risk_not_covered_pct": round(100 * pre.mean(), 1),
+                         "mda_ok_pct": round(100 * (x.mda_status == "OK").mean(), 1),
+                         "combo_pair_pct_2016on": round(100 * (y.yoy_combo_why == "ok").mean(), 1),
+                         "mda_pair_pct_2016on": round(100 * (y.yoy_mda_why == "ok").mean(), 1),
+                         "qoq_mda_pair_pct_2016on": round(100 * (y.qoq_mda_why == "ok").mean(), 1)
+                         if form == "10-Q" else float("nan")})
+    out["rates_vs_sp"] = pd.DataFrame(rows)
+    # per-rebalance text eligibility (counts of CIKs; calendar quarter-ends)
+    cols = ["cik", "form", "acceptance_dt", "decision_floor_date", "yoy_combo_why", "yoy_mda_why", "qoq_mda_why"]
+    allsig = pd.concat([sig[cols], pd.read_parquet(SP_V2_SIGNALS, columns=cols).query("cik in @overlap")],
+                       ignore_index=True)
+    allsig["floor"] = pd.to_datetime(allsig.decision_floor_date)
+    allsig["acc"] = pd.to_datetime(allsig.acceptance_dt.str[:10])
+    allsig = allsig.sort_values(["floor", "acceptance_dt"])
+    allsig["gate_ok"] = ((allsig.form == "10-K") & (allsig.yoy_combo_why == "ok")) | (
+        (allsig.form == "10-Q") & (allsig.yoy_mda_why == "ok"))
+    allsig["hoos_ok"] = ((allsig.form == "10-K") & (allsig.yoy_combo_why == "ok")) | (
+        (allsig.form == "10-Q") & (allsig.qoq_mda_why == "ok"))
+    reb = []
+    for t in pd.date_range(start, end, freq="QE"):
+        s_ = allsig[(allsig.floor <= t) & (allsig.acc > t - pd.DateOffset(months=6))]
+        latest = s_.groupby("cik").tail(1)
+        ov = latest[latest.cik.isin(overlap)]
+        reb.append({"rebalance": t.date().isoformat(), "ciks_with_recent_filing": len(latest),
+                    "gate_usable": int(latest.gate_ok.sum()),
+                    "gate_usable_10k": int((latest.gate_ok & (latest.form == "10-K")).sum()),
+                    "gate_usable_10q": int((latest.gate_ok & (latest.form == "10-Q")).sum()),
+                    "hoos_usable": int(latest.hoos_ok.sum()),
+                    "hoos_usable_10q": int((latest.hoos_ok & (latest.form == "10-Q")).sum()),
+                    "overlap_with_recent_filing": len(ov),
+                    "overlap_without_recent_filing": len(overlap) - len(ov)})
+    out["rebalance_text_eligibility"] = pd.DataFrame(reb).set_index("rebalance")
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 parse-coverage census (before/after).")
     ap.add_argument("--skip-before", action="store_true")
+    ap.add_argument("--t265", action="store_true", help="the T-265 arm's text census only (b6_parse/2)")
     args = ap.parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.t265:
+        res = census_t265()
+        for k, v in res.items():
+            v.to_csv(OUT / f"t265_{k}.csv", index=k in ("by_year_form", "rebalance_text_eligibility"))
+            print(f"\n## T-265 {k}\n" + md(v, index=k in ("by_year_form", "rebalance_text_eligibility")))
+        return 0
     if not args.skip_before:
         before = census_before()
         before.to_csv(OUT / "before_t237.csv")
