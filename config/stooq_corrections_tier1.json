@@ -1,0 +1,219 @@
+{
+ "_what": "T-394: the 11 Tier-1 Stooq corrections the cutover writer APPLIES (T-390's rows that T-265 covers and agrees with). A step of log_amount s at `date` multiplies every earlier bar by exp(s); a block of offset log_amount over [date, end_date) multiplies those bars by exp(-log_amount). Pinned by sha256 in engines/data_manager/stooq_tier1.py.",
+ "rows": [
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2016-10-03",
+   "edgar_8k": [
+    {
+     "accession": "0001193125-16-726622",
+     "filing_date": "2016-09-30",
+     "items": "5.02"
+    },
+    {
+     "accession": "0001193125-16-731580",
+     "filing_date": "2016-10-05",
+     "items": "1.01,2.01,5.02,8.01,9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.07779936975514623,
+   "t265_log_amount": -0.07786312544155916,
+   "ticker": "APD"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2016-11-10",
+   "edgar_8k": [
+    {
+     "accession": "0001193125-16-766107",
+     "filing_date": "2016-11-10",
+     "items": "1.01,5.02,5.03,9.01"
+    },
+    {
+     "accession": "0001193125-16-769038",
+     "filing_date": "2016-11-15",
+     "items": "2.01,5.02,9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.2507188918977268,
+   "t265_log_amount": -0.2508487832372195,
+   "ticker": "CAG"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2016-11-01",
+   "edgar_8k": [
+    {
+     "accession": "0001104659-16-153366",
+     "filing_date": "2016-10-31",
+     "items": "1.01,2.01,8.01,9.01"
+    },
+    {
+     "accession": "0001104659-16-153528",
+     "filing_date": "2016-11-01",
+     "items": "2.02,7.01,9.01"
+    },
+    {
+     "accession": "0001104659-16-154708",
+     "filing_date": "2016-11-04",
+     "items": "2.01,9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.09348244628401536,
+   "t265_log_amount": -0.09378506843739354,
+   "ticker": "DOC"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2017-01-04",
+   "edgar_8k": [
+    {
+     "accession": "0001193125-17-001901",
+     "filing_date": "2017-01-04",
+     "items": "1.01,2.01,3.03,5.02,5.03,8.01,9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.0297974366718865,
+   "t265_log_amount": -0.02982356238452777,
+   "ticker": "HLT"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2018-10-29",
+   "edgar_8k": [
+    {
+     "accession": "0001193125-18-309906",
+     "filing_date": "2018-10-29",
+     "items": "8.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.03121048091259393,
+   "t265_log_amount": -0.03125564939770342,
+   "ticker": "HON"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2017-04-03",
+   "edgar_8k": [
+    {
+     "accession": "0001628280-17-002926",
+     "filing_date": "2017-03-27",
+     "items": "5.07"
+    },
+    {
+     "accession": "0001628280-17-003277",
+     "filing_date": "2017-04-03",
+     "items": "7.01,9.01"
+    },
+    {
+     "accession": "0001628280-17-003399",
+     "filing_date": "2017-04-06",
+     "items": "1.01,2.01,9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.28881271770005945,
+   "t265_log_amount": -0.28966462221820866,
+   "ticker": "HPE"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": null,
+   "date": "2017-09-01",
+   "edgar_8k": [
+    {
+     "accession": "0001628280-17-009000",
+     "filing_date": "2017-08-30",
+     "items": "7.01"
+    },
+    {
+     "accession": "0001567619-17-001826",
+     "filing_date": "2017-09-01",
+     "items": "1.01,2.01,5.02,7.01,9.01"
+    },
+    {
+     "accession": "0001628280-17-009053",
+     "filing_date": "2017-09-05",
+     "items": "2.02,9.01"
+    },
+    {
+     "accession": "0001628280-17-009112",
+     "filing_date": "2017-09-07",
+     "items": "9.01"
+    }
+   ],
+   "end_date": null,
+   "kind": "spinoff_step",
+   "log_amount": -0.25380455157554627,
+   "t265_log_amount": -0.25382091354636316,
+   "ticker": "HPE"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": 3,
+   "date": "2019-08-12",
+   "edgar_8k": [],
+   "end_date": "2019-08-13",
+   "kind": "block",
+   "log_amount": 0.0032757974970007986,
+   "t265_log_amount": 0.0032321228283760384,
+   "ticker": "IBM"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": 3,
+   "date": "2018-02-12",
+   "edgar_8k": [],
+   "end_date": "2018-02-13",
+   "kind": "block",
+   "log_amount": -0.007187114756188606,
+   "t265_log_amount": -0.007269105206222037,
+   "ticker": "KG"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": 3,
+   "date": "2019-08-12",
+   "edgar_8k": [],
+   "end_date": "2019-08-13",
+   "kind": "block",
+   "log_amount": 0.008307542503597887,
+   "t265_log_amount": 0.008288639376323736,
+   "ticker": "MRK"
+  },
+  {
+   "amount_source": "yfinance_adj",
+   "cluster_n": 3,
+   "date": "2019-08-12",
+   "edgar_8k": [],
+   "end_date": "2019-08-13",
+   "kind": "block",
+   "log_amount": 0.003453243263705552,
+   "t265_log_amount": 0.0034472695313756407,
+   "ticker": "TJX"
+  }
+ ],
+ "source": {
+  "built_by": "scripts/stooq_repair_t390.py build on research/stooq-repair-t390 @ c1610fb (the v5 base)",
+  "proposal": "docs/Sources/proposal_stooq_repair_t390_2026-11-13.md \u00a710-\u00a711",
+  "table": "/Users/jacksonmurphy/Dev/_substrate_candidates/stooq_repair_t390_v5/corrections.parquet",
+  "table_sha256": "3bc59b197fc5643a4292f5fc8df286096a56f1253d1530c693de47fa0b3a6a09"
+ }
+}

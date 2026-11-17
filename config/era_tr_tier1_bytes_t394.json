@@ -1,0 +1,48 @@
+{
+  "_what": "T-394: the bytes the wired writer must produce \u2014 the md5 of T-390's OWN v5 + Tier 1 in-memory render (scripts/stooq_repair_t390.py @ c1610fb on research/stooq-repair-t390) for the 10 files the 11 rows touch; every other file is v5 (v4's MANIFEST.md5, or config/era_tr_v5_delta_t393.json for DHR, ETN, XRX). Declared from T-390's render BEFORE the wired writer was measured.",
+  "changed": {
+    "APD": {
+      "tier1_md5": "5ffdf6956409c42b0127e3c6aea3b4ba",
+      "v5_md5": "3e00c90f0fdfeb227f9c53bfc02ac74a"
+    },
+    "CAG": {
+      "tier1_md5": "2707d5705cd491ec5be5e01f5ef8e6c8",
+      "v5_md5": "5434f8072344449c0c3ad24ea0f188b6"
+    },
+    "DOC": {
+      "tier1_md5": "7e2838d6c9900ce6769692e9e23d7c18",
+      "v5_md5": "1e3ae5b722bfacfc74383715a97dfdef"
+    },
+    "HLT": {
+      "tier1_md5": "4aa3b7f630e4fd1ea370185e8dcda311",
+      "v5_md5": "d77f53224093cab9fb247764d5b02367"
+    },
+    "HON": {
+      "tier1_md5": "b95834471f0754154d1e0d9b3237b583",
+      "v5_md5": "9f36a79e6f8fc1fa59f99d0050d79f3f"
+    },
+    "HPE": {
+      "tier1_md5": "5a5279e594dabe3fc5117d146fa7c922",
+      "v5_md5": "e16061dfb7b95098829a706f991bbe9c"
+    },
+    "IBM": {
+      "tier1_md5": "88a45ef524072f159216653092c443bd",
+      "v5_md5": "7880d80b8cd40688c8638fb5033a8932"
+    },
+    "KG": {
+      "tier1_md5": "42318d0f968073c6e2a85a791a83359d",
+      "v5_md5": "90c2990d831ef44cf8e91aeb644020a0"
+    },
+    "MRK": {
+      "tier1_md5": "2ab4d91553f6fbc032963c839073fa7a",
+      "v5_md5": "53c5296db1631ed6524ec81b046bd891"
+    },
+    "TJX": {
+      "tier1_md5": "fd03766e7d33d20c60ac08d159fa1d7e",
+      "v5_md5": "9b60408c070764cef2172037b34973bc"
+    }
+  },
+  "equal_to_v5": 565,
+  "files": 575,
+  "table_sha256": "fa53978cc9bfba593e93f88df6996a4c4fdcf4bd53f56717a061aeeaf2905d30"
+}

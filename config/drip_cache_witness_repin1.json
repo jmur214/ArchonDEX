@@ -1,0 +1,2310 @@
+{
+ "_doc": "The DRIP-CACHE WITNESS (T-387 follow-up, 2026-11-12): positive evidence that a merged file IS the T-082b drip as re-pin #1 pinned it. The census's merge-record fallback may label a seam file `drip` ONLY when its bytes equal these (engines/data_manager/convention.py); a file the (a\u2032) rewrite changed can never match, and an ABSENT witness labels nothing drip (fail closed). FROZEN: derived once from the committed re-pin #1 manifest, never regenerated from a later manifest (after re-pin #2 that manifest pins the era_tr bytes). Recipe: for every `both` file with n_stooq_pre_seam > 0 in data/processed/_merge_meta.json, the sha256 lines of data/processed/<T>_1d.csv and data/processed/parquet/<T>_1d.parquet in source_manifest.",
+ "source_manifest": "config/substrate_manifest.sha256",
+ "source_manifest_sha256": "48da855eda024bfe785a114ebfeab6ce9f0f1da02ebe2a4fdd4fd88085dfdb96",
+ "source_commit": "1bb6764 (RE-PIN #1 \u2014 the drip substrate PINNED)",
+ "merge_record_sha256": "cf60bbddc069ec4f700d62590fd638c0626097c05b31f49050576b06a57c9355",
+ "n_files": 575,
+ "files": {
+  "A": {
+   "csv": "8371dcc3b8a93a1ebe050e198456da39204468f2f3d9361b768fb4d75b7ac382",
+   "parquet": "89c6c307742a17c9360ab6a2f8a6e1f5c5d447ec20134c5f1cf7e60db15ce768"
+  },
+  "AA": {
+   "csv": "c1abedc4010b83c3bab4fd641b7b4db2fff1c546136cccdb8dd39ee8544d3917",
+   "parquet": "7a81632e13c179a49180126b1934691b14329ddb9d47318eb1e708af71e02cca"
+  },
+  "AAL": {
+   "csv": "802312bad602460127181cf657778b060ea8e4300603f7f61f685d8b5a7a2f45",
+   "parquet": "c58770152a9067ac16ae7a421d8d2c3398ddf7e1d0d407ee65dc69a1e1167e91"
+  },
+  "AAP": {
+   "csv": "b13b7409edfb9e1bee3bd3662dc26245ec40d687e679069950056e4faa83bf98",
+   "parquet": "d1335bcefabee51f763e87a345501692c90ab5ee42370013b1704e20044710b7"
+  },
+  "AAPL": {
+   "csv": "3cf430e3dfc1c2aa877f8bae0a74570665fbccfb2fc51493fe806d1bc149c99f",
+   "parquet": "a860e8aa7775b21b23e7edf9cff85e06d08c184fa28875a1b30afd16b8c3b574"
+  },
+  "ABBV": {
+   "csv": "e0fd188ce46e68c8217c2d9cc11b53f5ad1d016ccd251608fe17c5be6171df20",
+   "parquet": "8ba81e20910fe04a31272f63ad0ce9876896b95296d8275bc3da0d8d081c1e7e"
+  },
+  "ABT": {
+   "csv": "2feb02034990727d93da8ff20b47ca31c166224da11e7e53a70ef87ea9d2616b",
+   "parquet": "ae59e1fcc60382deea2d30e99c47e40471e64058415f48af283342ab7a435648"
+  },
+  "ACGL": {
+   "csv": "b73dc7ebb5ce566ff15af76e9676fe6cdf99603512588724955b1656320b4c75",
+   "parquet": "5b528132b7675278d72b2ed3649f6db42f54ffa0576ba8c717f24a47d4779d28"
+  },
+  "ACN": {
+   "csv": "910915794ac51c4232edad61be396ec0248a190bfaeae5fdba5579099dbb6232",
+   "parquet": "e33126d29113b51921e45e83d651b0d4fd4cac201d05aebca52d10ed0139e203"
+  },
+  "ADBE": {
+   "csv": "55e93fa20f5e08d006ab644c250295664685be1afa0e3c7bb0f7545a82dbf8d5",
+   "parquet": "566cee5d3a3804bb5107a4e2f526a10585380d9fe95750f922484c7f578e7289"
+  },
+  "ADI": {
+   "csv": "f5441336072bf07d8d5b6533ba02b23c305956adda707a1c7c6da8a8b9efb07a",
+   "parquet": "dff11b68a5aa6fe66f6ee49cd47c4c1af4f95aa0418d59bd5baa1924e2ebc0b5"
+  },
+  "ADM": {
+   "csv": "d3c376df10075c97c7fdca187fc2c54a2c9668c8f3c37667bac0f3df4f032c3a",
+   "parquet": "99ed6d37b0d112c743e37eeef0b996a5559b7d1720472a02d748af7394fced67"
+  },
+  "ADP": {
+   "csv": "f79ef90c00415713dbd97476ae10502ba2e206b40c5b0f334d47ba49dd349123",
+   "parquet": "c22f3f09331edf915c84ed61c48ab190a3f89870675f7db8361e7f7466624fdf"
+  },
+  "ADSK": {
+   "csv": "0211bb11238c6747ec67e9f02a45b10c1ae97b18d0e608880f14184eec864e29",
+   "parquet": "9eae27afaa9e4798392f8c4d96bb5aa81c9ce065ef26235b84589b37d5b93cb4"
+  },
+  "AEE": {
+   "csv": "10248828496f1e5bf952baf043cc00711ead74ee38e253edd2ad2215c9daa1e9",
+   "parquet": "9032c9307ea141a697746688fd220ce0418f45d2c2a9af906d4fbb61f57316cd"
+  },
+  "AEP": {
+   "csv": "cf5dd94d123349677b498a99b59b6dd905b53455ef7de8e2ac19bfbfb796c6d4",
+   "parquet": "b89df6a5d7062d296857f061392a1dc5594154a490818b14497f1860c4d5f3e5"
+  },
+  "AES": {
+   "csv": "d515df5afaf9aaf67ae3928939748167d887731f5f0eeac625c15b2ec524f100",
+   "parquet": "e820633c0f8a44d3291f910abde3f30e4244be45b12ae7cb140f5a2d9865791c"
+  },
+  "AFL": {
+   "csv": "53a1de1aca639af9bb45d49c2647ec9408d5c49897b02a06b668386510c58f11",
+   "parquet": "558b256c4cfbfcd3275bdf862210d1b4659ccb660f2795af5507628814d70ede"
+  },
+  "AIG": {
+   "csv": "6ec6216959180a7b6f40888261c099607d8818536a1c18c89b448e0a96dce3d3",
+   "parquet": "a08b46cdc5484c2bfe92dfbe99a5cf17a52b258dcc9c47a34e6648a98ed9b946"
+  },
+  "AIV": {
+   "csv": "4ff85d1c13cbb076ea7e41a121a386730d70dd6db2e28a2af46af5e6b69b3a19",
+   "parquet": "c46ff2c4065ce5865e8714e9bf5602b75434cc0c938b22a9f9f802edc6eda619"
+  },
+  "AIZ": {
+   "csv": "e56acafcf4f69d4f46f5b4271dad7d41f379cf98c7fe6bd4308d096aedb6a457",
+   "parquet": "e2c8dbd495ca760e8fc2312526cf2e99f5c40cc3aa490491a632ed25e89a0020"
+  },
+  "AJG": {
+   "csv": "a7e151cae3e894dd926b028929cc6da393f218c2100b6378713fc28687764bec",
+   "parquet": "fc0eb395f0b7580f02999c454e66dfe227c9f382c307170e07c01997294432d4"
+  },
+  "AKAM": {
+   "csv": "9ff21bb26c69722bb94e06d38c1086f9dc33c77781a19eb4c0fd742233dd9420",
+   "parquet": "067c64632e3465482ee8cc9fb747877217717e85e92bef3dc50c2a873d6edca2"
+  },
+  "ALB": {
+   "csv": "fd0359f7dabf5f389910ed91e411901be0768fc78cb54d9577b09112d385ecb7",
+   "parquet": "3230c99165257f71d81601958e5d402e5a7affdc041fa8bf1950f123897f6042"
+  },
+  "ALGN": {
+   "csv": "4c989b82f79ae9c280351f2fa7e396e75ec6e4b982d74a47cca9d162d022d309",
+   "parquet": "d9aca69c22f9093867f18cad4461f8b1e22ee9ccbf10a4aa2da13588db6caa3f"
+  },
+  "ALK": {
+   "csv": "e87d0f9cab68fec9df3ed6425e252e87b8424e0e9d45de705c894a88de6d30dc",
+   "parquet": "bd2fa78a828771b6da663f7f46efa4be4b7e89983fd0dff7c58543497c3bfc20"
+  },
+  "ALL": {
+   "csv": "9577cfb13654c865496874db490344e08d351454383747fb0c9758443be9694a",
+   "parquet": "8d109b72f28a83cd35bcb4dff0cb4f58ff6a7946fcc22cfedd19448a2cc2b6c1"
+  },
+  "ALLE": {
+   "csv": "1cb5718c173d893a9e803d8aefa115cd828775e41a9cf7c4e6a0d611ed22324f",
+   "parquet": "0c33223bc0505255639299c267d88ff9f1ea41cd04aec1290a7c20c89b8df8ae"
+  },
+  "AMAT": {
+   "csv": "2e04cd67729f907f84d46e978e491159631014427eceb6b1b0c7f50c911c11b3",
+   "parquet": "736d705f257579ea9b3d2e268512292c22b1857a195810ced31290a32058e2b0"
+  },
+  "AMD": {
+   "csv": "b8c3d3ec76cf249c848fb2dd8c430c0b99519252bfc0e99a08c0d744e6b2edf8",
+   "parquet": "7cb460563bbcdffa95d72c57ff3b0fbf99ce7f419f8f3943aee5b7d81bccbf53"
+  },
+  "AME": {
+   "csv": "09bf1ccea98941411f0b65d56c6bf27637b3927a0bc828cfd1309b94df3cc662",
+   "parquet": "6be239067d5c065716fd70b0f8475c48e89214f2d825175ca471dd5a85fc7a3b"
+  },
+  "AMG": {
+   "csv": "f1d819bd984dbc68b4c20bcc76e8820220c3365c383405ed6f9354fc73a7d705",
+   "parquet": "73a26556de8fd45c280d23f6b6617cbb8a923c9f795e03b5b5e4ae6a52fddb1c"
+  },
+  "AMGN": {
+   "csv": "f68e77b309b7f997aebb7984d18a50357d86018fab205928f1e9a7f525181c56",
+   "parquet": "8e11b6a3c1a68ffee406f1ab7e96570fc9310e30c08ef68e9929251015665d5e"
+  },
+  "AMP": {
+   "csv": "cdbef4eed37eb821f1858f8ea254b009f90ac7108005ba3c390785092ff5a100",
+   "parquet": "1982624a88557b5d2f29f2cc7cecf0ad3df21c028b422c882a60a3dea80a272e"
+  },
+  "AMT": {
+   "csv": "0f25a9ac222c490fbf8ff42a35e44e677e14ab198d56c89527a8e6677e4fdb3e",
+   "parquet": "3899b3081e2e07569a0af917c69bc7af97cb023cbe3173176a9ebf5b8e3c0917"
+  },
+  "AMZN": {
+   "csv": "cdfca704349bded0c88e60acd333b7441dcb99ab01d508bd3a828c220a0c94a5",
+   "parquet": "3eb4125155d26c2c56a7a070173e164ccb65dc8bc8b88c6c90add042e6c5f430"
+  },
+  "AN": {
+   "csv": "7df4f4da05fddbca2913083f5d3089fa70b03d4d1b07d8d70355ded4b340892b",
+   "parquet": "f9c92a94fb3b67e82750582feb3ef40fb1937e11d8adbc18e9c5539d56bdaf1f"
+  },
+  "ANET": {
+   "csv": "7d57d08eafe4503ce69285ab50299a0ca0616cc627d8b6fa91138171379e9b09",
+   "parquet": "9af5c5da6d0dd8b6559e431d7281f69e7b8031227b373a1ea73dd201bc97d280"
+  },
+  "ANF": {
+   "csv": "f1bac6ea8780ef9ef45e70a7fac37a7e04653c62ee1d469b3c29f4013e6c8cc5",
+   "parquet": "49ddb53502b9ccc52a5e5486434637d4789fd78cfe6b402147a7f1cc85f20c58"
+  },
+  "AON": {
+   "csv": "767f7e4aa2915a3a4b0b0a2b38a3985c3e90befa12afb4dd41f77078250d8ce6",
+   "parquet": "23bd5a5b68d37241d1ca66c3a1d69727322097a6b40d8a50feefe56fb3b2cbde"
+  },
+  "AOS": {
+   "csv": "71f4902546629f102729e02bb8aeebd9efa160fb1900364b9fdb23c5781ada8e",
+   "parquet": "8e0eda97fa28e804c57aa2a5602bbe65293395090c42a39cc090b1df5dc26181"
+  },
+  "APA": {
+   "csv": "74384a4719cccdb261f68857da82b5985638553c063becb776ee8fb83c2c53a5",
+   "parquet": "5997da8d90566352a00b2abebce5a623634112a8b9f784088ac2d0ae935adf8e"
+  },
+  "APD": {
+   "csv": "a3598310c181314ba8c46cf808923147bed12e74f0492e931791e2f2203b6f0c",
+   "parquet": "1789a8f33b9fdc2555f4afad0b4d145219ae8b3300a6b96896b23b3f4bb033df"
+  },
+  "APH": {
+   "csv": "673490fd671f9bd67a0759614a0766a56f37831e25dc1ff43cb8ae13c8504aa1",
+   "parquet": "c952a7ab968447b280e089b12ab257957afaf7d9e451747f454e8c4bec38e211"
+  },
+  "APO": {
+   "csv": "94808b6a70a24f3a872ab7fd7a426c136f5fb7ea12497227e8b9907aae173822",
+   "parquet": "8360fcf24676f9aa305c0af53a5c98dc12c911b994b9dad3bd447d31b3a79a44"
+  },
+  "APTV": {
+   "csv": "37f9731bba29ca993d85d6731596fb8fca74d087a29afddb2928ec3a8143cb4e",
+   "parquet": "4357c02f491bf8888aa4539bceded5f0de041cd4274eaed19e5bba14286b3666"
+  },
+  "ARE": {
+   "csv": "9211b8fe3c6f5383ce6ed78fc33020bc22fb0254809dda3e383ed0eb688b9370",
+   "parquet": "e1f663811f4582ce4492a754fab99e500e1b6bc9f128ebbafd07e4baac3c29d7"
+  },
+  "ARES": {
+   "csv": "ac85125a3d13541cc3d8d66fa19c433e27f055453daf88a20bd872060a89e3ac",
+   "parquet": "70b344b178f90e4e63aa2127f1d6be25e243a164663b1c2253e3d419c8feb5ae"
+  },
+  "ATI": {
+   "csv": "83c7e4780fa373979e5469644294ceabfd10bd10a291adb4572e2986ed83b1d3",
+   "parquet": "25eb386e5bd4d2a22b1c0d6a9957ef7a6956105ddb35c490e36391d466464bce"
+  },
+  "ATO": {
+   "csv": "f827f053362236a6dcf83e10b7612d2a337ad8ca4db6065cdcde61e15ba56cce",
+   "parquet": "622351a374920ffab83e73c9ead8f248581d2429f948a0f5d7edb417c283a693"
+  },
+  "AVB": {
+   "csv": "e3f9259c7ba6fdebf00cf57b7b7085dedaa0f49178d3a6d0044b33054b468a7d",
+   "parquet": "02b5476c958cbac4b4ba9e11e86b641382d412c29a125096199db7694d60c09f"
+  },
+  "AVGO": {
+   "csv": "dff15b87ad090c7e1eba3f47baf6811657bfb5fa1fc73a76724c2f25cde8378c",
+   "parquet": "0c94f73fa2ba03ef41aa4ca8d2babd75b098928565f72c1b8204a43e593d9167"
+  },
+  "AVY": {
+   "csv": "8545c2d3f36d4d1d24a90b1fce621884f403e6001e2f756421ec43959183d655",
+   "parquet": "bedb98ae483f21ae9680ccf623518d071417cff6e07e44a030ddb56e9d39e8a7"
+  },
+  "AWK": {
+   "csv": "dc581ac119647d5f514beca04aae9f89dbf22f0d0a75303c70b948a84be3ecf4",
+   "parquet": "58d13194fe10e99b6fb982e14e3879452bcb38a0c2d14b496053aee8ca6a9f55"
+  },
+  "AXON": {
+   "csv": "614853653700fb3d0bdc93ec16bece2df509665ec4e250e9b1cfd7eb4fecf866",
+   "parquet": "dc739f20b571139da5d6f5527662b2a0833d2b79ac99ac9784052a7b3495c0a9"
+  },
+  "AXP": {
+   "csv": "7e3ac924853fa41ae08d3c7e3b05d7d3b8f46fddaebb0ddf537c3e94a1967e7f",
+   "parquet": "e836da843b03189f829c12efa279fb1d937fabb869352e95c22486a7c1890d0b"
+  },
+  "AYI": {
+   "csv": "14dcf62ae1f52c85289c787c93737469826cb0deb672a7b8fa12fc61e5a827f4",
+   "parquet": "43c8213917aa584cef2971cfd9fa817d4fc004d4519c66345b5e8985ccfd6885"
+  },
+  "AZO": {
+   "csv": "7a9ca90a664fb15e231bda7d8d9ff95e4e6d83d695c16376e385846d642845a5",
+   "parquet": "d4ab48ebb49acdce56858cea20ff84f5436b9b4950d3788e65aecc7ab5d663b1"
+  },
+  "BA": {
+   "csv": "6eb1b859a701c8995221022fc859128bab56e9bc1953192f9ff706e3ca033aeb",
+   "parquet": "2853da0a81a71edeb3735cab3aaec312b7044b1811e07c1d60202c8fc3f8777d"
+  },
+  "BAC": {
+   "csv": "d6aaed932ed9f7c62ba27240fa76f17ed12bb9e8d7d08adb767abb0345ba3325",
+   "parquet": "d2d848e035b578f03c5d65df0dc1a56c3da04fe64525193b02bc4649c083f1e6"
+  },
+  "BALL": {
+   "csv": "6c02c7f72765c8a562705542cae363d928c3aad643aa3c7543e8505541f3d0fa",
+   "parquet": "b58c7e9507eb3b12085c66d03fd75abce3667f5bc4154828f629c13c793429e9"
+  },
+  "BAX": {
+   "csv": "63866ed90f15cedaebbd1e2b7375d795dd8162a9613fc77eec1ac087fc85ccb3",
+   "parquet": "36235cda6dc157eb8983d8ba801ef9c7607551bac04b12d569470250e8f385cc"
+  },
+  "BBBY": {
+   "csv": "42edc7da81dc28cd1e6286d2bc2ff07844f5615675e28d10c715681dfd2f9b28",
+   "parquet": "e8079191a1d328ed7b093a29a0414f41bbdfec0c9bc639e011180dd4d05aaf4f"
+  },
+  "BBWI": {
+   "csv": "f6c6ff99cdcd60e05b0d2836e0e1790866d04eeec6ac6609be9d914ecc93cc54",
+   "parquet": "85cb0cb0d7e48b6eb4c3f325d84d66b18d3f273b1daef7809a9f5d159fbec235"
+  },
+  "BBY": {
+   "csv": "fa23935c9736485fa92bf92c7dab487da9e7c3b99b6bcab0100e45398a9f69de",
+   "parquet": "c785792e236e1e53dc172884e8fc3c9854b23a483545df890b107bdc5ee0f4e3"
+  },
+  "BDX": {
+   "csv": "e024ca34f81a60dd74ba55991aea3245985c327b31602c5ee5bd54633499aa62",
+   "parquet": "733dd0959ba5809e526f8135e5a58286b5e3cb4690276b30f636582f173fce26"
+  },
+  "BEN": {
+   "csv": "e4f5aa608115a89e7e30fcbbaef18802eb3ba94fbaa5f9e38fe512727af4d225",
+   "parquet": "f0197a7821e13b00c38295274489bd18779a6736ead68b79bda54b087fa1a598"
+  },
+  "BF.B": {
+   "csv": "2ece3b398598714f1135561fcebddf036658bd18f9203a7a20dc462444493faa",
+   "parquet": "19e68f81b725560ebef74673357344a3b42d8ad551f668e7a6ade5e26cdff3c4"
+  },
+  "BG": {
+   "csv": "24b90046b3894e22d55b492efe87a03ab09a337e99ed0ed1755424bc7d80c285",
+   "parquet": "1667022fc34962b364a9d4dc239138897992273814d09f805474422e4f041435"
+  },
+  "BHF": {
+   "csv": "ccee293cc5bdadee1a95a2c6ff5cacf02c07d90e8cba7e77ed9171c7a36059dd",
+   "parquet": "7382d0972d84ee60c27b891fa7d2366165c050872f97067043c7649145946ca2"
+  },
+  "BIIB": {
+   "csv": "e433fa922e62d107be7949de012429c060147ffa289459145dd49788a5412a11",
+   "parquet": "0370cf01ba932ee83cea9a9dc15a046eb6e5f382c863359569d631ee4e158154"
+  },
+  "BIO": {
+   "csv": "1ea9754102e25c3b3addd64e1df739cb91b6fd8069733d0675e20af7f9669869",
+   "parquet": "2392afbc90a711f70098cbaaa958ab4d8b3d2d58226629d53a4fbbc975661a6f"
+  },
+  "BKNG": {
+   "csv": "bcf4c127fa7a09d0b2fca00b03b26c786dbff21316ff21b5ff8de1ed41a7eda1",
+   "parquet": "35ab4d2ea54d9d61fc9e15463222707f61bb0cff405d89d807ce124270323d3e"
+  },
+  "BKR": {
+   "csv": "46781dc667595cdad3f70201e004dcf2ec0516bf62ac9703894083b1882be24e",
+   "parquet": "747f9775fde051a3a912bfa896b1e8a770794f39629da08d6ed4846702547328"
+  },
+  "BLDR": {
+   "csv": "4448f2a959d7aa3a0f0ff5afe9145b495855bec85a9e75d15543d81f3f7fda31",
+   "parquet": "2609694850f5b60953f3ce9c088d992c821332a8366a82c500dfccd38ac1a711"
+  },
+  "BLK": {
+   "csv": "3699572ffeec346e3c55db04b60f9c3fbec91ceec29f92db90a098637671a099",
+   "parquet": "7cdcc2d8b795706236b7230093b2bd1cebd6fd43935c07e9763fca22ed91ac7a"
+  },
+  "BMY": {
+   "csv": "bcb942e6e44fbead91f81427e6ab629670f788717fc8a967acb192fe644cefbd",
+   "parquet": "34eff70267c3406074f9352833dd4814edcbbde0afc90b0549fd4742c66725d2"
+  },
+  "BR": {
+   "csv": "12a275498fea2ea8e62af9c6d3e0d656e4596676825685224c4d933c0149a531",
+   "parquet": "470f32ddfa95f473cf5b1303a93be4100aa5c8b7bdfb58e9963f98e89e6a61f5"
+  },
+  "BRK.B": {
+   "csv": "0890ab75573a53c3e6a5868907190087f8d2cf4ffc11c4403e0cb2e045adb78e",
+   "parquet": "a6f74da46855e8c6a4c3e6c9eba80c693e665bd2198305cbaa612593feb3d6c9"
+  },
+  "BRO": {
+   "csv": "d5a3818cad3fe37a64e3ee11b7fc997410af372662bae5f385e65d4e4296a004",
+   "parquet": "93feb9f69f0acdffab63c9f7e1a1459c584049e74e4e5f1667d96341d9d3c6b5"
+  },
+  "BSX": {
+   "csv": "22799bdc49a2361dc931143562e777a914f3ad19f2963cc7e23fe38a9dceaeb7",
+   "parquet": "f906b4875d755b5c6f8961d064a38d60984d53eb968e741531172eca201a5b7e"
+  },
+  "BTU": {
+   "csv": "4cee31dfb49df03aa93f4ade00285abc3701205a04e12de09e87e39a1b9ed778",
+   "parquet": "87703d66ad87cfe3ca44757d24a1135bf219248393ae86b18bf136fe6ba80fb5"
+  },
+  "BUD": {
+   "csv": "48bab907f9b82d400e9935e78748ef0b34e0e363187f8255efb63aa16acea371",
+   "parquet": "1cabccf7a384347919da78e272863cdc28c1d317e40057d7ddcc528bab07e5a3"
+  },
+  "BWA": {
+   "csv": "ab7e9ab06505b40c850ffa33e71ce8f65e4d012983134b163219223c90cbc444",
+   "parquet": "1490bd3235b8ca16caa83e1c95d9632484944a96af68508bfc67d1918c3ba611"
+  },
+  "BX": {
+   "csv": "e0fe6aae63e9f3a518401c02b9233a71733da2d27a4b62db2c6e6a72ae3637fd",
+   "parquet": "4fa6181b1eacdfe70a76920e194af7369c5668a67457d1078599a4198e2cf147"
+  },
+  "BXP": {
+   "csv": "db5f33baf8cd418b5acf26f71c88015a3e130446cf325ea7941200204b500559",
+   "parquet": "2009372bdd22f15841e8d4c86907d0e72670eb251bdbb00fa56b1237f17608d6"
+  },
+  "C": {
+   "csv": "dd01f736221ba25b095a3ecc0d24f26430814a82b631f844be302dc2fcf5a0ea",
+   "parquet": "55cff0fe2003ef3b9ba914a1355cfe6c07fd8bfd90c2f4a1b97dd44400322a8e"
+  },
+  "CAG": {
+   "csv": "65b4a3fafd9b871911a6f6cb06369d2fb4b860eabd91be7376f3a1e2e63ae7bc",
+   "parquet": "92985fd1b2cced5f49a5747443df8ccbc7997d046daf2b21ba46ae42fe87d865"
+  },
+  "CAH": {
+   "csv": "d20133f35ed641bec9d6c23166e56bdab1e1cb710d07e476422eeccc918c9209",
+   "parquet": "2ca664311d1790582e3a16c5e6381e7798e3e3febbf52f4b167475f88b326a74"
+  },
+  "CASY": {
+   "csv": "efdf9abdf57c804c31caf7df67d8d3a53332660d1c4331accc07a5c0cd8b39ba",
+   "parquet": "3f66d9b88e55145feae7c00bbc413927f4de5793d64e6f62ae9f8aaa0fe7c600"
+  },
+  "CAT": {
+   "csv": "806252cfa956981d05939a45395a8ff3f474f4eb24d9ee5df7cf6d2783d84bc7",
+   "parquet": "8f9392eb0554a6b419a64fa72d195bd380b6027a88a14a77a9bbf324b1e72fe5"
+  },
+  "CB": {
+   "csv": "fa2a6832acd838893a9d26c84b8f71fe361eb815914dc5de430e4da0da895adf",
+   "parquet": "bacf3492078e7834bea09af93636b14dcceafa55f0b4e5db8884a9d5cba16848"
+  },
+  "CBOE": {
+   "csv": "a8e4e18536215aa1a3ef9df223f6cbfcffd2959b228271dde82c095693b62c1c",
+   "parquet": "fa7f6498a837279cdf0e92f50ba7b1f1c0f96543c1acc374fcb468e979c350fa"
+  },
+  "CBRE": {
+   "csv": "c39044478274254bb36055c15f4f61efb970c9b76d0500988222db5f5c82f5eb",
+   "parquet": "19d7fda18da7407bb22ee36d1ab108331e33cd0b502450d1e714405a890359d7"
+  },
+  "CCI": {
+   "csv": "40d10ff57bbb85591bb9de9f5a9976a800bf0624311d7c320d972cb516c0618e",
+   "parquet": "309e7519d9534d44312436709dd353a7bd207a551b355e8396c862b757c0b426"
+  },
+  "CCL": {
+   "csv": "24b62d4e2d57d055a46a8a25ed5feaabe15d167571cdb965444c90ec1f8661d4",
+   "parquet": "3521923556910954bfcdccb5751b4d12872d1f1cdf764bfedf59ae30cb78a806"
+  },
+  "CDNS": {
+   "csv": "250d70d1a57e19df116c0c1d8ca411019c1161ad1f8bfb988eec2bbc897c62b3",
+   "parquet": "dd5cea456f5bb54d28a0f49c3c0dac313f86872ca41cbcaaf3232f114595246f"
+  },
+  "CDW": {
+   "csv": "adca1430424c9131ae6a0c802531bbf253c7bababad3fbd401bcc90f9c3797a8",
+   "parquet": "7dad7467237bc0644470e2e1da7427c9070c722bb1f941070704b0ded114bee4"
+  },
+  "CE": {
+   "csv": "e06903ccd6d959c984daf6827cb56c5011ed7f2c625edc1c125be39e5bb4b60a",
+   "parquet": "b1c7070125f44cd2a37e7bb19763f69e8a4f2f57d9f56d641720128ad3ada1c6"
+  },
+  "CF": {
+   "csv": "79c58e271149441cf4172bc06990e852d7d2e0c1fd16e57c91cce9ea71319c24",
+   "parquet": "9714af7d894271a0cf2cd27cc23508be9180b5fb087b84374dd975113dd9df0b"
+  },
+  "CFG": {
+   "csv": "3577bb44c6687c94f565e5bdf778e97ac2a6bc07478c77f2edc13f3cac636f83",
+   "parquet": "6b738c3f67874e04acff3b2fd0f18f54a01206b5ab20d9433444af5809961182"
+  },
+  "CHD": {
+   "csv": "2dac2bf9fae631ba54532b4a8dacda1bd05f3f308b3b0262a67707abbc830cdb",
+   "parquet": "d28fd69193ee229c9d05eb64b99a229397ac732423d241b17c09e8e7eaf2df19"
+  },
+  "CHRW": {
+   "csv": "412fb42dc94bae6e31587ff59e1fe8a25b49ed4ba6b3ffe56a328a3ab35ded28",
+   "parquet": "ad57d5536a2e5131ad7dbfb3880bddd23d9dfc9d69f84d7bd9d8e71dcb190371"
+  },
+  "CHTR": {
+   "csv": "01fd6db374636f9d308bc6e3afccafdee1898615afe829893cd046bc5f9a21c8",
+   "parquet": "fd14e9fd8721fb9ec346f64c500c6dbb89dc72198555862687a173017be3abb8"
+  },
+  "CI": {
+   "csv": "a1e96cf6582654c9cf2c7514186157766b4f1c03bdc992548c62a27409c8a8d9",
+   "parquet": "b077c3ce57334ef1818edee1d4e44c767481872686fc2fe2de135caf26ff9e5c"
+  },
+  "CIEN": {
+   "csv": "ea457a9a395d3f68672e5cf1ae24ddd902035cb51b38821caeb1adb79bf98122",
+   "parquet": "71d46b11f8e4f17f70db120ac7d6a9814a7784ae573d89f7cfe6ad69003a7eb1"
+  },
+  "CINF": {
+   "csv": "12331957d8acc19d782cfd057078876fd349bba703b3b07af2b2d396cdbdab41",
+   "parquet": "45c326937edc6d9e9d595ea9c6795445bfb0caa58555d80438466a2bf9529233"
+  },
+  "CL": {
+   "csv": "d74556f75c07e194cc9dcb4a7f99ac34334f522eb8b5052c8dafb1e4250f6e74",
+   "parquet": "c0e4921e70bf9462490ad875e3963f7156cfaad8fdd502d0911e8da4065cfc9c"
+  },
+  "CLF": {
+   "csv": "87860789b75db70439a3cfe6ee2b3a32352868f17c92455bfb05ce6bf3db2653",
+   "parquet": "2ce4ec9ea5ec5242f5626acba525bc6381831b6cc581126e2ec782822783780b"
+  },
+  "CLX": {
+   "csv": "f04283c21a6a86b9f9b6f6b0460cd7110069fa888a6aa602bad5a1fefe5b1ef7",
+   "parquet": "f9a4a5a1e863d07274306c362eb1979b76631a64730f945015d21d0521d17610"
+  },
+  "CMCSA": {
+   "csv": "0db4363cf3e27421a3d769835446d7b5a313c8befa1eedcf83077f41fe869245",
+   "parquet": "7820919bda53d3d09934c0c767786976797472669524376a4294fa197eaf8e50"
+  },
+  "CME": {
+   "csv": "17921de75fba6e281b685dd7b288fffefe7435b318f77b3044227d2a230eac4a",
+   "parquet": "94fe63bc2e8e912341f743d61e04dacae0a4989927e40c74926b4eee0b630e1f"
+  },
+  "CMG": {
+   "csv": "72ec085bef66c0cb84bd47d48204e0eea572348d3a16e5f33a881db3df933b8a",
+   "parquet": "7f82401c91fc4ac118dc0ba96aa17a4561ff8efffd2d4cdbfb18c36e0fb3e0a0"
+  },
+  "CMI": {
+   "csv": "20752c8c735c1e1433d73abc6b0019e3291d47d23c9f8f40bb11bf09c5cfbde7",
+   "parquet": "6fccb11ef280da6cc9a246cbfd8d8af05e5f45908cf3c9d3bf8430e454003183"
+  },
+  "CMS": {
+   "csv": "246cfbfac85b814acd33d3a05f96d1dce41eebdc185dfbdf8c30149c53b8640d",
+   "parquet": "7b29d73a66f04c5cd540b690e738455c6a56419b2436f3229b841d5533b80dc6"
+  },
+  "CNC": {
+   "csv": "84918db5370b3215c6611ec264ebd8c3789b5c836b82861ddac56364b698fefc",
+   "parquet": "ca862ba38de5cca269e04648b7850651e3bd54ebb2d78aa4c72aedcf3ea7883e"
+  },
+  "CNP": {
+   "csv": "0cf988886caff3a7756328fa1b9eaf68207fbd1efc0b2bf21783b0b61a8b6b89",
+   "parquet": "349ceab88dc27bf6db8ace193a8ea99351af03a70f2a584691d635cd8af9674e"
+  },
+  "CNX": {
+   "csv": "3e23debdc610693e801a1d1226f2b4df342e5dcd14042ac17305c2b51c07ec76",
+   "parquet": "d1af8c259d180299cbbdc71170658fdbab0788a96a1feda822357d0ba81a9345"
+  },
+  "COF": {
+   "csv": "2c11fb723385a0809dfd159b00ceb9b7aedb97189b45b7c1c5be42e96b5aa123",
+   "parquet": "edb03b735dc81b2fcfd60ac65f926c491f82c0d8bc820d28340abbafed07ba47"
+  },
+  "COHR": {
+   "csv": "e7508e32786f7f61b44b9cce69acf0c9c8d6ccc9e4d70c31c3847bb383fc4d30",
+   "parquet": "c09bdad34e67ee2007d6b57f0a3e1fedc1ae3b6c37a36af8aef3cfad685e0e40"
+  },
+  "COO": {
+   "csv": "785c9c4d4dcb6c54c1a71c3564250bbb27e4892f49d0cfd2f3fec28451c0bf3b",
+   "parquet": "6f6ff7e97b46d26e1a9a0264dacd16bb5c82b6ce588eb1ec77c9a34abba188f4"
+  },
+  "COP": {
+   "csv": "0492c029dab2e2ed161c2da45a140346a2dd931bcb98ec9acdcbe3d974e3a853",
+   "parquet": "96e01cce554289c8c7771b8aaf8e396c1c85abce2273a4d0204a3fb97613b3a8"
+  },
+  "COR": {
+   "csv": "3867529ada1c91d88b058b6a2ea86dc5f8d8ea1fc0ca9ab31bc5bb2740fb60fb",
+   "parquet": "ba2485acaa12761d89727941d37f1f29d6cf50f099339dd8fdc90160d0392555"
+  },
+  "COST": {
+   "csv": "b70253809d3d017bfcd291957af06b59e2408720ccdbc79bb99385c5a8a5d9eb",
+   "parquet": "5c69b582fc4db149fcc0e4a4d983bd4ec41243fa4c7f19840bff0b44a15c19bb"
+  },
+  "COTY": {
+   "csv": "45492d48361c69c390b3c9c41509b23f4f4333caab07374248304205a177c40d",
+   "parquet": "1a65e37a942fcb2bda0098dcbc856bdd106fe45a1d1675fc411278d75b837a1e"
+  },
+  "CPAY": {
+   "csv": "65b6918d3e68e232540fd7068901615a9d26342d69f866f9236fc1c716197e13",
+   "parquet": "0623422806ad5215901b43cadad5c65c4bebdb899ace2142b10e119f54b4676a"
+  },
+  "CPB": {
+   "csv": "499ce88d1da325a0d9acb4f6730cb8e3ab29278378d346e36dc033975bdb1dc1",
+   "parquet": "7bdf92826f3fb46073fcb883ddc9b5f3dd28afd8e7009e5f644ff17188b267f7"
+  },
+  "CPRI": {
+   "csv": "be57b9193001f1c5b87608ffaef686a927546029e46455551248aed69eca9154",
+   "parquet": "525f87f9a1b1c2a9db1878ba009b1a1c1a62ab3f76cacf96b1f22f27beb6798d"
+  },
+  "CPRT": {
+   "csv": "9c9dfae825d23d75ce78f4764f182bbf66476df99d576fe158bf36c6b5947e8a",
+   "parquet": "a03abdfd4206913a3a6c31171f6a892317ecb23a54cd53d94ab8f0782a61d5df"
+  },
+  "CPT": {
+   "csv": "f44209691ad69b358be41a619709d3ace75c31a21eb4009f3aed22d190f7e902",
+   "parquet": "01389e3fe5af5b1aef82b9c92765039548a39dc67c255ce460aceec8c0172ada"
+  },
+  "CRH": {
+   "csv": "ba4e23107036c366f38eb0f5cbaa2d1aaaceff9a0181d5bcec946a91900491c4",
+   "parquet": "f0f6032aa4263896a365c42c6877cbe91c3ee1ef9649c3d8b63f3e7c2234926a"
+  },
+  "CRL": {
+   "csv": "26772d20bf6b48d05d07b0d72466c708e1f3e3acfa61a57c494f123e3874c933",
+   "parquet": "70e1db8d5d1e7717b2e5d102cbe80ddd07363a4535a30c59f3b11790defdb224"
+  },
+  "CRM": {
+   "csv": "84245eadb93ef5d35754fece71f72cc3fe5f155716f208c6cb37065cdda65eff",
+   "parquet": "dfbdd7585c808bcb2ff0edba4193548050d5c345b5b740c094faa8f2e559a041"
+  },
+  "CSCO": {
+   "csv": "419d42069d1000f18efac647688f11ab3171241419173a42b0bd0865f5285502",
+   "parquet": "78c9c2fd22c0cc8314912b08bb6513fa189323d9f7764d479877d143355c5cac"
+  },
+  "CSGP": {
+   "csv": "c5abdfeda6506f1c1f20e098b46813baa8b070923af9ed67c5fbfd78fcd5c115",
+   "parquet": "96571e5891c2337f2f62ed554ef662a2873a5baab13ee19c39a2440a57a18828"
+  },
+  "CSX": {
+   "csv": "1b539c53f912e20258753b12a5a26620fa3812b57a61ef76f9317ee27a7f4679",
+   "parquet": "c3830ded8bc231b5501ab49f41eda42f12e10eb6e108561680b76958e29a7cdf"
+  },
+  "CTAS": {
+   "csv": "893383b1a6be77c8cef499966978f6aac7ff6a906f3464c179d3496da65972aa",
+   "parquet": "8896c63fb5ef312d2551d6212ffd604ed822e2823552809770791a834e79b1ed"
+  },
+  "CTRA": {
+   "csv": "389614e57596889f45d29c77e69b5e64e29691a7376c103ed4bae220f95183d8",
+   "parquet": "6f4eb2d14c8a115c836c16fc6ef322d32f0428fb898f2345bf345b9eafeab98a"
+  },
+  "CTSH": {
+   "csv": "b52d874806f885b2e1f6a4da9c058396c1f4986e0d0aa715a51d8318c1631fb4",
+   "parquet": "7159874500d031e84b8d9c38c776627bc24826a99b8030acf863a09eaac8cfe1"
+  },
+  "CVNA": {
+   "csv": "3963fd7bc0c6033c84829420286e9d8e56f94e0807897448776d02f49448b905",
+   "parquet": "d3902616b7bd74b80014bfa37f1395b4d0984acd20d2d1ee906c9b856f47ee1a"
+  },
+  "CVS": {
+   "csv": "7b821f09b958949706c65b657ad173e67b729adcff80d2af12c2635abc6027ea",
+   "parquet": "1fce2231a1b349e438186949b5ac226e2da9fa3d712549250f4eae68698ffc8d"
+  },
+  "CVX": {
+   "csv": "ddcd9f72658283389756f1eb00f5050a2bab6472ce38bd9159ce8bdd54e42e60",
+   "parquet": "6a1a00724a080b9ac62aae98d3e3df88bda96cb0d29c1f7ce418e5dd2fd54dcc"
+  },
+  "CZR": {
+   "csv": "bb8f51a2f123ed193ac8356cc6ff0b1711b95e0cd25ef5d0a423426aa5fa2b5e",
+   "parquet": "921cc01e0c08af590eb91ac5f6731153f00a0201f590c444e49b1e64dfe57aa8"
+  },
+  "D": {
+   "csv": "db734c22fbe5658236cb8b334d6956acbc99f3c3d709529c3ec9e9a89df5ba4a",
+   "parquet": "fb1ca381b37dc3ae9dcb786329f92519c27a787fede732657072e78357519bf5"
+  },
+  "DAL": {
+   "csv": "d4cd94670afbde438139904bf84404ee3a3f0c2fa00f32578b4f364672af5f6c",
+   "parquet": "6b508231e20572d6f14831a592ac4910d54cc688e0c39a50a21a9989c6ddb487"
+  },
+  "DD": {
+   "csv": "8307fe90d185aa26796b189153d0a224b8afae6d725ae2c9cf2ff12919b45aca",
+   "parquet": "6d4843686a8fb095493791e7d1205f56e958d766303c65433d2f5834d1208ebe"
+  },
+  "DE": {
+   "csv": "d33bfc3eadc6410f333692e9f7c427a0affcb5b8524a26e25faa85534b5626a1",
+   "parquet": "52204e19c806c62b75e6e2470b6d69690ed7afd396b0ba542cd4c7868fbaaabe"
+  },
+  "DECK": {
+   "csv": "1553599a42c8b0838227de0b29584c3ab7e662c6a6405633c3e49b3ed7199ef6",
+   "parquet": "7d91f76e6932145ceb673863090e439597071235537ec0481c827327ac105ed0"
+  },
+  "DG": {
+   "csv": "f93dd53d974ead15560e95d57dad966bc73dfd3d49dfa01fe6f5103c00b1b475",
+   "parquet": "a4c5677450dcfcf79300342bc4b772d7582436d82f32d8b6e03538839878488f"
+  },
+  "DGX": {
+   "csv": "657e5bd0a0753babf8c4907d6e99654e1fec4fb309502ea482fdb5343ad27176",
+   "parquet": "1c0c178d3fed397bd4d0a022ced22c2f920f19c0dcf448392542b0b84ce6eaae"
+  },
+  "DHI": {
+   "csv": "4416af1a650c8c0f4b9b714029a35d4e93671dda2b58a08c755dfaf189b37a63",
+   "parquet": "ad5d1850ae5d8706b96e0a60cbed3706c09a4c9d31bf2059065a3338250b9138"
+  },
+  "DHR": {
+   "csv": "9be7055df3b40b4e39c457058ca6e6a09e5fd380241fcc72ff7e58980d5fbd46",
+   "parquet": "8b00b804e6ba245dd7abe1a93b76befc86ed56587a225a7eca55d53af63ac9c4"
+  },
+  "DIS": {
+   "csv": "eb28de55807be0711d1813d0db8a25e3c141e0cbeb9069999ef03161aa7f57d9",
+   "parquet": "d20f68cfe6550353625395885bec79b2e172fedb1d42694c93d40a0b7713f401"
+  },
+  "DLR": {
+   "csv": "9b2d93ac31bb916e44be80f1b01ec047bbb214f533254d87efd309d71488ecc7",
+   "parquet": "d5b617a6714d380e8a450f503367e0d5fe445c3efd31237c208594f66f317073"
+  },
+  "DLTR": {
+   "csv": "ad17b70566eba4bad07e61829c02a6e4b4833ddd479e973475478063ce9af67d",
+   "parquet": "d1c27f2efd4b17fe28af1bac940cc7575c4f1eebf4141fafc5a0c980b6804da0"
+  },
+  "DOC": {
+   "csv": "7e52266c1a83a4f8f9c4b5f79b2295565e4613aeb586d79750f629274a99f999",
+   "parquet": "e828646b5a9b95b23b7d227610312794eaab8fe33e034baa58be9747407a1b1b"
+  },
+  "DOV": {
+   "csv": "f53b54aba275383c8c39ce19250e34b408105300c3148c6e8f08df62d5458379",
+   "parquet": "d4ac66143ddc41e86f4c9ee94d391b6e028e95e56fceafe5ea9306063c1bbf76"
+  },
+  "DPZ": {
+   "csv": "d536f0b7df17dd1b04b4f68ae88c681af50d85ed74be4c9ec6b9f7eaa67ce52c",
+   "parquet": "74d2b676f566bed62ebe1f63e0f6e92409da17a3f4336d091639b321fb14c3b4"
+  },
+  "DRI": {
+   "csv": "1502ddebda0c3e69ccc962c8cf2c5f64fdd213f9d6aa60cd961ddc35cfb70779",
+   "parquet": "0580cd3ca833b3dec5cf4983e7a0fceb094059d4e80e2b3f3126fd39af557201"
+  },
+  "DTE": {
+   "csv": "86e7a306eaf95880bb84229704fc027a298cc0aae23a8677e69adadcd86fcacb",
+   "parquet": "936bb14faa7eba820007fc0968fc71be014a484486fa6e478bd09ccd82695889"
+  },
+  "DUK": {
+   "csv": "b71aeb7daf2082e2407a6c91ddbf3172f6dfb07f8360aac50c0a06165eb13cf1",
+   "parquet": "39cd9251921c1d13d1219eb81575e34f5a6c52a3b17effc20bb2ba202f91b2af"
+  },
+  "DVA": {
+   "csv": "a7361750b7282c3661496c46fc8c10650218412fca92bd3bbd8234a0445b2e27",
+   "parquet": "a523702cea073df8bff872de8d8d2212de7b4a3e689022d5c21a519c9e2d28a6"
+  },
+  "DVN": {
+   "csv": "f5cf9fd928c9fc1ee2fe52a75f35b8656d2670d7be009d501752f5fa3bab7a15",
+   "parquet": "9faa685f3a97c29f8d9f3f57327d19eb170eaa5c5df50bf9bef8c1be1c494498"
+  },
+  "DXC": {
+   "csv": "13b7f1b50cd5e20c0758824a2c736b34f60749d6fbd774a64dae9458e6dd9f6c",
+   "parquet": "e677d6fe70ade56adb78ecabccd7294c25902b90d777dd436d957c43bc5858fa"
+  },
+  "DXCM": {
+   "csv": "a54a3d235d7cfb33591d2c504fea286ab33872dd74eeef84f31195e4cd9261f7",
+   "parquet": "aa064cfcbb42d754c0e1b907a09e48a0b4f6aa0a3d827e88df56f4e22482e5d1"
+  },
+  "EA": {
+   "csv": "a071a78951681608783b8a31291485e6955f0cee9b3e05fcb8a455ff8f6e6653",
+   "parquet": "63feae65f8157beb4305e5168763f4f844ad397ca04baef51d14fefb08aa912e"
+  },
+  "EBAY": {
+   "csv": "e836fcaf611ce2c4dc9a665c522c23aa809387556e2c2baad3091fc424c5fc61",
+   "parquet": "b82ea07ed6733752fc2bbbc8e9e6ecc983b752defc37acaea244236db73111f4"
+  },
+  "ECL": {
+   "csv": "d6d2f277ab0387880aa4c0951373ec077f7374c39f482c12bc7d23cf5f0abe87",
+   "parquet": "6633883c12e11696b52b2a39d9834fe0db1bc5d003b6d6245107324a08ab6d4d"
+  },
+  "ED": {
+   "csv": "146cf98b94e1281f8e513d5d74c62ec79d1b2795b2ea13dea0ad084d2f666ae9",
+   "parquet": "602d34ea3d44e21c7145df8f2f07a557fc660c0438f7e62927da9c6bd73c3977"
+  },
+  "EFX": {
+   "csv": "c91c7b6de33644ec055a3a44d46bf0153de600be134e41e6cbf47c6e6678f59c",
+   "parquet": "a24657a8291df022e0bad168b4473c8673e3eb2df9ec4a760c0c6603ce1ae927"
+  },
+  "EG": {
+   "csv": "d6f67a72c6377ed6a68c0da0f0d1c06480c21b902e86f42a21ae7798957abddc",
+   "parquet": "84a4bd72e215c89d7bcf71f4affc6772c2749a4717fddb7ff215cbcc09f1be52"
+  },
+  "EIX": {
+   "csv": "0f2e8498e520a82ff8643989c95168b46021010a21bfca25d236e32b0a859806",
+   "parquet": "6f6fca9183e35a4c9cfeb2aa4c9cf8457f06a8a2405575f6fc68d3e36c9831be"
+  },
+  "EL": {
+   "csv": "5b81e0a393a38319fcbf0b77e8fa97d2e08c9455b6e358bfc2063832e18c60c0",
+   "parquet": "4438542114d69805571217ec10f1806a2196193089bb9008821328770dc66ca5"
+  },
+  "ELV": {
+   "csv": "1c9aac3468b7662dfdc01e8ad14d22ccdd0e6713a9e82792b761d5c96beb5e89",
+   "parquet": "73db589d28333c08a5a6f998c5894376d04b26495bedf7656a14d16899314730"
+  },
+  "EME": {
+   "csv": "bd8a61872ef730edc65193c5c9be80c589a15d90e42e53d7242bfec583974f30",
+   "parquet": "a7e8b9356e458d1fc9d86b56f5b1fb51170b2afd0541ba11e886fb471db89404"
+  },
+  "EMN": {
+   "csv": "f9db2d6e8a1bb1cd18de0d3baf3981d0ea16938ac263da845a30e3e67e9c501e",
+   "parquet": "63e249d8a91c85d62f949cd1cd5645a0155f8a0166001a3a467e82d9e806aa6a"
+  },
+  "EMR": {
+   "csv": "b40a73bf6da2c0a6869e1f1f1378d73595f84dea3906ae3e64c29f9645aae555",
+   "parquet": "4c73ff6cd5a4101aac5f7b5d71e7b457c7fdad04ca4de6e4e171dc5796061649"
+  },
+  "ENPH": {
+   "csv": "f445171fb35fda75b1df86b893f4634e796494f31177a48f22f11c0e05054e3f",
+   "parquet": "c86d3020324688bb6a6cdeebd52d90a0d9e81a8bf9ba2c1831ff81455877005e"
+  },
+  "EOG": {
+   "csv": "04efa3d0c07e89b5da05ce1f3a37400b63acbf84b55cf731d5bf83fd43ebd087",
+   "parquet": "b6213d44ed020180084e67b177663c21443bc811ddac9198841261f9e26f8570"
+  },
+  "EPAM": {
+   "csv": "c40d2d7572ef587be1938491843318cfcea71547d5ed4a9f2770becaa67b15a7",
+   "parquet": "a924263e87dd0f62ef98730217b720c958b73fbe1e6ae5c506e7bc0d3c710537"
+  },
+  "EQIX": {
+   "csv": "302237c1fc110ebc8c133b42ca30e09d51dd3ae82f2ca5786aae5457e18b89db",
+   "parquet": "afa65dfe6ac5a8ef408a8a473789ae8b56492ba6a5386d22b9829c4cf0c5553a"
+  },
+  "EQR": {
+   "csv": "6e4a937e324bbba6053ca0a27f5215c9cc83e6fe25a84f2a90a2a9345ea5f4da",
+   "parquet": "3848f392709b1a90b08e95e1580be9a54fd1add9a1edf8a8a781bddd65c2939a"
+  },
+  "EQT": {
+   "csv": "b19be27402679414e4c093c5d38c3e1ac527e370769f0392fcff5c100e49478b",
+   "parquet": "b451f7feb3045c8b02eb881714a6d0a43de973935278cef5526c60d6f7456f17"
+  },
+  "ERIE": {
+   "csv": "c1bd8ec9d16efc05b559226e975605bf6150a6607e9f4d7c6f1ec82bba6e059c",
+   "parquet": "5263a1facb04c8d4b27d6fb2fcaeb9f682917a3d5af69ea0e15badcdf04163f9"
+  },
+  "ES": {
+   "csv": "82c3a461a9a79f2b48453d9da1dbdf95d9a0dcb6ab6a177766c8c8a00fa0a327",
+   "parquet": "e259b518713e093491f5b3be10f99aa7bbf6a7ea32471bb53e6c02d6c33b09be"
+  },
+  "ESS": {
+   "csv": "a8fe1d53d3e86b21a5233570e6527d27edf3fba1261af0f3ec34c003df0f7072",
+   "parquet": "a9d157e7517a64aa32cc318ee1040981f0d6ad17136b2a3c06572ca358e96587"
+  },
+  "ETN": {
+   "csv": "94dca933e6fa267aa0d8f70f5ce514dc5033a17946569d5d208de58d57751966",
+   "parquet": "caeda7ff909ef54a70928298a86d3baeefd00dd00f2f8ff5d9fb718c3bf0a61d"
+  },
+  "ETR": {
+   "csv": "fd7134c130a2c196d73bfdfe31cdb32963cd8583ed66ffc81b5ab2a9eaf496df",
+   "parquet": "bd28a04d77e6d699b794ea38ba47304a1cd77c879ee11d5ef0b91271c50bfb91"
+  },
+  "ETSY": {
+   "csv": "fda2a9c96a66fa178d6544b0c07798942f28ae0a2b18ceb47f05152ebc4ce53b",
+   "parquet": "f26869a6ceebf5c7fce82821b77bf096ab487ad300bad2fcdeea3142bdc4f7de"
+  },
+  "EVRG": {
+   "csv": "8fb61a915945a27f7e3958424ed874a202f4d546ba65e19d9773cf87930ced3d",
+   "parquet": "fb03e9c24c651f66598d8fa009b5926bcf79b70a01a0e6821322937d7d46f91a"
+  },
+  "EW": {
+   "csv": "d5d5b13f279ff1095cfead36480d4366502f1666910c749d79a0bd0fa5d029fb",
+   "parquet": "5c598460dcfc967aba5666a0d7df7b94f6ba616e98e2726df2056ee1c0748ecc"
+  },
+  "EXC": {
+   "csv": "538d432ea7270a200d575f271441752834ca3c7880320524c5067e498c2dea5e",
+   "parquet": "7e9f8ea8f4ed632cfcb7d0dcefaf8bb988a951eb1d3e9fe0ab7c2bd9f4ac14f3"
+  },
+  "EXPD": {
+   "csv": "c900297c5cc8551cee7b2a98ed086772a75eb62c591e1b117dcc6926a7f48c57",
+   "parquet": "fecbe2b7ac123471b9fe5ab48e4fe47681740d8d9ff9b3fca6647a607779fbeb"
+  },
+  "EXPE": {
+   "csv": "98b704a46739ed45d0d4922af15bff9f77aa436a12a006d65425fc23e5df5db1",
+   "parquet": "93621dcc62b29460fdbfa2cd59c106404336a745b306a170966a5542c5290ded"
+  },
+  "EXR": {
+   "csv": "333750396e207322ee6348c93af47013addfec57c6c51f611b1b7e51c26a3857",
+   "parquet": "748739b32d69fc9f6d4cf27534788a424885bc8bc87e504b945ce4d571bfcfd2"
+  },
+  "F": {
+   "csv": "5e8b193db4c06801d534a859a539a5719a7203cfcaf98e4c7a5b2b2b65fc1d0c",
+   "parquet": "ed8bcce4de594a92d9e7d721b2831690e52bdcea4d03404bcb1ac9915179e707"
+  },
+  "FANG": {
+   "csv": "a33e8f8ce960d1ecd52a7061e6c8a7f61e2cbd1bfa70f9eea0044d25839e1ae5",
+   "parquet": "f1e289071f279e278e29526aa2827cf04cebd9ea63b12d5c3f3c17f81d87cf27"
+  },
+  "FAST": {
+   "csv": "9a6de30181b36caf78a627540d1cc067e0ccaf313b65dedf0bd6a2cb613d1b17",
+   "parquet": "91a310b3bc814e9645602d708a790b07cde8f37119211590ec1915d9d391b330"
+  },
+  "FCX": {
+   "csv": "92ebd4f43f38ffbdd92be749853c7cd34d19353fc179522dbf2b1f4431514618",
+   "parquet": "f245c2a7f5cbfb2af7b23e97c69a2fcd1c7cbdc398453ef93786460c52a32fa5"
+  },
+  "FDS": {
+   "csv": "37628d4499b936e23d05c2f3ddaa2c4405f04081f82740f40dec2d73d2983f5c",
+   "parquet": "d0dcfaeab63248adf138d3a7659feff7132f3bc2a709448586e4500aabfb6402"
+  },
+  "FDX": {
+   "csv": "610451ce5fa849b3a5e7e1db3dcf617f08b35b8ff97ba7419d1fcaf621c2423f",
+   "parquet": "40fcc34d0faf1a589e2eeca2ba657a39b441768ac16a0a1ed1cc5438e70cdd74"
+  },
+  "FE": {
+   "csv": "4c283ebfa209b58060b5a2901dfada4bf4b9925fc302d42dddb321f928234962",
+   "parquet": "8dc019e89c1f0d8d801acca2a146158a80a2199e20988472e1e925fe29372ba0"
+  },
+  "FFIV": {
+   "csv": "da604c9b276d373094fa8975809a41699daacfd5e1a7d2371d61aa3c82dd0720",
+   "parquet": "a7e52429842af28eacf4d51a37c0b00f31f509995bd77792ee9ee5be2236abce"
+  },
+  "FHN": {
+   "csv": "00f9411fc84055491c74372ec129e1485ad3c00f261b2db58f807def518acd70",
+   "parquet": "101c7950a53f4a93259a96bddef3a9fd2fea91fa095f9e945344ca4103ef0f4e"
+  },
+  "FICO": {
+   "csv": "42a17d3874e4bdd326628e1cacaca4cda120fc5481f550ab7a15dce8c0f5136e",
+   "parquet": "9621585e86c39fa1ffc447016c07317724472fd871760f5aff95a2d4becdaa45"
+  },
+  "FIS": {
+   "csv": "bc93f5ac1c3d8e0c1d9e494e694285e08e798416efc575ac6b3a20f07bdb7080",
+   "parquet": "1f87187d35a412e8dd745c7341f508b3bf53041034b9c6993bb5b8fdfe9acadb"
+  },
+  "FISV": {
+   "csv": "9bb4a60411ff80fce086c62377a6add363a3fae4ed60dc8f55c027c8fdb05fe1",
+   "parquet": "0b1364c5dde24fdcb208753a1eb9195feb3c63e57852fe24fb4ecc2c50f166b3"
+  },
+  "FITB": {
+   "csv": "00cc8c17903494a8cf374fb474f789360cafbe9b12627a7fa4a06189ca094044",
+   "parquet": "16965588ae7c980495730084ef1637c130969b00fe2fad1d52274a3599c2c67d"
+  },
+  "FIX": {
+   "csv": "207a3d9508ee699204d92cf76cedf5ddba83b8142c37ff22dcb78b3d1f386e78",
+   "parquet": "71a487b45361135aa38ff4ba72925a895bc56360b4a7f4d55b632e2e0d982c45"
+  },
+  "FLR": {
+   "csv": "aaa20d3b950caea18c3ebd2039eb9615823ef8db7846ead75a368598a73ed9be",
+   "parquet": "b26aff7ef8eae758903b42a8990f1b48fbcb34468ad760ad56824b3ac3b7f344"
+  },
+  "FLS": {
+   "csv": "bed7571752b8e660ec8dd7a00ca17c2b1641ac9558076cdfce59c18bdbfc42f0",
+   "parquet": "44f4547abd83cbe955f37e76e8cc986e4e8345de5477ad84f9c3b91251684313"
+  },
+  "FMC": {
+   "csv": "ca902fd83f2e7eb1baa1818e6178df7900219e5b3cbcedeb72397836f4b0bc72",
+   "parquet": "d5dec43c9788b922031510e4920b039789f35c123a3844161b370466358f9dc2"
+  },
+  "FOSL": {
+   "csv": "c556385254c59ae6218318441f5fa82e8cac7b0dc674763ac30619fb854a6a46",
+   "parquet": "f35baf64bca734733344df39d3624a0bfc320c2c11f2f1592d6114408f36ae3d"
+  },
+  "FRT": {
+   "csv": "9d55ea06e7c1a1d2ccc630b9d9f48daf0c36f14371ae4a872cd9c7d27daea971",
+   "parquet": "75dd59bfacc87ce55735fdf948a5d637dea70afbe6b73eacfa1b5f4a7ee24d5b"
+  },
+  "FSLR": {
+   "csv": "894b487277d5b7376978918bec18eff5ef538230959ff49976c9860669d47901",
+   "parquet": "e12972a51227a393dafcfddffc134713c07e4d62609855a6df9941071833ea95"
+  },
+  "FTI": {
+   "csv": "655342efa9712242480bafa24f1e58bd5a3393f80cae6fc5a1afc6936ce73aae",
+   "parquet": "614588f6966e241a358360a44d050894d1039cf96898127f22290fbf132ee15e"
+  },
+  "FTNT": {
+   "csv": "33df6328fe103c4286f70bc5cd5c2b60ce5013b21d01a6fe2cc49aa58fd8b37a",
+   "parquet": "bc98e696a1be10120d172f1cdb573931a637498b236366d5a9033e5e0f250662"
+  },
+  "FTV": {
+   "csv": "5e078307c9ceb8cb3e05cf441fa3bf018cf747d1e40f4d83b1b5076a73be79dd",
+   "parquet": "f005d240b6d186faefac9bc8ea0decc180a79fa521ab53d3980d8050885ca744"
+  },
+  "GD": {
+   "csv": "951c6318103cf04f5d70eac49bf182ab5537f3d74f7af3b99894749b347b0be3",
+   "parquet": "50e3e5c2118de8b84c1f31276e080ed774be5a927ba3b34e535af93e4152c6b2"
+  },
+  "GDDY": {
+   "csv": "ba88db8d8b9ce7b36b75ae9cb45a95a082bc712c3006e53481f893442d14b3d1",
+   "parquet": "88bca4069cafe5618fc49f87ae225bb543320913031723e2e44f5144ff69fac2"
+  },
+  "GE": {
+   "csv": "daa6c4d56e9d57fcdc0c75351b612b5fc4b2048078b6e305604a751da4792047",
+   "parquet": "9aa7686477d37fc7fbd12ae9efcd9710715ecd6713a545d15b6a03aab7b0c7bf"
+  },
+  "GEN": {
+   "csv": "23276f895036222f8dc762ed614adec1723db228575266c931d4d76e9a952f76",
+   "parquet": "37da37f65c4dcb562579c960898b2c1b819e287d2d5360fb89f170824a6e1478"
+  },
+  "GENZ": {
+   "csv": "4e492a5ac1e857421fec32d0de899cd507245c51629dbbe974a661d2e5caf5af",
+   "parquet": "6f58dee86d5092868c2f26ab3c8219c02f37c0cddb77b949e7ebab41aa6476e5"
+  },
+  "GHC": {
+   "csv": "f2cee062df609f9173df4ed249f33f315f5b03d69130bf13a50d99b6fcf13a98",
+   "parquet": "7d06a11b78768127f2b68d78bfce81bea2cc591fa53d7eeb315b48aa71d5f081"
+  },
+  "GILD": {
+   "csv": "8dd3c4f9933d9408a73720a13b4aa02dceaddff2208e266022aafe6f0f21db70",
+   "parquet": "c6987da53cb3a741b2761033a82bbb8ba3cd64f41068e9e5942a01f3aba8d5d9"
+  },
+  "GIS": {
+   "csv": "9facd4e4becf43550b1f02890ef5284bbb2f156493dfdd520231a9340f11e050",
+   "parquet": "8ccfb31fd116ddf2a624c7df376039e6e37d4ff4d54b4be1f92732242950c207"
+  },
+  "GL": {
+   "csv": "f10a857a6099bcf5bf7efac697ebe71733530cf77b721424cfdfdf1750c36e91",
+   "parquet": "0c28e4a638e3b62738f6aa61a5214a70c29fa9d80e2159f274d6294ddd9c9bf7"
+  },
+  "GLW": {
+   "csv": "2ce9df1341368521399f7639f0c99b669a17489f1726eb23ebee646099ee626e",
+   "parquet": "6daaedc22e35b15eb6d87167c38b518f68b661c5c11d0bad84d5d0e76dc1644a"
+  },
+  "GM": {
+   "csv": "fdfbe0ca750986397fc8f6698c0b08ae768d7e85a050d66a21492aa06af27157",
+   "parquet": "533dde31e8a796e03d078ed654865d9b202dc34253b544906c0b3b18a15d5e2d"
+  },
+  "GME": {
+   "csv": "bfc0c2c99e481ed0185bb46d59231cf7cdf5b446aedbc07b59fa0fe7f10e7815",
+   "parquet": "4ee563746a6e376eda2d3c8b23e8a4d734fbc79a212246a1b43f6faa1fefedeb"
+  },
+  "GNRC": {
+   "csv": "89bd6d856744ec431c6458dc9a07cda7d06a3456ad6f365f27f35bb606cd81b1",
+   "parquet": "251235504727692afecf514d0c3d75f47b6edc7a86052c0980e2241cd6cc202e"
+  },
+  "GNW": {
+   "csv": "8a924c82f9a5bfac02ff492765ce225e86f0ca6c63aabc9f02fca40e5b2d3f2c",
+   "parquet": "c27b9896ebe4eb7427d0a3bc81a194e27d13f6ff5d5096338608ac0c1719a521"
+  },
+  "GOOG": {
+   "csv": "98df1110f618736b6eb08c06a0fabde5f39500850acef82fec8892a4aafbc6c0",
+   "parquet": "754178b7403c63e54e1bfbc3eb243dd50cb7132d660cc14d336f1d11d80b597f"
+  },
+  "GOOGL": {
+   "csv": "7384bc4e8b3f33d4de796065b100e6b3ca07303e08973d4b54d4c182aea194f9",
+   "parquet": "36befd2acfd462c61ba9913a3b3fa551cd6562ad10716fee204f833597f7073b"
+  },
+  "GPC": {
+   "csv": "bae69cc8e2a79c3bd81ae0ee80cfdc1bb01c044ceb54505e1b7435bccf16fabd",
+   "parquet": "7e891ec84e5286fb80c71aa258ce47bb840ed7131a354af9229fc314224e8914"
+  },
+  "GPN": {
+   "csv": "97f0611bbb7c2d7a6a5524003d82f55361faa82b3a3c82799a8018c26c98343d",
+   "parquet": "b4d5834973ec4d110167633da1f2d592ebaf8195b4d1060c7a97c49e4a060e11"
+  },
+  "GRMN": {
+   "csv": "bb7b6e92f4c0935c39eb2b983ac4ab8d028b807aff8fb213bf301621709c40c7",
+   "parquet": "cd9df135bfae02965fd44086097f95943593adda637454d7198910eb414d66f5"
+  },
+  "GS": {
+   "csv": "e133ec8abbf22afe1a65696fc016cf04d77c9eae5aa923742bf2585e66cfc7e1",
+   "parquet": "2399a9c8e20e550e21942679154ff1561c38587f290b3f7f50361996762adc08"
+  },
+  "GT": {
+   "csv": "e57d43640369323629d31332a2f161adf8d3c8a9589a8ef7db7c593a01d8e1f5",
+   "parquet": "a663934b400a6c45b2ec944bd3c678ca84e0cfad8f3deb8438c7bbc329f8bfbe"
+  },
+  "GWW": {
+   "csv": "bed0e4a4bcf18ac9e891bec238a93492fed0ffc5d51f9b30fa82c9cf9bbc74bd",
+   "parquet": "481eb2814c731881b17c22ca2a8cd56fb797daeac9c2c50995b10e7acd59e65e"
+  },
+  "HAL": {
+   "csv": "63831167f4f09ddc84c320fd9465303cfa86e815ad98ae61a662b4cf420233c9",
+   "parquet": "66a21e55fc2b005c428b35750d01178b7be234ee458402d3e0813eef1c0313bf"
+  },
+  "HAS": {
+   "csv": "ba7d485f3d48d760c7f44781378259d9a23c3a226591333d4dd2d788e5b3f2bb",
+   "parquet": "69490bc31fabaf101d6cbc84c62a6e05a3bd4c4c2f81cc0df8a190b538f97d6e"
+  },
+  "HBAN": {
+   "csv": "6f0263e967d2548965ba8213ffc0417bc3569d86acd46de8a7a246a98d954610",
+   "parquet": "c085983eb3319aed1339dad6011b15d6d80135d53eeda89a33bd07d91de13c8c"
+  },
+  "HCA": {
+   "csv": "137f172225038af9f2b52e22a9fc0913047d82c7ff36953c6800c58a42f6f134",
+   "parquet": "258f78d002056288313170733988c523fb3c7920ee0e10197b38319bb63e7499"
+  },
+  "HD": {
+   "csv": "c9b85309af67d9c350180f4aa30f88b478bcfa6b5f170d3dd0475a110a680c18",
+   "parquet": "71b62c914a125d5f9ff25a6634b7ec3c3658aea4ec68bc38649690abc54af5e5"
+  },
+  "HIG": {
+   "csv": "b4258dc577e71fb60da45c29a3c2c5a74d4b635694985b8705f94026d5bced46",
+   "parquet": "f9461080841d89c181287941cd806fe23e3d6e86da1cc83a705728393b16ed2e"
+  },
+  "HII": {
+   "csv": "3d4ca3414c983650100de3501228cac1db966fd81663dfdf6fb7b9ee8b368d1d",
+   "parquet": "f50127521b4326bf14ea9f0e5712a7b28961061afee59cb0ff28df659e5795f9"
+  },
+  "HLT": {
+   "csv": "db8106612cbe1fbd5ed5347539b2e38809a16049019b12bc4fbff8235751559e",
+   "parquet": "bf9f64fb44c98769f45e2106103406563bfb627bf90c3905df9f254c3f59820f"
+  },
+  "HOG": {
+   "csv": "b7c16d08cc51899ca118b644208e3527b46fac9971e61bdc0394b280d1c0be1d",
+   "parquet": "016c214bb2c884f3a31f99c6cb647df1f50f6f4ccaba08aa7b024437e9c12c57"
+  },
+  "HOLX": {
+   "csv": "0334e7d66c4f2132ec4fccafdc5a6a41a37babf39dd7869c1534cdcea1d59013",
+   "parquet": "f041f25f27e4a5bb7093f213435d50a7f9b6194b1a6e2be144556cd914bcadf9"
+  },
+  "HON": {
+   "csv": "db2036d91ab3929168bfb51d43c8a448c6262ac412a170078ddbec2f0a06fe68",
+   "parquet": "e8bb8ddebe18634fccc73ceef09f4b6a50c67fbc6c9a2468bb1e95e609298976"
+  },
+  "HP": {
+   "csv": "58a6867945408eea2e0444861d523d385132eef0a8235b1523aec336682a839c",
+   "parquet": "b3725d2699fdf80a04d58354e0c01500db9966a4da71520b313163d73a63efca"
+  },
+  "HPE": {
+   "csv": "e0e1d6ef1e5fef811118f9bb0846d486cccfebd13c1b3d8cfadd03145d1c9c7d",
+   "parquet": "ecf61c5d655ff1cb717bbf1551ef14fad0a7715bd840cf6407713265324a6b2d"
+  },
+  "HPQ": {
+   "csv": "fd3a8dc1acd95da588140dbbae59cc7d52ba5924a60bf6258fbfbf9e8c0a5c97",
+   "parquet": "ce660e3a4272d8bfd4c5924b7135f84827b64babfdda3646fc807b3e9d9826e7"
+  },
+  "HRB": {
+   "csv": "f36311f0ca1e7cf8c6b7edaf4b241bcb0574d1ca8108020dc4374d96fd5df008",
+   "parquet": "2029ee363b398401798fc71cc6da4db48af23a73e1f0b0d983881ec4598982cb"
+  },
+  "HRL": {
+   "csv": "a362b273ec3e02e33ebd5c9d16b4013d686fcbaddea4b3a2b2b63678b03e75b4",
+   "parquet": "69f7d61b1c3363e5c3a5bc45ec99d60b25e95a38719141cea135e6b66f32d285"
+  },
+  "HSIC": {
+   "csv": "dade7fb8bcf28d2bfdebca57e5563e1def872df4189569f262e09b7f1a1ea30c",
+   "parquet": "90b550c75a2d0b699655a0ce0c91aae48a8ad8e51da6840f57251af33488f957"
+  },
+  "HST": {
+   "csv": "49de945bd707eeab1b0a4c53629c00d2a98dc635929eea73397ed74930ac86b5",
+   "parquet": "621fb6be93db4729f1f53f2ab2ed499f4aa70e37b205b2d71dc253545ddc80b4"
+  },
+  "HSY": {
+   "csv": "aacc19f77fe2f3237fa1fc1dffd4c7d7202a8277786813d115713c07b36ab94a",
+   "parquet": "f4c2158e7f602154b3e695e1894b9553b31775b618346a91d9e01db7be7b044e"
+  },
+  "HUBB": {
+   "csv": "2af95d338173ee42aa625d1e1eb4d7ac1be747112af420c66cb773f9f53e0252",
+   "parquet": "aaf9724508e9806a1f9e3bba57c564d2c50473606ecefb62400fe025b29c915a"
+  },
+  "HUM": {
+   "csv": "aabfcf70728094987c0a5ff5e2d4e09928a2766d01a2979dc4718aa323632a15",
+   "parquet": "e4d807ebb361cbc34a4dbe861baba097e6f354c5fe3214306c5e95c7031fafb8"
+  },
+  "HWM": {
+   "csv": "6d25fd3b93dc290a6d875c67160ca1ea096c4b854a99a45ec88db90d8354b199",
+   "parquet": "f8329c859a82aeeb925e64de96bdffba3c0dff24a4416faf26c02a34e0b85a5d"
+  },
+  "IBM": {
+   "csv": "744c1b8b1a38d0ee5e89787668384f221e40e40777dee10c4c5ddd282e21b6f4",
+   "parquet": "99088e57603f3844c7828581fab9fbd260afbb37b3344e426f8eedebe3713902"
+  },
+  "ICE": {
+   "csv": "8b47c947ff39f5c7be5c561d720f89af12af8b165c2ce516374ac67a7b242c14",
+   "parquet": "4fc942823db6ddb8e333076c99a7c18c811bedb9083eae273f97b076b8dd6cba"
+  },
+  "IDXX": {
+   "csv": "68345ac5d8ee41d851f9f2986fe8ae0bfe597fd7fdab319d7466e00b72724513",
+   "parquet": "08e253fde12b650f70add427f3d52cd07deaffddcf4648c0dff2645f56a3727c"
+  },
+  "IEX": {
+   "csv": "75b226339a39cea7ed5097a3cf8d42698ad0f8c51f45439315d052f0e632d123",
+   "parquet": "1603f4b47598aa74586e1742c82bd89837457ec8003033ba5ea1e78216b344b3"
+  },
+  "IFF": {
+   "csv": "340cdde0ce849e67cec55fe5584e33e84c7d69ee93a2a1c57a9cc2a2e6d5c5ff",
+   "parquet": "e2fbf21c04886c6e392801a5f5c0c0555cfebf721fa71eb7358bf0574200d525"
+  },
+  "ILMN": {
+   "csv": "e44a86b98d040d2c11704a577ff71beeec30b034326acebc3854c7e575bc125d",
+   "parquet": "157b3b750c4023c6d6857a4dd0babdf8b53a20fa6933391b9134471143392569"
+  },
+  "INCY": {
+   "csv": "b01141da2bd4ab68c9543cf6eaa1dc7b76ab427c736a6fc3b4a84d6eb70e4684",
+   "parquet": "dcca73e2927364c88e380946c77e2d6645ff87ba3bb5fbddf3681e0171ab7425"
+  },
+  "INTC": {
+   "csv": "493bb4621d96c9e0405fa8f653f34c6ffea1cd5458739d517a54f3a58020e446",
+   "parquet": "87d7f74c37f11f768a7a821eb8b34f68a88220895d26cfe27cf87f9555d5d348"
+  },
+  "INTU": {
+   "csv": "e9da9c674128185544955abb48f949b3b1e77cd59f900838666886d54ca50c23",
+   "parquet": "c8de58595361f30927ef647b7fa327fe9af8eb3e2648385acd43d33b40158622"
+  },
+  "INVH": {
+   "csv": "cfdcabefbbef8c892f5251dc52f27912f49d0c1822614c35035df00774e0e2e6",
+   "parquet": "7421e580de890441c25d59b1b50f1e658cb86983560fee07736df8e7622e66ea"
+  },
+  "IP": {
+   "csv": "cd3624aa329cca7644f109385393ac0107def10014a1a201e62d0c47aec8fda0",
+   "parquet": "5cb583ff337886591cf701468f7b7c9124633415f8af1d0bb133639ee60973c8"
+  },
+  "IPGP": {
+   "csv": "ac4d46988a884bd3df08019481f9ba4e4ccb227701f6b3ffd32c37040097daa0",
+   "parquet": "220bd9842dbabbefa1c5c84d57a6f4df6c93660f967f40eb5f17129de3351ee0"
+  },
+  "IQV": {
+   "csv": "34a4285af131a06207400268bcca9d0a7a15e8a56e78c76b6d8400dc400fd393",
+   "parquet": "ce1a426023934bf7f3e2706346382f61009ca6002fe2b23f7c4034812b81e80b"
+  },
+  "IR": {
+   "csv": "84b3f316f316f1005ba372996cfa2a76c577262f782ca5d142d7887f19ee8040",
+   "parquet": "e2bc707e96514e8c8bf274eb93f8552a504d3f11613b37d125e244b1a7ea227a"
+  },
+  "IRM": {
+   "csv": "dafd42f28958a3473c03fc4d6b47b1c0baf5a8807401eea197b7d57935de0ff2",
+   "parquet": "b0554773782a83541b493e795d2989d529136085bc4f34a32924e6915e9f6e9e"
+  },
+  "ISRG": {
+   "csv": "cf6f4ad5d04aeccdf55a8c5b60b19074af8115166d82fd9234cdd63e8c43fc95",
+   "parquet": "90a66eae104a745af3d94f4d56e9494c610e99edc2198ea07461952347115a11"
+  },
+  "IT": {
+   "csv": "18e6a025c6a29da3fd5b56fe57aca5106efe2519686779e19aced2ad4bcbfdda",
+   "parquet": "306a84210b6305f7990753d58eb3ada3785960d4483577e9a62ff2057a295da9"
+  },
+  "ITT": {
+   "csv": "fbbb19b2f49da818548c23a70e66acb3bc3195ae3f8104b6e23c20af79d427e5",
+   "parquet": "1e225510bfede7a968f25557862177f5bfbdcdb4d53cd8f7fe735832b508d27a"
+  },
+  "ITW": {
+   "csv": "dfcbfaf9f4ad714ee4e966267e82a38f2c1f39a55518c8b8e609fc6b9df15690",
+   "parquet": "a33ff9f6c9138b90794cebad10eede26c833864ae76506146fb88f0558cf373c"
+  },
+  "IVZ": {
+   "csv": "07fb0ce8cf6eedf9e1e052586c46a402aab70772988f2393809e0d2f26222c82",
+   "parquet": "12e875d030fb1c0f27d67a6e6edeeca173090e357efb5661f4df167d3f35d6aa"
+  },
+  "J": {
+   "csv": "ca675972ac9dc542135689ac18e63469079c5d1324398e28aea7d34bb661c263",
+   "parquet": "62f52e751cc45750f15ce3807186b63d27965d40c0e27249b1d85c365ccbbf44"
+  },
+  "JBHT": {
+   "csv": "4e9f15c47917436010cda5094b220ffb38df59b430613e0e81bb559a3452823c",
+   "parquet": "b3eabbcf19161e0703cbd3f42f0ee8649c268d19d816a51389638807a70f35e8"
+  },
+  "JBL": {
+   "csv": "ba975422158e3cffcb56910e4774cc2ca478cbd7b2ec4fd07c636b25151aefdf",
+   "parquet": "8b108a3dfd76d2587fd6edc0824fc3861a6326e40c9e67ea548bb2945173b1e4"
+  },
+  "JCI": {
+   "csv": "54b9a07c4760ef7748d271366ece073eb894ab002a3c9312140441e59df31b25",
+   "parquet": "0599dec39801869e46811e4040ca26d8ab4e8ef9a112401b5391bd49f5d15a93"
+  },
+  "JEF": {
+   "csv": "e649d1886f5aa7d71236c6869d35b9f7a3c5d727169d78aa40e2540f7b7559de",
+   "parquet": "baba5880d93ca37b3654a5937d3fa94cd970b18c1baaafe1412734aaf87ccb46"
+  },
+  "JKHY": {
+   "csv": "d5fd33c73863827b8a455dead8746a5c8c647d09786abe6298eb7d6d977f3397",
+   "parquet": "05762038887fb19c78afbcce51cfcb57e07bbe3a2fbc20512af97ab4945ab56a"
+  },
+  "JNJ": {
+   "csv": "0a69028da3a145ff766be3cb6783c8174de3057f82c655a426b7d4ca006cfbd7",
+   "parquet": "c31c789cf5ee2b32be0d18293c2cd4373308bb662f98ce95bbab0d6019b5d861"
+  },
+  "JPM": {
+   "csv": "46d1b23ede7d4d948828adae45dbc35526650d98ff6319ea7116bb2656a31a27",
+   "parquet": "39461686d1f868df454ace93f6a12ca551e76c529feb0746e19963e103194fe2"
+  },
+  "KDP": {
+   "csv": "8adaa264359b7bbc52072c578bbf6f2ea42f99bb3435a4e26725b23d28352a12",
+   "parquet": "6ad9840d283bad659ce9df74c47e66dd2e0dd5bdbdfd2208627c792f977a057a"
+  },
+  "KEY": {
+   "csv": "e28be3bf203a02e7dab984c5b5a566088505ef5b7e001cf814ced5f65680c176",
+   "parquet": "08c672feb5dc0bf80689266c05b22e5ccb03d8928985352577e7e9574541cf09"
+  },
+  "KEYS": {
+   "csv": "95920a72fdd41afae67dedff31afc4eb2a4ee73f358ec12af446aa158100e353",
+   "parquet": "1f2c1d058c8feb77378f011346d3985fb5e015ddbdfd387d605f8d88a1ae89c8"
+  },
+  "KG": {
+   "csv": "670bafd73f0468e74b79c9e660f5db1a49d92e6bb4237612d485262bb0afb6e9",
+   "parquet": "b96eb50af6c60a9333b8bc774675b6c205647683a50179e642943cead22b7add"
+  },
+  "KHC": {
+   "csv": "4e9b62957c4f12d5d574357868a18530079224ab3b3602ceb55f3705d046cf6e",
+   "parquet": "30f9197cf4067b676a561e23d603705adfb251d34e747541a8d4e9368eb82987"
+  },
+  "KIM": {
+   "csv": "49447774dbd5d834cac46794fd20cd207063ae6c7fb126cae0f383294f1f4012",
+   "parquet": "082f7dd9490caf537122e4068deafbe6e4484c8927c08d9358aa7d17083023a6"
+  },
+  "KKR": {
+   "csv": "4910e9f3dd7bd4dffb2e38078a075d38a783330da0a2af11ee33aea6b1aad430",
+   "parquet": "f08006f595c04658226012168245b3aadd4450dc06f0f276a8287ba3aa6aec98"
+  },
+  "KLAC": {
+   "csv": "810991330f0f4ae8ad706ef5b54c8ef3670111e1c87289f79383879168b43c33",
+   "parquet": "73a22a8ae28bef489c2a0c98b9e6635f613a6049b869cb3f71742f9816b2cc82"
+  },
+  "KMB": {
+   "csv": "3174f72ba56c15e6a4582fec7a732f065cb0b887199e92ab5e90f6d8ea15c324",
+   "parquet": "02a17f9a6592be4eddf26fba32171af08fa54b0531028ea491d95065b31850d3"
+  },
+  "KMI": {
+   "csv": "48db88917c58ada36cb0854c023afe98d81eafb74b4247fd6e53563de2041386",
+   "parquet": "d404dd55a8a82a3e6e5c4ac0cb8343d1bdefb960707f9b790e6b1c863467093d"
+  },
+  "KMX": {
+   "csv": "f8e9dd49f116554e19f07c982a68afd577ddcb53fbf2a360f13c2402db8f58b7",
+   "parquet": "bb6bc678b79f6bac7f24d8feaa0fe95726d35cedf1f472cab83c2e28260860e5"
+  },
+  "KO": {
+   "csv": "3b4c90166068c6dc8b2d6e95773ad1ede9e9f90f55fd574cb2856cf89fc34ec5",
+   "parquet": "78b4d2b8694097df1dfb87b82b28bbbb9c8183b629913777a191cf2a37ebbd09"
+  },
+  "KR": {
+   "csv": "bff651c7272012b67805e9a81bfe0ee3b52f2efd8aafe2e05b29eed5d1a16b38",
+   "parquet": "260a234f96cff134937753eda28496e0d1d48a7f487c43f27065c5349a8b1b3a"
+  },
+  "KSS": {
+   "csv": "0e71432a1f8a1f5710f9b38df54431b9f118307357aa183067a30a74ec22b8cc",
+   "parquet": "9cc88487b30f818d14f8a8cdaaa039b761008928b01882e14b02aeac4106f1cc"
+  },
+  "L": {
+   "csv": "7501e295eaf6c5a7b104c5562593be013b22f4f306274bf94c4a47effb00c2b6",
+   "parquet": "b566c539587afd9a0154432b813b7defb05fac2190e1b59b1161daed1123e1a3"
+  },
+  "LDOS": {
+   "csv": "2b9887e92e93027f2a6c991248a485dbd32f71479890e7a488c6f16a7b40542b",
+   "parquet": "6b831aa9701e31169a54b001dbc4b19cf1fa7b05d2eebe6c3fce0a4182ab0efa"
+  },
+  "LEG": {
+   "csv": "a05e2be2b92c53471d24ba4eabaa80331d1dfaa04ce67fa56ae52525c1b3f656",
+   "parquet": "39aea07f9650cf05d42b72c04a33990e94c27f9efabc62fd9efb820d2abd321f"
+  },
+  "LEN": {
+   "csv": "738f6e38732ba3660a45ab5a8eff8c7e504fe63788dab00abfd81b2dece39808",
+   "parquet": "154a1ad2be7ee50ffce4fae34246be02320d2191fc4996157543b5b9d8d76b74"
+  },
+  "LH": {
+   "csv": "3305f4132e2fa1129e6dd86b66658a4ceb6cf3ec16328126a404c0375b5544c3",
+   "parquet": "cff5ff9073822b926efe5a0af56a6c41e562f25d513df9acc79762533afe4154"
+  },
+  "LHX": {
+   "csv": "3a3b5009e5b3170d8edf883153cef469baf18822dbd1084efbb0e6acaba88f3e",
+   "parquet": "98bfcc5455930b352e8d4374ad4992328d40fe279ad44c5270cd1daeb3633dfb"
+  },
+  "LII": {
+   "csv": "74fab948d68b449cf6e4b82d00784f6cd23d20388a9607824e514875c917ae03",
+   "parquet": "edb8393f16afe82b264d461c738e3b0b2252b69f204e8c22dead9e3b63794a4a"
+  },
+  "LIN": {
+   "csv": "23aec312e8be7503d24e11e6e29aaf61c5acf46238f6bedd78f35c9f8371c106",
+   "parquet": "19f493353a05f5cea96755342cb60530a3442817f8f0d6c8970c58e318f8c32b"
+  },
+  "LITE": {
+   "csv": "d973c71e7feedc2815adffb1cb17e21f612ffc3458b94f1efd800665f9e17a85",
+   "parquet": "837b6d5ea98e95005f21ab69f65fd7bbc69c0880776841281df242a878019a9d"
+  },
+  "LKQ": {
+   "csv": "3f96d2d12551549de57e5cf164f76fced3266c7bd1a004cb6118adf66d82b812",
+   "parquet": "466136dfa005b086522f605ded05f4c3bf06be491694c255fbd8d5890d443490"
+  },
+  "LLY": {
+   "csv": "cfc711f193e89e1489261e6ecb5d5c77c20598ffdc8949963a498c554cf6717a",
+   "parquet": "b3377e655d16368f1371395eef81540b9f5bbad893913d843369a0950255850c"
+  },
+  "LMT": {
+   "csv": "f391083d8082398b5e06c8c80d86a52d7ee039f5c01515c2eed37e6fd708778a",
+   "parquet": "5bd6b8e8cc3f9e7f5292d4519096e12c6da617c5cb410115a4db7eace5dcd135"
+  },
+  "LNC": {
+   "csv": "34a235a3628cc9dd6560f3af19da6c3836f0b7b5dc13c26edb8ca3297350461d",
+   "parquet": "8824b66a2e8c959a3e4d13c7ea489dcc72cea0a6d7ff02bbd281856839104a82"
+  },
+  "LNT": {
+   "csv": "916e08448ae22a7b8e23693e1b910b03d07a0393049dcf92c7e4ed5702ce415d",
+   "parquet": "b4d68d6a0a4ae75c5a75d339c56ae40ddc978d91d8cdc3f619070d7e2a7b470d"
+  },
+  "LOW": {
+   "csv": "f89ee8309d5dd70262c7747c1a930816f54c324544c32f3db007f69aff36c308",
+   "parquet": "115fc298ace72358bf83aa00efa2817026bd13376237e546a9c547affb122aae"
+  },
+  "LRCX": {
+   "csv": "d8818015a531e083a988d5337c12b47ef69b783227f3137b25eef4988252c973",
+   "parquet": "dc00e61588d5f6159ed6bea3628e1a7051b2e75973cc834592e0a67fdcaafd71"
+  },
+  "LULU": {
+   "csv": "91427c6d318f11828e79b63334d18e3f416a8c35cc1492ef8354243ae79acef3",
+   "parquet": "850de76a12efe7e1512c46ff4617385f9e46dcecb182ccb6ee4e014307fe13c7"
+  },
+  "LUMN": {
+   "csv": "9730177e315ab75e8d3690546e9c064a4600e50ab2cabd97c6ab5583899eefe4",
+   "parquet": "67443f6d840191745c0ed92efa6de647261c0e1004dad3ac0693a1ae89c12933"
+  },
+  "LUV": {
+   "csv": "fa9e70fb5888207760416f22c81bd5926e9e77c2ddff1304122965e7ed5048f5",
+   "parquet": "6390add3e834f9fcdab6b234d560147b3cf52a7d327300fe1a58faac1732af30"
+  },
+  "LVS": {
+   "csv": "b181a1bcff314a864ba2c06632b84928b5f3bf6ce040e18e03d18b7bc33b8f64",
+   "parquet": "edfba4e2856e687d34178f83963cf356a8383dece309d4bc59a2d0ace5e9e93b"
+  },
+  "LW": {
+   "csv": "ed47a65cbc01937334f91a3ad8202325214716dc7dfb70755658f3e6d4c51d81",
+   "parquet": "b524a9dff388fe72f03d3b04ded35a8732b53d7207365db73a4d7f7a577087c6"
+  },
+  "LYB": {
+   "csv": "d889d200a290751a34e1df2a77f088bb402dabbaed8ea55231d51c287a6e07d3",
+   "parquet": "348669335689bc3b70437f77622ed7c16ca7d1b7e891777eb0b4f6cd592a30e1"
+  },
+  "LYV": {
+   "csv": "213756cbbb37634925d90b38a8566812df3df6fa5d19dd19fe3535009f0e187d",
+   "parquet": "ebebfbff5d38a5d21bb1f2e1454a5889ca960f272156cc074b9d6cb4e3d4345b"
+  },
+  "M": {
+   "csv": "bd5438752e39448cb811230db4e5f0be6a507936e6e980c13e1ea24831dd6c9e",
+   "parquet": "68c2cc63407525cd69f4d5479c31dd25260908f06f02ee7a4f47933e6aa1f28d"
+  },
+  "MA": {
+   "csv": "15ab18a0f13ea6cd95812973bc030c96324677556a866b26aaa96f751dd428a0",
+   "parquet": "c5d938278ca38a0f9bc1ffab6bc5cc78988b2724288b41b69b64013c75192831"
+  },
+  "MAA": {
+   "csv": "28c210b8f49310b11459df642e7364e590f2e59187016557dad4ad240169e9ce",
+   "parquet": "2a31104a156d44b9a32ff1525c3ffd8d5b43df7de238895c0c1daead6fc60e26"
+  },
+  "MAC": {
+   "csv": "5fc45ce552b2e2f5d3d9a08ece2034b9baf05b2aae49185b6e79c19fbcaa2d2c",
+   "parquet": "ab0f18c1a0bbeb7b8f38fbcac0b3a981931f6da5b253015318fab9f8e8700ed3"
+  },
+  "MAR": {
+   "csv": "616539dd296f224023cfcd83cfa9fc95a0151467f752932af1c4c4f87e217ec8",
+   "parquet": "ca0e4405de89302ae2b63e419481f351b25dd7ebfc06c726e4e949a32c97f787"
+  },
+  "MAS": {
+   "csv": "e4c39b89e0acd3d97a08689e37f9cdaa9cba8c9c299b75fd9fdc8227b7fa11d4",
+   "parquet": "a23d55e73f16da9d49d34f5b7b9f4ba8d4979e1b3ffb2d179e32aa83654bcf3f"
+  },
+  "MAT": {
+   "csv": "ec9618f73292620880f3f95a69102dba4a3d00731c2fdcc4cc13bd301569fc50",
+   "parquet": "6b4bced3fdb601c6afa47a2e6dff396eaca8b53b5e6f6853aecbe66ff7d7187f"
+  },
+  "MCD": {
+   "csv": "91f42b4ec15997aefb1dfbfd37e73d57d9dc228c8f6975bbf61ceeef029f82d3",
+   "parquet": "c98184d17ae8fa95277f30757a2327fe8b0e9e78f52a3c06907b3156f33d21a7"
+  },
+  "MCHP": {
+   "csv": "a94f31ab83b258708389845649a04b84e7b1f801ff9d7b294eac9b29240fb750",
+   "parquet": "7f518a32f21bd40ef24a8b82b09cbba4a76ab6a1b203600c2b65abbcea337404"
+  },
+  "MCK": {
+   "csv": "0d732cba980a68e41530544109896655f5654a228ba9bbbad5417a81ff5fff3a",
+   "parquet": "1f85d53ae07a613b9dcd1783c36662e925e4d644963c25ccf6991ead88bf226b"
+  },
+  "MCO": {
+   "csv": "7da605dc5c1200bea18bf4df868bc321956801a4b674703596e3ede5bd17e616",
+   "parquet": "c99e3ac855707855136ea80a4725e1a7e7963531edf63ded1eb7ae6216bfc865"
+  },
+  "MDLZ": {
+   "csv": "1ce5cfa6b6e0ba1ce7180686ae6202e0ae0bafb62a3a4684859d752c4dab3985",
+   "parquet": "56be223bdb7d78122225e0d1e060bfc45d126472598c1525e204d459e90f346b"
+  },
+  "MDT": {
+   "csv": "cd30d2c190cf0d2f5c717fc64c1e5a50268705f2b4dff5c899a797c5b893fc17",
+   "parquet": "d286cc1cf38a3be2a7b1e6df436b298a07f72760900c303da2cfc9e8f3139547"
+  },
+  "MET": {
+   "csv": "d3878386ba6436ac9211442a0ebb178fe71253d89bf3621271d66852636e34bb",
+   "parquet": "5b7f63732b4b3019b896c1a7d800d5c08eb74e56677ae01f7d3c6ccbed8ea74c"
+  },
+  "META": {
+   "csv": "e037b3ce2c32d6c4026065039424d38a4971d98b31a8b057a03a2b7a1965fd58",
+   "parquet": "badfa4cf38b3288bc6a16a9f182509d0ff3ebe3eebe01c18c38d0ddbe118b2cb"
+  },
+  "MGM": {
+   "csv": "c711354c66e4f03343367165147a833b66e91fba89ecd6580fcecdf366bfe956",
+   "parquet": "ac882bdd712b0cf8212105b716bf5d3668334afa1f77643dca9d8df7ce39ef2f"
+  },
+  "MHK": {
+   "csv": "c29c6b62afd28759eabd41ea979768c25d30c088c7ac80958868e36043416126",
+   "parquet": "b45495e01ecba08a615035b6a31ce7a2a29ae63b3e1740fa48d5717728a08c00"
+  },
+  "MKC": {
+   "csv": "ce62a4da9025ce8495ee4bc0eea809d2004cd2a221bec4996458ab82cad6def9",
+   "parquet": "e728eec4d04c738557c7fcf06a655c3178acf907eb7ed7b08c6aa9312192465a"
+  },
+  "MKTX": {
+   "csv": "ca6eccb816bc191c34fc8a9b8dcf1c122c216b108834cb6dc7d892b1ab5fe377",
+   "parquet": "6db32ec8b99bb508b2f762b433d0fb127549ae30b4e949108380d4d8b34af560"
+  },
+  "MLM": {
+   "csv": "5513b4d0829d33a31d5ac1c7ffb575c2f4c34cbcbcc2a2d418c668e79ad996a7",
+   "parquet": "149793409f38c0dd8fc8bcc9f7435480c7d91ff4a98b096c5d76cd9a7c8f63e7"
+  },
+  "MMI": {
+   "csv": "c4c20a532f67bf154dd0681bbddc7d775c0e89fcdc7d628ee49a47e73b037a5c",
+   "parquet": "606f5ee2c3d8632946bf6faa5553d97b90f79f9ab6ccd5994cb1a8fa4f5039ce"
+  },
+  "MMM": {
+   "csv": "63a7c43cefdfa6ca54a4eaed27ad1ce039651e3e5ca573dc102f5a2137255324",
+   "parquet": "719a26c466d129f716f4111259539e94e74ef7d04e8f1a28705afa28f4ad4414"
+  },
+  "MNST": {
+   "csv": "c4e0ba5c15d025b2fb9dae0dca3bb78f37f6d30a0dc1a7fe771217286e31aaf5",
+   "parquet": "52abafad93078964b3a0739f3a15fa6e127f51cc4ba69b9269fbc8b68c89392f"
+  },
+  "MO": {
+   "csv": "f146a08386abc9a15c85463a2d38618ea3b3c911ebe46c74c6834680461a6c3e",
+   "parquet": "54f0e4533caad58f226c99c4c1210fa63a03f5c8136aab24d77c5407523cb84f"
+  },
+  "MOH": {
+   "csv": "8e21b5917f5620ca5e7886fa75f5bfc9e6e56801731640c7b213cc3b53c8cc44",
+   "parquet": "4d27759a9577bfa4f6c9f9663a641fe58b0e0456b15cdc77f1ddacf70c7cae48"
+  },
+  "MOS": {
+   "csv": "a0ba67fd38220e31856c6e9793d767006982751940e0df759e77df913b7c9ef6",
+   "parquet": "3f25cf82b8b1cba6dacfc9d11011dc83948cf6cc6270fb7277a0e7380d54fa1e"
+  },
+  "MPC": {
+   "csv": "b8f61ad82267fea71c1a7859b7f7904dfea064e0d2e8f3e2fe8894f760245bf0",
+   "parquet": "7aaf249587c29bf2ec9ea2e609f852d34fde56bb22f304542aec9a73339f6151"
+  },
+  "MPWR": {
+   "csv": "5ce559556c887a2452192c9be657436582207b37b3cae759d905dbfb9be4ee03",
+   "parquet": "c23275461bed17a9c91dbe62a9e2654fbab04b807429f480c96863070411bf14"
+  },
+  "MRK": {
+   "csv": "cbd603e0fddafedcd20aeb0c864c0bcdc3d8c6e4f866b87f326e74eb99a8949d",
+   "parquet": "03ec05b59d94853c2156113b7966820137c8d0a416b3c68b4b1251592c104a0d"
+  },
+  "MRSH": {
+   "csv": "ee7d950235af19f4f2574efcba786df54f6b2643e6935d49103e203a3c1a7600",
+   "parquet": "683119306b5037f0382ae213ee0c3b01777d29ca8ed0749c272fbe2285449e80"
+  },
+  "MS": {
+   "csv": "d496c919b259fc2fc9b9c9b8dadd58d364ca08dee5665c65bc7a4127c84dd5a4",
+   "parquet": "dfc89ad7aa188b548515c0e94809e5a03477808ca2404e504131ba0396cf0164"
+  },
+  "MSCI": {
+   "csv": "df3b478f20601862e66089ad6c9f1d4a4ef90bfd778cd5e08ca68107a315ad0f",
+   "parquet": "a3a78639e27849e69f629287bebac05f58331682994b9c471238e0d58112f30e"
+  },
+  "MSFT": {
+   "csv": "03cd25dab6b88b4a43e4d464ecd17a3ec707297a5cb59a4972e98d3c01039bab",
+   "parquet": "c449081958a9ba7e7121765cc699bca595d0acf8723a0f2b351149d004214928"
+  },
+  "MSI": {
+   "csv": "95712df8c1e27ff831018e99a1b18e3abf2078627682a08acb652dc3853011e0",
+   "parquet": "33116e2e35b6c42a01c2a779ab4fa8e29a2002928e4a3bf334d39924476d1521"
+  },
+  "MTB": {
+   "csv": "2f2993ee43a5db8a51b89144adf18fe58c7865e7955f09a64b9002d74844aed7",
+   "parquet": "0d6d3339a3add78470faac64cdc18bdbb3fc7cc5c88ae6177c1c6d34f45795f9"
+  },
+  "MTCH": {
+   "csv": "66d9be86e861928890b80ac5aeff024c2b884a55313992eddf7b31befdbca7dc",
+   "parquet": "9903849aa76cb2749e2849c5125b7315aca3dc5c4e116a871f255e33a80a3b20"
+  },
+  "MTD": {
+   "csv": "e0c345fe7bf52a073569889424f5683cb38f08e9eeba3d40628ddaab981523f5",
+   "parquet": "85cf3845f898ddc5ad68a0e8b0f2ef00c87cf8763f00b53f8ef24e7d6996c2ab"
+  },
+  "MU": {
+   "csv": "4894be6987f542af4992a0428116e5e2a30836183280f463bdf0084ce59d48c4",
+   "parquet": "9a7c57e471583aab7bf8e6d362bfb32ce63c251c3a8b0e2638f475bf7ddd4b28"
+  },
+  "MUR": {
+   "csv": "75c21f44aa53c2e94d868f66602c366208f04f9dc9829dca29f85f6392b11448",
+   "parquet": "6cb6c0105cafd92f0a925985afe367285991b1c2c4cd99fd51f76f683b6cc875"
+  },
+  "NAVI": {
+   "csv": "345f1319da2d3dead6e8f1f83bf75a1ba7e0a5ba3a25ddb7b1b12b88a8e78549",
+   "parquet": "baf5dff6766ac1c6d20c51acfc1a2ff04bb867d0cbacccf8fcd502bfd3dc2730"
+  },
+  "NBR": {
+   "csv": "cd2f90751609aa9fea23e11e9cc171a6e5a419ae787a6d69ad9aa4ded581afaf",
+   "parquet": "5491576395403e39222149cde397c23ed078dc0d48cc003f488126904d5744d0"
+  },
+  "NCLH": {
+   "csv": "c80ec11569f674b9e2bf8bfa91b06466ed0d9f59b2d60b2f476d3cb3c98e91d9",
+   "parquet": "b1daab7d62be1b762de8d4490e50fb0aa4220900448cfdaecd0343b8c9cebe6b"
+  },
+  "NDAQ": {
+   "csv": "2a254e74207f1a4893f177d030e1b2cbe853c135c2c06fa152a49abeababecd0",
+   "parquet": "ce1892cd5c78f7b138167264ab696da61d5ff1c69912a4c32838ddc8f5155d98"
+  },
+  "NDSN": {
+   "csv": "9f4ad3521031bbe95c98f85978f36d4b3404f359bb65df90935d42b36cbf5b3f",
+   "parquet": "7634e1b2cc1440d8165b3b6f500c46cd054cad8262f14e3de6886439540f4e1d"
+  },
+  "NEE": {
+   "csv": "9bae9900167e394c6db3a1f366184bb9ed52f1c8af5ad5a14a6e8b2c3f7b9c4a",
+   "parquet": "9603228c313dd22f9b3fb8e1e12c315360361756597d1625e0527a8fbd5c3017"
+  },
+  "NEM": {
+   "csv": "04d29b324a24d81339fafeea0ef0504fc1a63e1f1ed8ea64eefad62e2ad2ed31",
+   "parquet": "ba02bf6220d96648e5f00bfb2210d342d4b6e3c93ff35f801b48fefc134c9065"
+  },
+  "NFLX": {
+   "csv": "2211628ee201437c89a00d8fda0c90e93f667908b90bad33861cc220e1146a26",
+   "parquet": "dfe136c4de1b4ab8a2c4a970313d38c0581debfec95964a54838a610566f7945"
+  },
+  "NI": {
+   "csv": "6f5924d4f010385c6a067b728df198451b4caba01271dd6c0ab36eaa7249dc6e",
+   "parquet": "53fb83720246a8bf142f3bbf1af88949d2b262f62cb05d2b1e5385c8c3707099"
+  },
+  "NKE": {
+   "csv": "9945e5cace62cff65aff2e805371cc8d819abfd00cdb07341d20d9df066b5c9c",
+   "parquet": "734ff1a01615db2ae983e737d4b67d257a76c3d576b2fc3d1ac4e5d46425c8a1"
+  },
+  "NKTR": {
+   "csv": "89e9ed6c621f57558800ae16bfd64330ad38badcc892c7a281c6a193b899b7d2",
+   "parquet": "c969babae6f802f48cbd6334d16882c810ddb8a2d656fa8f535878482d0d0f97"
+  },
+  "NOC": {
+   "csv": "b0bc85bb923e66a88907fd067388057d1637aa12bc6f9e1cf53a4cb2e1ea1700",
+   "parquet": "bebfab34d1d05a3a0f772137e07d8a5ababf3a54171809909101da65e33d48e4"
+  },
+  "NOV": {
+   "csv": "30b71668b6788c46f18e3c55f7db4a116d5518ecd203cc6b1ee63755d677cc13",
+   "parquet": "ca3dc5e6f22034ae27d4d33e3d004d51a9d8ce1c8f281c0cea7d5deba741044d"
+  },
+  "NOW": {
+   "csv": "354dccd39bdeefbf5d0aad2fe1a37e72d31b4996d565cf58d91d5383d297d21d",
+   "parquet": "b6ae77136ce27c0541d6ccfccf2064e6119ff31be1751f309e89dea9e38b286f"
+  },
+  "NRG": {
+   "csv": "203a2fb306c915e39f5834456ded1a7de69fcf6fa3c868041914a0a0cfa7d875",
+   "parquet": "b42cb7a7a054a971bab9480be6eb233109a1ffdf215fc5c66128a296cecef2bd"
+  },
+  "NSC": {
+   "csv": "fc05d4839ff19539e20bd57d24cd1cf9b7a390605a83137f3967d873cd66e558",
+   "parquet": "a6372def90db0e4e59e2819ceb378816246ff275eb61ab789bba66c761896dcc"
+  },
+  "NTAP": {
+   "csv": "c2cb641b539ad4a821c1112afb46bcaf77f2d3375448da857f6bcbc980f53aaa",
+   "parquet": "055bbea019075ac6548c412a172132d76e6296e398731b7a51c2166353bd3ee9"
+  },
+  "NTRS": {
+   "csv": "52b2c8c70cbb9d2dd228ef227bc8c49e2cb3bfc58ccd763cad4eab8cbc05756e",
+   "parquet": "c034c1fb63d0b13486b41975b87fc6c610fef1fb6fcb0c092ac8f09e543f4505"
+  },
+  "NUE": {
+   "csv": "2b2391e4b8d7c88032253fe0505eecbe50faf734450bacb22aecfda4b7115a16",
+   "parquet": "aaf6ebc1ce2b574f2e390b9f640ce841c1b75ea4f2da999ef86b804dce74b0f7"
+  },
+  "NVDA": {
+   "csv": "c5c7ed4872ac997fb53b817a78a8882605c2eebbf076c16d071f3d740021ea49",
+   "parquet": "ceb3af464afc27880aa58fd7d80185bcc7e7d1df2b656c97948440a7d302c99a"
+  },
+  "NVR": {
+   "csv": "2a5511c059e0cad27b09a4dd12e6413800009c0883b963cc172cd642c96e3275",
+   "parquet": "b73d0eb29a20e925364bbb97c2c43ce8cafddd41a2f0a2b5882a533f1214939e"
+  },
+  "NWL": {
+   "csv": "e31b014f386df2a61c318c51f784e6b089a496ff3c45fa42206be60d52075874",
+   "parquet": "1ca4b0fba6e51ac2b7bfdfc89410b0d68c27631020726d9e99843bd916063759"
+  },
+  "NWS": {
+   "csv": "a3b1412542727f67172271bc65882a55caf877198d94f219e18cdbc8725f32a2",
+   "parquet": "9a4575d902a161a5a431ca53c315bf8ceabb6871defbd97bb77a7e4e387b9916"
+  },
+  "NWSA": {
+   "csv": "e5410102f95714673071ff1b0b93a878675efe3523114ef4b51072b1b2200637",
+   "parquet": "b59fef9c3f89ceb6e53361c590d1333c29802255b95c7704667cfac6d7546d50"
+  },
+  "NXPI": {
+   "csv": "84ebf7d2ccc23891e40db2bef7918cacbb8dcd1ceb60fae6e25101951305e123",
+   "parquet": "143d25214a95c5112789ad6b3a67ea694402e3ee01a3316f027a5def02446f94"
+  },
+  "NYT": {
+   "csv": "d60f26e1935b37d7a67e4b88fea50cab6e6f5e734a9691cabe83748c6b6d8b46",
+   "parquet": "8174abdd470dfb154b4ae1c4e04c23a8dd82b65880adb7853116da388a2b31f6"
+  },
+  "O": {
+   "csv": "b6e3c000d078a25d139a8fb1a74b8f5d62f174007b68c1fa95b10526207ebe33",
+   "parquet": "c6c071879322cbbc6bd6a6e8e62068fdbee86ed1d5e813c438ba51a1f2526253"
+  },
+  "ODFL": {
+   "csv": "ace4657c911a00a3ee50818a191e2f7a70f8b377f61101a0709637c0af8c59e2",
+   "parquet": "3fbcfd41e71a81aa6d9efc3964f8bd2808de910e0b03c70cb86f1c945b3d13b4"
+  },
+  "OI": {
+   "csv": "bae561b3dbe453c35aa8e074eeff2c1859423f006636ca847261fd6d7d66f5b5",
+   "parquet": "afc14ba3bab3a261f43bf04f55b44d8d7f5137bd4da53affdb21653dec89234a"
+  },
+  "OKE": {
+   "csv": "87524048d9587a0300d5f32c3f54115350e7642c3ec6146e08f2aa2f4d492e21",
+   "parquet": "7b97eea3296c6ffa52a38c5276cb289101b4cace1ee886fb2a9bed243cc81859"
+  },
+  "OMC": {
+   "csv": "7921cf6b071ef415bb9b1949fffa3e06c5f1ded56b8ec89ac8769b7d9d405c45",
+   "parquet": "a145aef8f027afa8771233ecc0fb1cbfe1054d37fc67c5735833c6bdafc17b18"
+  },
+  "ON": {
+   "csv": "ab0c4d9d99d6c93776626c54f4ea3a4d8a09e4094a360967fc3de81b303a4dd7",
+   "parquet": "fd3d1841b15e6325122d72bd9026ee84f27777358bcb468e52626c4eab27f561"
+  },
+  "ORCL": {
+   "csv": "2504163d4d151b2b10741dfe2024416f14ece5618b0e5c92e5260f32395ae7ec",
+   "parquet": "b6f4f2ab6cb8cdf754ac2727eb0bb6636c0dba4f6634ce361277a95868f47dad"
+  },
+  "ORLY": {
+   "csv": "482dcf643f9f3581d4917539b78f9bb2785f1e8d8eb9f54872de61f9361a6943",
+   "parquet": "452f4899e1fd7d8b29b964d4513d4ed3eb9ccecc65338c4ff43daa4838dc0d58"
+  },
+  "OXY": {
+   "csv": "055af3301c9047f68fd2677d2830e9eb24982980a72429cbb41bd639a6a57723",
+   "parquet": "484d7ad299713b76df58816408d36dc125305312c94d17f1671aa6719c9f8457"
+  },
+  "PANW": {
+   "csv": "91bf4b49c49bc46a84cc37b67d5419d247f10784af89c2fc44d5860e3f903659",
+   "parquet": "9d04302f92139f90ae1325163e6b6926ca20d59ab4664b546d31f227b3cf345b"
+  },
+  "PAYC": {
+   "csv": "52f4cfa9b3af7d2ba87930adeb3328164124f59e904aa299a50ad72c852c7fc1",
+   "parquet": "e360167c64306315f8f847d1c571afc2e0ffadeaaf7337b6dd80bde048612a9b"
+  },
+  "PAYX": {
+   "csv": "3b10b43dac25cc9452ac4c14fea7e8f1b225ab8899f00f0655a3553b401a2d40",
+   "parquet": "e039f24bbaef14fea2f28e145fba7fa1464a8711d35b4d9117a6ee2928d7c19f"
+  },
+  "PBI": {
+   "csv": "239e56de30f8bfe207582fb485a26bdfe3a15a7645bb396e6fa2eede942cbb04",
+   "parquet": "c0fcdd7abd6abcf534af55e2667295055a6a938d0424a0990a63b583979d56e4"
+  },
+  "PCAR": {
+   "csv": "1e8edf92a130fe7a228d396774840b3180c63cb6a982769f08160b544312f208",
+   "parquet": "c81f7f2e837039b8f5cf78b9a83073d17d573c82efe063f8d52bbd12e36ae2ea"
+  },
+  "PCG": {
+   "csv": "62da34ff6dc741783d191c4d3292596ca01a9b3113372d624a8d876070f48365",
+   "parquet": "8d2967fa4e627165e3abccb154be6f14130467068992a7013ad6fdccfbd98fe5"
+  },
+  "PEG": {
+   "csv": "61e9e563149cd0b990070fa5ee11138b920fd4f015241362d6ba98bbd3830599",
+   "parquet": "67bf40ed7167ecd4f0b6b840e945c28e85dbeb2210ec5ca5692401c6480f4269"
+  },
+  "PENN": {
+   "csv": "ae9065bef048d8e8961753e85f6773f9127a8366888a07feea3f5567a3c759a6",
+   "parquet": "1145ea1e227d4c41883cc0f94e1b0560db35219d72fda5a3ae6aa9a356f19650"
+  },
+  "PEP": {
+   "csv": "62fa1793a2d098a1e08acc1c6e6f8e24c6d718e2bb8f8855627c00eb55548272",
+   "parquet": "597be39a381ec3c2eb632c445c8019a73f676e6987bece93f091292f6fb7c1b4"
+  },
+  "PFE": {
+   "csv": "18c13567e0c62eee0425f1bb63ea1eca5b37c895ef646ddd3d9eb101789baff8",
+   "parquet": "a95ba185c02945cd89015d7cbf1916b67e4c3e1ebca96789eacc9e8cab0dbd49"
+  },
+  "PFG": {
+   "csv": "f3da2fdbb4197094c30dec1a6e2318557ece8a976a0e208edb343e7c49aa4a5a",
+   "parquet": "5fbe3b4a26495f6e17077f7b2fd361ca836fea487af7f9241425e80f495597cc"
+  },
+  "PG": {
+   "csv": "cacaa26d1f6ada7a4282c61b6d38e754cd530538cfd2f2442c36decc09674603",
+   "parquet": "2579d10c4ccb3edd407ff57c5285232f93d95fc44923eadbf2faa852ea588269"
+  },
+  "PGR": {
+   "csv": "40b84c37aeb81b096e9a9dd65c1d85a80dad15666a17e50af890d80342b83ccb",
+   "parquet": "64346783111d09d8074808b335bcbd18d5654cf5ac089b7e0f82e561dfa9f316"
+  },
+  "PH": {
+   "csv": "4ccf8452e0b519fd8b94b3a244fea7a596945b9035efd9deacc914e7131d536e",
+   "parquet": "53e66457025f5adb267c010c2d2166d43e32aa568dae2c74b02521ef49dd13b7"
+  },
+  "PHM": {
+   "csv": "79ed3192c4c975f2cbacda0e84ff6cbdeab77a6ca892ef3f7d1a4c7aa780e809",
+   "parquet": "18fc08c06aa832772b6f00a02562ed2e7614ffcb2d6324d8fa849594de424a1c"
+  },
+  "PKG": {
+   "csv": "d718cc8c82421d0dfb7f31ac07ada6d44e2f99890bde1935abdd0db2bde65ffb",
+   "parquet": "454ef1b673e53c70056e9a07cff1990e5c712c8d1cb45d0a235b1c783a406052"
+  },
+  "PLD": {
+   "csv": "a783c8559fe32d2ff460a7bbdaead79a4771c7875d7089591e17061185a1182d",
+   "parquet": "bb25aebae0c9b516e7bcc1600eef751756e2bcaa02d10db9b335da77e14656e7"
+  },
+  "PM": {
+   "csv": "551e8d65012db1c6cc4b0bdb8e449cc852167c8e682ba405b620431d65f50365",
+   "parquet": "5c2385e69310eae8d2c2776549a201509e641cbed49e4adff746ba7d9254e54c"
+  },
+  "PNC": {
+   "csv": "53a23056f3ddee3cccd91782828fe56b07bd5e63b8adad7e6abc7ceeadd7686d",
+   "parquet": "cb34f175aa3f24c60ceda70b5ce4a65b8bdf90185aaa0cafc7d15141e116ad67"
+  },
+  "PNR": {
+   "csv": "dfb33ed9fe5e872799f43816733d685937a0d79b308d46eb351c940bf0ae1309",
+   "parquet": "5b0ad6a198b493f85d2190e5ca5ed2c85d84d3bd6aa1dc1584656f1f596f501d"
+  },
+  "PNW": {
+   "csv": "ca55c1a9e28eb6aadcc4a11ea4ef0c9096424bd9e774dc64d67c50ee7f9eaae4",
+   "parquet": "28f3b4032d6535b1e30b12f914b5de0bf9f93a18f061621f549247ce151ce382"
+  },
+  "PODD": {
+   "csv": "8fda53be2555208bdf2123d353b4bf35524f2262cb5f737d84497355d85d4ab4",
+   "parquet": "c591ac3211d46d683bb3412036894f8c93f8529684cc94294c5e3475361e7223"
+  },
+  "POM": {
+   "csv": "10f619fdae03b07f8e77d649807397a124ca6d3150c84003f06725ddd53242ff",
+   "parquet": "952e9419f27fcae7c3a50d4875d52cdd82b23e67323fea9f33ef8e3cabb0c480"
+  },
+  "POOL": {
+   "csv": "b08f1967f360098064f8f0e64ef5cb485293f9fbca9c58a81559d0f69afdefe1",
+   "parquet": "d593472150201e7ef187c4a13f14cb5dc2388d7f22b22f13f3d045960e0450cf"
+  },
+  "PPG": {
+   "csv": "4d7634d8cfd79d836184bdb3c5c4e0d3f2d693062dc00a2e84a2a6b074e0696c",
+   "parquet": "de5fbc196347630111fa77aa746a9bea67ec36c6527d3c792c3d026fe854c68d"
+  },
+  "PPL": {
+   "csv": "bede13b18407ce248f63432cbc9993c66e8a219d71273837ff1923b2db2ef4bc",
+   "parquet": "32ba56394a0c4653c16f773d804bdf98c25ff6b45aef114126398080954ed03c"
+  },
+  "PRGO": {
+   "csv": "0dcbdd6e415358508e590e56ddb320d0eb7031e291b49733ea5f53d2a7ac2c27",
+   "parquet": "f8ed5cafdfd9bf11d4c8d555aa16228cfedbcaedb03fcd4c08357f0fcb4c5978"
+  },
+  "PRU": {
+   "csv": "8cc463340d8133631adc565990ffd6e56aad01a2256bb58f3c42a1dc38bc3509",
+   "parquet": "43dfa38f95183df3713114b398b5798d5fcfe8a43cef4d9ed96735bfd6a2416c"
+  },
+  "PSA": {
+   "csv": "3144884083d4ff19a3089a84e63ea8ce877fc1337a3483c5d0c2e42ac49b4f96",
+   "parquet": "afeabaa9597df3a4b881d309d364487f89b8024a82bc4e76e072edf541cd5353"
+  },
+  "PSKY": {
+   "csv": "95774a3c100f0de993b8bf7624f16c78976392681f51936e0ee0bd971403b1b9",
+   "parquet": "bbd619186b2d620da21323c9dba51fa13969d9e6b63ac4a6c1643cbe3d14cd2c"
+  },
+  "PSX": {
+   "csv": "80d755ed2a0e78c725fe9a5be7032100bc6fec7bdca4eeff58fa8a47560c2f8b",
+   "parquet": "843eef2ed800768e9bfdb5b10047b04c53a3f04538ae16ca9137bd05a581ac97"
+  },
+  "PTC": {
+   "csv": "b246e779249a143a36a1e07785b1016387d5f3bab936357be691c4565f3776ef",
+   "parquet": "6a7e9f7306c4e26d900d9c83207e87e2d2e6a7346e14063a24bfd8fdac49c70b"
+  },
+  "PVH": {
+   "csv": "03c7a756c941dd293a442764340a3ca21a602146eb97884afc716fb0d60f2be1",
+   "parquet": "37f86f90c4a723ada8b4ae4368691949002ce93b1fcdebda3c7d5bff1a73dc63"
+  },
+  "PWR": {
+   "csv": "664f8fcbf368b8067b710023d7fcb9b6f2c0e3fec9e8404d5aa99665dca07b56",
+   "parquet": "22786afa772682deaa91da459e83da913be2e5f262cf0dfd9d7530e67ae72df0"
+  },
+  "PYPL": {
+   "csv": "328ed76e5e054c40fcc74ce6b2b1f6f81915b5d79aaff01342d219d831a92766",
+   "parquet": "cc84dbf47cc88d7939a9cffb0fb98f93feb0188640f50f9c5960132ce4f37215"
+  },
+  "QCOM": {
+   "csv": "b9786dfa57192a99907d637e5b78fa2806671a4f9de59cb0f9b4f1e817cf3a95",
+   "parquet": "519442972333b7be5b47fd9473dc43a337926d7ab79bc3dc92a59ea214e8592d"
+  },
+  "QRVO": {
+   "csv": "7943fd19fdc9352c809943aae6af48f9a424a6ae84fc04c16734bd9b4d150f79",
+   "parquet": "ecde495e20bbdbc13211c5a4dcd3675e4051b8c37e9ac5e0ece795f9786b91d5"
+  },
+  "R": {
+   "csv": "e74cd9ab32ac12bd180dbfafe04eb69478d3ac3566c698065b6beca26fefc41b",
+   "parquet": "648293b30182a1d13a43a6b76d025c2682933ebddcec90e4aa9c55945209ccdd"
+  },
+  "RCL": {
+   "csv": "d20dd781b8abc59d1d1a9d5794be439f6f44431cf8e1eec93cf9e1c1f1174347",
+   "parquet": "6587595f3d03bc1e69007951cf9cec9b6cac60277a56a5003f8fac6d9ba94c8c"
+  },
+  "REG": {
+   "csv": "110f8586ce56473b8d329daa63f02a2a123feca21f034505eb36c400a51c7f55",
+   "parquet": "2677f27fef96115fdfe67f136a3ed37668f4c9f74bbff29f33627933ce360cfa"
+  },
+  "REGN": {
+   "csv": "a89c204eeaa70d51012e37583ab3725511fd58681f78c7b6faab5e7cd97c692f",
+   "parquet": "c7828a8749d366af89980efe1b9bca9422031ac1008e588a38cd0b4456564018"
+  },
+  "RF": {
+   "csv": "400a9ee00b3a72a499f682fd404f894c977707930ff67e29974427464f45247f",
+   "parquet": "fdd0211663045192b377365535afe4dac3f142373e80982e93aa3debefd46eb5"
+  },
+  "RHI": {
+   "csv": "133cb4af24be105f19112d41b3f7b680fb73f114eec61345375483400e9be703",
+   "parquet": "c2295ab785715e577e415a267dce37a0fbc192b32a5a4e9d442ef1923553022f"
+  },
+  "RIG": {
+   "csv": "10bf341e6848ee3b311f76e2303435c5b4352ce6861cb6dd1087d7575b94f1b3",
+   "parquet": "069d9444415fec610a41c9ea984df1f7896f47e111820d9ad482b4423d9d8d09"
+  },
+  "RJF": {
+   "csv": "55dd8d168e116b74e114d932e3eaf0e102fc5033438cfc0eeb73234537f2ffef",
+   "parquet": "506e6c368064e6934ce4ba4e9563d66d2163b54d6d3785b62290a0e34810c948"
+  },
+  "RL": {
+   "csv": "7caa42d2cdd25073245217b9be751805bee6aa063687ca413aca15e5d5a51b18",
+   "parquet": "0e8ad36978e034aa24006c804b7128f2e60ff0324ba2e625a47230f05058097a"
+  },
+  "RMD": {
+   "csv": "a601b99f07b127ae79d9c7ade815d3f2a77e696fc15084fcdc2e4d863aa0b29f",
+   "parquet": "ac3106774e35da5f7f8b8c5ea1be1ff8f336fdf6d87e563281ab966d45e243ec"
+  },
+  "ROK": {
+   "csv": "e0719554c2168fd1a640594f90e20de5bfba8cba64fdef50a3fa97629a427ec3",
+   "parquet": "74ec927869fc6275c239eef1f1da10669ac10e72929320f8ddb024470e7023a6"
+  },
+  "ROL": {
+   "csv": "0873354a71b32fd4d3f90b721cedb729c448cf643f0f1f4eb859f4d4d4678713",
+   "parquet": "0b6fe5a3fd02007bc1403349eff2e3740396c8417e3300ea3b4569b1730082a5"
+  },
+  "ROP": {
+   "csv": "b9bfda20ea07dcae92bd58b324600fd33650a05b4ad786a4dfede4c73970315f",
+   "parquet": "1ac553a434a619de463a09607dd619fc2fc172a97bc38b8488b32fcf713b7d41"
+  },
+  "ROST": {
+   "csv": "893ec577be9d774398f72ecc5690c3aaf8b28cc1a8a29ba1da7f1e77b19773ea",
+   "parquet": "93174b9ad86aeb26575ab6bf9ba47fe9421bc15d1ff563e6c9e5df6d5d052cdb"
+  },
+  "RRC": {
+   "csv": "a6fea91506691b94238de5fb1cab91be96193524d69ef66726c48941b9868ea5",
+   "parquet": "e9d0dad1dcde3442a08d8b7c59c283ec6ab67d9ed480c4200460d8a3e3308f3f"
+  },
+  "RSG": {
+   "csv": "e4735fa3c1ac44bbcb6329f3d4feec7ed2fde3e99d22a881156614ac40edcf6f",
+   "parquet": "b3400c84264c2b9a064324193a3b7d660100e849fa9497dbf893c37ab16857af"
+  },
+  "RTX": {
+   "csv": "d9999a75c1850443a7b5764562164e5ffca05ca6e914ec90a04fb3c7e6871834",
+   "parquet": "1ff6eea66ef7beb851320ac821bb8da635d27240d8abc7ea7dd501df354db341"
+  },
+  "RVTY": {
+   "csv": "c01393833b8b74992056046acf74e1716b6cc66cb8ca53ff0c639c7c9527151a",
+   "parquet": "f1c2dc60abfc276a6a298a4e00cec25dd1a00c0b5307767ba811e0c9f13c9328"
+  },
+  "SATS": {
+   "csv": "6c8e9fcb93131365cc303212ddbea7d28b905be2ddb1cc711cda1e90a8b26a91",
+   "parquet": "fa672516b9c222640061df1be310c3c42c5c6c03768b33a6168a83356ab97766"
+  },
+  "SBAC": {
+   "csv": "5bcd7e1f2369bba3399220fd624f251b633d4592c2c4b2d8da32532783ae2691",
+   "parquet": "8d82fac2f84a829100d66a645a920b74f1915992dbfdb45e4da9aa6e51d52972"
+  },
+  "SBUX": {
+   "csv": "1490a707dfdf03d0cc6af55a6dab478206cc3d6b1c3d364f5a9acd34e470fcb0",
+   "parquet": "192835d64f2d5ea18c928d0eb20de792a6f07e397d3589c951a7e4251cfce9be"
+  },
+  "SCHW": {
+   "csv": "ddc55ee2d5e5adacf6649a9604a218d436768f2995b79fbc08a480eaaa734594",
+   "parquet": "a29ac1041d4d693eb9b84dff4f718cca5135ddb2118189addb5f93b11ddcff28"
+  },
+  "SE": {
+   "csv": "58efecb5665728d8fdf656bc97d3882d1468e1f62e163b4873b39673f67df644",
+   "parquet": "a1f49088b67a42c6344bb2aa36063622b4e7c2da893cc74737aea1ac00fc26f4"
+  },
+  "SEDG": {
+   "csv": "792489330afa82d6af33ad342cea5fc766bfddf60752506f6c196cff55e8828a",
+   "parquet": "0d9d13ff411a2410a45d55175c80f599d33fe34f3690b87f9c55c8bdc1de628a"
+  },
+  "SHW": {
+   "csv": "b8655990d03950af2adacfc25d98298ce6bfc37f2a3b3b5e5ae94f63f5248413",
+   "parquet": "2aabb6a9802ff64d9773317082b0cfb1e5869c47c5f66bfe9d20a066a646480a"
+  },
+  "SIG": {
+   "csv": "bee3840e9ddc4094ae294443e8c6fa35cb54a780fbaf921921abf4ccebc8baab",
+   "parquet": "37d70161f30001ea04e07093887818039b85a2e4abce9c35dffb182b4649502b"
+  },
+  "SJM": {
+   "csv": "2b21591e6305eaeba1ec5559424ce35190fb531d59bc91747c1f3d4cacc6cf0d",
+   "parquet": "49444b9daaba12d218306b6699ef53cd8bf7bfe89cea78eafe1884bf36d0317a"
+  },
+  "SLB": {
+   "csv": "9fabb4e7c5a28c8d99b3a10312ff107b65697572cce517d623c0d3484ce5fffb",
+   "parquet": "6291054eb03c10815bd4b1c43f759660ae1a4cd57552159f1b827ab9ed8a1933"
+  },
+  "SLE": {
+   "csv": "1fefb990cb5a7899050b673164d01e8c7efa1d55a8d669d6abffff03062979c6",
+   "parquet": "0730263905187b50c9311af1755522b235c6756333f5d3f8ea04c167c8269e19"
+  },
+  "SLG": {
+   "csv": "fff7e59159e847685468dcdac7c9dad70828f90ae7e80deb234631c8fc8bde98",
+   "parquet": "602a2cd36dc4ba6c624644cf1f710c63038a31ca00359677f0ce47141c91d084"
+  },
+  "SLM": {
+   "csv": "c140f07d685d1906f336868857e3a064c80ec14b1fd671fc11082478ee606ef7",
+   "parquet": "fcf063f4f8a81b6583de7a3bfdce94d50d137645da712fa88a2b6e8149835d1d"
+  },
+  "SNA": {
+   "csv": "62b4b3c81d39534f7c86a4f20b6731c0eef6afffa94b91032d0d163ca0f93690",
+   "parquet": "e68922eaf0b6055b29f190c35f558ffe38ea68b89680ac6f94f00d44f4bd916f"
+  },
+  "SNPS": {
+   "csv": "29d2b006427e0579a8d2c1e3e6c779c711b39626cb3781a9e39949e2b12fc484",
+   "parquet": "3055ce88d224612e29e73862daeacee510b135c42cb45c6c3364dfeeafef975b"
+  },
+  "SO": {
+   "csv": "97359180b20229b2dda22c7f0d9c1e6cd9c7f5a42d637489ede7a458b801d4f9",
+   "parquet": "5b2eaaa3128715a545d750af499dc6a9caeda6b4ae833ef0da0ea3c23a84e345"
+  },
+  "SPG": {
+   "csv": "cc17b99cb73ed1f99a8bbd620b961605d7cde9883fa293a7b5e9dd120a216251",
+   "parquet": "9f4d8229cbdbcf337216d2db48ccee1e46409325f62e7c4650dd683e7ce511a0"
+  },
+  "SPGI": {
+   "csv": "33edbe242308caf992f7a43180b3e57323dbfbf4de39b47f35c80544f2b72fb5",
+   "parquet": "0fcf195b055c3da97e382298ad99fd6dab097462e87b0622a3ce7db36dc32419"
+  },
+  "SRE": {
+   "csv": "2e5172d7b64078d32d3292cc387b7c4bb0e0bf7f7b9c1423e37a1cd70ab0d09b",
+   "parquet": "a2872c91c5f7697ac2ca13cc1cab53901532a538074bc792edf3a341eba6690c"
+  },
+  "STE": {
+   "csv": "5c86aa4f1c4e19fa2fe606ef8d797dbcb124cc92319429b1e179e08de60391c8",
+   "parquet": "04d8a3d6eba48a5cb79463fa8750f220dc522c440a9b5f961082b8aadeca547e"
+  },
+  "STI": {
+   "csv": "c05da25d4506b6c0d8f3ee026c93cb91cce7efd630601b5024a6abd6d489c8c7",
+   "parquet": "3fc059b2b127e7cd914897e34e42cc794750f1d060b786c15339c3f149659921"
+  },
+  "STLD": {
+   "csv": "43d0b9549205b64929b480bea7e9afa79742a741cde374bacf5311fe9d71542c",
+   "parquet": "9657b38fa3ac4c8a7a0518c1b5ae4dcda43736c0dd2d94ced9a548eb75865c11"
+  },
+  "STT": {
+   "csv": "f46622cdb0b65f32d0887c06ff3b10da145ec48b364060e20af889b3f1b57bdd",
+   "parquet": "c66c9f3c312f01ce819e5da5cbf83b6039ca3dfffbddeab8af9bc5ba68ca506a"
+  },
+  "STX": {
+   "csv": "7cf547962fb12557c07b8ddb68a9e437a51e67ad8f2fc68b2807663d82306fdd",
+   "parquet": "69d9d2bb2188a9d56c192004535204bf53364b535c49facac38488125de521c6"
+  },
+  "STZ": {
+   "csv": "acc9bd6d55407dc12255fc80a2c5d1ca403ef5b84a8ad47eeefa38b6cab85331",
+   "parquet": "c7a9e65601eecf175534761ed255d670c7baf2ec3f750a4cfd80a7f47b6e4224"
+  },
+  "SUN": {
+   "csv": "33d0f2b8e72ac40e2b5e7f0979904b2294b4776afc05610a11558eba2acf6739",
+   "parquet": "075296d6fb266434f297f89c16237646c42cf2b2e439b5696a5e53bcdb5da956"
+  },
+  "SWK": {
+   "csv": "e6b6c692f55886006d53aac8930a2f3b2a9e92705096715efd3432be89bfb6fc",
+   "parquet": "e3dc986669146e401fa6f5eecc9fff103805e76f7206915b85d7bec1d0aaf31a"
+  },
+  "SWKS": {
+   "csv": "752d4d1ba94345a990c380e61a21c6aec915cab3b7888a55788f49af9bfb7fd0",
+   "parquet": "f4334eeb1eeaa8bfa51407f5d0cefd48365b046cd0e1f6ace1975fc3326f3637"
+  },
+  "SYF": {
+   "csv": "1591750126f5e8242ee299275541d2dcf36b2fe575327156f644e4ad6c3b359f",
+   "parquet": "e65d5a093f2f4043580105841a0464c25d90a0010fa942f6eab93bba67af1f9d"
+  },
+  "SYK": {
+   "csv": "efbd45806321272085accb9244f262f03194546de0acea8ca0bca6bce5b73e91",
+   "parquet": "0cd253182523897c91c6430adf1aa6f80d4a72f16117160204a782b52b9e358d"
+  },
+  "SYY": {
+   "csv": "725c0f1a96dae99b059afe2f8a63986d68942730daf55f20b504d7f563413e1e",
+   "parquet": "0f2471490a9843f08099e113f02589a0e15462ea87e896ebdb172ee409e5d1d1"
+  },
+  "T": {
+   "csv": "3e81eaa68abf3bae4e7205f80357901b7a12d905c1a628bd7f142ae852936f27",
+   "parquet": "8b56c61d1e376f43cc852e2c3ec10a69b08d8a29cde6d362415689c18e981065"
+  },
+  "TAP": {
+   "csv": "84d710852f06e0b62e050811ed469e347278a0e7e492fc21d7847e0c8a9af7ba",
+   "parquet": "2cb9ca714c7701c26a8647826e95c65e1d3f8588433403869472888f3d9b0976"
+  },
+  "TDC": {
+   "csv": "5c509c180022309f720f5b76a9518b74190e719653c576f8677cf1495c97b6d5",
+   "parquet": "14b3da2e11a8281358c1696e66963b38ebd4ca8db4ffe3302b243c8e2f2721db"
+  },
+  "TDG": {
+   "csv": "26d62c3c2f368412b5e302c94618f91b0aeca3face9c6db3209a682b9ba6acd8",
+   "parquet": "639fbcc2742452194f94480d6dcd1312a2f8f2c247acbfdca4cc737ef97a8d7c"
+  },
+  "TDY": {
+   "csv": "025a49cc62fffb34f26997b920c82ba8b781f2711126ad126f5eca067e786530",
+   "parquet": "11cc6ba4f261fd3b2d17cbcce244c3e5cfd22d7cd6c8bdee03bb5edd054b0305"
+  },
+  "TECH": {
+   "csv": "a6574dfce410fe9ebf92cb3622b5782b39f5b86d940c7dfbdc719800f284b627",
+   "parquet": "b3ec8d53f8dbf3a4688f543c3d8f581f5f8c57992fa0ea0e91349d63c6b0e528"
+  },
+  "TEL": {
+   "csv": "2a54983fdc12db2b718c36070ef21ddbc62083d9283e540b4b7020d52ee886b3",
+   "parquet": "2327bfe084c8880d0a6189e22805487fb484f9fe3caed57b7c86c122c0b8e5df"
+  },
+  "TER": {
+   "csv": "0f31183d52e0d734a763726c66a4c570c7bc139b9d22b15a7beb886960dfcbce",
+   "parquet": "ba8fd81f976a1467780e37a42adc9fe80d577fbf7637ef26ff2b1fcab4adfc3d"
+  },
+  "TFC": {
+   "csv": "0ffc3fd415ef23f31d78639b81d966969de37ebee71dd03dd6c5ab38b758ee99",
+   "parquet": "90cd0031430b342e65de6fa4bb6c2fb9f0880b535844d5197fdc28e064c1087a"
+  },
+  "TFX": {
+   "csv": "e34f80cc82c3c80cbd0e53451e848dee1e985328e335eff2fd1f985eabc71e4f",
+   "parquet": "50705a4bec0b5c825943abd7de2bc09c9ae8b68fcb38ad6de85cabdf8f68ce65"
+  },
+  "TGT": {
+   "csv": "6d42655af47096160663b3e87a40b81bfd4ff2a7bbafb3f5da628f8ccea253ad",
+   "parquet": "55260ea3a46e2bd76d9603383a4d324769094231296bd292b6729a0d5e428c28"
+  },
+  "THC": {
+   "csv": "8904ef9090f39d071f25491d875027078ca183e100d96396f53e1e297a4fd950",
+   "parquet": "73bcfe16e9634fea2a8334607a5ba826b42fdd97217fe63fbdd5c9a169b61160"
+  },
+  "TJX": {
+   "csv": "2c637d0b75107ac6c6359c0860cf64928684349748be76508c7d7da702b6f3c6",
+   "parquet": "f5d25997e256443d904461093b685ab8d15c2bb5894fb8abf1ce96dc22ee17af"
+  },
+  "TKO": {
+   "csv": "2a5bf1207d143142c4e9dacbbf6f02302eced534880e576c046fbc97fa2d0537",
+   "parquet": "e8c391f045ebc45d4c602b80265e581695cd057d4f3950fa75728e4e133f6bfc"
+  },
+  "TMO": {
+   "csv": "55dfad66b369ae1ca9e2e350b7ae72bc323c121faa1fdd9451d159f1b4bb0060",
+   "parquet": "45364501243063a23020bd7d0f4566cd566895a050c70b5c8ea50ac409570331"
+  },
+  "TMUS": {
+   "csv": "3792a07b487eea91ea7ddfc5794e1b2de4dee19c4d0e6267ee85733a3e7e612b",
+   "parquet": "e7f241054b7292766ceef7249178f17eb6ca5920a367d30885c5d722d853251d"
+  },
+  "TPL": {
+   "csv": "1a273d2c98cb5bdadb7b86033501d02b57cdff612bf2c2731db1d4dcd9b4e964",
+   "parquet": "cf23b9a88317003d061ef125dcfb4ba78f0288d446419a4ec9057dedabfd5041"
+  },
+  "TPR": {
+   "csv": "d7f70aeee5917389c69882a22a35ad8578f256d2866b1f6b67c8120ff52e2b54",
+   "parquet": "ed882c2b59d261add79266e19a48cd145dad29e8fad36b7f701b2cdacb3a5edc"
+  },
+  "TRGP": {
+   "csv": "49d0d808068ed653865a0c3a2dc8e5d7dde17ebf4f158defab88f7950505312e",
+   "parquet": "3b0fc840895db872553390bd7584acb5940828653eeaaabae6e615474d0b3877"
+  },
+  "TRIP": {
+   "csv": "b3a164bd7be1ffe2c00ea7d0e33ebf64e1206659435536cdf644ff602b23c739",
+   "parquet": "44bd4a08f9b407d9c59ae5f8447f8966e23c385f726b6f3e51813b7df1389223"
+  },
+  "TRMB": {
+   "csv": "b34b28cf8aa95b03d568dc5d0aa77f4292d331cdde780e6218cdb66af340a641",
+   "parquet": "77c7d756161c5a1132e6283047db2d94ba8d939af16876930b1e18341c7b7a34"
+  },
+  "TROW": {
+   "csv": "0a104b301516064e12836eabf81ce81c7d8e2a0dd95f7aacea25e20c4da7f2f7",
+   "parquet": "3319858a9b7dc939418c6f9d86c306ef5f676e9fb4d1df5e994e57236899f089"
+  },
+  "TRV": {
+   "csv": "272d1f8dc9fff1808fefab92aa881798f77f37024ed2da5580ff5a8de6cde76b",
+   "parquet": "841de064059322d1ee13f6c899315fe0a66aeaeb2d9dea19c85c77dfd1685ef5"
+  },
+  "TSCO": {
+   "csv": "d21bce438f5112e4258be2c8d57ec6dc3517c0f2d91a1a7399f247a20a0be026",
+   "parquet": "69d71dea9ff597009b6596ee5960272ea8ffdb8649d983d0cfcc2dcf6f1984c7"
+  },
+  "TSLA": {
+   "csv": "a87141fa434707a7fc57bc9767cee4e015f69df7d199032fc16f98c80217d3e2",
+   "parquet": "230a364a2b39911577e9994fc43cc592078369e064205d02a4960cbff0f95390"
+  },
+  "TSN": {
+   "csv": "3512539bdd162f80b33ea2603483f77628073bf29257cca0571c0c3c5437c453",
+   "parquet": "3306d95b66defe9a5425dd4821f442a6bb3f347cd761223914c12d679856f9df"
+  },
+  "TT": {
+   "csv": "e4c6b8e3f9649928cbc8a8d082328438697b6286dbc4248bcbdc14236d9d8294",
+   "parquet": "0eb575f78317aa90850a2e4f04be746d7462ae358149f2562c8bd8669338a525"
+  },
+  "TTD": {
+   "csv": "1df12034fa103dae65351e2b9e92b074a8baea06f2259bcaaa5c1eb572b9ff71",
+   "parquet": "f83f6aec16d79488c6270995f4b147d469a30aaf265fb42caab86d4195c2e232"
+  },
+  "TTWO": {
+   "csv": "82c9de531b89a43f32e7df463993bb6c0c975d25c04f78f4db7aafeb31b259f9",
+   "parquet": "c6629ead5255a5cebd26c1ce2f714482b184f1f8a0bd62d57b7d960660d6c057"
+  },
+  "TXN": {
+   "csv": "b4f56ec1c241e79bcc47424848c13880d87cf098c8a15674b957a3dceab9ec25",
+   "parquet": "5ced2f467013d7d892c3d796e4d95fdbd8f7cb42ca1372c03913416f661ef4f0"
+  },
+  "TXT": {
+   "csv": "4ef6daa41d34d9e373687274bcd851b5577572b8b17feb63663ad43ac96c39c7",
+   "parquet": "87c39615c7100419584c5acde2dba121f4fdb3272ad80e4a48400fa94ac0aec3"
+  },
+  "TYL": {
+   "csv": "ac2e893b61e704b3d3deb55bcd3389ef396ac26448b4a90f10fbf8875053332c",
+   "parquet": "147d8b7979d10a13b3e714efc1abd91c0085216b02cfb97b972de9fd6b6b4754"
+  },
+  "UA": {
+   "csv": "ad7c97abe1d3952464671996681463adea9284707456be31e543012dfe4584de",
+   "parquet": "eb84abb566e6e618c286f4c540db3847353dbba7c38a02b6b9a30768d2f69303"
+  },
+  "UAA": {
+   "csv": "83e56595c077cd7b665fcd87ed9409b527392966c762804f6eedc422b13a3665",
+   "parquet": "64a5ae80bd0b0290429da76298963a5e83cbdd9555cc298a1eed1f474dff780c"
+  },
+  "UAL": {
+   "csv": "df5db33cdcd53d883b5f03dcdb52f7c1a5680177f19aefb66ca851275dc08029",
+   "parquet": "c89d831414384fcdd9cd306a017f3472668778ddeaab5269927c9d6b27a3bf06"
+  },
+  "UBER": {
+   "csv": "761d1621daedb35f4ead814a4fbab47b24b270fcf1ab9211af2cc4a4f69e5e62",
+   "parquet": "29fb657f02774324b31d7f7162715e9f7bfa7b00fbdba63fca3c07d66a2df8a6"
+  },
+  "UDR": {
+   "csv": "cbc36a9b83e81cfc7729eec4ed2b0fc1dadebb3fc572713106ac34af34d280c4",
+   "parquet": "8301e82baf99a06d195fc293893e5536b115d0084e56101290bd4bcd7b86c10c"
+  },
+  "UHS": {
+   "csv": "f10750d22e2c3f954e4ccebefed5022cc92c88890859b76d7fd0192303dedce0",
+   "parquet": "bfbc825377acf430ecae643fde37b7ae60b9d85c34a6db2fadacc067d3af73b9"
+  },
+  "ULTA": {
+   "csv": "12388864727c346fc8c25e16b592b1f3dcb726985a691a601f52bc5a2f8c16b0",
+   "parquet": "7191497551e6ba172d10e7b50375f0ab1d42be739f285c15e56c461faf1bdd06"
+  },
+  "UNH": {
+   "csv": "ab7662a687bf286d36e895488330d7fc5fe3027d5fbbd5b1f2afe880976922a3",
+   "parquet": "7332ec48e8a44ef3c5d76fd4e958656d0a7a5c96d77010731692afce4e57c006"
+  },
+  "UNM": {
+   "csv": "2ed35547ea6a4470d3c20a174eec975a29c61f3f9c4629287262942608ff6c0f",
+   "parquet": "8bff1e3d78c4005dabc84e4bbd000e4d6be451215ed13369fdcff8495bec3598"
+  },
+  "UNP": {
+   "csv": "9ff13cd9f83a18904975bd0ecaed6e542288837974111e2cb1ac979d5b267bf5",
+   "parquet": "fcff922bc71a3907f46a078117a108db402bfba5e7e2265697a7a6f3636efb30"
+  },
+  "UPS": {
+   "csv": "bd5edf53d47b1b1c86c30ba668f6ad08ecb1be99e95494dd22c75320803956d2",
+   "parquet": "029860a88d1cde57259e841130ae5b4354d762a61247631f46dad26535c6baed"
+  },
+  "URBN": {
+   "csv": "0eb887b759ec00d95ca280c1c53de4b314558c8f2fca9fe3144d4fa7844ebe42",
+   "parquet": "74c0bffa9eac50528fb565d172949a9f92b22aed3ddd97ad451b9b080bcbcbd8"
+  },
+  "URI": {
+   "csv": "7ee0fe4fe8e080c14ae77ecf987e821a27f722bb8cb0552696aa2edddaf1852f",
+   "parquet": "b7f504998e38533c96ef1ff455c80a2972b6915dac47bb83cc627366e4e4ead4"
+  },
+  "USB": {
+   "csv": "3256cb9ae404c17b4cdaacc2a984deffd5ab01d44be920a7e222039b3c24ff40",
+   "parquet": "da7dc47cfa4924d3c80419d4fd8a91cf772bc7744d69d69739dfb74ecbb84641"
+  },
+  "V": {
+   "csv": "eeca5269b37e8eed36e0634f29ed328d18bbcf5298c996f48e44b58be538e493",
+   "parquet": "2dcd8c7d6a15e45514fd60d1eca1508bd34c0c5e386b2827dbbbdf7724f3d463"
+  },
+  "VFC": {
+   "csv": "3ebf1c228fe524bae285e21474305026b1ce776c9a09089cbec0a1f8ac7fd165",
+   "parquet": "c1007e13befd72ceea91701f2d5598e9007432d7b992b11acccb628fcb5317ea"
+  },
+  "VLO": {
+   "csv": "516eee569e625dea94d9cc3f642df6ddf303b6b82bd17fd059d05ecf6e2da296",
+   "parquet": "9494c18e6f434cd37e1012aea13c0e9f6740cd6a9d81170cf23d15f6c9487686"
+  },
+  "VLTO": {
+   "csv": "1373ce531a044e1939d83d2748496816dd4c32d75e4f24cef3d2b31e036cee37",
+   "parquet": "d604c69d3714ca404c18b33d5cb189853fe843c535d8bc43050bfa20aca55153"
+  },
+  "VMC": {
+   "csv": "348fcf9b3cb509b2922ed392b41a6bf68bb368701a6a5483cc59c772ea11adaf",
+   "parquet": "182e29b303c8bd9c028ccd36fbfe37dd87fa16d75cfd1fd57615f37f8ceab30e"
+  },
+  "VNO": {
+   "csv": "bf3309e69881e7ab197b95eed245df8f202c7c1b2b34af48889655e401e484ce",
+   "parquet": "dd139464d7484e0ccb7a671f44b9364ee1aa4caf016ec0321dc4afecd4c72b5f"
+  },
+  "VRSK": {
+   "csv": "9a48ad3d09a27a4424731e5a5070897dde3cf9559b9078afcf3cb9043f12c7ff",
+   "parquet": "6388307dda8abe21d454c6739dcdad7cdbb6ed1b680a44b82f34cbf2aa614aff"
+  },
+  "VRSN": {
+   "csv": "e15005ac4d2502fea0aca932e7151f861231cedcc6e17499b77f5a2113349843",
+   "parquet": "85790caaedf239c2bdda0595c2a36b13c241a91f7c8bbc2d6c669dad3859700c"
+  },
+  "VRT": {
+   "csv": "3fc4a1a3a1e0695b20e4bbd86fda503e7023b468c1538f3ceafaa736cdcb50dc",
+   "parquet": "2684d110959a2c2eb3de27a7fe31683445d33ff38887950bc2359a442c190599"
+  },
+  "VRTX": {
+   "csv": "3328c288b64452d31380bd59fb69e6b8ce35a91075fd791e9260e3d03ea59f0b",
+   "parquet": "5b2a291eb7340c02e65dfd049f9136d66b08664ba34fcc02996814f5b120d0f2"
+  },
+  "VST": {
+   "csv": "e46750e29e9060d2fbb3ddc9140aa9e73ae5fb379845d0ddd29bb7ba7a6b850e",
+   "parquet": "ec797cafa58a3edbc3a77088b541786f7e915618b1d484bda23e7adb50e73b72"
+  },
+  "VTR": {
+   "csv": "17a098971b8e93eb7b2949fb66f05b115a0d018c104f14ebbb4ed180ec382fc0",
+   "parquet": "9fced55b802182af621c77632f05e9ed9d4f9317116aa4ded2950351e3acb818"
+  },
+  "VZ": {
+   "csv": "a3747d748d4f1b4efed1bcd79eebf6c7a1bc5508842d791273358949acdbc593",
+   "parquet": "755c0d8e57b73860e13746b1675283d109c7206e282b692921fec7fd450a6598"
+  },
+  "WAB": {
+   "csv": "9b02cf2bd6399d61281cb05ada3e2a63650459013ca45948391c0fd8792c7fc0",
+   "parquet": "930438b42151253e2d1efb9a11adfa03a7ed30e53b03d454a505e8d6f09ad4d2"
+  },
+  "WAT": {
+   "csv": "3b3e8a544bce084df392a11747a535ee8e68af513ec17c5278df958fefc482e2",
+   "parquet": "82b6e40ebc45bddf1fb43f231e9bf14d226fe006f4b84384a8a55b6dc8be9de0"
+  },
+  "WDAY": {
+   "csv": "60dfa5975c2ec182bc0ca03e978345a0fc89be7578460d626f26fef3c602aa0a",
+   "parquet": "34e74180b8eee6e0aff6a22df94f821c43a9b57361ce8a20c84daa09006f06a4"
+  },
+  "WDC": {
+   "csv": "7856f4833db6316f74065bd4cb6cd4b47cf3483eeb178fb1d95de201fa003c15",
+   "parquet": "509a298dac2625d0cac8c069c0e1395ec1f4e935280c91ec2254a0a1075f4335"
+  },
+  "WEC": {
+   "csv": "f15ca9a3c575454c92c41d009bff97559293497da9d1856701ab31e4cd630b6e",
+   "parquet": "89b89662f11bc1d87eec973d0abdd1836226342b956d5b0caeeb059a34121b85"
+  },
+  "WELL": {
+   "csv": "16e966e1e6fa26d15fb51cd48df6a08a642439203762181bd77fba347e4ebd07",
+   "parquet": "6f3adadf874d08c379d81d9d25769f9b4ff465c07b914c82efc2b1a923d487d2"
+  },
+  "WFC": {
+   "csv": "5b14cc458a477df237dccb885b7720886a85f9efc42dfb51ba63aa75f2dab6f7",
+   "parquet": "1eacdfaff92468bd61ac14f082b804d64992eb491285ca2ba3eb7f0f57772f45"
+  },
+  "WHR": {
+   "csv": "c25be77915335f586b68c549ca05ad26305183ac11c97e0612fb2cc390208134",
+   "parquet": "569a834ecc0e70e0ce9ee1bcd051f1ebd8b37dbac8da8629f8adc447e36f86eb"
+  },
+  "WM": {
+   "csv": "be95967b0da31375c9043b106148f2858300d412e52826293da931ac8758eeff",
+   "parquet": "a4bcec912e9ccc8748cc80efc433d1bd683b943aea0c47c9a3324abdb003fcc9"
+  },
+  "WMB": {
+   "csv": "10e57ccd048ea17200258de124ce982e2ab5e2f1372b626acc46bbeaf2371fc2",
+   "parquet": "24a20f1a2153a855a730413ebe4627b3679b2af46cfb3fb4b34a43c2d110a43d"
+  },
+  "WMT": {
+   "csv": "035bd0eaef1b6a20cfd8106037adc46ec55b79e203deda5fe37838d28ff5969c",
+   "parquet": "46240b0a2de92b263d58bd9fc37715e9775b0bbf41db13a573d8af372b9f9f79"
+  },
+  "WRB": {
+   "csv": "a54b6dfe0c0c33b625952e1721c0662ec753962b74407b0463fd4f046eb2f4f3",
+   "parquet": "e2b84e51bf2706fc300c1aa632c7e01a168a48ee50fd18561c3868cb22e98af4"
+  },
+  "WSM": {
+   "csv": "9074b79a8206cc1f86110cc8f9ede36f9e0014d43d092377775e94b936f81bc7",
+   "parquet": "7a94ae538427e2bdd3c2c49cd51bfee8120de371195d95f0d89d36ecd8c876b3"
+  },
+  "WST": {
+   "csv": "163b6fd4bc35a36203b13aa3e8935d7a9cdee3bec0235080e96cfa619903be64",
+   "parquet": "bafc3b25ebcecc35f2e55c071522103d1a15899e3b671812957f277a8888c94f"
+  },
+  "WTW": {
+   "csv": "67a7ec666d9cc45a7ab1f5b6f8c3f52110b49c23dbed9933980137a85b07f229",
+   "parquet": "53a935d9e7047bb36d93a6a32cecb9d230275b872b4ad67f4fb9fc5a5359a42e"
+  },
+  "WU": {
+   "csv": "b078930986606dcb82b80c9a3953732ba6a069495bbb5bc44839a523bed68367",
+   "parquet": "3e4a88a8d381acaf58747d8457478d7deb10982dc3037fdfffbf9061cc8475d4"
+  },
+  "WY": {
+   "csv": "8dfda09a92fc94e3617561a78fdf92d10340858028c722d740b8ce1f80d57306",
+   "parquet": "98dd638107b29ac2527e7436694e363a35cdd8a9b2191fc19065518925c8506b"
+  },
+  "WYNN": {
+   "csv": "f995d967266ec88d6243d302acf3454fb2b8aa919f7e4b64774da28e9b4fa9af",
+   "parquet": "7dfa80022b27856077d6e2d54bd70e1cfcb75682637c19454946f3a589f1ea39"
+  },
+  "XEL": {
+   "csv": "e45c790c10adf4d1a6c992cadec61ca1cf6e94f8c5e833d8e52cf106db072d05",
+   "parquet": "9bf7528f779bbe97afe344f5f96208a0950f4561ae78b022619fecc345044853"
+  },
+  "XOM": {
+   "csv": "f34a3d2efc33820837a568ff092299625c3bd7f5dc94146c6977694b3b2c0668",
+   "parquet": "67f9360b43cd20f6e2b6e0a296abe09d7aa8300e228510e4620304890beb5ab9"
+  },
+  "XRAY": {
+   "csv": "c5acf6b715e4945f1a78b62dd94fdf7c92327bf1a6fa84c11fb288240ab9f52d",
+   "parquet": "9717b3fad726d065668e3b16e1737f7b2f4d76fa1674dea41673ca9fc993fbf1"
+  },
+  "XRX": {
+   "csv": "cfdfc69d2583ba579af155aa4472324892154dc00639cd40a51b251ad6940c8d",
+   "parquet": "71c7d6370bfcc56bfcb3d10f045389327db25855e762b10ef91db9979509f4b4"
+  },
+  "XYL": {
+   "csv": "f6528e725abc6a7348457c24ebade4af61c97a5010ef5949de57676bd61e6b0e",
+   "parquet": "9732b425b851e52abd44174930dbf618c24020a6a9173fbfcda672eeadeb1855"
+  },
+  "XYZ": {
+   "csv": "372bf8dbe94c01fc8b73edef51e5b7bdb3078b68c591cc9c74e2671be7454cb5",
+   "parquet": "a54ffdd409b2da9a3a16d0ee1c939d5d2798b231c6e5f04403cd51dc348a84d7"
+  },
+  "YUM": {
+   "csv": "2b0f6c045e555b55aaccc1be6f35c56cadeef917dd61cb45585b98fce12dcd27",
+   "parquet": "dc1b6b61ff206018dbbc1576bfc5378d32b339b4a2ce4613c97aaefe1f593a71"
+  },
+  "ZBH": {
+   "csv": "2994d9e57cc63cd920d07dd62def93c16b9263e49272f601a2b3d881b8387754",
+   "parquet": "0510f625baf7b268b3baf48a3794d56b0336659807d1ac8cb1f78c86b9e97f43"
+  },
+  "ZBRA": {
+   "csv": "efa5bcbd52ee6cac6461b5bd4596ef63873e2b7155b735ecf38b694431daaa3a",
+   "parquet": "d651965789bc019cd217f0d961aaada967c9c7ee6814081123620d9f2759a373"
+  },
+  "ZION": {
+   "csv": "0de49256b137c85bb09090596032eae40ad93dba325fff1ab208cca50f4edf7d",
+   "parquet": "e4ceb1990ef5bca0477487417b840e7f9398682b287346bba1c184ca720f3d0f"
+  },
+  "ZTS": {
+   "csv": "7fea97297bdb0d71106e43803cdcd77f31a07970ba152ffa41decc79cb3a6213",
+   "parquet": "d60bb476939b1d44ecf42eaf0b03d6bd7ddc226dabe3d10cf2b6fc861a5edf58"
+  }
+ }
+}

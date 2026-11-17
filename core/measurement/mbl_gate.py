@@ -32,10 +32,23 @@ A correlation estimate is NEVER allowed to collapse the multiple-testing correct
 none: N_eff is floored at `N_EFF_FLOOR` (2). With N_eff = 1 the gate is vacuous (MinBTL
 = 0) — the same door defect 1 left open, reached by a different route.
 
+T-391 (PROPOSAL, docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md): THE
+REGISTRY CANNOT SEE A STANDALONE-HARNESS TRIAL. It ingests only controller run directories, so
+every trial a research script runs (the frontier program requires them) was missing from N.
+The committed record `config/honest_n_trials.json` (written by ONE recorder,
+`scripts/honest_n_trials.py`) carries them. THE GATED RULE IS R3, the director's ruling 9.2 —
+no borrowed correlation credit: N_eff = N_eff(the executed controller/cloud runs, under the
+correlation measured ON them) + the registry's curve-less rows at raw + the standalone trials
+at raw. The three populations are disjoint. The gate cross-checks the record's registry-ledger
+rows against the registry (no double count, no omission) and FAILS CLOSED on an absent, empty,
+edited or inconsistent record, and on an artifact that does not state the executed population.
+
 Public API
 ----------
 - `compute_n_effective(db_path)`                  raw registry count; FAILS CLOSED
-- `compute_n_effective_correlated(db_path, ...)`  correlation-aware N_eff; FAILS CLOSED
+- `compute_n_effective_correlated(db_path, ...)`  the gated honest N (R3, ruling 9.2); FAILS CLOSED
+- `honest_n_breakdown(...)`                       the same, itemised (executed, registry, S; R3 gated; R2′ and R0 reported)
+- `load_trials_record(path)`                      the standalone-trials record, validated; FAILS CLOSED
 - `expected_max_normal(n)`                        E[max of n iid N(0,1)] (Euler-γ)
 - `n_eff_equicorrelated(n, rho_bar)`              the equicorrelated-trials identity
 - `compute_mbl_min(n_effective, sr_target)`       exact MinBTL (or the bound, on request)
@@ -43,11 +56,12 @@ Public API
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from scipy import stats as _stats
 
@@ -63,6 +77,16 @@ DEFAULT_PIN_PATH = Path(__file__).resolve().parents[2] / "config/honest_n_pin.js
 N_EFF_FLOOR = 2.0
 
 METHODS = ("conservative", "onc", "equicorr")
+
+# T-391: the standalone-trials record lives BESIDE the pin (config/), is committed, and is read
+# by name — the same no-path rule the pin applies to its two data inputs.
+TRIALS_FILE_NAME = "honest_n_trials.json"
+TRIALS_SCHEMA = "honest_n_trials/v1"
+COUNTED_IN = ("registry_ledger", "standalone")
+_TRIAL_STR_FIELDS = ("trial_id", "task_id", "date", "counted_in", "family", "substrate",
+                     "prereg", "verdict", "source")
+_UNRESOLVED_STR_FIELDS = ("item_id", "task_id", "stated", "why", "source")
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 class HonestNUnavailableError(FileNotFoundError):
@@ -180,7 +204,6 @@ def compute_n_effective(
 
 
 def sha256_file(path: Path) -> str:
-    import hashlib
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -193,7 +216,9 @@ def load_pin(pin_path: Optional[Path] = None) -> Dict:
     pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
     try:
         pin = json.loads(pin_path.read_text())
-        for key in ("artifact", "registry"):
+        # T-391: "trials" is OPTIONAL until re-pin #2 writes it (honest_n_pin/v2); once present it is
+        # validated exactly like the two data inputs and the gate verifies the record against it.
+        for key in ("artifact", "registry") + (("trials",) if "trials" in pin else ()):
             entry = pin[key]
             if not (isinstance(entry, dict) and isinstance(entry["file"], str)
                     and re.fullmatch(r"[0-9a-f]{64}", str(entry["sha256"]).lower())):
@@ -276,15 +301,320 @@ def load_n_effective_artifact(
     return art
 
 
+# ----------------------------------------------------------------------------- standalone trials (T-391)
+def default_trials_path(pin_path: Optional[Path] = None) -> Path:
+    """The standalone-trials record sits BESIDE the pin (config/), so a caller that passes its own
+    pin (Discovery passes `<root>/config/honest_n_pin.json`) reads its own tree's record."""
+    return (Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH).parent / TRIALS_FILE_NAME
+
+
+def trials_digest(rows: List[Dict[str, Any]], unresolved: List[Dict[str, Any]],
+                  activation_date: Any = None) -> str:
+    """sha256 of the canonical JSON of both blocks AND the activation date (review F4: the date
+    decides which ledger rows the forward lint binds, so moving it to 2099 must not verify). The
+    recorder writes it; the gate re-derives it, so a hand edit that bypasses the recorder (or a
+    truncated file) is refused, not read."""
+    payload = json.dumps({"activation_date": activation_date, "rows": rows, "unresolved": unresolved},
+                         sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _refuse(path: Path, why: str) -> HonestNUnavailableError:
+    return HonestNUnavailableError(
+        f"standalone-trials record {path}: {why} — honest N cannot be established without it; the "
+        f"gate never proceeds on the registry alone (T-391).")
+
+
+def _validate_trial_row(row: Any, i: int, path: Path) -> None:
+    if not isinstance(row, dict):
+        raise _refuse(path, f"row {i} is not an object")
+    tid = row.get("trial_id")
+    for key in _TRIAL_STR_FIELDS:
+        v = row.get(key)
+        if not isinstance(v, str) or not v.strip():
+            raise _refuse(path, f"row {i} ({tid!r}) lacks a non-empty {key!r}")
+    n = row.get("n_trials")
+    if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+        raise _refuse(path, f"row {i} ({tid!r}) n_trials must be an int >= 0, got {n!r}")
+    if row["counted_in"] not in COUNTED_IN:
+        raise _refuse(path, f"row {i} ({tid!r}) counted_in {row['counted_in']!r} not in {COUNTED_IN}")
+    if not _ISO_DATE.fullmatch(row["date"]):
+        raise _refuse(path, f"row {i} ({tid!r}) date {row['date']!r} is not YYYY-MM-DD")
+    lid = row.get("ledger_id")
+    if lid is not None and (not isinstance(lid, str) or not lid.strip()):
+        raise _refuse(path, f"row {i} ({tid!r}) ledger_id must be a non-empty string or null")
+    if row["counted_in"] == "registry_ledger" and lid is None:
+        raise _refuse(path, f"row {i} ({tid!r}) is counted in the registry but names no ledger_id")
+    if not isinstance(row.get("pending_ruling", False), bool):
+        raise _refuse(path, f"row {i} ({tid!r}) pending_ruling must be true or false")
+    twin = row.get("also_in_registry_as")
+    if twin is not None and (not isinstance(twin, str) or not twin.strip()):
+        raise _refuse(path, f"row {i} ({tid!r}) also_in_registry_as must name a registry trial_id or be null")
+
+
+def load_trials_record(path: Optional[Path] = None) -> Dict[str, Any]:
+    """The committed standalone-trials record, validated. FAILS CLOSED on absence, unreadability,
+    a wrong schema, an EMPTY row list (an empty record is not evidence of zero trials — the
+    registry's own rule), a digest mismatch, a malformed row, or a duplicate trial_id."""
+    p = Path(path) if path is not None else default_trials_path()
+    try:
+        rec = json.loads(p.read_text())
+    except (OSError, ValueError) as exc:
+        raise _refuse(p, f"absent or unreadable ({exc})") from exc
+    if not isinstance(rec, dict) or rec.get("schema") != TRIALS_SCHEMA:
+        raise _refuse(p, f"schema is not {TRIALS_SCHEMA!r}")
+    rows, unresolved = rec.get("rows"), rec.get("unresolved")
+    if not isinstance(rows, list) or not rows:
+        raise _refuse(p, "holds no rows — an empty record is not evidence of zero standalone trials")
+    if not isinstance(unresolved, list):
+        raise _refuse(p, "`unresolved` must be a list (empty when nothing is pending a ruling)")
+    if rec.get("rows_sha256") != trials_digest(rows, unresolved, rec.get("activation_date")):
+        raise _refuse(p, "rows_sha256 does not match its rows — edited outside the recorder "
+                         "(`python -m scripts.honest_n_trials record`)")
+    if not (isinstance(rec.get("activation_date"), str) and _ISO_DATE.fullmatch(rec["activation_date"])):
+        raise _refuse(p, "activation_date must be YYYY-MM-DD")
+    seen: set = set()
+    for i, row in enumerate(rows):
+        _validate_trial_row(row, i, p)
+        if row["trial_id"] in seen:
+            raise _refuse(p, f"duplicate trial_id {row['trial_id']!r} — one trial, one row")
+        seen.add(row["trial_id"])
+    # Review F5c — the double-count lock's second half: a task the registry already counts may not
+    # ALSO appear as a standalone row (T-137 re-added at raw would be counted twice), unless the row
+    # names the registry trial it is a DIFFERENT trial from (T-260: 2026-07-02 vs 2026-07-27).
+    # Review round 2 F5: the named twin must be an EXISTING registry row of the SAME task with a
+    # DIFFERENT date — naming any registry id (T-137 naming itself, or T-135) is not a distinction.
+    reg_rows = [r for r in rows if r["counted_in"] == "registry_ledger"]
+    by_task = {r["task_id"]: r["trial_id"] for r in reg_rows}
+    by_lid = {r["ledger_id"]: r["trial_id"] for r in reg_rows}
+    reg_by_id = {r["trial_id"]: r for r in reg_rows}
+    for row in rows:
+        twin_id = row.get("also_in_registry_as")
+        if row["counted_in"] != "standalone":
+            if twin_id is not None:
+                raise _refuse(p, f"registry row {row['trial_id']!r} may not carry also_in_registry_as")
+            continue
+        clash = by_task.get(row["task_id"]) or by_lid.get(row.get("ledger_id"))
+        if twin_id is not None:
+            twin = reg_by_id.get(twin_id)
+            if (twin is None or twin["task_id"] != row["task_id"] or twin["date"] == row["date"]
+                    or twin["trial_id"] == row["trial_id"]):
+                raise _refuse(p, f"standalone row {row['trial_id']!r} names also_in_registry_as {twin_id!r}, "
+                                 f"which is not a different-dated registry row of task {row['task_id']!r}")
+        elif clash:
+            raise _refuse(p, f"standalone row {row['trial_id']!r} names a task the registry already counts "
+                             f"({clash!r}) — it would be double-counted")
+    for i, item in enumerate(unresolved):
+        if not isinstance(item, dict) or any(
+                not isinstance(item.get(k), str) or not item[k].strip() for k in _UNRESOLVED_STR_FIELDS):
+            raise _refuse(p, f"unresolved item {i} lacks one of {_UNRESOLVED_STR_FIELDS}")
+    return rec
+
+
+def verify_trials_citations(record: Dict[str, Any], root: Path) -> None:
+    """Review F5a: every citation must EXIST — `source` (path[:line[-line]], the line within the
+    file) and `prereg` / `verdict` (unless '—'). FAILS CLOSED. Callers run it wherever the cited
+    tree exists; the backtest image carries no docs/ (.dockerignore), so there the gate reports
+    `citations_checked: False` instead of refusing every cloud run for a file it never ships."""
+    root = Path(root)
+
+    def _exists(rel: str, what: str, tid: str) -> Path:
+        q = root / rel
+        if rel.startswith("/") or ".." in Path(rel).parts or not q.is_file():
+            raise HonestNUnavailableError(
+                f"standalone-trials record: {tid!r} cites {what} {rel!r}, which does not exist under {root}")
+        return q
+
+    for item in list(record["rows"]) + list(record["unresolved"]):
+        tid = item.get("trial_id") or item.get("item_id")
+        m = re.fullmatch(r"(?P<path>[^:]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?)?", item["source"])
+        if not m:
+            raise HonestNUnavailableError(
+                f"standalone-trials record: {tid!r} source {item['source']!r} is not path[:line]")
+        q = _exists(m["path"], "source", tid)
+        if m["a"]:
+            n_lines = len(q.read_text(errors="replace").splitlines())
+            if not (1 <= int(m["a"]) <= int(m["b"] or m["a"]) <= n_lines):
+                raise HonestNUnavailableError(
+                    f"standalone-trials record: {tid!r} cites {item['source']!r}, past the end of the "
+                    f"file ({n_lines} lines)")
+        for key in ("prereg", "verdict"):
+            if key in item and item[key] != "—":
+                _exists(item[key], key, tid)
+
+
+def registry_ledger_counts(db_path: Optional[Path] = None) -> Dict[str, int]:
+    """{ledger id: rows} for the registry's `ledger:<id>` rows (T-336's backfill). Read-only.
+    A registry with no `source` column has none."""
+    import sqlite3
+    db_path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
+    if not db_path.exists():
+        raise HonestNUnavailableError(f"run registry absent at {db_path} — cannot reconcile the trials record")
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        try:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+            if "source" not in cols:
+                return {}
+            got = conn.execute("SELECT source, COUNT(*) FROM runs WHERE source LIKE 'ledger:%' "
+                               "GROUP BY source").fetchall()
+        except sqlite3.DatabaseError as exc:
+            raise HonestNUnavailableError(f"run registry at {db_path} unreadable: {exc}") from exc
+    finally:
+        conn.close()
+    return {str(src)[len("ledger:"):]: int(n) for src, n in got}
+
+
+def reconcile_trials_with_registry(record: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+    """THE DOUBLE-COUNT LOCK. The record's `registry_ledger` rows must equal the registry's
+    `ledger:<id>` rows, id by id and count by count, in BOTH directions: a standalone row that is
+    really a registry row would be counted twice; a registry row the record lacks means the record
+    was built against a different registry. Either way the gate refuses."""
+    want = registry_ledger_counts(db_path)
+    have: Dict[str, int] = {}
+    for row in record["rows"]:
+        if row["counted_in"] == "registry_ledger":
+            have[row["ledger_id"]] = have.get(row["ledger_id"], 0) + int(row["n_trials"])
+    if have != want:
+        diffs = [f"{k}: record {have.get(k, 0)} vs registry {want.get(k, 0)}"
+                 for k in sorted(set(have) | set(want)) if have.get(k, 0) != want.get(k, 0)]
+        raise HonestNUnavailableError(
+            "standalone-trials record and run registry disagree on the registry's ledger rows ("
+            + "; ".join(diffs) + ") — a trial would be double-counted or omitted. Rebuild the record "
+            "against the pinned registry; never edit either by hand.")
+
+
+def standalone_trials_total(record: Dict[str, Any]) -> int:
+    """S: the trials the registry cannot see (rows counted_in == 'standalone')."""
+    return int(sum(int(r["n_trials"]) for r in record["rows"] if r["counted_in"] == "standalone"))
+
+
+def verify_pinned_trials(trials_path: Optional[Path] = None, pin_path: Optional[Path] = None) -> bool:
+    """When the pin names the record (re-pin #2 onward), verify its sha256 and return True.
+    Before then the record is integrity-checked by git (committed) and its own digest: False."""
+    pin_path = Path(pin_path) if pin_path is not None else DEFAULT_PIN_PATH
+    entry = load_pin(pin_path).get("trials")
+    if entry is None:
+        return False
+    tp = Path(trials_path) if trials_path is not None else default_trials_path(pin_path)
+    _verify_pinned(tp, entry, "standalone-trials record", pin_path)
+    return True
+
+
+def _registry_n_eff(n_raw: float, gi: Dict[str, Any], method: str) -> float:
+    eq = n_eff_equicorrelated(n_raw, float(gi["rho_bar"]))
+    onc = max(N_EFF_FLOOR, min(float(n_raw), n_raw * float(gi["onc_compression"])))
+    if method == "equicorr":
+        return eq
+    if method == "onc":
+        return onc
+    return max(eq, onc)
+
+
+def honest_n_breakdown(
+    db_path: Optional[Path] = None,
+    method: str = "conservative",
+    artifact_dir: Optional[Path] = None,
+    pin_path: Optional[Path] = None,
+    trials_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """The production honest N, itemised. FAILS CLOSED on every input (registry, artifact and
+    — once pinned — the trials record are pin-verified; the record is digest-checked and
+    reconciled with the registry).
+
+    Three DISJOINT populations (the pinned artifact says of the registry: it "registers none of
+    these runs — the two sets are disjoint"; S excludes both by construction):
+      executed   the artifact's `funnel.after_dedupe` distinct controller/cloud trials (252) —
+                 CURVE-BEARING: ρ̄ and the ONC compression were measured on exactly these
+      registry   231 rows — 125 lost-evidence run rows + 106 ledger rows — CURVE-LESS
+      standalone S — research-script trials, from the committed record — CURVE-LESS
+
+    `n_eff` (GATED, rule R3) = N_eff(executed) + N_raw(registry) + S. This REALISES THE DIRECTOR'S
+    RULING 9.2 (2026-10-13, RR-3B §9.2: "NO borrowed credit — correlation credit only where
+    correlation is MEASURED; curve-less trials count at raw") for the gate's input: the only
+    compression is of the executed population, by its own measured, conservative bounds; every
+    curve-less trial counts once. The terms are ADDED — no cross-population credit is claimed, and
+    any real correlation between or within the curve-less groups only lowers the true N_eff, so
+    the sum errs strict. `method` selects the estimator for the executed term only.
+
+    REPORTED, never gated (each with the reason it is not):
+      `n_eff_r2_prime` = N_eff(registry) + N_eff(executed) + S — compresses the registry's 231
+          curve-less rows with a ρ̄ measured on a DIFFERENT population: the borrowed credit 9.2
+          forbids, and inconsistent with counting S at raw.
+      `n_eff_r0`       = N_eff(registry) alone, the pre-T-391 gate — the same borrowed credit, and
+          it counts none of the executed runs and none of the standalone trials."""
+    if method not in METHODS:
+        raise ValueError(f"method must be one of {METHODS}, got {method!r}")
+    db = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
+    verify_pinned_registry(db, pin_path)
+    n_raw = compute_n_effective(db)
+    art = load_n_effective_artifact(None, artifact_dir, pin_path)
+    gi = art["gate_inputs"]
+    n_eff_registry = _registry_n_eff(n_raw, gi, method)
+    tp = Path(trials_path) if trials_path is not None else default_trials_path(pin_path)
+    trials_pinned = verify_pinned_trials(tp, pin_path)
+    record = load_trials_record(tp)
+    reconcile_trials_with_registry(record, db)
+    cited_root = tp.resolve().parent.parent
+    citations_checked = (cited_root / "docs").is_dir()
+    if citations_checked:
+        verify_trials_citations(record, cited_root)
+    s = standalone_trials_total(record)
+    pending = int(sum(int(r["n_trials"]) for r in record["rows"]
+                      if r["counted_in"] == "standalone" and r.get("pending_ruling")))
+    funnel = art.get("funnel")
+    executed = funnel.get("after_dedupe") if isinstance(funnel, dict) else None
+    if isinstance(executed, bool) or not isinstance(executed, int) or executed < 0:
+        raise HonestNUnavailableError(
+            "the pinned n_effective artifact carries no integer `funnel.after_dedupe` — the executed "
+            "controller/cloud population cannot be counted, and the registry holds none of those runs")
+    n_eff_executed = _registry_n_eff(executed, gi, method) if executed > 0 else 0.0
+    pin_trials = load_pin(pin_path).get("trials") or {}
+    return {
+        "n_eff": n_eff_executed + n_raw + s,
+        "rule": "R3 (ruling 9.2): executed-population N_eff (measured correlation) + the registry's "
+                "curve-less rows at raw + standalone trials at raw — no borrowed credit",
+        "n_eff_executed": n_eff_executed,
+        "n_eff_r2_prime": n_eff_registry + n_eff_executed + s,
+        "n_eff_r0": n_eff_registry,
+        "not_gated_why": {
+            "n_eff_r2_prime": "compresses the registry's curve-less rows with a rho measured on another "
+                              "population — the borrowed credit ruling 9.2 forbids",
+            "n_eff_r0": "the pre-T-391 gate: the same borrowed credit, and it omits the executed runs and "
+                        "every standalone trial",
+        },
+        "citations_verified_at_pin": bool(pin_trials.get("citations_verified", False)),
+        "method": method,
+        "n_raw_registry": n_raw,
+        "n_eff_registry": n_eff_registry,
+        "n_standalone": s,
+        "n_standalone_pending_ruling": pending,
+        "n_eff_excluding_pending": n_eff_executed + n_raw + s - pending,
+        "citations_checked": citations_checked,
+        "n_raw_total": n_raw + s,
+        "executed_population": executed,
+        "trials_record": tp.name,
+        "trials_pinned": trials_pinned,
+        "n_unresolved_items": len(record["unresolved"]),
+    }
+
+
 def compute_n_effective_correlated(
     db_path: Optional[Path] = None,
     method: str = "conservative",
     artifact_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
     pin_path: Optional[Path] = None,
+    trials_path: Optional[Path] = None,
 ) -> float:
-    """Correlation-aware N_eff. FAILS CLOSED (registry, pin, or pinned artifact missing or
-    mismatched → raise).
+    """The honest trial count the gates read (T-391, rule R3 = the director's ruling 9.2): the
+    executed population's correlation-aware N_eff + the registry's curve-less rows at raw + the
+    standalone-harness trials at raw. FAILS CLOSED (registry, pin, pinned artifact, or trials
+    record missing, mismatched or inconsistent → raise).
+
+    The `method` text below describes the estimator; in the production path it now applies to the
+    EXECUTED population only (the population ρ̄ was measured on). With an explicit `artifact_path`
+    the function is the bare estimator on the registry count — a tool, never the gate.
 
     method="conservative" (default): the LARGER of the two below. On the 2026-09-30
                        measurement the estimators disagree (equicorrelated ~33, ONC ~21
@@ -295,6 +625,8 @@ def compute_n_effective_correlated(
                        silhouette criterion favours coarse splits when clusters overlap, so
                        it is the LESS conservative estimator on our data.
     method="equicorr": the equicorrelated identity at the measured ρ̄.
+    Curve-less trials (the registry's rows, the standalone record) are added at raw under every
+    method (`honest_n_breakdown` itemises all three populations).
 
     The artifact's `gate_inputs` are the CONSERVATIVE CI bounds, not the point estimates
     (`[NN-SHARPE-CI]`'s logic applied to the trial count): ρ̄'s ci_LOW and the ONC
@@ -304,23 +636,25 @@ def compute_n_effective_correlated(
 
     N_raw is the registry count (per the RR-3 brief). The proposal documents that the
     registry is a stale manual snapshot DISJOINT from the surviving run evidence — the
-    choice of N_raw's population is flagged there for the user, not settled here."""
+    choice of N_raw's population is flagged there for the user, not settled here.
+
+    An explicit `artifact_path` (tools, tests) is a deliberate caller choice that bypasses the
+    pins; such a call counts the standalone record only when `trials_path` is passed too. No
+    production caller passes `artifact_path`."""
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
     if artifact_path is None:
-        # Production path: BOTH inputs must match the committed pin, the registry checked before
-        # it is read. An explicit artifact_path (tools, tests) is a deliberate caller choice and
-        # bypasses the pin entirely, the way an explicit n_trials_for_dsr does.
-        verify_pinned_registry(db_path, pin_path)
+        # Production path: every input verified against the committed pin, the registry checked
+        # before it is read, the trials record digest-checked and reconciled (honest_n_breakdown).
+        return float(honest_n_breakdown(db_path, method, artifact_dir, pin_path, trials_path)["n_eff"])
     n_raw = compute_n_effective(db_path)
     gi = load_n_effective_artifact(artifact_path, artifact_dir, pin_path)["gate_inputs"]
-    eq = n_eff_equicorrelated(n_raw, float(gi["rho_bar"]))
-    onc = max(N_EFF_FLOOR, min(float(n_raw), n_raw * float(gi["onc_compression"])))
-    if method == "equicorr":
-        return eq
-    if method == "onc":
-        return onc
-    return max(eq, onc)
+    n = _registry_n_eff(n_raw, gi, method)
+    if trials_path is not None:
+        record = load_trials_record(trials_path)
+        reconcile_trials_with_registry(record, db_path)
+        n += standalone_trials_total(record)
+    return n
 
 
 def resolve_cycle_n_trials(
@@ -328,6 +662,7 @@ def resolve_cycle_n_trials(
     db_path: Optional[Path] = None,
     artifact_dir: Optional[Path] = None,
     pin_path: Optional[Path] = None,
+    trials_path: Optional[Path] = None,
 ) -> Dict:
     """The trial count a Discovery cycle gates Gate 0 and Gate 8 on. FAILS CLOSED.
 
@@ -335,9 +670,11 @@ def resolve_cycle_n_trials(
     [NN-MBL]'s honest N counts every configuration ever run on the substrate, so the
     batch size under-counted by every prior cycle — and when the batch held one
     candidate, it disabled Gate 8 outright. `batch_len` is carried for the log only,
-    so the pre-RR-3 figure stays visible beside the one now used."""
-    n = compute_n_effective_correlated(db_path, artifact_dir=artifact_dir, pin_path=pin_path)
-    return {"n_trials": n, "source": "registry_correlated", "batch_len": int(batch_len)}
+    so the pre-RR-3 figure stays visible beside the one now used. T-391: the standalone
+    trials are included; the itemised breakdown rides along for the cycle's log."""
+    b = honest_n_breakdown(db_path, "conservative", artifact_dir, pin_path, trials_path)
+    return {"n_trials": float(b["n_eff"]), "source": "registry_correlated", "batch_len": int(batch_len),
+            "breakdown": b}
 
 
 # ----------------------------------------------------------------------------- gate

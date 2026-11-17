@@ -9,7 +9,7 @@
 > - **The wealth-maximizing default is 1× buy-hold SPY in the Roth**, machine-executed — strong precisely
 >   because the user's GENUINE won't-sell temperament (confirmed verbatim) makes it executable at full
 >   strength, tax-free, at near-zero cost.
-> - **Static leverage CLOSED with a number** (T-315: no arm CI-beats at any L; 1.25× significantly loses;
+> - **Static leverage CLOSED with a number** (T-315: no arm CI-beats at any L; 1.25× significantly loses [WITHDRAWN 2026-11-14, T-399: that came from an annual cost charged daily; corrected, no arm CI-beats or CI-loses, and at 1.25× the sign is not established — see `CURRENT_STATE.md`];
 >   −2% ERP haircut kills all; 1929 takes 2× from $10k → $152 — "temperament survives, capital does not").
 >   Gated leverage straddles at depth (T-312). **CONDITIONAL leverage is the open science**: the T-314
 >   family (#1 vol-stress frozen; #2 rate-conditional fwd-only; #3 drawdown-conditional "lever into the

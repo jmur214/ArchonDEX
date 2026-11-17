@@ -1,3 +1,9 @@
+# ARCHIVED 2026-11-12 (director; found by the T-388 independent review, F1 HIGH).
+# DO NOT RUN. Executed against data/processed it rewrites EVERY *_1d.csv in place with no flag: lowercases
+# the columns, adds a `timestamp` column, and CLIPS open/close to 50-150% of the whole-history median, leaving
+# the parquet untouched (csv/parquet diverge). On a copy of NVDA under ARCHONDEX_MEASURED=1 it ran unrefused
+# (Close 0.031-89.8 -> 0.210-0.631). Through a worktree's per-file symlinks it would write into the canonical
+# cache. Nothing imported it. Kept for the record per [NN-ARCHIVE].
 from pathlib import Path
 import pandas as pd
 

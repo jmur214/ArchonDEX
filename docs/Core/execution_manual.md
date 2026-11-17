@@ -295,6 +295,14 @@ python scripts/update_data.py
 python -m scripts.rebake_fundamentals --tickers CVNA,KG
 python -m scripts.rebake_fundamentals --from-census path/to/performance_summary.json   # the census's refused set
 
+# The static fundamentals TEST FIXTURE (T-392a, 2026-11-12): TESTS ONLY. Nothing reads a default
+# static file (data/fundamentals_static.csv is dead). A test names its own planted fixture:
+#   ARCHONDEX_FUNDAMENTALS_FIXTURE=/abs/path/fixture.csv   (columns Ticker,Date,...)
+# Refused (FundamentalsFixtureRefused) under ARCHONDEX_REFUSE_YFINANCE_FALLBACK or ARCHONDEX_HERMETIC,
+# and when the path is not a file — at run start (ModeController.run_backtest) and at the static path;
+# scripts.rebake_fundamentals refuses it too. Served rows carry fundamentals_source=fixture; the census FAILS
+# the run (fundamentals_misses.fixture, invariant 7c).
+
 # SimFin panel RE-BAKE (2026-10-22): the ONE declared entrypoint that rebuilds
 # data/processed/fundamentals_simfin.parquet, and with --download refreshes data/raw/simfin from
 # SimFin first (needs SIMFIN_API_KEY). A READ of the panel (simfin_adapter.load_panel) never
@@ -817,6 +825,16 @@ python -m scripts.cutover_step1_pass pass --copy <copy> --today YYYY-MM-DD --tag
 python -m scripts.cutover_step1_pass guard --cache <dir> --start 2000-01-03 --end 2025-12-31 --out x.json   # the stale/holed-files guard's reading (exit 3 on defects); read-only on <dir>
 python -m scripts.cutover_step1_pass label --cache <dir> --out x.json                                      # the universal convention label over every file (exit 3 if any unlabelled)
 python -m scripts.cutover_step1_pass stage --copy <copy> --root <staging_root>                             # data/processed -> the copy; raw/governor/macro/universe -> the main tree
+# T-387 option (a′) on the cutover copy (USER RULING 2026-11-12; runbook_cutover_day_2026-11-05.md §6). OFFLINE:
+# raw Stooq from --raw-stooq (default the main tree's data/raw/stooq/daily/us), the yfinance reference from the
+# cached --yf-dir (default v3's yf/; REFUSED without its _fetch_log.jsonl). Rewrites the PRE-seam span of every
+# merged file with pre-seam bars (575) from drip to era_tr via tr_writer.era_tr_rewrite. Post-seam: Date/OHLCV
+# and close_unadj (every row) byte-identical; ATR on the first 14 post-seam rows and PrevClose on the seam row
+# change by construction (functions of pre-seam bars). Resumable (era_tr_<tag>.jsonl beside the copy, or --out-dir). Exit 0 all written,
+# 2 a refusal, 3 below --min-free-gb. Run it on a DUPLICATE of the step-1 copy, never the pinned one.
+python -m scripts.cutover_step1_pass fresh-copy --from <step1_copy> --to /Users/jacksonmurphy/Dev/_substrate_candidates/<new_copy>   # duplicate a copy (refuses an existing target)
+python -m scripts.cutover_step1_pass era-tr --copy <copy> --tag <tag> [--yf-dir D] [--yf-manifest P|none] [--raw-stooq D] [--only A,B] [--out-dir D] [--min-free-gb 11]   # --yf-manifest default config/era_tr_reference_yf_manifest.sha256: the reference cache must EQUAL it, per file, or the run refuses; --yf-manifest none (rows marked UNVERIFIED) is scratch/test only and HALTS cutover day
+python -m scripts.cutover_step1_pass era-tr --copy <copy> --dry-run --out-dir <scratch> --tag <tag>        # measure only: nothing in the copy is written
 python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manifest ../<candidate>.sha256 --stamp-root <staging_root>  # the CANDIDATE manifest, beside the copy — never config/substrate_manifest.sha256
 # --stamp-root ALWAYS on a candidate manifest (merged 2026-11-04): canonical_root() resolves the MAIN tree
 # regardless of --root, so without it the candidate's PASS stamp would land in the real
@@ -826,6 +844,36 @@ python3 scripts/gen_substrate_manifest.py generate --root <staging_root> --manif
 # the MAIN tree's committed config/substrate_manifest.sha256 when --stamp-root is absent — a candidate
 # manifest, a worktree's own config/, a scratch file all refuse. The one bare `generate` is the
 # director's re-pin in the MAIN tree; the verify-stamp block above documents the flag.
+
+# T-384 option (a′) — the era-aware drip repair, a CANDIDATE on a copy (2026-11-11;
+# docs/Sources/proposal_drip_fix_a_prime_2026-11-11.md). Every subcommand REFUSES an --out inside any
+# repo's data tree; the default --out is Dev/_substrate_candidates/drip_fix_a_prime_v4_2026_11_11/ (v4;
+# v3 stays at drip_fix_a_prime_2026_11_11/). --yf-dir defaults to v3's yf/ cache (read-only from v4 on).
+# Network: yfinance only (fetch); build/accept/manifest are offline on the cached yf/ directory.
+python scripts/drip_fix_candidate_t384.py fetch [--yf-dir D] [--tickers A B] [--refetch] [--sleep 0.4]   # yfinance prices (fetch_yf_tr) + Ticker.dividends -> <yf-dir>/ ; resumable; _fetch_log.jsonl
+python scripts/drip_fix_candidate_t384.py build [--yf-dir D] [--tickers A B] [--min-free-gb 15]         # pass 1 every reference (labels), pass 2 writes <out>/processed/; exit 2 on any refusal, 3 below --min-free-gb free
+python scripts/drip_fix_candidate_t384.py accept [--yf-dir D]                                           # the §1 pre-declared test (+ v4's (iii)(c) and step audit) -> <out>/acceptance/summary.json + CSVs
+python scripts/drip_fix_candidate_t384.py manifest                                           # <out>/MANIFEST.md5 over every file under <out>
+# T-387: the era model, probe, labels and per-file build MOVED to engines/data_manager/era_tr.py (shared with the
+# cutover writer); the script imports them — its commands and outputs are unchanged (build re-verified on 12 names
+# byte-identical to v4, 2026-11-12).
+# T-393 (2026-11-13, as amended): era_tr now runs a DISTRIBUTION GUARD — a missed dividend is refused only where no
+# aligned bar of the reference close shows the drop (z* > 6), and a refused one with an unapplied Stooq spin-off is
+# repaired from the close; `build` therefore differs from v4 on 3 files (DHR, ETN, XRX) — config/era_tr_v5_delta_t393.json.
+# `accept` runs through run_acceptance(out, yf_dir, adir, candidate=None, extra_steps=None, labels=None): the providers
+# let the SAME test run on a candidate held in memory; the defaults are the on-disk behaviour.
+# Measure v5 against v4 WITHOUT a full copy (offline; verifies the pinned yf cache; halts below 9.5 GiB free; ~3 min):
+python scripts/era_tr_v5_delta_t393.py run        # rebuild 575 files in memory; write ONLY the changed ones + label_changes.csv, unresolved_distributions.csv, delta.json, acceptance/ -> Dev/_substrate_candidates/era_tr_v5_delta_t393/ (29 MB)
+python scripts/era_tr_v5_delta_t393.py manifest   # <out>/MANIFEST.md5; exit 5 above the 50 MB budget
+# T-394 (2026-11-14): `cutover_step1_pass era-tr` applies the 11 PINNED Tier-1 Stooq corrections by default
+# (config/stooq_corrections_tier1.json, pinned in engines/data_manager/stooq_tier1.py; refused on a sha256
+# mismatch or a row naming a file the copy lacks); Tier 2 rides as a label in each write record.
+python -m scripts.cutover_step1_pass era-tr --copy <copy> [--stooq-corrections none]   # 'none' = v5 only, recorded in every row; NOT the cutover's setting
+#   a copy written with 'none' is a SCRATCH copy: `label` exits 5 on it, `stage` REFUSES it, and the run census FAILS it
+#   (substrate_convention.n_stooq_label_not_recorded > 0). Exit codes of `label`: 0 ok · 3 unlabelled names · 5 no Stooq label.
+python scripts/era_tr_tier1_measure_t394.py export-table   # (re)write the two config tables from T-390's v5-based corrections.parquet; prints the sha256s for the pins
+python scripts/era_tr_tier1_measure_t394.py run            # rebuild 575 files in memory with the pinned table; bytes vs T-390's render; T-384's acceptance -> Dev/_substrate_candidates/era_tr_tier1_t394/ (~2 min)
+python scripts/era_tr_tier1_measure_t394.py manifest       # <out>/MANIFEST.md5
 ```
 
 Anchors are SHARED across worktrees by symlink (setup_agent_worktree.sh
@@ -1312,6 +1360,23 @@ Runs the frozen pre-registration `docs/Sources/prereg_cef_wide_lagged_t379_2026-
 the archived CEFConnect panel (S3 `altdata/data/macro_data/alt/cef_daily.parquet`); the daily panel is
 fetched once from yfinance and cached at `data/research/cef_panel_t379.parquet`. Exploratory, survivor-only.
 
+### B-9 / T-380 — multi-factor combination tilts at deployable weights (2026-11-11)
+
+```bash
+python -m scripts.tilt_decision_measure_t318_t320 --b9-snapshot   # ONE-TIME: French zips + yfinance Adj Close/Close
+                                                                  # (SPY/VOO/MTUM/AVUV) -> data/research/b9/inputs/ + md5 manifest;
+                                                                  # refuses if a snapshot already exists
+python -m scripts.tilt_decision_measure_t318_t320 --b9-smoke      # legs + mechanics on the window's FIRST 12 months; no CI
+python -m scripts.tilt_decision_measure_t318_t320 --b9            # the frozen measurement -> data/research/b9/b9_results.json
+md5 -q data/research/b9/b9_results.json                           # determinism: run --b9 twice, md5s must match
+```
+
+Runs the frozen pre-registration `docs/Sources/prereg_b9_combo_tilts_2026-11-11.md` (16432da + amendment 1,
+60e51a5). It extends the T-318/T-320 harness: with no flag, the original `main()` runs unchanged. The B-9 path
+reads ONLY the md5-verified snapshot and HALTs (`B9Halt`, no results file) on any failed input check (a)–(d),
+a missing or non-finite month, a splice-month mismatch, or an honest-N pin mismatch. Verdict:
+`docs/Audit/b9_combo_tilts_verdict_2026-11-11.md`.
+
 ### PHASE-6 RUNG 0 — the nightly janitor (2026-08-27)
 
 The autonomous-development pilot's first rung
@@ -1522,6 +1587,34 @@ reviewed commit of the pointer. The writer lives in `scripts/honest_n_pin.py`; t
 `core/measurement/mbl_gate.py` only reads and verifies, and reads the registry read-only, so the gate cannot change the
 bytes it pins. An existing pin is never overwritten silently: `--pin` refuses (exit 4) unless `--replace` is given.
 
+### Standalone-harness trials — the third input (T-391, PROPOSAL branch `referee/honest-n-trials-recorder-t391`)
+
+The registry cannot see a trial a research script ran, so the committed record `config/honest_n_trials.json` carries
+them. The gate (rule R3, the director's ruling 9.2) is N_eff(executed runs, measured correlation) + the registry's
+curve-less rows at raw + these trials at raw, with no borrowed credit. It FAILS CLOSED on an absent, empty, edited or
+registry-inconsistent record.
+Design and inventory: `docs/Sources/proposal_honest_n_trials_recorder_t391_2026-11-13.md`.
+
+```bash
+python -m scripts.honest_n_trials check     # the lint: every ledger N>0 recorded; forward verdicts state N (exit 0 / 1 findings / 3 unreadable)
+python -m scripts.honest_n_trials show      # the gate's itemised N, read-only: executed, registry, S; R3 (gated); R2′ and R0 (reported)
+python -m scripts.honest_n_trials record --trial-id T-xxx --task-id T-xxx --date YYYY-MM-DD --n-trials k \
+    --family "..." --substrate "..." --prereg docs/Sources/prereg_x.md --verdict docs/Audit/x_verdict.md \
+    --source docs/Audit/x_verdict.md:<line> [--ledger-id T-xxx] [--note "..."]   # the ONE writer, at each verdict merge; commit with the verdict
+```
+
+From the activation date (2026-11-13; a date range reads by its LATEST date) EVERY closed ledger row needs a record
+row, infra included (`--n-trials 0`), and so does any row that states a trial count, whatever its status
+(`dispatched` and `in-flight` included). A row is exempt only while it states no count and is not closed. Add
+`--pending-ruling` for a trial that ran but whose count awaits the user's ruling (counted until ruled otherwise), and
+`--also-in-registry-as <registry trial_id>` for a DIFFERENT trial of a task the registry already counts.
+`honest_n_pin --pin` refuses a record with a missing citation and writes `citations_verified` into the v2 pin.
+
+`record` refuses a duplicate trial_id and any citation that does not exist (a path, or a line past EOF). After re-pin #2
+the pin names the record's sha256 (`honest_n_pin --pin … --replace` writes `honest_n_pin/v2`), so every `record` is
+followed by a re-pin in the same commit. `honest_n_pin --verify` now also loads the record and reconciles it with the
+registry.
+
 ## T-219 cap-at-delist — the shares snapshot and the hermetic recompute (re-pin #1, added 2026-11-05)
 
 `scripts/build_pit_cap_history_t219.py` has two EXPLICIT modes (T-375 C4); the bare live-fetch `main()` that
@@ -1671,6 +1764,101 @@ python -m scripts.rescore_b1_ey_exposure \
 python -m pytest tests/test_rescore_b1_ey_exposure.py -q
 ```
 
+### Corporate-action (split) feed, and the live-book split repair (added 2026-11-10)
+The daily paper run (`scripts.run_paper_cloud_day`) now asks Alpaca's corporate-actions DATA
+endpoint about every ticker the account holds or has ever ordered, on every run — no new flag.
+A confirmed split is journaled into the ledger once (`split:<TICKER>:<ex_date>:ratio=<r>`); a
+ticker whose share basis or price basis cannot be proven consistent FREEZES the book for the day
+(nothing staged, exit 70, the reason in the heartbeat's `corporate_actions` block). The design
+and the one decision it makes are in `paper_trader/corporate_actions.py`.
+
+The repair script restates a LOCAL COPY of a `live_book/v1` state file across a split it missed.
+It derives the pre-split share state from the last clean day's recorded nav, PROVES that by
+replaying the recorded (wrong) days to within `--tol`, then replays them with the split applied.
+It writes to a NEW path, refuses to overwrite, refuses any path under this repo's `data/`, and
+never touches S3. `--closes` is a JSON file `{"YYYY-MM-DD": {"SYM": px}}` covering the last clean
+pre-split day (in that day's pre-split basis) and every recorded day from the ex-date on.
+
+```bash
+python -m scripts.repair_live_book_split_2026_11_05 \
+  --state /path/to/copy/book_momentum_satellite.json --book momentum_satellite \
+  --split MTUM:2026-11-05:4 --closes /path/to/closes.json \
+  --feed-json tests/fixtures/corporate_actions/alpaca_corporate_actions_2026_11_05.json \
+  --out /path/to/book_momentum_satellite.restated.json
+python -m pytest tests/test_corporate_action_feed_2026_11_10.py -q
+```
+
+`--feed-json` is required: the provider's corporate-actions payload (the captured-fixture format
+or the bare response) must contain the exact split (ticker, ex-date, ratio), the ticker must be
+held at the anchor, and the restated ex-date day must not itself be split-shaped — otherwise
+REFUSED. Exit 2 = REFUSED (the reason is printed; nothing was written). It refuses any output
+under a `data/` of this checkout, the main repo, or any worktree, and any spelling of `s3:`.
+Publishing a restated file to the live S3 prefix is a separate, manual, propose-first step.
+
+#### Acknowledging a corporate-action freeze (added 2026-11-10)
+The gate persists every freeze in `data/state/price_basis_marks.json` (per account) and never
+releases one because the price drifted. A freeze releases by (a) a feed-confirmed split whose
+ratio matches the move, (b) the feed answering "no split" on 3 consecutive sessions — ONLY when
+the move matched a ratio class below 2:1 (1.25, 1.5 and their reciprocals, where a real
+one-session move is plausible); a move of 2:1 or more NEVER releases on feed silence — or (c) an
+operator acknowledgement — this tool, on a LOCAL copy of the marks file. A live BOOK parked on a
+2:1-or-more unconfirmed move has no ack tool: if the feed never confirms, its state file must be
+repaired by an operator (the park reason says so).
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json --list
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --account <the account's S3 prefix name, e.g. paper_state_offense_sso> \
+  --ticker MTUM --who <name> --reason "why this freeze may be lifted (12+ characters)" \
+  --i-have-checked-the-feed
+```
+
+`--account` is required and must equal the `account` the daily run stamped into the file (the
+run's S3 prefix name); a file for another account, or one carrying no account, is refused. The
+tool prints the freeze being acknowledged (kind, reason, reference mark, matched ratio) before it
+stamps anything. `--i-have-checked-the-feed` is required for the kinds whose release lets orders
+trade in the ticker on the next run (`unconfirmed`, `basis_lag`, `blind`, `blind_split`). A
+second ack is appended to the journal; the first signer stays on the entry. `--reset-unreadable`
+takes `--account` too and stamps the fresh file with it.
+
+**A live BOOK parked on a ≥2:1 unconfirmed move** (no ack tool). Preferred route: the repair
+script above (`scripts.repair_live_book_split_2026_11_05`) on a local copy with the corroborating
+feed payload. If that is not possible, the exact manual edit of the book's state file, all four
+fields together, for a split of ratio R (new shares per old) on symbol S:
+1. `side.book.shares[S]` and `side.twin.shares[S]` — multiply each by R (where S is held);
+2. `last_px[S]` — divide by R (it is the pre-split mark the park was measured from);
+3. `splits_applied` — append `"S:<ex-date YYYY-MM-DD>"`, so the feed can never apply it again;
+4. `frozen` — delete the `S` entry.
+Deleting `frozen` alone does nothing: the next session re-parks against the unchanged `last_px`.
+If the move was real and NOT a split, change nothing but `last_px[S]` (set it to the current
+price) and delete the `frozen` entry — the book then records the move as a return.
+
+It stamps `ack: {who, why, at}` on the freeze and appends to the file's journal; the next daily
+run reads it, releases, journals the release and lays a fresh mark. It refuses without a reason
+or a name, on a ticker that is not frozen, and on any `s3:` path (exit 2, nothing written). An ack
+cannot make an unprovable share basis provable: a `ledger`-kind freeze (mixed pre/post-split
+fills) is re-frozen by the same run if the position is still mixed. Getting the file from and
+back to the account's S3 prefix is a separate, manual, propose-first step.
+
+An account's FIRST run after this deploys has no marks: it is a SEEDING day (marks recorded,
+nothing staged, exit 70, reason "seeding price-basis marks (first run)"). One per account. The
+seeding day and the run after it carry `corporate_actions.marks_age_sessions` 0 then 1 in the
+heartbeat: the price guard has no, or only a one-day-old, reference on those two sessions.
+
+A marks file that EXISTS but cannot be parsed is not a first run — it may have held freezes. The
+book stands down on every run (exit 70, "price-basis marks unreadable — operator must restore or
+acknowledge"), the file is left untouched and no marks are laid, until an operator either
+restores a valid file or resets it:
+
+```bash
+python -m scripts.corporate_action_ack --marks /path/to/price_basis_marks.json \
+  --reset-unreadable --who <name> --reason "why it is safe to start over (12+ characters)"
+```
+
+The reset moves the bad file aside (`…json.unreadable-<UTC stamp>`, kept), leaves an empty valid
+file whose journal records who and why, and the next run is an ordinary seeding day. It refuses a
+readable file, a missing name or reason, and any `s3:` path (exit 2, nothing moved).
+
 ## B-6 Lazy Prices — the repaired 10-K + 10-Q text panel (T-383 Phase 1, added 2026-11-11)
 
 Prereg: `docs/Sources/prereg_b6_lazy_prices_2026-11-11.md`. TEXT ONLY — no price, no return. Every
@@ -1726,3 +1914,141 @@ python -m scripts.lazy_prices.b6_harness_t265 --smoke --out data/b6_local/harnes
 python -m scripts.lazy_prices.b6_harness_t265 --all --out data/b6_local/harness_t265/run1   # gate + H_OOS + diagnostics; run twice, compare results.md5
 python -m pytest tests/test_b6_t265_fill.py tests/test_b6_harness_t265.py -q
 ```
+
+## B-5 levered diversified book vs 1× SPY under Roth financing (T-382, added 2026-11-11)
+A standalone harness (the T-311 pattern; never `BacktestController`). Pre-registration:
+`docs/Sources/prereg_b5_levered_diversified_2026-11-11.md`, frozen at `535a3fc`, amendment 1 at
+`3dcf399`.
+- Substrate: T-306, read through T-311's `load_substrate` (imported, never edited); the substrate
+  md5s are verified on every run.
+- Financing: the 3-month T-bill (= FRED DTB3, converted to a money-market yield) through 2018-04-02,
+  then SOFR, plus the spread s. Both come from their publishers (amendment 2): the Fed Board's H.15
+  DDP full-release SDMX/ZIP, keeping `OBS_STATUS="A"` only (no-data days are `-9999`), and the NY Fed
+  Markets API. FRED's keyless `fredgraph.csv` was blocked for this client on 2026-11-11.
+- Network: `fetch` runs ONCE. It refuses if `data/research/b5/inputs/MANIFEST.json` exists. Every
+  later step reads only the md5-verified snapshot.
+- Fail-closed: every halt exits 2 with `B5 HALT [NN-FAIL-CLOSED]`.
+- Order: fetch → validate → smoke → run A and B, then compare their md5s.
+
+```bash
+python scripts/b5_levered_diversified.py fetch       # one time: H.15 SDMX/ZIP (3m bill) + NY Fed SOFR + yfinance fetch_yf_tr + AQR copy
+python scripts/b5_levered_diversified.py er-check    # informational: UGL/UST ERs (alters nothing)
+python scripts/b5_levered_diversified.py validate    # synthetic vs live ETF -> data/research/b5/validation.json
+python scripts/b5_levered_diversified.py smoke       # first 12 months of each window -> smoke.json (never quoted)
+python scripts/b5_levered_diversified.py run --tag A # -> data/research/b5/run_A/
+python scripts/b5_levered_diversified.py run --tag B # determinism twin -> run_B/
+diff <(cd data/research/b5/run_A && md5 -r * | sort) <(cd data/research/b5/run_B && md5 -r * | sort)
+python -m pytest tests/test_b5_levered_simulator.py -q
+```
+
+## T-315 static leverage — the defect-corrected re-run (T-399, added 2026-11-14)
+The July 2026 run charged the static arms' annual rebalance cost every day (a `PeriodIndex.shift`
+mask true on every row). `scripts/offense_campaign_t312_t315.py` now charges it once per year-change.
+Spec: amendment 1 of `docs/Audit/static_leverage_t315_2026_07_27.md`. N_trials 0.
+- `offense_campaign_t312_t315.py` prints the T-312 + T-315 campaign (corrected) to stdout; it writes
+  no file.
+- `t315_static_cost_rerun_t399.py` reports ORIGINAL (the defect reproduced on purpose, labelled)
+  beside CORRECTED for every arm, window and haircut, then the two labelled sensitivities (S1 blended
+  fee; S2 B-5 H.15/SOFR financing). It halts unless the reproduced ORIGINAL equals the published
+  tables. It reads `data/research/substrate_multidecade/` and `data/research/b5/inputs/` (md5-verified)
+  and writes only under `--out` (default `data/t399_local/`; it refuses `data/research`).
+
+```bash
+python scripts/offense_campaign_t312_t315.py                 # the corrected campaign, stdout only (~1 min)
+python scripts/t315_static_cost_rerun_t399.py --tag A        # -> data/t399_local/run_A/{results.json,tables.md} (~4 min)
+python scripts/t315_static_cost_rerun_t399.py --tag B        # determinism twin
+md5 -q data/t399_local/run_A/results.json data/t399_local/run_B/results.json
+python -m pytest tests/test_offense_campaign_static_cost_t399.py -q
+```
+
+## B-2 (T-381) — small-cap momentum + insider clusters on the T-265 panel (added 2026-11-11)
+These are standalone harnesses for the frozen prereg `docs/Sources/prereg_b2_smallcap_t265_2026-11-11.md`
+(+ AMENDMENT 1). They read the T-265 stages (`data/research/t265/`), the SEC Form 345 zips
+(`data/edgar/insider_zips/`) and the `tr_reconciled` SPY/IWM/BIL twins. They make no network call
+and never load `.env`. Without the env pins they REFUSE (exit 3). A fail-closed HALT exits 2 on any
+of the following:
+- any prereg census count (§3.3 price artefacts, §3.5 Form 4 + join, §3.6 windows) differs from its
+  recomputation; the record is written to `<stem>_census_check.json`, beside and never inside the
+  canonical results;
+- a zip TSV line whose field count differs from its header (never skipped);
+- an unparseable date or number (never coerced to NaN);
+- a P/A row without an owner, issuer or date;
+- the CIK-join coverage is below 63%;
+- a decile or event set is empty;
+- the gate's NW t is NOT-EVALUABLE (descriptive cells record the literal "NOT-EVALUABLE");
+- a twin has a gap.
+
+```bash
+export PYTHONHASHSEED=0 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_DYNAMIC=FALSE
+# smoke — each window's FIRST 12 months, no bootstrap (writes data/research/b2/smoke/)
+python -m scripts.smallcap_momentum_t265_b2 --smoke     # ~20 s, ~1.3 GB RSS
+python -m scripts.smallcap_insider_t265_b2 --smoke      # ~60 s, ~1.8 GB RSS (81 zips, one quarter at a time)
+# full run + determinism (the two canonical md5s printed must match)
+python -m scripts.smallcap_momentum_t265_b2 --out data/research/b2/run1
+python -m scripts.smallcap_momentum_t265_b2 --out data/research/b2/run2
+python -m scripts.smallcap_insider_t265_b2 --out data/research/b2/run1
+python -m scripts.smallcap_insider_t265_b2 --out data/research/b2/run2
+python -m pytest tests/test_smallcap_t265_b2.py -q
+# the pre-run input census (prereg §3; each script takes the worktree root first)
+python scripts/b2_census_t381/census_prices.py "$(pwd)" /tmp/price_census.parquet
+```
+
+## B-10 (T-385) — a permanent 10% gold leg vs 1× SPY (added 2026-11-11)
+A standalone harness (the T-311 pattern; never `BacktestController`) for the frozen prereg
+`docs/Sources/prereg_b10_gold_leg_2026-11-11.md`, frozen at `0cc3f56`, amendment 1 at `f702523`.
+- Substrate: T-306 equity + gold, read through T-311's `load_substrate` (imported, never edited).
+  The T-306 cash leg is NOT used.
+- Inputs: the md5s of the equity, gold, `data/processed/GLD_1d.csv` and T-311 script are pinned.
+- Guards: the native-calendar guards (G2–G6) run BEFORE any reindex/ffill. Any window end after a
+  leg's last native print is refused.
+- No network, no `.env`.
+- Outputs are worktree-LOCAL under `data/b10_local/`, a real directory, never via the
+  `data/research` symlink.
+- Fail-closed: every guard (G1–G11) exits 2 with `B10 HALT`.
+
+```bash
+python -m scripts.b10_gold_leg --smoke                                      # first 12 months of each window -> data/b10_local/b10_smoke_W71.json, _W00.json (never quoted)
+python -m scripts.b10_gold_leg --out data/b10_local/b10_results.json        # the frozen measurement (~3 s)
+python -m scripts.b10_gold_leg --out data/b10_local/b10_results_run2.json   # determinism twin
+md5 -q data/b10_local/b10_results.json data/b10_local/b10_results_run2.json # must match
+python -m pytest tests/test_b10_gold_leg_guards.py -q                       # planted-hole / flat-tail / parity locks (synthetic)
+```
+
+## T-398 — a stacked trend overlay on investable fund returns (added 2026-11-14)
+A standalone harness (the T-311 / B-5 pattern; never `BacktestController`) for the frozen prereg
+`docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md` (frozen at `ac01413`; amendment 1 =
+the director's rulings, amendment 2 = the membership-and-ER table, amendment 3 = the integrity rulings).
+- B-5's simulator pieces are imported from `scripts/b5_levered_diversified.py`, never edited.
+- Network: yfinance only (metadata, then prices), plus at most four GETs to `barclayhedge.com`.
+- `meta` and `fetch` each run ONCE and refuse a second time. `fetch` refuses until the membership
+  table is frozen in the script.
+- Outputs are worktree-LOCAL under `data/t398_local/`, a real directory, never via the
+  `data/research` symlink. No window contains a 2026 date; fetched price files with a 2026 row are
+  refused, pinned files (T-306, H.15, AQR) are cut at 2025-12-31.
+- **The durable snapshot is outside the repo:** `/Users/jacksonmurphy/Dev/_research_snapshots/
+  t398_stacked_trend_overlay_2026-11-14/` (`inputs/MANIFEST.json` md5 `ba344f04…`). Restore it into
+  `data/t398_local/` before re-running; the verdict's Reproduce block has the commands.
+- Fail-closed: `integrity` exits 2 while any flag on a candidate fund has no recorded ruling; `run`
+  refuses unless `gates.json` and `integrity.json` were computed against the manifest in front of it;
+  `determinism` exits 2 unless runs A and B match file for file. Nothing is auto-fixed.
+
+```bash
+python scripts/t398_stacked_trend_overlay.py meta          # one time: yfinance Ticker.info + actions per ticker -> data/t398_local/meta/
+python scripts/t398_stacked_trend_overlay.py meta-table    # read-only: the mechanical reading of the metadata (category, ER, dates)
+python scripts/t398_stacked_trend_overlay.py fetch         # one time: fetch_yf_tr prices + md5-checked copies of H.15, SOFR, AQR -> data/t398_local/inputs/
+python scripts/t398_stacked_trend_overlay.py integrity     # D1-D4 on fund prices -> data/t398_local/integrity.json (exit 2 on an unruled flag)
+python scripts/t398_stacked_trend_overlay.py btop50-get --url <barclayhedge.com URL> --name <label>   # one logged GET, raw response kept; four at most
+python scripts/t398_stacked_trend_overlay.py record-rulings # one time: writes the director's "accepted as-is" ruling per flag (amendment 3) -> integrity_rulings.json
+python scripts/t398_stacked_trend_overlay.py screen        # one time: ONE yfinance fund-screen call on the category (S3) -> data/t398_local/screen/
+python scripts/t398_stacked_trend_overlay.py fetch-s3      # one time: prices for the extra fund families the screen returned -> data/t398_local/inputs_s3/
+python scripts/t398_stacked_trend_overlay.py gates         # E1-E4 + the reported validations -> data/t398_local/gates.json (exit 2 if NOT EVALUABLE)
+python scripts/t398_stacked_trend_overlay.py smoke         # first 12 months of each window -> smoke.json (mechanics only; never quoted)
+python scripts/t398_stacked_trend_overlay.py run --tag A   # the measurement -> data/t398_local/run_A/ (refuses without a passed gate)
+python scripts/t398_stacked_trend_overlay.py run --tag B   # determinism twin
+python scripts/t398_stacked_trend_overlay.py determinism   # prereg §18: compares run_A/ and run_B/ file for file -> determinism.json (exit 2 on a mismatch)
+python scripts/t398_stacked_trend_overlay.py probes        # POST-HOC descriptions from review round 1 (since-start frame, by-year, leave-one-out, AQR by era, seed spread) -> probes.json; decide nothing
+python scripts/t398_independent_recompute.py               # separate code recomputes the decision cell from the raw snapshot; exit 2 unless it matches run_A to 1e-9
+python -m pytest tests/test_t398_stacked_trend_overlay.py -q   # Panel on a synthetic snapshot, simulator identities, integrity checks, refusals, bindings, determinism (synthetic)
+```
+Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md` (H1 NOT MET; the interval
+straddles zero).

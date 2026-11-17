@@ -342,6 +342,14 @@ def _drive(tmp_path, monkeypatch, *, halted=False):
 
     idx = pd.bdate_range(end=pd.Timestamp(today) - pd.Timedelta(days=1), periods=80)
     series = {t: pd.Series([100.0] * len(idx), index=idx) for t in ("SPY", "AGG", "GLD")}
+    # 2026-11-10: an account's FIRST run only seeds its price-basis marks and
+    # stands the book down (the corporate-action gate). This smoke is about a
+    # trading day, so the account is past that: yesterday's marks are on disk.
+    _mp = tmp_path / "data/state/price_basis_marks.json"
+    _mp.parent.mkdir(parents=True, exist_ok=True)
+    _mp.write_text(json.dumps({"marks": {
+        t: {"px": 100.0, "run_date": (today - dt.timedelta(days=1)).isoformat()}
+        for t in ("SPY", "AGG", "GLD")}}))
 
     class _Client(FakePaperClient):
         def get_account(self):

@@ -1,0 +1,10 @@
+{
+  "schema": "pairs_manifest_pin/v1",
+  "file": "data/research/cointegrated_pairs_2026_05_09.json",
+  "sha256": "68c70d012f64034a6e46be16b3e1a3e392b130e9befa8db9adbc5b8afea0544c",
+  "survivor_edge_ids": [
+    "pairs_trading_MA_V_v1"
+  ],
+  "pinned_on": "2026-11-12",
+  "note": "T-389 (cutover P6, option A): the pairs edge's input as of re-pin #1 \u2014 the T-2026-05-09-017 screen (in-sample 2021-01-01..2024-12-31; 12 candidates, 1 survivor MA_V, beta 0.890104802648772), equal to the live registry's pairs_trading_MA_V_v1 row (sync --check exit 0 with the file present, 2026-11-12). Pinned by name + sha256; baked into the backtest image and verified at build before the registry check."
+}

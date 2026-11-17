@@ -32,7 +32,7 @@ THE `pre_seam_drip_gap` CLASS (ruled 2026-10-23, built 2026-11-04; option (a) of
 kept pre-seam DRIP carries the pre-T-167 band's own holes (on the candidate: 215 names, 380 days,
 one to four per name, mostly 2000–2002 and 2011), and option (a) keeps them with it. They are a
 DECLARED, COUNTED class keyed to the convention LABEL, never a tolerance: a hole is excused under it
-only when (1) the name's label carries a drip pre-seam span (`convention.drip_spans` — the same
+only when (1) the name's label carries a drip pre-seam span (`convention.pre_seam_spans` — the same
 resolution as the census label, so the class can never excuse a hole on a span the label does not
 call drip); (2) the hole falls strictly BEFORE the seam; (3) the file under `cache_dir` IS the kept
 drip — its bars before the seam number exactly what the write record (`n_pre_seam_bars_kept`) or
@@ -43,6 +43,13 @@ call with no `cache_dir` (the class is then OFF — fail closed) all stay UNDECL
 record counts the excused days per name and in total (`pre_seam_drip_gaps`), and says per name why
 the class did not excuse what remains (`not_excused`). Both census producers and the measured-run
 admission pass the canonical cache; the pass driver's `guard` passes the copy it reads.
+
+OPTION (a′) (USER RULING 2026-11-12, T-387): after the cutover the kept pre-seam span is labelled
+`era_tr`, not drip. The (a′) rewrite changes no pre-seam DATE (its byte rule keeps every pre-seam
+row's Date and Volume text), so the kept span's own holes are the same days, and the class covers a
+kept pre-seam span under EITHER label (`convention.pre_seam_spans`). The class keeps its name and its
+census key (`pre_seam_drip_gaps`, contract-locked); "the kept drip" in its messages reads "the kept
+pre-seam span" for an era_tr name.
 """
 from __future__ import annotations
 
@@ -71,7 +78,8 @@ DECLARATION_FACETS = ("holed_inside", "ends_at_delisting")
 #: label, never a `data_gaps.json` facet; module docstring).
 PRE_SEAM_DRIP_GAP = "pre_seam_drip_gap"
 DRIP_GAP_RULE = ("a missing trading day is excused under pre_seam_drip_gap only when the name's "
-                 "convention label carries a drip pre-seam span, the day is strictly before the seam, "
+                 "convention label carries a kept pre-seam span (drip, or era_tr after the cutover), "
+                 "the day is strictly before the seam, "
                  "the file's bars before the seam number exactly the kept count its record carries, and "
                  "the file lacks the day too; counted per name and in total; anything else stays "
                  "undeclared and fails")
@@ -262,8 +270,8 @@ def stale_files_record(data_map: Dict[str, pd.DataFrame], start, end, *,
         pre[t] = (idx, set(idx), _required_spans(t, start, end, intervals))
     drip: Dict[str, dict] = {}
     if cache_dir is not None:
-        from engines.data_manager.convention import drip_spans
-        drip = drip_spans(cache_dir, sorted(pre), data_map)
+        from engines.data_manager.convention import pre_seam_spans
+        drip = pre_seam_spans(cache_dir, sorted(pre), data_map)
     drip_per_name: Dict[str, int] = {}
     not_excused: Dict[str, str] = {}
     for t in sorted(pre):

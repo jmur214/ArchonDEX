@@ -286,6 +286,38 @@ class PaperHeartbeat:
                                   "checked_at": _utcnow_iso()}
         self._atomic_write(self.status_path, status)
 
+    def record_corporate_actions(self, block: Dict[str, Any]) -> None:
+        """2026-11-10 — the corporate-action gate's verdict for this run: what the
+        split feed said (OK vs UNAVAILABLE + why), which splits were journaled
+        into the ledger, which tickers are FROZEN and why, and every order the
+        gate refused. A stand-down fires the notify channel: the machine is
+        deliberately not trading and an operator must be told, with the reason.
+        Must be called AFTER record_run (which replaces the status file)."""
+        status = self._read_status() or {}
+        status["corporate_actions"] = {**block, "ts": _utcnow_iso()}
+        why = [str(r) for r in (block.get("noncanonical_reasons") or [])]
+        if why:
+            # The gate's verdict IS the run's verdict: rewrite the three fields
+            # every reader keys on (last_run.canonical, reason, alert). Leaving
+            # them at canonical/clean/no-alert while the run exits 70 told the
+            # fleet-health reader the account was healthy on a stood-down day.
+            msg = "corporate actions: " + " || ".join(why)
+            last = dict(status.get("last_run") or {})
+            prior = last.get("reason")
+            last["canonical"] = False
+            last["reason"] = msg if prior in (None, "", "clean") else f"{prior}; {msg}"
+            status["last_run"] = last
+            status["alert"] = True
+            status["alert_reason"] = (f"NON-CANONICAL run {last.get('run_date')}: "
+                                      f"{last['reason']}")
+        self._atomic_write(self.status_path, status)
+        if why:
+            self._notify("[CORPORATE-ACTION] NON-CANONICAL"
+                         + (" — book STOOD DOWN, no orders staged" if block.get("stand_down")
+                            else "") + ": " + " || ".join(why))
+        for rel in block.get("released") or []:
+            self._notify(f"[CORPORATE-ACTION] {rel.get('ticker')} RELEASED — {rel.get('why')}")
+
     def record_stream(self, label: str, block: Dict[str, Any]) -> None:
         """T-329: stamp a decision-STREAM's own daily verdict onto the status file
         under ``streams.<label>`` (account-3 day-1: the LLM analyst). Report-only —

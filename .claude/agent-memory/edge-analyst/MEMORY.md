@@ -8,3 +8,11 @@
 - [VQA fundamentals edges shipped 2026-05-06](project_fundamentals_edges_shipped_2026_05_06.md) — 6 SimFin-driven edges added to Engine A; 2024 smoke Sharpe 1.91 NOT validated; universe-too-small risk still live at 16 names/quintile
 - [Alpha-frontier lane EVIDENCE-CLOSED 2026-06-15](project_alpha_frontier_lane_closed_2026_06_15.md) — T-132 categories tested+closed (T-135→T-150) in 48h; XS record ~0/16; only VRP + intraday-execution open; value lives in risk/regime lane not return-alpha
 - [Check supersession before quoting a frontier map](feedback_check_supersession_before_quoting_frontier.md) — idea/frontier docs are snapshots; grep sibling task-ids for closing audits before calling any category "open"
+- [T-265 panel NOT survivorship-complete 2026-11-11](project_t265_panel_not_survivorship_complete_2026_11_11.md) — 20% of dead CIKs priced vs 79% live; phantom zero-vol bars, ticker splices; PASS = upper bound
+- [Form 4 zips are the CIK source](reference_form4_zips_cik_source_2026_11_11.md) — insider_sec panel lacks issuer/owner CIK + 10b5-1; data/edgar/insider_zips has them (AFF10B5ONE 2023q1+)
+- [Satellite ci_low gate has low power](feedback_satellite_gate_low_power_2026_11_11.md) — 25% sleeve over ~10y needs arm beating SPY by ~10–16%/yr; state the MDE in every prereg
+- [processed/ high-yielder dividend double-count? (director investigating)](project_processed_highyield_div_doublecount_2026_11_11.md) — MO/T/VZ pre-2021 ≈ +yield/yr vs T-265 and Stooq; flagged, not confirmed
+- [B-2 small-cap verdict 2026-11-11](project_b2_smallcap_verdict_2026_11_11.md) — momentum + insider clusters both FAIL on T-265; Mar-2020 drives insider pooled CAR; cost 4.8%/yr
+- [Annualization periods trap](feedback_annualization_periods_trap_2026_11_11.md) — monthly returns with periods=252 inflate Sharpe/Sortino 4.58x (T-249's 3.21 is really 0.70)
+- [Held-book timing trap](feedback_held_book_timing_trap.md) — timing Δ scales with TRADED fraction (~0.3%/mo for 85/15), not notional; same-index pre-listing proxy = zero info
+- [B-8 execution timing CLOSED unrun 2026-11-11](project_b8_execution_timing_2026_11_11.md) — N_trials 0, closed by power analysis; journal has no open/close fills; no MOC path

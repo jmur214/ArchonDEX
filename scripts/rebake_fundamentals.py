@@ -110,6 +110,9 @@ def rebake(names: List[str], cache_dir: Path = DEFAULT_CACHE_DIR) -> List[Dict]:
                             f"deliberate NON-canonical step; run it outside a canonical runner")
     if hermetic_mode() != "off":
         raise RebakeRefused("[REBAKE] refused: ARCHONDEX_HERMETIC is on — a re-bake is the network")
+    if os.environ.get(dmmod.FUNDAMENTALS_FIXTURE_ENV, "").strip():
+        raise RebakeRefused(f"[REBAKE] refused: {dmmod.FUNDAMENTALS_FIXTURE_ENV} is set — the fetch would "
+                            f"serve TEST-fixture rows and record them as {dmmod._FUNDAMENTALS_SOURCE} (T-392a)")
     print(WARN)
     dm = dmmod.DataManager(cache_dir=str(cache_dir))
     records_dir = Path(dm.cache_dir) / "parquet" / RECORDS_DIRNAME

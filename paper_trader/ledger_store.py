@@ -152,6 +152,74 @@ class LedgerStore:
             self.state.cash = float(cash)
         self._snapshot(event=f"adopt_broker:{reason}")
 
+    # --------------------------- corporate actions --------------------------- #
+    def apply_split(self, ticker: str, ratio: float, ex_date: Any) -> bool:
+        """Apply a CONFIRMED split as an explicit journaled event: qty × ratio,
+        avg_price ÷ ratio, cash untouched. ``ratio`` = new shares per old share.
+
+        EXACTLY ONCE per (ticker, ex_date): the event text
+        ``split:<TICKER>:<ex_date>:ratio=<r>`` is the idempotence key, read back
+        from the durable journal itself — so a re-run, or tomorrow's container
+        resuming from S3, finds it and applies nothing. Returns True iff it was
+        applied now. A flat ticker journals nothing (there is nothing to scale).
+        RAISES ``ValueError`` when the result is not whole shares: a fractional
+        remainder is cash-in-lieu, which this ledger must not round away."""
+        import math
+        ticker = ticker.upper()
+        ex = str(ex_date)[:10]
+        r = float(ratio)
+        if not math.isfinite(r) or r <= 0:
+            raise ValueError(f"invalid split ratio {ratio!r}")
+        if f"{ticker}:{ex}" in self.applied_split_keys():
+            return False
+        pos = self.state.positions.get(ticker)
+        if pos is None or int(pos["qty"]) == 0:
+            return False
+        new_qty = int(pos["qty"]) * r
+        if abs(new_qty - round(new_qty)) > 1e-6:
+            raise ValueError(f"{ticker} {int(pos['qty'])} × {r:g} = {new_qty:g} is not "
+                             "whole shares (cash-in-lieu)")
+        pos["qty"] = int(round(new_qty))
+        pos["avg_price"] = float(pos.get("avg_price", 0.0)) / r
+        self.state.positions[ticker] = pos
+        self._snapshot(event=f"split:{ticker}:{ex}:ratio={r:g}")
+        return True
+
+    def applied_splits(self) -> list:
+        """Every split this ledger has journaled, as ``SplitEvent``s, replayed
+        from the journal (the durable record, not process memory)."""
+        from datetime import date as _date
+        from paper_trader.corporate_actions import SplitEvent
+        out = []
+        for rec in self.store.read_all():
+            ev = str(rec.get("event", ""))
+            if not ev.startswith("split:"):
+                continue
+            try:
+                _, tkr, ex, rat = ev.split(":", 3)
+                out.append(SplitEvent(tkr, _date.fromisoformat(ex),
+                                      float(rat.split("=", 1)[1])))
+            except (ValueError, IndexError):
+                continue        # not one of ours; an unreadable marker applies nothing
+        return out
+
+    def applied_split_keys(self) -> set:
+        return {s.key for s in self.applied_splits()}
+
+    def last_event_date(self) -> "Optional[Any]":
+        """The date carried by the most recent DATED journal event (the adopt
+        and split events name their day; ``fill``/``init`` do not), or None."""
+        import re
+        from datetime import date as _date
+        for rec in reversed(self.store.read_all()):
+            m = re.search(r"(\d{4}-\d{2}-\d{2})", str(rec.get("event", "")))
+            if m:
+                try:
+                    return _date.fromisoformat(m.group(1))
+                except ValueError:
+                    continue
+        return None
+
     # ------------------------------ reads ------------------------------ #
     def positions(self) -> Dict[str, int]:
         return {t: int(p["qty"]) for t, p in self.state.positions.items()}
