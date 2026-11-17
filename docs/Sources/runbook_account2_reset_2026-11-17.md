@@ -8,10 +8,17 @@ explicitly approved session. This revision changed no state: no S3 or AWS writes
 - Alpaca's public docs, re-read 2026-11-17;
 - local simulations, described in the next bullet list.
 
-**The simulations.** All were run locally with no network and no broker:
-- the independent reviewer's driver `/tmp/runbook_review_fresh/sim_reset.py`, which runs the REAL `run_paper_cloud_day.main()` for D+1/D+2/D+3 from an empty state against a fake flat broker at the 2026-11-16 closes. It was re-run by me (output matches `/tmp/runbook_review_fresh/sim_out.txt`);
-- three variants of it: the $10,000 re-base, and option A at $10,000 with and without the re-base;
-- fake-S3 and fake-broker tests of the §7 scripts.
+**The simulations and script tests are COMMITTED** in
+[`runbook_account2_reset_ops/`](runbook_account2_reset_ops/README.md). Its README lists every file and
+the command that re-runs its test. All of them run locally with no network, no broker and no AWS:
+- `sim_reset.py`, the independent reviewer's driver, which runs the REAL `run_paper_cloud_day.main()` for D+1/D+2/D+3 from an empty state against a fake flat broker at the 2026-11-16 closes. It is committed with one safety change: it refuses an existing or in-repo work path instead of deleting it.
+- `sim_variant.py`, which covers the three variants: the $10,000 re-base, and option A at $10,000 with and without the re-base.
+- `run_sims.sh <repo_root>`, which runs all four and asserts every D+1/D+2/D+3 expectation quoted in §0.1 and §8 (28 checks, ALL PASS on 2026-11-17).
+- `check_archive.sh`, `check_sched_state.py`, `check_reset_a2.py` and `check_postcheck.py`, which test the §7 scripts against a fake S3, a synthetic schedule and fake broker modules.
+- `check_embedded.py`, which proves that the §7.1–7.4 text in this runbook is byte-identical to the committed files.
+
+The reviewer's original evidence (`/tmp/runbook_review_fresh/`) is ephemeral and is cited only where it
+was the source.
 
 **The ruling this executes:** the user ruled 2026-11-17 that account 2 is RESET, not repaired by a
 journaled basis adjustment, as recorded at `docs/State/CURRENT_STATE.md:177` on main: "The broker's own
@@ -316,7 +323,9 @@ signature, then execute [VERIFIED: `scripts/transition_acct2_to_deploy_candidate
   - D+1 and D+2 are trading days;
   - the operator has checked the corporate-action calendar for VOO / MTUM / SGOV from D to D+2. This is manual because the feed asks nothing on D+1 or D+2 (F11) [UNVERIFIED: no source checked yet].
 - **P3 (re-base only):** step 0.5 is complete and its readback is recorded.
-- **P4:** the §7.1–7.5 files are in `$OPS`. That is a dated directory OUTSIDE the repo, e.g. `~/archondex_ops/acct2_reset_<D>/`.
+- **P4:** the scripts are copied from the COMMITTED folder, at a recorded commit, into `$OPS`. `$OPS` is a dated directory OUTSIDE the repo, e.g. `~/archondex_ops/acct2_reset_<D>/`:
+  - `C=docs/Sources/runbook_account2_reset_ops; git rev-parse HEAD > $OPS/ops_commit.txt; cp $C/{sched_state.py,archive.sh,render.py,reset_a2.tmpl.py,postcheck_a2.tmpl.py} $OPS/`.
+  - Before step 1, re-run their tests from that same commit. Each must end `ALL PASS`, or exit 0 for `check_embedded.py`: `bash $C/check_archive.sh`, `python3 $C/check_sched_state.py`, `python3 $C/check_reset_a2.py`, `python3 $C/check_postcheck.py`, `python3 $C/check_embedded.py`, `bash $C/run_sims.sh .` (details in [the folder README](runbook_account2_reset_ops/README.md)).
 
 ```bash
 P=archondex; R=us-east-1; B=archondex-results-407539788432
@@ -365,37 +374,61 @@ submit() {  # submit a one-shot body on the LIVE pinned jobdef $JD (never the la
 - `aws batch list-jobs --filters` and `--job-status`, and the `describe-job-definitions` revision query:
   run by me read-only on 2026-11-17.
 
-### 7.1 `sched_state.py` — State-only, pin-asserting (tested on the live schedule JSON)
+**§7.1–7.4 are BYTE-IDENTICAL copies of the committed files** in
+[`runbook_account2_reset_ops/`](runbook_account2_reset_ops/README.md) (`check_embedded.py` exits 0). Copy
+the scripts from that folder, never from this page.
+
+### 7.1 `sched_state.py` — State-only, pin-asserting (`runbook_account2_reset_ops/sched_state.py`)
 
 ```python
-"""usage: python3 sched_state.py <live.json> <ENABLED|DISABLED> <expected_jobdef_tail> <out.json>"""
-import json, sys
+"""Turn a LIVE `aws scheduler get-schedule` JSON into an update-schedule input that
+changes ONLY State, refusing unless the target is pinned to the expected revision.
+
+usage: python3 sched_state.py <live.json> <ENABLED|DISABLED> <expected_jobdef_tail> <out.json>
+  expected_jobdef_tail e.g. archondex-paper-offense-sso:21
+"""
+import json
+import sys
+
 live_p, state, expect, out_p = sys.argv[1:5]
 assert state in ("ENABLED", "DISABLED"), f"bad state {state!r}"
-s = json.load(open(live_p)); tgt = s["Target"]
+s = json.load(open(live_p))
+tgt = s["Target"]
 jd = json.loads(tgt["Input"])["JobDefinition"].rsplit("/", 1)[-1]
 if jd != expect:
     sys.exit(f"REFUSE: live target is {jd}, expected {expect} — someone repointed it; re-read and decide")
-if ":" not in jd: sys.exit(f"REFUSE: target {jd} is not revision-pinned")
-if not (tgt.get("DeadLetterConfig") or {}).get("Arn"): sys.exit("REFUSE: no DeadLetterConfig")
+if ":" not in jd:
+    sys.exit(f"REFUSE: target {jd} is not revision-pinned")
+if not (tgt.get("DeadLetterConfig") or {}).get("Arn"):
+    sys.exit("REFUSE: no DeadLetterConfig on the live target")
 if tgt.get("RetryPolicy") != {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 3}:
     sys.exit(f"REFUSE: retry policy is {tgt.get('RetryPolicy')}, not fast-fail")
-for k in ("Arn", "CreationDate", "LastModificationDate", "Version"): s.pop(k, None)
+for k in ("Arn", "CreationDate", "LastModificationDate", "Version"):
+    s.pop(k, None)
 s["State"] = state
 json.dump(s, open(out_p, "w"), indent=1)
 print(f"wrote {out_p}: State={state} target={jd} (everything else verbatim from the live GET)")
 ```
 
-Tested on `/tmp/runbook_review_fresh/sched_live.json`:
-- the output differs from the input only in `State` and the three dropped read-only keys;
-- an expected `:22` against a live `:21` → `REFUSE` [VERIFIED: local run].
+Tested by `check_sched_state.py` on a SYNTHETIC schedule JSON shaped like the live one (account id
+replaced by `000000000000`); the same file was also run on the reviewer's live copy on 2026-11-17. Cases:
+- disable or re-enable: nothing but `State` moves, and the three read-only keys are dropped;
+- an expected `:22` against a live `:21` → `REFUSE`;
+- a missing DLQ, a non-fast-fail retry policy, or a revisionless target → `REFUSE`.
 
-### 7.2 `archive.sh` — pipefail, three-way md5, empty-md5 refusal, ETag, then move (finding 3)
+All 7 cases PASS [VERIFIED: committed check, run 2026-11-17].
+
+### 7.2 `archive.sh` — pipefail, three-way md5, empty-md5 refusal, ETag, then move (finding 3) (`runbook_account2_reset_ops/archive.sh`)
 
 ```bash
 #!/usr/bin/env bash
+# Archive account-2 epoch-1 state: per key, prove the LIVE object is still the step-1
+# snapshot, copy it to the dated archive prefix, prove the copy, then move the original
+# aside. Never deletes. Any failure exits non-zero BEFORE the next key is touched.
+# Required env: B PFX ARCH ASIDE OPS RELS (and P R for the aws profile/region).
 set -uo pipefail
-AWS="${AWS:-aws}"; EMPTY=d41d8cd98f00b204e9800998ecf8427e
+AWS="${AWS:-aws}"
+EMPTY=d41d8cd98f00b204e9800998ecf8427e
 die() { echo "STOP: $*" >&2; exit 1; }
 for REL in $RELS; do
   SNAP="$OPS/snapshot/$REL"
@@ -420,18 +453,21 @@ done
 echo "DONE: all keys archived and moved aside"
 ```
 
-**How it was tested:** with a stub `aws` mapping `s3://` to a local directory, on the 2026-11-17
-snapshot. The happy path archives 9, moves 9 aside, writes a 9-row manifest, and leaves only
-`exec_cost_ledger.jsonl` live. Four failure cases each STOP at the first key, with nothing moved:
+**How it is tested:** `check_archive.sh` runs it with the stub `fake_aws.sh`, which maps `s3://` to a
+local directory, on SYNTHETIC one-line fixtures (no real state is committed). It was first run on the
+2026-11-17 snapshot, with the same results. The happy path archives 9, moves 9 aside, writes a 9-row
+manifest, and leaves only `exec_cost_ledger.jsonl` live. Four failure cases each STOP at the first key,
+with nothing moved:
 - the live read denied;
 - the move denied (10 live keys remain, 1 archive copy exists);
 - the live key changed since the snapshot;
 - the live key missing, which is the reviewer's empty-md5 case.
 
 With `pipefail` a failed `aws … - | md5 -q` assignment now returns non-zero; without it, the same line
-yields `d41d8cd9…` and exits 0, as demonstrated [VERIFIED: local runs].
+yields `d41d8cd9…` and exits 0, as demonstrated. All 5 cases PASS [VERIFIED: committed check, run
+2026-11-17].
 
-### 7.3 `reset_a2.tmpl.py` — the liquidation body (finding 9; runs ONLY in account 2's container)
+### 7.3 `reset_a2.tmpl.py` — the liquidation body (finding 9; runs ONLY in account 2's container) (`runbook_account2_reset_ops/reset_a2.tmpl.py`)
 
 ```python
 import datetime as dt, inspect, json, sys
@@ -479,21 +515,24 @@ print("RESET-A2 RESULT " + ("FAILED " + ",".join(failed) if failed else "ok"))
 sys.exit(70 if failed else 0)
 ```
 
-**Rendering** (refuses any unfilled `__KEY__` and validates each value):
-`python3 render.py <template> <out> D=… EXPECT=… ATTEMPT=… EXECUTE=…`, alongside §7.4.
+**Rendering:** `python3 render.py <template> <out> D=… EXPECT=… ATTEMPT=… EXECUTE=…`
+(`runbook_account2_reset_ops/render.py`; it refuses any unfilled `__KEY__` and validates each value).
+The same tool renders §7.4.
 
-**Tested against a fake broker module.** Results:
+**Tested by `check_reset_a2.py`**, which renders the committed template and drives it against a fake
+broker module. 12 cases PASS [VERIFIED: committed check, run 2026-11-17], including the render tool's
+refusal of an unfilled `__EXPECT__`. The results:
 - dry run: exit 0, nothing submitted;
 - execute: three coids with the `-a1` suffix;
 - one order failing: the other two still submit, then `RESULT FAILED SGOV`, exit 70;
-- REFUSED with exit 70 for: positions ≠ EXPECT, an open order, 25 min to the close, market closed, D = 2026-11-27, broker date ≠ D [VERIFIED: local runs].
+- REFUSED with exit 70 for: positions ≠ EXPECT, an open order, 25 min to the close, market closed, D = 2026-11-27, broker date ≠ D.
 
 **Field checks:**
 - `get_clock().is_open` and `next_close`, and `TradeAccount.account_number`, exist in `alpaca-py` 0.43.2 [VERIFIED: local introspection; review RESOLVED-TRUE].
 - Whether `clock.timestamp` carries the ET offset is [UNVERIFIED]. It does not matter before 15:30 ET, because the UTC date and the ET date agree then.
 - Sell exactly what the BROKER reports. The coid prefix `reset-a2-` cannot collide with the stream token `deploycand-a2` [VERIFIED: `scripts/run_paper_cloud_day.py:70`]. The `submit_order` signature is [VERIFIED: `paper_trader/paper_client.py:206-217`].
 
-### 7.4 `postcheck_a2.tmpl.py` — flat-check (`TICKERS=[]`) or post-liquidation check
+### 7.4 `postcheck_a2.tmpl.py` — flat-check (`TICKERS=[]`) or post-liquidation check (`runbook_account2_reset_ops/postcheck_a2.tmpl.py`)
 
 ```python
 import json
@@ -514,8 +553,8 @@ print("FLAT=%s" % (not pos and not op))
 
 It derives from the execution manual's FLAT-CHECK [VERIFIED: `docs/Core/execution_manual.md:1020-1033`],
 adding `account_number` (finding 15) and the per-order fills. The order fields are as normalized by
-`_normalize_order` [VERIFIED: `paper_trader/paper_client.py:144-157`]. Tested against a fake client
-[VERIFIED: local run].
+`_normalize_order` [VERIFIED: `paper_trader/paper_client.py:144-157`]. It is tested by
+`check_postcheck.py`: 5 cases PASS [VERIFIED: committed check, run 2026-11-17].
 
 ### 7.5 Label texts (finding 12)
 
