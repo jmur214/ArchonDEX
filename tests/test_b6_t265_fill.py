@@ -129,3 +129,12 @@ def test_amendment8_check_halts_when_a_prior_cannot_be_looked_up():
     sig.loc[sig.accession == "a", "prior_accession"] = "missing"
     with pytest.raises(SystemExit):
         C.pop_rate(sig, "10-K", "yoy_combo_why", True)
+
+
+def test_holder_table_build_halts_when_there_are_no_insider_zips(tmp_path, monkeypatch):
+    """Review finding 6: no zips must HALT, never return an empty holder table (which would silently
+    drop every ambiguous T-265 ticker from the ranking)."""
+    from scripts.lazy_prices import b6_cik_map as M
+    monkeypatch.setattr(M, "INSIDER_DIR", tmp_path)
+    with pytest.raises(SystemExit, match="no insider zips"):
+        M.symbol_users({"AAA", "BBB"})
