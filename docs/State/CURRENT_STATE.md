@@ -173,7 +173,7 @@
 
 ## Next decision (exactly 1)
 
-- **USER:** account 2's recovery after the split-fix deploy — RESET the paper account (the director's lean; the record is void after 2026-11-04 anyway) or build a journaled basis adjustment. Also open, the user's: where the real money sits (`GOAL.md` keeps it in a robo the decision package calls "Dominated", waiting on evidence paper trading cannot produce); the two advisor-memo questions (school funding; HSA-qualifying plan); the collar/pre-trade gate (audit items 2–3).
+- **USER RULED 2026-11-17: account 2 is RESET** (not a basis adjustment). The broker's own balance is not a valid seed — the Alpaca paper broker scaled the 18 split-day shares ×4 (~$3,500 phantom on the $10,000 tier) — so the reset restarts at a clean $10,000 tier with a new record epoch; the 36 clean sessions to 2026-11-04 stay archived as valid, everything after is VOID. The reset runbook is being drafted propose-first; nothing changes until the user approves it. Also open, the user's: where the real money sits (`GOAL.md` keeps it in a robo the decision package calls "Dominated", waiting on evidence paper trading cannot produce); the two advisor-memo questions (school funding; HSA-qualifying plan); the collar/pre-trade gate (audit items 2–3).
 
 ## Standing constraints (max 5)
 
