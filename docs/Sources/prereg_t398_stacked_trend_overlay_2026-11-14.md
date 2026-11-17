@@ -879,7 +879,7 @@ lists every flag. No price file is touched; the snapshot md5s are unchanged.
 ## RESULT (appended 2026-11-14; nothing above this line altered)
 
 **H1 NOT MET — the interval straddles zero.** Decision cell (+100%, the 14-fund live composite, ER
-gross-up on with AQMIX at 1.25%, h_surv 1.0 %/yr, s 50 bp, ER_S 1.00%, W-L3 2010-09-01 → 2025-12-31,
+gross-up on with AQMIX at 1.25% (from memory, unverified), h_surv 1.0 %/yr, s 50 bp, ER_S 1.00%, W-L3 2010-09-01 → 2025-12-31,
 15.33 years): Δ log wealth **+0.37 %/yr, 95% CI [−3.89, +4.17]**; 252-day blocks [−4.49, +4.04]; IR
 0.047 against an MBL line of 0.551 (pinned gate + 1) and 0.757 (372.28). Per §10: **not supported on
 investable evidence; the door is shut for deployment; the interval is the record.**
@@ -904,3 +904,38 @@ investable evidence; the door is shut for deployment; the interval is the record
 - **Level 2 did not run** on either index (A2.1; amendment 3, ruling 5).
 - **N_trials:** +1, recorded on acknowledgment (`config/honest_n_trials.json` on main). Not recorded
   again.
+
+---
+
+## RESULT — REVIEW ROUND 1 CORRECTIONS (appended 2026-11-14; the frozen lines 1–567 are byte-identical)
+
+An independent review by execution at `04063c2` confirmed the measurement (the decision cell to 1e-16
+per bar) and found the write-up, the tests and two labels wanting. The verdict's last section lists
+every sentence changed. What touches this file:
+
+- **One edit in the RESULT block above:** "AQMIX at 1.25%" now reads "AQMIX at 1.25% (from memory,
+  unverified)". The label was missing there.
+- **The MBL line, relabelled.** T-391 merged while this study ran, so the gate in force reads N_eff
+  372.28 (line 0.757). The 0.551 quoted above as "pinned gate + 1" is the pre-T-391 pin (37.08).
+- **The IR carries its interval:** 0.047, CI [−0.48, +0.55] (21-day block bootstrap, `MetricsEngine`).
+- **`results.json` was re-stamped, not re-measured.** `d2e73967…` is the first file (it embeds the gate
+  reading 36.92). The same code on the merged tree gives `b2a77c87…` (that one field becomes 372.28).
+  The review-round-1 file adds an interval on every IR and on the composite's Sharpe ratio, the
+  anchors' flag counts and the file bindings; its md5 is in the verdict. The three return CSVs are
+  byte-identical throughout (`8c1614e8…`, `ca03d4bf…`, `5d595dcf…`). **No new trial.**
+- **§18's determinism halt is now a command** (`determinism`), and `run` halts unless `gates.json` and
+  `integrity.json` were computed against the manifest in front of it.
+- **§18's "any row dated 2026" halt is narrower in the code than in the text.** It applies to the
+  fetched price files. The pinned T-306, H.15 and AQR files hold 2026 rows and are cut at 2025-12-31,
+  not refused.
+- **S3 was not run as §4.4 words it.** As run it is the 14 decision members plus one share class of
+  each of four fund families the screen added; rule (e) was not coded; its selection rule was
+  committed three minutes after the screener response was on disk and seconds before its prices were
+  fetched; its 41 integrity flags (MFTTX 34, LCSCX 3, LFMIX 3, GPAIX 1) were never ruled. It decides
+  nothing.
+- **Three network steps ran from code not yet committed** (`meta`, the two BarclayHedge requests,
+  `screen`); each was committed minutes later with the command unchanged. The measurement code was
+  written with prices on disk; that it was not run before its commit is the author's account, which
+  commit and file times cannot prove.
+- **The trials row** on main cites the ledger line, not this file. The recorder has no update path, so
+  it is left as it is. No row was added.
