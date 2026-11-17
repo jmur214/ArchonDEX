@@ -1146,3 +1146,78 @@ fill 97.9, +0.7), as A8.3's own 10-Q Risk OK bullet and the director's ruling st
 OK (+2.6), 10-K Risk OK excl. not-covered (−0.5), 10-K MD&A OK (+0.2), 10-Q Risk OK via excl. not-covered
 (+0.7), 10-Q Risk OK excl. not-covered (+0.7), 10-Q MD&A OK (−0.2), 10-Q adjacent MD&A pair (+1.1) —
 each unchanged from A8.1. Nothing else in A8 changes.
+
+---
+
+## AMENDMENT 9 — the T-265 FREEZE (worker, 2026-11-17, under A7.3 as amended by A8; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone (with its file list, below), after AMENDMENT 8's check PASSED (`d018f15`) and BEFORE any
+T-265 small-cap price is read, any ranking is formed or any return is computed. The T-265 harness has run on
+synthetic data only.
+
+### A9.1 The four conditions of A7.3 (A8 for (a)) — all hold
+- **(a)** Fetch: 252/252 CIKs, 11,195 filings, 0 failures, 0 CIK errors after one retry pass. Rates: under
+  AMENDMENT 8's ONE population-controlled check, the four pair rates are within the two-sided 3.0 pp band —
+  10-K combo 97.0 vs 96.9 (−0.1), 10-K MD&A 98.1 vs 98.3 (+0.2), 10-Q combo 96.2 vs 96.9 (+0.7), 10-Q
+  MD&A 99.3 vs 98.9 (−0.4) (panel vs fill; `t265_fill_population_check.csv`, md5
+  `4b65d2b58bdf61ff6291a29d6353f993`); the seven other rates pass unchanged (A8 erratum).
+- **(b)** No text-side halt (`t265_text_halts.csv`): LM md5 file = manifest = frozen; 0 transient CIK
+  errors; every rebalance's text upper bound ≥ 300 (min gate-usable 2,399; min H_OOS-usable 2,529) and
+  ≥ 3 × 40 per tercile (min 799).
+- **(c)** 40 rebalances, 2016-03-31 → 2025-12-31, on the S&P harness's grid; the last holding ends at the
+  last SPY TR bar on or before 2026-03-31.
+- **(d)** Nothing departs from AMENDMENTS 5–8 except what A9.3 names.
+
+### A9.2 The frozen inputs and code
+- **Text:** `data/b6_local/t265_signals/` — **1,317 files**: 412 `signals_*` (136,000 rows) + 27
+  `signals_fill_*` (11,195), 412 `filings_*` (136,000) + 27 `filings_fill_*` (11,195), 412 `done_*` (4,100)
+  + 27 `done_fill_*` (252); and `data/b6_local/signals_sp_v2.parquet` (46,040 rows, md5
+  `722b413770edfa9cb99d0da341308b22`) for the 392 overlap CIKs the stream did not take. Every file's rows
+  and md5 are in the freeze manifest `data/b6_local/t265_freeze_manifest.json`, committed byte-identical
+  beside this prereg as `docs/Sources/prereg_b6_t265_freeze_manifest_2026-11-17.json` (md5
+  `ea078498dd6ddb68569d389b3f875fc1`). The harness HALTS if any file is added, missing or changed (§7.7).
+- **LM dictionary:** md5 `12dade0123e1d096c1d1192c755f08a3`. **Parser:** `b6_parse/2`.
+- **Universe:** 4,743 T-265 priced CIKs = 4,099 streamed + 252 filled + 392 from the S&P panel.
+- **Code:** `scripts/lazy_prices/b6_harness_t265.py` as of `ba1140d` (md5
+  `ae76834b3f36e81fd9dbc2757f73a2b3`); `scripts/smallcap_t265_b2_common.py` byte-identical to main (blob
+  `8ce8224e1fce734e80639827554dad7f52650a5b`); the S&P harness's `rebalance_dates`, `month_marks`,
+  `signals_at`, `rank_terciles`, `summarize`, `boot`, `newey_west_t` imported unchanged.
+
+### A9.3 The construction — the director's ratified choices (1)–(7), plus the harness's frozen terms
+1. **Identity:** a T-265 priced CIK maps to exactly one priced ticker (checked; HALT otherwise). A ticker
+   shared by more than one CIK (66 tickers, 135 CIKs) or reused (its file splits into more than one
+   segment) is usable for a CIK at t only when the date-aware Form 3/4/5 holder set at t (first − 90 d ≤ t
+   ≤ last + 90 d) is exactly {that CIK} — AMENDMENT 4's rule. A name that cannot be attributed is left out
+   of that quarter's ranking and counted (`identity_unresolved`). The security at t is the segment alive
+   at t.
+2. **B-2's trading and band rules:** a traded bar ON t; 20-day median dollar ADV at t in [$1M, $200M).
+3. **B-2's death rule:** at a segment's last traded bar — BASE −30% (gate), STRESS −100%, LAST-PRICE 0 —
+   including a death on the formation day; proceeds in BIL TR. B-2's price census and A1.2 recount
+   (151 / 141) are re-measured and HALT on mismatch.
+4. **No ADV cap** (B-6's prereg has none).
+5. **H_OOS:** spec `hoos_adjacent` = the S&P `q10_adjacent` construction, GROSS, under the gate's
+   inclusion and BASE death rules; mean(changers − universe) < 0 with t_HAC ≤ −2.0 (NW 3 lags). Its own
+   panel meets the §7.7 floors or H_OOS is NOT EVALUABLE.
+6. **The 10-Q-names-only companion** reads NOT-EVALUABLE in any quarter it cannot be formed and never
+   affects H_OOS.
+7. **LM uncertainty and litigious rankings are not run** (parity with the S&P arm).
+- **Also frozen:** price source T-265 bars only (no `data/processed` fill); equal weight, buy-and-hold to
+  the next rebalance, month-end marks; costs per side 35 / 75 bps by ADV bucket at t (exits at the leaving
+  name's bucket, missing → 75; dead proceeds free), deducted in the leg's first month; flat 75 bps RT
+  sensitivity; 25% long + 75% SPY TR satellite, Δ log wealth vs SPY TR, paired month-index block bootstrap
+  (1,000, seed 0, auto block), H1 met if either signal's 1.25th-percentile `ci_low` > 0; the short-leg
+  diagnostic on net legs; the §7.7 floors (≥ 300 ranked, ≥ 40 per tercile) AFTER the band, halting with
+  no return and never lowered; diagnostics: flat 75 bps, STRESS, LAST-PRICE, SURVIVOR-ONLY, Jaccard,
+  TF-IDF, risk only, MD&A only, 10-Q combo, 10-Q adjacent (net), 10-K only, 10-Q only, the IWM sleeve
+  beside each — a diagnostic failing its own floors is recorded as halted; smoke on the first 12 months
+  (never quoted); two runs to identical md5s before any number is quoted.
+
+### A9.4 N_trials
+**+2 at the T-265 run: the gate family {similarity, Δtone} +1, and H_OOS +1 (its own family, A6.2).** The
+director records it on main against this amendment's hash.
+
+### A9.5 Disclosures carried into the verdict
+3.1% of small-cap 10-Ks omit Item 1A (no combo pair; cannot be gate-ranked on 10-K quarters); the one
+out-of-window HTTP 503 (CIK 1837254, accepted 2026-05-15); the census's text counts are upper bounds
+before the ADV band; the census correction (co-registrant rows keyed on (cik, accession)); B-2's
+survivorship caveat verbatim — a PASS here is an UPPER BOUND.
