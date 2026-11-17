@@ -1136,3 +1136,13 @@ against AMENDMENT 9's hash; `config/honest_n_trials.json` is not touched here.
 *Erratum to A7.1 (text only):* A7.1's "5,502 missing accessions" was the accession-only count; keyed on
 (cik, accession), as `overlap_gap_accessions` computes it, the gap is **5,510** (8 co-registrant
 accessions fetched under another CIK in the S&P panel); still 252 CIKs, all 5,510 fetched.
+
+**A8 erratum (text only; committed alone, BEFORE the check's result was computed or seen).** A8.1's table has
+**six** passing rates, not seven: 11 rates − 5 failed. The implementation of A8.3's pass rule halted on
+that count (it asserted seven passing rows and found six) before printing or writing any conditioned rate.
+"The seven rates" in the pass rule are the seven rates other than the four pair rates, with **10-Q Risk OK
+read through its population-controlled rate**, the existing Risk OK excluding not-covered (panel 97.2,
+fill 97.9, +0.7), as A8.3's own 10-Q Risk OK bullet and the director's ruling state. Concretely: 10-K Risk
+OK (+2.6), 10-K Risk OK excl. not-covered (−0.5), 10-K MD&A OK (+0.2), 10-Q Risk OK via excl. not-covered
+(+0.7), 10-Q Risk OK excl. not-covered (+0.7), 10-Q MD&A OK (−0.2), 10-Q adjacent MD&A pair (+1.1) —
+each unchanged from A8.1. Nothing else in A8 changes.
