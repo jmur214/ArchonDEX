@@ -924,3 +924,99 @@ T-265 outputs are the stream's per-filing text signals and statuses; no T-265 ha
 - **A6.3 Power — to be stated in the verdict's FIRST paragraph, as in A5.5:** a pass at about 1-in-6 odds if
   the true gap equals the S&P estimate; a refutation is weak evidence against a small effect and closes
   only the adjacent-pairing finding as a certifiable claim.
+
+---
+
+## AMENDMENT 7 — director rulings on the T-265 text census (2026-11-17; BINDING; PRE-DATA for the T-265 arm). Appended; nothing above is edited.
+
+Committed alone, BEFORE the overlap gap fill, any further stream, any T-265 price join, ranking or return.
+**What exists for T-265 at this commit:** the stream's per-filing text signals and section statuses for the
+4,099 streamed CIKs (`data/b6_local/t265_signals/`, parser `b6_parse/2`, DONE 2026-11-14 09:56:52Z) and the
+text census of commit `6e52752` (counts only; `data/b6_local/census/t265_*.csv`). No T-265 small-cap price
+has been read, no ranking formed, no return computed, and no distribution of any T-265 signal examined.
+
+### A7.1 Ruling 1 — the overlap text gap: FILL IT
+The director: stream the 252 overlap firms' 5,502 missing filings with the same stream code and parser
+`b6_parse/2`, ≤ 5 requests/s, worktree-local, then re-census. Grounds: the hole is non-random (those firms
+drop out of the ranking exactly in the quarters they were small caps), and filling it is a completeness
+action taken before any T-265 return exists, so no outcome informs it. The freeze waits for it.
+
+*Worker's operational definitions, fixed here before the fill (the A1.10 precedent; for the director's
+check; they alter no ruled term):*
+- **The 252 firms** = T-265 priced CIKs that the stream skipped because they are in the S&P fetch list
+  (`data/b6_local/sp_fetch_list.parquet`) AND that have at least one 10-K/10-Q accepted from 2015-01-01 in
+  the cached S&P candidate list (`sp_candidate_filings.parquet`, cached 2026-11-11) that the S&P fetch list
+  does not contain. Deterministic from those two files (code: `b6_census.overlap_gap_ciks`); re-derived at
+  this commit: 252 CIKs, 5,502 missing accessions, 11,047 candidate filings from 2015 in total.
+- **Each of the 252 is streamed over its FULL 2015+ history** through the unchanged `process_cik`, not
+  only the 5,502 missing accessions: pairing is within company, and a filing whose prior lies outside the
+  S&P fetch window can be paired only if that prior is fetched too. For these 252 firms every T-265 text
+  row then comes from the stream; their S&P-panel rows are not mixed in (one fetch per firm). The other
+  392 overlap firms keep their S&P-panel text (all their 2015+ candidate filings are in it).
+- **Condition (a) of ruling 3 is measured as follows.** Fetch: 0 CIK-level errors left after one
+  `--retry-errors` pass, and filing-level fetch failures ≤ 1% of the filings the fill streams. Rates: per
+  form, the six rates of the census table — Risk OK, Risk OK excluding not-covered, MD&A OK (acceptance
+  from 2015); combo pair, MD&A pair, adjacent MD&A pair (10-Q) (acceptance from 2016) — computed on ALL
+  filings the fill streams for the 252, each within **3.0 percentage points, two-sided as written**, of the
+  same rate on the 4,099 streamed CIKs (the T-265 panel's own). The 5,502-accession subset is reported
+  beside it and is not a condition.
+
+### A7.2 Ruling 2 — the rebalance grid is the S&P harness's, not a new one
+The director: H_OOS was ratified (A6.1) as the IDENTICAL construction that produced the S&P statistic, and
+the gate arm follows §6–§7; read the S&P harness's rebalance-date rule and use exactly that rule on T-265;
+if it is not calendar quarter-ends, re-run the per-rebalance census counts on that grid and report the
+difference. Do not choose a grid.
+
+**The rule, read from the code** (`scripts/lazy_prices/b6_harness_sp.py`, `rebalance_dates`, and
+`load_inputs`/`main`): rebalance t = **the last bar of the SPY TR twin calendar**
+(`data/processed/tr_reconciled/SPY_1d.csv`) **on or before each calendar quarter-end**
+(`pd.date_range(start, end, freq="QE")`); the last holding period ends at the last bar on or before
+2026-03-31; a filing is usable at t if `decision_floor_date` ≤ t and its acceptance date is later than
+t − 6 months (`signals_at`). This is §6's "last trading day of each calendar quarter". **It is NOT calendar
+quarter-ends:** the `6e52752` census evaluated eligibility at the calendar quarter-end date itself (e.g.
+Saturday 2016-12-31 instead of Friday 2016-12-30). The per-rebalance counts are re-run on the harness grid
+(reading the SPY twin's bar DATES only) and the difference is reported at the freeze. The T-265 harness
+imports the S&P harness's `rebalance_dates` and `month_marks` — one code path, no new grid.
+
+### A7.3 Ruling 3 — freeze and build: pre-authorized on conditions
+After the gap fill and re-census, IF all of the following hold, the worker commits AMENDMENT 8 = the
+T-265 FREEZE (alone), then builds the T-265 harness and runs it without stopping:
+- (a) the 252 firms' filings are fetched with ≤ 1% failures and their parse and pairing rates are within
+  3 percentage points of the T-265 panel's own (measured as A7.1 fixes);
+- (b) no text-side census halt fires;
+- (c) the window is still 40 rebalances 2016-Q1 → 2025-Q4 on the S&P harness's grid;
+- (d) nothing departs from amendments 5–7 except what amendment 8 names.
+
+If ANY condition fails, the worker stops and hands back instead. The harness then: the price join from
+the sources B-2's census names (re-read from that census, not from memory); the ADV band; the §7.7 floors
+checked AFTER the band (halt closed if short — no lowering a gate after it fires); the gate arm and H_OOS
+exactly as frozen; a smoke on the FIRST 12 months only (no number quoted); the run twice to identical
+md5s; the verdict with the power statement in its first paragraph; the full suite;
+`python scripts/sync_docs.py`; the CLI into `docs/Core/execution_manual.md`.
+
+*Worker's reading of (b), fixed here:* the text-side halts are §7.7's first bullet (the LM file md5 against
+its manifest; every T-265 signal file present with its recorded row count — the freeze records the file
+list, rows and md5s and the harness verifies them), 0 transient CIK errors left, and every rebalance's
+text-side upper bound (gate-usable names before the ADV band) at or above §7.7's 300 ranked and 3 × 40
+per tercile. The ADV-band floors themselves are price-side and are checked in the harness, after the band.
+
+### A7.4 Ruling 4 — trials
+The T-265 arm consumes **+2** (the gate family +1; H_OOS +1, its own family per A6.2). The director records
+it on main when amendment 8 lands; the worker does not touch `config/honest_n_trials.json`. The count is
+stated in the freeze text.
+
+### A7.5 Ruling 5 — disclosures carried into the verdict
+- 3.1% of small-cap 10-Ks omit Item 1A (smaller reporting companies — the smallest firms): no combo pair,
+  so they cannot be gate-ranked on 10-K quarters.
+- The one out-of-window fetch failure (HTTP 503; CIK 1837254, 10-Q 0001213900-26-057934, accepted
+  2026-05-15).
+- The census's text-side counts are upper bounds before the ADV band.
+
+### A7.6 The SEC contact
+Since 2026-11-14 a privacy control in this environment refuses commands that read or send the account's
+email, including scripts that hold it. The fill is tried exactly as before. If the permission layer
+refuses ANY step, the worker does not work around it (no copying the string, no new constant, no alternate
+script): it adds a minimal change so the stream reads its User-Agent from the environment variable
+`B6_SEC_USER_AGENT` and refuses with a clear message and exit 3 when it is unset (tests for both;
+committed), then stops and hands back the exact command the user must run from the worktree. The address
+is never written anywhere.
