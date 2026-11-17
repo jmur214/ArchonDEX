@@ -370,6 +370,74 @@ def census_t265(start: str = "2016-03-31", end: str = "2025-12-31") -> dict[str,
     return out
 
 
+POP_RATES = (("10-K", "yoy_combo_why", True), ("10-K", "yoy_mda_why", False),
+             ("10-Q", "yoy_combo_why", True), ("10-Q", "yoy_mda_why", False))
+FILL_CHECK_MD5 = "57d6cc6d76e13ace5ec25ee52ac6d8af"     # AMENDMENT 8, A8.1
+
+
+def pop_rate(sig: pd.DataFrame, form: str, col: str, combo: bool) -> tuple[float, int, int]:
+    """AMENDMENT 8, A8.3, word for word: rows of `form` accepted from 2016; denominator = rows whose
+    pairing-rule prior exists (`prior_accession` not null) and, for the combo only, where neither the
+    current filing's nor the prior's Item 1A status starts with NOT_COVERED (the prior looked up by
+    (cik, prior_accession) among the same CIK's rows; a missing prior HALTS). Nothing else is
+    excluded. Returns (rate rounded to 0.1, numerator, denominator)."""
+    x = sig[(sig.form == form) & (sig.acceptance_dt.astype(str).str[:4] >= "2016")]
+    x = x[x.prior_accession.notna()]                                          # (a)
+    if combo:                                                                  # (b)
+        status = dict(zip(zip(sig.cik, sig.accession), sig.risk_status.astype(str)))
+        keys = list(zip(x.cik, x.prior_accession))
+        missing = [k for k in keys if k not in status]
+        if missing:
+            raise SystemExit(f"FATAL: {len(missing)} prior filing(s) not found among the CIK's rows, "
+                             f"e.g. {missing[:3]} (A8.3 halts)")
+        prior_nc = pd.Series([status[k].startswith("NOT_COVERED") for k in keys], index=x.index, dtype=bool)
+        cur_nc = x.risk_status.astype(str).str.startswith("NOT_COVERED")
+        x = x[~cur_nc & ~prior_nc]
+    num, den = int((x[col] == "ok").sum()), int(len(x))
+    if den == 0:
+        raise SystemExit(f"FATAL: empty A8.3 denominator for {form} {col}")
+    return round(100.0 * num / den, 1), num, den
+
+
+def fill_population_check() -> tuple[pd.DataFrame, bool]:
+    """AMENDMENT 8's ONE check. Pass = all four conditioned pair rates within 3.0 pp two-sided AND the
+    seven rates that passed in t265_fill_check.csv (md5-verified) still pass, unchanged."""
+    done, _, sig = _t265_frames()
+    universe = t265_universe_ciks()
+    streamed = set(done.cik.astype(int))
+    fill = set(overlap_gap_ciks(universe)) & streamed
+    base = streamed - fill
+    sig = sig[["cik", "form", "accession", "acceptance_dt", "risk_status", "prior_accession",
+               "yoy_combo_why", "yoy_mda_why"]].copy()
+    sig["cik"] = sig.cik.astype(int)
+    sig = sig.drop_duplicates(["cik", "accession"], keep="last")
+    rows = []
+    for form, col, combo in POP_RATES:
+        rp, n_p, d_p = pop_rate(sig[sig.cik.isin(base)], form, col, combo)
+        rf, n_f, d_f = pop_rate(sig[sig.cik.isin(fill)], form, col, combo)
+        diff = round(rf - rp, 1)
+        rows.append({"form": form, "rate": col.replace("yoy_", "").replace("_why", "") + "_pair_conditioned",
+                     "panel": rp, "fill": rf, "diff_pp": diff, "within_3pp": bool(abs(diff) <= FILL_TOL_PP),
+                     "panel_num": n_p, "panel_den": d_p, "fill_num": n_f, "fill_den": d_f})
+    tab = pd.DataFrame(rows)
+    fc_path = OUT / "t265_fill_check.csv"
+    import hashlib
+    if hashlib.md5(fc_path.read_bytes()).hexdigest() != FILL_CHECK_MD5:
+        raise SystemExit(f"FATAL: {fc_path} is not the A8.1 table (md5)")
+    fc = pd.read_csv(fc_path)
+    within = {(r.form, r.rate): bool(r.within_3pp) for r in fc.itertuples()}
+    # A8 erratum: the seven = the non-pair rates, 10-Q Risk OK read through its population-controlled
+    # rate (Risk OK excluding not-covered); A8.1 has six passing rows
+    seven = [("10-K", "risk_ok_pct"), ("10-K", "risk_ok_excl_not_covered_pct"), ("10-K", "mda_ok_pct"),
+             ("10-Q", "risk_ok_excl_not_covered_pct"),            # 10-Q Risk OK, population-controlled
+             ("10-Q", "risk_ok_excl_not_covered_pct"), ("10-Q", "mda_ok_pct"),
+             ("10-Q", "qoq_mda_pair_pct_2016on")]
+    if sum(within.values()) != 6:
+        raise SystemExit(f"FATAL: A8.1 has six passing rates; the table shows {sum(within.values())}")
+    passed = bool(tab.within_3pp.all() and all(within[k] for k in seven))
+    return tab, passed
+
+
 LM_FROZEN_MD5 = "12dade0123e1d096c1d1192c755f08a3"
 
 
@@ -398,8 +466,16 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="B-6 parse-coverage census (before/after).")
     ap.add_argument("--skip-before", action="store_true")
     ap.add_argument("--t265", action="store_true", help="the T-265 arm's text census only (b6_parse/2)")
+    ap.add_argument("--t265-fill-pop", action="store_true",
+                    help="AMENDMENT 8: the ONE population-controlled fill check (t265_fill_population_check.csv)")
     args = ap.parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.t265_fill_pop:
+        tab, passed = fill_population_check()
+        tab.to_csv(OUT / "t265_fill_population_check.csv", index=False)
+        print(md(tab, index=False))
+        print(f"\nAMENDMENT 8 check: {'PASS' if passed else 'FAIL'}")
+        return 0 if passed else 2
     if args.t265:
         res = census_t265()
         for k, v in res.items():

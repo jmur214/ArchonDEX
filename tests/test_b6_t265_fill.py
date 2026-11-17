@@ -97,3 +97,35 @@ def test_eligibility_uses_the_grid_date_not_the_calendar_quarter_end():
     on_cal = C._eligibility(sig, [pd.Timestamp("2016-12-31")], set())
     assert on_grid.iloc[0].gate_usable == 1 and on_grid.iloc[0].ciks_with_recent_filing == 1
     assert on_cal.iloc[0].gate_usable == 0 and on_cal.iloc[0].ciks_with_recent_filing == 1
+
+
+def _pop_rows() -> pd.DataFrame:
+    """One CIK's 10-K rows covering every A8.3 case (the 2015 row is a prior only)."""
+    r = [  # accession, year, risk_status, prior_accession, combo why, mda why
+        ("p15", "2015", "OK", None, "no_prior", "no_prior"),
+        ("a", "2016", "OK", "p15", "ok", "ok"),                                  # counts, ok
+        ("b", "2017", "OK", None, "no_prior", "no_prior"),                       # (a) excluded
+        ("c", "2018", "NOT_COVERED:not_required", "a", "current_not_ok", "ok"),   # (b) combo only
+        ("d", "2019", "OK", "c", "prior_not_ok", "ok"),                           # (b) prior NC, combo only
+        ("e", "2020", "NOT_LOCATED", "d", "current_not_ok", "ok"),                # stays a failure
+        ("f", "2021", "OK", "e", "mda_source_switch", "mda_source_switch"),       # stays a failure
+        ("g", "2022", "TOO_SHORT", "f", "current_not_ok", "current_not_ok"),      # stays a failure
+    ]
+    return pd.DataFrame([{"cik": 1, "form": "10-K", "accession": a, "acceptance_dt": f"{y}-03-01T00:00:00.000Z",
+                          "risk_status": rs, "prior_accession": pa, "yoy_combo_why": cw, "yoy_mda_why": mw}
+                         for a, y, rs, pa, cw, mw in r])
+
+
+def test_amendment8_check_excludes_exactly_no_prior_and_combo_not_covered():
+    sig = _pop_rows()
+    # combo: denominator = a, e, f, g (b excluded by (a); c, d by (b)); numerator = a
+    assert C.pop_rate(sig, "10-K", "yoy_combo_why", True) == (25.0, 1, 4)
+    # MD&A: denominator = a, c, d, e, f, g (only b excluded); numerator = a, c, d, e
+    assert C.pop_rate(sig, "10-K", "yoy_mda_why", False) == (66.7, 4, 6)
+
+
+def test_amendment8_check_halts_when_a_prior_cannot_be_looked_up():
+    sig = _pop_rows()
+    sig.loc[sig.accession == "a", "prior_accession"] = "missing"
+    with pytest.raises(SystemExit):
+        C.pop_rate(sig, "10-K", "yoy_combo_why", True)
