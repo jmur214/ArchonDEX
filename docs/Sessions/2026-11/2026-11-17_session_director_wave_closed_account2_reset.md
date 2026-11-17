@@ -77,5 +77,5 @@ A weekly usage limit stopped the session from about 2026-11-14 01:20 to 2026-11-
 - **regime-analyst:** T-398 (two review rounds); T-399.
 - **edge-analyst:** T-395.
 - **ml-architect:** B-6 (gap fill, T-265 census on the harness grid, T-265 harness, built but never run on a price).
-- **A worktree subagent (propose-first, read-only on the live path):** the account 2 reset runbook.
+- **risk-ops-manager (worktree, propose-first):** the account 2 reset runbook.
 - **general-purpose:** reviewers by execution (T-391 refresh, T-398, T-399).
