@@ -99,12 +99,20 @@ the table had six; my code asserted seven and halted BEFORE printing — fail cl
 erratum committed before computing.
 
 **T-265 RESULT (2026-11-17, frozen A9 6b98883; verdict docs/Audit/b6_lazy_prices_t265_verdict_2026-11-17.md):**
-H1 NOT MET — similarity Δlog W −0.094 (family ci_low −0.262), Δtone −0.125 (−0.317); short-leg t +1.09 /
-+1.33; the long tercile ≈ the IWM sleeve (size factor). **H_OOS FAILED with the wrong sign** (changers −
-universe +0.49%/yr, t +0.50): the S&P adjacent-pairing t +2.23 was a one-window artifact. Refutation holds
-in both arms: Lazy Prices is H0 on free EDGAR text for this operator. Only data-suggested residue:
-risk-factors-only short-leg t +4.76 and the 10-Q combo t +2.90 among 10 diagnostics (no S&P counterpart;
-not certifiable here; the 2016–25 T-265 window is spent). Ranked 1,416–2,339 per quarter after the band.
+H1 NOT MET — similarity Δlog W −0.093 (family ci_low −0.262), Δtone −0.125 (−0.317); short-leg t +1.09 /
++1.33 NET (gross +0.39 / −0.18); the long tercile behaved like the IWM sleeve (no beta estimated).
+**H_OOS FAILED with the wrong sign** (changers − universe +0.49%/yr, t +0.50): the S&P adjacent-pairing
+t +2.23 was a one-window artifact. Refutation holds in both arms (R6 text, YoY, quarterly; not other
+sections). Residue is weaker than I first wrote: risk-only short-leg t +4.76 NET is +2.80 GROSS (≈1.6%/yr
+of its spread is the changers' 3× cost), ~75% of it is 10-Q Part II Item 1A (the formatting flip R6
+excluded); the 10-Q combo +2.90 net is +1.93 gross. Ranked 1,416–2,339 per quarter after the band.
+
+**Review lessons (2026-11-17, APPROVE WITH REQUIRED FIXES):** (1) a short-leg "universe − changers"
+statistic on NET legs is inflated by the changers' higher turnover — always report the gross mechanism
+beside it; (2) round ONCE from full precision (I double-rounded −0.09348 → −0.0935 → −0.094; Sharpe
+ci_low 0.07498 → 0.08); (3) tests must lock the composite (signs, cut constants, percentile level, lags,
+band edges) — 12 of 28 mutations survived my suite; (4) pin EVERY input a frozen run reads (holder table,
+identity map, price files), not just the text; (5) never cite a paper's finding from memory as support.
 
 **How to apply:** any S&P PIT study must map identity per month (never the live ticker map) and
 census price coverage per year before choosing a window; a long-leg pass on these sources is an

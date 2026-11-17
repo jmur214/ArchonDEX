@@ -1221,3 +1221,34 @@ director records it on main against this amendment's hash.
 out-of-window HTTP 503 (CIK 1837254, accepted 2026-05-15); the census's text counts are upper bounds
 before the ADV band; the census correction (co-registrant rows keyed on (cik, accession)); B-2's
 survivorship caveat verbatim — a PASS here is an UPPER BOUND.
+
+---
+
+## REVIEW NOTE on AMENDMENTS 8–9 (2026-11-17; append-only; written after the T-265 run and its independent review — APPROVE WITH REQUIRED FIXES). It changes no term, rule or number above.
+
+Verdict: `docs/Audit/b6_lazy_prices_t265_verdict_2026-11-17.md`.
+
+**RN.1 The forking path in A8 — disclosed, not a clean pass.**
+- **Two of the four conditioned rates were already fixed by A8.2's committed counts.** Both MD&A pair rates are ok ÷ (total − no prior) from A8.2's table: 10-K 98.1 vs 98.3; 10-Q 99.3 vs 98.9.
+- **The combo rates under exclusion (a) alone were also arithmetic from that table:**
+  - 10-Q combo would have FAILED: 88.1 vs 92.0, +3.9;
+  - 10-K combo would have sat at the edge: 93.8 vs 96.8, +3.0.
+- **The deciding exclusion, (b) (Item 1A not covered), was ruled with those counts on the table.** The director chose it knowing the worker's hand-back narrative of the two population differences (Item 1A omission 3.1% vs 0.0%).
+- **No price or return was involved at any step,** so neither H1 nor H_OOS is biased by it. But the fill's admission rests on a check chosen after its inputs were seen.
+
+**RN.2 The A8 erratum's provenance.**
+- **Its header** ("committed alone, BEFORE the check's result was computed or seen") should read **"before the result was SEEN"**.
+  - The pre-erratum implementation built the conditioned table in memory, then halted on its count assertion before printing or writing anything. That code was never committed.
+  - The committed `fill_population_check` (`d018f15`) also builds the table before its count assertion.
+- **The implemented `seven` list names `("10-Q", "risk_ok_excl_not_covered_pct")` twice,** so it checks six distinct rates. That is consistent with the erratum's reading.
+- **DIRECTOR RATIFICATION (verbatim):** "The director ratifies the erratum: my ruling's 'seven' was the 11 rates minus the four conditioned pair rates, with 10-Q Risk OK taken through its population-controlled rate; 'already passed' was my error for that one rate. The erratum does not change the rule."
+
+**RN.3 Identity and price inputs (`[NN-FAIL-CLOSED]`).**
+- **A9's manifest pinned the TEXT inputs only.** A new file records the rest: `docs/Sources/prereg_b6_t265_freeze_manifest_addendum_2026-11-17.json` (md5 `7232c4d4cf9eef6a819afa54002ec8f0`). The frozen manifest is not edited. The addendum holds:
+  - the Form 3/4/5 holder table, md5 `6b9901eb9082622ac1dfbefb44246260`, 358 rows, with its tickers sidecar;
+  - `cik_ticker_final.parquet`, md5 `8c6b022f…`;
+  - the 4,674 T-265 price files, per file and as an aggregate md5 `36cd3ddd…`;
+  - the SPY / IWM / BIL TR twins.
+- **The holder table was built AFTER the freeze.** The first census run built it at 2026-11-17T21:50:38Z, 41 s after `6b98883`. The reviewer regenerated it from source byte-identical, and the results md5 was unchanged.
+- **The addendum was recorded after the run.** The re-run on these bytes (run5) reproduced results md5 `886b6b0c791fd705b1361a70f6efcd0a`.
+- **`b6_cik_map.symbol_users` now halts when there are no insider zips** (`e5980c0`), instead of returning an empty table that would silently drop every ambiguous ticker. It is outside the frozen harness md5.

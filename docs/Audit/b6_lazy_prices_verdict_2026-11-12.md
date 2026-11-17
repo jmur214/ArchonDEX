@@ -188,7 +188,7 @@ text above:
 
 ## 7. T-265 arm — verdict (2026-11-17; appended; it supersedes §5's "pending")
 `docs/Audit/b6_lazy_prices_t265_verdict_2026-11-17.md`. H1 (T-265) NOT MET for either signal (similarity
-ci_low −0.262, Δtone −0.317); short-leg t_HAC +1.09 / +1.33. **H_OOS FAILS** (changers − universe
+ci_low −0.262, Δtone −0.317); short-leg t_HAC +1.09 / +1.33 on net legs (gross +0.39 / −0.18). **H_OOS FAILS** (changers − universe
 +0.49%/yr, t_HAC +0.50, the wrong sign), so §3.3's adjacent-pairing t +2.23 is closed as a one-window
 artifact. With this arm the brief's refutation sentence holds in both arms. Frozen at AMENDMENT 9
 (`6b98883`); results md5 `886b6b0c791fd705b1361a70f6efcd0a` (x2).
