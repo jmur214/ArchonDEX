@@ -1994,3 +1994,42 @@ python -m scripts.b10_gold_leg --out data/b10_local/b10_results_run2.json   # de
 md5 -q data/b10_local/b10_results.json data/b10_local/b10_results_run2.json # must match
 python -m pytest tests/test_b10_gold_leg_guards.py -q                       # planted-hole / flat-tail / parity locks (synthetic)
 ```
+
+## T-398 — a stacked trend overlay on investable fund returns (added 2026-11-14)
+A standalone harness (the T-311 / B-5 pattern; never `BacktestController`) for the frozen prereg
+`docs/Sources/prereg_t398_stacked_trend_overlay_2026-11-14.md` (frozen at `ac01413`; amendment 1 =
+the director's rulings, amendment 2 = the membership-and-ER table, amendment 3 = the integrity rulings).
+- B-5's simulator pieces are imported from `scripts/b5_levered_diversified.py`, never edited.
+- Network: yfinance only (metadata, then prices), plus at most four GETs to `barclayhedge.com`.
+- `meta` and `fetch` each run ONCE and refuse a second time. `fetch` refuses until the membership
+  table is frozen in the script.
+- Outputs are worktree-LOCAL under `data/t398_local/`, a real directory, never via the
+  `data/research` symlink. No window contains a 2026 date; fetched price files with a 2026 row are
+  refused, pinned files (T-306, H.15, AQR) are cut at 2025-12-31.
+- **The durable snapshot is outside the repo:** `/Users/jacksonmurphy/Dev/_research_snapshots/
+  t398_stacked_trend_overlay_2026-11-14/` (`inputs/MANIFEST.json` md5 `ba344f04…`). Restore it into
+  `data/t398_local/` before re-running; the verdict's Reproduce block has the commands.
+- Fail-closed: `integrity` exits 2 while any flag on a candidate fund has no recorded ruling; `run`
+  refuses unless `gates.json` and `integrity.json` were computed against the manifest in front of it;
+  `determinism` exits 2 unless runs A and B match file for file. Nothing is auto-fixed.
+
+```bash
+python scripts/t398_stacked_trend_overlay.py meta          # one time: yfinance Ticker.info + actions per ticker -> data/t398_local/meta/
+python scripts/t398_stacked_trend_overlay.py meta-table    # read-only: the mechanical reading of the metadata (category, ER, dates)
+python scripts/t398_stacked_trend_overlay.py fetch         # one time: fetch_yf_tr prices + md5-checked copies of H.15, SOFR, AQR -> data/t398_local/inputs/
+python scripts/t398_stacked_trend_overlay.py integrity     # D1-D4 on fund prices -> data/t398_local/integrity.json (exit 2 on an unruled flag)
+python scripts/t398_stacked_trend_overlay.py btop50-get --url <barclayhedge.com URL> --name <label>   # one logged GET, raw response kept; four at most
+python scripts/t398_stacked_trend_overlay.py record-rulings # one time: writes the director's "accepted as-is" ruling per flag (amendment 3) -> integrity_rulings.json
+python scripts/t398_stacked_trend_overlay.py screen        # one time: ONE yfinance fund-screen call on the category (S3) -> data/t398_local/screen/
+python scripts/t398_stacked_trend_overlay.py fetch-s3      # one time: prices for the extra fund families the screen returned -> data/t398_local/inputs_s3/
+python scripts/t398_stacked_trend_overlay.py gates         # E1-E4 + the reported validations -> data/t398_local/gates.json (exit 2 if NOT EVALUABLE)
+python scripts/t398_stacked_trend_overlay.py smoke         # first 12 months of each window -> smoke.json (mechanics only; never quoted)
+python scripts/t398_stacked_trend_overlay.py run --tag A   # the measurement -> data/t398_local/run_A/ (refuses without a passed gate)
+python scripts/t398_stacked_trend_overlay.py run --tag B   # determinism twin
+python scripts/t398_stacked_trend_overlay.py determinism   # prereg §18: compares run_A/ and run_B/ file for file -> determinism.json (exit 2 on a mismatch)
+python scripts/t398_stacked_trend_overlay.py probes        # POST-HOC descriptions from review round 1 (since-start frame, by-year, leave-one-out, AQR by era, seed spread) -> probes.json; decide nothing
+python scripts/t398_independent_recompute.py               # separate code recomputes the decision cell from the raw snapshot; exit 2 unless it matches run_A to 1e-9
+python -m pytest tests/test_t398_stacked_trend_overlay.py -q   # Panel on a synthetic snapshot, simulator identities, integrity checks, refusals, bindings, determinism (synthetic)
+```
+Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md` (H1 NOT MET; the interval
+straddles zero).
