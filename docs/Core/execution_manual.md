@@ -1160,6 +1160,17 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 # regsho/FTD/short-interest/NAAIM/margin. Output: data/macro_data/alt/*.parquet
 .venv/bin/python scripts/archive_altdata_t136.py
 .venv/bin/python scripts/archive_positioning_t136.py
+# 2026-11-17 — the prediction-market archive:
+#  - kalshi_snapshots.parquet now reads the *_dollars / *_fp fields; every row from July
+#    to 2026-11-17 is price-less (the legacy fields went null);
+#  - polymarket_snapshots.parquet gains best_bid/best_ask/last_trade_price/spread/liquidity;
+#  - both REFUSE to write a day in which every price is null (a "FAILED … LOUD" line; the
+#    verifier's zero-fresh-rows gate then fails the wrapper);
+#  - kalshi_resolutions.parquet / polymarket_resolutions.parquet: each run looks up
+#    ≤ 300 captured-with-a-price markets past their close/end with no final outcome yet
+#    (local launchd path only; the cloud pulse runs the snapshots, not the resolvers).
+# Privacy: the owner's contact UA goes to sec.gov hosts ONLY; every other host gets
+# "ArchonDEX-research/1.0" (locks: tests/test_archive_altdata_ua_privacy.py).
 
 # The scheduled path: launchd runs the wrapper daily at 17:30 CT (= 18:30 ET).
 # Wrapper logs to data/macro_data/alt/logs/archive_YYYY-MM-DD.log and prints

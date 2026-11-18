@@ -16,3 +16,5 @@
 - [Annualization periods trap](feedback_annualization_periods_trap_2026_11_11.md) — monthly returns with periods=252 inflate Sharpe/Sortino 4.58x (T-249's 3.21 is really 0.70)
 - [Held-book timing trap](feedback_held_book_timing_trap.md) — timing Δ scales with TRADED fraction (~0.3%/mo for 85/15), not notional; same-index pre-listing proxy = zero info
 - [B-8 execution timing CLOSED unrun 2026-11-11](project_b8_execution_timing_2026_11_11.md) — N_trials 0, closed by power analysis; journal has no open/close fills; no MOC path
+- [T-403 prediction markets 2026-11-17](project_t403_prediction_markets_2026_11_17.md) — Kalshi near-close FLB taker probe DRAFT; takers lose in BDW; MDE 0.7–1.1 %/event; Roth wrapper blocks
+- [Paper probes: taker rules only](feedback_paper_probe_taker_only.md) — maker fills on paper are invented; check the source paper's own latest-year slice for decay

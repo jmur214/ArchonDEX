@@ -180,12 +180,26 @@ def snapshot_polymarket() -> str:
                 "prices": str(m.get("outcomePrices")),
                 "volume": m.get("volume"),
                 "end_date": m.get("endDate"),
+                # 2026-11-17: the quote fields the probe audit (T-403) found missing.
+                "best_bid": _num(m.get("bestBid")),
+                "best_ask": _num(m.get("bestAsk")),
+                "last_trade_price": _num(m.get("lastTradePrice")),
+                "spread": _num(m.get("spread")),
+                "liquidity": _num(m.get("liquidityNum")),
+                "volume_24h": _num(m.get("volume24hr")),
+                "condition_id": m.get("conditionId"),
             })
         df = pd.DataFrame(recs)
         if df.empty:
             return "polymarket: 0 matching markets (keyword set?)"
+        quoted = df[["best_bid", "best_ask", "last_trade_price"]].notna().any(axis=1).sum()
+        if quoted == 0:
+            # Fail closed: a day of rows with no quote at all is a changed schema, not a
+            # quiet market. Write nothing, so the verifier's zero-fresh-rows gate fires.
+            return (f"polymarket: FAILED — {len(df)} matching markets but EVERY quote field is "
+                    f"null (API field names changed?); nothing written — LOUD")
         _append(df, OUT_DIR / "polymarket_snapshots.parquet", ["snap_date", "id"])
-        return f"polymarket: snapped {len(df)} macro-bucket markets"
+        return f"polymarket: snapped {len(df)} macro-bucket markets ({quoted} quoted)"
     except Exception as e:
         return f"polymarket: FAILED ({type(e).__name__}: {e})"
 
@@ -208,22 +222,153 @@ def snapshot_kalshi() -> str:
             text = (str(m.get("title", "")) + " " + str(m.get("category", ""))).lower()
             if not any(k in text for k in KEYWORDS):
                 continue
+            # 2026-11-17: the legacy yes_bid/yes_ask/last_price/volume fields are null on the
+            # current API (every row since July was price-less, found by T-403). Read the
+            # *_dollars / *_fp fields, as snapshot_kxfed already does; 0..1 dollars per contract.
             recs.append({
                 "snap_date": SNAP_DATE,
                 "ticker": m.get("ticker"),
+                "event_ticker": m.get("event_ticker"),
                 "title": m.get("title"),
                 "category": m.get("category"),
-                "yes_bid": m.get("yes_bid"), "yes_ask": m.get("yes_ask"),
-                "last_price": m.get("last_price"), "volume": m.get("volume"),
+                "yes_bid": _num(m.get("yes_bid_dollars")),
+                "yes_ask": _num(m.get("yes_ask_dollars")),
+                "no_bid": _num(m.get("no_bid_dollars")),
+                "no_ask": _num(m.get("no_ask_dollars")),
+                "yes_bid_size": _num(m.get("yes_bid_size_fp")),
+                "yes_ask_size": _num(m.get("yes_ask_size_fp")),
+                "last_price": _num(m.get("last_price_dollars")),
+                "previous_price": _num(m.get("previous_price_dollars")),
+                "volume": _num(m.get("volume_fp")),
+                "volume_24h": _num(m.get("volume_24h_fp")),
+                "open_interest": _num(m.get("open_interest_fp")),
+                "status": m.get("status"),
                 "close_time": m.get("close_time"),
+                "expiration_time": m.get("expiration_time"),
             })
         df = pd.DataFrame(recs)
         if df.empty:
             return "kalshi: 0 matching markets"
+        quoted = df[["yes_bid", "yes_ask", "last_price"]].notna().any(axis=1).sum()
+        if quoted == 0:
+            # Fail closed (the July→November defect): rows with no price at all are a changed
+            # schema, not a quiet market. Write nothing so the verifier's gate fires.
+            return (f"kalshi: FAILED — {len(df)} matching markets but EVERY price field is null "
+                    f"(API field names changed?); nothing written — LOUD")
         _append(df, OUT_DIR / "kalshi_snapshots.parquet", ["snap_date", "ticker"])
-        return f"kalshi: snapped {len(df)} macro-bucket markets"
+        return f"kalshi: snapped {len(df)} macro-bucket markets ({quoted} priced)"
     except Exception as e:
         return f"kalshi: FAILED ({type(e).__name__}: {e}) — if 401/403, public access changed; report"
+
+
+# --- 2026-11-17: OUTCOMES for the markets we snapshot ------------------------ #
+# A probability archive is worth nothing without what happened. Each run looks up the
+# markets we captured WITH a price whose close/end time has passed and that have no final
+# outcome recorded yet, one public GET each, capped per run, and appends the outcome.
+# Old Kalshi rows (all prices null) are never looked up: there is nothing to score.
+MAX_RESOLVE_PER_RUN = 300
+
+
+def _num(x):
+    """A float, or None for a missing / unparseable value (the APIs send strings)."""
+    if x is None or x == "":
+        return None
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None
+
+
+def _pending(snap_path: Path, res_path: Path, key: str, end_col: str,
+             price_cols: list[str]) -> list[str]:
+    if not snap_path.exists():
+        return []
+    snaps = pd.read_parquet(snap_path)
+    have = [c for c in price_cols if c in snaps.columns]
+    if not have or key not in snaps.columns or end_col not in snaps.columns:
+        return []
+    snaps = snaps[snaps[have].notna().any(axis=1)]
+    ends = pd.to_datetime(snaps[end_col], utc=True, errors="coerce")
+    snaps = snaps[ends < pd.Timestamp.now(tz="UTC")]
+    done: set = set()
+    if res_path.exists():
+        res = pd.read_parquet(res_path)
+        done = set(res.loc[res["final"].astype(bool), key].astype(str))
+    out = (snaps.assign(_end=pd.to_datetime(snaps[end_col], utc=True, errors="coerce"))
+           .sort_values("_end")[key].astype(str).drop_duplicates())
+    return [k for k in out if k not in done][:MAX_RESOLVE_PER_RUN]
+
+
+def resolve_kalshi_snapshots() -> str:
+    from urllib.error import HTTPError
+    from urllib.parse import quote
+    snap, res_path = OUT_DIR / "kalshi_snapshots.parquet", OUT_DIR / "kalshi_resolutions.parquet"
+    todo = _pending(snap, res_path, "ticker", "close_time", ["yes_bid", "yes_ask", "last_price"])
+    if not todo:
+        return "kalshi_resolve: nothing pending"
+    recs, errs = [], 0
+    for t in todo:
+        try:
+            m = json.loads(_get("https://api.elections.kalshi.com/trade-api/v2/markets/"
+                                + quote(t, safe=""), timeout=30)).get("market", {})
+            status, result = m.get("status"), m.get("result")
+            final = status in ("settled", "finalized") and bool(result)
+            recs.append({"ticker": t, "event_ticker": m.get("event_ticker"),
+                         "title": m.get("title"), "status": status, "result": result,
+                         "settlement_value": _num(m.get("settlement_value_dollars")),
+                         "close_time": m.get("close_time"),
+                         "settlement_ts": m.get("settlement_ts"),
+                         "final": final, "looked_up": SNAP_DATE})
+        except HTTPError as e:
+            if e.code == 404:       # gone for good: record it so it is not retried daily
+                recs.append({"ticker": t, "status": "not_found", "result": None,
+                             "final": True, "looked_up": SNAP_DATE})
+            else:
+                errs += 1
+        except Exception:
+            errs += 1
+        time.sleep(0.2)
+    if recs:
+        _append(pd.DataFrame(recs), res_path, ["ticker"])
+    n_final = sum(1 for r in recs if r["final"])
+    return (f"kalshi_resolve: looked up {len(todo)}, {n_final} final, "
+            f"{len(recs) - n_final} not yet settled, {errs} errors")
+
+
+def resolve_polymarket_snapshots() -> str:
+    from urllib.error import HTTPError
+    snap, res_path = (OUT_DIR / "polymarket_snapshots.parquet",
+                      OUT_DIR / "polymarket_resolutions.parquet")
+    todo = _pending(snap, res_path, "id", "end_date", ["prices", "best_bid", "best_ask"])
+    if not todo:
+        return "polymarket_resolve: nothing pending"
+    recs, errs = [], 0
+    for i in todo:
+        try:
+            m = json.loads(_get(f"https://gamma-api.polymarket.com/markets/{int(i)}", timeout=30))
+            status = m.get("umaResolutionStatus")
+            final = bool(m.get("closed")) and status == "resolved"
+            recs.append({"id": str(i), "question": m.get("question"),
+                         "closed": bool(m.get("closed")), "resolution_status": status,
+                         "outcomes": str(m.get("outcomes")),
+                         "final_prices": str(m.get("outcomePrices")),
+                         "closed_time": m.get("closedTime"),
+                         "final": final, "looked_up": SNAP_DATE})
+        except HTTPError as e:
+            if e.code == 404:
+                recs.append({"id": str(i), "resolution_status": "not_found",
+                             "final": True, "looked_up": SNAP_DATE})
+            else:
+                errs += 1
+        except Exception:
+            errs += 1
+        time.sleep(0.2)
+    if recs:
+        _append(pd.DataFrame(recs), res_path, ["id"])
+    n_final = sum(1 for r in recs if r["final"])
+    return (f"polymarket_resolve: looked up {len(todo)}, {n_final} final, "
+            f"{len(recs) - n_final} not yet resolved, {errs} errors")
 
 
 # --- T-290 d2: the rate-path store (our free FedWatch equivalent) --------- #
@@ -505,6 +650,7 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for r in [pull_gpr(), pull_epu(),
               snapshot_polymarket(), snapshot_kalshi(),
+              resolve_polymarket_snapshots(), resolve_kalshi_snapshots(),
               snapshot_kxfed(), pull_fred_rate_path(),
               snapshot_cef(), pull_form4_index(), pull_usaspending(),
               pull_credit_spread_oas()]:
