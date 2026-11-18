@@ -40,7 +40,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 OUT_DIR = ROOT / "data" / "macro_data" / "alt"
-UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}
+# Generic client name for every NON-SEC host (privacy, 2026-11-17): the owner's contact
+# address is approved for SEC EDGAR hosts ONLY (user ruling 2026-11-11). Before this fix the
+# contact UA went to every host this script calls (Polymarket, Kalshi, FRED, Wayback,
+# USASpending, policyuncertainty.com, matteoiacoviello.com). `_get` picks SEC_UA only for
+# sec.gov hosts.
+UA = {"User-Agent": "ArchonDEX-research/1.0"}
 SNAP_DATE = pd.Timestamp.now().strftime("%Y-%m-%d")
 
 KEYWORDS = ["fed", "rate", "recession", "inflation", "cpi", "gdp", "election",
@@ -55,8 +60,20 @@ KEYWORDS = ["fed", "rate", "recession", "inflation", "cpi", "gdp", "election",
             "mortgage", "energy", "gas price", "strike", "congress", "senate"]
 
 
+def _is_sec_host(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    return host == "sec.gov" or host.endswith(".sec.gov")
+
+
+def _headers_for(url: str) -> dict:
+    """SEC hosts get the declared-contact UA their fair-access policy requires; every other
+    host gets the generic client name. Never send the contact address anywhere else."""
+    return SEC_UA if _is_sec_host(url) else UA
+
+
 def _get(url: str, timeout: int = 90) -> bytes:
-    req = urllib.request.Request(url, headers=UA)
+    req = urllib.request.Request(url, headers=_headers_for(url))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 

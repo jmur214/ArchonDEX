@@ -38,11 +38,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 OUT_DIR = ROOT / "data" / "positioning"
-UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}
+# Privacy (2026-11-17): the owner's contact address is approved for SEC EDGAR hosts ONLY
+# (user ruling 2026-11-11). Before this fix it went to every host here (FINRA, NAAIM).
+# SEC's fair-access policy requires a declared contact; every other host gets a generic name.
+SEC_UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}
+UA = {"User-Agent": "ArchonDEX-research/1.0"}
+
+
+def _is_sec_host(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    return host == "sec.gov" or host.endswith(".sec.gov")
+
+
+def _headers_for(url: str) -> dict:
+    return SEC_UA if _is_sec_host(url) else UA
 
 
 def _get_bytes(url: str, timeout: int = 60) -> bytes:
-    req = urllib.request.Request(url, headers=UA)
+    req = urllib.request.Request(url, headers=_headers_for(url))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 

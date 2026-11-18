@@ -39,7 +39,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 OUT = ROOT / "data/research/substrate_multidecade"
-UA = {"User-Agent": "Mozilla/5.0 ArchonDEX research jsm13700@gmail.com"}
+# Privacy (2026-11-17): no contact address — this script calls no SEC host (FRED, Dartmouth,
+# LBMA only), and the owner's address is approved for SEC EDGAR hosts ONLY (ruling 2026-11-11).
+UA = {"User-Agent": "Mozilla/5.0 ArchonDEX-research/1.0"}
 DUR = 7.0                      # 10yr modified-duration proxy (T-255, verbatim)
 TR_BOUND = 0.0015              # 0.15% same-instrument median |Δ ret| (director)
 CTX_BOUND = 0.0050             # 0.50% cross-instrument context bound (director)

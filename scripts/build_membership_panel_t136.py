@@ -41,7 +41,9 @@ OUT_DIR = ROOT / "data" / "universe"
 RAW_DIR = OUT_DIR / "raw_membership_sources"
 OUT_PARQUET = OUT_DIR / "sp500_membership_pit.parquet"
 OUT_META = OUT_DIR / "sp500_membership_pit_meta.json"
-UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}
+# Privacy (2026-11-17): no contact address — this script calls no SEC host (GitHub raw,
+# Wikipedia only), and the owner's address is approved for SEC EDGAR hosts ONLY (ruling 2026-11-11).
+UA = {"User-Agent": "ArchonDEX-research/1.0"}
 
 REPO_RAW = "https://raw.githubusercontent.com/fja05680/sp500/master/"
 F_INTERVALS = "sp500_ticker_start_end.csv"
