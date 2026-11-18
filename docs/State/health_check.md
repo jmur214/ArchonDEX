@@ -109,6 +109,16 @@ then LOW. Within each severity, list newest at the top.
 - Recommended next step: USER/DIRECTOR-GATED. Dispatch RR-1, RR-2, RR-3, RR-7 in parallel (P0); do not quote any new equity-book number until RR-1 and RR-5 merge; run B-1 (raw-signal decile re-evaluation) as the first research brief — it does not touch the referee.
 - Anchor: `config/alpha_settings.prod.json:37` contains `"news_sentiment_edge"` — (11) RR-7
 
+### [HIGH] PRIVACY — the owner's contact address was sent in the User-Agent to every host the alt-data and positioning archivers call, from the laptop daily AND from all three cloud paper accounts every weekday; the cloud copy is still live until a redeploy (director, 2026-11-17; found by the T-403 worker)
+- Engine: data layer / paper fleet — `scripts/archive_altdata_t136.py`, `scripts/archive_positioning_t136.py`. These are imported by `paper_trader/altdata_archive.py`, which `scripts/run_paper_cloud_day.py:1653` runs in every account's daily job (step 7). Also two one-off builders: `scripts/build_multidecade_substrate_t306.py` and `scripts/build_membership_panel_t136.py`.
+- Description: the 2026-11-11 ruling approves the address for SEC EDGAR hosts ONLY. The archivers instead used one contact UA for every request.
+  - `archive_altdata_t136.py` sent it to Polymarket, Kalshi, FRED, the Wayback Machine, USASpending, policyuncertainty.com and matteoiacoviello.com.
+  - `archive_positioning_t136.py` sent it to FINRA and NAAIM.
+  - The two one-offs sent it to FRED, Dartmouth and LBMA, and to GitHub raw and Wikipedia.
+  - It ran from the local launchd job (`com.archondex.altdata-archive`, 17:30 CST daily) since the scripts were written (T-136, 2026-06-10), and from the cloud paper runs since the alt-data pulse joined them (T-290).
+  - A read-only audit of the other nine files holding the address found SEC-only use. One of them, `intelligence/event_call/eightk_body.py`, is reachable from account 1's cloud path but dormant.
+- Status: **code FIXED on main `3391da7`.** The archivers route by host (`SEC_UA` only for sec.gov / *.sec.gov, a generic name elsewhere), and the one-offs carry no address. 16 locks in `tests/test_archive_altdata_ua_privacy.py` drive every pull with the network stubbed and inspect every request's UA, with positive controls. **The local job is fixed from its next run (2026-11-18 17:30). The CLOUD leak continues until the paper image is rebuilt from main and redeployed — the user's word** (the deployed `paper-sha-716ca04` predates the fix). Also: `docs/Audit/trend_sleeve_paper_validation_proposal_t238_2026_06_26.md` holds the address in committed text, and removing it from history would need a rewrite, which the rules forbid.
+
 ### [MEDIUM] The analyst eval harness and the performance digest WRITE INTO THE CODE TREE, ignoring the run's state root — any simulation of the daily run rooted at a checkout overwrites that checkout's `data/` (director, 2026-11-17; it bit: a merge gate went red)
 - Engine: paper fleet / intelligence — `intelligence/analyst/eval_harness.py:35` (`SUMMARY = ROOT / "data" / "intel" / "analyst_eval_summary.json"`), `paper_trader/performance_digest.py:30,244` (first noted in passing in the split-fix HIGH row's review, 2026-11-10).
 - Description: both paths resolve from the module's own location, not from the state root the run was given.
