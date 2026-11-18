@@ -212,6 +212,8 @@
 - **Function `pull_epu()`**: No docstring
 - **Function `snapshot_polymarket()`**: No docstring
 - **Function `snapshot_kalshi()`**: No docstring
+- **Function `resolve_kalshi_snapshots()`**: No docstring
+- **Function `resolve_polymarket_snapshots()`**: No docstring
 - **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
 - **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
 - **Function `snapshot_cef()`**: Daily CEF panel: NAV, price, DISCOUNT (+52wk avg, z-scores), distribution rate.
