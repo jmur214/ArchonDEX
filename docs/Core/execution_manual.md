@@ -1200,8 +1200,14 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 #    404s, is looked up by event in /historical/markets?event_ticker=, then on its own
 #    (live /markets/{t}, then /historical/markets/{t}; ≤ 50 tickers/run). It is recorded
 #    final "not_found" ONLY when both single-market endpoints 404, and never marked final
-#    from a listing that lacks it. New columns: expiration_value (the underlying's settle
-#    value), resolved_via (event | historical | market | market+historical).
+#    from a listing that lacks it, nor from a single-market answer for another ticker.
+#    A ticker whose lookup errors gets a NON-final row (status "lookup_error",
+#    resolved_via "error") so the stale-event weekly hold applies to it — filter
+#    final == True for outcomes. New columns: expiration_value (the underlying's settle
+#    value), resolved_via (event | historical | market | market+historical | error).
+#    Kalshi timestamps come as "…:00Z" and "…:00.484355Z"; the module parses them with
+#    format="ISO8601" (pandas 3 otherwise NaTs the second shape silently), and discovery
+#    FAILS (config not written) if a returned lookback close does not parse.
 # Re-discover the series list from the live API (rewrites the config; ~3 min, ~600
 # requests; review the one-line-per-series diff before committing):
 .venv/bin/python scripts/archive_altdata_t136.py --discover-kalshi-series
