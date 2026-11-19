@@ -17,5 +17,7 @@ Measured 2026-11-19, unauthenticated, generic UA, `https://api.elections.kalshi.
 - Ticker `KXCPI-26NOV-T-0.1` is "Above -0.1%" (the minus is in the ticker); easy to misread as +0.1%.
 - Outcomes: `/events/{event_ticker}` (plain) returns `{"event": {...}, "markets": [...]}` with every market's status (`finalized`), result, settlement_value_dollars, settlement_ts, expiration_value (the underlying's settle value); no truncation seen (130 markets). With `with_nested_markets=true` the list moves under `event.markets` and top-level `markets` is EMPTY. A gone event is HTTP 404; `/markets?event_ticker=bogus` is an empty 200 (cannot tell gone from empty). `/events?series_ticker=X&status=settled&limit=1` lists the most recent settled event first.
 - Daily series close ~750 strikes/day in ~33 events — resolve per event, not per market.
+- An event's `last_updated_ts` is NOT its close (KXGDP-26OCT30 reads its creation date 08-27); `status=closed` event queries return nothing; to date a series' last activity read `/events?series_ticker=X&status=settled&limit=1&with_nested_markets=true` and take the markets' max close_time. Of 487 recurring macro candidates with no open event, only 12 settled within 120 days (most are long dead).
+- Some state series use a postal code, not the name ("TX gas price"); among 52 candidate titles opening with two capitals only TX was a state (the rest US/EU/UK).
 
 See [[project-t405-kalshi-series-archive]] for the design that uses these.
