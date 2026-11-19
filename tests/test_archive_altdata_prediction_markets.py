@@ -170,6 +170,8 @@ def _write_kalshi_snaps(path):
 
 def _kalshi_router(url):
     ev = url.rsplit("/", 1)[1]
+    if url.endswith("/markets/K-GONE"):      # an event 404 is re-asked per market; its 404 is final
+        return urllib.error.HTTPError(url, 404, "Not Found", {}, io.BytesIO(b""))
     if "/events/" not in url:
         raise AssertionError(f"expected one GET per event, got {url}")
     if ev == "EV-DONE":
@@ -188,7 +190,8 @@ def test_kalshi_resolver_records_outcomes_and_skips_what_it_must(monkeypatch, sa
     _write_kalshi_snaps(sandbox / "kalshi_snapshots.parquet")
     seen = _serve(monkeypatch, _kalshi_router)
     msg = m.resolve_kalshi_snapshots()
-    assert sorted(u.rsplit("/", 1)[1] for u in seen) == ["EV-DONE", "EV-GONE", "EV-WAIT"]
+    assert sorted(u.rsplit("/", 1)[1] for u in seen) == ["EV-DONE", "EV-GONE", "EV-WAIT",
+                                                          "K-GONE"]
     res = pd.read_parquet(sandbox / "kalshi_resolutions.parquet").set_index("ticker")
     assert bool(res.loc["K-DONE", "final"]) and res.loc["K-DONE", "result"] == "yes"
     assert res.loc["K-DONE", "settlement_value"] == pytest.approx(1.0)

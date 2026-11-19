@@ -110,6 +110,13 @@ _OPEN_UNIVERSE = [
     _series("KXGOLDD", "Gold Daily", "Commodities", "daily", ["Gold"]),
     _series("KXTARIFFRATEEU", "EU tariff rate", "Politics", "one_off", ["Trade & tariffs"]),
     _series("KXBTCMAXY", "How high will Bitcoin get this year?", "Crypto", "annual"),
+    # Politics by a narrow title phrase (these carry only a Trump/Congress tag)
+    _series("KXFEDCHAIRNOM", "Fed Chair nominee", "Politics", "custom", ["Trump"]),
+    _series("KXGOVSHUT", "Government shutdown", "Politics", "custom", ["Congress"]),
+    # the national University of Michigan survey despite the state name; a plural keyword
+    _series("KXUMICHOVR", "Michigan consumer sentiment above X in [year]?", "Economics",
+            "one_off", ["Jobs & Economy"]),
+    _series("KXWRECSS", "World recessions", "Economics", "custom", ["Growth"]),
     # rejected — each for one stated reason
     _series("KXNBAGSW", "Golden State Warriors wins", "Sports", "custom", ["Basketball"]),
     _series("KXNBAPTS", "Norman Powell points", "Sports", "custom", ["Basketball"]),
@@ -121,22 +128,62 @@ _OPEN_UNIVERSE = [
     _series("KX10YRRATEEVENT", "US 10Y Treasury yield after events", "Financials", "custom"),
     _series("KXAAAGASCDNJ", "New Jersey gas price", "Economics", "daily"),
     _series("KXCPICOMBO", "CPI Combo", "Economics", "monthly", ["Inflation"]),
-    _series("KXFEDDINNER", "Will the Fed chair attend the dinner?", "Politics", "one_off",
-            ["Trump"]),
+    _series("KXFEDDINNER", "Will the Fed's lawyer attend the dinner?", "Politics", "one_off",
+            ["Trump"]),                                   # "fed" alone: not a policy phrase
+    _series("KXAIKILLSWITCH", "Federal AI model shutdown authority", "Politics", "one_off",
+            ["AI", "Congress"]),                          # bare "shutdown": not a policy phrase
+    _series("KXSENOH", "Who will win the 2028 Senate race?", "Politics", "one_off",
+            ["Senate"]),                                  # a candidate race
+    _series("KXMIMFGEMP", "Michigan manufacturing employment", "Economics", "annual",
+            ["Jobs & Economy"]),                          # a state series
+    _series("KXAAAGASDTX", "TX gas price", "Economics", "daily",
+            ["Oil and energy"]),                          # a state series by postal code
+    _series("KXAAAGASM", "US gas price", "Economics", "monthly"),   # ...but US is national
     _series("KXU3PARTY", "2029 unemployment x 2028 winner", "Elections", "one_off"),
     _series("KXDOGEMINY", "DOGE min yearly", "Crypto", "annual"),
     _series("KXCPIOLD", "CPI (2023)", "Economics", "monthly", ["Inflation"]),   # no open event
 ]
 _OPEN = {s["ticker"]: 1 for s in _OPEN_UNIVERSE if s["ticker"] != "KXCPIOLD"}
+_KEPT = ["KXAAAGASM", "KXBTCMAXY", "KXCPI", "KXFEDCHAIRNOM", "KXGOLDD", "KXGOVSHUT",
+         "KXPAYROLLS", "KXTARIFFRATEEU", "KXUMICHOVR", "KXWRECSS"]
 
 
 def test_discovery_keeps_macro_series_and_rejects_the_parlay_failure_modes():
     picked = m.select_kalshi_series(_OPEN_UNIVERSE, _OPEN)
-    assert sorted(picked["ticker"]) == ["KXBTCMAXY", "KXCPI", "KXGOLDD", "KXPAYROLLS",
-                                        "KXTARIFFRATEEU"]
+    assert sorted(picked["ticker"]) == _KEPT
     got = picked.set_index("ticker")["matched"]
     assert got["KXCPI"] == "title:cpi" and got["KXGOLDD"] == "title:gold"
     assert got["KXTARIFFRATEEU"] == "tag:trade & tariffs"
+    assert got["KXFEDCHAIRNOM"] == "title:fed chair" and got["KXGOVSHUT"].startswith("title:")
+    assert got["KXWRECSS"] == "title:recessions"
+
+
+_NOW = pd.Timestamp("2026-11-19T16:00:00Z")
+_BETWEEN = [
+    _series("KXJOBLESSCLAIMS", "Weekly initial jobless claims", "Economics", "weekly"),
+    _series("KXGDP", "US GDP growth", "Economics", "quarterly", ["GDP"]),
+    _series("KXCPIOLD", "CPI (2023)", "Economics", "monthly", ["Inflation"]),
+    _series("KXFEDCUTONCE", "Next Fed rate cut (2025)", "Economics", "one_off", ["Fed"]),
+    _series("KXCPI", "CPI", "Economics", "monthly", ["Inflation"]),
+]
+
+
+def test_discovery_keeps_a_recurring_series_between_events_within_the_lookback():
+    closes = {"KXJOBLESSCLAIMS": "2026-11-19T13:29:00Z",   # settled today, next not listed
+              "KXGDP": "2026-08-01T12:30:00Z",             # 110 days: a quarterly gap
+              "KXCPIOLD": "2023-12-12T13:30:00Z",          # dead for years
+              "KXFEDCUTONCE": "2026-11-10T19:00:00Z"}      # one_off: never lists again
+    picked = m.select_kalshi_series(_BETWEEN, {"KXCPI": 2}, closes, now=_NOW)
+    assert sorted(picked["ticker"]) == ["KXCPI", "KXGDP", "KXJOBLESSCLAIMS"]
+    row = picked.set_index("ticker").loc["KXJOBLESSCLAIMS"]
+    assert row["n_open_events"] == 0 and row["last_close"] == "2026-11-19T13:29:00Z"
+    # inside the window it stays, past it it is dropped
+    edge = _NOW + pd.Timedelta(days=m.KALSHI_DISCOVERY_LOOKBACK_DAYS - 1)
+    late = m.select_kalshi_series(_BETWEEN, {"KXCPI": 2}, closes, now=edge)
+    assert "KXJOBLESSCLAIMS" in set(late["ticker"]) and "KXGDP" not in set(late["ticker"])
+    gone = m.select_kalshi_series(_BETWEEN, {"KXCPI": 2}, closes,
+                                  now=edge + pd.Timedelta(days=2))
+    assert sorted(gone["ticker"]) == ["KXCPI"]
 
 
 @pytest.mark.parametrize("text,hit", [
@@ -157,26 +204,51 @@ def test_discover_writes_the_reviewed_config_with_the_named_fields(monkeypatch, 
     pages = {None: {"events": events[:5], "cursor": "c1"}, "c1": {"events": events[5:],
                                                                     "cursor": ""}}
 
+    recent = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def router(url: str):
-        path = urlparse(url).path
+        path, q = urlparse(url).path, _q(url)
         if path.endswith("/series"):
             return series_page
+        if path.endswith("/events") and "series_ticker" in q:      # the between-events lookup
+            assert q["status"] == "settled" and q["series_ticker"] == "KXCPIOLD"
+            return {"events": [{"event_ticker": "KXCPIOLD-26NOV", "markets": [
+                {"ticker": "KXCPIOLD-26NOV-T0.1", "close_time": recent}]}]}
         if path.endswith("/events"):
-            return pages[_q(url).get("cursor")]
+            return pages[q.get("cursor")]
         raise AssertionError(f"unexpected request {url}")
 
     seen = _serve(monkeypatch, router)
     out = sandbox / "cfg.json"
     msg = m.discover_kalshi_series(out)
-    assert "wrote 5 series" in msg
+    assert "wrote 11 series" in msg and "1 kept between events" in msg
     doc = json.loads(out.read_text())
     assert doc["selector"] == "series_v1" and doc["discovered"] == m.SNAP_DATE
-    assert sorted(r["ticker"] for r in doc["series"]) == ["KXBTCMAXY", "KXCPI", "KXGOLDD",
-                                                           "KXPAYROLLS", "KXTARIFFRATEEU"]
+    assert sorted(r["ticker"] for r in doc["series"]) == sorted(_KEPT + ["KXCPIOLD"])
     for r in doc["series"]:
         assert {"ticker", "title", "category", "frequency", "discovered"} <= set(r)
         assert r["discovered"] == m.SNAP_DATE
+    # exactly one settled-event lookup: only the recurring candidate with no open event
+    assert sum("series_ticker" in _q(u) for u, _ in seen) == 1
     assert seen and all("@" not in ua for _, ua in seen)
+
+
+def test_discover_fails_closed_when_the_lookback_lookups_fail(monkeypatch, sandbox):
+    out = sandbox / "cfg.json"
+    out.write_text('{"series": [{"ticker": "KXCPI"}]}')
+
+    def router(url: str):
+        path, q = urlparse(url).path, _q(url)
+        if path.endswith("/series"):
+            return {"series": _BETWEEN}
+        if "series_ticker" in q:
+            return urllib.error.HTTPError(url, 503, "down", {}, None)
+        return {"events": [{"series_ticker": "KXCPI"}], "cursor": ""}
+
+    _serve(monkeypatch, router)
+    msg = m.discover_kalshi_series(out)
+    assert "FAILED" in msg and "lookups errored" in msg
+    assert json.loads(out.read_text()) == {"series": [{"ticker": "KXCPI"}]}
 
 
 def test_discover_fails_closed_and_keeps_the_existing_config(monkeypatch, sandbox):
@@ -250,6 +322,136 @@ def test_snapshot_respects_the_request_cap_and_says_partial(monkeypatch, sandbox
     seen = _serve(monkeypatch, _by_series({t: [_mkt(f"{t}-1")] for t in ("KXA", "KXB", "KXC")}))
     msg = m.snapshot_kalshi()
     assert len(seen) == 2 and "PARTIAL" in msg and "snapped 2 markets" in msg
+    assert msg.startswith("kalshi: FAILED") and msg.endswith("LOUD")
+    assert len(pd.read_parquet(sandbox / "kalshi_snapshots.parquet")) == 2   # hoarded
+
+
+def _n_series_config(n: int) -> list[str]:
+    tickers = [f"KXS{i:02d}" for i in range(n)]
+    _write_config(m.KALSHI_SERIES_CONFIG, [{"ticker": t, "category": "Economics"}
+                                           for t in tickers])
+    return tickers
+
+
+def test_a_mass_error_day_keeps_its_rows_but_fails_loud(monkeypatch, sandbox):
+    """The reviewer's case: 49 of 50 series answer 503 -> FAILED, the 1 real row is kept."""
+    tickers = _n_series_config(50)
+
+    def router(url: str):
+        t = _q(url)["series_ticker"]
+        if t == tickers[0]:
+            return {"markets": [_mkt(f"{t}-1")], "cursor": ""}
+        return urllib.error.HTTPError(url, 503, "down", {}, None)
+
+    _serve(monkeypatch, router)
+    msg = m.snapshot_kalshi()
+    assert msg.startswith("kalshi: FAILED — PARTIAL day") and "1/50 series" in msg
+    assert "49 errors" in msg and msg.endswith("LOUD")
+    assert len(pd.read_parquet(sandbox / "kalshi_snapshots.parquet")) == 1
+    assert m._daily_rc([msg]) == 1
+
+
+@pytest.mark.parametrize("n_ok,failed", [(10, False), (9, False), (8, True)])
+def test_the_completion_threshold_is_ninety_percent(monkeypatch, sandbox, n_ok, failed):
+    tickers = _n_series_config(10)
+
+    def router(url: str):
+        t = _q(url)["series_ticker"]
+        if tickers.index(t) < n_ok:
+            return {"markets": [_mkt(f"{t}-1")], "cursor": ""}
+        return urllib.error.HTTPError(url, 503, "down", {}, None)
+
+    _serve(monkeypatch, router)
+    assert ("FAILED" in m.snapshot_kalshi()) is failed
+
+
+def test_a_listed_series_with_no_open_market_is_a_successful_empty_pull(monkeypatch, sandbox):
+    tickers = _n_series_config(3)
+    _serve(monkeypatch, _by_series({tickers[0]: [_mkt(f"{tickers[0]}-1")]}))  # 2 empty
+    msg = m.snapshot_kalshi()
+    assert msg.startswith("kalshi: snapped 1 markets") and "3/3 series, 0 errors" in msg
+
+
+def test_markets_without_a_ticker_are_dropped_and_counted(monkeypatch, sandbox):
+    _write_config(m.KALSHI_SERIES_CONFIG, [{"ticker": "KXCPI", "category": "Economics"}])
+    no_id, blank = _mkt("KXCPI-2"), _mkt("KXCPI-3")
+    no_id["ticker"], blank["ticker"] = None, "  "
+    _serve(monkeypatch, _by_series({"KXCPI": [_mkt("KXCPI-1"), no_id, blank]}))
+    msg = m.snapshot_kalshi()
+    assert "snapped 1 markets" in msg and "'no ticker': 2" in msg
+    df = pd.read_parquet(sandbox / "kalshi_snapshots.parquet")
+    assert list(df["ticker"]) == ["KXCPI-1"]
+
+
+def test_one_endless_cursor_cannot_spend_the_request_budget(monkeypatch, sandbox):
+    _write_config(m.KALSHI_SERIES_CONFIG, [{"ticker": t, "category": "Economics"}
+                                           for t in ("KXLOOP", "KXCPI")])
+    monkeypatch.setattr(m, "KALSHI_WORKERS", 1)
+
+    def router(url: str):
+        t = _q(url)["series_ticker"]
+        if t == "KXLOOP":
+            n = int(_q(url).get("cursor", "0"))
+            return {"markets": [_mkt(f"KXLOOP-{n}")], "cursor": str(n + 1)}     # never ends
+        return {"markets": [_mkt("KXCPI-1")], "cursor": ""}
+
+    seen = _serve(monkeypatch, router)
+    msg = m.snapshot_kalshi()
+    assert sum(_q(u)["series_ticker"] == "KXLOOP" for u, _ in seen) == m.KALSHI_MAX_PAGES_PER_SERIES
+    assert any(_q(u)["series_ticker"] == "KXCPI" for u, _ in seen)
+    assert "'page cap': 1" in msg
+
+
+@pytest.mark.parametrize("field,value", [("yes_bid_dollars", "41.0000"),
+                                         ("yes_ask_dollars", "43.0000"),
+                                         ("last_price_dollars", "-0.0100")])
+def test_a_price_outside_zero_one_fails_the_day_closed(monkeypatch, sandbox, field, value):
+    _write_config(m.KALSHI_SERIES_CONFIG, [{"ticker": "KXCPI", "category": "Economics"}])
+    _serve(monkeypatch, _by_series({"KXCPI": [_mkt("KXCPI-1"), _mkt("KXCPI-2", **{field: value})]}))
+    msg = m.snapshot_kalshi()
+    assert "FAILED" in msg and "outside [0, 1]" in msg and "nothing written" in msg
+    assert not (sandbox / "kalshi_snapshots.parquet").exists()
+
+
+def test_a_mostly_unquoted_day_fails_closed(monkeypatch, sandbox):
+    _write_config(m.KALSHI_SERIES_CONFIG, [{"ticker": "KXCPI", "category": "Economics"}])
+    empty = {"bid": "0.0000", "ask": "1.0000", "last": "0.0000"}
+    _serve(monkeypatch, _by_series({"KXCPI": [_mkt("KXCPI-1"), _mkt("KXCPI-2", **empty),
+                                              _mkt("KXCPI-3", **empty)]}))
+    msg = m.snapshot_kalshi()
+    assert "FAILED" in msg and "only 1 of 3" in msg and "nothing written" in msg
+    assert not (sandbox / "kalshi_snapshots.parquet").exists()
+
+
+@pytest.mark.parametrize("age_days,warn", [(0, False), (60, False), (61, True)])
+def test_the_line_names_the_list_date_and_warns_when_stale(monkeypatch, sandbox, age_days,
+                                                           warn):
+    discovered = (pd.Timestamp(m.SNAP_DATE) - pd.Timedelta(days=age_days)).strftime("%Y-%m-%d")
+    m.KALSHI_SERIES_CONFIG.write_text(json.dumps({
+        "discovered": discovered, "series": [{"ticker": "KXCPI", "category": "Economics"}]}))
+    _serve(monkeypatch, _by_series({"KXCPI": [_mkt("KXCPI-1")]}))
+    msg = m.snapshot_kalshi()
+    assert f"series list discovered {discovered}" in msg and ("WARN" in msg) is warn
+    assert msg.startswith("kalshi: snapped")                 # a WARN is not a FAILED
+
+
+def test_main_exits_nonzero_only_on_the_gated_failed_lines(monkeypatch, sandbox):
+    pulls = ("pull_gpr", "pull_epu", "snapshot_polymarket", "snapshot_kalshi",
+             "resolve_polymarket_snapshots", "resolve_kalshi_snapshots", "snapshot_kxfed",
+             "pull_fred_rate_path", "snapshot_cef", "pull_form4_index", "pull_usaspending",
+             "pull_credit_spread_oas")
+    for name in pulls:
+        monkeypatch.setattr(m, name, lambda n=name: f"{n}: ok")
+    assert m.main(["--out-dir", str(sandbox)]) == 0
+    monkeypatch.setattr(m, "pull_gpr", lambda: "gpr: gpr_daily FAILED (no variant reachable)")
+    assert m.main(["--out-dir", str(sandbox)]) == 0       # verifier/cadence-gated feeds: rc 0
+    for name, line in [("snapshot_kalshi", "kalshi: FAILED — PARTIAL day, x — LOUD"),
+                       ("resolve_kalshi_snapshots", "kalshi_resolve: FAILED (OSError: x) — LOUD"),
+                       ("resolve_polymarket_snapshots",
+                        "polymarket_resolve: FAILED (ArrowInvalid: x) — LOUD")]:
+        monkeypatch.setattr(m, name, lambda line=line: line)
+        assert m.main(["--out-dir", str(sandbox)]) == 1, name
+        monkeypatch.setattr(m, name, lambda n=name: f"{n}: ok")
 
 
 # ---- 3. fail closed ---------------------------------------------------------------- #
@@ -421,14 +623,22 @@ def test_kalshi_resolver_caps_by_events_earliest_close_first(monkeypatch, sandbo
     assert "2/5 due events" in msg
 
 
-def test_a_gone_event_records_its_snapped_markets_final_not_found(monkeypatch, sandbox):
-    pd.DataFrame([_v1("KXA-1-T1", "KXA-1"), _v1("KXA-1-T2", "KXA-1")]).to_parquet(
+def test_an_event_404_sends_its_tickers_to_the_single_market_lookup(monkeypatch, sandbox):
+    """One 404 on /events/{ev} is not authoritative per market; /markets/{t}'s 404 is."""
+    pd.DataFrame([_v1("KXA-1-T1", "KXA-1"), _v1("KXA-1-T2", "KXA-1"),
+                  _v1("KXA-1-T3", "KXA-1")]).to_parquet(
         sandbox / "kalshi_snapshots.parquet", index=False)
     gone = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
-    _serve(monkeypatch, _event_router({"KXA-1": gone}))
+    markets: dict[str, dict | Exception] = {
+        "KXA-1-T1": gone, "KXA-1-T2": _settled("KXA-1-T2", "KXA-1", "yes"),
+        "KXA-1-T3": urllib.error.HTTPError("u", 503, "down", {}, None)}
+    seen = _serve(monkeypatch, _event_router({"KXA-1": gone}, markets))
     m.resolve_kalshi_snapshots()
     res = _resolutions(sandbox)
-    assert set(res["status"]) == {"not_found"} and res["final"].all() and len(res) == 2
+    assert sorted(res.index) == ["KXA-1-T1", "KXA-1-T2"]        # T3 errored: still pending
+    assert res.loc["KXA-1-T1", "status"] == "not_found" and bool(res.loc["KXA-1-T1", "final"])
+    assert res.loc["KXA-1-T2", "result"] == "yes" and set(res["resolved_via"]) == {"market"}
+    assert sum("/markets/" in u for u, _ in seen) == 3
 
 
 def test_a_ticker_absent_from_its_event_is_looked_up_alone_never_assumed(monkeypatch, sandbox):
@@ -482,6 +692,52 @@ def test_an_unsettled_market_is_recorded_not_final_and_asked_again(monkeypatch, 
 def test_the_kalshi_resolver_never_raises(monkeypatch, sandbox):
     (sandbox / "kalshi_snapshots.parquet").write_bytes(b"not a parquet file")
     assert m.resolve_kalshi_snapshots().startswith("kalshi_resolve: FAILED")
+
+
+def test_the_polymarket_resolver_never_raises(monkeypatch, sandbox):
+    (sandbox / "polymarket_snapshots.parquet").write_bytes(b"not a parquet file")
+    msg = m.resolve_polymarket_snapshots()
+    assert msg.startswith("polymarket_resolve: FAILED") and m._daily_rc([msg]) == 1
+
+
+def _write_resolutions(path: Path, rows: list[dict]) -> None:
+    pd.DataFrame(rows).to_parquet(path, index=False)
+
+
+def test_new_events_go_before_re_asks_so_re_asks_cannot_starve_them(monkeypatch, sandbox):
+    pd.DataFrame([_v1("KXOLD-1-T1", "KXOLD-1", close="2026-11-10T21:00:00Z"),
+                  _v1("KXNEW-1-T1", "KXNEW-1", close="2026-11-18T21:00:00Z")]).to_parquet(
+        sandbox / "kalshi_snapshots.parquet", index=False)
+    yesterday = (pd.Timestamp(m.SNAP_DATE) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    _write_resolutions(sandbox / "kalshi_resolutions.parquet", [
+        {"ticker": "KXOLD-1-T1", "status": "closed", "result": "", "final": False,
+         "looked_up": yesterday}])
+    monkeypatch.setattr(m, "MAX_RESOLVE_EVENTS_PER_RUN", 1)
+    seen = _serve(monkeypatch, _event_router({
+        "KXNEW-1": [_settled("KXNEW-1-T1", "KXNEW-1")],
+        "KXOLD-1": [_settled("KXOLD-1-T1", "KXOLD-1", result="", status="closed")]}))
+    m.resolve_kalshi_snapshots()
+    assert [urlparse(u).path.rsplit("/", 1)[1] for u, _ in seen] == ["KXNEW-1"]
+
+
+@pytest.mark.parametrize("asked_days_ago,asked", [(2, False), (8, True)])
+def test_a_stale_non_final_event_is_re_asked_only_weekly(monkeypatch, sandbox, asked_days_ago,
+                                                         asked):
+    close = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=m.KALSHI_STALE_REASK_DAYS + 5))
+    pd.DataFrame([_v1("KXSTALE-1-T1", "KXSTALE-1", close=close.strftime("%Y-%m-%dT%H:%M:%SZ"))]
+                 ).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
+    last = (pd.Timestamp(m.SNAP_DATE) - pd.Timedelta(days=asked_days_ago)).strftime("%Y-%m-%d")
+    _write_resolutions(sandbox / "kalshi_resolutions.parquet", [
+        {"ticker": "KXSTALE-1-T1", "status": "closed", "result": "", "final": False,
+         "looked_up": last}])
+    seen = _serve(monkeypatch, _event_router({
+        "KXSTALE-1": [_settled("KXSTALE-1-T1", "KXSTALE-1", result="", status="closed")]}))
+    msg = m.resolve_kalshi_snapshots()
+    assert bool(seen) is asked
+    if not asked:
+        assert "held to a weekly re-ask" in msg
+    res = pd.read_parquet(sandbox / "kalshi_resolutions.parquet")
+    assert not res["final"].any()                         # never marked final when it is not
 
 
 def test_polymarket_resolver_keeps_long_shots_and_skips_empty_books(monkeypatch, sandbox):

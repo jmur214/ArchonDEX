@@ -250,7 +250,25 @@ KALSHI_WORKERS = 2                  # concurrent series fetches (I/O-bound; see 
 KALSHI_PAUSE_S = 0.1                # per worker, between requests
 KALSHI_429_RETRIES = 3              # per request, backing off 1/2/4 s (or Retry-After)
 KALSHI_TIMEOUT_S = 20               # per request; bounds the overrun past the deadline
+KALSHI_MAX_PAGES_PER_SERIES = 5     # 5 x 1000 markets; one endless cursor cannot eat the budget
 KALSHI_DISCOVERY_MAX_PAGES = 400    # /events?status=open pages (200 each) before discovery gives up
+# A recurring series BETWEEN events (last one settled, next not listed yet) is still listed if
+# its latest settled event closed within this window. 120 days = a quarterly cycle (~92 days,
+# the longest normal gap of a monthly/quarterly series) plus four weeks of listing slack.
+# one_off series never list again, so they need an open event. Annual series can gap longer;
+# a re-discovery picks them up when relisted (the snapshot WARNs past KALSHI_CONFIG_STALE_DAYS).
+KALSHI_DISCOVERY_LOOKBACK_DAYS = 120
+KALSHI_DISCOVERY_MAX_ERROR_SHARE = 0.10   # more lookup errors than this -> config not written
+KALSHI_CONFIG_STALE_DAYS = 60       # the snapshot line WARNs when the series list is older
+# The snapshot writes what came back (hoard), but the day is a FAILED day — main() exits
+# non-zero so the wrapper alarms — when fewer than this share of listed series completed
+# (an empty pull is a completed series) or the budget cut the run short.
+KALSHI_MIN_COMPLETE_SHARE = 0.90
+# ... and it writes NOTHING when fewer than this share of rows carry a real quote (measured
+# 2026-11-19: 5,653 of 5,681 = 99.5 %), or when any price is outside [0, 1] (a units change,
+# e.g. cents: the numbers would be wrong, not just empty).
+KALSHI_MIN_QUOTED_SHARE = 0.50
+_KALSHI_PRICE_COLS = ("yes_bid", "yes_ask", "no_bid", "no_ask", "last_price")
 
 # Intraday series are skipped: a once-a-day snapshot of a market that lives 15 minutes or an
 # hour is one random intraday point on an underlying whose price we already have, and the
@@ -280,7 +298,7 @@ _MACRO_TITLE_WORDS = (
     "initial claims", "nonfarm", "job openings", "jolts", "adp", "hourly earnings",
     "labor force participation", "sahm rule",
     # activity
-    "gdp", "recession", "retail sales", "ism", "pmi", "consumer sentiment",
+    "gdp", "recession", "recessions", "retail sales", "ism", "pmi", "consumer sentiment",
     "industrial production", "durable goods", "productivity", "trade deficit",
     "balance of trade",
     # housing
@@ -307,9 +325,15 @@ _MACRO_TAGS = frozenset({
     "nasdaq-100", "indices", "foreign exchange", "credit & bonds", "precious metals",
     "oil & gas",
 })
-# Politics qualifies ONLY by one of these exact tags (monetary, trade and fiscal policy);
-# a title keyword is not enough there ("tax" alone is a thousand state and city bills).
+# Politics qualifies by one of these exact tags (monetary, trade and fiscal policy) or by a
+# NARROW title phrase (Fed chair / FOMC / government shutdown; several such series carry only
+# a "Trump" or "Congress" tag). Generic words are not enough there ("tax" alone is a thousand
+# state and city bills; bare "shutdown" is "Federal AI model shutdown authority").
 _POLICY_TAGS = frozenset({"federal reserve", "trade & tariffs", "budget & shutdowns"})
+_POLICY_TITLE_WORDS = (
+    "fed chair", "fomc", "federal reserve", "government shutdown", "government shut down",
+    "shutdown by", "shutdown this year", "shutdown vote",
+)
 # Crypto: the two majors only (the system has a BTC arm in forward validation, T-272).
 _CRYPTO_TITLE_WORDS = ("bitcoin", "btc", "ethereum", "eth")
 
@@ -321,7 +345,7 @@ _KALSHI_RULES: dict[str, tuple[str | None, frozenset[str]]] = {
     "Economics": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
     "Financials": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
     "Commodities": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
-    "Politics": (None, _POLICY_TAGS),
+    "Politics": (_word_pattern(_POLICY_TITLE_WORDS), _POLICY_TAGS),
     "Crypto": (_word_pattern(_CRYPTO_TITLE_WORDS), frozenset()),
 }
 _US_STATES = (
@@ -338,6 +362,15 @@ _US_STATES = (
 # regional detail, not market inputs. Dropped by title or by Kalshi's own local tags.
 _REGIONAL_PATTERN = _word_pattern(_US_STATES, capture=False)
 _REGIONAL_TAGS = frozenset({"local", "nyc"})
+# ... and titles that START with an upper-case postal code ("TX gas price"). Case-sensitive
+# and anchored, so "US", "EU", "UK" and words like "Oregon"/"or" are untouched (measured
+# 2026-11-19: of 52 candidate titles opening with two capitals, TX was the only state).
+_STATE_CODE_PREFIX = (r"^(?:AK|AL|AR|AZ|CA|CO|CT|DC|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|"
+                      r"ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|"
+                      r"UT|VA|VT|WA|WI|WV|WY)\s")
+# ... except national series NAMED after a state: the University of Michigan survey.
+_NATIONAL_TITLE_PATTERN = _word_pattern(
+    ("university of michigan", "michigan consumer sentiment", "umich"), capture=False)
 _COMBO_PATTERN = _word_pattern(("combo",), capture=False)
 # The "<X> after economic events" family ("Will the 10Y yield be above 4.59% on Nov 19 at
 # 1:15pm ET?") is an intraday point-price ladder keyed to a release minute — the same class
@@ -354,10 +387,10 @@ def _tag_match(tags: pd.Series, allowed: frozenset[str]) -> pd.Series:
     return first.reindex(tags.index).astype("string")
 
 
-def select_kalshi_series(series: list[dict], open_events: dict[str, int]) -> pd.DataFrame:
-    """The macro series to archive, from Kalshi's /series rows and the count of OPEN events
-    per series. Pure (no network). Returns ticker, title, category, frequency, tags,
-    n_open_events and `matched` (the keyword or tag that qualified it), sorted."""
+def _classify_series(series: list[dict], open_events: dict[str, int]) -> pd.DataFrame:
+    """Every /series row with `matched` (the qualifying keyword/tag, or NA), `excluded`
+    (a parlay, combo, KXFED, intraday, event-minute ladder or state/city series) and
+    n_open_events. Pure. A candidate is matched & ~excluded."""
     cols = ["ticker", "title", "category", "frequency", "tags"]
     df = pd.DataFrame.from_records(series, columns=cols) if series else pd.DataFrame(columns=cols)
     for c in ("ticker", "title", "category", "frequency"):
@@ -378,20 +411,79 @@ def select_kalshi_series(series: list[dict], open_events: dict[str, int]) -> pd.
     df["matched"] = matched
 
     upper = df["ticker"].str.upper()
-    excluded = (
+    title = df["title"]
+    regional = ((title.str.contains(_REGIONAL_PATTERN, flags=re.IGNORECASE, regex=True)
+                 | title.str.contains(_STATE_CODE_PREFIX, regex=True))
+                & ~title.str.contains(_NATIONAL_TITLE_PATTERN, flags=re.IGNORECASE, regex=True))
+    df["excluded"] = (
         upper.str.startswith("KXMVE")                       # multivariate parlays
         | (upper == KXFED_SERIES)                           # snapshot_kxfed archives it whole
         | upper.str.endswith("COMBO")                       # joint-outcome bundles
-        | df["title"].str.contains(_COMBO_PATTERN, flags=re.IGNORECASE, regex=True)
+        | title.str.contains(_COMBO_PATTERN, flags=re.IGNORECASE, regex=True)
         | df["frequency"].isin(KALSHI_SKIP_FREQUENCIES)
-        | df["title"].str.contains(_EVENT_LADDER_PATTERN, flags=re.IGNORECASE, regex=True)
-        | df["title"].str.contains(_REGIONAL_PATTERN, flags=re.IGNORECASE, regex=True)
+        | title.str.contains(_EVENT_LADDER_PATTERN, flags=re.IGNORECASE, regex=True)
+        | regional
         | _tag_match(df["tags"], _REGIONAL_TAGS).notna()
-    )
-    keep = df["matched"].notna() & ~excluded & (df["n_open_events"] > 0)
+    ).astype(bool)
+    return df
+
+
+def _is_candidate(df: pd.DataFrame) -> pd.Series:
+    return df["matched"].notna() & ~df["excluded"]
+
+
+def select_kalshi_series(series: list[dict], open_events: dict[str, int],
+                         last_close: dict[str, str] | None = None,
+                         now: pd.Timestamp | None = None) -> pd.DataFrame:
+    """The macro series to archive. Pure (no network).
+
+    A candidate (rule-matched, not excluded) is kept when it has an OPEN event, or — for a
+    recurring (not one_off) series between events — when its latest settled event closed
+    within KALSHI_DISCOVERY_LOOKBACK_DAYS (``last_close``: ticker -> ISO close time).
+    Returns ticker, title, category, frequency, tags, n_open_events, last_close and
+    `matched`, sorted by category then ticker."""
+    df = _classify_series(series, open_events)
+    now = now if now is not None else pd.Timestamp.now(tz="UTC")
+    closes = pd.to_datetime(df["ticker"].map(last_close or {}), utc=True, errors="coerce")
+    recent = (closes.notna() & (now - closes <= pd.Timedelta(days=KALSHI_DISCOVERY_LOOKBACK_DAYS))
+              & df["frequency"].ne("one_off"))
+    keep = _is_candidate(df) & ((df["n_open_events"] > 0) | recent)
+    df["last_close"] = closes.dt.strftime("%Y-%m-%dT%H:%M:%SZ").astype(object).where(
+        closes.notna(), None)
     out = df.loc[keep, ["ticker", "title", "category", "frequency", "tags",
-                        "n_open_events", "matched"]]
+                        "n_open_events", "last_close", "matched"]]
     return out.sort_values(["category", "ticker"]).reset_index(drop=True)
+
+
+def _last_settled_close(ticker: str, budget: _RequestBudget) -> str | None:
+    """The latest market close of the series' most recent SETTLED event (Kalshi lists
+    settled events newest first), or None when it has none. The event's last_updated_ts is
+    NOT a close time (KXGDP's reads its creation date), so the nested markets are read."""
+    if not budget.take():
+        raise RuntimeError("discovery budget exhausted")
+    data = _kalshi_json(f"{KALSHI_API}/events?series_ticker={quote(ticker, safe='')}"
+                        f"&status=settled&limit=1&with_nested_markets=true", budget)
+    events = data.get("events") or []
+    closes = [m.get("close_time") for e in events[:1] for m in (e.get("markets") or [])
+              if isinstance(m, dict) and m.get("close_time")]
+    time.sleep(KALSHI_PAUSE_S)
+    return max(closes) if closes else None
+
+
+def _recent_closes(tickers: list[str]) -> tuple[dict[str, str], int]:
+    """ticker -> latest settled close for each series, fetched with the snapshot's worker
+    pool; returns (closes, n_errors)."""
+    budget = _RequestBudget(len(tickers) * 2 + 25, time.monotonic() + 900.0)
+
+    def one(t: str) -> tuple[str, str | None, bool]:
+        try:
+            return t, _last_settled_close(t, budget), False
+        except Exception:
+            return t, None, True
+
+    with ThreadPoolExecutor(max_workers=KALSHI_WORKERS) as pool:
+        got = list(pool.map(one, tickers))
+    return {t: c for t, c, _ in got if c}, sum(err for _, _, err in got)
 
 
 def _open_event_counts(max_pages: int | None = None) -> dict[str, int]:
@@ -438,21 +530,34 @@ def discover_kalshi_series(out_path: Path | None = None) -> str:
         opened = _open_event_counts()
         if not opened:
             return "kalshi_discover: FAILED — 0 open events; config not written — LOUD"
-        picked = select_kalshi_series(series, opened)
+        cls = _classify_series(series, opened)
+        between = cls[_is_candidate(cls) & (cls["n_open_events"] == 0)
+                      & cls["frequency"].ne("one_off")]["ticker"].tolist()
+        closes, lookup_errors = _recent_closes(between)
+        if between and lookup_errors > KALSHI_DISCOVERY_MAX_ERROR_SHARE * len(between):
+            return (f"kalshi_discover: FAILED — {lookup_errors}/{len(between)} settled-event "
+                    f"lookups errored; config not written — LOUD")
+        picked = select_kalshi_series(series, opened, closes)
         if picked.empty:
             return "kalshi_discover: FAILED — 0 series selected; config not written — LOUD"
+        n_between = int((picked["n_open_events"] == 0).sum())
         doc = {
             "selector": KALSHI_SELECTOR,
             "discovered": SNAP_DATE,
-            "source": f"{KALSHI_API}/series + /events?status=open",
+            "source": (f"{KALSHI_API}/series + /events?status=open + per-series latest settled"
+                       " event"),
             "n_series_listed": len(series),
             "n_series_with_open_events": len(opened),
+            "n_kept_between_events": n_between,
             "rule": ("category in " + ", ".join(_KALSHI_RULES)
-                     + "; whole-word title keyword or exact tag (Politics: policy tags only;"
-                       " Crypto: BTC/ETH only); excludes KXMVE parlays, *COMBO, KXFED, "
+                     + "; whole-word title keyword or exact tag (Politics: policy tags or a"
+                       " Fed-chair/FOMC/shutdown title phrase; Crypto: BTC/ETH only); excludes"
+                       " KXMVE parlays, *COMBO, KXFED, "
                      + "/".join(sorted(KALSHI_SKIP_FREQUENCIES))
-                     + " series, 'after economic events' intraday ladders, state/city series,"
-                       " series with no open event"),
+                     + " series, 'after economic events' intraday ladders, state/city series"
+                       " (not the University of Michigan survey); keeps a series with an open"
+                       " event, or a recurring one whose latest settled event closed within "
+                     + f"{KALSHI_DISCOVERY_LOOKBACK_DAYS} days"),
             "series": [{**r, "discovered": SNAP_DATE} for r in picked.to_dict("records")],
         }
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -462,25 +567,40 @@ def discover_kalshi_series(out_path: Path | None = None) -> str:
         by_cat = picked["category"].value_counts().to_dict()
         by_freq = picked["frequency"].value_counts().to_dict()
         return (f"kalshi_discover: wrote {len(picked)} series to {path} "
-                f"(of {len(series)} listed, {len(opened)} with open events); "
-                f"by category {by_cat}; by frequency {by_freq}")
+                f"(of {len(series)} listed, {len(opened)} with open events; {n_between} kept "
+                f"between events from {len(between)} settled-event lookups, {lookup_errors} "
+                f"errors); by category {by_cat}; by frequency {by_freq}")
     except Exception as e:
         return f"kalshi_discover: FAILED ({type(e).__name__}: {e}); config not written — LOUD"
 
 
-def load_kalshi_series(path: Path | None = None) -> pd.DataFrame:
-    """The listed series (ticker, category) from the config, or an EMPTY frame when the file
-    is missing, unparseable or lists nothing. Parlays and KXFED are dropped even if listed."""
+def load_kalshi_series(path: Path | None = None) -> tuple[pd.DataFrame, str | None]:
+    """(the listed series — ticker, category — and the config's `discovered` date). The
+    frame is EMPTY when the file is missing, unparseable or lists nothing. Parlays and KXFED
+    are dropped even if listed."""
     try:
         doc = json.loads((path or KALSHI_SERIES_CONFIG).read_text())
         rows = doc.get("series") if isinstance(doc, dict) else None
         df = pd.DataFrame.from_records(rows or [], columns=["ticker", "category"])
+        discovered = str(doc.get("discovered")) if doc.get("discovered") else None
     except Exception:          # missing, unreadable or malformed: the caller fails closed
-        return pd.DataFrame(columns=["ticker", "category"])
+        return pd.DataFrame(columns=["ticker", "category"]), None
     df["ticker"] = df["ticker"].astype("string").fillna("").str.strip()
     upper = df["ticker"].str.upper()
     ok = df["ticker"].ne("") & ~upper.str.startswith("KXMVE") & upper.ne(KXFED_SERIES)
-    return df[ok].drop_duplicates("ticker").reset_index(drop=True)
+    return df[ok].drop_duplicates("ticker").reset_index(drop=True), discovered
+
+
+def _config_age_note(discovered: str | None) -> str:
+    """'list discovered D' — with a WARN when D is older than KALSHI_CONFIG_STALE_DAYS or
+    unreadable (new series are then missing until --discover-kalshi-series is re-run)."""
+    when = pd.to_datetime(discovered, errors="coerce")
+    if pd.isna(when):
+        return "series list discovered ? — WARN: no readable discovered date"
+    age = int((pd.Timestamp(SNAP_DATE) - when.normalize()).days)
+    warn = (f" — WARN: {age} days old (> {KALSHI_CONFIG_STALE_DAYS}); re-run "
+            f"--discover-kalshi-series" if age > KALSHI_CONFIG_STALE_DAYS else "")
+    return f"series list discovered {when.date()}{warn}"
 
 
 @dataclass
@@ -528,16 +648,20 @@ def _kalshi_json(url: str, budget: _RequestBudget) -> dict:
     return data
 
 
-def _series_markets(ticker: str, budget: _RequestBudget) -> tuple[list[dict], bool]:
-    """The OPEN markets of one series, cursor-paged. Returns (markets, complete); complete is
-    False when the budget ran out first. Network and parse errors propagate.
+def _series_markets(ticker: str, budget: _RequestBudget) -> tuple[list[dict], str]:
+    """The OPEN markets of one series, cursor-paged. Returns (markets, outcome): "ok" (an
+    empty list is a successful empty pull), "budget" (the run's budget ran out first) or
+    "page cap" (KALSHI_MAX_PAGES_PER_SERIES pages and the cursor still going; the markets
+    read so far are kept). Network and parse errors propagate.
 
     One request per series: /markets takes ONE series_ticker (a comma list silently returns
     0 markets; a repeated parameter is a 400 — measured 2026-11-19). /events with nested
     markets costs the same (0.33 vs 0.35 s median, same bytes, same markets)."""
     markets: list[dict] = []
     cursor: str | None = None
-    while budget.take():
+    for _ in range(KALSHI_MAX_PAGES_PER_SERIES):
+        if not budget.take():
+            return markets, "budget"
         url = f"{KALSHI_API}/markets?series_ticker={quote(ticker, safe='')}&status=open&limit=1000"
         if cursor:
             url += f"&cursor={quote(cursor, safe='')}"
@@ -546,8 +670,8 @@ def _series_markets(ticker: str, budget: _RequestBudget) -> tuple[list[dict], bo
         cursor = data.get("cursor") or None
         time.sleep(KALSHI_PAUSE_S)
         if not cursor:
-            return markets, True
-    return markets, False
+            return markets, "ok"
+    return markets, "page cap"
 
 
 @dataclass
@@ -565,12 +689,14 @@ def _error_label(e: Exception) -> str:
 
 
 def _fetch_series(ticker: str, budget: _RequestBudget) -> _SeriesResult:
-    """One series, never raising: an error is recorded on the result and counted."""
+    """One series, never raising: an error is recorded on the result and counted. A page-cap
+    hit keeps the markets read but counts as an error and as an incomplete series."""
     try:
-        got, complete = _series_markets(ticker, budget)
-        return _SeriesResult(ticker, got, complete)
+        got, outcome = _series_markets(ticker, budget)
     except Exception as e:
         return _SeriesResult(ticker, [], False, _error_label(e))
+    return _SeriesResult(ticker, got, outcome == "ok",
+                         "page cap" if outcome == "page cap" else None)
 
 
 # snapshot column -> the current API field (the legacy yes_bid/last_price/volume fields are
@@ -609,19 +735,30 @@ def _kalshi_frame(markets: list[dict], series_of: list[str], category_of: dict[s
 def snapshot_kalshi() -> str:
     """Daily snapshot of the OPEN markets in every series listed in the reviewed config.
 
-    Fails closed — writes nothing and returns a LOUD "FAILED" line — when the config is
-    missing or empty, when no market comes back, or when no market carries a real quote.
-    It never falls back to paging the open-market list (the parlay defect, T-405). Never
-    raises: main() evaluates every pull, so one exception would skip all the others."""
+    Writes NOTHING and returns a LOUD "FAILED" line when the config is missing or empty, when
+    no market comes back, when any price is outside [0, 1] (a units change), or when fewer
+    than KALSHI_MIN_QUOTED_SHARE of the rows carry a real quote. On a SHORT day — fewer than
+    KALSHI_MIN_COMPLETE_SHARE of the listed series completed, or the budget cut the run — it
+    still writes the real rows that came back (hoard), and the line says FAILED so main()
+    exits non-zero and the wrapper alarms. It never falls back to paging the open-market
+    list (the parlay defect, T-405). Never raises: main() evaluates every pull, and the
+    cloud pulse reports this line as is."""
     try:
         return _snapshot_kalshi()
     except Exception as e:
         return f"kalshi: FAILED ({type(e).__name__}: {e}) — LOUD"
 
 
+def _bad_units(df: pd.DataFrame) -> pd.Series:
+    """Rows with any price outside [0, 1] (dollars per contract): a units change upstream."""
+    prices = pd.concat([_num_col(df, c) for c in _KALSHI_PRICE_COLS], axis=1)
+    return ((prices > 1) | (prices < 0)).any(axis=1)
+
+
 def _snapshot_kalshi() -> str:
     t0 = time.monotonic()
-    listed = load_kalshi_series()
+    listed, discovered = load_kalshi_series()
+    age = _config_age_note(discovered)
     if listed.empty:
         return (f"kalshi: FAILED — no series listed in {KALSHI_SERIES_CONFIG} (missing, empty "
                 f"or unparseable; run --discover-kalshi-series); nothing written — LOUD")
@@ -635,26 +772,41 @@ def _snapshot_kalshi() -> str:
         results = list(pool.map(lambda t: _fetch_series(t, budget), tickers))
     markets = [mk for r in results for mk in r.markets]
     series_of = [r.ticker for r in results for _ in r.markets]
-    err_by = pd.Series([r.error for r in results if r.error], dtype="object").value_counts()
-    errors = int(err_by.sum())
+    errs = [r.error for r in results if r.error]
     cut = sum(r.error is None and not r.complete for r in results)
     done = sum(r.complete for r in results)
-    kinds = f" {err_by.to_dict()}" if errors else ""
-    stats = (f"{done}/{len(tickers)} series, {errors} errors{kinds}, "
-             f"{budget.used} requests, {time.monotonic() - t0:.0f}s")
-    if not markets:
+    df = (_kalshi_frame(markets, series_of, dict(zip(listed["ticker"], listed["category"])))
+          if markets else pd.DataFrame(columns=["ticker"]))
+    no_ticker = df["ticker"].isna() | df["ticker"].astype("string").fillna("").str.strip().eq("")
+    errs += ["no ticker"] * int(no_ticker.sum())          # never counted, never written
+    df = df[~no_ticker.to_numpy(dtype=bool)]
+    df = df[~df["ticker"].astype("string").str.upper().str.startswith("KXMVE").fillna(False)]
+    err_by = pd.Series(errs, dtype="object").value_counts()
+    kinds = f" {err_by.to_dict()}" if len(errs) else ""
+    stats = (f"{done}/{len(tickers)} series, {len(errs)} errors{kinds}, "
+             f"{budget.used} requests, {time.monotonic() - t0:.0f}s; {age}")
+    if df.empty:
         return f"kalshi: FAILED — 0 open markets ({stats}); nothing written — LOUD"
-    df = _kalshi_frame(markets, series_of, dict(zip(listed["ticker"], listed["category"])))
-    df = df[~df["ticker"].fillna("").str.upper().str.startswith("KXMVE")]
+    bad_units = int(_bad_units(df).sum())
+    if bad_units:
+        return (f"kalshi: FAILED — {bad_units} of {len(df)} markets carry a price outside "
+                f"[0, 1] (units changed?) ({stats}); nothing written — LOUD")
     quoted = int(_kalshi_quoted(df).sum())
     if quoted == 0:
         return (f"kalshi: FAILED — {len(df)} markets but NONE carries a real quote (bid > 0, "
                 f"last > 0 or 0 < ask < 1) ({stats}); nothing written — LOUD")
+    if quoted < KALSHI_MIN_QUOTED_SHARE * len(df):
+        return (f"kalshi: FAILED — only {quoted} of {len(df)} markets carry a real quote "
+                f"(< {KALSHI_MIN_QUOTED_SHARE:.0%}) ({stats}); nothing written — LOUD")
     _append(df, OUT_DIR / "kalshi_snapshots.parquet", ["snap_date", "ticker"])
-    partial = (f" — PARTIAL: the budget ({KALSHI_MAX_REQUESTS} requests / "
-               f"{KALSHI_TIME_BUDGET_S:.0f}s) ran out before {cut} series; LOUD" if cut else "")
-    return (f"kalshi: snapped {len(df)} markets ({quoted} priced = a real quote) from "
-            f"{stats}; selector {KALSHI_SELECTOR}{partial}")
+    head = (f"snapped {len(df)} markets ({quoted} priced = a real quote) from {stats}; "
+            f"selector {KALSHI_SELECTOR}")
+    if done < KALSHI_MIN_COMPLETE_SHARE * len(tickers) or cut:
+        why = (f"the budget ({KALSHI_MAX_REQUESTS} requests / {KALSHI_TIME_BUDGET_S:.0f}s) ran "
+               f"out before {cut} series" if cut else
+               f"fewer than {KALSHI_MIN_COMPLETE_SHARE:.0%} of listed series completed")
+        return f"kalshi: FAILED — PARTIAL day, {why}; the real rows were kept: {head} — LOUD"
+    return f"kalshi: {head}"
 
 
 # --- 2026-11-17: OUTCOMES for the markets we snapshot ------------------------ #
@@ -675,12 +827,21 @@ MAX_RESOLVE_PER_RUN = 300                  # Polymarket: markets per run (one GE
 # plus the weekly/monthly/one-off ones); 150 is ~3x that, so a backlog from a missed day or
 # two drains within days, and a full run stays ~1 minute.
 MAX_RESOLVE_EVENTS_PER_RUN = 150
-# A snapped ticker missing from its own event's response is looked up on its own
-# (/markets/{ticker}, the authoritative one-market answer, which 404s if it is gone). It is
-# never marked final from the event response, and it is not left to ride on the event: its
-# event would then be re-fetched every day forever. Beyond this cap it simply stays pending.
+# A snapped ticker missing from its own event's response — or whose event GET is a 404 — is
+# looked up on its own (/markets/{ticker}, the authoritative one-market answer; ITS 404 is
+# recorded final "not_found"). It is never marked final from the event response, and it is
+# not left to ride on the event: its event would then be re-fetched every day forever.
+# Beyond this cap it simply stays pending.
 MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN = 50
 KALSHI_RESOLVE_TIME_BUDGET_S = 120.0
+# Order: events never asked before go first (earliest close first), then re-asks of events
+# that came back not yet settled (least recently asked first), so re-asks cannot starve new
+# events. A non-final event whose earliest pending close is older than this many days
+# (settlement is normally hours to a few days after close; 30 days means a dispute or a
+# delayed source) is re-asked at most once every KALSHI_STALE_REASK_EVERY_DAYS. Nothing is
+# ever marked final that the API does not report final.
+KALSHI_STALE_REASK_DAYS = 30
+KALSHI_STALE_REASK_EVERY_DAYS = 7
 
 
 def _num_col(df: pd.DataFrame, col: str) -> pd.Series:
@@ -776,19 +937,41 @@ def _is_series_v1(df: pd.DataFrame) -> pd.Series:
     return df["selector"].astype("string").eq(KALSHI_SELECTOR).fillna(False).astype(bool)
 
 
+def _last_asked(res_path: Path) -> dict[str, pd.Timestamp]:
+    """ticker -> the date it was last looked up and came back NOT final."""
+    if not res_path.exists():
+        return {}
+    res = pd.read_parquet(res_path)
+    nf = res[~res["final"].astype(bool)]
+    return dict(zip(nf["ticker"].astype(str), pd.to_datetime(nf["looked_up"], errors="coerce")))
+
+
 def _kalshi_pending_events(snap: Path, res_path: Path
-                           ) -> tuple[list[tuple[str, list[str]]], list[str]]:
-    """Pending series_v1 tickers grouped by event, events ordered by their earliest close,
-    and the pending tickers that carry no event_ticker (looked up one by one)."""
+                           ) -> tuple[list[tuple[str, list[str]]], list[str], int]:
+    """(events to ask, in order; the pending tickers without an event_ticker, looked up one
+    by one; the number of stale re-asks held back this run). Order: never-asked events by
+    earliest close, then re-asks by least recently asked (see KALSHI_STALE_REASK_DAYS)."""
     pend = _pending_frame(snap, res_path, "ticker", "close_time", _kalshi_quoted,
                           keep=_is_series_v1)
     if pend.empty:
-        return [], []
+        return [], [], 0
+    pend["_asked"] = pd.to_datetime(pend["ticker"].map(_last_asked(res_path)), errors="coerce")
     ev = (pend["event_ticker"].astype("string").str.strip() if "event_ticker" in pend
           else pd.Series(pd.NA, index=pend.index, dtype="string"))
     has_ev = (ev.notna() & ev.ne("")).fillna(False).astype(bool)
-    grouped = pend[has_ev].groupby(ev[has_ev], sort=False)["ticker"].agg(list)
-    return [(str(k), v) for k, v in grouped.items()], pend.loc[~has_ev, "ticker"].tolist()
+    g = (pend[has_ev].assign(_ev=ev[has_ev].astype(str))
+         .groupby("_ev", sort=False)
+         .agg(tickers=("ticker", list), first_close=("_end", "min"), last_asked=("_asked", "max")))
+    today = pd.Timestamp(SNAP_DATE)
+    fresh = g[g["last_asked"].isna()].sort_values("first_close", kind="stable")
+    again = g[g["last_asked"].notna()]
+    stale = again["first_close"] < pd.Timestamp.now(tz="UTC") - pd.Timedelta(
+        days=KALSHI_STALE_REASK_DAYS)
+    held = stale & (today - again["last_asked"] < pd.Timedelta(days=KALSHI_STALE_REASK_EVERY_DAYS))
+    again = again[~held].sort_values("last_asked", kind="stable")
+    ordered = pd.concat([fresh, again])
+    return (list(zip(ordered.index.astype(str), ordered["tickers"])),
+            pend.loc[~has_ev, "ticker"].tolist(), int(held.sum()))
 
 
 def _kalshi_resolution(ticker: str, m: dict, via: str) -> dict:
@@ -828,9 +1011,11 @@ def resolve_kalshi_snapshots() -> str:
 def _resolve_kalshi() -> str:
     from urllib.error import HTTPError
     snap, res_path = OUT_DIR / "kalshi_snapshots.parquet", OUT_DIR / "kalshi_resolutions.parquet"
-    events, loose = _kalshi_pending_events(snap, res_path)
+    events, loose, held = _kalshi_pending_events(snap, res_path)
     if not events and not loose:
-        return "kalshi_resolve: nothing pending"
+        return ("kalshi_resolve: nothing pending" if not held else
+                f"kalshi_resolve: nothing due ({held} stale non-final events held to a weekly "
+                f"re-ask)")
     due, events = len(events), events[:MAX_RESOLVE_EVENTS_PER_RUN]
     budget = _RequestBudget(
         MAX_RESOLVE_EVENTS_PER_RUN + MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN + 25,  # + 429 retries
@@ -848,8 +1033,8 @@ def _resolve_kalshi() -> str:
             recs += [_kalshi_resolution(t, listed[t], "event") for t in tickers if t in listed]
             absent += [t for t in tickers if t not in listed]
         except HTTPError as e:
-            if e.code == 404:
-                recs += [_kalshi_gone(t, ev, "event") for t in tickers]
+            if e.code == 404:          # not authoritative per market: ask each one alone
+                absent += tickers
             else:
                 errs += 1
         except Exception:
@@ -879,12 +1064,22 @@ def _resolve_kalshi() -> str:
     n_final = sum(1 for r in recs if r["final"])
     return (f"kalshi_resolve: {asked}/{due} due events looked up "
             f"(cap {MAX_RESOLVE_EVENTS_PER_RUN}), {len(recs)} markets recorded, {n_final} final, "
-            f"{len(recs) - n_final} not yet settled; {len(absent)} absent from their event or "
-            f"without one -> {fallbacks} single-market lookups; {errs} errors; "
-            f"{budget.used} requests")
+            f"{len(recs) - n_final} not yet settled; {len(absent)} absent from their event, "
+            f"in a 404 event or without one -> {fallbacks} single-market lookups; "
+            f"{held} stale re-asks held; {errs} errors; {budget.used} requests")
 
 
 def resolve_polymarket_snapshots() -> str:
+    """Outcomes for the Polymarket snapshot rows, one GET per market. Never raises (one
+    corrupt parquet must not turn main()'s log into a bare traceback); a FAILED line makes
+    main() exit non-zero, because no other gate watches the resolvers."""
+    try:
+        return _resolve_polymarket()
+    except Exception as e:
+        return f"polymarket_resolve: FAILED ({type(e).__name__}: {e}) — LOUD"
+
+
+def _resolve_polymarket() -> str:
     from urllib.error import HTTPError
     snap, res_path = (OUT_DIR / "polymarket_snapshots.parquet",
                       OUT_DIR / "polymarket_resolutions.parquet")
@@ -1226,15 +1421,27 @@ def main(argv: list[str] | None = None) -> int:
         for r in rs:
             print(f"[T136-D] {r}", flush=True)
         return 1 if any("FAILED" in r for r in rs) else 0
-    # The daily run exits 0 regardless; the freshness verifier is its failure gate.
-    for r in [pull_gpr(), pull_epu(),
-              snapshot_polymarket(), snapshot_kalshi(),
-              resolve_polymarket_snapshots(), resolve_kalshi_snapshots(),
-              snapshot_kxfed(), pull_fred_rate_path(),
-              snapshot_cef(), pull_form4_index(), pull_usaspending(),
-              pull_credit_spread_oas()]:
+    lines = [pull_gpr(), pull_epu(),
+             snapshot_polymarket(), snapshot_kalshi(),
+             resolve_polymarket_snapshots(), resolve_kalshi_snapshots(),
+             snapshot_kxfed(), pull_fred_rate_path(),
+             snapshot_cef(), pull_form4_index(), pull_usaspending(),
+             pull_credit_spread_oas()]
+    for r in lines:
         print(f"[T136-D] {r}", flush=True)
-    return 0
+    return _daily_rc(lines)
+
+
+# The daily run's exit code. Most feeds are gated by the freshness verifier (zero fresh
+# rows) and by their cadence budgets, so their FAILED lines keep exit 0 (no double alarm,
+# no cry-wolf on known-flaky feeds). These three are not fully seen by any other gate — a
+# Kalshi PARTIAL day still writes rows, and nothing watches the resolvers — so their FAILED
+# line makes the run exit 1, which the launchd wrapper turns into its alarm.
+_RC_GATED_PREFIXES = ("kalshi:", "kalshi_resolve:", "polymarket_resolve:")
+
+
+def _daily_rc(lines: list[str]) -> int:
+    return int(any(r.startswith(_RC_GATED_PREFIXES) and "FAILED" in r for r in lines))
 
 
 if __name__ == "__main__":

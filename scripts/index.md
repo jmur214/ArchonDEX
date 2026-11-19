@@ -214,12 +214,12 @@
 - **Function `pull_gpr()`**: No docstring
 - **Function `pull_epu()`**: No docstring
 - **Function `snapshot_polymarket()`**: No docstring
-- **Function `select_kalshi_series()`**: The macro series to archive, from Kalshi's /series rows and the count of OPEN events
+- **Function `select_kalshi_series()`**: The macro series to archive. Pure (no network).
 - **Function `discover_kalshi_series()`**: Write the reviewed series list (``config/kalshi_macro_series.json`` by default) from
-- **Function `load_kalshi_series()`**: The listed series (ticker, category) from the config, or an EMPTY frame when the file
+- **Function `load_kalshi_series()`**: (the listed series — ticker, category — and the config's `discovered` date). The
 - **Function `snapshot_kalshi()`**: Daily snapshot of the OPEN markets in every series listed in the reviewed config.
 - **Function `resolve_kalshi_snapshots()`**: Outcomes for the series_v1 snapshot rows, one GET per event. Never raises.
-- **Function `resolve_polymarket_snapshots()`**: No docstring
+- **Function `resolve_polymarket_snapshots()`**: Outcomes for the Polymarket snapshot rows, one GET per market. Never raises (one
 - **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
 - **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
 - **Function `snapshot_cef()`**: Daily CEF panel: NAV, price, DISCOUNT (+52wk avg, z-scores), distribution rate.
