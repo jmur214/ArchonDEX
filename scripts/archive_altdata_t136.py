@@ -334,6 +334,10 @@ _POLICY_TITLE_WORDS = (
     "fed chair", "fomc", "federal reserve", "government shutdown", "government shut down",
     "shutdown by", "shutdown this year", "shutdown vote",
 )
+# ... but a policy phrase inside a NOVELTY market is not policy: "Will Trump visit the
+# Federal Reserve?", "Will the Fed chair attend the dinner?". Politics only, whole words.
+_POLITICS_NOVELTY_PATTERN = _word_pattern(
+    ("visit", "visits", "attend", "attends", "dinner", "lunch", "golf"), capture=False)
 # Crypto: the two majors only (the system has a BTC arm in forward validation, T-272).
 _CRYPTO_TITLE_WORDS = ("bitcoin", "btc", "ethereum", "eth")
 
@@ -362,12 +366,18 @@ _US_STATES = (
 # regional detail, not market inputs. Dropped by title or by Kalshi's own local tags.
 _REGIONAL_PATTERN = _word_pattern(_US_STATES, capture=False)
 _REGIONAL_TAGS = frozenset({"local", "nyc"})
-# ... and titles that START with an upper-case postal code ("TX gas price"). Case-sensitive
-# and anchored, so "US", "EU", "UK" and words like "Oregon"/"or" are untouched (measured
-# 2026-11-19: of 52 candidate titles opening with two capitals, TX was the only state).
+# ... and titles that START with an upper-case postal code AND go on to name a local retail
+# price ("TX gas price"). A bare code is ambiguous with country codes — "IN CPI" (India),
+# "DE GDP" (Germany), "CA unemployment", "ID rate decision" (Indonesia) — so a code in front
+# of a macro statistic is read as national/foreign and KEPT: a wrongly kept state series costs
+# one request a day, a wrongly dropped national one loses information. Case-sensitive code,
+# anchored (measured 2026-11-19: of 52 candidate titles opening with two capitals, TX gas
+# price was the only state series).
 _STATE_CODE_PREFIX = (r"^(?:AK|AL|AR|AZ|CA|CO|CT|DC|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|"
                       r"ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|"
-                      r"UT|VA|VT|WA|WI|WV|WY)\s")
+                      r"UT|VA|VT|WA|WI|WV|WY)\s(?i:.*(?<![a-z0-9])(?:gas prices?|diesel(?: prices?)?"
+                      r"|home prices?|home values?|house prices?|rents?|electricity prices?)"
+                      r"(?![a-z0-9]))")
 # ... except national series NAMED after a state: the University of Michigan survey.
 _NATIONAL_TITLE_PATTERN = _word_pattern(
     ("university of michigan", "michigan consumer sentiment", "umich"), capture=False)
@@ -424,6 +434,8 @@ def _classify_series(series: list[dict], open_events: dict[str, int]) -> pd.Data
         | title.str.contains(_EVENT_LADDER_PATTERN, flags=re.IGNORECASE, regex=True)
         | regional
         | _tag_match(df["tags"], _REGIONAL_TAGS).notna()
+        | (df["category"].eq("Politics")
+           & title.str.contains(_POLITICS_NOVELTY_PATTERN, flags=re.IGNORECASE, regex=True))
     ).astype(bool)
     return df
 
@@ -458,22 +470,34 @@ def select_kalshi_series(series: list[dict], open_events: dict[str, int],
 def _last_settled_close(ticker: str, budget: _RequestBudget) -> str | None:
     """The latest market close of the series' most recent SETTLED event (Kalshi lists
     settled events newest first), or None when it has none. The event's last_updated_ts is
-    NOT a close time (KXGDP's reads its creation date), so the nested markets are read."""
+    NOT a close time (KXGDP's reads its creation date), so the nested markets are read —
+    and when that list is EMPTY (the event settled before /historical/cutoff, ~2 months
+    back, so its markets moved to the historical API) the historical listing is read.
+    Without that, the 120-day lookback would silently act as ~61 days."""
     if not budget.take():
         raise RuntimeError("discovery budget exhausted")
     data = _kalshi_json(f"{KALSHI_API}/events?series_ticker={quote(ticker, safe='')}"
                         f"&status=settled&limit=1&with_nested_markets=true", budget)
-    events = data.get("events") or []
-    closes = [m.get("close_time") for e in events[:1] for m in (e.get("markets") or [])
-              if isinstance(m, dict) and m.get("close_time")]
     time.sleep(KALSHI_PAUSE_S)
+    events = [e for e in (data.get("events") or [])[:1] if isinstance(e, dict)]
+    if not events:
+        return None
+    markets = [m for m in (events[0].get("markets") or []) if isinstance(m, dict)]
+    if not markets and events[0].get("event_ticker"):
+        if not budget.take():
+            raise RuntimeError("discovery budget exhausted")
+        hist = _kalshi_json(f"{KALSHI_API}/historical/markets?event_ticker="
+                            f"{quote(str(events[0]['event_ticker']), safe='')}&limit=1000", budget)
+        markets = [m for m in (hist.get("markets") or []) if isinstance(m, dict)]
+        time.sleep(KALSHI_PAUSE_S)
+    closes = [m["close_time"] for m in markets if m.get("close_time")]
     return max(closes) if closes else None
 
 
 def _recent_closes(tickers: list[str]) -> tuple[dict[str, str], int]:
     """ticker -> latest settled close for each series, fetched with the snapshot's worker
     pool; returns (closes, n_errors)."""
-    budget = _RequestBudget(len(tickers) * 2 + 25, time.monotonic() + 900.0)
+    budget = _RequestBudget(len(tickers) * 3 + 25, time.monotonic() + 900.0)
 
     def one(t: str) -> tuple[str, str | None, bool]:
         try:
@@ -551,12 +575,13 @@ def discover_kalshi_series(out_path: Path | None = None) -> str:
             "n_kept_between_events": n_between,
             "rule": ("category in " + ", ".join(_KALSHI_RULES)
                      + "; whole-word title keyword or exact tag (Politics: policy tags or a"
-                       " Fed-chair/FOMC/shutdown title phrase; Crypto: BTC/ETH only); excludes"
-                       " KXMVE parlays, *COMBO, KXFED, "
+                       " Fed-chair/FOMC/shutdown title phrase, never visit/attend/dinner"
+                       " novelty; Crypto: BTC/ETH only); excludes KXMVE parlays, *COMBO, KXFED, "
                      + "/".join(sorted(KALSHI_SKIP_FREQUENCIES))
                      + " series, 'after economic events' intraday ladders, state/city series"
-                       " (not the University of Michigan survey); keeps a series with an open"
-                       " event, or a recurring one whose latest settled event closed within "
+                       " (not the University of Michigan survey; a postal code only before a"
+                       " local price); keeps a series with an open event, or a recurring one"
+                       " whose latest settled event (live or historical API) closed within "
                      + f"{KALSHI_DISCOVERY_LOOKBACK_DAYS} days"),
             "series": [{**r, "discovered": SNAP_DATE} for r in picked.to_dict("records")],
         }
@@ -827,11 +852,13 @@ MAX_RESOLVE_PER_RUN = 300                  # Polymarket: markets per run (one GE
 # plus the weekly/monthly/one-off ones); 150 is ~3x that, so a backlog from a missed day or
 # two drains within days, and a full run stays ~1 minute.
 MAX_RESOLVE_EVENTS_PER_RUN = 150
-# A snapped ticker missing from its own event's response — or whose event GET is a 404 — is
-# looked up on its own (/markets/{ticker}, the authoritative one-market answer; ITS 404 is
-# recorded final "not_found"). It is never marked final from the event response, and it is
-# not left to ride on the event: its event would then be re-fetched every day forever.
-# Beyond this cap it simply stays pending.
+# A snapped ticker missing from its own event's live response — or whose event GET is a
+# 404 — is first looked for in the HISTORICAL API by event (markets settled before
+# /historical/cutoff, ~2 months back, move there), then on its own: live /markets/{ticker},
+# and on its 404 /historical/markets/{ticker}. Only when BOTH 404 is it recorded final
+# "not_found". It is never marked final from an event listing that lacks it, and it is not
+# left to ride on the event: its event would then be re-fetched every day forever. Beyond
+# this cap (tickers per run) it simply stays pending.
 MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN = 50
 KALSHI_RESOLVE_TIME_BUDGET_S = 120.0
 # Order: events never asked before go first (earliest close first), then re-asks of events
@@ -987,7 +1014,9 @@ def _kalshi_resolution(ticker: str, m: dict, via: str) -> dict:
 
 
 def _kalshi_gone(ticker: str, event_ticker: str | None, via: str) -> dict:
-    """A 404: gone for good, recorded final so it is not retried daily."""
+    """A market that neither the live API nor the historical API has (both 404 on its own
+    ticker). Recorded final so it is not retried daily. A live 404 alone is NOT this: Kalshi
+    moves markets settled before /historical/cutoff to the historical API."""
     return {"ticker": ticker, "event_ticker": event_ticker, "status": "not_found",
             "result": None, "final": True, "resolved_via": via, "looked_up": SNAP_DATE}
 
@@ -1017,11 +1046,37 @@ def _resolve_kalshi() -> str:
                 f"kalshi_resolve: nothing due ({held} stale non-final events held to a weekly "
                 f"re-ask)")
     due, events = len(events), events[:MAX_RESOLVE_EVENTS_PER_RUN]
+    # Each event costs at most 2 GETs (live, then historical for what the live listing
+    # lacks); each single-market fallback at most 2 (live, then historical); + 429 retries.
     budget = _RequestBudget(
-        MAX_RESOLVE_EVENTS_PER_RUN + MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN + 25,  # + 429 retries
+        2 * MAX_RESOLVE_EVENTS_PER_RUN + 2 * MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN + 25,
         time.monotonic() + KALSHI_RESOLVE_TIME_BUDGET_S)
+    recs, missing, errs, asked = _resolve_live_events(events, budget)
+    hist_recs, absent, hist_errs, hist_asked = _resolve_historical_events(missing, budget)
+    one_recs, one_errs, fallbacks = _resolve_single_markets(
+        list(loose) + absent, budget)
+    recs += hist_recs + one_recs
+    errs += hist_errs + one_errs
+    if recs:
+        _append(pd.DataFrame(recs), res_path, ["ticker"])
+    n_final = sum(1 for r in recs if r["final"])
+    n_hist = sum(1 for r in recs if r.get("resolved_via") == "historical")
+    return (f"kalshi_resolve: {asked}/{due} due events looked up "
+            f"(cap {MAX_RESOLVE_EVENTS_PER_RUN}), {len(recs)} markets recorded, {n_final} final, "
+            f"{len(recs) - n_final} not yet settled, {n_hist} from the historical API; "
+            f"{sum(map(len, missing.values()))} missing from their live event -> {hist_asked} "
+            f"historical event lookups; {len(loose) + len(absent)} still unresolved or without "
+            f"an event -> {fallbacks} single-market lookups; {held} stale re-asks held; "
+            f"{errs} errors; {budget.used} requests")
+
+
+def _resolve_live_events(events: list[tuple[str, list[str]]], budget: _RequestBudget
+                         ) -> tuple[list[dict], dict[str, list[str]], int, int]:
+    """One live /events/{ev} GET per event. Returns (records, event -> snapped tickers the
+    live listing lacks — all of them on a 404 or an empty listing, errors, events asked)."""
+    from urllib.error import HTTPError
     recs: list[dict] = []
-    absent: list[str] = list(loose)
+    missing: dict[str, list[str]] = {}
     errs = asked = 0
     for ev, tickers in events:
         if not budget.take():
@@ -1031,42 +1086,89 @@ def _resolve_kalshi() -> str:
             data = _kalshi_json(f"{KALSHI_API}/events/{quote(ev, safe='')}", budget)
             listed = {str(m.get("ticker")): m for m in _event_markets(data)}
             recs += [_kalshi_resolution(t, listed[t], "event") for t in tickers if t in listed]
-            absent += [t for t in tickers if t not in listed]
+            lacking = [t for t in tickers if t not in listed]
         except HTTPError as e:
-            if e.code == 404:          # not authoritative per market: ask each one alone
-                absent += tickers
-            else:
-                errs += 1
+            lacking = tickers if e.code == 404 else []     # a 404 is not authoritative per market
+            errs += e.code != 404
+        except Exception:
+            lacking, errs = [], errs + 1
+        if lacking:
+            missing[ev] = lacking
+        time.sleep(KALSHI_PAUSE_S)
+    return recs, missing, errs, asked
+
+
+def _resolve_historical_events(missing: dict[str, list[str]], budget: _RequestBudget
+                               ) -> tuple[list[dict], list[str], int, int]:
+    """Markets settled before /historical/cutoff (~2 months back) leave the live API: the
+    live event lists 0 markets and /markets/{t} 404s, while /historical/markets keeps the full
+    outcome (measured 2026-11-19 on KXCPI-26AUG). One /historical/markets?event_ticker= GET
+    per event with missing tickers. Returns (records, tickers still unresolved, errors,
+    events asked). A ticker absent from the historical listing goes on to the single-market
+    lookups; nothing is marked final here unless the historical API says it is."""
+    recs: list[dict] = []
+    still: list[str] = []
+    errs = asked = 0
+    for ev, lacking in missing.items():
+        if not budget.take():
+            break                                   # the rest stay pending until next run
+        asked += 1
+        try:
+            data = _kalshi_json(f"{KALSHI_API}/historical/markets?event_ticker="
+                                f"{quote(ev, safe='')}&limit=1000", budget)
+            hist = {str(m.get("ticker")): m for m in (data.get("markets") or [])
+                    if isinstance(m, dict)}
+            recs += [_kalshi_resolution(t, hist[t], "historical") for t in lacking if t in hist]
+            still += [t for t in lacking if t not in hist]
         except Exception:
             errs += 1
+            still += lacking
         time.sleep(KALSHI_PAUSE_S)
-    fallbacks = 0
-    for t in absent[:MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN]:
+    return recs, still, errs, asked
+
+
+def _resolve_single_markets(tickers: list[str], budget: _RequestBudget
+                            ) -> tuple[list[dict], int, int]:
+    """Per ticker (≤ MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN): live /markets/{t}; on its 404,
+    /historical/markets/{t}; only when BOTH 404 is the market recorded final "not_found".
+    Any other error leaves it pending. Returns (records, errors, tickers attempted)."""
+    from urllib.error import HTTPError
+    recs: list[dict] = []
+    errs = tried = 0
+    for t in tickers[:MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN]:
         if not budget.take():
             break
-        fallbacks += 1
+        tried += 1
+        url_t = quote(t, safe="")
         try:
-            m = _kalshi_json(f"{KALSHI_API}/markets/{quote(t, safe='')}", budget).get("market")
-            if isinstance(m, dict) and m:
-                recs.append(_kalshi_resolution(t, m, "market"))
-            else:
-                errs += 1                         # an empty answer is not an outcome
+            m = _kalshi_json(f"{KALSHI_API}/markets/{url_t}", budget).get("market")
+            via = "market"
         except HTTPError as e:
-            if e.code == 404:
-                recs.append(_kalshi_gone(t, None, "market"))
-            else:
+            if e.code != 404 or not budget.take():
+                errs += e.code != 404
+                continue
+            try:
+                m = _kalshi_json(f"{KALSHI_API}/historical/markets/{url_t}", budget).get("market")
+                via = "historical"
+            except HTTPError as e2:
+                if e2.code == 404:
+                    recs.append(_kalshi_gone(t, None, "market+historical"))
+                else:
+                    errs += 1
+                continue
+            except Exception:
                 errs += 1
+                continue
         except Exception:
             errs += 1
-        time.sleep(KALSHI_PAUSE_S)
-    if recs:
-        _append(pd.DataFrame(recs), res_path, ["ticker"])
-    n_final = sum(1 for r in recs if r["final"])
-    return (f"kalshi_resolve: {asked}/{due} due events looked up "
-            f"(cap {MAX_RESOLVE_EVENTS_PER_RUN}), {len(recs)} markets recorded, {n_final} final, "
-            f"{len(recs) - n_final} not yet settled; {len(absent)} absent from their event, "
-            f"in a 404 event or without one -> {fallbacks} single-market lookups; "
-            f"{held} stale re-asks held; {errs} errors; {budget.used} requests")
+            continue
+        finally:
+            time.sleep(KALSHI_PAUSE_S)
+        if isinstance(m, dict) and m:
+            recs.append(_kalshi_resolution(t, m, via))
+        else:
+            errs += 1                                 # an empty answer is not an outcome
+    return recs, errs, tried
 
 
 def resolve_polymarket_snapshots() -> str:
