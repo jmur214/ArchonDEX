@@ -140,43 +140,55 @@ def test_polymarket_snapshot_fails_closed_without_any_quote(monkeypatch, sandbox
 
 
 # ---- 3: outcomes ------------------------------------------------------------- #
+# T-405 follow-up: Kalshi resolves only selector == "series_v1" rows, one GET per EVENT
+# (/events/{event_ticker}); the event-level locks are in test_archive_kalshi_series.py.
 def _write_kalshi_snaps(path):
+    v1 = {"selector": "series_v1"}
     pd.DataFrame([
         # closed, priced -> looked up
-        {"snap_date": "2026-11-01", "ticker": "K-DONE", "yes_bid": 0.9, "yes_ask": 0.92,
-         "last_price": 0.91, "close_time": "2026-11-02T00:00:00Z"},
+        {"snap_date": "2026-11-01", "ticker": "K-DONE", "event_ticker": "EV-DONE",
+         "yes_bid": 0.9, "yes_ask": 0.92, "last_price": 0.91,
+         "close_time": "2026-11-02T00:00:00Z", **v1},
         # closed, priced, not settled yet -> looked up, not final
-        {"snap_date": "2026-11-01", "ticker": "K-WAIT", "yes_bid": 0.5, "yes_ask": 0.52,
-         "last_price": 0.51, "close_time": "2026-11-03T00:00:00Z"},
-        # closed, priced, gone -> 404 recorded final
-        {"snap_date": "2026-11-01", "ticker": "K-GONE", "yes_bid": 0.1, "yes_ask": 0.12,
-         "last_price": 0.11, "close_time": "2026-11-04T00:00:00Z"},
-        # closed but PRICE-LESS (the July-November rows) -> never looked up
-        {"snap_date": "2026-08-01", "ticker": "K-NULL", "yes_bid": None, "yes_ask": None,
-         "last_price": None, "close_time": "2026-08-02T00:00:00Z"},
+        {"snap_date": "2026-11-01", "ticker": "K-WAIT", "event_ticker": "EV-WAIT",
+         "yes_bid": 0.5, "yes_ask": 0.52, "last_price": 0.51,
+         "close_time": "2026-11-03T00:00:00Z", **v1},
+        # closed, priced, event gone -> 404 recorded final
+        {"snap_date": "2026-11-01", "ticker": "K-GONE", "event_ticker": "EV-GONE",
+         "yes_bid": 0.1, "yes_ask": 0.12, "last_price": 0.11,
+         "close_time": "2026-11-04T00:00:00Z", **v1},
+        # closed but PRICE-LESS -> never looked up
+        {"snap_date": "2026-08-01", "ticker": "K-NULL", "event_ticker": "EV-NULL",
+         "yes_bid": None, "yes_ask": None, "last_price": None,
+         "close_time": "2026-08-02T00:00:00Z", **v1},
         # still open -> never looked up
-        {"snap_date": "2026-11-17", "ticker": "K-OPEN", "yes_bid": 0.3, "yes_ask": 0.32,
-         "last_price": 0.31, "close_time": "2099-01-01T00:00:00Z"},
+        {"snap_date": "2026-11-17", "ticker": "K-OPEN", "event_ticker": "EV-OPEN",
+         "yes_bid": 0.3, "yes_ask": 0.32, "last_price": 0.31,
+         "close_time": "2099-01-01T00:00:00Z", **v1},
     ]).to_parquet(path, index=False)
 
 
 def _kalshi_router(url):
-    t = url.rsplit("/", 1)[1]
-    if t == "K-DONE":
-        return {"market": {"ticker": t, "status": "finalized", "result": "yes",
-                           "settlement_value_dollars": "1.0000"}}
-    if t == "K-WAIT":
-        return {"market": {"ticker": t, "status": "closed", "result": ""}}
-    if t == "K-GONE":
+    ev = url.rsplit("/", 1)[1]
+    if "/events/" not in url:
+        raise AssertionError(f"expected one GET per event, got {url}")
+    if ev == "EV-DONE":
+        return {"event": {"event_ticker": ev}, "markets": [
+            {"ticker": "K-DONE", "event_ticker": ev, "status": "finalized", "result": "yes",
+             "settlement_value_dollars": "1.0000"}]}
+    if ev == "EV-WAIT":
+        return {"event": {"event_ticker": ev}, "markets": [
+            {"ticker": "K-WAIT", "event_ticker": ev, "status": "closed", "result": ""}]}
+    if ev == "EV-GONE":
         return urllib.error.HTTPError(url, 404, "Not Found", {}, io.BytesIO(b""))
-    raise AssertionError(f"looked up a market it must not: {t}")
+    raise AssertionError(f"looked up an event it must not: {ev}")
 
 
 def test_kalshi_resolver_records_outcomes_and_skips_what_it_must(monkeypatch, sandbox):
     _write_kalshi_snaps(sandbox / "kalshi_snapshots.parquet")
     seen = _serve(monkeypatch, _kalshi_router)
     msg = m.resolve_kalshi_snapshots()
-    assert sorted(u.rsplit("/", 1)[1] for u in seen) == ["K-DONE", "K-GONE", "K-WAIT"]
+    assert sorted(u.rsplit("/", 1)[1] for u in seen) == ["EV-DONE", "EV-GONE", "EV-WAIT"]
     res = pd.read_parquet(sandbox / "kalshi_resolutions.parquet").set_index("ticker")
     assert bool(res.loc["K-DONE", "final"]) and res.loc["K-DONE", "result"] == "yes"
     assert res.loc["K-DONE", "settlement_value"] == pytest.approx(1.0)
@@ -184,18 +196,20 @@ def test_kalshi_resolver_records_outcomes_and_skips_what_it_must(monkeypatch, sa
     assert bool(res.loc["K-GONE", "final"]) and res.loc["K-GONE", "status"] == "not_found"
     assert "2 final" in msg
 
-    # a second run re-asks only the unsettled one
+    # a second run re-asks only the unsettled one's event
     seen.clear()
     m.resolve_kalshi_snapshots()
-    assert [u.rsplit("/", 1)[1] for u in seen] == ["K-WAIT"]
+    assert [u.rsplit("/", 1)[1] for u in seen] == ["EV-WAIT"]
 
 
-def test_kalshi_resolver_respects_the_per_run_cap(monkeypatch, sandbox):
-    rows = [{"snap_date": "2026-11-01", "ticker": f"K{i:03d}", "yes_bid": 0.5, "yes_ask": 0.5,
-             "last_price": 0.5, "close_time": "2026-11-02T00:00:00Z"} for i in range(7)]
+def test_kalshi_resolver_respects_the_per_run_event_cap(monkeypatch, sandbox):
+    rows = [{"snap_date": "2026-11-01", "ticker": f"K{i:03d}", "event_ticker": f"EV{i:03d}",
+             "yes_bid": 0.5, "yes_ask": 0.5, "last_price": 0.5,
+             "close_time": "2026-11-02T00:00:00Z", "selector": "series_v1"} for i in range(7)]
     pd.DataFrame(rows).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
-    monkeypatch.setattr(m, "MAX_RESOLVE_PER_RUN", 3)
-    seen = _serve(monkeypatch, lambda url: {"market": {"status": "finalized", "result": "no"}})
+    monkeypatch.setattr(m, "MAX_RESOLVE_EVENTS_PER_RUN", 3)
+    seen = _serve(monkeypatch, lambda url: {"markets": [
+        {"ticker": "K" + url.rsplit("EV", 1)[1], "status": "finalized", "result": "no"}]})
     m.resolve_kalshi_snapshots()
     assert len(seen) == 3
 

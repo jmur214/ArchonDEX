@@ -324,34 +324,164 @@ def test_the_real_quote_rule(bid, ask, last, quoted):
     assert bool(m._real_quote(s(bid), s(ask), s(last)).iloc[0]) is quoted
 
 
-def test_kalshi_resolver_skips_the_parlay_rows_and_resolves_real_ones(monkeypatch, sandbox):
-    pd.DataFrame([
-        # the 2026-11-18 parlay shape, closed: never looked up
-        {"snap_date": "2026-11-18", "ticker": "KXMVECROSSCATEGORY-S1", "yes_bid": 0.0,
-         "yes_ask": 1.0, "last_price": 0.0, "close_time": "2026-11-18T23:00:00Z"},
-        {"snap_date": "2026-11-18", "ticker": "KXMVECROSSCATEGORY-S2", "yes_bid": 0.0,
-         "yes_ask": 0.0, "last_price": 0.0, "close_time": "2026-11-18T23:00:00Z"},
-        # a series_v1 row with a real quote, closed: looked up
-        {"snap_date": "2026-11-19", "ticker": "KXCPI-26OCT-T0.1", "yes_bid": 0.4,
-         "yes_ask": 0.41, "last_price": 0.4, "close_time": "2026-11-19T13:30:00Z",
-         "series_ticker": "KXCPI", "selector": "series_v1"},
-        # an ask-only (one-sided) real quote, closed: looked up
-        {"snap_date": "2026-11-19", "ticker": "KXCPI-26OCT-T0.9", "yes_bid": 0.0,
-         "yes_ask": 0.02, "last_price": 0.0, "close_time": "2026-11-19T13:30:00Z",
-         "series_ticker": "KXCPI", "selector": "series_v1"},
-    ]).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
+def _v1(ticker: str, event: str, close: str = "2026-11-18T21:00:00Z", **kw: object) -> dict:
+    row = {"snap_date": "2026-11-18", "ticker": ticker, "event_ticker": event,
+           "yes_bid": 0.4, "yes_ask": 0.41, "last_price": 0.4, "close_time": close,
+           "series_ticker": event.split("-")[0], "selector": "series_v1"}
+    row.update(kw)
+    return row
 
+
+def _settled(ticker: str, event: str, result: str = "no", status: str = "finalized") -> dict:
+    return {"ticker": ticker, "event_ticker": event, "status": status, "result": result,
+            "settlement_value_dollars": "1.0000" if result == "yes" else "0.0000",
+            "expiration_value": "7323.63", "close_time": "2026-11-18T21:00:00Z",
+            "settlement_ts": "2026-11-19T00:02:00Z"}
+
+
+def _event_router(events: dict[str, list[dict] | Exception],
+                  markets: dict[str, dict | Exception] | None = None):
+    """/events/{ev} -> {"event": ..., "markets": events[ev]}; /markets/{t} -> markets[t]."""
     def router(url: str):
-        t = url.rsplit("/", 1)[1]
-        if t.startswith("KXMVE"):
-            raise AssertionError(f"looked up an unquoted parlay: {t}")
-        return {"market": {"ticker": t, "status": "finalized", "result": "no"}}
+        path = urlparse(url).path
+        key = path.rsplit("/", 1)[1]
+        if "/events/" in path and key in events:
+            out = events[key]
+            return out if isinstance(out, Exception) else {"event": {"event_ticker": key},
+                                                          "markets": out}
+        if "/markets/" in path and markets and key in markets:
+            out = markets[key]
+            return out if isinstance(out, Exception) else {"market": out}
+        raise AssertionError(f"unexpected lookup {url}")
+    return router
 
-    seen = _serve(monkeypatch, router)
+
+def _resolutions(sandbox: Path) -> pd.DataFrame:
+    return pd.read_parquet(sandbox / "kalshi_resolutions.parquet").set_index("ticker")
+
+
+def test_kalshi_resolver_never_looks_up_a_pre_t405_row(monkeypatch, sandbox):
+    """Old rows are parlays by construction: even one with a real (one-sided) ask is skipped."""
+    pd.DataFrame([
+        # pre-T-405 rows (no selector), closed, with an ask in (0, 1): never looked up
+        {"snap_date": "2026-11-18", "ticker": "KXMVECROSSCATEGORY-S1",
+         "event_ticker": "KXMVECROSSCATEGORY-R1", "yes_bid": 0.0, "yes_ask": 0.02,
+         "last_price": 0.0, "close_time": "2026-11-18T23:00:00Z"},
+        {"snap_date": "2026-11-18", "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2",
+         "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R2", "yes_bid": 0.0,
+         "yes_ask": 0.349, "last_price": 0.0, "close_time": "2026-11-18T23:00:00Z",
+         "selector": None},
+        # a series_v1 row, an ask-only real quote, closed: looked up
+        _v1("KXCPI-26OCT-T0.9", "KXCPI-26OCT", yes_bid=0.0, yes_ask=0.02, last_price=0.0),
+    ]).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
+    seen = _serve(monkeypatch, _event_router(
+        {"KXCPI-26OCT": [_settled("KXCPI-26OCT-T0.9", "KXCPI-26OCT")]}))
     msg = m.resolve_kalshi_snapshots()
-    assert sorted(u.rsplit("/", 1)[1] for u, _ in seen) == ["KXCPI-26OCT-T0.1",
-                                                           "KXCPI-26OCT-T0.9"]
-    assert "2 final" in msg and all("@" not in ua for _, ua in seen)
+    assert [urlparse(u).path.rsplit("/", 1)[1] for u, _ in seen] == ["KXCPI-26OCT"]
+    assert list(_resolutions(sandbox).index) == ["KXCPI-26OCT-T0.9"]
+    assert "1 final" in msg and all("@" not in ua for _, ua in seen)
+
+
+def test_kalshi_resolver_makes_one_request_per_event(monkeypatch, sandbox):
+    pd.DataFrame([_v1(f"KXINX-26NOV18H1600-B{k}", "KXINX-26NOV18H1600") for k in (7300, 7325, 7350)]
+                 + [_v1(f"KXWTI-26NOV1814-T{k}", "KXWTI-26NOV1814") for k in (81.99, 82.49)]
+                 ).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
+    inx = [_settled(f"KXINX-26NOV18H1600-B{k}", "KXINX-26NOV18H1600",
+                    "yes" if k == 7325 else "no") for k in (7300, 7325, 7350, 7375)]
+    wti = [_settled(f"KXWTI-26NOV1814-T{k}", "KXWTI-26NOV1814", "yes") for k in (81.99, 82.49)]
+    seen = _serve(monkeypatch, _event_router({"KXINX-26NOV18H1600": inx,
+                                              "KXWTI-26NOV1814": wti}))
+    msg = m.resolve_kalshi_snapshots()
+    assert len(seen) == 2 and all("/events/" in u for u, _ in seen)
+    res = _resolutions(sandbox)
+    assert len(res) == 5                                   # only the SNAPPED markets
+    assert "KXINX-26NOV18H1600-B7375" not in res.index
+    assert res["final"].all() and set(res["resolved_via"]) == {"event"}
+    assert res.loc["KXINX-26NOV18H1600-B7325", "result"] == "yes"
+    assert res.loc["KXINX-26NOV18H1600-B7325", "settlement_value"] == pytest.approx(1.0)
+    assert res.loc["KXINX-26NOV18H1600-B7300", "expiration_value"] == pytest.approx(7323.63)
+    assert "2/2 due events" in msg and "5 final" in msg
+
+    seen.clear()                                           # all final: nothing re-asked
+    assert m.resolve_kalshi_snapshots() == "kalshi_resolve: nothing pending" and not seen
+
+
+def test_kalshi_resolver_caps_by_events_earliest_close_first(monkeypatch, sandbox):
+    rows = [_v1(f"KXGOLDD-26NOV{d:02d}17-T1", f"KXGOLDD-26NOV{d:02d}17",
+                close=f"2026-11-{d:02d}T22:00:00Z") for d in (14, 10, 12, 11, 13)]
+    pd.DataFrame(rows).to_parquet(sandbox / "kalshi_snapshots.parquet", index=False)
+    monkeypatch.setattr(m, "MAX_RESOLVE_EVENTS_PER_RUN", 2)
+    events = {f"KXGOLDD-26NOV{d:02d}17": [_settled(f"KXGOLDD-26NOV{d:02d}17-T1",
+                                                   f"KXGOLDD-26NOV{d:02d}17")]
+              for d in range(10, 15)}
+    seen = _serve(monkeypatch, _event_router(events))
+    msg = m.resolve_kalshi_snapshots()
+    assert [urlparse(u).path.rsplit("/", 1)[1] for u, _ in seen] == ["KXGOLDD-26NOV1017",
+                                                                    "KXGOLDD-26NOV1117"]
+    assert "2/5 due events" in msg
+
+
+def test_a_gone_event_records_its_snapped_markets_final_not_found(monkeypatch, sandbox):
+    pd.DataFrame([_v1("KXA-1-T1", "KXA-1"), _v1("KXA-1-T2", "KXA-1")]).to_parquet(
+        sandbox / "kalshi_snapshots.parquet", index=False)
+    gone = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+    _serve(monkeypatch, _event_router({"KXA-1": gone}))
+    m.resolve_kalshi_snapshots()
+    res = _resolutions(sandbox)
+    assert set(res["status"]) == {"not_found"} and res["final"].all() and len(res) == 2
+
+
+def test_a_ticker_absent_from_its_event_is_looked_up_alone_never_assumed(monkeypatch, sandbox):
+    pd.DataFrame([_v1("KXB-1-T1", "KXB-1"), _v1("KXB-1-T2", "KXB-1"),
+                  _v1("KXB-1-T3", "KXB-1")]).to_parquet(
+        sandbox / "kalshi_snapshots.parquet", index=False)
+    events = {"KXB-1": [_settled("KXB-1-T1", "KXB-1")]}          # T2, T3 absent
+    markets: dict[str, dict | Exception] = {
+        "KXB-1-T2": _settled("KXB-1-T2", "KXB-1", "yes"),          # the market answers
+        "KXB-1-T3": urllib.error.HTTPError("u", 503, "down", {}, None)}  # it errors
+    seen = _serve(monkeypatch, _event_router(events, markets))
+    msg = m.resolve_kalshi_snapshots()
+    res = _resolutions(sandbox)
+    assert sorted(res.index) == ["KXB-1-T1", "KXB-1-T2"]          # T3 NOT recorded
+    assert res.loc["KXB-1-T2", "resolved_via"] == "market" and bool(res.loc["KXB-1-T2", "final"])
+    assert "2 absent" in msg and "2 single-market lookups" in msg and "1 errors" in msg
+    assert sum("/markets/" in u for u, _ in seen) == 2
+
+    # next run: T3 is still pending, so its event is asked again and T3 again alone
+    seen.clear()
+    markets["KXB-1-T3"] = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+    m.resolve_kalshi_snapshots()
+    res = _resolutions(sandbox)
+    assert res.loc["KXB-1-T3", "status"] == "not_found" and bool(res.loc["KXB-1-T3", "final"])
+    assert [urlparse(u).path.rsplit("/", 1)[1] for u, _ in seen] == ["KXB-1", "KXB-1-T3"]
+
+
+def test_absent_tickers_beyond_the_fallback_cap_stay_pending(monkeypatch, sandbox):
+    pd.DataFrame([_v1(f"KXC-1-T{i}", "KXC-1") for i in range(4)]).to_parquet(
+        sandbox / "kalshi_snapshots.parquet", index=False)
+    monkeypatch.setattr(m, "MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN", 1)
+    markets = {f"KXC-1-T{i}": _settled(f"KXC-1-T{i}", "KXC-1") for i in range(4)}
+    _serve(monkeypatch, _event_router({"KXC-1": []}, markets))   # the event lists none
+    m.resolve_kalshi_snapshots()
+    assert list(_resolutions(sandbox).index) == ["KXC-1-T0"]       # 3 left pending, unrecorded
+
+
+def test_an_unsettled_market_is_recorded_not_final_and_asked_again(monkeypatch, sandbox):
+    pd.DataFrame([_v1("KXD-1-T1", "KXD-1")]).to_parquet(sandbox / "kalshi_snapshots.parquet",
+                                                         index=False)
+    events: dict[str, list[dict] | Exception] = {
+        "KXD-1": [_settled("KXD-1-T1", "KXD-1", result="", status="closed")]}
+    seen = _serve(monkeypatch, _event_router(events))
+    m.resolve_kalshi_snapshots()
+    assert not bool(_resolutions(sandbox).loc["KXD-1-T1", "final"])
+    events["KXD-1"] = [_settled("KXD-1-T1", "KXD-1", "yes")]
+    m.resolve_kalshi_snapshots()
+    assert bool(_resolutions(sandbox).loc["KXD-1-T1", "final"]) and len(seen) == 2
+
+
+def test_the_kalshi_resolver_never_raises(monkeypatch, sandbox):
+    (sandbox / "kalshi_snapshots.parquet").write_bytes(b"not a parquet file")
+    assert m.resolve_kalshi_snapshots().startswith("kalshi_resolve: FAILED")
 
 
 def test_polymarket_resolver_keeps_long_shots_and_skips_empty_books(monkeypatch, sandbox):

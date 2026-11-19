@@ -660,10 +660,27 @@ def _snapshot_kalshi() -> str:
 # --- 2026-11-17: OUTCOMES for the markets we snapshot ------------------------ #
 # A probability archive is worth nothing without what happened. Each run looks up the
 # markets we captured WITH A REAL QUOTE whose close/end time has passed and that have no
-# final outcome recorded yet, one public GET each, capped per run, and appends the outcome.
-# Rows without a real quote are never looked up: there is nothing to score. That covers the
-# July-November Kalshi rows (prices null) and the 2026-11-18 parlays (0.0 bid, 0.0 last).
-MAX_RESOLVE_PER_RUN = 300
+# final outcome recorded yet, capped per run, and appends the outcome. Rows without a real
+# quote are never looked up: there is nothing to score. That covers the July-November
+# Kalshi rows (prices null).
+#
+# Kalshi (T-405 follow-up, 2026-11-19): only rows with selector == "series_v1" are resolved —
+# every older row is a parlay by construction — and the lookup is ONE GET PER EVENT
+# (/events/{event_ticker}, which lists every market of the event with status / result /
+# settlement_value_dollars / expiration_value, and 404s for a gone event). The series archive
+# closes ~750 strikes a day (each daily ladder is new tickers) in ~33 events; one GET per
+# market against a 300 cap would fall ~450 a day further behind, forever.
+MAX_RESOLVE_PER_RUN = 300                  # Polymarket: markets per run (one GET each)
+# Kalshi: events per run. ~35-50 events close a day at the 2026-11-19 list (31 daily series,
+# plus the weekly/monthly/one-off ones); 150 is ~3x that, so a backlog from a missed day or
+# two drains within days, and a full run stays ~1 minute.
+MAX_RESOLVE_EVENTS_PER_RUN = 150
+# A snapped ticker missing from its own event's response is looked up on its own
+# (/markets/{ticker}, the authoritative one-market answer, which 404s if it is gone). It is
+# never marked final from the event response, and it is not left to ride on the event: its
+# event would then be re-fetched every day forever. Beyond this cap it simply stays pending.
+MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN = 50
+KALSHI_RESOLVE_TIME_BUDGET_S = 120.0
 
 
 def _num_col(df: pd.DataFrame, col: str) -> pd.Series:
@@ -719,60 +736,152 @@ def _num(x):
     return v if v == v else None
 
 
-def _pending(snap_path: Path, res_path: Path, key: str, end_col: str,
-             quoted: Callable[[pd.DataFrame], pd.Series]) -> list[str]:
-    """Keys to look up: rows with a real quote (``quoted``) whose close/end has passed and
-    that have no final outcome yet, earliest close first, capped at MAX_RESOLVE_PER_RUN."""
+def _pending_frame(snap_path: Path, res_path: Path, key: str, end_col: str,
+                   quoted: Callable[[pd.DataFrame], pd.Series],
+                   keep: Callable[[pd.DataFrame], pd.Series] | None = None) -> pd.DataFrame:
+    """Snapshot rows to look up, one per ``key``, earliest close first: a real quote
+    (``quoted``), an optional extra row filter (``keep``), a close/end in the past, and no
+    final outcome recorded yet. Uncapped; the callers cap."""
     if not snap_path.exists():
-        return []
+        return pd.DataFrame(columns=[key, "_end"])
     snaps = pd.read_parquet(snap_path)
     if key not in snaps.columns or end_col not in snaps.columns:
-        return []
-    snaps = snaps[quoted(snaps).to_numpy(dtype=bool)]
-    ends = pd.to_datetime(snaps[end_col], utc=True, errors="coerce")
-    snaps = snaps[ends < pd.Timestamp.now(tz="UTC")]
+        return pd.DataFrame(columns=[key, "_end"])
+    mask = quoted(snaps).to_numpy(dtype=bool)
+    if keep is not None:          # not `&=`: to_numpy() can hand back a read-only view
+        mask = mask & keep(snaps).to_numpy(dtype=bool)
+    snaps = snaps[mask]
+    snaps = snaps.assign(_end=pd.to_datetime(snaps[end_col], utc=True, errors="coerce"))
+    snaps = snaps[snaps["_end"] < pd.Timestamp.now(tz="UTC")]
     done: set = set()
     if res_path.exists():
         res = pd.read_parquet(res_path)
         done = set(res.loc[res["final"].astype(bool), key].astype(str))
-    out = (snaps.assign(_end=pd.to_datetime(snaps[end_col], utc=True, errors="coerce"))
-           .sort_values("_end")[key].astype(str).drop_duplicates())
-    return [k for k in out if k not in done][:MAX_RESOLVE_PER_RUN]
+    out = snaps.sort_values("_end", kind="stable").assign(**{key: lambda d: d[key].astype(str)})
+    out = out.drop_duplicates(key)
+    return out[~out[key].isin(done)].reset_index(drop=True)
+
+
+def _pending(snap_path: Path, res_path: Path, key: str, end_col: str,
+             quoted: Callable[[pd.DataFrame], pd.Series]) -> list[str]:
+    """Keys to look up one GET each (Polymarket), capped at MAX_RESOLVE_PER_RUN."""
+    frame = _pending_frame(snap_path, res_path, key, end_col, quoted)
+    return frame[key].tolist()[:MAX_RESOLVE_PER_RUN]
+
+
+def _is_series_v1(df: pd.DataFrame) -> pd.Series:
+    """Rows written by the series selector. Every older row is a parlay (T-405)."""
+    if "selector" not in df.columns:
+        return pd.Series(False, index=df.index)
+    return df["selector"].astype("string").eq(KALSHI_SELECTOR).fillna(False).astype(bool)
+
+
+def _kalshi_pending_events(snap: Path, res_path: Path
+                           ) -> tuple[list[tuple[str, list[str]]], list[str]]:
+    """Pending series_v1 tickers grouped by event, events ordered by their earliest close,
+    and the pending tickers that carry no event_ticker (looked up one by one)."""
+    pend = _pending_frame(snap, res_path, "ticker", "close_time", _kalshi_quoted,
+                          keep=_is_series_v1)
+    if pend.empty:
+        return [], []
+    ev = (pend["event_ticker"].astype("string").str.strip() if "event_ticker" in pend
+          else pd.Series(pd.NA, index=pend.index, dtype="string"))
+    has_ev = (ev.notna() & ev.ne("")).fillna(False).astype(bool)
+    grouped = pend[has_ev].groupby(ev[has_ev], sort=False)["ticker"].agg(list)
+    return [(str(k), v) for k, v in grouped.items()], pend.loc[~has_ev, "ticker"].tolist()
+
+
+def _kalshi_resolution(ticker: str, m: dict, via: str) -> dict:
+    """One resolutions row from a market object (event listing or single-market GET)."""
+    status, result = m.get("status"), m.get("result")
+    return {"ticker": ticker, "event_ticker": m.get("event_ticker"), "title": m.get("title"),
+            "status": status, "result": result,
+            "settlement_value": _num(m.get("settlement_value_dollars")),
+            "expiration_value": _num(m.get("expiration_value")),
+            "close_time": m.get("close_time"), "settlement_ts": m.get("settlement_ts"),
+            "final": status in ("settled", "finalized") and bool(result),
+            "resolved_via": via, "looked_up": SNAP_DATE}
+
+
+def _kalshi_gone(ticker: str, event_ticker: str | None, via: str) -> dict:
+    """A 404: gone for good, recorded final so it is not retried daily."""
+    return {"ticker": ticker, "event_ticker": event_ticker, "status": "not_found",
+            "result": None, "final": True, "resolved_via": via, "looked_up": SNAP_DATE}
+
+
+def _event_markets(data: dict) -> list[dict]:
+    """The markets of an /events/{ticker} response: top-level `markets`, or nested under
+    `event` when with_nested_markets=true (both shapes measured 2026-11-19)."""
+    event = data.get("event")
+    nested = event.get("markets") if isinstance(event, dict) else None
+    return [m for m in (data.get("markets") or nested or []) if isinstance(m, dict)]
 
 
 def resolve_kalshi_snapshots() -> str:
+    """Outcomes for the series_v1 snapshot rows, one GET per event. Never raises."""
+    try:
+        return _resolve_kalshi()
+    except Exception as e:
+        return f"kalshi_resolve: FAILED ({type(e).__name__}: {e}) — LOUD"
+
+
+def _resolve_kalshi() -> str:
     from urllib.error import HTTPError
     snap, res_path = OUT_DIR / "kalshi_snapshots.parquet", OUT_DIR / "kalshi_resolutions.parquet"
-    todo = _pending(snap, res_path, "ticker", "close_time", _kalshi_quoted)
-    if not todo:
+    events, loose = _kalshi_pending_events(snap, res_path)
+    if not events and not loose:
         return "kalshi_resolve: nothing pending"
-    recs, errs = [], 0
-    for t in todo:
+    due, events = len(events), events[:MAX_RESOLVE_EVENTS_PER_RUN]
+    budget = _RequestBudget(
+        MAX_RESOLVE_EVENTS_PER_RUN + MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN + 25,  # + 429 retries
+        time.monotonic() + KALSHI_RESOLVE_TIME_BUDGET_S)
+    recs: list[dict] = []
+    absent: list[str] = list(loose)
+    errs = asked = 0
+    for ev, tickers in events:
+        if not budget.take():
+            break
+        asked += 1
         try:
-            m = json.loads(_get("https://api.elections.kalshi.com/trade-api/v2/markets/"
-                                + quote(t, safe=""), timeout=30)).get("market", {})
-            status, result = m.get("status"), m.get("result")
-            final = status in ("settled", "finalized") and bool(result)
-            recs.append({"ticker": t, "event_ticker": m.get("event_ticker"),
-                         "title": m.get("title"), "status": status, "result": result,
-                         "settlement_value": _num(m.get("settlement_value_dollars")),
-                         "close_time": m.get("close_time"),
-                         "settlement_ts": m.get("settlement_ts"),
-                         "final": final, "looked_up": SNAP_DATE})
+            data = _kalshi_json(f"{KALSHI_API}/events/{quote(ev, safe='')}", budget)
+            listed = {str(m.get("ticker")): m for m in _event_markets(data)}
+            recs += [_kalshi_resolution(t, listed[t], "event") for t in tickers if t in listed]
+            absent += [t for t in tickers if t not in listed]
         except HTTPError as e:
-            if e.code == 404:       # gone for good: record it so it is not retried daily
-                recs.append({"ticker": t, "status": "not_found", "result": None,
-                             "final": True, "looked_up": SNAP_DATE})
+            if e.code == 404:
+                recs += [_kalshi_gone(t, ev, "event") for t in tickers]
             else:
                 errs += 1
         except Exception:
             errs += 1
-        time.sleep(0.2)
+        time.sleep(KALSHI_PAUSE_S)
+    fallbacks = 0
+    for t in absent[:MAX_RESOLVE_MARKET_FALLBACKS_PER_RUN]:
+        if not budget.take():
+            break
+        fallbacks += 1
+        try:
+            m = _kalshi_json(f"{KALSHI_API}/markets/{quote(t, safe='')}", budget).get("market")
+            if isinstance(m, dict) and m:
+                recs.append(_kalshi_resolution(t, m, "market"))
+            else:
+                errs += 1                         # an empty answer is not an outcome
+        except HTTPError as e:
+            if e.code == 404:
+                recs.append(_kalshi_gone(t, None, "market"))
+            else:
+                errs += 1
+        except Exception:
+            errs += 1
+        time.sleep(KALSHI_PAUSE_S)
     if recs:
         _append(pd.DataFrame(recs), res_path, ["ticker"])
     n_final = sum(1 for r in recs if r["final"])
-    return (f"kalshi_resolve: looked up {len(todo)}, {n_final} final, "
-            f"{len(recs) - n_final} not yet settled, {errs} errors")
+    return (f"kalshi_resolve: {asked}/{due} due events looked up "
+            f"(cap {MAX_RESOLVE_EVENTS_PER_RUN}), {len(recs)} markets recorded, {n_final} final, "
+            f"{len(recs) - n_final} not yet settled; {len(absent)} absent from their event or "
+            f"without one -> {fallbacks} single-market lookups; {errs} errors; "
+            f"{budget.used} requests")
 
 
 def resolve_polymarket_snapshots() -> str:

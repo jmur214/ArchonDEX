@@ -1179,6 +1179,12 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 #    CLOSED — no fallback to open-market paging — when the list is missing/empty or no row
 #    carries a real quote (bid > 0, last > 0, or 0 < ask < 1). The resolvers look up only
 #    rows with a real quote (locks: tests/test_archive_kalshi_series.py).
+#  - kalshi_resolutions.parquet: resolves ONLY selector == "series_v1" rows, ONE GET PER
+#    EVENT (/events/{event_ticker}; ≤ 150 events/run, earliest close first; ~35-45 events
+#    close a day, so ~40 requests/day). A 404 event records its snapped markets final
+#    "not_found"; a ticker missing from its event's listing gets its own /markets/{ticker}
+#    GET (≤ 50/run) and is never marked final from the event listing. New columns:
+#    expiration_value (the underlying's settle value), resolved_via (event | market).
 # Re-discover the series list from the live API (rewrites the config; ~60 s, ~110
 # requests; review the one-line-per-series diff before committing):
 .venv/bin/python scripts/archive_altdata_t136.py --discover-kalshi-series

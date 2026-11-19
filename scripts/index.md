@@ -218,7 +218,7 @@
 - **Function `discover_kalshi_series()`**: Write the reviewed series list (``config/kalshi_macro_series.json`` by default) from
 - **Function `load_kalshi_series()`**: The listed series (ticker, category) from the config, or an EMPTY frame when the file
 - **Function `snapshot_kalshi()`**: Daily snapshot of the OPEN markets in every series listed in the reviewed config.
-- **Function `resolve_kalshi_snapshots()`**: No docstring
+- **Function `resolve_kalshi_snapshots()`**: Outcomes for the series_v1 snapshot rows, one GET per event. Never raises.
 - **Function `resolve_polymarket_snapshots()`**: No docstring
 - **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —
 - **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
