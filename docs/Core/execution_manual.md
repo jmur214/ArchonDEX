@@ -1171,6 +1171,38 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 #    (local launchd path only; the cloud pulse runs the snapshots, not the resolvers).
 # Privacy: the owner's contact UA goes to sec.gov hosts ONLY; every other host gets
 # "ArchonDEX-research/1.0" (locks: tests/test_archive_altdata_ua_privacy.py).
+# 2026-11-19 (T-405) — the Kalshi archive selects by SERIES:
+#  - every kalshi_snapshots.parquet row before 2026-11-19 is a KXMVE sports parlay with no
+#    quote (kept, never rewritten); use rows with selector == "series_v1" (+ series_ticker);
+#  - the daily snapshot reads ONLY config/kalshi_macro_series.json (reviewed + committed;
+#    401 series on 2026-11-19: ~5.7k rows, ~400 requests, ~86 s, 2 workers). It writes
+#    NOTHING (FAILED … LOUD) when the list is missing/empty, no market comes back, any price
+#    is outside [0, 1] (a units change), or < 50 % of rows carry a real quote (bid > 0,
+#    last > 0, or 0 < ask < 1; 99.4 % on 2026-11-19). On a PARTIAL day (< 90 % of listed
+#    series completed — an empty pull counts as completed — or the budget cut the run) it
+#    keeps the real rows but the line says FAILED and the daily run exits 1, so the
+#    wrapper alarms. The line names the list's discovered date and WARNs past 60 days.
+#    The daily run exits 1 ONLY on a FAILED kalshi / kalshi_resolve / polymarket_resolve
+#    line (the other feeds stay gated by the freshness verifier and cadence budgets).
+#    The resolvers look up only rows with a real quote (locks:
+#    tests/test_archive_kalshi_series.py).
+#  - discovery keeps a series with an open event, or a recurring (not one_off) series whose
+#    latest settled event closed within 120 days (one quarterly cycle + 4 weeks), so
+#    weekly/monthly series between events stay listed; ~490 extra lookups, ~3 min.
+#  - kalshi_resolutions.parquet: resolves ONLY selector == "series_v1" rows, ONE GET PER
+#    EVENT (/events/{event_ticker}; ≤ 150 events/run, earliest close first; ~35-45 events
+#    close a day, so ~40 requests/day). Never-asked events go first; re-asks of events not
+#    yet settled follow, least recently asked first, and one whose close is > 30 days old is
+#    re-asked at most weekly. A ticker missing from its event's listing, or in an event
+#    that 404s, gets its own /markets/{ticker} GET (≤ 50/run; ITS 404 is final
+#    "not_found") and is never marked final from the event listing. New columns:
+#    expiration_value (the underlying's settle value), resolved_via (event | market).
+# Re-discover the series list from the live API (rewrites the config; ~3 min, ~600
+# requests; review the one-line-per-series diff before committing):
+.venv/bin/python scripts/archive_altdata_t136.py --discover-kalshi-series
+# Smoke the Kalshi snapshot + resolver into a scratch dir (NEVER data/):
+.venv/bin/python scripts/archive_altdata_t136.py --kalshi-only --out-dir /tmp/kalshi_smoke
+#   --kalshi-config PATH reads (snapshot) or writes (discovery) a different series list.
 
 # The scheduled path: launchd runs the wrapper daily at 17:30 CT (= 18:30 ET).
 # Wrapper logs to data/macro_data/alt/logs/archive_YYYY-MM-DD.log and prints
