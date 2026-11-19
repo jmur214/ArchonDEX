@@ -1187,16 +1187,27 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 #    The resolvers look up only rows with a real quote (locks:
 #    tests/test_archive_kalshi_series.py).
 #  - discovery keeps a series with an open event, or a recurring (not one_off) series whose
-#    latest settled event closed within 120 days (one quarterly cycle + 4 weeks), so
-#    weekly/monthly series between events stay listed; ~490 extra lookups, ~3 min.
+#    latest settled event closed within 120 days (one quarterly cycle + 4 weeks; the close
+#    is read from the historical API when the event settled before the cutoff), so
+#    weekly/monthly/quarterly series between events stay listed; ~650 extra lookups.
 #  - kalshi_resolutions.parquet: resolves ONLY selector == "series_v1" rows, ONE GET PER
 #    EVENT (/events/{event_ticker}; ≤ 150 events/run, earliest close first; ~35-45 events
 #    close a day, so ~40 requests/day). Never-asked events go first; re-asks of events not
 #    yet settled follow, least recently asked first, and one whose close is > 30 days old is
-#    re-asked at most weekly. A ticker missing from its event's listing, or in an event
-#    that 404s, gets its own /markets/{ticker} GET (≤ 50/run; ITS 404 is final
-#    "not_found") and is never marked final from the event listing. New columns:
-#    expiration_value (the underlying's settle value), resolved_via (event | market).
+#    re-asked at most weekly. Markets settled before /historical/cutoff (~2 months back)
+#    leave the live API (the live event lists 0 markets, /markets/{t} 404s) but stay in
+#    the historical API: a ticker missing from its live event listing, or in an event that
+#    404s, is looked up by event in /historical/markets?event_ticker=, then on its own
+#    (live /markets/{t}, then /historical/markets/{t}; ≤ 50 tickers/run). It is recorded
+#    final "not_found" ONLY when both single-market endpoints 404, and never marked final
+#    from a listing that lacks it, nor from a single-market answer for another ticker.
+#    A ticker whose lookup errors gets a NON-final row (status "lookup_error",
+#    resolved_via "error") so the stale-event weekly hold applies to it — filter
+#    final == True for outcomes. New columns: expiration_value (the underlying's settle
+#    value), resolved_via (event | historical | market | market+historical | error).
+#    Kalshi timestamps come as "…:00Z" and "…:00.484355Z"; the module parses them with
+#    format="ISO8601" (pandas 3 otherwise NaTs the second shape silently), and discovery
+#    FAILS (config not written) if a returned lookback close does not parse.
 # Re-discover the series list from the live API (rewrites the config; ~3 min, ~600
 # requests; review the one-line-per-series diff before committing):
 .venv/bin/python scripts/archive_altdata_t136.py --discover-kalshi-series

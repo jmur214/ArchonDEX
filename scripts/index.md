@@ -208,6 +208,7 @@
 
 ### `archive_altdata_t136.py`
 **Module Docstring:** scripts/archive_altdata_t136.py
+- **Class `_UnparseableClose`**: A close time the API returned that does not parse: discovery fails closed on it
 - **Class `_RequestBudget`**: A request cap and a wall-clock deadline (time.monotonic()) shared by one run's
   - `def take()`
 - **Class `_SeriesResult`**: No docstring
