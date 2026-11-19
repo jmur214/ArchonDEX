@@ -33,6 +33,7 @@ NOTES_DIR = ANALYST_NOTE.directory
 # book + the A/B pair the two analysts separately). Same analyst_note/v1 shape.
 AGENTIC_NOTES_DIR = ANALYST_NOTE_AGENTIC.directory
 SPEND_LEDGER = "data/intel/llm_spend.jsonl"
+EVENT_LEDGER_REL = "data/intel/event_calls.jsonl"  # D's event-call ledger (cloud_state DURABLE_PATHS)
 STAGE2_LEDGER = "data/state/stage2_clock.jsonl"   # T-325 #5: the readiness record
 RAW_DIR = "data/intel/llm_raw"
 MONTHLY_BUDGET_USD = 30.0
@@ -339,11 +340,16 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
     # --- 3. D's event pulse_step (forward-only 8-K interpreter, report-only) -- #
     try:
         from intelligence.event_call.run_forward import pulse_step
+        # 2026-11-19: the event-call ledger lives under THIS run's root, like the raw
+        # archive beside it. pulse_step's default is the module's own checkout, so a
+        # pulse rooted elsewhere appended to (and de-duplicated against) a ledger the
+        # cloud sync never moves. Identical where the root is the checkout.
         ev = pulse_step(
             as_of, model_call=model_call, governor=gov,
             prompt_path="config/prompts/event_interpreter/v1.txt",
             model_id_requested=model_id, prompt_version="event_interpreter/v1",
-            projected_cost_usd=_PROJ_EVENT, raw_dir=raw_dir)
+            projected_cost_usd=_PROJ_EVENT, raw_dir=raw_dir,
+            ledger_path=base / EVENT_LEDGER_REL)
         res.event = ev if isinstance(ev, dict) else {"status": "unknown"}
     except Exception as exc:   # noqa: BLE001
         res.event = {"status": f"error:{type(exc).__name__}"}
