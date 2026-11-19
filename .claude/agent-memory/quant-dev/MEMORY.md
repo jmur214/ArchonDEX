@@ -14,6 +14,6 @@
 - [T-391 honest-N: what the 231/267 contain + standalone gap](project_t391_honest_n_standalone_trials_2026_11_12.md) — 267 is an N_eff; three disjoint populations; ruling 9.2 gates R3; branch unmerged.
 - [Stooq transient blocks + yfinance quirks](reference_stooq_transient_blocks_and_yf_quirks.md) — 4,517 one-dividend reverting blocks fool ex-date probes; widening the window backfired; yf empty dividends for delisted; processed-read lock marker.
 - [T-394 Tier-1 wiring](project_t394_tier1_wiring_2026_11_14.md) — 11 pinned rows in the cutover writer; 575/575 byte-identical to T-390; two-step multiplication keeps bit identity.
-- [Kalshi public API quirks](reference_kalshi_public_api_quirks_2026_11_19.md) — one series per /markets call (comma list silently 0); /series is one 21 MB page; 4 workers → 429, use 2; MVE parlays flood the open list.
-- [T-405 Kalshi series archive](project_t405_kalshi_series_archive_2026_11_19.md) — config/kalshi_macro_series.json (384 series); real-quote rule; exclusions + reasons; ask-only 0.99 open question.
+- [Kalshi public API quirks](reference_kalshi_public_api_quirks_2026_11_19.md) — one series per /markets call (comma list silently 0); 4 workers → 429; pre-cutoff markets live only in /historical.
+- [T-405 Kalshi series archive](project_t405_kalshi_series_archive_2026_11_19.md) — merged 49331c7; selection rule, real-quote rule, per-event + historical resolver, rc contract.
 - [pandas 3 dtypes + monkeypatch defaults](feedback_pandas3_dtypes_and_monkeypatch_defaults_2026_11_19.md) — astype("string") NA flavour vs inferred str; groupby.apply drops keys; a default arg defeats monkeypatch.
