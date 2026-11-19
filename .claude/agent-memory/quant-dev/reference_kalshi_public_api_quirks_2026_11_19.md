@@ -15,5 +15,7 @@ Measured 2026-11-19, unauthenticated, generic UA, `https://api.elections.kalshi.
 - "<X> after economic events" series (KX10YRRATEEVENT etc.) are intraday point-price ladders at a release minute, 51 strikes, mostly zero volume — 58% of macro rows. Market makers quote deep-OTM strikes at bid 0.00 / ask 0.99, which passes a "0 < ask < 1" quote rule (628 of 5,681 rows are ask-only).
 - MVE parlay books report 0.0 bid / 0.0 last / 0.0 ask (not 1.00) — a `notna` "priced" check reads them as priced.
 - Ticker `KXCPI-26NOV-T-0.1` is "Above -0.1%" (the minus is in the ticker); easy to misread as +0.1%.
+- Outcomes: `/events/{event_ticker}` (plain) returns `{"event": {...}, "markets": [...]}` with every market's status (`finalized`), result, settlement_value_dollars, settlement_ts, expiration_value (the underlying's settle value); no truncation seen (130 markets). With `with_nested_markets=true` the list moves under `event.markets` and top-level `markets` is EMPTY. A gone event is HTTP 404; `/markets?event_ticker=bogus` is an empty 200 (cannot tell gone from empty). `/events?series_ticker=X&status=settled&limit=1` lists the most recent settled event first.
+- Daily series close ~750 strikes/day in ~33 events — resolve per event, not per market.
 
 See [[project-t405-kalshi-series-archive]] for the design that uses these.

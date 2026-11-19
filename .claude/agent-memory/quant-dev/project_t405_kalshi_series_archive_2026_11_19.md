@@ -12,7 +12,8 @@ T-405 (2026-11-19): `snapshot_kalshi` now reads ONLY `config/kalshi_macro_series
 **How to apply:**
 - Excluded by stated rule: Elections, World, Sports/Entertainment/Mentions/Exotics/Climate/Companies; hourly + fifteen_min; "after economic events" ladders; state/city titles + local tags; *COMBO; KXFED (snapshot_kxfed has it). Politics only via exact tags {federal reserve, trade & tariffs, budget & shutdowns}; Crypto BTC/ETH only.
 - Real quote = bid > 0 | last > 0 | 0 < ask < 1 (director's rule). Polymarket `_pending` also accepts an outcomePrices value strictly inside (0,1) for pre-11-17 rows; Polymarket SNAPSHOT fail-closed uses the book fields only (keeps the old test contract).
-- Open questions handed back: ask-only rows (628/5,681, many 0.99 placeholders) pass the rule; 36 of the 11-18 parlays pass by a tiny ask (0.0006–0.06) so the resolver will look them up once; cloud redeploy is the user's call (config IS in the paper image context once committed).
+- Director rulings (2026-11-19 follow-up): ask-only placeholder rows STAY under the rule (filter later). The Kalshi resolver resolves ONLY selector=="series_v1" rows, ONE GET PER EVENT (/events/{ev}), ≤150 events/run (~3x the ~35-45/day inflow), a 404 event → its snapped tickers final not_found, a ticker missing from its event's listing → its own /markets/{t} GET (≤50/run), never marked final from the listing. Live drill: 31 settled daily events → 26 requests, 670 outcomes, 11 s.
+- Cloud redeploy is the user's call (the config IS in the paper image context once committed).
 - Lock tests: tests/test_archive_kalshi_series.py (committed-config tests re-run the rule on the committed rows).
 
 Related: [[reference-kalshi-public-api-quirks-2026-11-19]].
