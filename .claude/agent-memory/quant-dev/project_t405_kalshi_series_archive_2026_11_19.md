@@ -14,6 +14,7 @@ T-405 (2026-11-19, merged to main as 49331c7): `snapshot_kalshi` reads ONLY `con
 - Kept: an open event, OR a recurring series whose latest settled event closed ≤ 120 d (read from the historical API when the live nested list is empty).
 - Real quote = bid > 0 | last > 0 | 0 < ask < 1; ask-only placeholders stay (director ruling).
 - Resolver: series_v1 rows only; ONE live GET per event (≤150 events/run); tickers the live listing lacks (or in a 404 event) → `/historical/markets?event_ticker=` (one GET per event; markets settled before `/historical/cutoff`, ~2 months back, live there) → then per ticker live `/markets/{t}`, and on its 404 `/historical/markets/{t}` (≤50 tickers/run). `not_found` final ONLY when live AND historical single-market both 404 (`resolved_via="market+historical"`). New-before-re-ask ordering; stale (>30 d) non-final events re-asked weekly.
+- A ticker whose lookup errors gets a NON-final `lookup_error` row (resolved_via "error") so the weekly stale hold and new-first ordering apply; a single-market payload must carry the asked ticker. Readers filter `final == True` for outcomes.
 - Alarms: a PARTIAL day keeps rows but says FAILED; main() exits 1 only on FAILED kalshi / kalshi_resolve / polymarket_resolve lines. Price outside [0,1] or <50 % quoted → nothing written.
 - Dormant-but-matching Politics series (KXFEDCHAIRNOM, KXFOMCVOTE, KXSHUTDOWNBY, KXGOVSHUT): no open and no settled event on 2026-11-19, so not listed until one appears.
 - Cloud redeploy is the user's call (the config IS in the paper image context).

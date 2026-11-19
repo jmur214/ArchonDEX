@@ -15,6 +15,7 @@ Pitfalls:
 - pandas 3 `groupby(...).apply(f)` drops the grouping column from the frame f sees; use `groupby(k).head(n)` instead.
 - A module constant used as a DEFAULT ARGUMENT (`def f(max_pages=CONST)`) is bound at def time, so `monkeypatch.setattr(m, "CONST", 3)` silently does nothing — a test passed for the wrong reason. Read the constant at call time (`max_pages = max_pages or CONST`) and assert the effect (count the requests).
 
+- **`pd.to_datetime(s, errors="coerce")` on API timestamps WITHOUT `format="ISO8601"`** infers ONE format from the first value and silently NaTs every value of the other shape ("…:00Z" vs "…:00.484355Z"). It dropped all 28 between-events Kalshi series from one live discovery with "0 errors" printed. Always pass `format="ISO8601"` for API timestamps, test BOTH shapes in BOTH orders, and fail closed when a value that came back does not parse. Never `max()` ISO strings ("…:00Z" > "…:00.48Z" as text).
 - `Series.to_numpy(dtype=bool)` can return a READ-ONLY view; `mask &= other` then raises "output array is read-only". Write `mask = mask & other`.
 - A never-raise wrapper (`try: return _impl() except Exception: return "FAILED …"`) on an archiver hides such bugs from tests that only check side effects — the read-only error surfaced as "nothing looked up". Assert on the returned message too, or debug the `_impl` directly.
 
