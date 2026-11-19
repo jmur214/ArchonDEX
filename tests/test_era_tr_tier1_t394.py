@@ -206,8 +206,11 @@ def test_a_row_naming_a_file_the_copy_does_not_have_is_refused_before_any_write(
     (yf / "_fetch_log.jsonl").write_text(json.dumps({"ticker": TICKER, "prices": "no_data"}) + "\n")
     raw = tmp_path / "raw"
     raw.mkdir()
+    # --min-free-gb 0: this test is about the Tier-1 refusal, not the host's free disk. Without it the
+    # positive control below returned 3 ("HALT: free disk below 11 GB") whenever the Mac had < 11 GB
+    # free, and the merge gate went red on 2026-11-19 with 10 GiB free (no code had changed).
     argv = ["era-tr", "--copy", str(copy), "--yf-dir", str(yf), "--raw-stooq", str(raw), "--yf-manifest", "none",
-            "--dry-run", "--out-dir", str(tmp_path / "rows")]
+            "--dry-run", "--out-dir", str(tmp_path / "rows"), "--min-free-gb", "0"]
     with pytest.raises(SystemExit, match="REFUSED: Tier-1 rows name files"):
         fx.cs.main(argv)
     # … and the refusal is the table's: without it the same command runs (the positive control)
