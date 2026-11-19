@@ -1171,6 +1171,20 @@ aws iam get-role-policy --role-name archondex-paper-scheduler-role \
 #    (local launchd path only; the cloud pulse runs the snapshots, not the resolvers).
 # Privacy: the owner's contact UA goes to sec.gov hosts ONLY; every other host gets
 # "ArchonDEX-research/1.0" (locks: tests/test_archive_altdata_ua_privacy.py).
+# 2026-11-19 (T-405) — the Kalshi archive selects by SERIES:
+#  - every kalshi_snapshots.parquet row before 2026-11-19 is a KXMVE sports parlay with no
+#    quote (kept, never rewritten); use rows with selector == "series_v1" (+ series_ticker);
+#  - the daily snapshot reads ONLY config/kalshi_macro_series.json (reviewed + committed;
+#    384 series on 2026-11-19: ~5.7k rows, ~390 requests, ~85 s, 2 workers) and FAILS
+#    CLOSED — no fallback to open-market paging — when the list is missing/empty or no row
+#    carries a real quote (bid > 0, last > 0, or 0 < ask < 1). The resolvers look up only
+#    rows with a real quote (locks: tests/test_archive_kalshi_series.py).
+# Re-discover the series list from the live API (rewrites the config; ~60 s, ~110
+# requests; review the one-line-per-series diff before committing):
+.venv/bin/python scripts/archive_altdata_t136.py --discover-kalshi-series
+# Smoke the Kalshi snapshot + resolver into a scratch dir (NEVER data/):
+.venv/bin/python scripts/archive_altdata_t136.py --kalshi-only --out-dir /tmp/kalshi_smoke
+#   --kalshi-config PATH reads (snapshot) or writes (discovery) a different series list.
 
 # The scheduled path: launchd runs the wrapper daily at 17:30 CT (= 18:30 ET).
 # Wrapper logs to data/macro_data/alt/logs/archive_YYYY-MM-DD.log and prints

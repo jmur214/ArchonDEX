@@ -208,10 +208,16 @@
 
 ### `archive_altdata_t136.py`
 **Module Docstring:** scripts/archive_altdata_t136.py
+- **Class `_RequestBudget`**: A request cap and a wall-clock deadline (time.monotonic()) shared by one run's
+  - `def take()`
+- **Class `_SeriesResult`**: No docstring
 - **Function `pull_gpr()`**: No docstring
 - **Function `pull_epu()`**: No docstring
 - **Function `snapshot_polymarket()`**: No docstring
-- **Function `snapshot_kalshi()`**: No docstring
+- **Function `select_kalshi_series()`**: The macro series to archive, from Kalshi's /series rows and the count of OPEN events
+- **Function `discover_kalshi_series()`**: Write the reviewed series list (``config/kalshi_macro_series.json`` by default) from
+- **Function `load_kalshi_series()`**: The listed series (ticker, category) from the config, or an EMPTY frame when the file
+- **Function `snapshot_kalshi()`**: Daily snapshot of the OPEN markets in every series listed in the reviewed config.
 - **Function `resolve_kalshi_snapshots()`**: No docstring
 - **Function `resolve_polymarket_snapshots()`**: No docstring
 - **Function `snapshot_kxfed()`**: Daily snapshot of the FULL KXFED (Fed funds rate) bucket distribution —

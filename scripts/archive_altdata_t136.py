@@ -19,21 +19,51 @@ ONE-TIME BULK (backtestable-now indices; revision semantics noted per source):
 FORWARD ARCHIVERS (the hoard-now principle; cron-able, idempotent):
   - Polymarket (gamma-api.polymarket.com, public): daily snapshot of active
     markets in macro/Fed/recession/election/geopolitics buckets.
-  - Kalshi (public market-data API): same buckets. (Public GET; if the
-    endpoint requires auth at runtime we report + skip — status printed.)
+  - Kalshi (public market-data API): the macro SERIES listed in the reviewed, committed
+    config/kalshi_macro_series.json (T-405, 2026-11-19). One request per listed series,
+    under a time budget and a request cap.
+
+KALSHI SNAPSHOT HISTORY (T-405 — read before using kalshi_snapshots.parquet):
+  Every row written June → 2026-11-18 (21,294 rows) is a multivariate sports parlay
+  (ticker prefix KXMVE). The old selector paged the first 2,000 OPEN markets — on the
+  current API almost all of them parlays — and kept titles containing a keyword as a
+  SUBSTRING, so "powell" matched Norman Powell and "gold" matched Golden State. Those rows
+  carry no quote (0.0 bid, 0.0 last, 0 volume). They are KEPT, never rewritten
+  ([NN-ARCHIVE]), and stay identifiable: `selector` is null and the ticker starts with
+  KXMVE. Rows from T-405 on carry `selector == "series_v1"` and `series_ticker`. Filter on
+  `selector` before using this file. The old selector's code is in git history (b74a490).
+
+  Which series are listed: `--discover-kalshi-series` reads /series and the open events,
+  keeps macro series by a whole-word match on the series title (or an exact Kalshi tag),
+  drops parlays/combos, KXFED (snapshot_kxfed has it), intraday series and state/city
+  series, and writes the config for review. Re-run it when Kalshi lists new series.
+
+  A "real quote" (T-405) is bid > 0, or last > 0, or 0 < ask < 1. A zero bid, a zero last
+  and a 1.00 ask are an empty book. The snapshot's priced count and its fail-closed check,
+  and both resolvers' choice of what to look up, use this rule.
 
 Output: data/macro_data/alt/*.parquet (+ dated snapshot rows appended)
-Usage: python -m scripts.archive_altdata_t136
+Usage: python -m scripts.archive_altdata_t136                       (the daily run)
+       python -m scripts.archive_altdata_t136 --discover-kalshi-series
+       python -m scripts.archive_altdata_t136 --kalshi-only --out-dir DIR   (smoke)
 """
 from __future__ import annotations
 
+import argparse
 import io
 import json
+import re
 import sys
+import threading
 import time
 import urllib.request
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,81 +222,490 @@ def snapshot_polymarket() -> str:
         df = pd.DataFrame(recs)
         if df.empty:
             return "polymarket: 0 matching markets (keyword set?)"
-        quoted = df[["best_bid", "best_ask", "last_trade_price"]].notna().any(axis=1).sum()
+        # T-405: a real quote, not merely a non-null field (a 0 bid / 1.00 ask is empty).
+        quoted = int(_real_quote(df["best_bid"], df["best_ask"], df["last_trade_price"]).sum())
         if quoted == 0:
             # Fail closed: a day of rows with no quote at all is a changed schema, not a
             # quiet market. Write nothing, so the verifier's zero-fresh-rows gate fires.
-            return (f"polymarket: FAILED — {len(df)} matching markets but EVERY quote field is "
-                    f"null (API field names changed?); nothing written — LOUD")
+            return (f"polymarket: FAILED — {len(df)} matching markets but NONE carries a real "
+                    f"quote (API field names changed?); nothing written — LOUD")
         _append(df, OUT_DIR / "polymarket_snapshots.parquet", ["snap_date", "id"])
         return f"polymarket: snapped {len(df)} macro-bucket markets ({quoted} quoted)"
     except Exception as e:
         return f"polymarket: FAILED ({type(e).__name__}: {e})"
 
 
-def snapshot_kalshi() -> str:
+# --- T-405 (2026-11-19): the Kalshi archive selects by SERIES ------------------------------ #
+# See the module docstring for why: the old open-market paging + substring keywords archived
+# nothing but parlays. Discovery (rare, reviewed) writes the series list; the daily snapshot
+# reads only that list and never falls back to paging the open-market firehose.
+KALSHI_API = "https://api.elections.kalshi.com/trade-api/v2"
+KALSHI_SERIES_CONFIG = ROOT / "config" / "kalshi_macro_series.json"
+KALSHI_SELECTOR = "series_v1"
+KALSHI_TIME_BUDGET_S = 180.0        # the daily snapshot's wall-clock cap
+KALSHI_MAX_REQUESTS = 600           # and its request cap (one per series, + cursor pages)
+# Concurrency, measured 2026-11-19 on the public endpoint: 1 worker = 403 requests in 177 s,
+# 0 errors; 4 workers = ~68 s but 21-30 series lost to HTTP 429. Two workers with backoff.
+KALSHI_WORKERS = 2                  # concurrent series fetches (I/O-bound; see snapshot_kalshi)
+KALSHI_PAUSE_S = 0.1                # per worker, between requests
+KALSHI_429_RETRIES = 3              # per request, backing off 1/2/4 s (or Retry-After)
+KALSHI_TIMEOUT_S = 20               # per request; bounds the overrun past the deadline
+KALSHI_DISCOVERY_MAX_PAGES = 400    # /events?status=open pages (200 each) before discovery gives up
+
+# Intraday series are skipped: a once-a-day snapshot of a market that lives 15 minutes or an
+# hour is one random intraday point on an underlying whose price we already have, and the
+# hourly ladders are the heaviest series per row (6 open events x a strike ladder each).
+KALSHI_SKIP_FREQUENCIES = frozenset({"fifteen_min", "hourly"})
+
+
+def _word_pattern(words: Iterable[str], capture: bool = True) -> str:
+    """A regex matching any of ``words`` as a WHOLE word (use with re.IGNORECASE); one
+    capture group when ``capture`` (for str.extract), none otherwise (for str.contains).
+
+    Alphanumeric lookarounds rather than ``\\b``: ``\\b`` misfires on tokens that begin or
+    end with punctuation ("s&p 500", "eur/usd"). Whole-word matching is what stops "gold"
+    matching "Golden State". It does not stop a person's name ("Norman Powell" contains the
+    word "powell"), so no person names are keywords and the category gate comes first."""
+    alts = "|".join(re.escape(w) for w in sorted(set(words), key=len, reverse=True))
+    group = "(" if capture else "(?:"
+    return rf"(?<![a-z0-9]){group}{alts})(?![a-z0-9])"
+
+
+# Title keywords for Economics / Financials / Commodities series. Words, not stems.
+_MACRO_TITLE_WORDS = (
+    # prices
+    "inflation", "deflation", "cpi", "pce", "ppi",
+    # labour
+    "unemployment", "payrolls", "jobs numbers", "jobs report", "jobless claims",
+    "initial claims", "nonfarm", "job openings", "jolts", "adp", "hourly earnings",
+    "labor force participation", "sahm rule",
+    # activity
+    "gdp", "recession", "retail sales", "ism", "pmi", "consumer sentiment",
+    "industrial production", "durable goods", "productivity", "trade deficit",
+    "balance of trade",
+    # housing
+    "housing starts", "home sales", "building permits", "mortgage", "case-shiller",
+    # rates, money, credit
+    "fed", "fomc", "federal reserve", "fed funds", "rate cut", "rate cuts", "rate hike",
+    "rate hikes", "interest rate", "dot plot", "balance sheet", "sofr", "effr", "treasury",
+    "treasuries", "ust", "2y", "5y", "7y", "10y", "30y", "m2", "money supply", "central bank",
+    "credit rating", "default", "defaults", "debt ceiling", "deficit",
+    # equity indices and risk
+    "s&p 500", "s&p500", "s&p", "sp500", "nasdaq", "nasdaq-100", "dow jones", "djia",
+    "russell 2000", "vix", "fear and greed", "stock market", "nyse",
+    # currencies
+    "eur/usd", "eurusd", "usd/jpy", "usdjpy", "gbp/usd", "gbpusd", "usd/cad", "usdcad",
+    "aud/usd", "audusd", "usd/mxn", "usdmxn", "dxy", "dollar index", "usd index",
+    "de-dollarization",
+    # energy and metals
+    "wti", "brent", "crude", "oil price", "opec", "spr", "natural gas", "gas price",
+    "gasoline", "diesel", "gold", "silver", "copper", "platinum", "palladium",
+)
+# Exact Kalshi tags (case-insensitive) that qualify a macro-category series on their own.
+_MACRO_TAGS = frozenset({
+    "fed", "federal reserve", "interest rates", "gdp", "global central banks", "s&p 500",
+    "nasdaq-100", "indices", "foreign exchange", "credit & bonds", "precious metals",
+    "oil & gas",
+})
+# Politics qualifies ONLY by one of these exact tags (monetary, trade and fiscal policy);
+# a title keyword is not enough there ("tax" alone is a thousand state and city bills).
+_POLICY_TAGS = frozenset({"federal reserve", "trade & tariffs", "budget & shutdowns"})
+# Crypto: the two majors only (the system has a BTC arm in forward validation, T-272).
+_CRYPTO_TITLE_WORDS = ("bitcoin", "btc", "ethereum", "eth")
+
+# category -> (title pattern or None, qualifying tags). A category absent here is never
+# archived. Excluded, with the reason: Elections (8.9k open events, candidate races — not a
+# market input, and it would swamp the rest); World (3 open events, none macro); Sports,
+# Entertainment, Mentions, Exotics (the parlays), Climate, Science, Companies (per-firm KPIs).
+_KALSHI_RULES: dict[str, tuple[str | None, frozenset[str]]] = {
+    "Economics": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
+    "Financials": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
+    "Commodities": (_word_pattern(_MACRO_TITLE_WORDS), _MACRO_TAGS),
+    "Politics": (None, _POLICY_TAGS),
+    "Crypto": (_word_pattern(_CRYPTO_TITLE_WORDS), frozenset()),
+}
+_US_STATES = (
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+    "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa",
+    "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan",
+    "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
+    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island",
+    "south carolina", "south dakota", "tennessee", "texas", "utah", "vermont", "virginia",
+    "washington", "west virginia", "wisconsin", "wyoming", "district of columbia", "nyc",
+)
+# State and city series (50 state gas prices a day, state employment by industry) are
+# regional detail, not market inputs. Dropped by title or by Kalshi's own local tags.
+_REGIONAL_PATTERN = _word_pattern(_US_STATES, capture=False)
+_REGIONAL_TAGS = frozenset({"local", "nyc"})
+_COMBO_PATTERN = _word_pattern(("combo",), capture=False)
+# The "<X> after economic events" family ("Will the 10Y yield be above 4.59% on Nov 19 at
+# 1:15pm ET?") is an intraday point-price ladder keyed to a release minute — the same class
+# as the hourly series — and measured 2026-11-19 it was 8,010 of 13,691 rows (58%), most
+# with zero volume (51-strike market-maker ladders). Skipped for the same reason.
+_EVENT_LADDER_PATTERN = r"(?<![a-z0-9])after (?:economic )?events(?![a-z0-9])"
+
+
+def _tag_match(tags: pd.Series, allowed: frozenset[str]) -> pd.Series:
+    """Per row: the first of the row's tags (a list) that equals an allowed tag,
+    case-insensitively, lower-cased; NA when none does."""
+    flat = tags.explode().astype("string").str.strip().str.lower()
+    first = flat.where(flat.isin(allowed).fillna(False)).groupby(level=0).first()
+    return first.reindex(tags.index).astype("string")
+
+
+def select_kalshi_series(series: list[dict], open_events: dict[str, int]) -> pd.DataFrame:
+    """The macro series to archive, from Kalshi's /series rows and the count of OPEN events
+    per series. Pure (no network). Returns ticker, title, category, frequency, tags,
+    n_open_events and `matched` (the keyword or tag that qualified it), sorted."""
+    cols = ["ticker", "title", "category", "frequency", "tags"]
+    df = pd.DataFrame.from_records(series, columns=cols) if series else pd.DataFrame(columns=cols)
+    for c in ("ticker", "title", "category", "frequency"):
+        df[c] = df[c].astype("string").fillna("").str.strip()
+    df["tags"] = df["tags"].map(lambda t: list(t) if isinstance(t, (list, tuple)) else [])
+    df["n_open_events"] = df["ticker"].map(open_events).fillna(0).astype(int)
+
+    matched = pd.Series(pd.NA, index=df.index, dtype="string")
+    for category, (pattern, tags) in _KALSHI_RULES.items():
+        in_cat = df["category"] == category
+        if pattern is not None:
+            word = df["title"].str.extract(pattern, flags=re.IGNORECASE)[0]
+            matched = matched.mask(in_cat & matched.isna() & word.notna(),
+                                   "title:" + word.str.lower())
+        if tags:
+            tag = _tag_match(df["tags"], tags)
+            matched = matched.mask(in_cat & matched.isna() & tag.notna(), "tag:" + tag)
+    df["matched"] = matched
+
+    upper = df["ticker"].str.upper()
+    excluded = (
+        upper.str.startswith("KXMVE")                       # multivariate parlays
+        | (upper == KXFED_SERIES)                           # snapshot_kxfed archives it whole
+        | upper.str.endswith("COMBO")                       # joint-outcome bundles
+        | df["title"].str.contains(_COMBO_PATTERN, flags=re.IGNORECASE, regex=True)
+        | df["frequency"].isin(KALSHI_SKIP_FREQUENCIES)
+        | df["title"].str.contains(_EVENT_LADDER_PATTERN, flags=re.IGNORECASE, regex=True)
+        | df["title"].str.contains(_REGIONAL_PATTERN, flags=re.IGNORECASE, regex=True)
+        | _tag_match(df["tags"], _REGIONAL_TAGS).notna()
+    )
+    keep = df["matched"].notna() & ~excluded & (df["n_open_events"] > 0)
+    out = df.loc[keep, ["ticker", "title", "category", "frequency", "tags",
+                        "n_open_events", "matched"]]
+    return out.sort_values(["category", "ticker"]).reset_index(drop=True)
+
+
+def _open_event_counts(max_pages: int | None = None) -> dict[str, int]:
+    """Open events per series ticker, from the full /events?status=open scan. Raises if the
+    scan does not finish inside ``max_pages`` (default KALSHI_DISCOVERY_MAX_PAGES, read at
+    call time) — a partial scan would silently drop series."""
+    max_pages = max_pages or KALSHI_DISCOVERY_MAX_PAGES
+    counts: dict[str, int] = {}
+    cursor: str | None = None
+    for _ in range(max_pages):
+        url = f"{KALSHI_API}/events?status=open&limit=200"
+        if cursor:
+            url += f"&cursor={quote(cursor, safe='')}"
+        data = json.loads(_get(url, timeout=60))
+        if not isinstance(data, dict):
+            raise ValueError("events: response is not a JSON object")
+        for e in data.get("events") or []:
+            t = str(e.get("series_ticker") or "")
+            counts[t] = counts.get(t, 0) + 1
+        cursor = data.get("cursor") or None
+        if not cursor:
+            return counts
+        time.sleep(KALSHI_PAUSE_S)
+    raise RuntimeError(f"events scan incomplete after {max_pages} pages")
+
+
+def _config_text(doc: dict) -> str:
+    """The config as JSON with ONE LINE PER SERIES, so a re-discovery reviews as a diff."""
+    head = {k: v for k, v in doc.items() if k != "series"}
+    rows = ",\n  ".join(json.dumps(r, ensure_ascii=False) for r in doc["series"])
+    return json.dumps(head, indent=1, ensure_ascii=False)[:-2] + (
+        f',\n "series": [\n  {rows}\n ]\n}}\n')
+
+
+def discover_kalshi_series(out_path: Path | None = None) -> str:
+    """Write the reviewed series list (``config/kalshi_macro_series.json`` by default) from
+    the live /series and open-events listings. Writes nothing on any failure."""
+    path = out_path or KALSHI_SERIES_CONFIG
     try:
-        rows, cursor = [], None
-        for _ in range(10):
-            url = "https://api.elections.kalshi.com/trade-api/v2/markets?limit=200&status=open"
-            if cursor:
-                url += f"&cursor={cursor}"
-            data = json.loads(_get(url, timeout=60))
-            rows += data.get("markets", [])
-            cursor = data.get("cursor")
-            if not cursor:
-                break
-            time.sleep(0.2)
-        recs = []
-        for m in rows:
-            text = (str(m.get("title", "")) + " " + str(m.get("category", ""))).lower()
-            if not any(k in text for k in KEYWORDS):
-                continue
-            # 2026-11-17: the legacy yes_bid/yes_ask/last_price/volume fields are null on the
-            # current API (every row since July was price-less, found by T-403). Read the
-            # *_dollars / *_fp fields, as snapshot_kxfed already does; 0..1 dollars per contract.
-            recs.append({
-                "snap_date": SNAP_DATE,
-                "ticker": m.get("ticker"),
-                "event_ticker": m.get("event_ticker"),
-                "title": m.get("title"),
-                "category": m.get("category"),
-                "yes_bid": _num(m.get("yes_bid_dollars")),
-                "yes_ask": _num(m.get("yes_ask_dollars")),
-                "no_bid": _num(m.get("no_bid_dollars")),
-                "no_ask": _num(m.get("no_ask_dollars")),
-                "yes_bid_size": _num(m.get("yes_bid_size_fp")),
-                "yes_ask_size": _num(m.get("yes_ask_size_fp")),
-                "last_price": _num(m.get("last_price_dollars")),
-                "previous_price": _num(m.get("previous_price_dollars")),
-                "volume": _num(m.get("volume_fp")),
-                "volume_24h": _num(m.get("volume_24h_fp")),
-                "open_interest": _num(m.get("open_interest_fp")),
-                "status": m.get("status"),
-                "close_time": m.get("close_time"),
-                "expiration_time": m.get("expiration_time"),
-            })
-        df = pd.DataFrame(recs)
-        if df.empty:
-            return "kalshi: 0 matching markets"
-        quoted = df[["yes_bid", "yes_ask", "last_price"]].notna().any(axis=1).sum()
-        if quoted == 0:
-            # Fail closed (the July→November defect): rows with no price at all are a changed
-            # schema, not a quiet market. Write nothing so the verifier's gate fires.
-            return (f"kalshi: FAILED — {len(df)} matching markets but EVERY price field is null "
-                    f"(API field names changed?); nothing written — LOUD")
-        _append(df, OUT_DIR / "kalshi_snapshots.parquet", ["snap_date", "ticker"])
-        return f"kalshi: snapped {len(df)} macro-bucket markets ({quoted} priced)"
+        data = json.loads(_get(f"{KALSHI_API}/series", timeout=120))
+        series = data.get("series") if isinstance(data, dict) else None
+        if not series:
+            return "kalshi_discover: FAILED — /series returned no series; config not written — LOUD"
+        opened = _open_event_counts()
+        if not opened:
+            return "kalshi_discover: FAILED — 0 open events; config not written — LOUD"
+        picked = select_kalshi_series(series, opened)
+        if picked.empty:
+            return "kalshi_discover: FAILED — 0 series selected; config not written — LOUD"
+        doc = {
+            "selector": KALSHI_SELECTOR,
+            "discovered": SNAP_DATE,
+            "source": f"{KALSHI_API}/series + /events?status=open",
+            "n_series_listed": len(series),
+            "n_series_with_open_events": len(opened),
+            "rule": ("category in " + ", ".join(_KALSHI_RULES)
+                     + "; whole-word title keyword or exact tag (Politics: policy tags only;"
+                       " Crypto: BTC/ETH only); excludes KXMVE parlays, *COMBO, KXFED, "
+                     + "/".join(sorted(KALSHI_SKIP_FREQUENCIES))
+                     + " series, 'after economic events' intraday ladders, state/city series,"
+                       " series with no open event"),
+            "series": [{**r, "discovered": SNAP_DATE} for r in picked.to_dict("records")],
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(_config_text(doc))
+        tmp.replace(path)
+        by_cat = picked["category"].value_counts().to_dict()
+        by_freq = picked["frequency"].value_counts().to_dict()
+        return (f"kalshi_discover: wrote {len(picked)} series to {path} "
+                f"(of {len(series)} listed, {len(opened)} with open events); "
+                f"by category {by_cat}; by frequency {by_freq}")
     except Exception as e:
-        return f"kalshi: FAILED ({type(e).__name__}: {e}) — if 401/403, public access changed; report"
+        return f"kalshi_discover: FAILED ({type(e).__name__}: {e}); config not written — LOUD"
+
+
+def load_kalshi_series(path: Path | None = None) -> pd.DataFrame:
+    """The listed series (ticker, category) from the config, or an EMPTY frame when the file
+    is missing, unparseable or lists nothing. Parlays and KXFED are dropped even if listed."""
+    try:
+        doc = json.loads((path or KALSHI_SERIES_CONFIG).read_text())
+        rows = doc.get("series") if isinstance(doc, dict) else None
+        df = pd.DataFrame.from_records(rows or [], columns=["ticker", "category"])
+    except Exception:          # missing, unreadable or malformed: the caller fails closed
+        return pd.DataFrame(columns=["ticker", "category"])
+    df["ticker"] = df["ticker"].astype("string").fillna("").str.strip()
+    upper = df["ticker"].str.upper()
+    ok = df["ticker"].ne("") & ~upper.str.startswith("KXMVE") & upper.ne(KXFED_SERIES)
+    return df[ok].drop_duplicates("ticker").reset_index(drop=True)
+
+
+@dataclass
+class _RequestBudget:
+    """A request cap and a wall-clock deadline (time.monotonic()) shared by one run's
+    worker threads. ``take`` is the only shared mutation, under a lock."""
+    max_requests: int
+    deadline: float
+    used: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def take(self) -> bool:
+        with self._lock:
+            if self.used >= self.max_requests or time.monotonic() >= self.deadline:
+                return False
+            self.used += 1
+            return True
+
+
+def _retry_wait(e: Exception, attempt: int) -> float:
+    """Seconds to wait after a 429: the server's Retry-After (capped at 10 s) when it sends
+    one, else 1, 2, 4 s."""
+    try:
+        return min(10.0, max(0.0, float(e.headers.get("Retry-After"))))  # type: ignore[attr-defined]
+    except (AttributeError, TypeError, ValueError):
+        return float(2 ** attempt)
+
+
+def _kalshi_json(url: str, budget: _RequestBudget) -> dict:
+    """GET one Kalshi URL as a JSON object. A 429 is retried up to KALSHI_429_RETRIES times
+    with backoff, each retry spending one request of the budget; any other error raises."""
+    from urllib.error import HTTPError
+    attempt = 0
+    while True:
+        try:
+            data = json.loads(_get(url, timeout=KALSHI_TIMEOUT_S))
+            break
+        except HTTPError as e:
+            if e.code != 429 or attempt >= KALSHI_429_RETRIES or not budget.take():
+                raise
+            time.sleep(_retry_wait(e, attempt))
+            attempt += 1
+    if not isinstance(data, dict):
+        raise ValueError("response is not a JSON object")
+    return data
+
+
+def _series_markets(ticker: str, budget: _RequestBudget) -> tuple[list[dict], bool]:
+    """The OPEN markets of one series, cursor-paged. Returns (markets, complete); complete is
+    False when the budget ran out first. Network and parse errors propagate.
+
+    One request per series: /markets takes ONE series_ticker (a comma list silently returns
+    0 markets; a repeated parameter is a 400 — measured 2026-11-19). /events with nested
+    markets costs the same (0.33 vs 0.35 s median, same bytes, same markets)."""
+    markets: list[dict] = []
+    cursor: str | None = None
+    while budget.take():
+        url = f"{KALSHI_API}/markets?series_ticker={quote(ticker, safe='')}&status=open&limit=1000"
+        if cursor:
+            url += f"&cursor={quote(cursor, safe='')}"
+        data = _kalshi_json(url, budget)
+        markets += [m for m in (data.get("markets") or []) if isinstance(m, dict)]
+        cursor = data.get("cursor") or None
+        time.sleep(KALSHI_PAUSE_S)
+        if not cursor:
+            return markets, True
+    return markets, False
+
+
+@dataclass
+class _SeriesResult:
+    ticker: str
+    markets: list[dict]
+    complete: bool
+    error: str | None = None
+
+
+def _error_label(e: Exception) -> str:
+    """A short, countable label: 'HTTP 429', 'URLError', 'ValueError'."""
+    code = getattr(e, "code", None)
+    return f"HTTP {code}" if isinstance(code, int) else type(e).__name__
+
+
+def _fetch_series(ticker: str, budget: _RequestBudget) -> _SeriesResult:
+    """One series, never raising: an error is recorded on the result and counted."""
+    try:
+        got, complete = _series_markets(ticker, budget)
+        return _SeriesResult(ticker, got, complete)
+    except Exception as e:
+        return _SeriesResult(ticker, [], False, _error_label(e))
+
+
+# snapshot column -> the current API field (the legacy yes_bid/last_price/volume fields are
+# null; 2026-11-17). Prices are dollars per contract, 0..1.
+_KALSHI_NUMERIC = {
+    "yes_bid": "yes_bid_dollars", "yes_ask": "yes_ask_dollars",
+    "no_bid": "no_bid_dollars", "no_ask": "no_ask_dollars",
+    "yes_bid_size": "yes_bid_size_fp", "yes_ask_size": "yes_ask_size_fp",
+    "last_price": "last_price_dollars", "previous_price": "previous_price_dollars",
+    "volume": "volume_fp", "volume_24h": "volume_24h_fp", "open_interest": "open_interest_fp",
+    "floor_strike": "floor_strike", "cap_strike": "cap_strike",
+}
+_KALSHI_TEXT = ("ticker", "event_ticker", "title", "yes_sub_title", "strike_type", "status",
+                "close_time", "expiration_time")
+
+
+def _kalshi_frame(markets: list[dict], series_of: list[str], category_of: dict[str, str]
+                  ) -> pd.DataFrame:
+    """Snapshot rows: the pre-T-405 columns, plus series_ticker, selector and the strike
+    fields (a ladder row means nothing without its threshold)."""
+    # Text columns keep pandas' inferred dtype (as the pre-T-405 rows were built), so the
+    # append concatenates like-with-like; numerics are coerced to float64.
+    raw = pd.DataFrame.from_records(markets)
+    out = pd.DataFrame({"snap_date": SNAP_DATE}, index=raw.index)
+    for col in _KALSHI_TEXT:
+        out[col] = raw[col] if col in raw else None
+    for col, src in _KALSHI_NUMERIC.items():
+        out[col] = (pd.to_numeric(raw[src], errors="coerce").astype("float64") if src in raw
+                    else np.nan)
+    out["series_ticker"] = pd.Series(series_of, index=raw.index)
+    out["category"] = out["series_ticker"].map(category_of)
+    out["selector"] = KALSHI_SELECTOR
+    return out
+
+
+def snapshot_kalshi() -> str:
+    """Daily snapshot of the OPEN markets in every series listed in the reviewed config.
+
+    Fails closed — writes nothing and returns a LOUD "FAILED" line — when the config is
+    missing or empty, when no market comes back, or when no market carries a real quote.
+    It never falls back to paging the open-market list (the parlay defect, T-405). Never
+    raises: main() evaluates every pull, so one exception would skip all the others."""
+    try:
+        return _snapshot_kalshi()
+    except Exception as e:
+        return f"kalshi: FAILED ({type(e).__name__}: {e}) — LOUD"
+
+
+def _snapshot_kalshi() -> str:
+    t0 = time.monotonic()
+    listed = load_kalshi_series()
+    if listed.empty:
+        return (f"kalshi: FAILED — no series listed in {KALSHI_SERIES_CONFIG} (missing, empty "
+                f"or unparseable; run --discover-kalshi-series); nothing written — LOUD")
+    budget = _RequestBudget(KALSHI_MAX_REQUESTS, t0 + KALSHI_TIME_BUDGET_S)
+    tickers = [str(t) for t in listed["ticker"]]
+    # Threads, not asyncio: urllib is blocking and the work is I/O. No deadlock is possible —
+    # workers share only the budget's lock (held for a counter update, never across I/O),
+    # none waits on another, and every request has a timeout, so leaving the pool waits at
+    # most one KALSHI_TIMEOUT_S per worker past the deadline. map() keeps the listed order.
+    with ThreadPoolExecutor(max_workers=KALSHI_WORKERS) as pool:
+        results = list(pool.map(lambda t: _fetch_series(t, budget), tickers))
+    markets = [mk for r in results for mk in r.markets]
+    series_of = [r.ticker for r in results for _ in r.markets]
+    err_by = pd.Series([r.error for r in results if r.error], dtype="object").value_counts()
+    errors = int(err_by.sum())
+    cut = sum(r.error is None and not r.complete for r in results)
+    done = sum(r.complete for r in results)
+    kinds = f" {err_by.to_dict()}" if errors else ""
+    stats = (f"{done}/{len(tickers)} series, {errors} errors{kinds}, "
+             f"{budget.used} requests, {time.monotonic() - t0:.0f}s")
+    if not markets:
+        return f"kalshi: FAILED — 0 open markets ({stats}); nothing written — LOUD"
+    df = _kalshi_frame(markets, series_of, dict(zip(listed["ticker"], listed["category"])))
+    df = df[~df["ticker"].fillna("").str.upper().str.startswith("KXMVE")]
+    quoted = int(_kalshi_quoted(df).sum())
+    if quoted == 0:
+        return (f"kalshi: FAILED — {len(df)} markets but NONE carries a real quote (bid > 0, "
+                f"last > 0 or 0 < ask < 1) ({stats}); nothing written — LOUD")
+    _append(df, OUT_DIR / "kalshi_snapshots.parquet", ["snap_date", "ticker"])
+    partial = (f" — PARTIAL: the budget ({KALSHI_MAX_REQUESTS} requests / "
+               f"{KALSHI_TIME_BUDGET_S:.0f}s) ran out before {cut} series; LOUD" if cut else "")
+    return (f"kalshi: snapped {len(df)} markets ({quoted} priced = a real quote) from "
+            f"{stats}; selector {KALSHI_SELECTOR}{partial}")
 
 
 # --- 2026-11-17: OUTCOMES for the markets we snapshot ------------------------ #
 # A probability archive is worth nothing without what happened. Each run looks up the
-# markets we captured WITH a price whose close/end time has passed and that have no final
-# outcome recorded yet, one public GET each, capped per run, and appends the outcome.
-# Old Kalshi rows (all prices null) are never looked up: there is nothing to score.
+# markets we captured WITH A REAL QUOTE whose close/end time has passed and that have no
+# final outcome recorded yet, one public GET each, capped per run, and appends the outcome.
+# Rows without a real quote are never looked up: there is nothing to score. That covers the
+# July-November Kalshi rows (prices null) and the 2026-11-18 parlays (0.0 bid, 0.0 last).
 MAX_RESOLVE_PER_RUN = 300
+
+
+def _num_col(df: pd.DataFrame, col: str) -> pd.Series:
+    """Column ``col`` as floats; all-NaN when the column is absent (older rows)."""
+    if col not in df.columns:
+        return pd.Series(np.nan, index=df.index, dtype="float64")
+    return pd.to_numeric(df[col], errors="coerce").astype("float64")
+
+
+def _real_quote(bid: pd.Series, ask: pd.Series, last: pd.Series) -> pd.Series:
+    """T-405: a row carries a real quote only if bid > 0, or last > 0, or 0 < ask < 1.
+
+    A zero bid, a zero last and a 1.00 ask (nobody selling YES below a dollar) are an empty
+    book, and so is a null. A tiny positive ask (Polymarket's 0.001 on a long shot) IS a
+    quote. Applied wherever a row is judged priced: the snapshots' counts and fail-closed
+    checks, and the resolvers' choice of what to look up."""
+    b, a, lp = (pd.to_numeric(s, errors="coerce").astype("float64") for s in (bid, ask, last))
+    return (b > 0) | (lp > 0) | ((a > 0) & (a < 1))
+
+
+def _kalshi_quoted(df: pd.DataFrame) -> pd.Series:
+    return _real_quote(_num_col(df, "yes_bid"), _num_col(df, "yes_ask"),
+                       _num_col(df, "last_price"))
+
+
+def _outcome_price_inside(prices: pd.Series) -> pd.Series:
+    """Per row: does the outcomePrices string ('["0.42", "0.58"]') hold any price strictly
+    between 0 and 1. "None", "[]", 0 and 1 do not count."""
+    nums = prices.astype("string").str.findall(r"\d*\.?\d+(?:[eE][-+]?\d+)?").explode()
+    v = pd.to_numeric(nums, errors="coerce")
+    inside = ((v > 0) & (v < 1)).groupby(level=0).any()
+    return inside.reindex(prices.index, fill_value=False).astype(bool)
+
+
+def _polymarket_quoted(df: pd.DataFrame) -> pd.Series:
+    """The book rule on best_bid/best_ask/last_trade_price; rows from before 2026-11-17
+    carry only `prices`, so a displayed price strictly inside (0, 1) also counts."""
+    book = _real_quote(_num_col(df, "best_bid"), _num_col(df, "best_ask"),
+                       _num_col(df, "last_trade_price"))
+    if "prices" not in df.columns:
+        return book
+    return book | _outcome_price_inside(df["prices"])
 
 
 def _num(x):
@@ -281,14 +720,15 @@ def _num(x):
 
 
 def _pending(snap_path: Path, res_path: Path, key: str, end_col: str,
-             price_cols: list[str]) -> list[str]:
+             quoted: Callable[[pd.DataFrame], pd.Series]) -> list[str]:
+    """Keys to look up: rows with a real quote (``quoted``) whose close/end has passed and
+    that have no final outcome yet, earliest close first, capped at MAX_RESOLVE_PER_RUN."""
     if not snap_path.exists():
         return []
     snaps = pd.read_parquet(snap_path)
-    have = [c for c in price_cols if c in snaps.columns]
-    if not have or key not in snaps.columns or end_col not in snaps.columns:
+    if key not in snaps.columns or end_col not in snaps.columns:
         return []
-    snaps = snaps[snaps[have].notna().any(axis=1)]
+    snaps = snaps[quoted(snaps).to_numpy(dtype=bool)]
     ends = pd.to_datetime(snaps[end_col], utc=True, errors="coerce")
     snaps = snaps[ends < pd.Timestamp.now(tz="UTC")]
     done: set = set()
@@ -302,9 +742,8 @@ def _pending(snap_path: Path, res_path: Path, key: str, end_col: str,
 
 def resolve_kalshi_snapshots() -> str:
     from urllib.error import HTTPError
-    from urllib.parse import quote
     snap, res_path = OUT_DIR / "kalshi_snapshots.parquet", OUT_DIR / "kalshi_resolutions.parquet"
-    todo = _pending(snap, res_path, "ticker", "close_time", ["yes_bid", "yes_ask", "last_price"])
+    todo = _pending(snap, res_path, "ticker", "close_time", _kalshi_quoted)
     if not todo:
         return "kalshi_resolve: nothing pending"
     recs, errs = [], 0
@@ -340,7 +779,7 @@ def resolve_polymarket_snapshots() -> str:
     from urllib.error import HTTPError
     snap, res_path = (OUT_DIR / "polymarket_snapshots.parquet",
                       OUT_DIR / "polymarket_resolutions.parquet")
-    todo = _pending(snap, res_path, "id", "end_date", ["prices", "best_bid", "best_ask"])
+    todo = _pending(snap, res_path, "id", "end_date", _polymarket_quoted)
     if not todo:
         return "polymarket_resolve: nothing pending"
     recs, errs = [], 0
@@ -373,9 +812,10 @@ def resolve_polymarket_snapshots() -> str:
 
 # --- T-290 d2: the rate-path store (our free FedWatch equivalent) --------- #
 #
-# The generic snapshot_kalshi() above KEYWORD-filters and reads the legacy
-# yes_bid/last_price fields (now null on the current API) — so it is blind to
-# the Fed rate-decision market. This dedicated fetch is UNFILTERED, keyed on
+# When this was written the generic snapshot_kalshi() keyword-filtered and read the
+# legacy yes_bid/last_price fields — blind to the Fed rate-decision market. (Since
+# T-405 it reads a series list, from which KXFED is excluded because this fetch has
+# it.) This dedicated fetch is UNFILTERED, keyed on
 # the KXFED series prefix, and archives the FULL target-range bucket
 # distribution every day. For each FOMC meeting Kalshi lists threshold markets
 # ("upper bound above X% following the <meeting>") whose yes prices ARE the
@@ -646,8 +1086,38 @@ def pull_credit_spread_oas() -> str:
             + "  [deep history from archived snapshots; FRED live serves ~3yr only]")
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="T-136 alt-data pulls + forward archivers")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--discover-kalshi-series", action="store_true",
+                      help="rewrite the Kalshi series list from the live API (review the diff)")
+    mode.add_argument("--kalshi-only", action="store_true",
+                      help="run only the Kalshi snapshot + resolver (smoke)")
+    ap.add_argument("--out-dir", type=Path, default=None,
+                    help="write parquets here instead of data/macro_data/alt (smoke/tests)")
+    ap.add_argument("--kalshi-config", type=Path, default=None,
+                    help="the series-list path (default config/kalshi_macro_series.json)")
+    return ap.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    global OUT_DIR, KALSHI_SERIES_CONFIG
+    args = _parse_args(argv)
+    if args.out_dir is not None:
+        OUT_DIR = args.out_dir
+    if args.kalshi_config is not None:
+        KALSHI_SERIES_CONFIG = args.kalshi_config
+    if args.discover_kalshi_series:
+        r = discover_kalshi_series()
+        print(f"[T136-D] {r}", flush=True)
+        return 1 if "FAILED" in r else 0
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if args.kalshi_only:
+        rs = [snapshot_kalshi(), resolve_kalshi_snapshots()]
+        for r in rs:
+            print(f"[T136-D] {r}", flush=True)
+        return 1 if any("FAILED" in r for r in rs) else 0
+    # The daily run exits 0 regardless; the freshness verifier is its failure gate.
     for r in [pull_gpr(), pull_epu(),
               snapshot_polymarket(), snapshot_kalshi(),
               resolve_polymarket_snapshots(), resolve_kalshi_snapshots(),

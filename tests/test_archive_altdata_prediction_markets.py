@@ -58,6 +58,11 @@ def _kalshi_market(ticker: str, title: str = "Fed rate cut in December?", **kw) 
 def sandbox(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "OUT_DIR", tmp_path)
     monkeypatch.setattr(m.time, "sleep", lambda s: None)
+    # T-405: the Kalshi snapshot reads a series list; one series, so each stubbed response
+    # below is served once (the series-selection locks live in test_archive_kalshi_series.py)
+    cfg = tmp_path / "kalshi_macro_series.json"
+    cfg.write_text(json.dumps({"series": [{"ticker": "KXCPI", "category": "Economics"}]}))
+    monkeypatch.setattr(m, "KALSHI_SERIES_CONFIG", cfg)
     return tmp_path
 
 
