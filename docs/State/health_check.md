@@ -132,6 +132,18 @@ then LOW. Within each severity, list newest at the top.
 - Status: OPEN, rebuild dispatched (T-405): pull named macro series, exclude multivariate markets, and adopt a "real quote" rule in the snapshot, its fail-closed check and the resolver. **UPDATE 2026-11-19: code FIXED on main `49331c7`** (two reviews by execution; 401 series, 0 parlays live). The local job runs it from 2026-11-19 17:30 (first artifact owed). One REQUIRED follow-up is open: markets Kalshi has moved to its historical API are recorded "not_found". Old rows stay in the file (`[NN-ARCHIVE]`) and are identifiable by the KXMVE prefix. The cloud copy runs the old code until a redeploy, which is the user's word.
 - Lesson: a fail-closed check on "not null" passes a field that is present but empty. Every quote check must ask whether the value is a usable price, not whether it exists.
 
+### [MEDIUM] The news panel loads the MAIN repo's real `.env` into the process from ANY checkout (director, 2026-11-19; found by the code-tree-writer builder)
+- Engine: intelligence / paper fleet — `intelligence/news_panel.py:36-45` (`_creds`), reached from the daily run's news step in every account.
+- Description:
+  - `_creds()` first tries a hard-coded absolute path to the main repo's `.env`, then `ROOT/.env`.
+  - It copies EVERY key in that file into `os.environ` (`setdefault`), not just the two it needs.
+  - So any test, simulation or worktree run that reaches `append_today` without stubbing `_client` loads the real broker keys and calls the live news API from a checkout that never asked for them.
+  - Every later piece of code in the same process, including the rest of a pytest session, then sees the real keys. A test that relies on "no keys means offline" behaves differently depending on test order.
+  - This is the same family as the memory note ".env loads at import (can bill)".
+  - The cloud container is unaffected: the absolute path does not exist there, and its credentials come from the environment.
+- Status: OPEN. Proposed fix (small): drop the hard-coded path; read only the two keys it needs, from the environment or `ROOT/.env`, without exporting the rest; and add a lock that a run under a tmp root with no keys stays offline. It touches the daily run's news step, so it is propose-first with the next paper-path batch.
+- Anchor: `intelligence/news_panel.py:37` contains `/Users/jacksonmurphy/Dev/trading_machine-2/.env`
+
 ### [MEDIUM] The analyst eval harness and the performance digest WRITE INTO THE CODE TREE, ignoring the run's state root — any simulation of the daily run rooted at a checkout overwrites that checkout's `data/` (director, 2026-11-17; it bit: a merge gate went red)
 - Engine: paper fleet / intelligence — `intelligence/analyst/eval_harness.py:35` (`SUMMARY = ROOT / "data" / "intel" / "analyst_eval_summary.json"`), `paper_trader/performance_digest.py:30,244` (first noted in passing in the split-fix HIGH row's review, 2026-11-10).
 - Description: both paths resolve from the module's own location, not from the state root the run was given.
