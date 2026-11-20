@@ -34,6 +34,11 @@ refuses Bash naming `scripts/archive_positioning_t136.py` and `intelligence/even
 a scratch pytest file that imports the module and prints `inspect.getsource` lines matching a regex is
 the sanctioned way to survey their write sites.
 
+T-412 (2026-11-20): `cd <wt> && python3 - <<EOF` that WRITES a file outside the worktree (a scratch
+harness) was refused; a plain `cp <wt file> <scratch file>` and the Edit tool on scratch files were fine.
+A harness mode can be VACUOUS when two independent guards protect the same property (removing one
+`continue` changed nothing because the verdict was already in the OK set) — re-aim it at the other guard.
+
 **A CLI-level lock must ISOLATE its class (T-392b, 2026-11-12):** a reversion of the new `--check` gate
 (exit on `changes_file` only) was NOT CAUGHT at first — the planted anchor held only the pairs row, so the
 CLI (which imports all 27 modules) exited 1 on 26 unrelated additions whatever the gate did. Fix: build
