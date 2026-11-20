@@ -13,9 +13,17 @@ Reuses the SAME source list + freshness logic as the cloud pulse's
 orchestrator (paper_trader/altdata_archive.py) so the two paths cannot
 drift on what "fresh" means.
 
+T-416 (2026-11-20) adds a LOCAL-ONLY options check (``_check_options``): the options
+snapshot archive (scripts/archive_options_snapshots.py) runs only on this launchd path, so it
+is judged here and deliberately NOT added to the shared ``_SNAPSHOT_FRESHNESS`` list, which
+the cloud paper pulse also reads (the cloud never collects options; adding it there would
+false-alarm every cloud run). The check re-judges the latest session's file by CONTENT (the
+real-quote rule recomputed from raw columns) and is trading-day aware: on a weekend or
+holiday it checks the previous session instead of alarming.
+
 Exit codes:
-  0 — every 24/7 snapshot source has >=1 row stamped today
-  1 — one or more sources have ZERO fresh rows (names printed)
+  0 — every 24/7 snapshot source has >=1 row stamped today, and the options check passed
+  1 — one or more sources have ZERO fresh rows, or the options check failed (names printed)
   2 — verifier itself broke (import/read error) — also a loud failure
 """
 from __future__ import annotations
@@ -25,6 +33,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+OPTIONS_REL = "data/macro_data/options"
+
+
+def _check_options(root: Path) -> tuple[bool, str]:
+    """The options archive's own store check, on today's ET date (local-only; see above)."""
+    from datetime import datetime
+
+    from scripts.archive_options_snapshots import (DEFAULT_CONFIG, ET, load_config,
+                                                   verify_store)
+
+    return verify_store(root / OPTIONS_REL, load_config(DEFAULT_CONFIG), datetime.now(ET).date())
 
 
 def main() -> int:
@@ -40,8 +60,13 @@ def main() -> int:
             print(f"[verify-altdata] {label}: {n} rows @ {today}")
             if n == 0:
                 stale.append(label)
+        options_ok, options_msg = _check_options(ROOT)
+        print(f"[verify-altdata] options: {options_msg}")
         if stale:
             print(f"[verify-altdata] FAIL — zero fresh rows: {', '.join(stale)}")
+        if not options_ok:
+            print("[verify-altdata] FAIL — options check (see the options line above)")
+        if stale or not options_ok:
             return 1
         print("[verify-altdata] OK")
         return 0

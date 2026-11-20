@@ -1,6 +1,7 @@
 #!/bin/bash
 # Daily alt-data archiver wrapper — Info-Layer program Lane 2.1 Phase A (2026-07-07).
-# Runs both idempotent snapshot archivers; scheduled via launchd
+# Runs the idempotent snapshot archivers (alt-data, positioning and, from T-416 on
+# 2026-11-20, the options snapshot archive); scheduled via launchd
 # (com.archondex.altdata-archive, 17:30 CT = 18:30 ET daily).
 #
 # HARDENED 2026-07-08 (fresh-eyes finding #1): the archiver scripts return 0
@@ -47,28 +48,33 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   # drill is possible on an ordinary Tuesday.
   if [ -n "${ARCHONDEX_ALARM_DRILL:-}" ]; then
     echo "ALARM DRILL — forcing the failure branch; archivers NOT run, no data touched"
-    RC1=99; RC2=99; RC3=99
+    RC1=99; RC2=99; RC3=99; RC4=99
   else
   "$PY" scripts/archive_altdata_t136.py 2>&1
   RC1=$?
   "$PY" scripts/archive_positioning_t136.py 2>&1
   RC2=$?
+  # T-416 options snapshot archive: exits 0 on OK and on a non-trading day (SKIP);
+  # 1 on FAILED (no real quotes, or coverage below the floor); 2 when broken. It runs
+  # BEFORE the verifier, whose options check then re-judges the written file by content.
+  "$PY" scripts/archive_options_snapshots.py 2>&1
+  RC4=$?
   "$PY" scripts/verify_altdata_snapshot.py 2>&1
   RC3=$?
   fi
-  echo "=== exit codes: altdata=$RC1 positioning=$RC2 verify=$RC3 ==="
-  if [ "$RC1" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC3" -ne 0 ]; then
+  echo "=== exit codes: altdata=$RC1 positioning=$RC2 options=$RC4 verify=$RC3 ==="
+  if [ "$RC1" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC4" -ne 0 ] || [ "$RC3" -ne 0 ]; then
     # Loud-failure marker (grep target) + the alarm channels: SNS email
     # (needs sns:Publish on the topic for user claude-code-cli — pending the
     # user's IAM grant as of 2026-07-08), with a local macOS notification as
     # the always-available fallback.
-    echo "ALTDATA_ARCHIVER_FAILED rc1=$RC1 rc2=$RC2 verify=$RC3"
+    echo "ALTDATA_ARCHIVER_FAILED rc1=$RC1 rc2=$RC2 options=$RC4 verify=$RC3"
     "$AWS" sns publish --profile archondex --region us-east-1 \
       --topic-arn "$SNS_TOPIC" \
       --subject "ArchonDEX altdata archiver FAILED (launchd)" \
-      --message "run_altdata_archivers.sh $(date '+%Y-%m-%d %H:%M %Z'): rc1=$RC1 rc2=$RC2 verify=$RC3. See $LOG" \
+      --message "run_altdata_archivers.sh $(date '+%Y-%m-%d %H:%M %Z'): rc1=$RC1 rc2=$RC2 options=$RC4 verify=$RC3. See $LOG" \
       2>&1 || echo "ALTDATA_SNS_PUBLISH_FAILED (falling back to local notification)"
-    osascript -e "display notification \"altdata archiver FAILED rc1=$RC1 rc2=$RC2 verify=$RC3 — see log\" with title \"ArchonDEX ALERT\" sound name \"Basso\"" \
+    osascript -e "display notification \"altdata archiver FAILED rc1=$RC1 rc2=$RC2 options=$RC4 verify=$RC3 — see log\" with title \"ArchonDEX ALERT\" sound name \"Basso\"" \
       2>&1 || echo "ALTDATA_LOCAL_NOTIFY_FAILED"
   fi
 } >> "$LOG" 2>&1
