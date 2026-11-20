@@ -18,7 +18,11 @@ import pandas as pd
 # container/repo root in the cloud pulse, so append_today never writes to a dead
 # absolute path. See the T-290b outbox note flagging the wider hardcoded pattern.
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PANEL_DIR = ROOT / 'data' / 'intel' / 'news_panel'   # created at WRITE time, never at import (2026-10-22)
+# The panel's location RELATIVE to a state root — the same layout cloud_state.NEWS_PANEL_DIR
+# pulls and pushes. 2026-11-19: `append_today(root=...)` writes under the daily run's root;
+# before, it wrote into THIS checkout whatever root the run was given.
+PANEL_REL = pathlib.Path('data/intel/news_panel')
+PANEL_DIR = ROOT / PANEL_REL   # created at WRITE time, never at import (2026-10-22)
 SCHEMA = ['article_id', 'created_at', 'updated_at', 'symbols', 'headline', 'summary',
           'content', 'source', 'url', 'author', 'ingest_ts', 'ingest_run_id']
 DEPTH_FLOOR = dt.date(2015, 1, 1)   # T-289a hard Benzinga floor
@@ -103,8 +107,8 @@ def _fetch_universe(client, universe, start, end, run_id, ingest_ts):
     df = pd.DataFrame(list(seen.values()), columns=SCHEMA)
     return df.sort_values('created_at').reset_index(drop=True) if len(df) else df
 
-def _path(year, month):
-    return PANEL_DIR / f'news_{year}{month:02d}.parquet'
+def _path(year, month, panel_dir: 'pathlib.Path | None' = None) -> pathlib.Path:
+    return (PANEL_DIR if panel_dir is None else panel_dir) / f'news_{year}{month:02d}.parquet'
 
 def build_month(year, month, universe, run_id):
     start = dt.datetime(year, month, 1)
@@ -115,20 +119,24 @@ def build_month(year, month, universe, run_id):
         df.to_parquet(_path(year, month), index=False)
     return df
 
-def append_today(as_of, universe, run_id, degraded_reason=None):
+def append_today(as_of, universe, run_id, degraded_reason=None, *, root=None):
     """Daily forward append (B wires into the post-reconcile pulse). Idempotent upsert by article_id into the
     current month's parquet. Fail-OPEN for trading (returns degraded=True, never raises); measurement gates
-    must treat degraded=True as a FAIL. Returns {n_new, n_total, degraded, reason}."""
+    must treat degraded=True as a FAIL. Returns {n_new, n_total, degraded, reason}.
+
+    `root` is the run's state root: the partition is read and written under `<root>/data/intel/news_panel/`,
+    where the cloud pulse's pull/push of the month moves it. Without it, this checkout's PANEL_DIR."""
     as_of = pd.Timestamp(as_of).date() if not isinstance(as_of, dt.date) else as_of
     try:
+        panel_dir = PANEL_DIR if root is None else pathlib.Path(root) / PANEL_REL
         start = dt.datetime(as_of.year, as_of.month, as_of.day)
         end = start + dt.timedelta(days=1)
         new = _fetch_universe(_client(), universe, start, end, run_id, dt.datetime.utcnow().isoformat())
-        p = _path(as_of.year, as_of.month)
+        p = _path(as_of.year, as_of.month, panel_dir)
         existing = pd.read_parquet(p) if p.exists() else pd.DataFrame(columns=SCHEMA)
         merged = (pd.concat([existing, new], ignore_index=True)
                   .drop_duplicates('article_id', keep='first').sort_values('created_at'))
-        PANEL_DIR.mkdir(parents=True, exist_ok=True)
+        panel_dir.mkdir(parents=True, exist_ok=True)
         merged.to_parquet(p, index=False)
         return {'n_new': int(len(merged) - len(existing)), 'n_total': int(len(merged)),
                 'degraded': bool(degraded_reason), 'reason': degraded_reason}

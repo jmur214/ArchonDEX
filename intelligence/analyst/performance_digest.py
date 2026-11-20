@@ -27,7 +27,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 ROOT = Path(__file__).resolve().parents[2]
-DIGEST = ROOT / "docs" / "State" / "performance_digest.md"
+# 2026-11-19: relative to a state root. `generate(root=...)` writes under the root the
+# daily run was given; without it, under THIS checkout (unchanged). Before this the
+# daily run wrote the digest and its archive copy into the checkout whatever its root.
+DIGEST_REL = Path("docs/State/performance_digest.md")
+ARCHIVE_REL = Path("docs/Measurements")
+DIGEST = ROOT / DIGEST_REL
 
 
 def sleeve_framing() -> Optional[dict]:
@@ -230,18 +235,27 @@ def render(rows: list[dict], as_of: str, notes: Optional[list[str]] = None) -> s
     return "\n".join(out) + "\n"
 
 
-def generate(streams: dict[str, dict], as_of: str, *, out_path: Path = DIGEST,
-             notes: Optional[list[str]] = None, archive: bool = True) -> dict[str, Any]:
+def generate(streams: dict[str, dict], as_of: str, *, root: Optional[Path | str] = None,
+             out_path: Optional[Path] = None, notes: Optional[list[str]] = None,
+             archive: bool = True) -> dict[str, Any]:
     """Write the digest (overwrite) + archive a dated copy. Fail-open: never raises
-    into the pulse — returns a status dict the caller logs."""
+    into the pulse — returns a status dict the caller logs.
+
+    `root` is the run's state root: the digest goes to `<root>/docs/State/` and the
+    archive copy to `<root>/docs/Measurements/<YYYY-MM>/`. An explicit `out_path` still
+    wins for the digest. With no root, both are this checkout's (unchanged)."""
     try:
+        base = Path(root) if root is not None else ROOT
+        if out_path is None:
+            out_path = (base / DIGEST_REL) if root is not None else DIGEST
+        out_path = Path(out_path)
         rows = build_rows(streams)
         text = render(rows, as_of, notes)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(text)
         archived = None
         if archive:
-            adir = ROOT / "docs" / "Measurements" / as_of[:7]
+            adir = base / ARCHIVE_REL / as_of[:7]
             adir.mkdir(parents=True, exist_ok=True)
             archived = adir / f"performance_digest_{as_of}.md"
             archived.write_text(text)

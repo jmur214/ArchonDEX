@@ -31,9 +31,20 @@ from typing import Any, Callable, Optional
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-PRED_LOG = ROOT / "data" / "intel" / "analyst_predictions.jsonl"
-SUMMARY = ROOT / "data" / "intel" / "analyst_eval_summary.json"
-NOTES_DIR = ROOT / "data" / "intel" / "analyst_notes"
+# 2026-11-19: the run's files as paths RELATIVE to a state root. The module constants
+# below join them onto THIS checkout (the standalone CLI's behaviour, unchanged);
+# `run(root=...)` joins them onto the root the daily run was given instead. Before this,
+# a daily run rooted anywhere else (a test, a reviewer's simulation, a worktree whose
+# data/ is a symlink to the main repo's) wrote its summary into the CHECKOUT's data/ —
+# on 2026-11-17 it replaced the main tree's summary with an empty one.
+PRED_LOG_REL = Path("data/intel/analyst_predictions.jsonl")
+SUMMARY_REL = Path("data/intel/analyst_eval_summary.json")
+NOTES_REL = Path("data/intel/analyst_notes")
+AGENTIC_NOTES_REL = Path("data/intel/analyst_notes_agentic")
+EVENT_LEDGER_REL = Path("data/intel/event_calls.jsonl")
+PRED_LOG = ROOT / PRED_LOG_REL
+SUMMARY = ROOT / SUMMARY_REL
+NOTES_DIR = ROOT / NOTES_REL
 PROCESSED = ROOT / "data" / "processed"
 
 RESOLVER_TYPES = {"price_above", "relative_return", "dd_exceeds", "event_occurs"}
@@ -317,7 +328,7 @@ def _pred_id(note_id: str, i: int, p: dict) -> str:
     return p.get("prediction_id") or f"{note_id}#{i}"
 
 
-AGENTIC_NOTES_DIR = ROOT / "data" / "intel" / "analyst_notes_agentic"
+AGENTIC_NOTES_DIR = ROOT / AGENTIC_NOTES_REL
 
 # T-331 — THE BROKEN CLOCK. This harness globbed `analyst_note_*.json` while
 # `intel_pulse.py` writes `note_<date>.json` → the analyst pool was ALWAYS EMPTY
@@ -410,7 +421,7 @@ def _load_log(path: Path) -> list[dict]:
     return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
 
 
-EVENT_LEDGER = ROOT / "data" / "intel" / "event_calls.jsonl"
+EVENT_LEDGER = ROOT / EVENT_LEDGER_REL
 
 
 def _load_event_ledger(path: Path) -> list[dict]:
@@ -431,10 +442,20 @@ def _load_event_ledger(path: Path) -> list[dict]:
     return out
 
 
+def _under_root(explicit: Optional[Path | str], root: Optional[Path | str], rel: Path,
+                checkout_default: Path) -> Path:
+    """An explicitly passed path wins; else `rel` under the run's state root; else this
+    checkout's own location (the standalone CLI)."""
+    if explicit is not None:
+        return Path(explicit)
+    return Path(root) / rel if root is not None else checkout_default
+
+
 def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _disk_price,
-        event_fn: EventFn = _disk_event, pred_log: Path = PRED_LOG, summary: Path = SUMMARY,
-        notes_dir: Path = NOTES_DIR, event_ledger: Path = EVENT_LEDGER,
-        agentic_notes_dir: Path = AGENTIC_NOTES_DIR,
+        event_fn: EventFn = _disk_event, root: Optional[Path | str] = None,
+        pred_log: Optional[Path] = None, summary: Optional[Path] = None,
+        notes_dir: Optional[Path] = None, event_ledger: Optional[Path] = None,
+        agentic_notes_dir: Optional[Path] = None,
         backfill_raw_dir: Optional[Path] = None,
         directional: Optional[dict] = None) -> dict:
     """Resolve every EXPIRED, not-yet-logged prediction as-of `as_of`; append records
@@ -442,7 +463,18 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
     the summary. Returns the summary dict. Consumes BOTH the analyst notes and D's
     event-call ledger (event_call/v1, note-shaped → unchanged). `directional` (the
     LLM-shadow-book twin comparison — Δwealth vs the 60/40 twin) rides into the summary
-    so the dashboard has the FULL G1 picture (prediction skill + directional) in one JSON."""
+    so the dashboard has the FULL G1 picture (prediction skill + directional) in one JSON.
+
+    `root` is the run's STATE root: the prediction log and summary are written, and the
+    notes and the event ledger are read, under it (the same `data/intel/...` layout
+    `paper_trader/cloud_state.py` syncs). An explicit path argument still wins. With
+    neither, the paths are this checkout's (the module constants)."""
+    pred_log = _under_root(pred_log, root, PRED_LOG_REL, PRED_LOG)
+    summary = _under_root(summary, root, SUMMARY_REL, SUMMARY)
+    notes_dir = _under_root(notes_dir, root, NOTES_REL, NOTES_DIR)
+    agentic_notes_dir = _under_root(agentic_notes_dir, root, AGENTIC_NOTES_REL,
+                                    AGENTIC_NOTES_DIR)
+    event_ledger = _under_root(event_ledger, root, EVENT_LEDGER_REL, EVENT_LEDGER)
     if notes is None:
         # T-331: BOTH analyst dirs (the A/B needs the agentic arm) + the event ledger.
         # Each note is source-tagged so fleet_scoring can segment constrained vs agentic.

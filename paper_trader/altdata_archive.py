@@ -28,11 +28,18 @@ TWO hard invariants:
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from types import ModuleType
+from typing import Callable, Dict, Iterator, List, Tuple
 
 import pandas as pd
+
+# Where each archiver writes, RELATIVE to a state root — the same two directories
+# cloud_state.ALTDATA_DIRS pulls and pushes, and the freshness tables below read.
+ALT_REL = "data/macro_data/alt"
+POSITIONING_REL = "data/positioning"
 
 # The 24/7 market-snapshot sources that MUST land today's rows on any run day.
 # (source_label, parquet relative path, the date column stamped with snap_date)
@@ -163,15 +170,36 @@ def _fresh_rows(path: Path, datecol: str, today: str) -> int:
         return 0
 
 
+@contextmanager
+def _out_dir_under_root(module: ModuleType, out_dir: Path) -> Iterator[None]:
+    """Point an archiver module's ``OUT_DIR`` at the run's root while its jobs run.
+
+    Both archivers self-root ``OUT_DIR`` to THEIR checkout at import, and every write
+    site in them resolves ``OUT_DIR / <name>`` at CALL time — the same global their own
+    ``--out-dir`` flag reassigns. Without this the daily run wrote the hoard into the
+    checkout while the freshness check below (and the S3 push) read the run's root: a
+    run rooted anywhere else wrote into a checkout someone else was using (2026-11-19).
+    Where the root IS the checkout (the cloud container) the path is unchanged.
+    Restored afterwards so a caller of the archivers' own functions is unaffected."""
+    previous = module.OUT_DIR
+    module.OUT_DIR = out_dir
+    try:
+        yield
+    finally:
+        module.OUT_DIR = previous
+
+
 def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResult:
     """Run both T-136 archivers (each pull fail-open) and assess snapshot
-    freshness. Never raises into the caller — the trading path stays clean."""
+    freshness. Never raises into the caller — the trading path stays clean.
+
+    Both archivers write under ``root`` (see ``_out_dir_under_root``)."""
     root_p = Path(root)
     today = pd.Timestamp.now().strftime("%Y-%m-%d")
     reports: List[str] = []
 
     # Import lazily so a broken archiver import can't take down the driver's
-    # module load; both self-root their OUT_DIR to the repo root.
+    # module load.
     def _run_group(tag: str, jobs: List[Tuple[str, Callable[[], str]]]) -> None:
         for name, fn in jobs:
             try:
@@ -181,28 +209,30 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
 
     try:
         import scripts.archive_altdata_t136 as ad
-        _run_group("D", [
-            ("gpr", ad.pull_gpr), ("epu", ad.pull_epu),
-            ("polymarket", ad.snapshot_polymarket),
-            ("kalshi", ad.snapshot_kalshi),
-            ("kxfed", ad.snapshot_kxfed),               # T-290 d2 rate-path
-            ("fred_rate_path", ad.pull_fred_rate_path),  # T-290 d2 resolution
-            ("cef", ad.snapshot_cef),                     # T-334 CEF discount panel
-            ("form4", ad.pull_form4_index),               # T-334 EDGAR Form 4 index
-            ("usaspending", ad.pull_usaspending),         # T-334 federal awards
-        ])
+        with _out_dir_under_root(ad, root_p / ALT_REL):
+            _run_group("D", [
+                ("gpr", ad.pull_gpr), ("epu", ad.pull_epu),
+                ("polymarket", ad.snapshot_polymarket),
+                ("kalshi", ad.snapshot_kalshi),
+                ("kxfed", ad.snapshot_kxfed),               # T-290 d2 rate-path
+                ("fred_rate_path", ad.pull_fred_rate_path),  # T-290 d2 resolution
+                ("cef", ad.snapshot_cef),                     # T-334 CEF discount panel
+                ("form4", ad.pull_form4_index),               # T-334 EDGAR Form 4 index
+                ("usaspending", ad.pull_usaspending),         # T-334 federal awards
+            ])
     except Exception as exc:
         reports.append(f"[D] archive_altdata import FAILED ({type(exc).__name__}: {exc})")
 
     try:
         import scripts.archive_positioning_t136 as ap
-        _run_group("C", [
-            ("regsho", lambda: ap.pull_regsho_short_volume(days_back)),
-            ("ftd", ap.pull_sec_ftd),
-            ("naaim", ap.pull_naaim),
-            ("margin", ap.pull_finra_margin),
-            ("short_interest", ap.pull_finra_short_interest),
-        ])
+        with _out_dir_under_root(ap, root_p / POSITIONING_REL):
+            _run_group("C", [
+                ("regsho", lambda: ap.pull_regsho_short_volume(days_back)),
+                ("ftd", ap.pull_sec_ftd),
+                ("naaim", ap.pull_naaim),
+                ("margin", ap.pull_finra_margin),
+                ("short_interest", ap.pull_finra_short_interest),
+            ])
     except Exception as exc:
         reports.append(f"[C] archive_positioning import FAILED ({type(exc).__name__}: {exc})")
 

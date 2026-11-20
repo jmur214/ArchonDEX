@@ -1397,7 +1397,11 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                         return s
                     return _eh._disk_price(sym)
 
-                _es = _eh.run(str(today), price_fn=_price_fn, directional=_shadow_twin)
+                # root=: the log + summary are WRITTEN, and the notes + event ledger
+                # READ, under this run's root (where cloud_state syncs them) — not the
+                # module's checkout, which an off-root run would overwrite (2026-11-19).
+                _es = _eh.run(str(today), price_fn=_price_fn, directional=_shadow_twin,
+                              root=root)
                 _g1 = _es.get("g1_skill", {}).get("vs_market_implied") or {}
                 print(f"   EVAL resolved={_es.get('n_resolvable', 0)}/{_es.get('n_records', 0)} "
                       f"brier={_es.get('brier')} g1_vs_implied_ci_low={_g1.get('diff_ci_low')} "
@@ -1417,7 +1421,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 import datetime as _dt
                 if _dt.date.fromisoformat(str(today)).weekday() == 4:   # Friday
                     from intelligence.analyst.performance_digest import generate
-                    _dg = generate(_digest_streams(root), as_of=str(today))
+                    _dg = generate(_digest_streams(root), as_of=str(today), root=root)
                     print(f"   DIGEST     streams={_dg.get('streams')} "
                           f"ok={_dg.get('ok')} path={_dg.get('path')}"
                           + ("" if _dg.get("ok") else f" err={_dg.get('error')}"))
@@ -1704,7 +1708,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
         universe = full_universe()
         degraded_reason = _news_universe_collapse_reason(universe, SPECIAL_SITS)
         nres = news_panel.append_today(today, universe, run_id,
-                                       degraded_reason=degraded_reason)
+                                       degraded_reason=degraded_reason, root=root)
         # T-325 (2026-08-05): the push now RETURNS a bool. A failed push (e.g. the
         # missing news_panel/* grant that lost the panel silently for weeks) MUST
         # degrade the heartbeat's news channel — a lost news day can never again be
