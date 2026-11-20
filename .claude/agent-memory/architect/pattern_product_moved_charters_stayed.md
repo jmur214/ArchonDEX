@@ -30,6 +30,14 @@ that path (wash guard, PortfolioPolicyConfig, MetricsEngine, TrendOverlay, censu
   stale) while auto-memory + git log show major events through 09-16. The Stop hook
   that supposedly checks the stamp is not forcing reconciliation.
 
+**Re-verified 2026-11-20 (T-411):**
+- Still 0 mentions of `paper_trader` or `intelligence/` in the charters, the indexes and `docs/README.md`.
+- `main()` has grown to 1,403 lines (381–1783 at e68251b).
+- `PaperOrderConstructor` (the A→C→B seam into paper) has only test callers.
+- The desk-grade objects live on the shadow side only: `thesis_call/v1` (falsifiers with `check_by`) and `event_call/v1` (materiality plus resolvable predictions). Real orders carry no reason field.
+- Account 3's LLM emits final weights. That collapses A, B and C into one model output; the deterministic layer only vetoes. Sizing logic has fragmented into three conviction→size rules outside B: thesis book, event book, backtest risk engine. This is the same pattern as [[boundary_crisis_degross_fragmentation]].
+- See [[pattern_cloud_input_availability]].
+
 **How to apply:** when asked "does the architecture match the product", start from
 the Dockerfile.paper entrypoint closure, not from `engines/`. Treat A-F charter
 audits as legacy-stack audits unless the user says otherwise. See
