@@ -615,6 +615,13 @@ def test_pagination_is_followed_and_a_repeated_token_is_an_error(tmp_path: Path)
         client_for(mk).chain("SPY", date(2026, 12, 18), 1.0, 2.0, "indicative")
 
 
+def test_a_non_object_payload_is_that_underlyings_error_not_a_crash(tmp_path: Path) -> None:
+    mk = Market(first_status={"/v1beta1/options/snapshots/SPY": [FakeResp(payload=[1, 2])]})
+    out = run(tmp_path, mk)
+    assert out.status == "FAILED" and "coverage 2/3" in out.message
+    assert "payload is not an object" in runs(tmp_path)[-1]["errors"]["SPY"]
+
+
 def test_the_feed_and_filters_are_sent_and_only_GET_is_used(tmp_path: Path) -> None:
     mk = Market()
     run(tmp_path, mk)

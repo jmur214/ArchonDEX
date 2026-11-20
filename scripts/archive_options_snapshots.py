@@ -664,6 +664,8 @@ class AlpacaReadClient:
             if token:
                 p["page_token"] = token
             payload = self.get(url, p)
+            if not isinstance(payload, dict):
+                raise ApiError(200, f"{urlparse(url).path}: payload is not an object")
             pages.append(payload.get(key) or ({} if key == "snapshots" else []))
             token = payload.get("next_page_token")
             if not token:
