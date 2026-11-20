@@ -1304,7 +1304,9 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 # zstd, fixed schema, deduped on (snap_date, contract)) + one JSON line per run in
 # data/macro_data/options/_archive_runs.jsonl. Keys: env, else --env-file (default
 # <repo>/.env); never printed. rc 0 = OK or SKIP (non-trading day), 1 = FAILED (zero real
-# quotes -> nothing written; coverage < 90 % -> rows kept), 2 = broken (keys/config/crash).
+# quotes -> nothing written; coverage < 90 %, or a REQUIRED underlying (SPY/QQQ/IWM/XSP) not
+# covered -> rows kept; covered = >= 10 real rows AND >= 30 % of its rows real), 2 = broken
+# (keys/config/crash).
 .venv/bin/python scripts/archive_options_snapshots.py
 
 # Smoke into a scratch dir (NEVER data/). From an agent worktree pass the main .env:

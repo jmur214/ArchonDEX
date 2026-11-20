@@ -8,12 +8,14 @@
   "horizon_days": 100,
   "coverage_floor": 0.90,
   "min_real_per_underlying": 10,
+  "min_real_share_per_underlying": 0.30,
   "wall_budget_seconds": 1500,
   "_rules": {
     "expiries": "Listed expiries strictly after the snapshot date, within horizon_days. Weekly = the LAST listed expiry of each calendar week (Friday, or Thursday when Friday is a holiday), so Mon-Thu dailies are skipped. Take the first n_weekly weeks, then the next n_monthly weeks that contain a third Friday (the standard monthly).",
     "strikes": "Strikes within +/- strike_band of the reference price (the underlying's delayed-SIP latest trade; for an index, the declared proxy). Only the standard root (root == symbol) is kept.",
     "real_quote": "quote stamped on the snapshot's ET session date AND (bid > 0 OR a last trade > 0 stamped that session) AND 0 < ask, bid <= ask <= no-arbitrage bound (reference price for a call, strike for a put) AND (implied vol finite and > 0, unless iv_expected is false).",
-    "coverage": "An underlying is covered when it has >= min_real_per_underlying real-quote contracts. Covered / declared < coverage_floor -> FAILED (rows that came back are kept). Zero real quotes in total -> FAILED and nothing written."
+    "coverage": "An underlying is covered when it has >= min_real_per_underlying real-quote contracts AND they are >= min_real_share_per_underlying of its rows (full-universe smoke 2026-11-20 after the close: lowest share 0.68 (PEP), fewest real 110 (NKE)). Covered / declared < coverage_floor, or ANY required underlying not covered -> FAILED (rows that came back are kept). Zero real quotes in total -> FAILED and nothing written.",
+    "required": "The index products SPY, QQQ, IWM and XSP are required: the 90 % floor alone would let a wiped XSP pass inside a 48/49 day. At the 2026-11-20 close the feed zeroed 164 XSP quotes (bid 0 / ask 0, size 0, exchange ?, stamped 15:59:59 ET); the rule judged them not real."
   },
   "_universe_rationale": "Index exposure: SPY, QQQ, IWM (the census's index-premium family O-1) plus XSP, the mini-SPX index option (European, cash-settled, Section 1256), which is the vehicle O-1 names and whose retail spreads are the binding unknown. Single names: 45 of the largest S&P 500 companies, all with weekly options, drawn from the 117 names that already have an earnings calendar in data/earnings/ so the earnings-options family E-1 can use this record. Picked by size and option liquidity with a sector spread; BRK.B is left out because its option root (BRKB) differs from its stock symbol.",
   "_excluded": {
@@ -22,10 +24,10 @@
     "opra": "The OPRA feed returns HTTP 403 'OPRA agreement is not signed' on this account (2026-11-20); only the indicative feed is free."
   },
   "underlyings": [
-    {"symbol": "SPY", "kind": "etf"},
-    {"symbol": "QQQ", "kind": "etf"},
-    {"symbol": "IWM", "kind": "etf"},
-    {"symbol": "XSP", "kind": "index", "price_proxy": "SPY", "iv_expected": false},
+    {"symbol": "SPY", "kind": "etf", "required": true},
+    {"symbol": "QQQ", "kind": "etf", "required": true},
+    {"symbol": "IWM", "kind": "etf", "required": true},
+    {"symbol": "XSP", "kind": "index", "price_proxy": "SPY", "iv_expected": false, "required": true},
     {"symbol": "AAPL", "kind": "stock"},
     {"symbol": "MSFT", "kind": "stock"},
     {"symbol": "NVDA", "kind": "stock"},

@@ -25,8 +25,11 @@ What one run does (all GETs; nothing is ever posted to any API):
   4. The real-quote rule (``real_quote_mask``) judges every row by a USABLE value, never by a
      field being present (the 2026-11-19 Kalshi defect: a "not null" check passed $0 parlay
      quotes as prices for five months).
-  5. Fail closed: zero real quotes -> FAILED, nothing written. Fewer than ``coverage_floor``
-     of the declared underlyings covered -> FAILED, the rows that came back are kept.
+  5. Fail closed: zero real quotes -> FAILED, nothing written. An underlying is covered when
+     it has >= ``min_real_per_underlying`` real rows that are >= ``min_real_share_per_underlying``
+     of its rows. Fewer than ``coverage_floor`` of the declared underlyings covered, or ANY
+     ``required`` one (SPY, QQQ, IWM, XSP) not covered -> FAILED, the rows are kept. (At the
+     2026-11-20 close the feed zeroed 164 XSP quotes; a wiped XSP must not hide in a 48/49 day.)
 
 Output: one parquet file per ET session date, ``<out>/options_snapshot_YYYY-MM-DD.parquet``
 (explicit pyarrow schema, zstd), deduped by (snap_date, contract): a real-quote row beats a
@@ -167,6 +170,7 @@ class UnderlyingSpec:
     kind: str
     price_proxy: Optional[str] = None
     iv_expected: bool = True
+    required: bool = False           # not covered -> FAILED whatever the coverage share
 
 
 @dataclass(frozen=True)
@@ -182,10 +186,15 @@ class ArchiveConfig:
     min_real_per_underlying: int
     wall_budget_seconds: float
     md5: str
+    min_real_share: float = 0.0      # an underlying's real rows / its rows, to count as covered
 
     @property
     def declared(self) -> list[str]:
         return [u.symbol for u in self.underlyings]
+
+    @property
+    def required(self) -> list[str]:
+        return [u.symbol for u in self.underlyings if u.required]
 
     @property
     def no_iv(self) -> frozenset[str]:
@@ -199,7 +208,8 @@ class ArchiveConfig:
         keep = tuple(u for u in self.underlyings if u.symbol in set(symbols))
         return ArchiveConfig(keep, self.feed, self.strike_band, self.n_weekly, self.n_monthly,
                              self.horizon_days, self.coverage_floor,
-                             self.min_real_per_underlying, self.wall_budget_seconds, self.md5)
+                             self.min_real_per_underlying, self.wall_budget_seconds, self.md5,
+                             self.min_real_share)
 
 
 def load_config(path: Path) -> ArchiveConfig:
@@ -216,7 +226,8 @@ def load_config(path: Path) -> ArchiveConfig:
             UnderlyingSpec(symbol=str(u["symbol"]).upper(), kind=str(u["kind"]),
                            price_proxy=(str(u["price_proxy"]).upper()
                                         if u.get("price_proxy") else None),
-                           iv_expected=bool(u.get("iv_expected", True)))
+                           iv_expected=bool(u.get("iv_expected", True)),
+                           required=bool(u.get("required", False)))
             for u in raw["underlyings"])
         cfg = ArchiveConfig(
             underlyings=unds, feed=str(raw["feed"]), strike_band=float(raw["strike_band"]),
@@ -224,7 +235,8 @@ def load_config(path: Path) -> ArchiveConfig:
             horizon_days=int(raw["horizon_days"]), coverage_floor=float(raw["coverage_floor"]),
             min_real_per_underlying=int(raw["min_real_per_underlying"]),
             wall_budget_seconds=float(raw["wall_budget_seconds"]),
-            md5=hashlib.md5(raw_bytes).hexdigest())
+            md5=hashlib.md5(raw_bytes).hexdigest(),
+            min_real_share=float(raw["min_real_share_per_underlying"]))
     except (KeyError, TypeError, ValueError) as e:
         raise ConfigError(f"config malformed: {path}: {type(e).__name__}: {e}") from e
     syms = cfg.declared
@@ -234,7 +246,8 @@ def load_config(path: Path) -> ArchiveConfig:
         raise ConfigError(f"config declares a symbol twice: {path}")
     if not (0.0 < cfg.strike_band < 1.0 and 0.0 < cfg.coverage_floor <= 1.0
             and cfg.n_weekly >= 1 and cfg.n_monthly >= 0 and cfg.horizon_days >= 7
-            and cfg.min_real_per_underlying >= 1 and cfg.wall_budget_seconds > 0):
+            and cfg.min_real_per_underlying >= 1 and cfg.wall_budget_seconds > 0
+            and 0.0 <= cfg.min_real_share < 1.0):
         raise ConfigError(f"config value out of range: {path}")
     for u in cfg.underlyings:
         if u.kind == "index" and not u.price_proxy:
@@ -430,26 +443,36 @@ class Verdict:
     message: str
 
 
-def judge(df: pd.DataFrame, declared: Sequence[str], min_real: int, floor: float) -> Verdict:
-    """Fail closed: zero real quotes -> FAILED and nothing written; coverage below the floor
-    -> FAILED with the rows kept; otherwise OK."""
+def judge(df: pd.DataFrame, declared: Sequence[str], min_real: int, floor: float, *,
+          min_share: float = 0.0, required: Collection[str] = ()) -> Verdict:
+    """Fail closed: zero real quotes -> FAILED and nothing written. An underlying is covered
+    when it has >= ``min_real`` real rows AND real rows are >= ``min_share`` of its rows.
+    Coverage below the floor, or any ``required`` underlying not covered -> FAILED with the
+    rows kept (a wiped XSP must not hide inside a 48/49 day); otherwise OK."""
     n_rows = int(len(df))
     real = df["real_quote"].astype(bool) if n_rows else pd.Series(dtype=bool)
     n_real = int(real.sum())
     counts = df.loc[real, "underlying"].value_counts() if n_real else pd.Series(dtype="int64")
     have = counts.reindex(list(declared), fill_value=0)
-    covered = have.index[have >= min_real].tolist()
-    missing = have.index[have < min_real].tolist()
+    total = (df["underlying"].value_counts() if n_rows else pd.Series(dtype="int64")).reindex(
+        list(declared), fill_value=0)
+    real_share = (have / total.where(total > 0)).fillna(0.0)
+    ok = (have >= min_real) & (real_share >= min_share)
+    covered = have.index[ok].tolist()
+    missing = have.index[~ok].tolist()
     share = len(covered) / len(declared) if declared else 0.0
+    req_missing = [s for s in missing if s in set(required)]
     if n_real == 0:
         return Verdict("FAILED", False, n_rows, 0, covered, missing,
                        f"0 real quotes in {n_rows:,} rows across {len(declared)} underlyings "
                        f"- nothing written")
-    if share < floor:
+    if share < floor or req_missing:
+        why = (f"required underlying not covered: {', '.join(req_missing)}; " if req_missing
+               else "")
         return Verdict("FAILED", True, n_rows, n_real, covered, missing,
-                       f"coverage {len(covered)}/{len(declared)} = {share:.0%} < floor "
-                       f"{floor:.0%} (below {min_real} real quotes: {', '.join(missing)}) "
-                       f"- {n_rows:,} rows kept")
+                       f"{why}coverage {len(covered)}/{len(declared)} = {share:.0%} (floor "
+                       f"{floor:.0%}; not covered, < {min_real} real or < {min_share:.0%} real: "
+                       f"{', '.join(missing)}) - {n_rows:,} rows kept")
     return Verdict("OK", True, n_rows, n_real, covered, missing,
                    f"{len(covered)}/{len(declared)} underlyings covered, {n_rows:,} rows, "
                    f"{n_real:,} real ({n_real / n_rows:.0%})")
@@ -886,7 +909,8 @@ def run_archive(cfg: ArchiveConfig, client: AlpacaReadClient, out_dir: Path,
         print(f"{TAG} ERROR {abort} - remaining underlyings not attempted", flush=True)
 
     df = dedup([r.rows for r in results])
-    verdict = judge(df, cfg.declared, cfg.min_real_per_underlying, cfg.coverage_floor)
+    verdict = judge(df, cfg.declared, cfg.min_real_per_underlying, cfg.coverage_floor,
+                    min_share=cfg.min_real_share, required=cfg.required)
     real_by = df.loc[df["real_quote"].astype(bool), "underlying"].value_counts() if len(df) else {}
     for r in results:
         n_real = int(real_by.get(r.symbol, 0)) if len(df) else 0
@@ -954,7 +978,8 @@ def verify_store(out_dir: Path, cfg: ArchiveConfig, today: date) -> tuple[bool, 
     df = pd.read_parquet(path)
     df = df[df["snap_date"].astype(str).eq(session.isoformat())].copy()
     df["real_quote"] = real_quote_mask(df, cfg.no_iv)
-    v = judge(df, cfg.declared, cfg.min_real_per_underlying, cfg.coverage_floor)
+    v = judge(df, cfg.declared, cfg.min_real_per_underlying, cfg.coverage_floor,
+              min_share=cfg.min_real_share, required=cfg.required)
     return v.status == "OK", f"{v.status}: session {session}: {v.message}"
 
 

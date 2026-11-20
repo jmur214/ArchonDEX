@@ -235,6 +235,7 @@
 - **Class `UnderlyingSpec`**: One declared underlying; an index declares a price proxy and may have no IV.
 - **Class `ArchiveConfig`**: The validated universe config (see config/options_archive_universe.json).
   - `def declared()`
+  - `def required()`
   - `def no_iv()`
   - `def subset()`: The same rules on a declared subset (a smoke run); the subset is the denominator.
 - **Class `Verdict`**: The day's judgement: status, whether to write, and the coverage detail.
@@ -259,7 +260,7 @@
 - **Function `select_expiries()`**: The next ``n_weekly`` weekly expiries, then the next ``n_monthly`` monthlies.
 - **Function `parse_occ()`**: Vectorized OCC symbol parse: root (1-6 chars), YYMMDD, C/P, strike x1000 (8 digits).
 - **Function `real_quote_mask()`**: A row is a REAL quote only when its values are usable, never merely present:
-- **Function `judge()`**: Fail closed: zero real quotes -> FAILED and nothing written; coverage below the floor
+- **Function `judge()`**: Fail closed: zero real quotes -> FAILED and nothing written. An underlying is covered
 - **Function `empty_frame()`**: No docstring
 - **Function `snapshots_frame()`**: Flatten an Alpaca option-snapshot payload ({OCC symbol: snapshot}) into stored columns.
 - **Function `contracts_frame()`**: The trading API's option_contracts listing -> contract, root, expiry, style, OI.

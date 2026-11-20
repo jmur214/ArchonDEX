@@ -204,10 +204,12 @@ def client_for(market: Market, clock: Optional[FakeClock] = None) -> m.AlpacaRea
 
 
 def cfg_for(symbols: tuple[str, ...] = ("SPY", "AAPL", "XSP"), floor: float = 0.9,
-            min_real: int = 3) -> m.ArchiveConfig:
-    specs = tuple(m.UnderlyingSpec(s, "index", "SPY", False) if s == "XSP"
-                  else m.UnderlyingSpec(s, "stock") for s in symbols)
-    return m.ArchiveConfig(specs, "indicative", 0.20, 4, 2, 100, floor, min_real, 600.0, "md5")
+            min_real: int = 3, min_share: float = 0.0,
+            required: tuple[str, ...] = ()) -> m.ArchiveConfig:
+    specs = tuple(m.UnderlyingSpec(s, "index", "SPY", False, s in required) if s == "XSP"
+                  else m.UnderlyingSpec(s, "stock", None, True, s in required) for s in symbols)
+    return m.ArchiveConfig(specs, "indicative", 0.20, 4, 2, 100, floor, min_real, 600.0, "md5",
+                           min_share)
 
 
 def quote_frame(**over: Any) -> pd.DataFrame:
@@ -407,6 +409,24 @@ def test_judge_fails_on_thin_coverage_but_keeps_the_rows() -> None:
     assert ok.status == "OK"
 
 
+def test_a_REQUIRED_underlying_not_covered_fails_even_above_the_floor() -> None:
+    names = [f"S{i:02d}" for i in range(19)]
+    df = pd.concat([_rows(n, 5, True) for n in names] + [_rows("XSP", 5, False)])
+    declared = [*names, "XSP"]
+    assert m.judge(df, declared, 3, 0.9).status == "OK"            # 19/20 = 95 % >= floor
+    v = m.judge(df, declared, 3, 0.9, required=("SPY", "XSP"))
+    assert (v.status, v.write) == ("FAILED", True)
+    assert "required underlying not covered: XSP" in v.message
+
+
+def test_a_MOSTLY_JUNK_underlying_is_not_covered_under_the_share_floor() -> None:
+    df = pd.concat([_rows("SPY", 50, True), _rows("AAPL", 12, True),
+                    _rows("AAPL", 88, False).assign(contract=lambda d: "J" + d.contract)])
+    assert m.judge(df, ["SPY", "AAPL"], 10, 0.9).status == "OK"     # 12 real >= 10
+    v = m.judge(df, ["SPY", "AAPL"], 10, 0.9, min_share=0.30)      # but only 12 % real
+    assert v.status == "FAILED" and v.missing == ["AAPL"]
+
+
 def test_dedup_never_replaces_a_real_row_with_a_non_real_one() -> None:
     early_real = _rows("SPY", 3, True, "2026-11-20T21:00:00Z")
     late_junk = _rows("SPY", 3, False, "2026-11-20T23:30:00Z")
@@ -543,6 +563,23 @@ def test_a_junk_underlying_is_not_covered(tmp_path: Path) -> None:
                   else real_snapshot(k, cp))
     out = run(tmp_path, junk)
     assert out.status == "FAILED" and runs(tmp_path)[-1]["missing"] == ["AAPL"]
+
+
+def test_a_WIPED_required_index_fails_the_day_and_keeps_the_rest(tmp_path: Path) -> None:
+    """The 2026-11-20 close shape: XSP quotes zeroed (0/0, size 0, exchange '?'), freshly
+    stamped. With a lenient floor the day would pass; XSP is required, so it fails."""
+    def wipe(u: str, k: float, cp: str) -> dict[str, Any]:
+        s = real_snapshot(k, cp)
+        if u == "XSP":
+            s["latestQuote"].update(bp=0.0, ap=0.0, bs=0, **{"as": 0}, bx="?", ax="?")
+        return s
+    lenient = cfg_for(floor=0.5)
+    assert run(tmp_path / "a", Market(snapshot=wipe), lenient).status == "OK"
+    strict = cfg_for(floor=0.5, required=("SPY", "XSP"))
+    out = run(tmp_path / "b", Market(snapshot=wipe), strict)
+    assert out.status == "FAILED" and "required underlying not covered: XSP" in out.message
+    df = pd.read_parquet(m.day_path(tmp_path / "b", SNAP))
+    assert not df[df.underlying == "XSP"].real_quote.any() and df[df.underlying == "SPY"].real_quote.all()
 
 
 def test_a_NON_TRADING_day_skips_without_a_single_market_data_call(tmp_path: Path) -> None:
@@ -726,7 +763,8 @@ def test_the_committed_config_loads_and_stays_within_the_declared_bounds() -> No
     assert len(singles) <= 50 and len(cfg.declared) == len(set(cfg.declared))
     assert {"SPY", "QQQ", "IWM", "XSP"} <= set(cfg.declared)
     assert cfg.no_iv == frozenset({"XSP"}) and cfg.feed == "indicative"
-    assert cfg.coverage_floor == 0.90
+    assert cfg.coverage_floor == 0.90 and cfg.min_real_share == 0.30
+    assert cfg.required == ["SPY", "QQQ", "IWM", "XSP"]
 
 
 def test_a_missing_or_broken_config_is_exit_2(tmp_path: Path,
