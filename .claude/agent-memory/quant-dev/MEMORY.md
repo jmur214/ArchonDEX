@@ -17,4 +17,6 @@
 - [T-394 Tier-1 wiring](project_t394_tier1_wiring_2026_11_14.md) — 11 pinned rows in the cutover writer; 575/575 byte-identical to T-390; two-step multiplication keeps bit identity.
 - [Kalshi public API quirks](reference_kalshi_public_api_quirks_2026_11_19.md) — one series per /markets call (comma list silently 0); 4 workers → 429; pre-cutoff markets live only in /historical.
 - [T-405 Kalshi series archive](project_t405_kalshi_series_archive_2026_11_19.md) — merged 49331c7; selection rule, real-quote rule, per-event + historical resolver, rc contract.
-- [pandas 3 dtypes + monkeypatch defaults](feedback_pandas3_dtypes_and_monkeypatch_defaults_2026_11_19.md) — to_datetime needs format="ISO8601" (mixed shapes → silent NaT); astype("string") NA flavour; default args defeat monkeypatch.
+- [pandas 3 dtypes + monkeypatch defaults](feedback_pandas3_dtypes_and_monkeypatch_defaults_2026_11_19.md) — to_datetime needs format="ISO8601" (mixed shapes → silent NaT); astype("string") NA flavour; default args defeat monkeypatch; df.style is the Styler.
+- [Alpaca options API quirks](reference_alpaca_options_api_quirks_2026_11_20.md) — 200/min data + contracts; OPRA 403; SPX/XSP quotes but NO IV; SPX root stale on expiry day; delayed_sip works; OI lags ~2 d.
+- [T-416 options snapshot archive](project_t416_options_snapshot_archive_2026_11_20.md) — weekly-last + 3rd-Friday expiries, usable-value real-quote rule, 90 % coverage, per-day zstd ~51 B/row; first artifact owed.
