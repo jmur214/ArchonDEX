@@ -6,7 +6,7 @@
 - [Path C vol overlay failed 2026-05-06](project_path_c_vol_overlay_failed_2026_05_06.md) — annual-cadence overlay can't react to intra-year drawdowns; 0.0pp MDD improvement, -2.27pp CAGR cost; cadence mismatch falsifies the overlay-rescue hypothesis
 - [Path C defensive fixes F/G/H all failed 2026-05-07](project_path_c_defensive_fixes_falsified_2026_05_07.md) — vol-rank pre-screen + 70/30 IEF buffer + combined; Cell F closest miss (-1.09pp MDD, -0.47pp CAGR); Branch 3 defer with HMM/Engine-B unblock criteria
 - [VQA fundamentals edges shipped 2026-05-06](project_fundamentals_edges_shipped_2026_05_06.md) — 6 SimFin-driven edges added to Engine A; 2024 smoke Sharpe 1.91 NOT validated; universe-too-small risk still live at 16 names/quintile
-- [Alpha-frontier lane EVIDENCE-CLOSED 2026-06-15](project_alpha_frontier_lane_closed_2026_06_15.md) — T-132 categories tested+closed (T-135→T-150) in 48h; XS record ~0/16; only VRP + intraday-execution open; value lives in risk/regime lane not return-alpha
+- [Alpha-frontier lane EVIDENCE-CLOSED 2026-06-15](project_alpha_frontier_lane_closed_2026_06_15.md) — T-132 categories tested+closed (T-135→T-150) in 48h; XS record ~0/16; VRP since closed by class (T-410: timing = regimes); value lives in risk/regime lane not return-alpha
 - [Check supersession before quoting a frontier map](feedback_check_supersession_before_quoting_frontier.md) — idea/frontier docs are snapshots; grep sibling task-ids for closing audits before calling any category "open"
 - [T-265 panel NOT survivorship-complete 2026-11-11](project_t265_panel_not_survivorship_complete_2026_11_11.md) — 20% of dead CIKs priced vs 79% live; phantom zero-vol bars, ticker splices; PASS = upper bound
 - [Form 4 zips are the CIK source](reference_form4_zips_cik_source_2026_11_11.md) — insider_sec panel lacks issuer/owner CIK + 10b5-1; data/edgar/insider_zips has them (AFF10B5ONE 2023q1+)
@@ -27,3 +27,6 @@
 - [Check the real money's wrapper first](feedback_check_real_money_wrapper_first.md) — repo assumed "Roth" for months; it was taxable; ask wrapper/profile/balance/embedded gain before designing
 - [Long-history data traps](feedback_long_history_data_traps.md) — Shiller monthly-average σ, French daily momentum built daily, six-day weeks, fee-drag t inflation, bootstrap ≠ mean uncertainty
 - [Free long-history sources](reference_free_long_history_sources.md) — Shiller ie_data.xls (CPI/GS10; repo copy insufficient), French daily, JST R6 (16 mkts to 2020), FRED API, SIP brochure
+- [T-410 ideas census 2026-11-20](project_t410_ideas_census_2026_11_20.md) — options-forward untested map; top 3 E-1 earnings straddles / O-1 stacked condor / E-2 announcement basket ~4–18 %; stay-dead list
+- [Options data sources verified 2026-11-20](reference_options_data_sources_2026_11_20.md) — Alpaca option bars+trades from ~2024-01 incl. expired, NO historical quotes; Cboe CDN 1986+ indices; P/C ends 2019
+- [Displacement threshold](feedback_displacement_threshold.md) — a diversifier displacing equity must beat μ_E − σ_E² + ρσσ (~7.4 %); else only stacked forms can add wealth
