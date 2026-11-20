@@ -18,3 +18,5 @@
 - [B-8 execution timing CLOSED unrun 2026-11-11](project_b8_execution_timing_2026_11_11.md) — N_trials 0, closed by power analysis; journal has no open/close fills; no MOC path
 - [T-403 prediction markets 2026-11-17](project_t403_prediction_markets_2026_11_17.md) — Kalshi near-close FLB taker probe DRAFT; takers lose in BDW; MDE 0.7–1.1 %/event; Roth wrapper blocks
 - [Paper probes: taker rules only](feedback_paper_probe_taker_only.md) — maker fills on paper are invented; check the source paper's own latest-year slice for decay
+- [Per-event effect/noise trap](feedback_per_event_effect_to_noise.md) — "per-event" passes only if effect/σ ≳ 0.3; persistent conditioners make event rules regime timing
+- [T-407 PM as information 2026-11-19](project_t407_pm_information_2026_11_19.md) — Kalshi serves free hourly bid/ask history since 2021; every tradeable use for the held book fails (effect/σ ≈ 0.1); close
