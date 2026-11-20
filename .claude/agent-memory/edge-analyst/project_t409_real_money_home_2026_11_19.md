@@ -1,27 +1,42 @@
 ---
 name: project-t409-real-money-home-2026-11-19
-description: T-409 DRAFT decision study (where the owner's Roth money sits; robo vs VOO vs 85/15 vs TDF vs lifecycle leverage) — what the record settles, what hinges on the owner's robo profile, and the record contradictions found
+description: T-409 DRAFT decision study (rev. 2) — the owner's real money is a TAXABLE aggressive Schwab robo plus a separate Roth; after-tax switching, 0 % school window, robo TLH ($50k opt-in), Roth-first leverage, owner loss bound 0.5x S&P 500
 metadata:
   type: project
 ---
 
-T-409 Phase 1 (2026-11-19): a DRAFT prereg at `docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md`. Nothing was run and no trial count is stated (7–14 proposed). T-396's note was cherry-picked onto the same branch.
+**Owner facts (answered 2026-11-19, via the director):**
+- The robo is Schwab SIP on the **aggressive** profile, in a **taxable** account, not the Roth.
+- A Roth exists separately; its size and broker are unknown.
+- Loss bound: never below **0.5× the S&P 500** in any historical cohort.
+- Auto-contributions continue through crashes, with no behavioural sell.
 
-**The load-bearing unknown is an owner fact: the robo's risk profile.**
-- The repo's `schwab_like` proxy (45 SPY / 30 ten-year synth / 5 gold / 20 cash) is ONE moderate profile.
-- Schwab's SIP brochure (2026-10-15) gives cash 6–30 % by profile, swept at the SWGXX 7-day yield (3.51 % on 2026-11-02), with no advisory fee.
-- Moderate robo: 1× equity wins in expectation in every −0..−3 pp belief row. Arithmetic: Δlog ≈ +2.7 %/yr at the realized premium, t 2.1–2.8.
-- Aggressive robo (≥ 6 % cash): only 0.2–0.5 %/yr is countable (cash drag plus fees). The rest is a US-vs-world bet with t ≈ 0.5–0.8 per century.
+**Rev. 2 draft:** `docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md` (`bd3e2c7`). Rev. 1 is kept verbatim in `..._DRAFT_rev1_...`. Nothing run, no trial count stated (8–17 proposed).
 
-**Contradictions in the record.**
-- The decision package's "stay in the robo — Dominated" cites T-311. T-311 tested the TREND SLEEVE vs the proxy; buy-hold minus the robo never had a CI.
-- The package's 1× row ("wealth-max under ANY haircut") predates T-399.
-- The fresh-eyes "≈ 4 pp/yr robo cost" assumes the moderate proxy.
+**Decision A (the legacy robo balance):**
+- K0: stay.
+- K1: de-enroll in place, no sale. This needs a Schwab phone check that positions stay.
+- S0: sell now.
+- S1: sell inside the school-year 0 % room. 2026: $49,450 + $16,100 standard deduction (Rev. Proc. 2025-32); 2027: $51,050 + $16,600.
+- The kiddie tax voids S1.
+- Break-even drag for switching ≈ −ln(1 − τ₀·g)/40.
 
-**Why:** the owner asked "where should the real money go".
+**Robo TLH:** opt-in, $50k to activate, an undisclosed maintenance minimum, blind to the owner's tax situation. Its wash-sale guard does not cover an outside Roth.
+
+**Decision B (leverage):** Roth first. Household capacity is 1+r with SSO or 1+2r with UPRO, where r = Roth share.
+- Margin: dead (loses at any spread > 4.4 pp over bills).
+- LEAPS: dropped.
+- Taxable futures: dropped below ~$76k (an MES is ~$38k notional).
+- Roth futures: from $25k NLV.
+- Box spread: conditional on Schwab confirming Reg-T short-box proceeds are usable.
+- Borrowing routes hit a margin call at 2× after a ~29–33 % fall, so a never-seller's ceiling is ~1.3–1.4×.
+
+**Inputs that flip the decision:** balance vs $50k, embedded gain g, school timing and income, age/dependency, monthly contribution (and whether loan-funded), Roth size and broker, bracket and state, belief row.
+
+**Why:** the owner asked "where does the real money sit"; the director asks the owner once, only for decision-relevant inputs.
 
 **How to apply:**
-- Before quoting any robo gap, ask for the profile. The answer flips between "settled" and "unsettleable".
-- Any gate "pass" on robo/TDF contrasts certifies only the equity premium or certain-sign costs. Fees are deterministic drags that inflate t.
+- Never quote Roth-frame (tax-free) results for this money.
+- Price any move in after-tax household terms.
 
-See [[feedback-long-history-data-traps]], [[reference-free-long-history-sources]], [[feedback-satellite-gate-low-power-2026-11-11]].
+See [[feedback-check-real-money-wrapper-first]], [[feedback-long-history-data-traps]], [[reference-free-long-history-sources]].

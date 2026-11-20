@@ -26,4 +26,9 @@ Probed 2026-11-19 with a generic User-Agent.
 - **Sweep rate**: `schwab.com/legal/sip-sweep-current-interest-rates`.
 - **Vanguard TDF glide numbers**: the page is JS-rendered; use the prospectus.
 
+**Tax and broker rules (read 2026-11-19)**
+- **IRS inflation parameters**: `irs.gov/pub/irs-drop/rp-25-32.pdf` (2026) and `rp-26-35.pdf` (2027). §3.03 holds the 0 % / 15 % long-term-gain thresholds; extract with pypdf.
+- **Schwab futures FAQ** (`schwab.com/futures/faqs`) is static and readable.
+- **Schwab margin-rate table** (`/margin-rates`) is script-rendered and unreadable by curl.
+
 See [[reference-fomc-surprise-sources]], [[project-t409-real-money-home-2026-11-19]].
