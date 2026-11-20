@@ -370,6 +370,11 @@ def _reg(d: dict) -> dict:
     return d["hb"]["source_register"]
 
 
+def _day1_rows(drives: dict) -> list[dict]:
+    return [r for r in map(json.loads, (drives["root"] / "data/intel/analyst_predictions.jsonl")
+                           .read_text().splitlines()) if r.get("resolved_at") == str(DAY1)]
+
+
 # --------------------------------------------------------------------------- #
 # 1. STEP ORDER — the eval sees the alt-data the run pulled
 # --------------------------------------------------------------------------- #
@@ -377,23 +382,21 @@ def test_the_eval_resolves_the_records_that_settle_on_the_pulled_altdata(drives)
     """THE REGRESSION. Before T-412 the alt-data arrived in step 7, after the eval: both
     event_occurs predictions logged source_absent_or_unsettled and n_resolvable stayed 0
     for them (the cloud's 0-of-59 shape)."""
-    root = drives["root"]
-    log = {r["prediction_id"]: r for r in map(json.loads, (
-        root / "data/intel/analyst_predictions.jsonl").read_text().splitlines())}
+    # DAY1's rows only: the two drives share one root (a cloud container does not), so a
+    # DAY2 retry would resolve against alt-data step 7 left behind and mask the defect.
+    log = {r["prediction_id"]: r for r in _day1_rows(drives)}
     pid = f"analyst_constrained:{NOTE_AS_OF}"
     assert log[f"{pid}#0"]["resolvable"] and log[f"{pid}#0"]["outcome"] == 1, log[f"{pid}#0"]
     assert log[f"{pid}#1"]["resolvable"] and log[f"{pid}#1"]["outcome"] == 1, log[f"{pid}#1"]
     # the market-implied baseline is read from the same pulled snapshot (PIT, note date)
     assert log[f"{pid}#0"]["baseline_implied"] == pytest.approx(0.62)
-    summ = json.loads((root / "data/intel/analyst_eval_summary.json").read_text())
-    assert summ["n_resolvable"] == 3, summ
+    assert "today: 3/3 due resolved" in drives["d1"]["out"], drives["d1"]["out"][-3000:]
 
 
 def test_a_prediction_outside_the_sleeve_resolves_on_a_live_fetch(drives):
     """The cloud's reason code was source_absent_or_stale — the PRICE resolvers' — and the
     harness's only fallback for a non-sleeve symbol is a CSV the image does not carry."""
-    rec = next(r for r in map(json.loads, (drives["root"] / "data/intel/analyst_predictions.jsonl")
-                              .read_text().splitlines()) if r["resolver"].get("symbol") == "QQQ")
+    rec = next(r for r in _day1_rows(drives) if r["resolver"].get("symbol") == "QQQ")
     assert rec["resolvable"] and rec["outcome"] == 1, rec
 
 
