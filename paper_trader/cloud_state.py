@@ -270,11 +270,20 @@ class CloudState:
         self.root = Path(root) if root else Path(__file__).resolve().parents[1]
 
     # ------------------------------------------------------------------ #
-    def _aws(self, *args: str) -> subprocess.CompletedProcess:
+    def _aws(self, *args: str, timeout_s: Optional[float] = None) -> subprocess.CompletedProcess:
+        """Run one aws CLI call. ``timeout_s`` (T-412) bounds it: a call that overruns is
+        returned as a failed CompletedProcess (rc 124), never raised and never left
+        hanging — used where a sync now runs BEFORE the durable push."""
         cmd = ["aws", *args, "--region", self.cfg.region]
         if self.cfg.profile:
             cmd += ["--profile", self.cfg.profile]
-        return subprocess.run(cmd, capture_output=True, text=True)
+        if timeout_s is None:
+            return subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(cmd, 124, "",
+                                               f"timeout after {timeout_s:.0f}s")
 
     def pull(self) -> bool:
         """Sync durable state from S3 → local. Returns True if anything
@@ -402,19 +411,25 @@ class CloudState:
     def _altdata_s3(self, rel: str) -> str:
         return f"s3://{self.cfg.bucket}/{ALTDATA_PREFIX}/{rel}"
 
-    def pull_altdata(self) -> bool:
+    def pull_altdata(self, timeout_s: Optional[float] = None) -> bool:
         """Sync the alt-data hoard S3 → local (whole dirs) so the archivers'
         dedup accumulates across days on a fresh container. Off-cloud no-op;
         a missing prefix (first run) is not an error. Best-effort — a failure
-        here must never block the trading pulse (the caller wraps this)."""
+        here must never block the trading pulse (the caller wraps this).
+
+        T-412: the daily run now calls this BEFORE its first alt-data reader (the eval
+        harness, the thesis book's falsifiers, the event interpreter) — which is before
+        the durable push — so it takes a ``timeout_s`` per directory: a stalled sync can
+        delay the push by at most that, never hold it indefinitely."""
         if not self.cfg.enabled:
             return False
         synced = False
+        kw = {"timeout_s": timeout_s} if timeout_s is not None else {}
         for rel in ALTDATA_DIRS:
             local = self.root / rel
             local.mkdir(parents=True, exist_ok=True)
             r = self._aws("s3", "sync", self._altdata_s3(rel), str(local),
-                          "--no-progress")
+                          "--no-progress", **kw)
             if r.returncode == 0:
                 synced = True
         return synced

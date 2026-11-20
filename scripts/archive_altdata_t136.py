@@ -1452,6 +1452,232 @@ def pull_form4_index(days_back: int = 5) -> str:
         return f"form4: FAILED ({type(e).__name__}: {e})"
 
 
+# --- T-412: the event desk's FORWARD 8-K feed ---------------------------------------- #
+# The event interpreter (intelligence/event_call/) read a batch-built research panel
+# (data/edgar/8k/panel_8k_items.parquet) that is in no image and no sync and ends
+# 2026-06-10, so in the cloud it saw no document on any day (T-411 Part 3 row 6). This is
+# its forward feed, built from the same two SEC sources the research panel and the Form 4
+# pull already use:
+#   1. the EDGAR daily FORM index (one request per business day) -> the day's 8-K rows
+#      (form == "8-K" exactly; 8-K/A excluded, as T-137) for the tracked universe's CIKs;
+#   2. ONE submissions request per filing company -> the item codes, acceptance time and
+#      primary document for each new accession (the research panel's own field names).
+# Accessions already in the panel are never asked for again. SEC fair access: SEC_UA (via
+# _get, sec.gov hosts only), ~7.7 req/s, a request cap and a wall-clock budget. The result
+# lands in OUT_DIR (the synced alt-data directory) beside a receipt that states what was
+# asked and what came back, so a zero is never silent.
+EDGAR_8K_PANEL = "edgar_8k_items.parquet"
+EDGAR_8K_RECEIPT = "edgar_8k_fetch_receipt.json"
+EDGAR_TICKERS_CACHE = "edgar_company_tickers.json"
+EDGAR_TICKERS_MAX_AGE_DAYS = 7          # SEC's ticker map changes slowly; refresh weekly
+EDGAR_8K_RATE_SLEEP_S = 0.13            # ~7.7 req/s, under SEC's 10 req/s ceiling
+EDGAR_8K_MAX_SUBMISSIONS = 150          # a normal day needs ~25 (one per filing company)
+EDGAR_8K_TIME_BUDGET_S = 120.0          # wall-clock cap on the whole pull
+EDGAR_8K_TIMEOUT_S = 20                 # per request
+EDGAR_8K_COLUMNS = ["ticker", "cik", "accession", "filing_date", "acceptance_dt", "items",
+                    "primary_document", "company", "index_date", "fetched_at"]
+
+
+def _sec_ticker_key(t: str) -> str:
+    """SEC's ticker map spells share classes with '-' (BRK-B); the membership file and
+    Alpaca use '.' (BRK.B). Compare on one spelling."""
+    return str(t).strip().upper().replace(".", "-")
+
+
+def _edgar_cik_map(universe: list[str], today: pd.Timestamp) -> dict[int, str]:
+    """{CIK: the universe ticker that files under it}, from SEC's company_tickers.json,
+    cached in OUT_DIR and refreshed weekly. Where one CIK carries several universe tickers
+    (GOOG/GOOGL) the first in sorted order is used, so a filing is recorded once."""
+    cache = OUT_DIR / EDGAR_TICKERS_CACHE
+    data = None
+    try:
+        cached = json.loads(cache.read_text())
+        age = (today - pd.Timestamp(cached["fetched_at"][:10])).days
+        if age <= EDGAR_TICKERS_MAX_AGE_DAYS and isinstance(cached.get("data"), dict):
+            data = cached["data"]
+    except Exception:
+        data = None
+    if data is None:
+        data = json.loads(_get("https://www.sec.gov/files/company_tickers.json",
+                               timeout=EDGAR_8K_TIMEOUT_S))
+        time.sleep(EDGAR_8K_RATE_SLEEP_S)
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"fetched_at": str(today.date()), "data": data}))
+    by_key = {_sec_ticker_key(t): t for t in universe}
+    out: dict[int, str] = {}
+    for v in data.values():
+        t = by_key.get(_sec_ticker_key(v.get("ticker", "")))
+        if t is None:
+            continue
+        cik = int(v["cik_str"])
+        out[cik] = min(out.get(cik, t), t)
+    return out
+
+
+def _parse_form_index_8k(txt: str) -> pd.DataFrame:
+    """The 8-K rows of one EDGAR daily form index (fixed-width: form, company..., CIK,
+    date filed, file name). Vectorised over the ~3,000 lines of a business day."""
+    empty = pd.DataFrame(columns=["cik", "accession", "index_date", "company"])
+    parts = pd.Series(txt.splitlines(), dtype=object).str.split()
+    parts = parts[(parts.str.len() >= 5) & parts.str[0].eq("8-K")]
+    parts = parts[parts.str[-3].str.isdigit().fillna(False).astype(bool)]
+    if parts.empty:
+        return empty
+    dates = pd.to_datetime(parts.str[-2], format="mixed", errors="coerce")
+    parts, dates = parts[dates.notna()], dates[dates.notna()]
+    if parts.empty:
+        return empty
+    return pd.DataFrame({
+        "cik": parts.str[-3].astype(int).to_numpy(),
+        # edgar/data/<cik>/<accession>.txt -> the accession
+        "accession": parts.str[-1].str.rsplit("/", n=1).str[-1]
+                                  .str.replace(".txt", "", regex=False).to_numpy(),
+        "index_date": dates.dt.strftime("%Y-%m-%d").to_numpy(),
+        "company": parts.str[1:-3].str.join(" ").to_numpy(),
+    })
+
+
+def pull_8k_items(universe: Iterable[str] | None = None, *, as_of: str | None = None,
+                  days_back: int = 5, max_submissions: int | None = None,
+                  time_budget_s: float | None = None) -> str:
+    """The forward 8-K feed for the tracked universe (see the block comment above). Never
+    raises: every failure is a 'FAILED (...)' line, and the receipt records it."""
+    try:
+        return _pull_8k_items(universe, as_of=as_of, days_back=days_back,
+                              max_submissions=max_submissions, time_budget_s=time_budget_s)
+    except Exception as e:
+        _write_8k_receipt({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        return f"edgar_8k: FAILED ({type(e).__name__}: {e})"
+
+
+def _write_8k_receipt(receipt: dict) -> None:
+    try:
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        receipt = {"_schema": "edgar_8k_fetch_receipt/v1",
+                   "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(), **receipt}
+        (OUT_DIR / EDGAR_8K_RECEIPT).write_text(json.dumps(receipt, indent=2, default=str))
+    except Exception:
+        pass                               # the returned line still carries the outcome
+
+
+def _pull_8k_items(universe: Iterable[str] | None, *, as_of: str | None, days_back: int,
+                   max_submissions: int | None, time_budget_s: float | None) -> str:
+    t0 = time.monotonic()
+    max_submissions = max_submissions or EDGAR_8K_MAX_SUBMISSIONS     # call-time reads,
+    time_budget_s = time_budget_s or EDGAR_8K_TIME_BUDGET_S           # so tests can patch
+    today = pd.Timestamp(as_of or pd.Timestamp.now()).normalize()
+    uni = sorted({str(t).strip().upper() for t in (universe or []) if str(t).strip()})
+    if not uni:
+        _write_8k_receipt({"ok": False, "error": "empty universe"})
+        return "edgar_8k: FAILED (empty universe — no tracked tickers to ask about)"
+    cik_of = _edgar_cik_map(uni, today)
+    if not cik_of:
+        _write_8k_receipt({"ok": False, "error": "no universe ticker mapped to a CIK",
+                           "universe_size": len(uni)})
+        return f"edgar_8k: FAILED (none of {len(uni)} tickers mapped to an SEC CIK)"
+
+    index_ok: list[str] = []
+    index_missing: list[str] = []
+    frames: list[pd.DataFrame] = []
+    for i in range(days_back):
+        d = today - pd.Timedelta(days=i)
+        if d.weekday() >= 5:
+            continue                                     # no dissemination on weekends
+        url = (f"https://www.sec.gov/Archives/edgar/daily-index/{d.year}/"
+               f"QTR{(d.month - 1) // 3 + 1}/form.{d.strftime('%Y%m%d')}.idx")
+        try:
+            txt = _get(url, timeout=EDGAR_8K_TIMEOUT_S).decode("latin-1")
+        except Exception:
+            index_missing.append(str(d.date()))          # holiday / not posted yet
+            continue
+        finally:
+            time.sleep(EDGAR_8K_RATE_SLEEP_S)
+        index_ok.append(str(d.date()))
+        frames.append(_parse_form_index_8k(txt))
+    if not index_ok:
+        _write_8k_receipt({"ok": False, "index_ok": [], "index_missing": index_missing,
+                           "error": "no daily index readable"})
+        return (f"edgar_8k: FAILED (no EDGAR daily index readable in {days_back}d: "
+                f"missing {index_missing})")
+    idx = (pd.concat(frames, ignore_index=True) if frames
+           else pd.DataFrame(columns=["cik", "accession", "index_date", "company"]))
+    n_8k_in_index = len(idx)
+    idx = idx[idx["cik"].isin(list(cik_of))].drop_duplicates("accession")
+    n_universe = len(idx)
+
+    panel = OUT_DIR / EDGAR_8K_PANEL
+    try:
+        have = set(pd.read_parquet(panel, columns=["accession"])["accession"].astype(str))
+    except Exception:
+        have = set()
+    todo = idx[~idx["accession"].isin(have)]
+
+    rows: list[dict] = []
+    n_sub = n_sub_fail = n_unmatched = 0
+    truncated = False
+    fetched_at = pd.Timestamp.now(tz="UTC").isoformat()
+    for cik, grp in todo.groupby("cik", sort=True):
+        if n_sub >= max_submissions or (time.monotonic() - t0) > time_budget_s:
+            truncated = True
+            break
+        n_sub += 1
+        try:
+            sub = json.loads(_get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json",
+                                  timeout=EDGAR_8K_TIMEOUT_S))
+        except Exception:
+            n_sub_fail += 1
+            continue
+        finally:
+            time.sleep(EDGAR_8K_RATE_SLEEP_S)
+        recent = (sub.get("filings") or {}).get("recent") or {}
+        accs = list(recent.get("accessionNumber") or [])
+        pos = {a: k for k, a in enumerate(accs)}
+
+        def _col(name: str, k: int):
+            vals = recent.get(name) or []
+            return vals[k] if k < len(vals) else None
+
+        for r in grp.itertuples(index=False):
+            k = pos.get(r.accession)
+            if k is None or _col("form", k) != "8-K":
+                n_unmatched += 1                         # not in this CIK's recent block
+                continue
+            rows.append({"ticker": cik_of[int(cik)], "cik": int(cik), "accession": r.accession,
+                         # the submissions date where SEC gives one, else the index's own
+                         "filing_date": str(_col("filingDate", k) or r.index_date)[:10],
+                         "acceptance_dt": str(_col("acceptanceDateTime", k) or ""),
+                         "items": str(_col("items", k) or ""),
+                         "primary_document": str(_col("primaryDocument", k) or ""),
+                         "company": r.company, "index_date": r.index_date,
+                         "fetched_at": fetched_at})
+    new = pd.DataFrame(rows, columns=EDGAR_8K_COLUMNS)
+    if len(new) or not panel.exists():
+        _append(new, panel, ["accession"])
+    n_total = len(pd.read_parquet(panel, columns=["accession"]))
+    receipt = {"ok": True, "as_of": str(today.date()), "days_back": days_back,
+               "universe_size": len(uni), "universe_ciks": len(cik_of),
+               "index_ok": index_ok, "index_missing": index_missing,
+               "n_8k_in_index": n_8k_in_index, "n_universe_filings": n_universe,
+               "n_already_in_panel": n_universe - len(todo), "n_new": len(new),
+               "n_submissions": n_sub, "n_submission_failures": n_sub_fail,
+               "n_unmatched": n_unmatched, "truncated": truncated, "panel_rows": n_total,
+               "elapsed_s": round(time.monotonic() - t0, 1)}
+    if n_sub and n_sub_fail == n_sub:
+        receipt["ok"] = False
+        _write_8k_receipt(receipt)
+        return (f"edgar_8k: FAILED (all {n_sub} submissions requests failed; "
+                f"{len(todo)} filing(s) not recorded)")
+    _write_8k_receipt(receipt)
+    return (f"edgar_8k: +{len(new)} new 8-K filing(s) for {len(uni)} tracked tickers "
+            f"({len(cik_of)} CIKs) from index {index_ok}"
+            + (f" (missing {index_missing})" if index_missing else "")
+            + f"; {n_sub} submissions asked, {n_sub_fail} failed"
+            + (f", {n_unmatched} unmatched" if n_unmatched else "")
+            + (" — TRUNCATED by the request/time budget (the rest retry next run)"
+               if truncated else "")
+            + f"; panel {n_total}")
+
+
 def pull_usaspending(days_back: int = 7) -> str:
     """USASpending.gov federal contract awards (free, structured, underexplored).
     Prime contract awards (types A-D) over the trailing window, largest first."""

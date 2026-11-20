@@ -185,6 +185,25 @@ class PaperHeartbeat:
             print(msg)
             self._notify(msg)
 
+    def record_source_register(self, block: Dict[str, Any]) -> None:
+        """T-412: stamp the information-source register under its own key.
+
+        The census asks "did each clock advance?" and liveness asks "has each consumed field
+        ever been non-empty?"; this asks "did each reader run AFTER its input arrived, and
+        was that input there and fresh?" — the step-order and not-in-the-container failures
+        T-411 found, which neither of the others can see. Orthogonal to the trading verdict
+        like its siblings: it never touches ``canonical``/``alert``; a degraded register fires
+        its own notify line naming the problems."""
+        status = self._read_status() or {}
+        status["source_register"] = {**block, "ts": _utcnow_iso()}
+        self._atomic_write(self.status_path, status)
+        if block.get("degraded"):
+            msg = ("[SOURCE-REGISTER][ALERT] " + str(block.get("n_problems", "?"))
+                   + " information-path problem(s): "
+                   + " | ".join(str(p) for p in (block.get("problems") or [])[:6]))
+            print(msg)
+            self._notify(msg)
+
     def record_thesis_expiry(self, desk: str, expiring: List[Dict[str, Any]]) -> None:
         """T-347: fire when a PENDING thesis is running out of recovery window.
 

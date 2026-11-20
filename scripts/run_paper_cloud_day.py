@@ -109,6 +109,84 @@ class _FailClosed(Exception):
         self.code, self.msg = code, msg
 
 
+# T-412: the alt-data pull's per-directory bound when it runs BEFORE the durable push.
+# The hoard is ~80 MB (S3 -> Fargate in-region: seconds); this only caps a stalled sync.
+ALTDATA_EARLY_PULL_TIMEOUT_S = 300.0
+
+
+class _AltdataSync:
+    """Pull the alt-data hoard (S3 -> local, read-only for trading) ONCE per run, at the
+    first point anything needs it.
+
+    T-412: the pull used to run only in step 7, after the durable push — but the eval
+    harness, the thesis book's falsifier checks and the event interpreter read
+    ``data/macro_data/alt/`` earlier in the same run, so in a fresh container they read
+    nothing (the cloud eval resolved 0 of 59). Account 1 now calls ``ensure()`` before its
+    first alt-data reader; step 7's archive calls it again and reuses the result, so the
+    hoard is pulled once and the archive's dedup sees exactly what it saw before.
+
+    A failure is remembered and RE-RAISED on every later call, so step 7's own fail-open
+    handler still records it exactly as it did when step 7 made the call itself."""
+
+    def __init__(self, cloud) -> None:
+        self._cloud = cloud
+        self._done = False
+        self._result = False
+        self._error: "Exception | None" = None
+
+    @property
+    def done(self) -> bool:
+        return self._done
+
+    def ensure(self, timeout_s: "float | None" = None) -> bool:
+        if not self._done:
+            self._done = True
+            try:
+                try:
+                    self._result = bool(self._cloud.pull_altdata(timeout_s=timeout_s)
+                                        if timeout_s is not None
+                                        else self._cloud.pull_altdata())
+                except TypeError as exc:      # a CloudState stand-in without the bound
+                    if "timeout_s" not in str(exc):
+                        raise
+                    self._result = bool(self._cloud.pull_altdata())
+            except Exception as exc:          # noqa: BLE001 — remembered, re-raised below
+                self._error = exc
+        if self._error is not None:
+            raise self._error
+        return self._result
+
+
+class _AnyName:
+    """Stands in for the source_register module if it cannot even be imported: every
+    constant the call sites name resolves to its own name, so they stay valid no-ops."""
+
+    def __getattr__(self, name: str) -> str:
+        return name
+
+
+class _NullRegister:
+    """Stands in when the source register cannot be built: the run goes on, and the tail
+    records the failure as a degraded block instead of a missing one."""
+
+    def __init__(self, why: str) -> None:
+        self.why = why
+
+    def arrived(self, *_a, **_k) -> None:
+        return None
+
+    def read(self, *_a, **_k) -> None:
+        return None
+
+    def outcome(self, *_a, **_k) -> None:
+        return None
+
+    def block(self) -> dict:
+        return {"_schema": "source_register/v1", "degraded": True, "n_sources": None,
+                "problems": [f"the source register could not be built: {self.why}"],
+                "n_problems": 1}
+
+
 def _fresh_fill_slippage_bps(staged, arrival_px, arrival_ts):
     """Gate-(b) slippage from ONLY the fills that happened AFTER we captured the
     arrival price.
@@ -205,6 +283,43 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
          if t in closes and not closes[t].empty), default=None)
     return (plan, closes_latest, staged, arrival_px, arrival_ts, sizing_equity,
             equity, latest_bar_date)
+
+
+def _live_series_for(client, symbols, have=None) -> dict:
+    """T-412: live daily closes (completed bars, UNTRIMMED — resolution looks back at bars
+    that already exist) for every symbol in ``symbols`` not already in ``have``.
+    Fail-open: ``{}`` on any error, and the resolvers then fail closed per symbol."""
+    need = sorted({str(s).upper() for s in (symbols or ()) if s} - set(have or {}))
+    if not need:
+        return {}
+    try:
+        got = client.fetch_daily_closes(need, lookback_days=400)
+    except Exception:   # noqa: BLE001 — a report-only lookup; the resolver says what it lacked
+        return {}
+    return {str(t).upper(): s for t, s in (got or {}).items() if s is not None and len(s)}
+
+
+def _resolve_open_falsifiers(book, *, today, client, root, live) -> dict:
+    """T-412 (T-411 C6): ``{thesis_id: [{index, status, detail}]}`` for every falsifier on
+    an OPEN basket of ``book``, resolved with the eval harness's own resolvers. Statuses:
+    fired / not_fired / pending / unresolvable (eval_harness.resolve_falsifier)."""
+    from intelligence.analyst import eval_harness as _eh
+    opens = book.open_falsifiers()
+    if not opens:
+        return {}
+    syms = {s for o in opens
+            for s in _eh._price_symbols((o.get("falsifier") or {}).get("resolver") or {})}
+    series = {str(k).upper(): v for k, v in (live or {}).items()}
+    series.update(_live_series_for(client, syms, series))
+    event_fn = _eh.event_fn_for_root(root)
+    out: dict = {}
+    for o in opens:
+        status, detail = _eh.resolve_falsifier(
+            o["falsifier"], o["filed_date"], str(today),
+            price_fn=lambda sym: series.get(str(sym).upper()), event_fn=event_fn)
+        out.setdefault(o["thesis_id"], []).append(
+            {"index": o["index"], "status": status, "detail": str(detail)[:200]})
+    return out
 
 
 def _last_closes(closes):
@@ -460,6 +575,22 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
         v = hb.check(today, is_trading_day=False)
         print(f"3. HEARTBEAT alive={v.alive} alert={v.alert} ({v.reason})")
         return 0
+
+    # --- T-412 source register: every information source this account's run reads,
+    # observed at each reader's call site and re-probed at the tail. Report-only — it
+    # never touches `canonical`. Built defensively: a register that cannot be built is
+    # itself recorded as a degraded block, and the trading run is untouched. ---------- #
+    try:
+        from paper_trader import source_register as _sr
+        register = _sr.SourceRegister(root, args.strategy, str(today))
+        register.arrived(_sr.DURABLE_PULL, ok=not pull_denied,
+                         detail=(f"{len(pull_denied)} DENIED read(s)" if pull_denied
+                                 else ("pulled" if pulled else
+                                       "nothing pulled (S3 disabled or first run)")))
+    except Exception as exc:   # noqa: BLE001 — reporting must never break the trading path
+        _sr = _AnyName()              # the call sites below stay valid; they record nothing
+        register = _NullRegister(f"{type(exc).__name__}: {exc}")
+    alt_sync = _AltdataSync(cloud)
 
     # --- 2. armed daily cycle ----------------------------------------- #
     cfg = PaperConfig(allocator=args.allocator)
@@ -902,6 +1033,8 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             print(f"   NOTE-PULL  from s3://…/{notes_src}/ ok={note_pull['ok']} "
                   f"notes_on_disk={_npf.get('n_files', 0)}"
                   + (f" — {note_pull['reason']}" if note_pull.get("reason") else ""))
+            register.arrived(_sr.CROSS_ACCOUNT_NOTE_PULL, ok=bool(note_pull.get("ok")),
+                             detail=str(note_pull.get("reason") or ""))
 
             # 2. THE TRADING KILL SWITCH, resolved BEFORE construction. On a trip
             # the day is reconcile-only: the plan is still built (so the record
@@ -931,6 +1064,8 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             constructor = SleeveBtcConstructor(tif=sleeve_tif)
             fetch_u = ("SPY", "AGG", "GLD", "IBIT")
             family_state = {"tracker_file": "sleeve_btc_tracking.json", "label": "SLEEVE-BTC"}
+        if args.strategy == "llm_analyst":
+            register.read(_sr.LLM_ANALYST_CONSTRUCTOR)   # construct() reads the note now
         try:
             (plan, sleeve_closes, staged2, arrival_px, arrival_ts, sizing_equity,
              equity, latest_bar_date) = \
@@ -1152,6 +1287,42 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                       + " (report-only T-316 3rd-stream forward clock)")
             except Exception as exc:
                 print(f"   DBMF-SHADOW warn: {type(exc).__name__} (non-fatal)")
+            # --- T-412 STEP ORDER: the alt-data hoard (S3 -> local, read-only for
+            # trading) arrives HERE, before its first reader — the thesis book's falsifier
+            # checks, the intel pulse (agentic rate-path tool, scan context, the event
+            # interpreter's 8-K feed) and the eval harness (Kalshi/FOMC settlement, the
+            # market-implied baseline). It used to arrive only in step 7, after the durable
+            # push, so in a fresh container every one of them read an empty directory.
+            # Orders were staged and submitted ABOVE (run_trading_day); this pull can only
+            # delay the durable push, by at most ALTDATA_EARLY_PULL_TIMEOUT_S per directory,
+            # and it can never raise out of this block. The ARCHIVE (the network fetch) is
+            # NOT moved: it stays in step 7, after the push, fail-open. ------------------- #
+            try:
+                _alt_ok = alt_sync.ensure(timeout_s=ALTDATA_EARLY_PULL_TIMEOUT_S)
+                print(f"   ALTDATA-PULL pulled={_alt_ok} (before the first alt-data reader; "
+                      f"S3 {'enabled' if cloud.cfg.enabled else 'disabled — local files only'})")
+                register.arrived(_sr.ALTDATA_PULL, ok=_alt_ok or not cloud.cfg.enabled,
+                                 detail=("synced" if _alt_ok else
+                                         ("S3 disabled — local files only"
+                                          if not cloud.cfg.enabled else "sync FAILED")))
+            except Exception as exc:
+                print(f"   ALTDATA-PULL warn: {type(exc).__name__}: {exc} (non-fatal; "
+                      f"step 7 records it)", file=sys.stderr)
+                register.arrived(_sr.ALTDATA_PULL, ok=False,
+                                 detail=f"raised {type(exc).__name__}")
+            # --- T-412 THE EVENT DESK'S FEED: the forward EDGAR 8-K item feed, fetched
+            # into the synced alt-data directory BEFORE the intel pulse reads it (step 7
+            # pushes it to S3 with the rest of the hoard). SEC hosts only, the project's
+            # SEC user agent, a request cap and a wall-clock budget; fail-open. --------- #
+            try:
+                from paper_trader.altdata_archive import run_8k_feed
+                _k8 = run_8k_feed(str(root), as_of=str(today))
+                print(f"   EDGAR-8K   {_k8.report}")
+                register.arrived(_sr.EDGAR_8K_FETCH, ok=_k8.ok, detail=_k8.report)
+            except Exception as exc:
+                print(f"   EDGAR-8K   warn: {type(exc).__name__} (non-fatal)", file=sys.stderr)
+                register.arrived(_sr.EDGAR_8K_FETCH, ok=False,
+                                 detail=f"raised {type(exc).__name__}")
             # --- T-322 EVENT DESK: D's typed event calls become a TRADING record, not
             # just Brier predictions ("act like a trader" — a filing drops, you size it).
             # Two desks on ONE machinery (parameterized, not forked): D's event feed and
@@ -1159,19 +1330,20 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             # The gate is D's OWN T-304 bar #5, so the desk record and the Brier record
             # share one standard. Report-only; fail-closed parking, never a fake fill. --- #
             try:
-                from paper_trader.event_shadow_book import (EVENT_DESK, TWIN_TICKER,
-                                                            EventShadowBook)
+                from paper_trader.event_shadow_book import EVENT_DESK, EventShadowBook
                 # ANALYST_DESK retired T-355: its feed never existed and the agentic
                 # arm's output is weights, not calls — it is booked by LlmShadowBook
                 # below instead. One desk on this machinery now.
+                register.read(_sr.EVENT_DESK)
                 for _cfg in (EVENT_DESK,):
                     _bk = EventShadowBook(cfg=_cfg, root=str(root))
-                    _stt = _bk._state()
                     _calls, _why = _bk._load_calls(str(today))
-                    # prices for: open positions + today's call symbols + the twin
-                    _syms = sorted({p["symbol"] for p in _stt.get("open", [])}
-                                   | {str(c.get("symbol", "")).upper() for c in _calls}
-                                   | {TWIN_TICKER})
+                    # T-412: prices FOLLOW the book — open positions + the PRIOR session's
+                    # calls (what record() opens: signal t, fill t+1) + the twin, plus any
+                    # call dated today. Before, only today's calls were priced, so the
+                    # desk's first call would have parked for want of a price.
+                    _syms = sorted(set(_bk.pending_symbols(str(today)))
+                                   | {str(c.get("symbol", "")).upper() for c in _calls})
                     _px = {}
                     if _syms:
                         try:
@@ -1195,8 +1367,24 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             # one standard, not a second. Report-only, fail-closed. -------------------- #
             try:
                 from paper_trader.thesis_book import (MACHINE_DESK, USER_DESK, ThesisBook)
+                register.read(_sr.THESIS_BOOK)
                 for _tcfg in (MACHINE_DESK, USER_DESK):
                     _tb = ThesisBook(cfg=_tcfg, root=str(root))
+                    # T-412 (T-411 C6): RESOLVE the open baskets' falsifiers with A's own
+                    # eval-harness resolvers, from data this run has — live closes for
+                    # every symbol a falsifier names (untrimmed: resolution looks back at
+                    # bars that already exist) and the alt-data pulled above for Kalshi/
+                    # FOMC ones. A falsifier that cannot be decided here is recorded as
+                    # `unresolvable` with the reason, never as 'not fired'; its check_by
+                    # deadline still closes the thesis (fail-closed).
+                    _fstat = _resolve_open_falsifiers(_tb, today=today, client=client,
+                                                      root=root, live=eval_price_series)
+                    _fc = {}
+                    for _st in (s["status"] for v in _fstat.values() for s in v):
+                        _fc[_st] = _fc.get(_st, 0) + 1
+                    if _fstat:
+                        print(f"   THESIS-FALSIFIERS[{_tcfg.name}] {_fc} across "
+                              f"{len(_fstat)} open thesis(es)")
                     # T-343: the fetch FOLLOWS the book — pending legs + open legs + the
                     # twin + the legs of the session `record()` will actually consume.
                     # The old gather read theses dated TODAY while record() consumes the
@@ -1213,7 +1401,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                             _tpx = {}      # → the book parks the day (never fabricates)
                     _miss = [s for s in _tsyms if s not in _tpx]
                     # record() loads the prior session's theses itself; do NOT pass today's.
-                    _ts = _tb.record(str(today), closes=_tpx)
+                    _ts = _tb.record(str(today), closes=_tpx, falsifier_status=_fstat)
                     # T-347: an approaching expiry must reach the NOTIFY path, not
                     # just the book's own reasons — the window is a deadline on us.
                     if _ts.get("expiring"):
@@ -1320,18 +1508,44 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 _npm = cloud.pull_news_recent(today, n_months=(4 if _sd else 3))
                 print(f"   NEWS-TAPE  pulled {_npm} recent month(s) before the pulse "
                       f"(scan_due={_sd})")
+                register.arrived(_sr.NEWS_RECENT_PULL,
+                                 ok=bool(_npm) or not cloud.cfg.enabled,
+                                 detail=(f"{_npm} month partition(s)" if cloud.cfg.enabled
+                                         else "S3 disabled — local files only"))
             except Exception as exc:
                 print(f"   NEWS-TAPE warn: {type(exc).__name__} (non-fatal)")
+                register.arrived(_sr.NEWS_RECENT_PULL, ok=False,
+                                 detail=f"raised {type(exc).__name__}")
             try:
                 from paper_trader.intel_pulse import run_intel_pulse
                 _eq = float(client.get_account().get("equity", broker_cash)) or 1.0
                 _held_w = {t: round(broker_positions.get(t, 0) * sleeve_closes[t] / _eq, 4)
                            for t in sleeve_closes} if sleeve_closes else {}
+                register.read(_sr.INTEL_PULSE)
                 _ip = run_intel_pulse(
                     str(today), portfolios={"sleeve": _held_w},
                     allowlist=list(SLEEVE_UNIVERSE), root=str(root),
                     now_iso=now_et().isoformat())
                 print(f"   INTEL      {_ip.summary_line()}")
+                # T-412: the event interpreter's view of its feed, on the record.
+                _ev = _ip.event if isinstance(_ip.event, dict) else {}
+                _evf = _ev.get("feed") or {}
+                print(f"   EVENT-FEED status={_ev.get('status')} reason={_ev.get('reason')} "
+                      f"panel_ok={_evf.get('ok')} newest={_evf.get('newest_filing_date')} "
+                      f"docs={_ev.get('n_documents')} called={_ev.get('n_called')} "
+                      f"ok={_ev.get('n_ok')} no_body={_ev.get('n_no_body')} "
+                      f"deferred={_ev.get('n_deferred')}")
+                _evp = None
+                if str(_ev.get("status", "")).startswith("error"):
+                    _evp = f"event interpreter errored: {_ev.get('status')}"
+                elif str(_ev.get("reason") or "").startswith("refused"):
+                    _evp = f"event interpreter refused: {_ev.get('reason')}"
+                elif _evf and not _evf.get("ok"):
+                    _evp = f"event interpreter's 8-K feed: {_evf.get('reason')}"
+                register.outcome(_sr.INTEL_PULSE, {"event": {
+                    k: _ev.get(k) for k in ("status", "reason", "n_documents", "n_called",
+                                            "n_ok", "n_no_body", "n_invalid", "n_deferred")}},
+                    problem=_evp)
             except Exception as exc:
                 print(f"   INTEL warn: {type(exc).__name__} (non-fatal, report-only)")
             # --- T-302 LLM shadow book: REPORT-ONLY virtual book of the analyst's
@@ -1352,6 +1566,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 ("agentic", {"path": "data/state/llm_shadow_book_agentic.json",
                              "notes_dir": "data/intel/analyst_notes_agentic"}, False)):
                 _tag = f"LLM-SHADOW[{_arm}]" if _arm else "LLM-SHADOW"
+                register.read(_sr.LLM_SHADOW_AGENTIC if _arm else _sr.LLM_SHADOW)
                 try:
                     from paper_trader.llm_shadow_book import LlmShadowBook
                     _lsb = LlmShadowBook(root=str(root), **_kw)
@@ -1387,12 +1602,27 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             try:
                 from intelligence.analyst import eval_harness as _eh
 
-                def _price_fn(sym, _live=eval_price_series):
+                # T-412: live closes for EVERY symbol a due-and-unsettled prediction
+                # names, not just the sleeve's three. The fallback below reads
+                # data/processed/<SYM>_1d.csv, which is not in the paper image, so any
+                # other symbol could never resolve in the cloud.
+                _eval_live = dict(eval_price_series)
+                try:
+                    _eval_live.update(_live_series_for(
+                        client, _eh.pending_price_symbols(str(today), root=root),
+                        _eval_live))
+                except Exception as _e:   # noqa: BLE001
+                    print(f"   EVAL       price pre-fetch warn: {type(_e).__name__} "
+                          f"(non-fatal; unresolved symbols are named below)")
+
+                def _price_fn(sym, _live=_eval_live):
                     """T-331: prefer the LIVE PIT-trimmed series fetched this pulse;
                     fall back to the baked substrate for symbols outside the sleeve
                     universe. Without this every resolution fails closed forever on
                     the stale baked CSVs (the second broken clock)."""
                     s = _live.get(sym)
+                    if s is None:
+                        s = _live.get(str(sym).upper())
                     if s is not None and len(s):
                         return s
                     return _eh._disk_price(sym)
@@ -1400,12 +1630,25 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 # root=: the log + summary are WRITTEN, and the notes + event ledger
                 # READ, under this run's root (where cloud_state syncs them) — not the
                 # module's checkout, which an off-root run would overwrite (2026-11-19).
+                # T-412: and the Kalshi/FRED settlement data is read under it too.
+                register.read(_sr.EVAL_HARNESS)
                 _es = _eh.run(str(today), price_fn=_price_fn, directional=_shadow_twin,
                               root=root)
                 _g1 = _es.get("g1_skill", {}).get("vs_market_implied") or {}
+                _rt = _eh.resolved_today(str(today), root=root)
                 print(f"   EVAL resolved={_es.get('n_resolvable', 0)}/{_es.get('n_records', 0)} "
                       f"brier={_es.get('brier')} g1_vs_implied_ci_low={_g1.get('diff_ci_low')} "
-                      f"clears={_g1.get('clears')} (report-only prediction ledger)")
+                      f"clears={_g1.get('clears')} | today: {_rt['n_resolved']}/{_rt['n_due']} "
+                      f"due resolved"
+                      + (f", unresolved {_rt['unresolvable_reasons']} "
+                         f"symbols={_rt['unresolvable_price_symbols']}"
+                         if _rt["n_due"] > _rt["n_resolved"] else "")
+                      + " (report-only prediction ledger)")
+                register.outcome(_sr.EVAL_HARNESS, _rt, problem=(
+                    f"{_rt['n_due']} prediction(s) came due and NONE resolved "
+                    f"({_rt['unresolvable_reasons']}; price symbols "
+                    f"{_rt['unresolvable_price_symbols']})"
+                    if _rt["n_due"] and not _rt["n_resolved"] else None))
             except Exception as exc:
                 print(f"   EVAL warn: {type(exc).__name__} (non-fatal)")
             # --- T-344 DIGEST: the weekly performance digest as a FRIDAY pulse
@@ -1655,7 +1898,10 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
     # persisted under the distinct S3 ``altdata/`` prefix. ------------------- #
     try:
         from paper_trader.altdata_archive import run_altdata_archive
-        cloud.pull_altdata()                    # history down → dedup accrues
+        # history down → dedup accrues. T-412: pulled ONCE per run — account 1 already
+        # pulled it before its first alt-data reader (above); this reuses that result
+        # (and re-raises a failure it hit, into this block's fail-open handler).
+        alt_sync.ensure()
         ar = run_altdata_archive(str(root))
         for line in ar.reports:
             print(f"7. ALTDATA   {line}")
@@ -1760,6 +2006,21 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             # even the census failing must be LOUD — a silent census is the disease
             print(f"   [CLOCK-CENSUS][ALERT] census itself failed: {type(exc).__name__} "
                   f"— clocks UNVERIFIED today")
+
+    # --- T-412 SOURCE REGISTER — at the tail, on EVERY account. Did each declared reader
+    # run AFTER its input arrived, and was that input present and fresh? Each source is
+    # re-probed now, so one that was absent or stale when read but here by the end is
+    # named READ BEFORE ARRIVAL. Its own heartbeat block + notify line; it never touches
+    # `canonical` (the verdict above is sealed). --------------------------------------- #
+    try:
+        _srb = register.block()
+        print(f"12. SOURCES  "
+              + (_sr.register_line(_srb) if callable(getattr(_sr, "register_line", None))
+                 else f"[SOURCE-REGISTER][DEGRADED] {_srb.get('problems')}"))
+        hb.record_source_register(_srb)
+    except Exception as exc:   # noqa: BLE001 — loud, never fatal
+        print(f"12. SOURCES  [SOURCE-REGISTER][ALERT] the register failed: "
+              f"{type(exc).__name__} — information paths UNVERIFIED today", file=sys.stderr)
 
     # --- Tail heartbeat re-sync (T-329d3). The main durable push (step 5) sealed
     # the day's canonical verdict, but steps 7 (altdata), 8 (news), and the census

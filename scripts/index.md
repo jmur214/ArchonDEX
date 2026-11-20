@@ -225,6 +225,7 @@
 - **Function `pull_fred_rate_path()`**: The FRED resolution series (DFEDTARL/U + EFFR) — what the KXFED markets
 - **Function `snapshot_cef()`**: Daily CEF panel: NAV, price, DISCOUNT (+52wk avg, z-scores), distribution rate.
 - **Function `pull_form4_index()`**: EDGAR Form 4 (insider transactions) DAILY-INDEX archive.
+- **Function `pull_8k_items()`**: The forward 8-K feed for the tracked universe (see the block comment above). Never
 - **Function `pull_usaspending()`**: USASpending.gov federal contract awards (free, structured, underexplored).
 - **Function `pull_credit_spread_oas()`**: Deep ICE BofA OAS history: recover from Wayback (once), then append the live
 - **Function `main()`**: No docstring
@@ -1916,6 +1917,17 @@
 **Module Docstring:** T-186 — one paper day in the cloud (EventBridge → Fargate → here).
 - **Class `_FailClosed`**: A [NN-FAIL-CLOSED] halt inside a strategy pipeline — carries the driver
   - `def __init__()`
+- **Class `_AltdataSync`**: Pull the alt-data hoard (S3 -> local, read-only for trading) ONCE per run, at the
+  - `def __init__()`
+  - `def done()`
+  - `def ensure()`
+- **Class `_AnyName`**: Stands in for the source_register module if it cannot even be imported: every
+- **Class `_NullRegister`**: Stands in when the source register cannot be built: the run goes on, and the tail
+  - `def __init__()`
+  - `def arrived()`
+  - `def read()`
+  - `def outcome()`
+  - `def block()`
 - **Function `main()`**: Run one cloud paper day. ``now``/``client``/``cloud``/``root`` are injectable
 
 ### `run_paper_day_t163.py`

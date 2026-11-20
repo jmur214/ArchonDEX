@@ -88,6 +88,10 @@ _FEED_HEALTH: List[Tuple[str, str, str, int, str, Optional[str]]] = [
     ("fred_rate_path", "data/macro_data/alt/fred_rate_path.parquet", "observation_date", 7, "iso", None),
     # T-334 feeds (weekday / posting-lag cadence)
     ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso", None),
+    # T-412: the event desk's forward 8-K feed (run_8k_feed, account 1, BEFORE the intel
+    # pulse). Aged on the newest FILING date: ~25 tracked-universe 8-Ks land every business
+    # day, so 5 days covers a weekend plus a holiday and still catches a dead feed.
+    ("edgar_8k", "data/macro_data/alt/edgar_8k_items.parquet", "filing_date", 5, "iso", None),
     ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso", None),
     ("credit_oas", "data/macro_data/alt/credit_spread_oas.parquet",
      "observation_date", 7, "iso",                  # T-336 C5 (deep history + live tail)
@@ -282,3 +286,62 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
                                 feed_health=feed_health, stale_feeds=stale_feeds,
                                 snapshot_degraded=snapshot_degraded,
                                 stale_degraded=stale_degraded)
+
+
+# --- T-412: the event desk's forward 8-K feed ---------------------------------------- #
+# Separate from run_altdata_archive on purpose. The archive runs LAST (after the durable
+# push) and its rows are read by nobody that morning; the 8-K feed has a reader in the
+# same run — the intel pulse's event interpreter — so it must run BEFORE the pulse, and
+# only on the account that runs the pulse (account 1). Same fail-open contract: it never
+# raises, its health is a separate channel, and it cannot change the trading verdict.
+EDGAR_8K_PANEL_REL = f"{ALT_REL}/edgar_8k_items.parquet"
+EDGAR_8K_RECEIPT_REL = f"{ALT_REL}/edgar_8k_fetch_receipt.json"
+MEMBERSHIP_REL = "data/universe/sp500_membership_pit.parquet"
+
+
+@dataclass
+class EightKFeedResult:
+    ok: bool
+    report: str
+    universe_size: int = 0
+    receipt: Dict[str, object] = field(default_factory=dict)
+
+
+def tracked_universe(root: str, as_of: str) -> List[str]:
+    """The S&P 500 members on ``as_of`` (point in time), from the membership file baked
+    into the paper image. Empty when the file is missing or unreadable — the feed then
+    reports FAILED (empty universe), never a quiet day."""
+    try:
+        mem = pd.read_parquet(Path(root) / MEMBERSHIP_REL, columns=["ticker", "start", "end"])
+    except Exception:
+        return []
+    day = pd.Timestamp(as_of)
+    live = (mem["start"] <= day) & (mem["end"].isna() | (mem["end"] >= day))
+    return sorted(mem.loc[live, "ticker"].dropna().astype(str).str.upper().unique().tolist())
+
+
+def run_8k_feed(root: str, *, as_of: str, days_back: int = 5) -> EightKFeedResult:
+    """Fetch the forward 8-K item feed into ``<root>/data/macro_data/alt/``. Never raises."""
+    import json as _json
+    root_p = Path(root)
+    receipt_p = root_p / EDGAR_8K_RECEIPT_REL
+
+    def _receipt() -> Dict[str, object]:
+        try:
+            return _json.loads(receipt_p.read_text())
+        except Exception:
+            return {}
+
+    before = _receipt()                         # yesterday's, pulled from S3 (or none)
+    universe = tracked_universe(root, as_of)
+    try:
+        import scripts.archive_altdata_t136 as ad
+        with _out_dir_under_root(ad, root_p / ALT_REL):
+            report = ad.pull_8k_items(universe, as_of=as_of, days_back=days_back)
+    except Exception as exc:                    # an import failure is still a stated outcome
+        report = f"edgar_8k: FAILED ({type(exc).__name__}: {exc})"
+    receipt = _receipt()
+    if receipt == before:                       # this run wrote none: never pass off an old one
+        receipt = {}
+    return EightKFeedResult(ok="FAILED" not in report, report=report,
+                            universe_size=len(universe), receipt=receipt)

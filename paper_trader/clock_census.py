@@ -586,6 +586,10 @@ CADENCE_CLAIMS: Dict[str, str] = {
                                     "absence is caught by the heartbeat's census key",
     "paper_trader/heartbeat.py": "clock:SELF — the heartbeat IS the per-run receipt every "
                                  "other clock is read out of",
+    "paper_trader/source_register.py": "clock:SELF — T-412: its block is written into the "
+                                       "heartbeat at the tail of every account's run, "
+                                       "degraded when any declared reader ran on absent or "
+                                       "stale input; a missing block is visible there",
     # --- no clock needed, with the reason ---
     # T-348: caught by this very lint on its author. The module claims no cadence — the
     # word appears in prose ("crying wolf daily"). The scan matches anywhere in the
@@ -811,8 +815,11 @@ CHANNELS: List[Channel] = [
             _scan_dir_field("data/intel/analyst_notes_agentic", "hypothetical_actions")),
     Channel("predictions", "eval_harness",
             _scan_dir_field("data/intel/analyst_notes", "predictions")),
+    # T-412: the ledger nests each call under `event_call` (the eval harness's note shape);
+    # it never carries a top-level `symbol`, so this row scanned a field no writer writes
+    # and would have read NEVER_ALIVE on the day the channel came alive.
     Channel("event_calls", "event_shadow_book",
-            _scan_jsonl_field("data/intel/event_calls.jsonl", "symbol")),
+            _scan_jsonl_field("data/intel/event_calls.jsonl", "event_call")),
     Channel("thesis_calls", "thesis_book",
             _scan_jsonl_field("data/intel/thesis_calls.jsonl", "instruments")),
     # T-352: the family trackers' cash-drag annotation. `cash_rate` has NO call site in

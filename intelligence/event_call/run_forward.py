@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import datetime as _dt
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from intelligence.analyst.cost_governor import CostGovernor
 from intelligence.event_call.eightk_body import fetch_8k_text
-from intelligence.event_call.eightk_feed import EventDocument, new_documents
+from intelligence.event_call.eightk_feed import EventDocument, new_documents, panel_status
 from intelligence.event_call.event_service import (EVENT_CALLS_LEDGER, ModelCall,
                                                   load_seen, run_event_call)
 
@@ -38,6 +39,11 @@ class ForwardRunResult:
     degraded: bool = False
     reason: Optional[str] = None
     statuses: List[str] = field(default_factory=list)
+    # T-412: what the 8-K feed looked like at read time (None = no panel_path given),
+    # how many documents reached a model call, and how many the run budget deferred.
+    feed: Optional[Dict[str, Any]] = None
+    n_called: int = 0
+    n_deferred: int = 0
 
 
 # T-331 item 6 — a body must be NON-TRIVIAL to justify a paid model call. Today
@@ -53,16 +59,28 @@ def _is_nontrivial(text: Optional[str]) -> bool:
     return bool(t) and t.lower() not in _TRIVIAL_BODIES and len(t) >= MIN_BODY_CHARS
 
 
-def _attach_body(doc: EventDocument, fetch=fetch_8k_text) -> bool:
+def _attach_body(doc: EventDocument, fetch=fetch_8k_text,
+                 cache: Optional[Dict[str, Optional[str]]] = None) -> bool:
     """Fetch + attach the primary-document text. True only if a NON-TRIVIAL body is
-    present (T-331 item 6) — an empty/placeholder body must never fire a paid call."""
+    present (T-331 item 6) — an empty/placeholder body must never fire a paid call.
+
+    T-412: ``cache`` (per run, keyed by accession) — one 8-K carries several allowlisted
+    items, and each item is its own document, so without it the same filing body was
+    fetched once per item. The forward panel's ``primary_document`` skips the
+    submissions lookup."""
     if _is_nontrivial(doc.text):
         return True
     if doc.source != "8k":
         return False
-    cik = (doc.meta or {}).get("cik")
-    acc = (doc.meta or {}).get("accession")
-    text = fetch(cik, acc)
+    meta = doc.meta or {}
+    cik, acc = meta.get("cik"), meta.get("accession")
+    if cache is not None and acc in cache:
+        text = cache[acc]
+    else:
+        pdoc = meta.get("primary_document")
+        text = fetch(cik, acc, **({"primary_document": pdoc} if pdoc else {}))
+        if cache is not None:
+            cache[acc] = text
     if _is_nontrivial(text):
         doc.text = text
         return True
@@ -91,8 +109,23 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
                 universe: Optional[Set[str]] = None, since: Optional[str] = None,
                 ledger_path=EVENT_CALLS_LEDGER, now_iso: Optional[str] = None,
                 today: Optional[_dt.date] = None, max_lag_days: int = DEFAULT_MAX_LAG_DAYS,
-                body_fetch=fetch_8k_text) -> ForwardRunResult:
-    """Fire one event call per NEW document dated on/around `as_of`. Forward-only (hard PIT guard)."""
+                body_fetch=fetch_8k_text, panel_path: Optional[Path] = None,
+                max_documents: Optional[int] = None,
+                time_budget_s: Optional[float] = None) -> ForwardRunResult:
+    """Fire one event call per NEW document dated on/around `as_of`. Forward-only (hard PIT guard).
+
+    T-412 — ``panel_path`` names the 8-K panel this run reads (the daily pulse passes the
+    FORWARD panel under its root). When it is given, a panel that is absent, unreadable,
+    empty or stale makes the result ``degraded`` with that reason: "0 documents" from a
+    panel that is not there is not a quiet day. Without it the research panel is read as
+    before. ``since`` now defaults to the same forward window as the date floor
+    (``as_of − max_lag_days``): a filing dated yesterday arrives in this morning's feed, so
+    the old same-day default could never match a forward-fetched document.
+    ``max_documents`` / ``time_budget_s`` bound one run (each call can take a minute; the
+    pulse runs before the durable push); deferred documents stay unseen and are retried
+    on the next run inside the window."""
+    import time as _time
+    t0 = _time.monotonic()
     as_of_s = _dt.date.fromisoformat(str(as_of)[:10]).isoformat()
     today = today or _dt.date.today()
     aod = _dt.date.fromisoformat(as_of_s)
@@ -101,21 +134,32 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
         return ForwardRunResult(as_of_s, degraded=True,
                                 reason=f"refused:not_forward (as_of {as_of_s} vs today {today}, max_lag {max_lag_days}d)")
     now_iso = now_iso or f"{as_of_s}T21:00:00"
-    seen: Set[str] = load_seen(ledger_path)
-    docs = new_documents(as_of_s, universe=universe, since=since, seen=seen)
-    res = ForwardRunResult(as_of_s, n_documents=len(docs))
     # T-331 item 6: the file_date floor defaults to `as_of − max_lag_days` — the same
     # forward-only window the run itself is bounded by, so a stale document can't be
     # paid for even once.
     date_floor = (aod - _dt.timedelta(days=max_lag_days)).isoformat()
-    for doc in docs:
+    feed = panel_status(Path(panel_path), as_of_s) if panel_path is not None else None
+    seen: Set[str] = load_seen(ledger_path)
+    docs = new_documents(as_of_s, universe=universe, since=since or date_floor, seen=seen,
+                         panel_path=Path(panel_path) if panel_path is not None else None)
+    res = ForwardRunResult(as_of_s, n_documents=len(docs), feed=feed)
+    if feed is not None and not feed["ok"]:
+        res.degraded, res.reason = True, feed["reason"]
+    bodies: Dict[str, Optional[str]] = {}
+    for i, doc in enumerate(docs):
+        if ((max_documents is not None and res.n_called >= max_documents)
+                or (time_budget_s is not None and _time.monotonic() - t0 > time_budget_s)):
+            res.n_deferred = len(docs) - i
+            res.statuses.append(f"deferred:{res.n_deferred} (run budget reached)")
+            break                                # the rest retry on the next run
         if not _within_date_floor(doc, date_floor):
             res.statuses.append(f"stale_file_date:{doc.document_ref}")
             continue                             # older than the floor → no paid call
-        if not _attach_body(doc, fetch=body_fetch):
+        if not _attach_body(doc, fetch=body_fetch, cache=bodies):
             res.n_no_body += 1
             res.statuses.append(f"no_body:{doc.document_ref}")
             continue                             # no interpretable/NON-TRIVIAL body → no call
+        res.n_called += 1
         r = run_event_call(doc, as_of=as_of_s, prompt_path=prompt_path, model_call=model_call,
                            governor=governor, model_id_requested=model_id_requested,
                            prompt_version=prompt_version, projected_cost_usd=projected_cost_usd,
@@ -138,15 +182,26 @@ def pulse_step(as_of, *, model_call: Optional[ModelCall], governor: CostGovernor
     """Fail-OPEN daily pulse entrypoint (interpreter failure NEVER fails the pulse). Report-only.
 
     The pulse supplies E's shared model adapter as `model_call`. If it is None (adapter not yet wired),
-    this returns a degraded flag and fires NO call — the record simply does not open that day."""
+    this returns a degraded flag and fires NO call — the record simply does not open that day.
+    T-412: the 8-K feed's state rides along as ``feed`` either way (when ``panel_path`` is
+    passed), so a day with no adapter still says whether the documents were there."""
     if model_call is None:
-        return {"status": "degraded", "reason": "no_model_adapter", "n_ok": 0}
+        out: Dict[str, Any] = {"status": "degraded", "reason": "no_model_adapter", "n_ok": 0}
+        if kw.get("panel_path") is not None:
+            try:
+                out["feed"] = panel_status(Path(kw["panel_path"]), as_of)
+            except Exception as e:   # noqa: BLE001
+                out["feed"] = {"ok": False, "reason": f"status_error:{type(e).__name__}"}
+        return out
     try:
         r = run_forward(as_of, model_call=model_call, governor=governor, prompt_path=prompt_path,
                         model_id_requested=model_id_requested, prompt_version=prompt_version,
                         projected_cost_usd=projected_cost_usd, raw_dir=raw_dir, **kw)
-        return {"status": "degraded" if r.degraded else "ok", "reason": r.reason,
-                "n_documents": r.n_documents, "n_ok": r.n_ok, "n_skipped": r.n_skipped,
-                "n_invalid": r.n_invalid, "n_no_body": r.n_no_body}
+        out = {"status": "degraded" if r.degraded else "ok", "reason": r.reason,
+               "n_documents": r.n_documents, "n_ok": r.n_ok, "n_skipped": r.n_skipped,
+               "n_invalid": r.n_invalid, "n_no_body": r.n_no_body}
+        if r.feed is not None:
+            out.update(feed=r.feed, n_called=r.n_called, n_deferred=r.n_deferred)
+        return out
     except Exception as e:   # noqa: BLE001 — never fail the pulse
         return {"status": "degraded", "reason": f"error:{type(e).__name__}", "n_ok": 0}

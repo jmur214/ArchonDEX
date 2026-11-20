@@ -26,8 +26,49 @@ from typing import Callable, Dict, List, Optional, Set
 import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# The batch-built RESEARCH panel (T-137): in no image and no sync, frozen at 2026-06-10.
+# It stays the default for offline callers; the daily pulse reads the forward panel below.
 PANEL_8K = ROOT / "data" / "edgar" / "8k" / "panel_8k_items.parquet"
 SPECIAL_SITS = ROOT / "data" / "research" / "special_situations" / "events.parquet"
+# T-412: the FORWARD panel the cloud fetches each morning (scripts/archive_altdata_t136
+# pull_8k_items, via paper_trader.altdata_archive.run_8k_feed), relative to a run's root.
+# Same columns as the research panel plus primary_document/index_date/fetched_at, so one
+# reader serves both. It lives in the synced alt-data directory.
+FORWARD_PANEL_REL = "data/macro_data/alt/edgar_8k_items.parquet"
+# Stale when the newest FILING is older than this: ~25 tracked 8-Ks land every business
+# day, so 5 calendar days covers a weekend plus a holiday and still catches a dead feed.
+PANEL_MAX_AGE_DAYS = 5
+
+
+def panel_status(panel_path: pathlib.Path, as_of, *,
+                 max_age_days: int = PANEL_MAX_AGE_DAYS) -> Dict:
+    """Is the 8-K panel at ``panel_path`` usable for a forward run on ``as_of``?
+
+    ``{"ok", "reason", "n_rows", "newest_filing_date", "age_days"}``. NOT ok when the
+    file is absent, unreadable, empty, has no parseable filing date, or its newest filing
+    is older than ``max_age_days`` — each with its own reason. A missing panel used to read
+    as "0 documents today" (T-411): the caller must report this as degraded, never as a
+    quiet day."""
+    out: Dict = {"ok": False, "path": str(panel_path), "n_rows": 0,
+                 "newest_filing_date": None, "age_days": None}
+    if not panel_path.exists():
+        return {**out, "reason": f"8k_panel_absent: {panel_path.name} is not on disk"}
+    try:
+        fd = pd.to_datetime(pd.read_parquet(panel_path, columns=["filing_date"])["filing_date"],
+                            errors="coerce")
+    except Exception as exc:
+        return {**out, "reason": f"8k_panel_unreadable: {type(exc).__name__}"}
+    out["n_rows"] = int(len(fd))
+    fd = fd.dropna()
+    if fd.empty:
+        return {**out, "reason": "8k_panel_empty: no row carries a parseable filing_date"}
+    newest = fd.max().date()
+    age = (_dt.date.fromisoformat(_iso(as_of)) - newest).days
+    out.update(newest_filing_date=newest.isoformat(), age_days=int(age))
+    if age > max_age_days:
+        return {**out, "reason": (f"8k_panel_stale: newest filing {newest} is {age}d old "
+                                  f"(budget {max_age_days}d)")}
+    return {**out, "ok": True, "reason": "ok"}
 
 # ---- the pre-registered materiality pre-filter (8-K item allowlist) ------------------
 # Rationale: the interpreter earns its call budget only where an LLM plausibly beats a
@@ -89,20 +130,26 @@ def new_8k_documents(as_of, *, universe: Optional[Set[str]] = None,
     df = df[(df["fd"] >= lo) & (df["fd"] <= hi)]
     if universe is not None:
         df = df[df["ticker"].astype(str).str.upper().isin({u.upper() for u in universe})]
-    out: List[EventDocument] = []
-    for _, r in df.iterrows():
-        sym = str(r["ticker"]).upper()
-        codes = [c.strip() for c in str(r.get("items", "")).split(",") if c.strip()]
-        for code in codes:
-            if code not in allowlist:
-                continue                                   # materiality pre-filter
-            out.append(EventDocument(
-                document_ref=f"{r['accession']}#{code}", source="8k", symbol=sym,
-                file_date=_iso(r["fd"]), item_code=code, event_class_hint=allowlist[code],
-                text="",   # EDGAR body fetch is the live-phase seam (see module docstring)
-                meta={"cik": r.get("cik"), "accession": r.get("accession"),
-                      "acceptance_dt": str(r.get("acceptance_dt", ""))}))
-    return out
+    # One row per (accession, item code), vectorised: split the items list, explode, and
+    # apply the materiality allowlist as a column filter. The research panel has no
+    # primary_document column; the forward panel (T-412) does.
+    df = df.reindex(columns=[*df.columns.drop("primary_document", errors="ignore"),
+                             "primary_document"])
+    df = df.assign(code=df["items"].fillna("").astype(str).str.split(",")).explode("code")
+    df["code"] = df["code"].astype(str).str.strip()
+    df = df[df["code"].isin(list(allowlist))]               # materiality pre-filter
+    return [EventDocument(
+        document_ref=f"{r.accession}#{r.code}", source="8k", symbol=str(r.ticker).upper(),
+        file_date=_iso(r.fd), item_code=r.code, event_class_hint=allowlist[r.code],
+        text="",   # EDGAR body fetch is the live-phase seam (see module docstring)
+        meta={"cik": r.cik, "accession": r.accession,
+              "acceptance_dt": str(getattr(r, "acceptance_dt", "") or ""),
+              # T-412: the forward panel records the primary document, so the body fetch
+              # can skip its own submissions lookup (half the SEC requests per document)
+              "primary_document": (r.primary_document
+                                   if isinstance(r.primary_document, str)
+                                   and r.primary_document else None)})
+        for r in df.itertuples(index=False)]
 
 
 def new_special_situation_documents(as_of, *, since: Optional[str] = None,
@@ -135,10 +182,13 @@ def new_special_situation_documents(as_of, *, since: Optional[str] = None,
 
 
 def new_documents(as_of, *, universe: Optional[Set[str]] = None, since: Optional[str] = None,
-                  seen: Optional[Set[str]] = None) -> List[EventDocument]:
+                  seen: Optional[Set[str]] = None,
+                  panel_path: Optional[pathlib.Path] = None) -> List[EventDocument]:
     """The full forward surface: allowlisted 8-K items + special-sit deltas, minus `seen`
-    document_refs (idempotency). One EventDocument == one model call."""
-    docs = new_8k_documents(as_of, universe=universe, since=since) + \
+    document_refs (idempotency). One EventDocument == one model call. ``panel_path``
+    selects the 8-K panel (default: the research panel)."""
+    docs = new_8k_documents(as_of, universe=universe, since=since,
+                            panel_path=panel_path or PANEL_8K) + \
         new_special_situation_documents(as_of, since=since)
     if seen:
         docs = [d for d in docs if d.document_ref not in seen]

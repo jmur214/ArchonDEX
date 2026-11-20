@@ -74,25 +74,45 @@ def _disk_price(symbol: str) -> Optional[pd.Series]:
     return s[~s.index.duplicated(keep="last")].sort_index()
 
 
-KALSHI_SNAP = ROOT / "data" / "macro_data" / "alt" / "kalshi_kxfed_snapshots.parquet"
-FRED_PATH = ROOT / "data" / "macro_data" / "alt" / "fred_rate_path.parquet"
+ALT_REL = Path("data/macro_data/alt")
+KALSHI_SNAP_NAME = "kalshi_kxfed_snapshots.parquet"
+FRED_PATH_NAME = "fred_rate_path.parquet"
+KALSHI_SNAP = ROOT / ALT_REL / KALSHI_SNAP_NAME
+FRED_PATH = ROOT / ALT_REL / FRED_PATH_NAME
+# Explicit overrides (tests set these). When None the frames are read from disk.
 _KALSHI: Optional[pd.DataFrame] = None
 _FRED: Optional[pd.DataFrame] = None
+# T-412: disk reads are cached per (path, mtime), never as a process-wide singleton. The
+# old singleton cached the FIRST frame it read, so a run whose alt-data arrived after an
+# earlier read (or a second run in the same process, rooted elsewhere) kept the stale one.
+_ALT_CACHE: dict[Path, tuple[int, pd.DataFrame]] = {}
 
 
-def _kalshi() -> Optional[pd.DataFrame]:
-    """KXFED snapshots (B/T-290). Cached; None if absent → fail-closed."""
-    global _KALSHI
-    if _KALSHI is None and KALSHI_SNAP.is_file():
-        _KALSHI = pd.read_parquet(KALSHI_SNAP)
-    return _KALSHI
+def _read_alt(path: Path) -> Optional[pd.DataFrame]:
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError:
+        return None                                 # absent → the resolver fails closed
+    hit = _ALT_CACHE.get(path)
+    if hit is not None and hit[0] == mtime:
+        return hit[1]
+    df = pd.read_parquet(path)
+    _ALT_CACHE[path] = (mtime, df)
+    return df
 
 
-def _fred() -> Optional[pd.DataFrame]:
-    global _FRED
-    if _FRED is None and FRED_PATH.is_file():
-        _FRED = pd.read_parquet(FRED_PATH)
-    return _FRED
+def _kalshi(alt_dir: Optional[Path] = None) -> Optional[pd.DataFrame]:
+    """KXFED snapshots (B/T-290). None if absent → fail-closed. ``alt_dir`` is the run's
+    alt-data directory (``<root>/data/macro_data/alt``); default = this checkout's."""
+    if _KALSHI is not None:
+        return _KALSHI
+    return _read_alt(Path(alt_dir) / KALSHI_SNAP_NAME if alt_dir is not None else KALSHI_SNAP)
+
+
+def _fred(alt_dir: Optional[Path] = None) -> Optional[pd.DataFrame]:
+    if _FRED is not None:
+        return _FRED
+    return _read_alt(Path(alt_dir) / FRED_PATH_NAME if alt_dir is not None else FRED_PATH)
 
 
 def _naive(x) -> pd.Timestamp:
@@ -101,21 +121,23 @@ def _naive(x) -> pd.Timestamp:
     return t.tz_convert(None) if t.tz is not None else t
 
 
-def _fred_asof(series: str, d: pd.Timestamp) -> Optional[float]:
-    f = _fred()
+def _fred_asof(series: str, d: pd.Timestamp,
+               alt_dir: Optional[Path] = None) -> Optional[float]:
+    f = _fred(alt_dir)
     if f is None:
         return None
     s = f[(f["series"] == series) & (pd.to_datetime(f["observation_date"]) <= d)]
     return float(s.sort_values("observation_date").iloc[-1]["value"]) if len(s) else None
 
 
-def _disk_event(source: str, event_id: str) -> Optional[str]:
+def _disk_event(source: str, event_id: str, alt_dir: Optional[Path] = None) -> Optional[str]:
     """Real settlement (B/T-290). kalshi_settlement: the KXFED strike ticker settles
     via realized FRED DFEDTARU vs the ticker's strike after its expiration.
     fomc_calendar: the meeting's action = sign of the DFEDTARU change across it.
-    None (→ fail-closed resolvable=False past by_date) if data absent/unsettled. Never guesses."""
+    None (→ fail-closed resolvable=False past by_date) if data absent/unsettled. Never guesses.
+    ``alt_dir``: the run's alt-data directory (default: this checkout's)."""
     if source == "kalshi_settlement":
-        k = _kalshi()
+        k = _kalshi(alt_dir)
         if k is None:
             return None
         row = k[k["ticker"] == event_id]
@@ -126,7 +148,7 @@ def _disk_event(source: str, event_id: str) -> Optional[str]:
         strike = r.get("floor_strike")
         if pd.isna(exp) or strike is None or pd.isna(strike):
             return None
-        realized = _fred_asof("DFEDTARU", _naive(exp))
+        realized = _fred_asof("DFEDTARU", _naive(exp), alt_dir)
         if realized is None:                       # FRED not past expiration → unsettled
             return None
         if r.get("strike_type") == "greater":
@@ -134,12 +156,22 @@ def _disk_event(source: str, event_id: str) -> Optional[str]:
         return None
     if source == "fomc_calendar":
         d = pd.Timestamp(event_id)
-        before = _fred_asof("DFEDTARU", d - pd.Timedelta(days=1))
-        after = _fred_asof("DFEDTARU", d + pd.Timedelta(days=7))
+        before = _fred_asof("DFEDTARU", d - pd.Timedelta(days=1), alt_dir)
+        after = _fred_asof("DFEDTARU", d + pd.Timedelta(days=7), alt_dir)
         if before is None or after is None:
             return None
         return "cut" if after < before else ("hike" if after > before else "hold")
     return None
+
+
+def event_fn_for_root(root: Optional[Path | str]) -> EventFn:
+    """The settlement lookup reading the RUN's alt-data (``<root>/data/macro_data/alt``),
+    which is where the daily run's alt-data pull lands it. Before 2026-11-20 the harness
+    read the module checkout's copy whatever root it was given."""
+    if root is None:
+        return _disk_event
+    alt_dir = Path(root) / ALT_REL
+    return lambda source, event_id: _disk_event(source, event_id, alt_dir)
 
 
 # ── validity: the ONE definition E imports for note-validation ─────────────────
@@ -269,7 +301,8 @@ def resolve(resolver: dict, note_date: str, as_of: str,
 
 # ── G1 baselines (amended gate: beat market-implied + persistence per category) ──
 def market_implied_prob(resolver: dict, note_date: str,
-                        price_fn: Optional[PriceFn] = None) -> Optional[float]:
+                        price_fn: Optional[PriceFn] = None,
+                        alt_dir: Optional[Path] = None) -> Optional[float]:
     """Market-implied probability at the NOTE's date (PIT).
 
     - `event_occurs`/kalshi_settlement → the Kalshi yes-mid (the true market price).
@@ -285,7 +318,7 @@ def market_implied_prob(resolver: dict, note_date: str,
         return persistence_prob(resolver, note_date, price_fn or _disk_price)
     if resolver.get("type") != "event_occurs" or resolver.get("source") != "kalshi_settlement":
         return None
-    k = _kalshi()
+    k = _kalshi(alt_dir)
     if k is None:
         return None
     row = k[(k["ticker"] == resolver["event_id"]) & (k["snap_date"].astype(str) == str(note_date))]
@@ -468,7 +501,14 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
     `root` is the run's STATE root: the prediction log and summary are written, and the
     notes and the event ledger are read, under it (the same `data/intel/...` layout
     `paper_trader/cloud_state.py` syncs). An explicit path argument still wins. With
-    neither, the paths are this checkout's (the module constants)."""
+    neither, the paths are this checkout's (the module constants).
+
+    T-412: the Kalshi/FRED settlement data is read under ``root`` too (when ``event_fn`` is
+    the default) — the run's alt-data pull lands it there, and the harness used to read
+    the checkout's copy, which in a fresh cloud container did not exist when it ran."""
+    alt_dir = Path(root) / ALT_REL if root is not None else None
+    if event_fn is _disk_event and root is not None:
+        event_fn = event_fn_for_root(root)
     pred_log = _under_root(pred_log, root, PRED_LOG_REL, PRED_LOG)
     summary = _under_root(summary, root, SUMMARY_REL, SUMMARY)
     notes_dir = _under_root(notes_dir, root, NOTES_REL, NOTES_DIR)
@@ -524,7 +564,8 @@ def run(as_of: str, notes: Optional[list[dict]] = None, *, price_fn: PriceFn = _
                 "resolver": p["resolver"], "resolve_date": res.resolve_date, "resolved_at": as_of,
                 "outcome": res.outcome, "resolvable": res.resolvable,
                 "resolve_source": res.source, "resolve_detail": res.detail,
-                "baseline_implied": market_implied_prob(p["resolver"], note.get("note_date", ""), price_fn),
+                "baseline_implied": market_implied_prob(p["resolver"], note.get("note_date", ""),
+                                                        price_fn, alt_dir),
                 "baseline_persistence": persistence_prob(p["resolver"], note.get("note_date", ""), price_fn),
             }
             new_records.append(rec)
@@ -785,6 +826,137 @@ def summarize(recs: list[dict]) -> dict:
 def _reason_counts(recs: list[dict]) -> dict:
     from collections import Counter
     return dict(Counter(r.get("resolve_detail", "?") for r in recs if not r.get("resolvable")))
+
+
+# ── T-412: what the daily run must hand the harness, and what it got ─────────────
+def _price_symbols(resolver: dict) -> list[str]:
+    """The symbols a price resolver reads (empty for event_occurs)."""
+    t = (resolver or {}).get("type")
+    if t in ("price_above", "dd_exceeds"):
+        syms = [resolver.get("symbol")]
+    elif t == "relative_return":
+        syms = [resolver.get("symbol_a"), resolver.get("symbol_b")]
+    else:
+        syms = []
+    return [str(s).upper() for s in syms if isinstance(s, str) and s]
+
+
+def _expiry(resolver: dict) -> str:
+    return str(resolver.get("by_date") or resolver.get("end_date") or "")[:10]
+
+
+def pending_price_symbols(as_of: str, *, root: Optional[Path | str] = None) -> list[str]:
+    """Every symbol a price resolver will read on this run: predictions past their expiry
+    that are not yet SETTLED — the same selection ``run()`` makes.
+
+    Why it exists: the daily run handed the harness live closes for the three sleeve ETFs
+    only, and every other symbol fell back to ``data/processed/<SYM>_1d.csv`` — a baked
+    research substrate that is NOT in the paper image. Any prediction on another symbol
+    could never resolve in the cloud (``source_absent_or_stale``, retried forever). The
+    run fetches live closes for exactly these symbols instead."""
+    root_p = Path(root) if root is not None else None
+    notes = (_load_notes(_under_root(None, root_p, NOTES_REL, NOTES_DIR), "analyst_constrained")
+             + _load_notes(_under_root(None, root_p, AGENTIC_NOTES_REL, AGENTIC_NOTES_DIR),
+                           "analyst_agentic")
+             + _load_event_ledger(_under_root(None, root_p, EVENT_LEDGER_REL, EVENT_LEDGER)))
+    settled = {r.get("prediction_id") for r in
+               _load_log(_under_root(None, root_p, PRED_LOG_REL, PRED_LOG)) if r.get("resolvable")}
+    out: set[str] = set()
+    for note in notes:
+        nid = note.get("note_id") or note.get("note_date", "?")
+        for i, p in enumerate(note.get("predictions", []) or []):
+            r = (p or {}).get("resolver") or {}
+            if _pred_id(nid, i, p) in settled or not _expiry(r) or _expiry(r) > str(as_of)[:10]:
+                continue
+            out.update(_price_symbols(r))
+    return sorted(out)
+
+
+def resolved_today(as_of: str, *, root: Optional[Path | str] = None) -> dict:
+    """What THIS run's resolution pass produced: the rows appended with ``resolved_at ==
+    as_of``, how many settled, and — for the ones that did not — why, and on which
+    symbols. The heartbeat's source register reads this: a run where predictions came due
+    and none resolved is a reader that ran on absent input."""
+    from collections import Counter
+    rows = [r for r in _load_log(_under_root(None, root, PRED_LOG_REL, PRED_LOG))
+            if str(r.get("resolved_at", ""))[:10] == str(as_of)[:10]]
+    bad = [r for r in rows if not r.get("resolvable")]
+    syms: Counter = Counter()
+    for r in bad:
+        if r.get("resolve_source") == "price":
+            syms.update(_price_symbols(r.get("resolver") or {}))
+    return {"n_due": len(rows), "n_resolved": len(rows) - len(bad),
+            "unresolvable_reasons": dict(Counter(str(r.get("resolve_detail", "?")) for r in bad)),
+            "unresolvable_price_symbols": dict(syms)}
+
+
+def _determined_early(resolver: dict, note_date: str, as_of: str,
+                      price_fn: PriceFn) -> Optional[Resolution]:
+    """A falsifier is a kill condition, and two resolver shapes are DECIDED before their
+    end date: a 'touch' level once touched, and a drawdown once it has exceeded the
+    threshold. (A terminal level, a relative return and an unsettled event are not.)
+    ``resolve()`` waits for the end date — right for scoring a forecast, wrong for a desk
+    watching its invalidation point."""
+    t = resolver.get("type")
+    if t not in ("price_above", "dd_exceeds"):
+        return None
+    if t == "price_above" and resolver.get("mode", "terminal") != "touch":
+        return None
+    s = price_fn(resolver["symbol"])
+    if s is None or not len(s):
+        return None
+    aod, exp = pd.Timestamp(as_of), _expiry(resolver)
+    if t == "price_above":
+        win = s[(s.index > pd.Timestamp(note_date)) & (s.index <= aod)]
+        lvl = resolver["level"]
+        hit = (win >= lvl).any() if resolver["direction"] == "above" else (win <= lvl).any()
+        return Resolution(True, 1, exp, "price", f"touched by {as_of}") if hit else None
+    win = s[(s.index >= pd.Timestamp(resolver["start_date"])) & (s.index <= aod)]
+    if len(win) < 2:
+        return None
+    dd = float((win / win.cummax() - 1).min()) * -100.0
+    return (Resolution(True, 1, exp, "price", f"maxdd={dd:.2f}% by {as_of}")
+            if dd >= resolver["threshold_pct"] else None)
+
+
+FALSIFIER_FIRED, FALSIFIER_NOT_FIRED = "fired", "not_fired"
+FALSIFIER_PENDING, FALSIFIER_UNRESOLVABLE = "pending", "unresolvable"
+
+
+def resolve_falsifier(falsifier: dict, filed_date: str, as_of: str, *,
+                      price_fn: PriceFn = _disk_price,
+                      event_fn: EventFn = _disk_event) -> tuple[str, str]:
+    """T-412 (T-411 C6): resolve ONE thesis falsifier with this harness's own resolvers.
+
+    Returns ``(status, detail)``:
+      * ``fired``        — its resolver resolved TRUE: the kill condition happened;
+      * ``not_fired``    — it resolved FALSE at its end date: checked, and it did not;
+      * ``pending``      — not decided yet (before its end date, nothing decisive seen);
+      * ``unresolvable`` — this run cannot decide it: a qualitative falsifier (no machine
+        resolver), an invalid spec, or a resolver whose data is absent. NEVER reported as
+        'not fired' — an unchecked kill condition is not a passed one; the book's
+        ``check_by`` deadline still applies to it (fail-closed)."""
+    kind = str((falsifier or {}).get("kind", ""))
+    if kind == "qualitative":
+        return FALSIFIER_UNRESOLVABLE, ("qualitative: no machine resolver — only its "
+                                        "check_by deadline can close the thesis")
+    if kind != "resolver":
+        return FALSIFIER_UNRESOLVABLE, f"unknown falsifier kind {kind!r}"
+    spec = falsifier.get("resolver") or {}
+    ok, why = is_resolvable_spec(spec)
+    if not ok:
+        return FALSIFIER_UNRESOLVABLE, f"invalid resolver: {why}"
+    try:
+        res = resolve(spec, filed_date, as_of, price_fn, event_fn)
+        if res is None:
+            res = _determined_early(spec, filed_date, as_of, price_fn)
+            if res is None:
+                return FALSIFIER_PENDING, f"not decided before {_expiry(spec)}"
+    except Exception as exc:                         # noqa: BLE001 — a lookup that raised
+        return FALSIFIER_UNRESOLVABLE, f"resolver raised {type(exc).__name__}"
+    if not res.resolvable:
+        return FALSIFIER_UNRESOLVABLE, f"{res.source}: {res.detail}"
+    return (FALSIFIER_FIRED if res.outcome == 1 else FALSIFIER_NOT_FIRED), res.detail
 
 
 def main() -> int:
