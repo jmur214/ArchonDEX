@@ -132,6 +132,34 @@ then LOW. Within each severity, list newest at the top.
 - Status: OPEN, rebuild dispatched (T-405): pull named macro series, exclude multivariate markets, and adopt a "real quote" rule in the snapshot, its fail-closed check and the resolver. **UPDATE 2026-11-19: code FIXED on main `49331c7`** (two reviews by execution; 401 series, 0 parlays live). The local job runs it from 2026-11-19 17:30 (first artifact owed). One REQUIRED follow-up is open: markets Kalshi has moved to its historical API are recorded "not_found". **That follow-up was FIXED the same day (`6cf044c`), and the cloud copy was REDEPLOYED with T-406 (`paper-sha-d56ffa6`).** The local first artifact is the 2026-11-19 17:30 run; the cloud's is the 2026-11-20 runs. Old rows stay in the file (`[NN-ARCHIVE]`) and are identifiable by the KXMVE prefix. The cloud copy runs the old code until a redeploy, which is the user's word.
 - Lesson: a fail-closed check on "not null" passes a field that is present but empty. Every quote check must ask whether the value is a usable price, not whether it exists.
 
+### [MEDIUM] Information the system collects never reaches its decision paths — the cloud eval resolves 0 of 59 predictions, the event desk has opened 0 positions in 83 sessions, and the thesis book's falsifiers are never checked (director, 2026-11-20; found by T-411, two items confirmed by artifact)
+- Engine: paper fleet / intelligence — `scripts/run_paper_cloud_day.py` (step order), `intelligence/analyst/eval_harness.py`, `intelligence/event_call/eightk_feed.py`, the thesis book; the full trace is `docs/Audit/trade_desk_gap_analysis_t411_2026-11-20.md` Parts 3 and 7.
+- Description:
+  - (1) **CONFIRMED by artifact.** The intel pulse and the eval harness (`run_paper_cloud_day.py:1388-1410`) read `data/macro_data/alt/` BEFORE the first alt-data sync (`:1658`). Each cloud container starts empty, so they read nothing. The cloud eval summary of 2026-11-20 shows `n_records 59, n_resolvable 0, unresolvable_reasons {source_absent_or_stale: 59}`, and every skill field is null. The AI analyst's forecasts have never been scored in the cloud; the [NN-AI-GATE] track cannot earn or lose its place.
+  - (2) **CONFIRMED by artifact.** The event desk's input never existed in the cloud. The 8-K panel and the special-situations file are in no image and no sync; `eightk_feed` returns `[]` for a missing panel (`:82-83`); the local panel is frozen at 2026-06-10. `event_shadow_book.json` on 2026-11-20 holds 83 days, 0 opened, 0 closed. It does report itself degraded ("no source yet … dormant-but-armed") rather than "ok".
+  - (3) The thesis book's falsifiers are never resolved: `falsifiers_fired` has no production caller (only `tests/test_thesis_book_t326.py`), so its positions close only on deadlines.
+  - (4) Twelve archived sources are still collected with zero code consumers (T-411 Part 3, rows 10–21). Each is a daily network and alarm surface; the project's rule is "retire or name a consumer".
+- Status: OPEN. Fix = T-411 Phase 1: move the alt-data sync ahead of the intel and eval steps; a source register with a daily "the reader ran after its data arrived" check; a forward EDGAR 8-K feed, with a missing panel reported as degraded; and wire the falsifier resolution. No order changes, but it is the daily paper run, so it is propose-first (the user's word).
+- Anchor: `scripts/run_paper_cloud_day.py:1658` contains `cloud.pull_altdata()`
+
+### [MEDIUM] Account 3's AI trader decides from a note that misdescribes its own situation (director, 2026-11-20; found by T-411)
+- Engine: intelligence / account 3 (the [NN-AI-GATE] exploration track) — `scripts/run_paper_cloud_day.py:1331`, `config/prompts/analyst/daily_v4.md:23-26, 55-57`.
+- Description: the bundle's portfolio is account 1's sleeve, not account 3's own. The prompt says it places no orders and cites a 99 % SSO position no account holds. The model also sets final weights, which collapses the forecast, the sizing and the composition into one output.
+- Status: OPEN, the AI track. Fix: a prompt revision built from the account's own state, and the T-411 Part 5 boundary ruling (an AI stream emits forecasts; Engine B sizes them). Propose-first.
+- Anchor: `config/prompts/analyst/daily_v4.md:23` — none if the line moves; the witness is the prompt text quoted above
+
+### [MEDIUM] T-287's published buy-hold vs robo-proxy wealth drops 64 SPY trading days (bond-market holidays) — every "$929k vs $495k" quote understates both (director, 2026-11-20; found by T-409's positive control)
+- Engine: measurement / research record — `docs/Audit/dividend_reconcile_verdict_t287_2026_07_07.md`; quoted in `docs/State/real_money_decision_package_2026_09.md` and the 11-14 audits.
+- Description: T-287's series sit on the bond synthetic's calendar, which lacks the 64 SPY trading days that fall on bond-market holidays. This is the same class of defect T-297 found. The T-409 study code reproduces the published $929,498 / $494,701 to the dollar on that calendar. On the full calendar the figures are **$1,009,638 vs $515,736** (ratio 1.96, not 1.88). The direction of every conclusion is unchanged; the levels are understated.
+- Status: OPEN, a documentation correction. Append the corrected figures to the T-287 verdict and the decision package (append, never rewrite). The T-409 code reports it as a non-gating diagnostic.
+- Anchor: none — the defect is in a published result, not a code line; its witness is the T-409 positive-control diagnostic (`scripts/t409_real_money_home.py`, on its branch until merged)
+
+### [LOW] T-411 small findings: `PaperOrderConstructor` has only test callers; `main()` is 1,403 lines; a bare `sigma <= 0` guard in the eval harness (director, 2026-11-20)
+- `paper_trader/order_construction.py:1-16,48` claims to wire "the PRODUCTION order-construction path", but only tests call it: archive it, or adopt it as the seam in T-411's architecture.
+- `scripts/run_paper_cloud_day.py` `main()` is 1,403 lines, up from 1,156 at the 09-17 audit: the already-proposed step-registry extraction.
+- `intelligence/analyst/eval_harness.py:319` reads `if sigma <= 0:` (the persistence baseline): the `[NN-FP-GUARDS]` pattern requires `sigma < 1e-12 or not np.isfinite(sigma)`.
+- Anchor: `intelligence/analyst/eval_harness.py:319` contains `if sigma <= 0:`
+
 ### [MEDIUM] The news panel loads the MAIN repo's real `.env` into the process from ANY checkout (director, 2026-11-19; found by the code-tree-writer builder)
 - Engine: intelligence / paper fleet — `intelligence/news_panel.py:36-45` (`_creds`), reached from the daily run's news step in every account.
 - Description:
