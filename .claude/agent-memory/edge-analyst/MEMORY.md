@@ -30,3 +30,6 @@
 - [T-410 ideas census 2026-11-20](project_t410_ideas_census_2026_11_20.md) — options-forward untested map; top 3 E-1 earnings straddles / O-1 stacked condor / E-2 announcement basket ~4–18 %; stay-dead list
 - [Options data sources verified 2026-11-20](reference_options_data_sources_2026_11_20.md) — Alpaca option bars+trades from ~2024-01 incl. expired, NO historical quotes; Cboe CDN 1986+ indices; P/C ends 2019
 - [Displacement threshold](feedback_displacement_threshold.md) — a diversifier displacing equity must beat μ_E − σ_E² + ρσσ (~7.4 %); else only stacked forms can add wealth
+- [T-415 E-2 BLOCKED on paid data 2026-11-20](project_t415_e2_blocked_survivorship_2026_11_20.md) — free S&P coverage 49%→99%, hole = departed names; no clean TR pre-2016; free windows ≈3.7%/1.6%
+- [Variance-proportional survivorship bias](feedback_variance_proportional_survivorship.md) — survivor selection inflates high-variance event windows ~2× the drift; L-S doesn't cancel it
+- [Chen–Zimmermann signal list](reference_cz_signal_list.md) — free CRSP-built anomaly portfolios (331); no announcement-premium signal; grep before calling a test data-blocked
