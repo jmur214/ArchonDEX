@@ -20,3 +20,6 @@
 - [Paper probes: taker rules only](feedback_paper_probe_taker_only.md) — maker fills on paper are invented; check the source paper's own latest-year slice for decay
 - [Per-event effect/noise trap](feedback_per_event_effect_to_noise.md) — "per-event" passes only if effect/σ ≳ 0.3; persistent conditioners make event rules regime timing
 - [T-407 PM as information 2026-11-19](project_t407_pm_information_2026_11_19.md) — Kalshi serves free hourly bid/ask history since 2021; every tradeable use for the held book fails (effect/σ ≈ 0.1); close
+- [T-408 post-FOMC Treasury drift 2026-11-19](project_t408_post_fomc_drift_2026_11_19.md) — closed unrun: target surprises shrank 3x since 2015; OOS pass ≤1.2 %; Fed-direction rule = cycle timing
+- [Signal-variance collapse trap](feedback_signal_variance_collapse.md) — power ∝ sd(conditioning signal); census its post-publication sd and per-event weight shares first
+- [FOMC surprise + target-change sources](reference_fomc_surprise_sources.md) — SF Fed Bauer–Swanson workbook (FF1 only 2010+), Fed openmarket tables, FRED ids; keyless FRED CSV down 11-19
