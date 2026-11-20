@@ -32,7 +32,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Callable, Dict, Iterator, List, Tuple
+from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 import pandas as pd
 
@@ -47,12 +47,20 @@ _SNAPSHOT_FRESHNESS: List[Tuple[str, str, str]] = [
     ("kalshi", "data/macro_data/alt/kalshi_snapshots.parquet", "snap_date"),
     ("kxfed", "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", "snap_date"),
     ("polymarket", "data/macro_data/alt/polymarket_snapshots.parquet", "snap_date"),
-    # T-334: the CEF panel is a DAILY snapshot with the same silent-breakage risk
-    # (parquet dedup hides a dead endpoint). Form4/USASpending are NOT gated here:
-    # both legitimately gap (weekends/holidays, award-posting lag), so a zero day
-    # for them is not evidence of breakage — their counts are reported per-run.
-    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date"),
+    # Form4/USASpending are NOT gated here: both legitimately gap (weekends/holidays,
+    # award-posting lag), so a zero day for them is not evidence of breakage — their
+    # counts are reported per-run.
+    # The T-334 CEF panel was RETIRED from this list 2026-11-19: its source has failed on
+    # every pull since 2026-10-19 and its only consumer (T-379) closed the CEF thread, so
+    # it made the local verifier exit 1 and page every day — an alarm that cries wolf.
+    # See `_RETIRED_CEF` below; un-retire only with a consumer AND a working source.
 ]
+
+_RETIRED_CEF = ("RETIRED 2026-11-19: the CEF source has failed on every pull since 2026-10-19 "
+                "(JSONDecodeError — the endpoint no longer serves JSON); its only consumer, "
+                "the T-379 probe, closed the CEF thread on free data; the banked rows to "
+                "2026-10-19 are retained in cef_daily.parquet. Un-exempt only with a "
+                "consumer AND a working source.")
 
 
 # --- T-335: the DURABLE close of the silent-stop class -----------------------
@@ -67,12 +75,12 @@ _SNAPSHOT_FRESHNESS: List[Tuple[str, str, str]] = [
 # reason, never as staleness. The gate's job is to DECLARE what the cloud actually
 # collects; silently failing a feed the cloud was never going to collect is the
 # false-alarm class that produces alarm fatigue (director ruling 2026-08-15).
-_FEED_HEALTH: List[Tuple[str, str, str, int, str]] = [
+_FEED_HEALTH: List[Tuple[str, str, str, int, str, Optional[str]]] = [
     # daily market snapshots (weekend tolerance)
     ("kalshi", "data/macro_data/alt/kalshi_snapshots.parquet", "snap_date", 4, "iso", None),
     ("kxfed", "data/macro_data/alt/kalshi_kxfed_snapshots.parquet", "snap_date", 4, "iso", None),
     ("polymarket", "data/macro_data/alt/polymarket_snapshots.parquet", "snap_date", 4, "iso", None),
-    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date", 4, "iso", None),
+    ("cef", "data/macro_data/alt/cef_daily.parquet", "snap_date", 4, "iso", _RETIRED_CEF),
     # daily-ish constructed series / resolution feeds
     ("epu_daily", "data/macro_data/alt/epu_daily_us.parquet", "archive_vintage", 7, "iso", None),
     ("gpr_daily", "data/macro_data/alt/gpr_daily_recent.parquet", "archive_vintage", 7, "iso",
@@ -82,7 +90,10 @@ _FEED_HEALTH: List[Tuple[str, str, str, int, str]] = [
     ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso", None),
     ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso", None),
     ("credit_oas", "data/macro_data/alt/credit_spread_oas.parquet",
-     "observation_date", 7, "iso", None),          # T-336 C5 (deep history + live tail)
+     "observation_date", 7, "iso",                  # T-336 C5 (deep history + live tail)
+     "local-only Phase-A: the cloud pulse never runs the credit-OAS pull (the laptop job "
+     "collects it daily), so in-container the file is absent and read 'no-date' on every "
+     "run since T-336; no cloud consumer (2026-11-19). Un-exempt if the pulse adds the pull."),
     # positioning: real cadences are weekly → twice-monthly → monthly (+ publication lag)
     ("regsho", "data/positioning/finra_regsho_short_volume.parquet", "date", 7, "iso", None),
     ("naaim", "data/positioning/naaim_exposure.parquet", "date", 14, "excel",
@@ -216,7 +227,7 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
                 ("kalshi", ad.snapshot_kalshi),
                 ("kxfed", ad.snapshot_kxfed),               # T-290 d2 rate-path
                 ("fred_rate_path", ad.pull_fred_rate_path),  # T-290 d2 resolution
-                ("cef", ad.snapshot_cef),                     # T-334 CEF discount panel
+                # T-334 CEF panel RETIRED 2026-11-19 (see _RETIRED_CEF): no longer pulled.
                 ("form4", ad.pull_form4_index),               # T-334 EDGAR Form 4 index
                 ("usaspending", ad.pull_usaspending),         # T-334 federal awards
             ])

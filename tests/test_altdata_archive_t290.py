@@ -118,7 +118,7 @@ class TestRunArchive:
         # no snapshot parquets on disk at all → zero fresh rows everywhere
         res = aa.run_altdata_archive(str(tmp_path))
         assert res.snapshot_degraded is True
-        assert res.fresh_rows == {"kalshi": 0, "kxfed": 0, "polymarket": 0, "cef": 0}
+        assert res.fresh_rows == {"kalshi": 0, "kxfed": 0, "polymarket": 0}
         assert "ZERO market-snapshot" in res.reason
 
     def test_fresh_rows_defeat_dedup_blindness(self, monkeypatch, tmp_path):
@@ -192,12 +192,42 @@ class TestFeedHealthGate:
         assert all(v["ok"] is False for v in detail.values() if not v.get("exempt"))
 
     def test_fresh_feed_within_budget_passes(self, tmp_path):
-        p = tmp_path / "data/macro_data/alt/cef_daily.parquet"
+        # 2026-11-19: was the CEF panel, now RETIRED (exempt); any live snapshot feed serves.
+        p = tmp_path / "data/macro_data/alt/polymarket_snapshots.parquet"
         p.parent.mkdir(parents=True, exist_ok=True)
         today = pd.Timestamp.now().strftime("%Y-%m-%d")
-        pd.DataFrame({"snap_date": [today], "Ticker": ["X"]}).to_parquet(p, index=False)
+        pd.DataFrame({"snap_date": [today], "id": ["X"]}).to_parquet(p, index=False)
         detail, _ = aa.assess_feed_health(tmp_path)
-        assert detail["cef"]["ok"] is True and detail["cef"]["age_days"] == 0
+        assert detail["polymarket"]["ok"] is True and detail["polymarket"]["age_days"] == 0
+
+    # ---- 2026-11-19: the two alarms that cried wolf every day ---------------- #
+    def test_cef_is_retired_not_gated_and_not_pulled(self, monkeypatch, tmp_path):
+        """The CEF source died 2026-10-19 and its only consumer (T-379) closed, so the
+        panel left the same-day snapshot list (the local verifier's exit-1 every day),
+        is EXEMPT with a reason in the cadence gate, and is no longer pulled."""
+        assert "cef" not in {s for s, *_ in aa._SNAPSHOT_FRESHNESS}
+        exempt = {n: e for n, *_rest, e in aa._FEED_HEALTH}
+        assert exempt["cef"] and exempt["cef"].startswith("RETIRED 2026-11-19")
+        import scripts.archive_altdata_t136 as ad
+        TestRunArchive._patch_archivers(TestRunArchive(), monkeypatch)
+
+        def must_not_run():
+            raise AssertionError("the retired CEF pull ran")
+        monkeypatch.setattr(ad, "snapshot_cef", must_not_run)
+        res = aa.run_altdata_archive(str(tmp_path))
+        assert not any(r.startswith("[D] cef:") for r in res.reports)
+        assert "cef" not in res.fresh_rows and res.feed_health["cef"].get("exempt")
+
+    def test_credit_oas_is_local_only_exempt_in_the_cloud_gate(self, tmp_path):
+        """The cloud pulse never pulls credit OAS, so in-container the gate read it
+        'no-date' on every run — a permanent degraded flag. It is exempt WITH a reason."""
+        detail, stale = aa.assess_feed_health(tmp_path)          # nothing on disk
+        assert detail["credit_oas"]["ok"] is True and detail["credit_oas"]["exempt"]
+        assert not any(s.startswith("credit_oas") for s in stale)
+
+    def test_every_exempt_feed_states_its_reason(self):
+        for name, *_rest, exempt in aa._FEED_HEALTH:
+            assert exempt is None or (isinstance(exempt, str) and len(exempt) > 40), name
 
     def test_excel_serial_dates_are_ageable(self, tmp_path):
         """Excel serials must parse to a real date. Tested against `_newest` DIRECTLY:
