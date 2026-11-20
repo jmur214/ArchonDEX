@@ -162,6 +162,7 @@ class ConfigError(RuntimeError):
 
 @dataclass(frozen=True)
 class UnderlyingSpec:
+    """One declared underlying; an index declares a price proxy and may have no IV."""
     symbol: str
     kind: str
     price_proxy: Optional[str] = None
@@ -170,6 +171,7 @@ class UnderlyingSpec:
 
 @dataclass(frozen=True)
 class ArchiveConfig:
+    """The validated universe config (see config/options_archive_universe.json)."""
     underlyings: tuple[UnderlyingSpec, ...]
     feed: str
     strike_band: float
@@ -418,6 +420,7 @@ def real_quote_mask(df: pd.DataFrame, no_iv: Collection[str] = ()) -> pd.Series:
 
 @dataclass(frozen=True)
 class Verdict:
+    """The day's judgement: status, whether to write, and the coverage detail."""
     status: str                      # "OK" | "FAILED"
     write: bool
     n_rows: int
@@ -559,6 +562,8 @@ def write_day(df: pd.DataFrame, out_dir: Path, snap_date: date) -> tuple[Path, i
 # ───────────────────────────── HTTP ─────────────────────────────
 
 class ApiError(RuntimeError):
+    """An Alpaca call failed for good (status + the first 200 bytes of the body)."""
+
     def __init__(self, status: Optional[int], message: str) -> None:
         super().__init__(f"HTTP {status}: {message}" if status else message)
         self.status = status
@@ -709,6 +714,7 @@ class AlpacaReadClient:
 
 @dataclass
 class RefPrice:
+    """The band/bound reference and the stored underlying fields for one underlying."""
     ref_price: float
     ref_source: str
     underlying_price: float
@@ -718,6 +724,7 @@ class RefPrice:
 
 @dataclass
 class UnderlyingResult:
+    """One underlying's rows plus what was expected, returned, and any error."""
     symbol: str
     rows: pd.DataFrame = field(default_factory=pd.DataFrame)
     expiries: list[date] = field(default_factory=list)
@@ -728,6 +735,7 @@ class UnderlyingResult:
 
 @dataclass
 class RunOutcome:
+    """A run's exit code, status, one-line message and its run-log record."""
     exit_code: int
     status: str
     message: str
@@ -833,6 +841,7 @@ def append_run_log(out_dir: Path, record: Mapping[str, Any]) -> None:
 
 def run_archive(cfg: ArchiveConfig, client: AlpacaReadClient, out_dir: Path,
                 now_utc: Optional[datetime] = None) -> RunOutcome:
+    """One archive run: calendar gate, reference prices, every underlying, judge, write."""
     t0 = time.monotonic()
     now_utc = now_utc or datetime.now(timezone.utc)
     snap_date = now_utc.astimezone(ET).date()

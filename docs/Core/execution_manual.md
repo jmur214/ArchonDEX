@@ -1281,7 +1281,8 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 ```bash
 # Freshness verifier — did TODAY's snapshot rows actually land? (The T-136
 # archivers exit 0 unconditionally; this is the real failure gate.)
-# rc 0 = all 24/7 sources fresh; 1 = zero-row source(s); 2 = verifier broke.
+# rc 0 = all 24/7 sources fresh; 1 = zero-row source(s) or the T-416 options check
+# failed; 2 = verifier broke.
 .venv/bin/python scripts/verify_altdata_snapshot.py
 
 # The wrapper runs it automatically after both archivers and alarms on ANY
@@ -1290,6 +1291,37 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 # NOTE: the launchd job is PERMANENT (canonical ~EOD 18:30 ET local series);
 # the cloud pulse's 09:45 ET capture is a separate pre-open series on S3.
 # Do NOT retire one into the other (program-doc amendment 2026-07-08).
+```
+
+### Options snapshot archive (T-416, 2026-11-20) — our own quotes + IV history, forward
+
+```bash
+# Daily snapshot of option quotes, last trade, implied vol, greeks and OCC open interest
+# for the universe in config/options_archive_universe.json (SPY, QQQ, IWM, XSP + 45 large
+# S&P names; 4 weekly + 2 monthly expiries; strikes within ±20 % of the delayed-SIP price),
+# from Alpaca's FREE "indicative" feed (OPRA is HTTP 403 on this account). GET-only.
+# Output: data/macro_data/options/options_snapshot_YYYY-MM-DD.parquet (one per ET session,
+# zstd, fixed schema, deduped on (snap_date, contract)) + one JSON line per run in
+# data/macro_data/options/_archive_runs.jsonl. Keys: env, else --env-file (default
+# <repo>/.env); never printed. rc 0 = OK or SKIP (non-trading day), 1 = FAILED (zero real
+# quotes -> nothing written; coverage < 90 % -> rows kept), 2 = broken (keys/config/crash).
+.venv/bin/python scripts/archive_options_snapshots.py
+
+# Smoke into a scratch dir (NEVER data/). From an agent worktree pass the main .env:
+.venv/bin/python scripts/archive_options_snapshots.py --out-dir /tmp/opt_smoke \
+    --env-file /Users/jacksonmurphy/Dev/trading_machine-2/.env
+#   --underlyings SPY,AAPL,XSP  a declared SUBSET (it becomes the coverage denominator)
+#   --config PATH               a different universe file
+
+# Store check only (no API call): re-judges the latest session's file BY CONTENT with the
+# real-quote rule; on a weekend/holiday it checks the previous session. rc 0 / 1.
+.venv/bin/python scripts/archive_options_snapshots.py --verify
+
+# Scheduled path: run_altdata_archivers.sh runs it (rc printed as options=<rc>, its own
+# term in the ALTDATA_ARCHIVER_FAILED condition; the drill forces it to 99) BEFORE
+# verify_altdata_snapshot.py, whose LOCAL-ONLY options check runs the same --verify logic.
+# The cloud paper path is unchanged (paper_trader/altdata_archive.py lists untouched).
+# Read the store:  pd.read_parquet("data/macro_data/options")  (the run log is skipped)
 ```
 
 ### THIRD-STREAM CANDIDATE BATTERY — same-day $0 verdict (2026-08-25, T-313 formalized)

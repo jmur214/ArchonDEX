@@ -229,6 +229,52 @@
 - **Function `pull_credit_spread_oas()`**: Deep ICE BofA OAS history: recover from Wayback (once), then append the live
 - **Function `main()`**: No docstring
 
+### `archive_options_snapshots.py`
+**Module Docstring:** scripts/archive_options_snapshots.py
+- **Class `ConfigError`**: The universe config is missing or malformed: the run cannot know what to expect.
+- **Class `UnderlyingSpec`**: One declared underlying; an index declares a price proxy and may have no IV.
+- **Class `ArchiveConfig`**: The validated universe config (see config/options_archive_universe.json).
+  - `def declared()`
+  - `def no_iv()`
+  - `def subset()`: The same rules on a declared subset (a smoke run); the subset is the denominator.
+- **Class `Verdict`**: The day's judgement: status, whether to write, and the coverage detail.
+- **Class `ApiError`**: An Alpaca call failed for good (status + the first 200 bytes of the body).
+  - `def __init__()`
+- **Class `AuthError`**: 401: the keys are wrong — every later call would fail the same way.
+- **Class `AlpacaReadClient`**: GET-only Alpaca client: per-host pacing under the measured limits, retries with
+  - `def __init__()`
+  - `def get()`
+  - `def calendar()`
+  - `def stock_snapshots()`
+  - `def contracts()`
+  - `def chain()`
+- **Class `RefPrice`**: The band/bound reference and the stored underlying fields for one underlying.
+- **Class `UnderlyingResult`**: One underlying's rows plus what was expected, returned, and any error.
+- **Class `RunOutcome`**: A run's exit code, status, one-line message and its run-log record.
+- **Function `load_config()`**: Parse and validate the universe config. Every malformation is a ConfigError.
+- **Function `load_keys()`**: Alpaca keys from the process environment, else from ``env_file`` (read, not loaded
+- **Function `nyse_holidays()`**: Full-day NYSE closures by rule (the offline fallback; Alpaca's calendar is primary
+- **Function `is_trading_day_rules()`**: No docstring
+- **Function `previous_trading_day_rules()`**: The latest rule-based trading day strictly before ``d``.
+- **Function `select_expiries()`**: The next ``n_weekly`` weekly expiries, then the next ``n_monthly`` monthlies.
+- **Function `parse_occ()`**: Vectorized OCC symbol parse: root (1-6 chars), YYMMDD, C/P, strike x1000 (8 digits).
+- **Function `real_quote_mask()`**: A row is a REAL quote only when its values are usable, never merely present:
+- **Function `judge()`**: Fail closed: zero real quotes -> FAILED and nothing written; coverage below the floor
+- **Function `empty_frame()`**: No docstring
+- **Function `snapshots_frame()`**: Flatten an Alpaca option-snapshot payload ({OCC symbol: snapshot}) into stored columns.
+- **Function `contracts_frame()`**: The trading API's option_contracts listing -> contract, root, expiry, style, OI.
+- **Function `to_table()`**: Cast a frame to the fixed SCHEMA (raises on a column that cannot be cast).
+- **Function `dedup()`**: Union and dedup on (snap_date, contract): a real-quote row beats a non-real one, then
+- **Function `day_path()`**: No docstring
+- **Function `write_day()`**: Merge with the session's existing file (dedup), write atomically (temp + os.replace),
+- **Function `reference_prices()`**: Delayed-SIP latest trade (and this session's daily close) for every stock/ETF and
+- **Function `fetch_underlying()`**: Contracts (expiries + OI) then one chain call per selected expiry. Every API error is
+- **Function `trading_day_status()`**: (is a trading day, source, note). Alpaca's calendar first; the rules on its failure.
+- **Function `append_run_log()`**: No docstring
+- **Function `run_archive()`**: One archive run: calendar gate, reference prices, every underlying, judge, write.
+- **Function `verify_store()`**: Re-judge the latest session's file BY CONTENT (the rule recomputed from raw columns,
+- **Function `main()`**: No docstring
+
 ### `archive_positioning_t136.py`
 **Module Docstring:** scripts/archive_positioning_t136.py
 - **Function `pull_regsho_short_volume()`**: No docstring
