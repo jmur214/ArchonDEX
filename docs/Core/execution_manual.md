@@ -2125,13 +2125,17 @@ the tests.
   - T-399 corrected static 2× on T-306;
   - T-287 buy-hold and `schwab_like`.
 - It then runs the arms. The output is `results.json` plus `results.md5` (deterministic, seed 409).
+- Since revision 4:
+  - the inputs must match `INPUT_MD5` in the code: a re-fetch will not, so use the frozen archive;
+  - a fifth control, the study path vs an independent recurrence, halts on a difference above $0.01;
+  - the full run REQUIRES both `--jst` and `--decision-row` (the owner's row, recorded in the frozen prereg).
 
 ```bash
 python -m scripts.t409_real_money_home fetch --inputs <scratch>/t409/inputs \
     --shiller-csv <repo>/data/macro/shiller_ie_data.csv --env-file <repo>/.env --jst
 python -m scripts.t409_real_money_home run --inputs <scratch>/t409/inputs --out <scratch>/t409/smoke \
     --control-root <repo> --smoke --jst      # plumbing only: 10-year cohorts on 1985+, 16 paths
-python -m scripts.t409_real_money_home run --inputs <scratch>/t409/inputs --out <scratch>/t409/run_A \
-    --control-root <repo> --jst              # THE FULL RUN — only after the freeze; run twice, md5 must match
+python -m scripts.t409_real_money_home run --inputs <frozen-inputs-dir> --out <scratch>/t409/run_A \
+    --control-root <repo> --jst --decision-row "<the owner's row, e.g. h=-0.02>"   # THE FULL RUN — only after the freeze; run twice, md5 must match
 python -m pytest tests/test_t409_real_money_home.py -q   # T409_CONTROL_ROOT=<repo> adds the data-backed control test
 ```

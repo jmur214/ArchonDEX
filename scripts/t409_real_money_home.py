@@ -101,6 +101,16 @@ INPUT_NAMES = {"french": "F-F_Research_Data_Factors_daily_CSV.zip", "cpi": "fred
 FRENCH_URL = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
 JST_URL = "https://www.macrohistory.net/app/download/9834512569/JSTdatasetR6.xlsx"
 MAX_DP_CARRY_MONTHS = 30
+# The frozen inputs (fetched 2026-11-20). A re-fetch will NOT reproduce them: French updates monthly and FRED
+# adds a month of CPI each month. `run` halts unless every input file has exactly this md5.
+INPUT_MD5 = {"french": "98fad1a66fe8c9e792fcd013b979b962", "cpi": "74ac80ebee616f81dd98d5ec2a5934e1",
+             "shiller": "6e1e19fa864401cf66f8b022619efec1", "jst": "76884a335991ece55366255bd629d312"}
+CANDIDATES_A = ("K0", "K1")
+CANDIDATES_B = ("K1", "B1", "B2", "B3")
+DEFAULT_ARM = "K1"
+STUDY_CONTROL_START = "1990-01"
+STUDY_CONTROL_MONTHS = 120
+STUDY_CONTROL_TOL = 0.01
 
 
 class InputError(RuntimeError):
@@ -121,15 +131,16 @@ class Owner:
     g: float = 0.15                  # embedded gain fraction of the legacy robo balance (grid 0, .15, .30)
     roth0: float = 15_000.0          # owner: $10-25k
     c_taxable_month: float = 500.0   # automatic contribution, continues through every fall
-    roth_contrib: float = 7_500.0    # each January in an earned-income year
-    roth_in_school: bool = False
+    roth_contrib: float = 7_500.0    # each January of a contribution year
+    roth_in_school: bool = True      # rev. 2 §4.4: a school year contributes iff its wages >= the contribution
+    roth_post_school: bool = True    # † backdoor Roth: $160k sits inside the 2026 single $153k-$168k phase-out
     school_start: int = 3            # 1-based year of the first school year (owner: more than a year away)
     school_years: int = 3
     wages_pre: float = 60_000.0
     wages_school: float = 8_000.0
     wages_post: float = 160_000.0
+    liq_wages: float = 160_000.0     # wages in the year-40 liquidation year; the sale goes through annual_tax
     state_rate: float = 0.05
-    liq_fed: float = 0.15            # federal rate on the taxable account's gain at year 40
     horizon_years: int = 40
     real_discount: float = 0.01
     tlh_theta: float = TLH_THETA            # robo harvest threshold (Schwab does not disclose it)
@@ -157,8 +168,10 @@ class Config:
         ("contrib_1000", (("c_taxable_month", 1_000.0),)), ("tlh_theta_3pct", (("tlh_theta", 0.03),)),
         ("tlh_theta_10pct", (("tlh_theta", 0.10),)), ("robo_rebal_0", (("robo_rebal", 0.0),)),
         ("robo_rebal_5pct", (("robo_rebal", 0.05),)), ("step_up", (("liquidate", False),)),
+        ("no_roth_post_school", (("roth_post_school", False),)), ("no_roth_in_school", (("roth_in_school", False),)),
     )
     owner_sensitivity_rows: Tuple[float, ...] = (0.0, -0.02)
+    decision_row: Optional[str] = None       # the owner's row, fixed BEFORE the run and recorded in the frozen prereg
     seed: int = SEED
     smoke: bool = False
 
@@ -190,7 +203,8 @@ def require_file(path: Path, expected_md5: Optional[str] = None) -> Path:
     return path
 
 
-def read_manifest(inputs: Path, need: Iterable[str]) -> Dict[str, Path]:
+def read_manifest(inputs: Path, need: Iterable[str],
+                  pinned: Optional[Dict[str, str]] = INPUT_MD5) -> Dict[str, Path]:
     man_path = require_file(inputs / "manifest.json")
     try:
         man = json.loads(man_path.read_text())
@@ -202,6 +216,8 @@ def read_manifest(inputs: Path, need: Iterable[str]) -> Dict[str, Path]:
         if name not in man.get("files", {}):
             raise InputError(f"manifest lacks {name}")
         out[key] = require_file(inputs / name, man["files"][name])
+        if pinned is not None and md5_of(out[key]) != pinned[key]:
+            raise InputError(f"{name} is not the frozen input: md5 {md5_of(out[key])} != {pinned[key]}")
     return out
 
 
@@ -396,7 +412,7 @@ def control_t287(root: Path) -> Dict[str, float]:
     # inner join / T-284's holey calendar, the T-297 defect class). Calendar-complete versions put the
     # bond and gold legs on SPY's calendar with a zero return on their missing days.
     end = pd.Timestamp("2025-12-31")
-    spy_r = (spy.pct_change() - er["SPY"] / 252.0).dropna()
+    spy_r = spy.pct_change().dropna()          # like for like: T-284's bh_spy curve carries no fund fee
     spy_r = spy_r[spy_r.index <= end]
     full_closes = {k: (v.reindex(spy.index).ffill() if k != "SPY" else v) for k, v in closes.items()}
     schwab_full = robo_daily(full_closes, {"SPY": 0.45, "BOND": 0.30, "GOLD": 0.05, "_cash": 0.20}, er, d3)
@@ -492,7 +508,10 @@ def stationary_bootstrap(n_obs: int, length: int, n_paths: int, block_mean: int,
 # Lots and tax
 # ----------------------------------------------------------------------------------------------------
 class LotBook:
-    """Tax lots of one fund in the taxable account. All lots share the fund's price-only index."""
+    """Tax lots of one fund in the taxable account. All lots share the fund's price-only index.
+
+    `wash_carry` holds losses disallowed by the wash-sale rule (a repurchase within 30 days); they are added to
+    the basis of the next purchase (the replacement), and count against the gain if no purchase follows."""
 
     def __init__(self, cap: int = 256) -> None:
         self.shares = np.zeros(cap)
@@ -501,6 +520,7 @@ class LotBook:
         self.n = 0
         self.total_shares = 0.0
         self.total_basis = 0.0
+        self.wash_carry = 0.0
 
     def _slot(self, t: int) -> int:
         if self.n and self.month[self.n - 1] == t and self.shares[self.n - 1] > 0:
@@ -522,6 +542,9 @@ class LotBook:
         i = self._slot(t)
         sh = dollars / price
         b = dollars if basis is None else basis
+        if self.wash_carry > 0:
+            b += self.wash_carry
+            self.wash_carry = 0.0
         self.shares[i] += sh
         self.basis[i] += b
         self.total_shares += sh
@@ -531,10 +554,12 @@ class LotBook:
         return self.total_shares * price
 
     def gain(self, price: float) -> float:
-        return self.value(price) - self.total_basis
+        return self.value(price) - self.total_basis - self.wash_carry
 
-    def _take(self, order: np.ndarray, dollars: float, price: float, t: int) -> Tuple[float, float, float]:
-        """Sell `dollars` taking lots in `order`; returns (proceeds, st_gain, lt_gain)."""
+    def _take(self, order: np.ndarray, dollars: float, price: float, t: int,
+              wash: bool = False) -> Tuple[float, float, float]:
+        """Sell `dollars` taking lots in `order`; returns (proceeds, st_gain, lt_gain). With `wash`, a lot's
+        loss is disallowed (a repurchase follows within 30 days) and moves to `wash_carry`."""
         vals = self.shares[order] * price
         cum = np.cumsum(vals)
         k = int(np.searchsorted(cum, dollars, side="left"))
@@ -550,7 +575,9 @@ class LotBook:
             sh = self.shares[idx] * f
             b = self.basis[idx] * f
             gain = sh * price - b
-            if t - self.month[idx] >= 12:
+            if wash and gain < 0:
+                self.wash_carry += -gain
+            elif t - self.month[idx] >= 12:
                 lt += gain
             else:
                 st += gain
@@ -564,14 +591,14 @@ class LotBook:
     def live(self) -> np.ndarray:
         return np.nonzero(self.shares[: self.n] > 1e-12)[0]
 
-    def sell_hifo(self, dollars: float, price: float, t: int) -> Tuple[float, float, float]:
+    def sell_hifo(self, dollars: float, price: float, t: int, wash: bool = False) -> Tuple[float, float, float]:
         """Highest basis per share first (the lowest gain per dollar sold)."""
         live = self.live()
         if len(live) == 0 or dollars <= 0:
             return 0.0, 0.0, 0.0
         bps = self.basis[live] / self.shares[live]
         order = live[np.argsort(-bps, kind="stable")]
-        return self._take(order, min(dollars, self.value(price)), price, t)
+        return self._take(order, min(dollars, self.value(price)), price, t, wash)
 
     def harvest(self, price: float, t: int, theta: float) -> Tuple[float, float]:
         """Realise every lot whose value is >= theta below its basis; the replacement keeps the shares."""
@@ -590,6 +617,37 @@ class LotBook:
             self.total_basis += self.shares[i] * price - self.basis[i]
             self.basis[i] = self.shares[i] * price
             self.month[i] = t
+        return st, lt
+
+    def realize_gains_prorata(self, frac: float, price: float, t: int) -> Tuple[float, float]:
+        """The robo's sell-and-rebuy: `frac` of every lot is sold and immediately rebought. A gain lot realises
+        frac x its gain (the rebought shares start a new lot at value). A loss lot changes nothing: a loss on an
+        immediate rebuy is a wash sale and its basis and holding period carry to the replacement."""
+        live = self.live()
+        st = lt = moved = 0.0
+        if frac <= 0 or len(live) == 0:
+            return 0.0, 0.0
+        for i in live:
+            v, b = self.shares[i] * price, self.basis[i]
+            if v <= b:
+                continue
+            sh, bf = self.shares[i] * frac, b * frac
+            g = sh * price - bf
+            if t - self.month[i] >= 12:
+                lt += g
+            else:
+                st += g
+            self.shares[i] -= sh
+            self.basis[i] -= bf
+            self.total_shares -= sh
+            self.total_basis -= bf
+            moved += sh * price
+        if moved > 0:
+            j = self._slot(t)
+            self.shares[j] += moved / price
+            self.basis[j] += moved
+            self.total_shares += moved / price
+            self.total_basis += moved
         return st, lt
 
     def realize_lt_gains_upto(self, room: float, price: float, t: int) -> Tuple[float, float]:
@@ -643,61 +701,85 @@ class TaxYear:
 
 def annual_tax(y: TaxYear, wages: float, idx: float, state: float,
                st_cf: float, lt_cf: float) -> Tuple[float, float, float, Dict[str, float]]:
-    """Incremental tax caused by the taxable account in one year (nominal).
+    """Incremental tax caused by the taxable account in one year (nominal), Form 1040 order.
 
-    Returns (tax, new_st_cf, new_lt_cf, detail). Wages' own tax is common to every arm and excluded;
-    the $3,000 loss offset against wages counts (negative tax). Brackets, the standard deduction and the
-    0 %/15 % thresholds are CPI-indexed by `idx`; NIIT's $200,000 and the $3,000 offset are nominal-fixed.
+    Taxable income may be negative before its zero floor (wages below the standard deduction shelter
+    investment income). Netting and carryovers follow Schedule D and its Capital Loss Carryover Worksheet
+    (the $3,000 deduction is not used up by a year whose taxable income is negative). Preferential income
+    follows the Qualified Dividends and Capital Gain Tax Worksheet (including its "smaller of" step). NIIT
+    (Form 8960) counts the capped $3,000 loss. Wages' own tax is common to every arm and excluded.
+    Brackets, the standard deduction and the 0 %/15 % thresholds are CPI-indexed by `idx`; the $200,000
+    NIIT threshold and the $3,000 deduction are nominal-fixed. Returns (tax, new_st_cf, new_lt_cf, detail).
     """
     net_st = y.st - st_cf
     net_lt = y.lt - lt_cf
     total = net_st + net_lt
-    st_pos = lt_pos = ded = 0.0
-    new_st_cf = new_lt_cf = 0.0
+    std = STD_DED_2026 * idx
+    ded = 0.0
     if total >= 0:
         if net_st < 0:
-            lt_pos = total
+            st_pos, lt_pos = 0.0, total
         elif net_lt < 0:
-            st_pos = total
+            st_pos, lt_pos = total, 0.0
         else:
             st_pos, lt_pos = net_st, net_lt
+        cap_line = st_pos + lt_pos
     else:
-        loss = -total
-        ded = min(LOSS_OFFSET, loss)
-        if net_st < 0 and net_lt < 0:
-            st_loss, lt_loss = -net_st, -net_lt
-            d1 = min(ded, st_loss)
-            new_st_cf, new_lt_cf = st_loss - d1, lt_loss - (ded - d1)
-        elif net_st < 0:
-            new_st_cf = loss - ded
-        else:
-            new_lt_cf = loss - ded
-    base = max(0.0, wages - STD_DED_2026 * idx)
-    ti_ord = max(0.0, base + y.ordinary + st_pos - ded)
-    fed_ord = bracket_tax(ti_ord, idx) - bracket_tax(base, idx)
-    pref = max(0.0, y.qual) + lt_pos
+        st_pos = lt_pos = 0.0
+        ded = min(LOSS_OFFSET, -total)
+        cap_line = -ded
+    qual = max(0.0, y.qual)
+    other = y.ordinary + qual
+    ti_raw = wages + other + cap_line - std
+    ti = max(0.0, ti_raw)
+    new_st_cf = new_lt_cf = 0.0
+    used = 0.0
+    if total < 0:
+        used = min(ded, max(0.0, ti_raw + ded))
+        st_loss, lt_loss = max(0.0, -net_st), max(0.0, -net_lt)
+        st_gain, lt_gain = max(0.0, net_st), max(0.0, net_lt)
+        new_st_cf = max(0.0, st_loss - (used + lt_gain))
+        new_lt_cf = max(0.0, lt_loss - (st_gain + max(0.0, used - st_loss)))
+    pref = min(qual + lt_pos, ti)
+    ord_ti = ti - pref
     z0, z15 = ZERO_RATE_TOP_2026 * idx, FIFTEEN_TOP_2026 * idx
-    at0 = min(pref, max(0.0, z0 - ti_ord))
-    at15 = min(pref - at0, max(0.0, z15 - max(ti_ord, z0)))
-    at20 = pref - at0 - at15
+    at0 = min(ti, z0) - min(ord_ti, min(ti, z0))
+    rest = pref - at0
+    at15 = min(rest, max(0.0, min(ti, z15) - (ord_ti + at0)))
+    at20 = rest - at15
     pref_tax = 0.15 * at15 + 0.20 * at20
-    nii = max(0.0, y.ordinary + y.qual + st_pos + lt_pos)
-    magi = wages + y.ordinary + y.qual + st_pos + lt_pos - ded
+    base_ti = max(0.0, wages - std)
+    fed_ord = bracket_tax(ord_ti, idx) - bracket_tax(base_ti, idx)
+    nii = max(0.0, other + cap_line)
+    magi = wages + other + cap_line
     niit = 0.038 * min(nii, max(0.0, magi - NIIT_THRESHOLD))
-    st_tax = state * max(0.0, y.ordinary + y.qual + st_pos + lt_pos - ded)
+    st_tax = state * max(0.0, other + cap_line)
     tax = fed_ord + pref_tax + niit + st_tax
-    detail = {"fed_ord": fed_ord, "pref": pref_tax, "niit": niit, "state": st_tax, "at0": at0,
-              "deduction": ded}
+    detail = {"fed_ord": fed_ord, "pref": pref_tax, "fed": fed_ord + pref_tax, "niit": niit, "state": st_tax,
+              "at0": at0, "deduction": ded, "deduction_used": used, "taxable_income": ti}
     return tax, new_st_cf, new_lt_cf, detail
 
 
 def zero_rate_room(y: TaxYear, wages: float, idx: float, st_cf: float, lt_cf: float) -> float:
-    """Long-term gain that could still be realised this year at 0 % federal (before state tax)."""
-    base = max(0.0, wages - STD_DED_2026 * idx)
-    net_st = max(0.0, y.st - st_cf)
-    ti_ord = base + y.ordinary + net_st
-    pref = max(0.0, y.qual) + max(0.0, y.lt - lt_cf)
-    return max(0.0, ZERO_RATE_TOP_2026 * idx - ti_ord - pref)
+    """Largest extra long-term gain this year that adds no federal tax (income tax + NIIT), found by bisection
+    on `annual_tax` itself, so it counts the unused standard deduction and any loss being absorbed."""
+    def fed(x: float) -> float:
+        _, _, _, d = annual_tax(TaxYear(qual=y.qual, ordinary=y.ordinary, st=y.st, lt=y.lt + x),
+                                wages, idx, 0.0, st_cf, lt_cf)
+        return d["fed"] + d["niit"]
+
+    base = fed(0.0)
+    hi = (ZERO_RATE_TOP_2026 + STD_DED_2026) * idx + abs(y.st) + abs(y.lt) + st_cf + lt_cf + LOSS_OFFSET + 1.0
+    if fed(hi) <= base + 1e-6:
+        return hi
+    lo = 0.0
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        if fed(mid) <= base + 1e-6:
+            lo = mid
+        else:
+            hi = mid
+    return lo
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -756,13 +838,23 @@ def make_path(arrays: Dict[str, np.ndarray]) -> PathInputs:
     return PathInputs(r=r, dist=dist, price=price, cpi_idx=cpi_idx, cash_robo=arrays["cash_robo"])
 
 
+def roth_contribution(owner: Owner, year0: int) -> float:
+    """Real Roth contribution in January of 0-based year `year0` (prereg rev. 4 §2)."""
+    ph = phase_of(owner, year0)
+    if ph == "school":
+        ok = owner.roth_in_school and owner.wages_school >= owner.roth_contrib
+        return owner.roth_contrib if ok else 0.0
+    if ph == "post" and not owner.roth_post_school:
+        return 0.0
+    return owner.roth_contrib
+
+
 def contribution_schedule(owner: Owner, months: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Real contributions per month (taxable, Roth) and the real PV of all contributions after month t."""
     tax_c = np.full(months, owner.c_taxable_month)
     roth_c = np.zeros(months)
     for t in range(0, months, 12):
-        if phase_of(owner, t // 12) != "school" or owner.roth_in_school:
-            roth_c[t] = owner.roth_contrib
+        roth_c[t] = roth_contribution(owner, t // 12)
     v = (1.0 + owner.real_discount) ** (-1.0 / 12.0)
     flows = tax_c + roth_c
     pv_after = np.zeros(months)
@@ -796,7 +888,7 @@ class ArmResult:
     below_contrib_y20: bool
     tlh_years: int
     zero_room_used_real: float
-    delever_tax_real: float
+    delever_gain_real: float
 
 
 def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
@@ -837,7 +929,7 @@ def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
     tlh_years = 0
     tlh_active_year = False
     room_used = 0.0
-    delever_tax = 0.0
+    delever_gain = 0.0
 
     def taxable_value(t1: int) -> float:
         return (books["voo"].value(P["voo"][t1]) + books["robo"].value(P["robo"][t1])
@@ -883,14 +975,14 @@ def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
                     books["sso"].buy(use, P["sso"][t], t)
                     ct -= use
                     rest = delta - use
-                    if rest > 0:
-                        pr, st, lt = books["voo"].sell_hifo(rest, P["voo"][t], t)
+                    if rest > 0:  # VOO is bought every month: a VOO loss here is a wash sale
+                        pr, st, lt = books["voo"].sell_hifo(rest, P["voo"][t], t, wash=True)
                         realize(year, st, lt)
                         books["sso"].buy(pr * (1 - SLIP), P["sso"][t], t)
                 elif delta < 0:
                     pr, st, lt = books["sso"].sell_hifo(-delta, P["sso"][t], t)
                     realize(year, st, lt)
-                    delever_tax += max(0.0, st + lt) * (owner.liq_fed + owner.state_rate) / idx[t]
+                    delever_gain += (st + lt) / idx[t]
                     books["voo"].buy(pr * (1 - SLIP), P["voo"][t], t)
             else:
                 k_max = EXPOSURE[lev]
@@ -930,14 +1022,12 @@ def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
                 realize(year, st, lt)
                 tlh_active_year = True
             if dec:
-                pr, st, lt = books["robo"].sell_hifo(owner.robo_rebal * books["robo"].value(P["robo"][t + 1]),
-                                                     P["robo"][t + 1], t)
+                st, lt = books["robo"].realize_gains_prorata(owner.robo_rebal, P["robo"][t + 1], t)
                 realize(year, st, lt)
-                books["robo"].buy(pr, P["robo"][t + 1], t)
                 tot = taxable_value(t + 1)
                 gap = ROBO_CASH * tot - robo_cash
-                if gap > 0:
-                    pr, st, lt = books["robo"].sell_hifo(gap, P["robo"][t + 1], t)
+                if gap > 0:  # new money buys the robo's ETFs every month: a loss here is a wash sale
+                    pr, st, lt = books["robo"].sell_hifo(gap, P["robo"][t + 1], t, wash=True)
                     realize(year, st, lt)
                     robo_cash += pr
                 elif gap < 0:
@@ -972,7 +1062,7 @@ def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
                 for f in ("voo", "robo", "sso"):
                     if due <= 1e-9:
                         break
-                    pr, st, lt = books[f].sell_hifo(due, P[f][t + 1], t)
+                    pr, st, lt = books[f].sell_hifo(due, P[f][t + 1], t, wash=(f != "sso"))
                     realize(year, st, lt)
                     due -= pr
                 if due > 1e-6:
@@ -990,13 +1080,27 @@ def simulate(arm: Arm, owner: Owner, path: PathInputs) -> ArmResult:
             below20 = True
     t_end = T
     v_tax = taxable_value(t_end)
-    gain = sum(books[f].gain(P[f][t_end]) for f in books) + year.st + year.lt
-    liq = (owner.liq_fed + owner.state_rate) * max(0.0, gain - st_cf - lt_cf) if owner.liquidate else 0.0
+    liq = liquidation_tax(books, P, t_end, year, owner, idx[t_end], st_cf, lt_cf) if owner.liquidate else 0.0
     pre = (v_tax + roth["voo"] + roth[lev]) / idx[t_end]
     after = (v_tax - liq + roth["voo"] + roth[lev]) / idx[t_end]
     return ArmResult(terminal_real=after, pre_tax_real=pre, taxes_real=taxes_real + liq / idx[t_end],
                      max_dd_real=max_dd, below_contrib_y20=below20, tlh_years=tlh_years,
-                     zero_room_used_real=room_used, delever_tax_real=delever_tax)
+                     zero_room_used_real=room_used, delever_gain_real=delever_gain)
+
+
+def liquidation_tax(books: Dict[str, LotBook], P: Dict[str, np.ndarray], t_end: int, year: TaxYear,
+                    owner: Owner, idx: float, st_cf: float, lt_cf: float) -> float:
+    """The year-40 sale of every taxable lot, taxed through `annual_tax` (20 % bracket and NIIT included)
+    together with whatever the last tax payment realised. Mutates the books (the account is sold)."""
+    final = TaxYear(qual=year.qual, ordinary=year.ordinary, st=year.st, lt=year.lt)
+    for f, book in books.items():
+        if book.total_shares > 0:
+            carry = book.wash_carry
+            _, st, lt = book.sell_hifo(book.value(P[f][t_end]), P[f][t_end], t_end)
+            final.st += st
+            final.lt += lt - carry
+    tax, _, _, _ = annual_tax(final, owner.liq_wages * idx, idx, owner.state_rate, st_cf, lt_cf)
+    return tax
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -1018,7 +1122,12 @@ def run_paths(index_paths: np.ndarray, arrays: Dict[str, np.ndarray], owner: Own
     return out
 
 
-def summarize(res: Dict[str, List[ArmResult]], ref: str = "REF") -> Dict[str, Dict[str, float]]:
+def summarize(res: Dict[str, List[ArmResult]], ref: str = "REF", kind: str = "bootstrap",
+              effective_n: Optional[float] = None) -> Dict[str, Dict[str, float]]:
+    """Bootstrap paths carry Monte Carlo SEs and probabilities. Overlapping historical cohorts are NOT
+    independent: they carry shares and the effective number of independent 40-year windows, never an SE."""
+    if kind not in ("bootstrap", "cohort"):
+        raise ValueError(kind)
     w_ref = np.array([r.terminal_real for r in res[ref]])
     out = {}
     for name, rs in res.items():
@@ -1027,57 +1136,87 @@ def summarize(res: Dict[str, List[ArmResult]], ref: str = "REF") -> Dict[str, Di
             raise RuntimeError(f"arm {name}: non-positive or non-finite terminal wealth")
         lw = np.log(w)
         d = lw - np.log(w_ref)
-        sd = float(np.std(d, ddof=1)) if len(d) > 1 else 0.0
-        out[name] = {
-            "median": float(np.median(w)), "mean": float(np.mean(w)),
-            "E_log": float(np.mean(lw)), "E_log_mcse": float(np.std(lw, ddof=1) / math.sqrt(len(lw))) if len(lw) > 1 else 0.0,
-            "dlog_vs_ref_mean": float(np.mean(d)), "dlog_vs_ref_mcse": sd / math.sqrt(len(d)) if len(d) > 1 else 0.0,
-            "CE_gamma2": float(1.0 / np.mean(1.0 / w)),
-            "p_below_ref": float(np.mean(w < w_ref)),
+        row = {
+            "median": float(np.median(w)), "mean": float(np.mean(w)), "E_log": float(np.mean(lw)),
+            "dlog_vs_ref_mean": float(np.mean(d)), "CE_gamma2": float(1.0 / np.mean(1.0 / w)),
             "ratio_p05": float(np.quantile(w / w_ref, 0.05)), "ratio_p50": float(np.quantile(w / w_ref, 0.5)),
             "ratio_p95": float(np.quantile(w / w_ref, 0.95)), "ratio_min": float(np.min(w / w_ref)),
             "max_dd_median": float(np.median([r.max_dd_real for r in rs])),
             "max_dd_p95": float(np.quantile([r.max_dd_real for r in rs], 0.95)),
-            "p_below_contrib_y20": float(np.mean([r.below_contrib_y20 for r in rs])),
             "taxes_real_median": float(np.median([r.taxes_real for r in rs])),
             "tlh_years_median": float(np.median([r.tlh_years for r in rs])),
             "zero_room_used_median": float(np.median([r.zero_room_used_real for r in rs])),
-            "delever_tax_median": float(np.median([r.delever_tax_real for r in rs])),
-            "n": len(rs),
+            "delever_gain_median": float(np.median([r.delever_gain_real for r in rs])),
         }
+        if kind == "bootstrap":
+            n = len(d)
+            row.update({"n_paths": n,
+                        "E_log_mcse": float(np.std(lw, ddof=1) / math.sqrt(n)) if n > 1 else float("nan"),
+                        "dlog_vs_ref_mcse": float(np.std(d, ddof=1) / math.sqrt(n)) if n > 1 else float("nan"),
+                        "p_below_ref": float(np.mean(w < w_ref)),
+                        "p_below_contrib_y20": float(np.mean([r.below_contrib_y20 for r in rs]))})
+        else:
+            row.update({"n_cohorts": len(d), "effective_independent_windows": effective_n,
+                        "share_of_cohorts_below_ref": float(np.mean(w < w_ref)),
+                        "share_of_cohorts_below_contrib_y20": float(np.mean([r.below_contrib_y20 for r in rs]))})
+        out[name] = row
     return out
 
 
 def cohort_index_paths(panel: pd.DataFrame, starts: Sequence[int], months: int) -> Tuple[np.ndarray, List[int]]:
+    """Every pre-registered January start must fit the panel; one that does not HALTS (never a silent skip)."""
     periods = panel.index
-    rows, used = [], []
+    rows = []
     for y in starts:
         p0 = pd.Period(f"{y}-01", freq="M")
         if p0 not in periods:
-            continue
+            raise InputError(f"cohort {y} starts outside the panel {periods[0]}..{periods[-1]}")
         i0 = periods.get_loc(p0)
-        if i0 + months <= len(periods):
-            rows.append(np.arange(i0, i0 + months))
-            used.append(y)
+        if i0 + months > len(periods):
+            raise InputError(f"cohort {y} needs {months} months; the panel ends {periods[-1]}")
+        rows.append(np.arange(i0, i0 + months))
     if not rows:
-        raise InputError("no complete cohort fits the panel")
-    return np.array(rows), used
+        raise InputError("no cohort starts were given")
+    return np.array(rows), list(starts)
 
 
-def choose(summary_row: Dict[str, Dict[str, float]], cohort_row: Dict[str, Dict[str, float]],
-           candidates: Sequence[str], simplest: str, bound: float, tie_extra: float = 0.0) -> Dict[str, object]:
-    """The owner's rule: drop arms whose worst cohort < bound x REF; max E_log; ties -> simplest."""
-    eligible = [a for a in candidates if cohort_row[a]["ratio_min"] >= bound]
-    if not eligible:
-        return {"eligible": [], "choice": None}
-    best = max(eligible, key=lambda a: summary_row[a]["E_log"])
-    if best != simplest and simplest in eligible:
-        diff = summary_row[best]["dlog_vs_ref_mean"] - summary_row[simplest]["dlog_vs_ref_mean"]
-        tol = max(2 * max(summary_row[best]["dlog_vs_ref_mcse"], summary_row[simplest]["dlog_vs_ref_mcse"]), tie_extra)
-        if diff <= tol:
-            best = simplest
-    return {"eligible": eligible, "choice": best,
-            "worst_cohort_ratio": {a: cohort_row[a]["ratio_min"] for a in candidates}}
+def choose(raw: Dict[str, np.ndarray], raw_blocks: Dict[int, Dict[str, np.ndarray]],
+           cohort_unshifted: Dict[str, Dict[str, float]], cohort_row: Optional[Dict[str, Dict[str, float]]],
+           candidates: Sequence[str], default: str, bound: float) -> Dict[str, object]:
+    """The owner's rule (prereg rev. 4 §3), per decision.
+
+    Eligible: worst UNshifted historical cohort >= bound x REF (the row's shifted cohorts are reported).
+    Among eligible arms, in descending E[log W] order, the first whose paired lead over the default exceeds its
+    band is chosen; otherwise the default. Band = max(2 x the paired Monte Carlo SE of (arm - default), the
+    range of that lead across the block-length runs). `raw[a]` are log terminal wealths on the paired paths."""
+    elig = [a for a in candidates if cohort_unshifted[a]["ratio_min"] >= bound]
+    out: Dict[str, object] = {
+        "eligible": elig,
+        "worst_cohort_ratio_unshifted": {a: cohort_unshifted[a]["ratio_min"] for a in candidates},
+        "worst_cohort_ratio_this_row": ({a: cohort_row[a]["ratio_min"] for a in candidates}
+                                        if cohort_row is not None else None),
+        "contrasts": {}}
+    if not elig:
+        out["choice"], out["rule"] = None, "no eligible arm"
+        return out
+    if default not in elig:
+        out["choice"] = max(elig, key=lambda a: float(np.mean(raw[a])))
+        out["rule"] = "default ineligible: highest E_log"
+        return out
+    choice = default
+    for a in sorted((x for x in elig if x != default), key=lambda x: -float(np.mean(raw[x]))):
+        d = raw[a] - raw[default]
+        lead = float(np.mean(d))
+        mcse = float(np.std(d, ddof=1) / math.sqrt(len(d))) if len(d) > 1 else math.inf
+        leads = [lead] + [float(np.mean(rb[a] - rb[default])) for _, rb in sorted(raw_blocks.items())]
+        spread = max(leads) - min(leads)
+        band = max(2.0 * mcse, spread)
+        out["contrasts"][a] = {"lead": lead, "paired_mcse": mcse, "block_leads": leads, "block_spread": spread,
+                               "band": band, "distinct": bool(lead > band)}
+        if lead > band and choice == default:
+            choice = a
+    out["choice"], out["rule"] = choice, "first distinct lead over the default, else the default"
+    return out
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -1229,64 +1368,83 @@ def _round(obj):
     return obj
 
 
+def logw(res: Dict[str, List[ArmResult]]) -> Dict[str, np.ndarray]:
+    return {a: np.log(np.array([r.terminal_real for r in rs])) for a, rs in res.items()}
+
+
 def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataFrame] = None,
           log: Callable[[str], None] = print) -> Dict[str, object]:
     months = cfg.horizon_years * 12
     owner = replace(owner, horizon_years=cfg.horizon_years)
+    if 0.0 not in cfg.rows:
+        raise ValueError("the unshifted row h=0 is required: the loss bound is read on it")
     arrays = panel_arrays(panel)
     coh_ix, coh_used = cohort_index_paths(panel, cfg.cohort_starts, months)
+    eff_n = (coh_used[-1] + cfg.horizon_years - coh_used[0]) / cfg.horizon_years
     rng = np.random.default_rng(cfg.seed)
     boot_ix = stationary_bootstrap(len(panel), months, cfg.n_paths, cfg.block_mean, rng)
     deltas = rng.normal(0.0, cfg.param_se, cfg.n_paths)
-    arms_all = list(ARMS)
-    arms_b = [a for a in ARMS if a.decision in ("ref", "B") or a.name == "K1"]
-    results: Dict[str, object] = {"cohorts": {}, "bootstrap": {}, "param_uncertainty": {}, "block_sensitivity": {}}
-    for h in cfg.rows:
-        rk = f"h={h:+.2f}"
-        results["cohorts"][rk], results["bootstrap"][rk] = {}, {}
+    block_ix = {b: stationary_bootstrap(len(panel), months, cfg.n_paths, b, np.random.default_rng(cfg.seed + b))
+                for b in cfg.block_sensitivity}
+    a_arms = [a for a in ARMS if a.decision in ("ref", "A")]
+    choice_arms = [a for a in ARMS if a.name in ("REF",) + CANDIDATES_A + CANDIDATES_B]
+    rows = ([(f"h={h:+.2f}", h, None) for h in cfg.rows]
+            + [(f"param:h={h:+.2f}", h, deltas) for h in cfg.param_rows])
+    gp = f"g={cfg.g_primary:.2f}"
+    results: Dict[str, object] = {"cohorts": {}, "bootstrap": {}, "block_sensitivity": {}, "owner_sensitivity": {}}
+    raw_boot: Dict[str, Dict[str, np.ndarray]] = {}
+    raw_blocks: Dict[str, Dict[int, Dict[str, np.ndarray]]] = {}
+    for rk, h, dl in rows:
+        results["bootstrap"][rk] = {}
+        if dl is None:
+            results["cohorts"][rk] = {}
         for g in cfg.g_grid:
             own = replace(owner, g=g)
-            arms = arms_all if g == cfg.g_primary else [a for a in ARMS if a.decision in ("ref", "A")]
+            arms = list(ARMS) if g == cfg.g_primary else a_arms
             t0 = time.time()
-            results["cohorts"][rk][f"g={g:.2f}"] = summarize(run_paths(coh_ix, arrays, own, arms, h))
-            results["bootstrap"][rk][f"g={g:.2f}"] = summarize(run_paths(boot_ix, arrays, own, arms, h))
-            log(f"  {rk} g={g:.2f}: {len(arms)} arms x ({len(coh_ix)} cohorts + {len(boot_ix)} paths) "
-                f"in {time.time() - t0:.1f}s")
+            if dl is None:
+                results["cohorts"][rk][f"g={g:.2f}"] = summarize(run_paths(coh_ix, arrays, own, arms, h),
+                                                                 kind="cohort", effective_n=eff_n)
+            rb = run_paths(boot_ix, arrays, own, arms, h, dl)
+            results["bootstrap"][rk][f"g={g:.2f}"] = summarize(rb)
+            if g == cfg.g_primary:
+                raw_boot[rk] = logw(rb)
+            log(f"  {rk} g={g:.2f}: {len(arms)} arms in {time.time() - t0:.1f}s")
+        own = replace(owner, g=cfg.g_primary)
+        raw_blocks[rk] = {}
+        for b, ix in block_ix.items():
+            rbb = run_paths(ix, arrays, own, choice_arms, h, dl)
+            raw_blocks[rk][b] = logw(rbb)
+            results["block_sensitivity"].setdefault(rk, {})[f"block={b}"] = summarize(rbb)
     own = replace(owner, g=cfg.g_primary)
-    for h in cfg.param_rows:
-        results["param_uncertainty"][f"h={h:+.2f}"] = summarize(run_paths(boot_ix, arrays, own, arms_b, h, deltas))
-    for b in cfg.block_sensitivity:
-        ix = stationary_bootstrap(len(panel), months, max(cfg.n_paths // 4, 8), b, np.random.default_rng(cfg.seed + b))
-        results["block_sensitivity"][f"block={b}"] = summarize(run_paths(ix, arrays, own, arms_all, 0.0))
-    results["owner_sensitivity"] = {}
     n_sens = max(cfg.n_paths // 4, 8)
     for label, overrides in cfg.owner_sensitivity:
         own_s = replace(own, **dict(overrides))
         results["owner_sensitivity"][label] = {}
         for h in cfg.owner_sensitivity_rows:
             results["owner_sensitivity"][label][f"h={h:+.2f}"] = {
-                "cohorts": summarize(run_paths(coh_ix, arrays, own_s, arms_all, h)),
-                "bootstrap": summarize(run_paths(boot_ix[:n_sens], arrays, own_s, arms_all, h))}
-    gp = f"g={cfg.g_primary:.2f}"
+                "cohorts": summarize(run_paths(coh_ix, arrays, own_s, list(ARMS), h), kind="cohort", effective_n=eff_n),
+                "bootstrap": summarize(run_paths(boot_ix[:n_sens], arrays, own_s, list(ARMS), h))}
+    unshifted = results["cohorts"]["h=+0.00"][gp]
     choice = {}
-    for h in cfg.rows:
-        rk = f"h={h:+.2f}"
-        boot, coh = results["bootstrap"][rk][gp], results["cohorts"][rk][gp]
-        tie = 0.0
-        if results["block_sensitivity"] and h == 0.0:
-            vals = {}
-            for a in boot:
-                xs = [results["block_sensitivity"][k][a]["dlog_vs_ref_mean"] for k in results["block_sensitivity"]]
-                vals[a] = max(xs + [boot[a]["dlog_vs_ref_mean"]]) - min(xs + [boot[a]["dlog_vs_ref_mean"]])
-            tie = max(vals.values())
-        choice[rk] = {"A": choose(boot, coh, ["K0", "K1"], "K1", cfg.loss_bound, tie),
-                      "B": choose(boot, coh, ["K1", "B1", "B2", "B3"], "K1", cfg.loss_bound, tie)}
+    for rk, h, dl in rows:
+        shifted = results["cohorts"][f"h={h:+.2f}"][gp] if f"h={h:+.2f}" in results["cohorts"] else None
+        choice[rk] = {"A": choose(raw_boot[rk], raw_blocks[rk], unshifted, shifted, CANDIDATES_A, DEFAULT_ARM,
+                                  cfg.loss_bound),
+                      "B": choose(raw_boot[rk], raw_blocks[rk], unshifted, shifted, CANDIDATES_B, DEFAULT_ARM,
+                                  cfg.loss_bound)}
+    decision = None
+    if cfg.decision_row is not None:
+        if cfg.decision_row not in choice:
+            raise InputError(f"decision row {cfg.decision_row!r} is not one of {sorted(choice)}")
+        decision = {"row": cfg.decision_row, **choice[cfg.decision_row]}
     out = {
         "config": asdict(cfg), "owner": asdict(owner), "arms": [asdict(a) for a in ARMS],
         "census": {"panel_months": len(panel), "panel_span": [str(panel.index[0]), str(panel.index[-1])],
-                   "cohorts_used": coh_used, "n_bootstrap_paths": int(len(boot_ix)),
+                   "cohorts_used": coh_used, "n_cohorts": len(coh_used), "effective_independent_windows": eff_n,
+                   "n_bootstrap_paths": int(len(boot_ix)), "block_runs": {str(b): int(len(ix)) for b, ix in block_ix.items()},
                    "months_per_path": months},
-        "results": results, "choice": choice,
+        "results": results, "choice": choice, "decision": decision,
         "gate_and_sortino_pre_tax": gate_and_sortino(panel, cfg.seed),
     }
     if jst is not None:
@@ -1299,11 +1457,104 @@ def canonical_md5(obj: Dict[str, object]) -> str:
     return hashlib.md5(json.dumps(obj, sort_keys=True).encode()).hexdigest()
 
 
+def _table_tax_2026(ti: float, idx: float) -> float:
+    """Independent of `bracket_tax`: Rev. Proc. 2025-32 Table 3 in its published '$X plus Y %' form."""
+    x = ti / idx
+    rows = ((640_600, 192_979.25, 0.37), (256_225, 58_448.0, 0.35), (201_775, 41_024.0, 0.32),
+            (105_700, 17_966.0, 0.24), (50_400, 5_800.0, 0.22), (12_400, 1_240.0, 0.12), (0, 0.0, 0.10))
+    for lo, base, rate in rows:
+        if x > lo:
+            return idx * (base + rate * (x - lo))
+    return 0.0
+
+
+def independent_ref_terminal(arr: Dict[str, np.ndarray], own: Owner) -> float:
+    """REF re-derived without the study's lot book, tax engine or schedule code. Valid only with zero
+    dividends and zero state tax: then no tax is due until the final sale, which this taxes itself."""
+    n = len(arr["voo"])
+    cpi = 1.0
+    lots = [(own.taxable0 * (1.0 - own.g), own.taxable0, -24)]   # (basis, value, purchase month)
+    roth = own.roth0
+    s0 = own.school_start - 1
+    for t in range(n):
+        y = t // 12
+        if t % 12 == 0:
+            if y < s0:
+                rc = own.roth_contrib
+            elif y < s0 + own.school_years:
+                rc = own.roth_contrib if (own.roth_in_school and own.wages_school >= own.roth_contrib) else 0.0
+            else:
+                rc = own.roth_contrib if own.roth_post_school else 0.0
+            roth += rc * cpi
+        c = own.c_taxable_month * cpi
+        lots.append((c, c, t))
+        r = arr["voo"][t]
+        lots = [(b, v * (1.0 + r), m) for b, v, m in lots]
+        roth *= 1.0 + r
+        cpi *= 1.0 + arr["infl"][t]
+    st = sum(v - b for b, v, m in lots if n - m < 12)
+    lt = sum(v - b for b, v, m in lots if n - m >= 12)
+    if st < 0 <= lt or lt < 0 <= st:
+        st, lt = (0.0, st + lt) if st < 0 else (st + lt, 0.0)
+        if st < 0 or lt < 0:
+            raise ValueError("the independent control assumes a net gain")
+    wages, std = own.liq_wages * cpi, STD_DED_2026 * cpi
+    ti = max(0.0, wages - std + st + lt)
+    pref = min(lt, ti)
+    ordi = ti - pref
+    z0, z15 = ZERO_RATE_TOP_2026 * cpi, FIFTEEN_TOP_2026 * cpi
+    at0 = max(0.0, min(ti, z0) - min(ordi, z0))
+    at15 = min(pref - at0, max(0.0, min(ti, z15) - ordi - at0))
+    fed = (_table_tax_2026(ordi, cpi) + 0.15 * at15 + 0.20 * (pref - at0 - at15)
+           - _table_tax_2026(max(0.0, wages - std), cpi))
+    niit = 0.038 * min(st + lt, max(0.0, wages + st + lt - NIIT_THRESHOLD))
+    taxable = sum(v for _, v, _ in lots)
+    return (taxable + roth - fed - niit) / cpi
+
+
+def control_study_path(panel: pd.DataFrame) -> Dict[str, float]:
+    """The study's own path (French loader -> monthly panel -> simulate -> lots -> annual_tax at the final
+    sale) on the 1990 cohort over 10 years, dividends zeroed, state tax 0, against `independent_ref_terminal`.
+    HALTS on a difference above $0.01."""
+    p0 = pd.Period(STUDY_CONTROL_START, "M")
+    if p0 not in panel.index:
+        raise InputError(f"the study-path control needs {p0} in the panel")
+    i0 = panel.index.get_loc(p0)
+    if i0 + STUDY_CONTROL_MONTHS > len(panel):
+        raise InputError("the study-path control window does not fit the panel")
+    ix = np.arange(i0, i0 + STUDY_CONTROL_MONTHS)
+    arr = {c: v[ix].copy() for c, v in panel_arrays(panel).items()}
+    arr["dy"] = np.zeros_like(arr["dy"])
+    own = Owner(state_rate=0.0, horizon_years=STUDY_CONTROL_MONTHS // 12)
+    ref = next(a for a in ARMS if a.name == "REF")
+    got = simulate(ref, own, make_path(arr)).terminal_real
+    want = independent_ref_terminal(arr, own)
+    diff = abs(got - want)
+    if diff > STUDY_CONTROL_TOL:
+        raise ControlFailed(f"study-path control: simulate {got:.4f} vs independent {want:.4f} (diff {diff:.4f})")
+    return {"simulate_ref_real": got, "independent_real": want, "abs_diff": diff, "pass": True,
+            "window": [str(p0), str(panel.index[i0 + STUDY_CONTROL_MONTHS - 1])]}
+
+
+def _inside(path: Path, base: Path) -> bool:
+    """True if `path` is `base` or below it, comparing both the literal and the symlink-resolved forms."""
+    cands = {path.absolute(), path.resolve()}
+    bases = {base.absolute(), base.resolve()}
+    return any(c == b or b in c.parents for c in cands for b in bases)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
-    cfg = SMOKE if args.smoke else Config()
+    decision_row = getattr(args, "decision_row", None)
+    if not args.smoke:
+        if not args.jst:
+            raise InputError("the full run requires --jst (prereg rev. 4 §5)")
+        if decision_row is None:
+            raise InputError("the full run requires --decision-row: the owner's row, recorded in the frozen prereg")
+    cfg = replace(SMOKE if args.smoke else Config(), decision_row=decision_row)
     inputs, out_dir, root = Path(args.inputs), Path(args.out), Path(args.control_root)
-    if (root / "data").resolve() in out_dir.resolve().parents or out_dir.resolve() == (root / "data").resolve():
-        raise InputError("refusing to write under the control root's data/")
+    for base in (root / "data", ROOT / "data"):
+        if _inside(out_dir, base):
+            raise InputError(f"refusing to write under a data/ tree: {out_dir} is inside {base}")
     need = ["french", "cpi", "shiller"] + (["jst"] if args.jst else [])
     files = read_manifest(inputs, need)
     print("== T-409: positive controls (HALT on failure) ==")
@@ -1314,11 +1565,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     last = french.index[-1].to_period("M")
     dp, carried = load_dividend_yield(files["shiller"], last)
     panel = build_monthly_panel(french, load_cpi(files["cpi"]), dp)
+    controls["study_path"] = control_study_path(panel)
+    sp = controls["study_path"]
+    print(f"  {'study_path_REF':18} independent {sp['independent_real']:>14,.4f}  simulate {sp['simulate_ref_real']:>14,.4f}"
+          f"  pass={sp['pass']}")
     if cfg.smoke:
         panel = panel.loc[pd.Period("1985-01", "M"):]
     jst = load_jst(files["jst"]) if args.jst else None
     print(f"== panel {panel.index[0]}..{panel.index[-1]} ({len(panel)} months); dividend yield carried "
-          f"{carried} months; smoke={cfg.smoke} ==")
+          f"{carried} months; smoke={cfg.smoke}; decision row {cfg.decision_row} ==")
     res = study(panel, cfg, Owner(), jst)
     res["controls"] = _round(controls)
     res["census"]["dividend_yield_carried_months"] = carried
@@ -1334,14 +1589,22 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def print_summary(res: Dict[str, object]) -> None:
     r = res["results"]
+    eff = res["census"]["effective_independent_windows"]
     for layer in ("cohorts", "bootstrap"):
         for rk, by_g in r[layer].items():
             for gk, arms in by_g.items():
-                print(f"-- {layer} {rk} {gk}")
+                head = (f"-- cohorts {rk} {gk}: {res['census']['n_cohorts']} overlapping cohorts, "
+                        f"~{eff:.2f} independent windows (shares, not probabilities)"
+                        if layer == "cohorts" else f"-- bootstrap {rk} {gk}")
+                print(head)
                 for name, m in arms.items():
+                    tail = (f"share<REF {m['share_of_cohorts_below_ref']:.2f}" if layer == "cohorts"
+                            else f"P(<REF) {m['p_below_ref']:.2f}")
                     print(f"   {name:10} median ${m['median']:>12,.0f}  Δlog vs REF {m['dlog_vs_ref_mean']:+.4f}"
-                          f"  min ratio {m['ratio_min']:.3f}  P(<REF) {m['p_below_ref']:.2f}")
-    print("-- choice (owner's rule):", json.dumps(res["choice"], sort_keys=True))
+                          f"  min ratio {m['ratio_min']:.3f}  {tail}")
+    for rk, c in res["choice"].items():
+        print(f"-- choice {rk}: A -> {c['A']['choice']}, B -> {c['B']['choice']}")
+    print("-- decision (the owner's frozen row):", json.dumps(res["decision"], sort_keys=True)[:400])
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -1395,6 +1658,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     r.add_argument("--control-root", required=True)
     r.add_argument("--smoke", action="store_true")
     r.add_argument("--jst", action="store_true")
+    r.add_argument("--decision-row", dest="decision_row", default=None,
+                   help='the owner\'s row, e.g. "h=-0.02" or "param:h=+0.00" (required for the full run)')
     a = ap.parse_args(argv)
     return cmd_fetch(a) if a.cmd == "fetch" else cmd_run(a)
 

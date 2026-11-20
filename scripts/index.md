@@ -2322,6 +2322,7 @@
   - `def live()`
   - `def sell_hifo()`: Highest basis per share first (the lowest gain per dollar sold).
   - `def harvest()`: Realise every lot whose value is >= theta below its basis; the replacement keeps the shares.
+  - `def realize_gains_prorata()`: The robo's sell-and-rebuy: `frac` of every lot is sold and immediately rebought. A gain lot realises
   - `def realize_lt_gains_upto()`: Sell long-term gain lots, largest gain per dollar first, until `room` of gain is realised.
 - **Class `TaxYear`**: No docstring
 - **Class `Arm`**: No docstring
@@ -2345,25 +2346,30 @@
 - **Function `apply_belief()`**: Shift the arithmetic equity return by h per year of calendar time, scaled by each fund's exposure.
 - **Function `stationary_bootstrap()`**: Politis-Romano stationary bootstrap of month indices (circular), shape (n_paths, length).
 - **Function `bracket_tax()`**: Ordinary federal tax on `taxable` with 2026 single brackets scaled by the CPI index `idx`.
-- **Function `annual_tax()`**: Incremental tax caused by the taxable account in one year (nominal).
-- **Function `zero_rate_room()`**: Long-term gain that could still be realised this year at 0 % federal (before state tax).
+- **Function `annual_tax()`**: Incremental tax caused by the taxable account in one year (nominal), Form 1040 order.
+- **Function `zero_rate_room()`**: Largest extra long-term gain this year that adds no federal tax (income tax + NIIT), found by bisection
 - **Function `make_path()`**: No docstring
+- **Function `roth_contribution()`**: Real Roth contribution in January of 0-based year `year0` (prereg rev. 4 §2).
 - **Function `contribution_schedule()`**: Real contributions per month (taxable, Roth) and the real PV of all contributions after month t.
 - **Function `phase_of()`**: No docstring
 - **Function `wages_of()`**: No docstring
 - **Function `simulate()`**: Run one arm on one path, month by month (nominal dollars; reported in real 2026 dollars).
+- **Function `liquidation_tax()`**: The year-40 sale of every taxable lot, taxed through `annual_tax` (20 % bracket and NIIT included)
 - **Function `panel_arrays()`**: No docstring
 - **Function `run_paths()`**: No docstring
-- **Function `summarize()`**: No docstring
-- **Function `cohort_index_paths()`**: No docstring
-- **Function `choose()`**: The owner's rule: drop arms whose worst cohort < bound x REF; max E_log; ties -> simplest.
+- **Function `summarize()`**: Bootstrap paths carry Monte Carlo SEs and probabilities. Overlapping historical cohorts are NOT
+- **Function `cohort_index_paths()`**: Every pre-registered January start must fit the panel; one that does not HALTS (never a silent skip).
+- **Function `choose()`**: The owner's rule (prereg rev. 4 §3), per decision.
 - **Function `static_mix_returns()`**: No docstring
 - **Function `gate_and_sortino()`**: No docstring
 - **Function `load_jst()`**: No docstring
 - **Function `jst_cohorts()`**: Per JST country: 40-year cohorts of household 1x vs annual-reset leverage (pre-tax, uncapped by Roth
 - **Function `us_reset_calibration()`**: On the L1 panel: the same household rule with the daily-reset SSO blend (monthly steps, January
+- **Function `logw()`**: No docstring
 - **Function `study()`**: No docstring
 - **Function `canonical_md5()`**: No docstring
+- **Function `independent_ref_terminal()`**: REF re-derived without the study's lot book, tax engine or schedule code. Valid only with zero
+- **Function `control_study_path()`**: The study's own path (French loader -> monthly panel -> simulate -> lots -> annual_tax at the final
 - **Function `cmd_run()`**: No docstring
 - **Function `print_summary()`**: No docstring
 - **Function `cmd_fetch()`**: No docstring
