@@ -2106,3 +2106,32 @@ python -m pytest tests/test_t398_stacked_trend_overlay.py -q   # Panel on a synt
 ```
 Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md` (H1 NOT MET; the interval
 straddles zero).
+
+## T-409 — where the owner's real money sits: the after-tax household decision study (added 2026-11-20)
+A standalone harness for the DRAFT prereg `docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md`
+(revision 3). The full run is authorised only after the director freezes it; until then, run `--smoke` and
+the tests.
+- Arms are ordinary manual choices at Schwab: keep the robo; leave the program without selling; VOO; a 2×
+  ETF in the Roth. Nothing uses the trading machine, the paper fleet or a repo strategy.
+- `fetch` writes ONLY into `--inputs`:
+  - French daily factors;
+  - FRED CPIAUCNS through the API, with FRED_API_KEY from the environment or `--env-file`, never printed;
+  - a copy of the repo's Shiller CSV;
+  - JST R6 with `--jst`;
+  - a `manifest.json` of md5s.
+- `run` verifies the manifest (fail closed) and REFUSES an `--out` under `<control-root>/data/`.
+- `run` first executes two positive controls on md5-pinned repo files and HALTS if either misses its
+  published number by more than $1:
+  - T-399 corrected static 2× on T-306;
+  - T-287 buy-hold and `schwab_like`.
+- It then runs the arms. The output is `results.json` plus `results.md5` (deterministic, seed 409).
+
+```bash
+python -m scripts.t409_real_money_home fetch --inputs <scratch>/t409/inputs \
+    --shiller-csv <repo>/data/macro/shiller_ie_data.csv --env-file <repo>/.env --jst
+python -m scripts.t409_real_money_home run --inputs <scratch>/t409/inputs --out <scratch>/t409/smoke \
+    --control-root <repo> --smoke --jst      # plumbing only: 10-year cohorts on 1985+, 16 paths
+python -m scripts.t409_real_money_home run --inputs <scratch>/t409/inputs --out <scratch>/t409/run_A \
+    --control-root <repo> --jst              # THE FULL RUN — only after the freeze; run twice, md5 must match
+python -m pytest tests/test_t409_real_money_home.py -q   # T409_CONTROL_ROOT=<repo> adds the data-backed control test
+```
