@@ -33,6 +33,14 @@ metadata:
 
 **Inputs that flip the decision:** balance vs $50k, embedded gain g, school timing and income, age/dependency, monthly contribution (and whether loan-funded), Roth size and broker, bracket and state, belief row.
 
+**Rev. 3 (2026-11-20), owner round 2:**
+- Facts: taxable < $50k (so the robo's TLH is off until it grows), embedded gain unknown (g grid 0 / .15 / .30), law school more than a year away, Roth $10–25k.
+- Stance: every arm must be an ordinary manual choice at Schwab; nothing involves the machine.
+- Primary arms: K0, K1 (the default) and B1–B3, which hold SSO in the Roth bounded by capacity. Dropped: B5, B6, Shiller pre-1926 cohorts. Recommended trial count: 15 raw.
+- Code `scripts/t409_real_money_home.py`, commit `7f4cd09`.
+- Controls reproduce T-399 ($8,864,568) and T-287 ($929,498.35 / $494,701.10).
+- Smoke md5 `838fb3a7…`; each 40-year arm-path takes 2–5 ms; a full run is ≈ 15–20 min.
+
 **Why:** the owner asked "where does the real money sit"; the director asks the owner once, only for decision-relevant inputs.
 
 **How to apply:**
