@@ -2106,3 +2106,23 @@ python -m pytest tests/test_t398_stacked_trend_overlay.py -q   # Panel on a synt
 ```
 Verdict: `docs/Audit/t398_stacked_trend_overlay_verdict_2026-11-14.md` (H1 NOT MET; the interval
 straddles zero).
+
+## T-415 (E-2) — survivorship and announcement-date census (added 2026-11-20)
+A read-only, COUNTS-ONLY census for candidate E-2 (the earnings-announcement premium as a weekly
+basket of PIT S&P 500 members). No return, price-level statistic or portfolio is computed: price
+files are read for the dates of usable bars only, 8-Ks for dates, times and items only.
+- Inputs (md5-pinned in the output): the PIT membership, the SPY calendar, `data/processed` and
+  T-265 bars (dates), the T-137 8-K panel, the live SEC ticker map, the Form 345 SUBMISSION tables
+  (symbol → CIK), the Wikipedia changes snapshot, the 2026-10-23 wanted-names and FirstRate tables.
+- Two coverage modes: `any` (every free store) and `clean` (the B-6 ruling R1 rule: T-265 bars at
+  any date, `data/processed` only on/after 2020-04-09). The declared ticker exclusions count as
+  NOT covered.
+- No network, no `.env`. Refuses to write under any data tree. A worktree without `data/` passes the
+  main checkout's tree with `--data-root` (read-only).
+- Fail-closed: a missing input or a failed positive control exits 2 with `[T415-census] HALT`.
+
+```bash
+python -m scripts.t415_e2_coverage_census --data-root /Users/jacksonmurphy/Dev/trading_machine-2/data --out <scratch>/t415_census.json   # ~25 s
+python -m scripts.t415_e2_coverage_census --data-root /Users/jacksonmurphy/Dev/trading_machine-2/data --controls-only   # the seven positive controls only
+python -m pytest tests/test_t415_e2_coverage_census.py -q   # synthetic: date rules, identity, modes, fail-closed paths
+```
