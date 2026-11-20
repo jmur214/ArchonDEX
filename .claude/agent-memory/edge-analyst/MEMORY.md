@@ -23,3 +23,6 @@
 - [T-408 post-FOMC Treasury drift 2026-11-19](project_t408_post_fomc_drift_2026_11_19.md) — closed unrun: target surprises shrank 3x since 2015; OOS pass ≤1.2 %; Fed-direction rule = cycle timing
 - [Signal-variance collapse trap](feedback_signal_variance_collapse.md) — power ∝ sd(conditioning signal); census its post-publication sd and per-event weight shares first
 - [FOMC surprise + target-change sources](reference_fomc_surprise_sources.md) — SF Fed Bauer–Swanson workbook (FF1 only 2010+), Fed openmarket tables, FRED ids; keyless FRED CSV down 11-19
+- [T-409 real-money home DRAFT 2026-11-19](project_t409_real_money_home_2026_11_19.md) — robo PROFILE is load-bearing (SIP cash 6–30%); moderate robo beaten on point, aggressive unsettleable; "Dominated" rests on sleeve test
+- [Long-history data traps](feedback_long_history_data_traps.md) — Shiller monthly-average σ, French daily momentum built daily, six-day weeks, fee-drag t inflation, bootstrap ≠ mean uncertainty
+- [Free long-history sources](reference_free_long_history_sources.md) — Shiller ie_data.xls (CPI/GS10; repo copy insufficient), French daily, JST R6 (16 mkts to 2020), FRED API, SIP brochure
