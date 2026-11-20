@@ -111,7 +111,11 @@ class _FailClosed(Exception):
 
 # T-412: the alt-data pull's per-directory bound when it runs BEFORE the durable push.
 # The hoard is ~80 MB (S3 -> Fargate in-region: seconds); this only caps a stalled sync.
-ALTDATA_EARLY_PULL_TIMEOUT_S = 300.0
+# The new pre-push steps together are bounded at about 15 minutes in the WORST case (this
+# pull 2 x 120 s; the 8-K feed's index fetches 5 x 20 s + its 120 s budget + one request;
+# the event interpreter's 240 s budget + one body fetch and one model call past it) inside
+# the 30-minute job timeout. A normal day adds about one to two minutes.
+ALTDATA_EARLY_PULL_TIMEOUT_S = 120.0
 
 
 class _AltdataSync:

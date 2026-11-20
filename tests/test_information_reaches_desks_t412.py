@@ -729,3 +729,24 @@ def test_every_declared_source_has_a_reader_and_budgets_match_the_feed_gate():
         assert s.readers, f"{s.id} declares no reader"
         if s.rel in gate and not s.retired:
             assert s.max_age_days == gate[s.rel], (s.id, s.max_age_days, gate[s.rel])
+
+
+def test_every_reader_reads_where_its_writer_writes_and_the_sync_moves_it():
+    """One spelling per file: the 8-K panel's writer (the archiver's OUT_DIR), its reader
+    (eightk_feed via the pulse), the register, the feed gate and the S3 sync all name the
+    same path — the T-348 'reader encodes the writer's naming independently' class."""
+    import intelligence.analyst.eval_harness as eh
+    import scripts.archive_altdata_t136 as ad
+    from intelligence.event_call.eightk_feed import FORWARD_PANEL_REL
+    from paper_trader import altdata_archive as aa
+    from paper_trader import source_register as sr
+    from paper_trader.cloud_state import ALTDATA_DIRS
+    rel = {s.id: s.rel for s in sr.SOURCES}
+    assert FORWARD_PANEL_REL == aa.EDGAR_8K_PANEL_REL == f"{aa.ALT_REL}/{ad.EDGAR_8K_PANEL}" \
+        == rel["edgar_8k_items"]
+    assert CHECKOUT / FORWARD_PANEL_REL == ad.OUT_DIR / ad.EDGAR_8K_PANEL
+    assert any(FORWARD_PANEL_REL.startswith(d + "/") for d in ALTDATA_DIRS)
+    assert rel["kxfed_snapshots"] == str(eh.ALT_REL / eh.KALSHI_SNAP_NAME)
+    assert rel["fred_rate_path"] == str(eh.ALT_REL / eh.FRED_PATH_NAME)
+    gate = {r for _n, r, *_rest in aa._FEED_HEALTH}
+    assert {rel["kxfed_snapshots"], rel["fred_rate_path"], rel["edgar_8k_items"]} <= gate

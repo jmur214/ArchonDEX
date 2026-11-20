@@ -58,7 +58,7 @@ SCAN_MAX_OUTPUT_TOKENS = 4000
 # 8-K items on a normal day; a peak earnings day can be 3x). Deferred documents are not
 # marked seen, so they retry on the next run inside the 3-day forward window.
 EVENT_MAX_DOCUMENTS_PER_RUN = 60
-EVENT_TIME_BUDGET_S = 300.0
+EVENT_TIME_BUDGET_S = 240.0      # checked before each call; one call (<=2 min) can overrun it
 EVENT_BUDGET_RESERVE_USD = 10.0  # of the shared monthly budget, never spent by the event desk
 
 

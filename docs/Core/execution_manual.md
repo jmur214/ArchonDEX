@@ -1403,6 +1403,25 @@ that date); a book parked 5+ sessions. An unreadable object is a FAIL, never a p
 nightly janitor runs the same function as its `fleet_health` check. Run it at the start of any
 session that will say anything about the fleet.
 
+### T-412 — does the information reach the desks? (2026-11-20)
+
+```bash
+python -m pytest tests/test_information_reaches_desks_t412.py -q   # two real main() days, hermetic
+```
+
+No new CLI: the daily run (`scripts/run_paper_cloud_day.py`) does the work and prints it. On
+account 1, after the orders and before the durable push: `ALTDATA-PULL` (the alt-data hoard,
+pulled once, before its first reader), `EDGAR-8K` (the forward 8-K item feed into
+`data/macro_data/alt/edgar_8k_items.parquet` + `edgar_8k_fetch_receipt.json`, SEC hosts only),
+`THESIS-FALSIFIERS[<desk>]` (fired / not_fired / pending / unresolvable), `EVENT-FEED` (what the
+event interpreter saw and called) and an `EVAL` line that now names today's due-but-unresolved
+predictions with their reasons and symbols. On EVERY account, at the tail: `12. SOURCES` — the
+source register (`paper_trader/source_register.py`), also written to the heartbeat as
+`source_register`. Read it as: each declared source, each reader, a verdict (fresh / absent /
+empty / stale / undated / read_before_arrival / not_run / retired) and the arrival steps; any
+verdict but fresh/retired is in `problems` and makes the block `degraded`. It never changes
+`canonical`.
+
 ### T-379 — CEF discount reversion, wide universe, one-day execution skip (2026-11-10)
 
 ```bash
