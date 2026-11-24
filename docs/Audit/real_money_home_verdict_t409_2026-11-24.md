@@ -333,3 +333,30 @@ Other things that surprised me:
 - **Decision A rests on firmer ground than decision B.** It is a cost difference with a certain sign, and the
   gate's robo-mix contrast clears the bar. Decision B is a risk choice.
 - Every option is a manual choice at a broker. None involves this project's machine.
+
+
+---
+
+## Addendum 2026-11-24 — independent reconciliation with the T-396 note (director)
+
+The T-396 design note gave the lifecycle rule +22 / +10 / −1 / −12 % at 0 / −1 / −2 / −3 pp. This study gives about +0.36 / +0.28 / +0.20 / +0.13 in E[log W] over K1. An independent reviewer reconciled the two by execution, read-only, on the frozen code and inputs. **No defect in the frozen T-409 code changes a decision. The gap is mostly an error in T-396's arithmetic.**
+
+The ladder at h = −2 pp (B1 − K1, mean Δ log terminal wealth; 300 of the run's own paths, noise about ±0.016):
+
+| Step | B1 − K1 | Moves |
+|---|---|---|
+| 0 Frozen T-409 | +0.189 | — (full run: +0.204) |
+| 1 All money in the Roth, no tax | +0.243 | +0.054 |
+| 2 T-396's money ($10k, $5k a year) | +0.244 | 0 |
+| 3 T-396's premium base (7.10 % not 8.25 %) | +0.142 | −0.102 |
+| 4 T-396's vehicle cost | +0.174 | +0.032 |
+| 5 Independent daily normal returns | +0.148 | −0.026 |
+| 6 T-396's expected-path arithmetic | −0.013 | −0.161 |
+
+- **The T-396 error (step 6).** It valued each contributed dollar at its median growth path and summed. That is exact for a lump sum and biased toward 1× for a contribution stream. The reviewer's own independent simulation gives +0.153 at −2 pp where the recurrence gives −0.013.
+- **The premium base (step 3).** T-409 starts from the 1926–2026 premium, T-396 from 1968–2025.
+- **Checks on T-409, all passing.** The belief shift reaches the levered fund. The modelled 2× fund tracks the real SSO from 2006 (CAGR 15.02 % vs 15.30 %; 2008 −67.5 % vs −67.9 %; worst drawdown −84.5 % vs −84.7 %). Financing is charged daily on the bill rate. There is no look-ahead. The bootstrap's bad 20-year stretches are harsher than US history, but far milder than the 16-country JST record.
+- **What the result turns on.** The forward equity premium over bills: the lead shrinks about 0.076 log per point and reaches zero near h ≈ −4.7 pp (an arithmetic premium of about 3.5 %/yr). A world-like future is the real risk.
+- **Decision A stands.** K1 − K0 is +0.027 to +0.039 across sweep-yield assumptions.
+
+The gate still cannot certify the leverage choice (t 1.50 against 2.96). It remains a belief decision, the owner's.

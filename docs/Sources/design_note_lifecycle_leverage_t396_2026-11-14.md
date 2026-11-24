@@ -10,6 +10,9 @@ branch: research/lifecycle-leverage-note-t396
 
 # T-396 — lifecycle leverage for a contributing Roth saver: what is known before any run
 
+> **SUPERSEDED IN PART 2026-11-24 (director; found by T-409's independent reconciliation).** The §2d table (+22 / +10 / −1 / −12 % at 0 / −1 / −2 / −3 pp), its 29–64 % "chance of ending below 1×" and "sd ≈ 35 %" rest on an expected-path recurrence (around lines 257, 280–288 and 585) that is exact for a lump sum but biased toward 1× for a stream of contributions. A path simulation gives about +0.15 log at −2 pp where the recurrence gives −0.013. Read `docs/Audit/real_money_home_verdict_t409_2026-11-24.md` for the corrected figures. The note's other conclusions (untimed leverage cannot pass the gate; no LEAPS path; the T-315 cost defect) stand; whether its LEAPS table used the same shortcut was not checked.
+
+
 **The investor.** About $10k in a Roth IRA now, about $5k a year for decades, a ~40-year horizon, will
 not sell in downturns, objective = maximum terminal wealth against buy-and-hold SPY.
 
