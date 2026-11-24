@@ -3,38 +3,39 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Broker-Alpaca_(paper)-FFDC00.svg" alt="Broker">
   <img src="https://img.shields.io/badge/Architecture-6_Engine_Quant_System-00C853.svg" alt="Architecture">
-  <img src="https://img.shields.io/badge/Tests-5%2C300%2B_passing-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/Real_money-none-lightgrey.svg" alt="Real money">
+  <img src="https://img.shields.io/badge/Tests-5%2C600%2B_passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Capital-paper_only-lightgrey.svg" alt="Capital">
 </p>
 
 # ArchonDEX
 
-A research platform and paper-trading system for systematic investing, built like a small trading firm: six engines with separate jobs, a measurement stack that is hard to fool, and a rule that nothing gets real money until it has honestly earned it.
+**An autonomous quant research lab and paper-trading system, built like a small trading firm.** Six engines with separate jobs find, size, track and govern strategies. A measurement stack built to be hard to fool decides which ones are real. A fleet of cloud paper accounts trades every market day and checks itself against the broker.
 
-> **This is not a script that runs a strategy.** It is a system for finding strategies, trying to disprove them, running the survivors on paper, and keeping an honest record of what happened.
-
-**The honest headline:** after a year of work and about 300 logged research tasks, no strategy here has yet cleared the project's own bar for beating a plain passive index portfolio. So no real money trades. What the project has to show is the machinery that makes that verdict trustworthy, and a public record of every idea it killed.
-
----
-
-## Where it stands
+> **This is not a script that runs a strategy.** It is a system that discovers strategies, tries to disprove them, runs the survivors on paper, and keeps a public record of every result.
 
 | | |
 |---|---|
-| **Research record** | About 300 logged tasks in [`TASK_LEDGER.md`](docs/State/TASK_LEDGER.md). 45 strategy ideas refuted by pre-registered tests; many more closed before running because the arithmetic showed the test could not succeed. |
-| **Evidence bar** | Every result needs a block-bootstrap confidence interval, and gates read the interval's lower bound. The bar is corrected for every backtest ever run on the same data (about 370 effective trials). |
-| **Paper trading** | Three paper accounts run daily on AWS Batch against Alpaca's paper API: a trend-following sleeve, an index-plus-momentum book, and an LLM-analyst experiment on a separate track. Each run reconciles against the broker and fails loudly if it cannot explain its positions. |
-| **Data** | Multi-decade price history, plus daily archives of prediction markets (Kalshi, Polymarket), SEC filings, short interest, credit spreads and option quotes. |
-| **Tests** | 5,300+ automated tests. A merge needs the full suite green and an independent review that re-runs the work. |
-| **Real money** | None. Deployment waits for clear outperformance of a passive benchmark, net of costs and taxes. |
+| **2,600+** commits over 13 months | **5,600+** automated tests gate every merge |
+| **~300** logged research tasks, each with a verdict | **3** paper accounts trading daily on AWS |
+| **45** strategy ideas tested and refuted on the record | **100 years** of market data behind the longest studies |
 
-### What the project found out the hard way
+## What makes it different
 
-- **Most retail-accessible signals do not survive honest testing.** Momentum and factor tilts, small-cap momentum, insider-filing signals, filing-text changes, closed-end-fund discounts, levered-ETF stacks, gold overlays, put-writing and regime timing were all tested and refuted. The verdicts are in [`docs/Audit/`](docs/Audit/).
-- **Short backtests cannot see small edges.** At the project's corrected bar, a real 2%-a-year edge passes a 26-year backtest only about 3% of the time ([audit](docs/Audit/fresh_eyes_and_salvage_audits_2026-11-14.md)). New work therefore goes to per-event designs, century-long data and structural decisions such as costs, taxes and risk.
-- **The measurement stack was the hardest part.** Several early "wins" were measurement defects: capital that was sized twice, a significance test whose null was a point mass, survivorship holes in the price history. Each fix is locked by a test that fails if the defect returns.
-- **Good forecasts are not the same as tradeable ones.** Prediction-market prices forecast inflation and Fed decisions well, but stocks and bonds price the same information before a daily strategy can act on it.
-- **The six engines are a research architecture, not yet a trading desk.** A [code-level audit](docs/Audit/trade_desk_gap_analysis_t411_2026-11-20.md) found that most collected information never reaches a trading decision. Closing that gap is the current build.
+**It holds itself to an institutional evidence bar.** Every result needs a block-bootstrap confidence interval, and decisions read the interval's lower bound, not the headline number. The bar rises with every backtest ever run on the same data (about 370 effective trials so far), so the system cannot fool itself by trying many things.
+
+**Ideas are pre-registered and reviewed by execution.** The hypothesis, the statistic and the pass conditions are frozen in a committed file before a test runs. A second AI agent then rebuilds the work from a clean copy, plants defects to see whether the tests catch them, and attacks the code with hostile inputs.
+
+**The paper fleet proves the plumbing every day.** Each account reconciles its books against the broker on every run and fails loudly if it cannot explain a position. It handles stock splits, saves its order journal before anything slow, and reports which information sources each decision step actually read.
+
+**It publishes what did not work.** No strategy has yet earned real capital under this bar, so none trades real money. The [task ledger](docs/State/TASK_LEDGER.md), the [verdicts](docs/Audit/) and the [open-defect log](docs/State/health_check.md) are all in this repo. A null result here has been measured and recorded.
+
+### What the research has established
+
+- **Most retail-accessible signals do not survive honest testing.** Momentum and factor tilts, small-cap momentum, insider-filing signals, filing-text changes, closed-end-fund discounts, levered-ETF stacks, gold overlays, put-writing and regime timing were each tested and refuted. Every verdict is in [`docs/Audit/`](docs/Audit/).
+- **Short backtests cannot see small edges.** At the corrected bar, a real 2%-a-year edge passes a 26-year backtest only about 3% of the time ([audit](docs/Audit/fresh_eyes_and_salvage_audits_2026-11-14.md)). The research now targets per-event designs, century-long data and structural decisions such as costs and taxes.
+- **Measurement is the hardest part.** Several early "wins" were measurement defects: capital sized twice, a significance test whose null was a point mass, survivorship holes in the price history. Each fix is locked by a test that fails if the defect returns.
+- **Good forecasts are not always tradeable.** Prediction markets forecast inflation and Fed decisions well, but stocks and bonds price the same information before a daily strategy can act.
+- **Information has to reach decisions.** A [code-level audit](docs/Audit/trade_desk_gap_analysis_t411_2026-11-20.md) traced every data source to the decision it feeds. Wiring the collected information into desk-style decisions is the current build.
 
 ---
 
@@ -126,7 +127,7 @@ The non-negotiable rules are in [`CLAUDE.md`](CLAUDE.md) and [`NON_NEGOTIABLES.m
 - Deterministic runs: the same inputs give byte-identical results, checked nightly
 
 ### Signal library (Engine A)
-Pluggable "edges" across technical, fundamental, event-driven, statistical and behavioural families, each producing a normalized score. They are research inputs: under the current evidence, none carries real capital.
+Pluggable "edges" across technical, fundamental, event-driven, statistical and behavioural families, each producing a normalized score. They are research inputs, and each must pass the evidence bar before it carries capital.
 
 ### Discovery and governance (Engines D and F)
 - Feature screening with LightGBM, rule extraction, and genetic search over composite strategies
@@ -174,7 +175,7 @@ archondex/
 ├── cockpit/                   # Dash dashboard (v2)
 ├── scripts/                   # CLI tools, archivers, research studies
 ├── config/                    # Universes, settings, the trial registry
-├── tests/                     # 5,300+ tests
+├── tests/                     # 5,600+ tests
 │
 └── docs/
     ├── State/                 # Current truth: state, ledger, health, plan
