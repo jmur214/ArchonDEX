@@ -169,7 +169,7 @@ A NaN t (degenerate SE) never passes (`[NN-FP-GUARDS]`).
 
 **H1c** is evaluated **only if H1b passes**: the bottom arm's mean return net of level H > 0, with the same three statistical conditions (t_week, t_two-way, bootstrap ci_low).
 
-**Descriptives** (decide nothing):
+**Descriptives** (decide nothing): **[SUPERSEDED: mostly unimplemented, §17 finding 9]**
 - H1a, the mean gross return over all included events;
 - H1c at level B;
 - by-year and by-session (BMO/AMC) spreads;
@@ -236,6 +236,8 @@ Planning values (outcome-free; §15):
 
 ## 10. Controls and smoke (already run; code path proven, no hypothesis measured)
 
+> **[SUPERSEDED IN PART 2026-11-24]** "Code path proven" is wrong. The controls ran and gave the figures below, but they pass with planted faults in the payoff, the history and the entry price. See §17 finding 6.
+
 **Synthetic controls.** These are `run_controls()`, run at the start of every `run` and `smoke`. Each builds a synthetic market (360 firms, Alpaca-schema contracts, trades and bars) with a **known expected return per event** and runs the full pipeline: events → schedule → session → history → contracts → prints → q → payoff → statistic. The estimate is checked against the oracle spread (the same arms applied to the known expected returns).
 
 | Scenario | Estimate | Oracle | t_week | t_two-way | Required | Result |
@@ -266,14 +268,14 @@ Planning values (outcome-free; §15):
 
   Estimated ≈ 120–150 MB and ≈ 22,000 Alpaca calls (≈ 2 h at the free plan's 200/min).
 - **Durable copy.** Following T-398, copy the archive to `/Users/jacksonmurphy/Dev/_research_snapshots/t413_e1_earnings_options_<date>/`.
-- **Pins.** At freeze the script sets `PINNED_MANIFEST_MD5`, `PINNED_PANEL_MD5` (the refreshed panel) and `PINNED_MEMBERSHIP_MD5` (`7c142ab698da86ef601426d4f30de65d` today). `run` refuses while any is None or mismatched (tested).
+- **Pins.** At freeze the script sets `PINNED_MANIFEST_MD5`, `PINNED_PANEL_MD5` (the refreshed panel) and `PINNED_MEMBERSHIP_MD5` (`7c142ab698da86ef601426d4f30de65d` today). `run` refuses while any is None or mismatched (tested). **[SUPERSEDED IN PART: §17 findings 4 and 10]**
 - **8-K refresh, needed for Jul–Nov 2026 and for the 34 PIT names missing from the panel.** The missing names: ANSS, BF-B, BNY, BRK-B, CDAY, CMA, CTLT, CTRA, DAY, DFS, FDXF, FI, FIS, FLT, FOXA, GOOGL, HES, HOLX, IPG, IR, JNPR, K, MMC, MRO, NWSA, OXY, PARA, PCG, PEAK, PPG, PXD, VEEV, WBA, WRK.
   - Fetch submissions JSON through the project's SEC helper only: `scripts.archive_altdata_t136._get`, which routes the contact User-Agent to sec.gov hosts only.
   - Parse with `scripts.fetch_8k_edgar_t137._rows_from_filing_arrays`.
   - The dead names' CIKs come from the Form 4 zips (`ISSUERTRADINGSYMBOL`).
   - **Not written in Phase 1.** `fetch` is disabled.
   - Dual-class names (GOOG/GOOGL, FOX/FOXA, NWS/NWSA) keep one class per CIK.
-- **News refresh.** T4 needs `data/intel/news_panel/news_2026{10,11}.parquet`, via `scripts/build_news_panel_t289.py` (a director step). `run` halts on a missing month (tested in `load_flash_news`).
+- **News refresh.** T4 needs `data/intel/news_panel/news_2026{10,11}.parquet`, via `scripts/build_news_panel_t289.py` (a director step). `run` halts on a missing month (tested in `load_flash_news`). **[SUPERSEDED IN PART: a truncated month is accepted, §17 finding 2]**
 - **Scratch only (this phase).** The census and smoke archives live under the session scratchpad. They are not durable and are not inputs to the run.
 
 ## 12. Trial count (proposed; the director rules)
@@ -352,71 +354,73 @@ Planning values (outcome-free; §15):
 
 ## 16. Corrections (2026-11-24)
 
-**Provenance.** The reviewer's numbers below come from the director's ruling message. The author has not seen the review itself and, as ruled, re-ran nothing. They are attributed, not re-verified, except where a line says it was checked against the author's own saved census output.
+**Provenance.** The reviewer's findings and numbers were relayed by the director. The author has not seen the review itself and, as ruled, re-ran nothing. Figures are attributed, not re-verified, except where a line says what was checked: the author's saved census output, or the code at `a9c12c1` by reading.
 
-### 16.1 The falsifier (finding B3; corrects §8 and §9)
+### 16.1 The falsifier (finding 3; corrects §8 and §9)
 - A **power-gate closure is not a FAIL and refutes nothing.**
 - A FAIL refutes only spreads **above the bootstrap ci_high**. It does not refute "≳ 25 pp" by default.
 - The reviewer's probabilities of a FAIL whose ci_high is ≥ 25 pp, i.e. a FAIL that leaves even a 25 pp effect unrefuted:
 
-| True spread | P(FAIL with ci_high ≥ 25 pp) |
-|---|---|
-| 20 pp | 0.32 / 0.57 |
-| 10 pp | 0.27 / 0.48 |
+| True spread | SE 6.4 pp | SE 7.9 pp |
+|---|---|---|
+| 20 pp | 0.32 | 0.57 |
+| 10 pp | 0.27 | 0.48 |
 
-  The pairs are in the order given. They appear to follow the σ 1.0 / σ 1.24 order used elsewhere in the ruling, which the message does not state for this line.
+- P(FAIL | true 10 pp) is 92–95 %. This agrees with §8's own table (1 − 0.08 and 1 − 0.045).
 - A FAIL would **not** close G1 (small-cap), G2 (short vol) or G4 (skew/term). None of them is what this design tests.
 
-### 16.2 The conditioning signal (finding R7; corrects §1's persistence paragraph and any reliance on it in §4 and §7)
+### 16.2 The conditioning signal (finding 7; corrects §1's persistence paragraph and any reliance on it in §4 and §7)
 - "The conditioning signal has not collapsed" is **unsupported**. The measured sd(log q), 0.392, equals the sampling-noise floor of the denominator alone: the log of a median of 8 half-normals has sd 0.390, and 0.417 for t4.
-- corr(log q, log m8) = −0.64. Much of the sort is therefore a sort on noise in m8.
-- The corrected implied-versus-history slope is 1.11, which shows no footprint of options under-weighting the firm's history.
+- The 0.392 is on the 84 unique events. corr(log q, log m8) = −0.64 and corr(log q, log implied) = +0.10. Much of the sort is therefore a sort on noise in m8.
+- The noise-corrected slope of log implied on log m8 is 1.11, which shows no footprint of options under-weighting the firm's history.
 
 ### 16.3 The power numbers (corrects §0 and §8)
 - P(H1b) of 7.8 % / 4.5 % **reproduces as stated** from the T-410 priors.
 - Updating on the observed var(log q), the reviewer gets **2–4 % (σ 1.0) / 1–2.5 % (σ 1.24)**.
-- The ruling cites "the ±0.43/0.38 arms". The definition is in the review, which the author does not hold, so the figure is quoted and not interpreted.
-- Conditions 2–5 cost more than §8 states.
+- The reviewer's thinning gives 1,228 arms over 68 weeks (effective clusters ≈ 46), or 1,236 arms over 70 weeks when expiry-aware. That agrees with §8's ≈ 1,230 and ≈ 68.
+- P(H1b) through all five conditions is 0.58 at a true 20 pp, 0.14 at 12 pp and 0.01 at 5.5 pp.
+- **Not reconciled.** The first ruling said conditions 2–5 cost more than §8 states. The five-condition 0.58 at 20 pp is about equal to §8's value for condition 1 alone (0.57 at σ 1.0), so these figures do not themselves show an added cost.
 
 ### 16.4 Data caveats
 - "47 % no expiry" is the 150-event sample. Pooled over both samples it is **44 % (92 of 210)**; checked against the author's saved census output (70 + 22).
 - The 86 included events are **84 unique** events, because the two samples overlap.
 - k reaches **6**; checked (one event in the 60-event sample).
-- FISV, CPAY and BRK.B show contract-**listing gaps**: 0 listed against real listings, with renames involved. A "no expiry" exclusion can be a data gap.
-- The news files for 2026-08 and 2026-09 are **truncated**, so rule T4 leaves about 122 candidates unprotected. The loader checked only that a month's file exists.
+- Contract-**listing gaps** exist, so a "no expiry" exclusion can be a data gap: FISV 2025-07-25 lists 0 contracts (FI lists 110); CPAY 2024-02-16 lists 0 (FLT lists 78); BRK.B 2025-05-09 lists 0, yet 14 of 14 constructed OCC symbols have bars.
+- The news files for 2026-08 (ends 08-05) and 2026-09 (ends 09-02) are **truncated**, so rule T4 leaves about 122 candidates unprotected. The loader checked only that a month's file exists.
 - The fetch and refresh code was **never written**.
 
-### 16.5 Level H and H1c (finding R8; corrects §6, §7 and §9)
+### 16.5 Level H and H1c (findings 8 and 11; corrects §6, §7 and §9)
 - **H1c is not deployable as specified.** The arms are terciles of the whole week, so Monday's arm needs Friday's q.
-- Level H behaves as an effectively **flat cost** of about 8 pp (7.1 / 9.3 / 11.3), not as an event-specific charge.
-- The ruling also refers to a reviewer finding on §7's named descriptives. Its content was not in the message, so it is not restated here.
+- H1c would need trailing thresholds. The same look-ahead biases H1b little: +0.1 to +0.5 pp in a fair-priced null with common vol shocks.
+- Level H behaves as an effectively **flat cost** of about 8 pp (7.1, 9.3 or 11.3 with both, one or no print ranges), not as an event-specific charge. The print-range floor never binds at 5 %.
 
 ## 17. Review findings and their resolution
 
-The review counted **4 blockers and 6 REQUIRED** items. The ruling names three by number; the others it describes without one. The author could not find the review on disk (2026-11-24: `docs/` and the session scratchpad searched), so no number has been assigned by inference. **The remaining numbers need filling in from the review.**
+Independent execution review of `a9c12c1`: **4 blockers, 6 REQUIRED, 1 minor.** Findings are as relayed by the director on 2026-11-24. Line numbers are the review's, against `a9c12c1`. **Every finding's resolution is "not fixed: study closed".** The last column says what the corrections above already state, and what the author confirmed by reading the code (nothing was run).
 
-| Finding | What | Resolution |
-|---|---|---|
-| B3 | Falsifier: gate closure counted as a FAIL; a FAIL over-closes | not fixed: study closed (corrected in §16.1) |
-| R7 | "Signal has not collapsed" unsupported | not fixed: study closed (corrected in §16.2) |
-| R8 | H1c not deployable; level H is a flat cost | not fixed: study closed (corrected in §16.5) |
-| unnumbered in the ruling | Fail-closed hole: a delisting inside the window is silently dropped | not fixed: study closed (§18 A2) |
-| unnumbered in the ruling | Fail-closed hole: truncated news input accepted | not fixed: study closed (§16.4) |
-| unnumbered in the ruling | Fetch and refresh code unwritten | not fixed: study closed |
-| unnumbered in the ruling | Contract-listing gaps (FISV, CPAY, BRK.B) | not fixed: study closed (§16.4) |
-| unnumbered in the ruling | P(H1b) update; cost of conditions 2–5 | not fixed: study closed (§16.3) |
-| unnumbered in the ruling | Sample accounting (44 % pooled; 84 unique; k = 6) | not fixed: study closed (§16.4) |
-| unnumbered in the ruling | Named descriptives | not fixed: study closed (content not held) |
+| # | Level | Finding | Covered in this file? |
+|---|---|---|---|
+| 1 | BLOCKER | **A delisting inside the window is silently dropped, never a halt.** T10 in `stage_inclusion` (code 854–860; prereg 82) turns a missing expiry close into `missing_input:daily_bar`, tolerated to 1 % (~50 events). The halt in `stage_outcomes` is unreachable from `run`. With one firm's bars truncated at entry, the pipeline completed and the event vanished. The existing test calls `stage_outcomes` directly. NaN closes also pass T10 | Partly: §18 A2 states the drop, the unreachable halt and the test. NaN closes and the demonstration are new. Drop path confirmed by reading |
+| 2 | BLOCKER | **The T4 news input is truncated and accepted.** `news_202608.parquet` ends 08-05 and `news_202609.parquet` ends 09-02. `load_flash_news` on 2026-07..09 did not halt (368/152/3 flash rows), leaving ~122 candidates without T4. The prereg refreshes only months 10–11, and the files are not md5-pinned | Partly: §16.4 states the truncation, the 122 and the existence-only check. The refresh scope and missing pins are new. Existence-only check confirmed by reading |
+| 3 | BLOCKER | **The falsifier is wrong** (prereg 205–208). (a) A power-gate closure is listed as a FAIL. (b) A FAIL often leaves ci_high ≥ 25 pp (§16.1's table). (c) It closes G1/G2/G4, which are untested. P(FAIL \| true 10 pp) is 92–95 % | Yes: §16.1. Text confirmed by reading |
+| 4 | BLOCKER (process) | **`fetch`, the 8-K refresh and the dead-name mapping are unwritten, and the freeze is circular:** the pins need the post-freeze archive. Without the refresh, arms ≈ 1,030 [998–1,062] against a gate of 1,000: a coin flip, given ±3.4 pp uncertainty in the inclusion rate | Partly: §16.4 states the unwritten code. The circular freeze and the coin flip are new. See also §18 A1: that gate of 1,000 replaced 2,400 |
+| 5 | REQUIRED | **Data gaps are filed under legitimate exclusions** (code 819–853). 10 % of firms with no daily bars → `insufficient_history`, no halt. All adjusted bars missing → a power-gate halt that reads as "closed for power". Contracts empty or renamed for 50 % of firms → `no_expiry_within_7d`. Empty trades or negative prices → `thin_entry_prints`. Live cases: FISV, CPAY, BRK.B (§16.4). `drop_duplicates("accession")` (line 229) mishandles one CIK under two tickers | Partly: §16.4 and §18 A3 state the listing gaps. The rest is new. The labels and line 229 confirmed by reading |
+| 6 | REQUIRED | **The three controls do not prove the code path.** Payoff read at entry+1, payoff from adjusted closes, m8 always at k = 1, and 10 % entry-price noise all pass. The 4-SE tolerance (~13–16 pp) is the size of the effect | No: new. §10's "code path proven" is marked superseded. From §10's own estimates and t, 4 SE is ≈ 12, 14 and 18 pp |
+| 7 | REQUIRED | **"The conditioning signal has not collapsed" is unsupported** (prereg 56). sd(log q) 0.392 on 84 unique events against a floor of 0.390 (t4: 0.417); corr(log q, log m8) −0.64; corr(log q, log implied) +0.10; noise-corrected slope 1.11. Pre-freeze option, **not adopted**: mean of 8 (noise sd 0.28 / 0.35), P(all five) at a 15 % mispricing sd of 0.14 → 0.35 | Yes: §16.2. The mean-of-8 figures are new |
+| 8 | REQUIRED | **H1c is not deployable:** Monday's arm needs Friday's q. It would need trailing thresholds. The bias on H1b is small (+0.1 to +0.5 pp) | Yes: §16.5 |
+| 9 | REQUIRED | **The named descriptives are unimplemented** (prereg 159; `analyze`, code 914): by-year, by-session, corr(q, strike offset), top-1 % share of \|β\|. Level B exists only after an H1b pass | No: new. Confirmed by reading: only H1a is always computed |
+| 10 | REQUIRED | **Pinning and data-guard holes.** `verify_manifest` passes with an extra un-manifested file that the run then reads (needs set equality). The outside-`data/` guard (1512) is bypassed when `data/research` is a symlink (agent worktrees): resolve both sides | No: new. Both confirmed by reading |
+| 11 | MINOR | Pooled no-expiry is 92/210 = 44 %; thin prints 12 %; k reaches 6; 84 unique of 86 events. Level H drag ≈ 8 pp (7.1/9.3/11.3 with both, one or no print ranges); the print-range floor never binds at 5 %. `_get` does not retry connection resets. Determinism ×2 reuses one in-memory source. No parity or no-arbitrage guard on entry VWAPs (sample max \|error\| 11 %, sd 2 %; 0 of 11,839 prints > 50 % off the leg median: low practical risk). At least 22 pre-announcements beyond TSLA/ABBV (SMCI 2025-04-29, HOOD, GS, EQT); a past-only rule removes most | Partly: §16.4 states 44 %, 84 and k = 6; §16.5 states level H. The rest is new |
 
-The unnumbered rows are the ruling's descriptions. They may not map one-to-one onto the review's numbers.
+## 18. The author's own disclosures
 
-## 18. The author's own disclosures (not from the review)
+A1, A3, A4 and A5 are the author's. **A2 is the review's finding 1**, named in the ruling first; the author only confirmed it in the code and adds that the promise was false when written.
 
 - **A1. The power gate was lowered after the census.**
   - The code set `POWER_GATE_MIN_ARM_EVENTS = 2_400`, written before any census ran and committed in `fbfcbd7`. After the census had projected ≈ 1,230 arm events, `5eedef9` changed it to 1,000.
   - No outcome had been seen, so "set before any outcome" was true. It was also misleading: the commit message, §8, §14 D4 and the hand-back all gave 1,000 without saying it replaced 2,400.
   - At the original gate, the study would have closed itself unrun.
-- **A2. §3's delisting promise was false.** `stage_inclusion` reads the expiry-day bar for the corporate-action ratio, and on a `KeyError` it counts `missing_input:daily_bar` and skips the event. It halts only above 1 % of candidates. The halt in `stage_outcomes` is never reached for such an event. The test that "proved" the halt called `stage_outcomes` directly.
+- **A2 (found by the review). §3's delisting promise was false.** `stage_inclusion` reads the expiry-day bar for the corporate-action ratio, and on a `KeyError` it counts `missing_input:daily_bar` and skips the event. It halts only above 1 % of candidates. The halt in `stage_outcomes` is never reached for such an event. The test that "proved" the halt called `stage_outcomes` directly.
 - **A3. Contrary evidence on listings was seen and not reported.**
   - The author's own probe showed TSN with weekly expiries through 2024-08-02 and then only 2024-08-16 in the 35 days after an 08-05 announcement.
   - The monthly-only "witness" for AMT, MNST, AZO and AXON came from the same Alpaca contract list whose completeness was in question. It was not independent.
