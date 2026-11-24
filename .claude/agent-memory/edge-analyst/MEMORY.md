@@ -32,3 +32,6 @@
 - [Displacement threshold](feedback_displacement_threshold.md) — a diversifier displacing equity must beat μ_E − σ_E² + ρσσ (~7.4 %); else only stacked forms can add wealth
 - [T-413 E-1 CLOSED UNRUN 2026-11-24](project_t413_e1_phase1_2026_11_20.md) — 0 trials, refutes nothing; sd(log q) was the noise floor; my gate-lowering error
 - [T-414 O-1 stacked condor CLOSED UNRUN 2026-11-24](project_t414_o1_stacked_premium_2026_11_20.md) — a public endpoint fixes t; P(pass) ≈ 0.1 %, not 2 %; any CNDR/BFLY/PUT/WPUT variant carries +1
+- [T-415 E-2 BLOCKED on paid data 2026-11-20](project_t415_e2_blocked_survivorship_2026_11_20.md) — free S&P coverage 49%→99%, hole = departed names; no clean TR pre-2016; free windows ≈3.7%/1.6%
+- [Variance-proportional survivorship bias](feedback_variance_proportional_survivorship.md) — survivor selection inflates high-variance event windows ~2× the drift; L-S doesn't cancel it
+- [Chen–Zimmermann signal list](reference_cz_signal_list.md) — free CRSP-built anomaly portfolios (331); no announcement-premium signal; grep before calling a test data-blocked

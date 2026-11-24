@@ -2308,6 +2308,58 @@
 - **Function `cmd_btop50_get()`**: One GET to barclayhedge.com with a generic client name and no contact detail; the response
 - **Function `main()`**: No docstring
 
+### `t415_e2_coverage_census.py`
+**Module Docstring:** scripts/t415_e2_coverage_census.py
+- **Class `CensusError`**: A load-bearing input is missing or a control failed. Never degrade to a plausible count.
+- **Class `Inputs`**: No docstring
+  - `def membership()`
+  - `def calendar_csv()`
+  - `def processed_dir()`
+  - `def t265_dir()`
+  - `def calendar_pinned()`
+  - `def panel_8k()`
+  - `def live_tickers()`
+  - `def form345_glob()`
+  - `def wiki_html()`
+  - `def wanted_csv()`
+  - `def firstrate_csv()`
+- **Class `BarIndex`**: Dates with a usable bar (close > 0, volume > 0) per ticker, per coverage mode.
+  - `def processed_file()`
+  - `def t265_file()`
+  - `def dates()`
+- **Function `require()`**: No docstring
+- **Function `md5_file()`**: No docstring
+- **Function `md5_manifest()`**: md5 over sorted 'name:md5' lines — one pin for a directory's files actually read.
+- **Function `load_calendar()`**: No docstring
+- **Function `load_membership()`**: No docstring
+- **Function `load_issuer_symbols()`**: (sym, cik, first, last, n) from every Form 345 SUBMISSION table on disk.
+- **Function `normalize_symbol()`**: No docstring
+- **Function `load_live_maps()`**: No docstring
+- **Function `member_cik()`**: The CIK filing Forms 3/4/5 under this symbol around the membership interval (most filings).
+- **Function `resolve_candidates()`**: (own-ticker candidates, successor candidates, identity status) for one member interval.
+- **Function `departure_kind()`**: No docstring
+- **Function `classify_reason()`**: No docstring
+- **Function `load_changes()`**: No docstring
+- **Function `interval_coverage()`**: One row per (member interval, calendar year) with member-days and covered days per mode.
+- **Function `pct()`**: No docstring
+- **Function `coverage_by_year()`**: No docstring
+- **Function `coverage_by_kind()`**: No docstring
+- **Function `window_summary()`**: No docstring
+- **Function `earnings_events()`**: Deduped earnings releases with the first trading day the market can react on.
+- **Function `predict()`**: Each release at date d predicts the same-quarter release at d + 364, rolled to a trading day.
+- **Function `prediction_census()`**: How far "last year's release + 364 days" lands from the actual release, in TRADING days.
+- **Function `calendar_crosscheck()`**: 8-K reaction days against the pinned vendor calendar (`earnings_dates_pinned`, 2008+):
+- **Function `week_ends()`**: No docstring
+- **Function `announcers_per_week()`**: Distinct PIT members whose predicted reaction day falls in (week_end[i-1], week_end[i]].
+- **Function `weeks_summary()`**: No docstring
+- **Function `dated_member_share()`**: No docstring
+- **Function `departed_cik_share()`**: No docstring
+- **Function `firstrate_unlock()`**: Weekdays of under-covered wanted-list members a FirstRate `-DELISTED` series would reach
+- **Function `positive_controls()`**: Known answers on this module's own code path. A miss HALTS the census.
+- **Function `refuse_data_path()`**: The census never writes into any data tree (the worktree's, the main checkout's, or --data-root).
+- **Function `run()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `tail_rescore_t234.py`
 **Module Docstring:** T-234 tail re-score — robos (monthly-rebal) vs T-215 base/composition. No new backtest.
 - **Function `load_close()`**: No docstring
