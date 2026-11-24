@@ -1267,6 +1267,15 @@ def test_verifier_judges_only_rows_of_that_session(tmp_path: Path) -> None:
     assert not ok and "0 real quotes in 0 rows" in msg
 
 
+def test_verifier_judges_only_rows_of_that_slot(tmp_path: Path) -> None:
+    """A good near_close XSP must not stand in for a wiped one at the close."""
+    cfg = cfg_for(floor=0.5, required=("XSP",))
+    run(tmp_path, Market(), cfg, et(SNAP, 15, 45), "near_close")
+    run(tmp_path, Market(snap=_only("XSP", WIPED)), cfg)
+    ok, msg = m.verify_store(tmp_path, cfg, SNAP)
+    assert not ok and "required underlying not covered: XSP" in msg
+
+
 def test_verifier_applies_the_required_list_and_the_share_floor(tmp_path: Path) -> None:
     capture(tmp_path, SNAP, cfg_for(floor=0.5), _only("XSP", WIPED))
     assert m.verify_store(tmp_path, cfg_for(floor=0.5), SNAP)[0]
