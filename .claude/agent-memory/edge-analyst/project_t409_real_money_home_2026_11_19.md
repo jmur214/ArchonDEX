@@ -41,6 +41,13 @@ metadata:
 - Controls reproduce T-399 ($8,864,568) and T-287 ($929,498.35 / $494,701.10).
 - Smoke md5 `838fb3a7…`; each 40-year arm-path takes 2–5 ms; a full run is ≈ 15–20 min.
 
+**Rev. 5 (2026-11-24), the freeze candidate:** code `da224b7`, prereg `24b13fe`.
+- Pair rule for an owner with no stated view: read the choice in `param:h=+0.00` and `param:h=-0.02`; agree -> that choice; disagree -> K1; K1 ineligible -> no choice.
+- Choice = highest E[log W] (best typical), highest-mean arm reported beside it and never decides.
+- School-year Roth default none (no source for $7,500 on ~$8k of wages); the taxable $500/month in school is an assumption.
+- 668,400 arm-paths, 55-100 min a run, run twice; smoke md5 `cb5d9cea`; frozen inputs in `/Users/jacksonmurphy/Dev/_research_snapshots/t409_real_money_home_2026-11-20/inputs/`.
+- Study-path control $415,477.1850.
+
 **Why:** the owner asked "where does the real money sit"; the director asks the owner once, only for decision-relevant inputs.
 
 **How to apply:**
