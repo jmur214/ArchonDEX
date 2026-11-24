@@ -29,6 +29,7 @@ Exit codes:
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,33 +38,39 @@ sys.path.insert(0, str(ROOT))
 OPTIONS_REL = "data/macro_data/options"
 
 
+def _now_utc() -> datetime:
+    """The wall clock (tests pin it)."""
+    return datetime.now(timezone.utc)
+
+
 def _check_options(root: Path) -> tuple[bool, str]:
-    """The options archive's own store check, on today's ET date (local-only; see above)."""
-    from datetime import datetime
+    """The options archive's own store check (local-only; see above). Never raises: a broken
+    options check is its own FAIL line and must not mask the alt-data verdict."""
+    try:
+        from scripts.archive_options_snapshots import (DEFAULT_CONFIG, ET, load_config,
+                                                       verify_store)
 
-    from scripts.archive_options_snapshots import (DEFAULT_CONFIG, ET, load_config,
-                                                   verify_store)
-
-    return verify_store(root / OPTIONS_REL, load_config(DEFAULT_CONFIG), datetime.now(ET).date())
+        return verify_store(root / OPTIONS_REL, load_config(DEFAULT_CONFIG),
+                            _now_utc().astimezone(ET))
+    except Exception as e:  # noqa: BLE001 - any breakage is this check's failure, loudly
+        return False, f"FAILED: the options check broke ({type(e).__name__})"
 
 
 def main() -> int:
     try:
-        import pandas as pd
-
         from paper_trader.altdata_archive import _SNAPSHOT_FRESHNESS, _fresh_rows
 
-        today = pd.Timestamp.now().strftime("%Y-%m-%d")
+        today = _now_utc().astimezone().strftime("%Y-%m-%d")   # local date, as the rows are
         stale = []
         for label, rel, datecol in _SNAPSHOT_FRESHNESS:
             n = _fresh_rows(ROOT / rel, datecol, today)
             print(f"[verify-altdata] {label}: {n} rows @ {today}")
             if n == 0:
                 stale.append(label)
+        if stale:      # printed (and flushed) first: nothing in the options check can hide it
+            print(f"[verify-altdata] FAIL — zero fresh rows: {', '.join(stale)}", flush=True)
         options_ok, options_msg = _check_options(ROOT)
         print(f"[verify-altdata] options: {options_msg}")
-        if stale:
-            print(f"[verify-altdata] FAIL — zero fresh rows: {', '.join(stale)}")
         if not options_ok:
             print("[verify-altdata] FAIL — options check (see the options line above)")
         if stale or not options_ok:

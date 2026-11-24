@@ -32,6 +32,11 @@ if [ ! -x "${AWS:-}" ]; then
   done
 fi
 AWS="${AWS:-aws}"
+# HARD BOUND on the options step (T-416 R1, 2026-11-24). It runs BEFORE the verifier and the
+# alarm, so a hung step would silence both. Its own limits (60 s per request, 1500 s per run)
+# are the first line; this is the backstop: SIGALRM kills it and RC4 becomes 142, which alarms.
+OPT_TIMEOUT="${ARCHONDEX_OPTIONS_TIMEOUT_S:-2400}"
+case "$OPT_TIMEOUT" in ''|*[!0-9]*|0*) OPT_TIMEOUT=2400 ;; esac
 LOG_DIR="$REPO/data/macro_data/alt/logs"
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/archive_$(date +%Y-%m-%d).log"
@@ -55,9 +60,13 @@ SNS_TOPIC="arn:aws:sns:us-east-1:407539788432:archondex-paper-alerts"
   "$PY" scripts/archive_positioning_t136.py 2>&1
   RC2=$?
   # T-416 options snapshot archive: exits 0 on OK and on a non-trading day (SKIP);
-  # 1 on FAILED (no real quotes, or coverage below the floor); 2 when broken. It runs
+  # 1 on FAILED (no real quotes, or coverage below the floor); 2 when broken; 142 when the
+  # hard bound killed it. It runs
   # BEFORE the verifier, whose options check then re-judges the written file by content.
-  "$PY" scripts/archive_options_snapshots.py 2>&1
+  # perl's alarm survives exec; `exit 127` is reached only if the exec itself fails (perl
+  # would otherwise fall off the end and report 0).
+  /usr/bin/perl -e 'alarm shift; exec @ARGV; exit 127' "$OPT_TIMEOUT" \
+    "$PY" scripts/archive_options_snapshots.py 2>&1
   RC4=$?
   "$PY" scripts/verify_altdata_snapshot.py 2>&1
   RC3=$?
