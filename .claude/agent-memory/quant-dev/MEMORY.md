@@ -21,3 +21,5 @@
 - [T-412 information reaches the desks](project_t412_information_reaches_desks_2026_11_20.md) — 0/59 is the PRICE resolvers' code; event desk had 3 dead links; census eval clock can't MISS; shared altdata race.
 - [Multi-day drive masks ephemeral-disk defects](feedback_multiday_drive_masks_ephemeral_disk_2026_11_20.md) — day N's tail leaves files day N+1 reads; pin asserts to the day's own rows.
 - [SEC EDGAR forward 8-K formats](reference_sec_edgar_forward_8k_formats_2026_11_20.md) — daily index not posted same day; submissions arrays; BRK-B vs BRK.B; body = cover page.
+- [Making data visible switches on dormant code](feedback_making_data_visible_switches_on_dormant_code_2026_11_24.md) — T-412 review: list what READS what the desk writes; fresh ≠ works; ANY-synced + push erases history.
+- [Privacy files and transport locks](feedback_privacy_files_and_transport_locks_2026_11_24.md) — Read/Edit only on files with the SEC contact; stub OpenerDirector.open, refuse sockets.

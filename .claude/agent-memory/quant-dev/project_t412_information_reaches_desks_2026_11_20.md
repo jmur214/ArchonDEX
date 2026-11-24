@@ -25,11 +25,13 @@ the director merges/deploys on the owner's word). Findings a future session woul
   index, 49 tracked, 44 submissions requests in 47.5 s; panel ~5 KB/day; ticker map 870 KB (weekly refresh);
   58 allowlisted items in a 3-day window. The 8-K PRIMARY document is a cover page (~3k chars); the press
   release is Exhibit 99.1, which the interpreter never sees — a real information-quality limit.
-- **The `altdata/` S3 prefix is SHARED by all three accounts** and each pushes it at step 7 — a lost-update
-  race on any file only one account writes (the 8-K panel). Self-heals because account 1 re-fetches a 5-day
-  window and reads its own in-container copy; reported, not fixed.
-- The event interpreter's 3-calendar-day floor loses a Friday's filings after a Monday holiday (seen Tue,
-  floor = Sat). Not changed ([NN-AI-GATE] guard).
+- **The `altdata/` S3 prefix is SHARED by all three accounts.** My first claim that the race "self-heals" was
+  WRONG (review 2026-11-24: S3 froze at 2 of 16 filings). Fixed: only account 1 pulls/gates/pushes the 8-K files,
+  and any push uploads only what that run changed. Residual: two accounts that both CHANGE the same feed
+  within minutes are still last-writer-wins.
+- The event interpreter's window now reaches back to the last session (the driver's own SPY series — the holiday
+  list ends 2026-12 and MarketCalendar caches one month); the [NN-AI-GATE] as_of guard is unchanged.
+- Kalshi drops `expiration_time` on finalized markets' rows: read the last RECORDED value per ticker.
 
 **Why:** each of these looked like the one cause of a symptom and was not. **How to apply:** before quoting
 T-411's "step order" as the 0/59 cause, or "no feed" as the desk's only defect, read this; on the first
