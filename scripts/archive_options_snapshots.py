@@ -17,8 +17,10 @@ What one run does (all GETs; nothing is ever posted to any API):
      only when neither says it is open. An empty or malformed calendar answer is never a
      closure; a disagreement is printed loudly and the capture still runs.
      ``--slot eod`` (default) captures the last session that has closed. After midnight, before
-     the next open, or on a weekend it captures the previous session late if it is missing
-     (Alpaca still serves its closing quotes). ``--slot near_close`` is for an intraday capture.
+     the next open, or on a weekend it captures the previous session late if it is missing.
+     That ASSUMES Alpaca still serves its closing quotes (not yet observed for active
+     contracts); if it does not, no quote is stamped on that session and the run FAILS.
+     ``--slot near_close`` is for an intraday capture.
      A slot that does not match the clock is refused (rc 2): it would mislabel the rows.
   2. Reference prices: one ``/v2/stocks/snapshots`` call on ``delayed_sip``. The strike band is
      [0.8 x min, 1.2 x max] of the session close and the last trade, so an after-hours move
