@@ -23,9 +23,9 @@
 - [T-408 post-FOMC Treasury drift 2026-11-19](project_t408_post_fomc_drift_2026_11_19.md) — closed unrun: target surprises shrank 3x since 2015; OOS pass ≤1.2 %; Fed-direction rule = cycle timing
 - [Signal-variance collapse trap](feedback_signal_variance_collapse.md) — power ∝ sd(conditioning signal); census its post-publication sd and per-event weight shares first
 - [FOMC surprise + target-change sources](reference_fomc_surprise_sources.md) — SF Fed Bauer–Swanson workbook (FF1 only 2010+), Fed openmarket tables, FRED ids; keyless FRED CSV down 11-19
-- [T-409 real-money home DRAFT rev 2 2026-11-19](project_t409_real_money_home_2026_11_19.md) — robo is TAXABLE + aggressive; switch tax vs 0% school room; robo TLH $50k opt-in; leverage Roth-first; bound 0.5x SPX
+- [T-409 real-money home DRAFT rev 5 + code 2026-11-24](project_t409_real_money_home_2026_11_19.md) — freeze candidate, self-contained; pair rule for no stated view; K1 default; taxable aggressive robo <$50k; controls reproduce
 - [Check the real money's wrapper first](feedback_check_real_money_wrapper_first.md) — repo assumed "Roth" for months; it was taxable; ask wrapper/profile/balance/embedded gain before designing
-- [Long-history data traps](feedback_long_history_data_traps.md) — Shiller monthly-average σ, French daily momentum built daily, six-day weeks, fee-drag t inflation, bootstrap ≠ mean uncertainty
+- [Long-history data traps](feedback_long_history_data_traps.md) — Shiller averaging, French daily momentum, six-day weeks, fee-drag t, CPI 2025-10 gap, T-287 64-day hole, xlrd undeclared
 - [Free long-history sources](reference_free_long_history_sources.md) — Shiller ie_data.xls (CPI/GS10; repo copy insufficient), French daily, JST R6 (16 mkts to 2020), FRED API, SIP brochure
 - [T-410 ideas census 2026-11-20](project_t410_ideas_census_2026_11_20.md) — options-forward untested map; top 3 E-1 earnings straddles / O-1 stacked condor / E-2 announcement basket ~4–18 %; stay-dead list
 - [Options data sources verified 2026-11-20](reference_options_data_sources_2026_11_20.md) — Alpaca option bars+trades from ~2024-01 incl. expired, NO historical quotes; Cboe CDN 1986+ indices; P/C ends 2019
@@ -35,3 +35,4 @@
 - [T-415 E-2 BLOCKED on paid data 2026-11-20](project_t415_e2_blocked_survivorship_2026_11_20.md) — free S&P coverage 49%→99%, hole = departed names; no clean TR pre-2016; free windows ≈3.7%/1.6%
 - [Variance-proportional survivorship bias](feedback_variance_proportional_survivorship.md) — survivor selection inflates high-variance event windows ~2× the drift; L-S doesn't cancel it
 - [Chen–Zimmermann signal list](reference_cz_signal_list.md) — free CRSP-built anomaly portfolios (331); no announcement-premium signal; grep before calling a test data-blocked
+- [Shared omissions and mutant coverage](feedback_shared_omission_and_mutant_coverage.md) — my own reference shares my gaps; anchor to published examples; rehearse the full Config with spies; mutants before review

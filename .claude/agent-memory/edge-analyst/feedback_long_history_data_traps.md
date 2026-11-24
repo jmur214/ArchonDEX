@@ -21,6 +21,12 @@ Before any multi-decade allocation or leverage design, check these traps.
 **Code**
 - **`MetricsEngine.bootstrap_distribution` is a fixed-length moving block** with an n^(1/3) block, despite its docstring saying "stationary / Politis-White". It returns zeros below 4 observations, a fail-open path, so guard the length.
 
+**Added 2026-11-20 (T-409 rev. 3, while building the study code):**
+- **FRED CPIAUCNS has no 2025-10.** BLS never published October 2025 (the federal shutdown). Declare the gap explicitly; never let a loader fill silently.
+- **T-287's published "$929k vs $495k" drops 64 SPY days.** These are bond-market holidays: T-284's curves and the inner join sit on the bond synthetic's calendar, the T-297 class. Like for like (fee-free, as the published curve) the calendar-complete buy-hold is $1,025,316 vs $515,736 (ratio 1.99; my first $1,009,638 subtracted a 9 bp fee the curve never had — the reviewer caught it). Always check a "known number" for calendar holes before using it as a control target.
+- **`xlrd` is not a declared dependency**, so Shiller's .xls cannot be read in study code. The repo's `data/macro/shiller_ie_data.csv` has P and D (dividends to 2024-06) but no CPI or GS10.
+- **pypdf text extraction interleaves Rev. Proc. tables** (the single and head-of-household rows, Table 2, got mixed; I first misnamed it married-filing-separately). Verify brackets against the published cumulative "$X plus Y %" amounts, not threshold lists.
+
 **Why:** found while designing T-409 (2026-11-19). Each one silently biases levered-vs-1× comparisons, mostly toward leverage.
 
 **How to apply:** check this list when any prereg uses Shiller, French daily, JST or T-306, or quotes a gate t on an allocation contrast.

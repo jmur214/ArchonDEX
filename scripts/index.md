@@ -2308,6 +2308,82 @@
 - **Function `cmd_btop50_get()`**: One GET to barclayhedge.com with a generic client name and no contact detail; the response
 - **Function `main()`**: No docstring
 
+### `t409_real_money_home.py`
+**Module Docstring:** T-409 — where the owner's real money should sit: an after-tax household decision study.
+- **Class `InputError`**: A load-bearing input is missing, unparseable, stale or md5-mismatched. The run halts.
+- **Class `ControlFailed`**: A positive control did not reproduce its published number. The run halts.
+- **Class `Owner`**: Owner facts (2026-11-20 answers) and labelled defaults; real 2026 dollars.
+- **Class `Config`**: No docstring
+- **Class `LotBook`**: Tax lots of one fund in the taxable account. All lots share the fund's price-only index.
+  - `def __init__()`
+  - `def buy()`
+  - `def value()`
+  - `def gain()`
+  - `def live()`
+  - `def sell_hifo()`: Highest basis per share first (the lowest gain per dollar sold).
+  - `def harvest()`: Realise every lot whose value is >= theta below its basis; the replacement keeps the shares.
+  - `def realize_gains_prorata()`: The robo's sell-and-rebuy: `frac` of every lot is sold and immediately rebought. A gain lot realises
+  - `def realize_lt_gains_upto()`: Sell long-term gain lots, largest gain per dollar first, until `room` of gain is realised.
+- **Class `TaxYear`**: No docstring
+- **Class `Arm`**: No docstring
+- **Class `PathInputs`**: One path: monthly arrays of length T (months), plus derived price-only indices.
+- **Class `ArmResult`**: No docstring
+- **Class `Progress`**: Arm-path progress on stderr. Never part of the results.
+  - `def __init__()`
+  - `def add()`
+- **Function `md5_of()`**: No docstring
+- **Function `require_file()`**: No docstring
+- **Function `read_manifest()`**: No docstring
+- **Function `load_french_daily()`**: Ken French daily factors -> DataFrame[mkt_rf, rf] in decimals, DatetimeIndex. Sentinels halt.
+- **Function `load_cpi()`**: No docstring
+- **Function `load_dividend_yield()`**: Shiller D/P (annual) by month from the repo CSV; carried forward past the last dividend, capped.
+- **Function `accrual_fractions()`**: Per-bar year fractions (fee basis 365.25, financing basis 360). 'bar252' reproduces T-315.
+- **Function `levered_fund_returns()`**: Daily-reset L-x fund: L*gross - (L-1)*(financing + spread) - ER, all per bar.
+- **Function `year_change_mask()`**: True on the first bar and on the first bar of each later calendar year (positional, T-399).
+- **Function `control_t399()`**: T-399 corrected static 2x on T-306 D-B, $10k, frozen T-315 conventions (bar252, add-back).
+- **Function `robo_daily()`**: Monthly-rebalanced proxy (T-287 robo_clean): legs net of ER, cash at the bill, 1.5 bp turnover.
+- **Function `accumulate_annual()`**: Contribute each January (first bar of each calendar year from `start`), compound daily.
+- **Function `control_t287()`**: T-287 canonical: buy-hold SPY TR and the schwab_like proxy, $7k each January from 2000-10-30.
+- **Function `run_controls()`**: Both controls must reproduce to within $1; otherwise HALT before any arm is computed.
+- **Function `build_monthly_panel()`**: Daily funds compounded to calendar months. Columns are monthly simple returns unless named.
+- **Function `apply_belief()`**: Shift the arithmetic equity return by h per year of calendar time, scaled by each fund's exposure.
+- **Function `stationary_bootstrap()`**: Politis-Romano stationary bootstrap of month indices (circular), shape (n_paths, length).
+- **Function `bracket_tax()`**: Ordinary federal tax on `taxable` with 2026 single brackets scaled by the CPI index `idx`.
+- **Function `annual_tax()`**: Incremental tax caused by the taxable account in one year (nominal), Form 1040 order.
+- **Function `zero_rate_room()`**: Largest extra long-term gain this year that adds no federal tax (income tax + NIIT), found by bisection
+- **Function `make_path()`**: No docstring
+- **Function `roth_contribution()`**: Real Roth contribution in January of 0-based year `year0` (prereg rev. 5 §2).
+- **Function `contribution_schedule()`**: Real contributions per month (taxable, Roth) and the real PV of all contributions after month t.
+- **Function `phase_of()`**: No docstring
+- **Function `wages_of()`**: No docstring
+- **Function `simulate()`**: Run one arm on one path, month by month (nominal dollars; reported in real 2026 dollars).
+- **Function `liquidation_tax()`**: The year-40 sale of every taxable lot, taxed through `annual_tax` (20 % bracket and NIIT included)
+- **Function `panel_arrays()`**: No docstring
+- **Function `run_paths()`**: No docstring
+- **Function `summarize()`**: Bootstrap paths carry Monte Carlo SEs and probabilities. Overlapping historical cohorts are NOT
+- **Function `cohort_index_paths()`**: Every pre-registered January start must fit the panel; one that does not HALTS (never a silent skip).
+- **Function `choose()`**: The owner's rule (prereg rev. 5 §3.4), per decision.
+- **Function `static_mix_returns()`**: No docstring
+- **Function `gate_and_sortino()`**: No docstring
+- **Function `load_jst()`**: No docstring
+- **Function `jst_cohorts()`**: Per JST country: 40-year cohorts of household 1x vs annual-reset leverage (pre-tax, uncapped by Roth
+- **Function `us_reset_calibration()`**: On the L1 panel: the same household rule with the daily-reset SSO blend (monthly steps, January
+- **Function `decision_rows()`**: Every row name `--decision-row` may take; the pair is offered only if both of its rows are run.
+- **Function `check_decision_row()`**: No docstring
+- **Function `resolve_pair()`**: Read each decision in both rows. Agreement is the choice; disagreement is the default arm, flagged. The
+- **Function `arm_path_total()`**: How many arm-paths `study` runs for `cfg` (the runtime is this times roughly 5-9 ms).
+- **Function `main_tree_of()`**: The main working tree behind `tree`: itself if it is one, the owner of a linked worktree, else None.
+- **Function `guarded_data_dirs()`**: Every data/ tree the run may not write under: the control root's, this checkout's, and the main tree's
+- **Function `logw()`**: No docstring
+- **Function `study()`**: No docstring
+- **Function `canonical_md5()`**: No docstring
+- **Function `independent_ref_terminal()`**: REF re-derived without the study's lot book, tax engine or schedule code. Valid only with zero
+- **Function `control_study_path()`**: The study's own path (French loader -> monthly panel -> simulate -> lots -> annual_tax at the final
+- **Function `cmd_run()`**: No docstring
+- **Function `print_summary()`**: No docstring
+- **Function `cmd_fetch()`**: No docstring
+- **Function `main()`**: No docstring
+
 ### `t415_e2_coverage_census.py`
 **Module Docstring:** scripts/t415_e2_coverage_census.py
 - **Class `CensusError`**: A load-bearing input is missing or a control failed. Never degrade to a plausible count.
