@@ -549,7 +549,10 @@ class LotBook:
         return i
 
     def buy(self, dollars: float, price: float, t: int, basis: Optional[float] = None) -> None:
-        if dollars <= 0:
+        if dollars <= 1e-6:
+            # Rounding dust is never a purchase. After B4 sells all of its VOO, a ~1e-15 dividend "bought" a lot,
+            # took the whole wash-sale carry and was then invisible to `live()`, so the disallowed loss was lost and
+            # B4 turned on floating-point noise (review 2026-11-24).
             return
         i = self._slot(t)
         sh = dollars / price
@@ -764,8 +767,9 @@ def annual_tax(y: TaxYear, wages: float, idx: float, state: float,
     base_fed = bracket_tax(base_ti, idx)
     fed_ord = bracket_tax(ord_ti, idx) - base_fed
     # The worksheet's last step: the tax is the SMALLER of the preferential computation and the ordinary tax on
-    # all taxable income (they differ by at most 3 % of the $49,450-$50,400 strip, where the 12 % bracket
-    # still runs after the 0 % room ends).
+    # all taxable income. At 2026 parameters it binds for total taxable income from $49,450 up to $50,807 with
+    # ordinary income of roughly $49,213-$50,400, where the 12 % bracket still runs after the 0 % room ends, and
+    # saves at most $28.50 (real) a year.
     fed = min(bracket_tax(ord_ti, idx) + pref_tax, bracket_tax(ti, idx)) - base_fed
     nii = max(0.0, other + cap_line)
     magi = wages + other + cap_line
@@ -1418,7 +1422,8 @@ def resolve_pair(choice: Dict[str, Dict[str, Dict[str, object]]], rows: Sequence
         if agree:
             resolved, flag = picks[0], ("the two rows agree" if picks[0] is not None
                                         else "no eligible arm in either row")
-        elif all(default in choice[r][d]["eligible"] for r in rows):
+        elif all(default in choice[r][d]["eligible"] for r in rows):  # in the study `all` and `any` cannot differ:
+            # eligibility is read on the unshifted cohorts, one table for every row
             resolved, flag = default, "the two rows DISAGREE: the tie-break default"
         else:
             resolved, flag = None, "the two rows DISAGREE and the default fails the loss bound: no choice"

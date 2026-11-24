@@ -58,20 +58,32 @@ It will not certify any choice as proven. The choice stays yours.
 | # | Finding | Revision 5 |
 |---|---|---|
 | 1 | No decision rule for an owner with no stated view | §3.1: the **pair rule**, as code (`--decision-row pair`) and as text |
-| 2 | 11 of the reviewer's 45 mutants survived | New tests; all 45 reviewer mutants and 16 new ones re-run (§11). The last worksheet step (below) had been omitted from both the code and the test's reference |
+| 2 | 12 of the reviewer's 45 mutants survived (M04, M06, M08–M12, M15, M38, M41, M42, M44) | New tests; all 45 reviewer mutants and 16 new ones re-run (§11). The last worksheet step (below) had been omitted from both the code and the test's reference |
 | 3 | The freeze was not self-contained | This file writes out everything; provenance is in Appendix A |
 | 4 | Owner summary said "leaves the most money" | The rule picks the best **typical** outcome (highest E[log W]); the highest-mean arm is reported on its own line and never decides |
 | 5 | Minors | `--decision-row` is checked before any input is read; the smoke now has two parameter rows and a block run; **the Qualified Dividends worksheet's last "smaller of" step** is applied (below); the output guard also refuses the main tree's `data/` from a worktree; progress reporting; runtime restated (§9) |
 
 **Numerics touched by this revision** (so the director can judge whether another execution review is needed):
-- the last worksheet step (≤ $30 a year, in the $49,450–$50,400 band only);
+- the last worksheet step (at most $28.50 a year, real; it binds for total taxable income from $49,450 up to
+  $50,807, with ordinary income of about $49,213–$50,400);
 - the default for school-year Roth contributions: **none** (§2);
-- a new sensitivity that pauses the taxable contribution in school.
+- a new sensitivity that pauses the taxable contribution in school;
+- **a defect in the B4 sensitivity arm** (the narrow check's one code item). After B4 sells all its VOO, a ~$10⁻¹⁵
+  dividend "bought" a lot, took the whole wash-sale carry and was then invisible to the sale code, so a
+  disallowed loss was lost and B4's wealth turned on floating-point noise. Purchases of $0.000001 or less are
+  now ignored. Check: all 12 other arms are **bit-identical** (5 owner variants × 24 synthetic 40-year panels);
+  a 1e-13 change in the annual tax moved B4's terminal wealth by up to $1,241.38 before and by $0.0000 after.
 
 **A correction to revision 4.** It said the tax engine followed the Qualified Dividends worksheet "including
 its smaller-of steps". It did not apply the last one (the smaller of the worksheet's tax and the ordinary tax on all taxable
 income). The test's independent reference omitted the same step, so the 3,000-case fuzz could not notice. A
 hand-computed case from the published brackets (125 = the ordinary tax on 50,450, not 150) now locks it.
+
+**Corrections to this revision's own first text** (the delta reviewer's round-2 report): it said 11 mutants
+survived (12 did), described the worksheet step as binding in the $49,450–$50,400 band only (the region is the one in the list above:
+$49,450 to $50,807 of total taxable income; the hand case, at $50,450, is outside the first-stated band and inside
+the true one), and called the 55–100 minute runtime a measurement on real data (it was a synthetic panel on a
+loaded machine).
 
 ## 1. Arms
 
@@ -111,7 +123,7 @@ leaving the program. The Roth is separate. Every arm receives the same contribut
 | Embedded gain fraction g (unrealized gain ÷ balance) | 0.15 | 0.0 and 0.30 (decision-A arms at every g; decision-B arms at 0.15) |
 | Roth balance | $15,000 (owner: $10–25k) | $10,000; $25,000 |
 | Automatic taxable contribution | $500 a month, real, every month, through every fall (owner) | $250; $1,000; **none in school years** (`no_contrib_in_school`) |
-| Roth contribution | $7,500 each January, pre-school and post-school | none after school (`no_roth_post_school`) |
+| Roth contribution | $7,500 each January, pre-school and post-school | none after school (`no_roth_post_school`): with the default school years 3–5 and none in school, that is **two contributions ever** (years 1–2) |
 | Roth in school years | **none (primary)** | the rule "contribute if wages ≥ the contribution" (`roth_in_school`) |
 | School years | years 3–5 (owner: more than a year away) | from year 6 |
 | Wages (real, single filer) | pre-school $60,000; school $8,000; post-school $160,000 | — |
@@ -148,6 +160,10 @@ know how to decide. The director's ruling for that case (2026-11-24):
 3. If they disagree, the choice is **K1**, the tie-break default, and the output flags the disagreement. If
    K1 itself fails the loss bound in that case, there is no choice (§3.3).
 4. Both rows' choices are written out beside the resolved answer, for A and for B.
+
+The code's test that K1 is eligible in **all** of the pair's rows could be written as **any** without a
+difference: eligibility is read on the unshifted cohorts, one table for every row, so K1 is eligible in both or
+neither. The `any` branch is unreachable in the study.
 
 **Why a pair, and not one row.** The `param:h=+0.00` row means "as good as the last century". It tilts toward
 leverage, so it is not a neutral default on its own. The second row asks whether the answer survives moving
@@ -228,7 +244,7 @@ pro rata, and loss lots are untouched (a loss on an immediate rebuy is a wash sa
 active only while the account is ≥ **$50,000 nominal**, checked **monthly**, and uses a replacement on a
 different index. Schwab checks daily, so the model understates harvesting, which favours K1.
 
-**Lots.** One lot per fund per month. Sales take the highest basis per share first.† A lot is long-term once
+**Lots.** One lot per fund per month. Purchases of $0.000001 or less are ignored (rounding dust). Sales take the highest basis per share first.† A lot is long-term once
 12 months have passed. The legacy balance is one long-term lot with gain g of the whole balance; its cash
 slice carries basis 1:1.
 
@@ -277,6 +293,27 @@ After-tax household wealth = Roth + taxable − that tax, in real 2026 dollars.
 
 **Bootstrap.** Politis–Romano stationary bootstrap over months 1926-07 → 2026-09 (circular), mean block 60
 months, 2,000 paths of 480 months, seed 409. The same draws feed every arm.
+
+**The three JST analogs (counted trials; expectation E7 rests on them).** JST is the annual macrohistory data
+for 16 countries, 1870–2020 (equity total return, bill rate and CPI; a country's years must be contiguous inside a
+window). Each analog is a pre-tax, household-level leverage rule with **annual** reset, in real local currency,
+over every 40-year window of consecutive years:
+- start **$40,000** ($25,000 + $15,000) and **$13,500** a year, **every year including the school years** (the JST
+  arms have no school rule), contributed **after** the year's return;
+- leverage L for the year: 1× (the comparison); **lifecycle, cap 2×** and **cap 1.5×**: min(cap, max(1, (W + PV)/W))
+  with PV the present value at 1 % real of the contributions still to come; **static 1.25×**. The household is
+  **not bounded by Roth capacity**, so these are an upper bound on what this owner could hold;
+- the year's return: L·eq − (L − 1)·(bill + 0.86 %) − cost, where the 0.86 % is 0.57 % + 0.29 % (the SSO spread
+  and financing base) and cost is 0.89 %·(L − 1) when L > 1 and 0.03 % when L = 1 (fees on the levered slice only);
+- wealth: W ← max(W·(1 + r)/(1 + inflation), 10⁻⁹) + $13,500.
+
+Reported per country and analog: the worst and the median ratio to 1×, and the number of windows. They are
+pre-tax and descriptive, and they do not gate.
+
+**`us_reset_calibration` (reported).** Because the JST analogs reset yearly while SSO resets daily, the same household
+rule is run on the US L1 panel both ways: with the annual-reset formula above on calendar-year aggregates, and
+with the daily-reset SSO blend (monthly steps, January resets). The output gives both median and both worst
+ratios to 1× for each rule, which sizes the approximation.
 
 **Reported per arm × row × g:** median, mean, E[log W], certainty equivalent at risk aversion 2, ratio to REF
 (5/50/95 %, minimum), largest real-dollar drawdown (median, 95 %), taxes paid, years of active harvesting,
@@ -347,12 +384,17 @@ cells, block lengths and θ/ρ/step-up variants are 0. N_eff 372 → ≈ 389, wh
 1. Freeze: the SHA-256 of this file, the code and test blobs, and the input md5s, in the ledger row.
 2. `run --jst --decision-row pair --progress` once, from the archived inputs; then a second run whose
    `results.md5` must match.
-3. **Runtime.** 668,400 arm-paths (counted by `arm_path_total`). Each 40-year arm-path takes 2–5 ms on a
-   synthetic panel; the delta reviewer's estimate is 55–100 minutes a run on real data. Plan for that, twice.
+3. **Runtime.** 668,400 arm-paths (counted by `arm_path_total`). No timing is on real data: mine is 2–5 ms per
+   40-year arm-path on a synthetic panel, and the delta reviewer's 55–100 minutes a run was a synthetic panel on a
+   loaded machine. Plan for 55–100 minutes a run, twice, on an otherwise idle machine.
 
-**Smoke (plumbing only; not evidence).** Results md5 **cb5d9ceaf68b3ee5ea4c5acdeb318c1e** (two runs identical). It changed from
-revision 4's `82f77f1f…` because this revision changes the school-year Roth default, adds the last
-worksheet step, and adds two parameter rows and a block run to the smoke itself.
+**Smoke (plumbing only; not evidence).** Two runs of each command are identical:
+- `run --smoke --jst --decision-row pair`: results md5 **`9a641dbeb7e14293c6289c581843bdb6`**;
+- `run --smoke --jst` (no decision row): **`2ff821f8656083b53a6e50b967ea6869`**.
+
+Before the B4 fix the two were `cb5d9cea…` and `bd7e02ef…`; the fix changed 133 values in the output, all of
+them B4's. Revision 4's `82f77f1f…` was a different smoke (no parameter rows, no block run, the old school-year
+Roth default).
 
 ## 10. Pre-stated expectations
 
@@ -373,10 +415,11 @@ was written before the smoke showed the same shape.
 
 ## 11. Verification before freeze (done on this revision)
 
-- **Tests:** 59 in `tests/test_t409_real_money_home.py` (58 without the data-backed control).
+- **Tests:** 62 in `tests/test_t409_real_money_home.py` (61 without the data-backed control).
 - **Mutants:** the delta reviewer's 45, re-run from their definitions, plus 16 new ones for the pair rule, the
-  worksheet step, the guard and the early row check: all 45 of the reviewer's are killed (five with the pattern moved by this revision), and 15 of the 16 new ones; the survivor, N15 (the wash flag on SSO's tax payment), cannot be reached, because SSO pays tax only after VOO and the robo lots are exhausted.
-- **Full suite** against a `git archive` baseline of the parent: 45 failed / 5,191 passed, exit 1, against 48 / 5,170 on the archive of `4e38476`; no failure appears only in the worktree, and the 3 only in the baseline are location-dependent.
+  worksheet step, the guard and the early row check: all 45 of the reviewer's are killed (six with the pattern moved by this revision: M11, M12, M20, M32, M33, M35), and 15 of the 16 new ones; the survivor, N15 (the wash flag on SSO's tax payment), is **not reached**: SSO pays tax only after VOO and the robo lots are exhausted, and in 1,248 synthetic arm-paths it never paid a tax bill.
+- **The narrow check's fixes** (this commit) are locked by 3 new tests, each failing when its fix is reverted.
+- **Full suite** against a `git archive` baseline of the parent: 45 failed / 5,194 passed, exit 1, against 48 / 5,188 on the archive of the parent commit `6f060a9`; no failure appears only in the worktree, and the 3 only in the baseline are location-dependent.
 - **Lints:** `doc_lint` and `honest_n_trials check` both exit 0.
 
 ## 12. Before freeze
@@ -395,8 +438,11 @@ was written before the smoke showed the same shape.
 | Revision 2, `..._DRAFT_rev2_2026-11-19.md` | `1dcaead73fa9600cb96f008d38a98d6ed10d3005` | `e3fe1183a589eed33b371cef634703caf7aef9635e22bc8a2f646ad4a9b44743` |
 | Revision 3, `..._DRAFT_rev3_2026-11-20.md` | `85a3514566cf5d8cfb990cb78229efb015c95e62` | `0c3784219ae10fc8f86d39552caa092950e3c4ff6f7121bb77cfbb2271b37a68` |
 | Revision 4, `..._DRAFT_rev4_2026-11-20.md` | `294a1e82e5a2e557e0a78c6e68e71c9b38cbab4f` | `5015732f01f51a631fd8e1407fd60895d2b898db8e66f96985b76ebb308f8cfa` |
-| Study code, `scripts/t409_real_money_home.py` | `2233a2ed5ea6fc9c1fe4eeac5ed64b19409b6350` (commit da224b7) | `35ad9952140eb0ae9b264f8551e0356bc647548c4a4000c2a31cebbc70ab0e97` |
-| Tests, `tests/test_t409_real_money_home.py` | `80332825d293b016d63e9f0593bcf735bba7bfa0` | `988f15191acce72956b26701854d5bb0f55857068f969c599eb091a35f4d42cb` |
+| Study code, `scripts/t409_real_money_home.py` (in the same commit as this file) | `85673a38e09e89674600d84b075b1e011ebc692d` | `8bc74b97540d43fb22b50c2ea65a9346aeec983b6c268e26996e17e1e5eef252` |
+| Tests, `tests/test_t409_real_money_home.py` (same commit) | `da7f7ebbf15e131328b57f2c27500f8d095a912e` | `f8c589507aeea10353c2bbc3d1eb44ce0f447e604dc8877eb1093d25f2c57e7c` |
+| `core/metrics_engine.py` (bootstrap for the Sortino and Δ intervals) | `97a6bb983e9c14cc34ca1ff41c8f2620fdcbc0d9` | `fda5341be63601c396be3d52850dfb44cbe90f33ff9f4accbf30cbcf11668316` |
+
+**Library versions the results were verified under:** Python 3.14.4, numpy 2.4.3, pandas 3.0.1.
 
 The revision 1–4 files carry a supersession banner added after their own commits (revisions 1–3's blobs above
 include the banner); their text below the banner is the original.

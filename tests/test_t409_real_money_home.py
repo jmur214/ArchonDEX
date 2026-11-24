@@ -193,6 +193,31 @@ def test_wash_sale_disallows_the_loss_and_moves_it_to_the_replacement():
     assert st2 < 0
 
 
+def test_a_dust_purchase_never_takes_the_wash_carry():
+    b = m.LotBook()
+    b.buy(100.0, 1.0, t=0)
+    b.sell_hifo(40.0, 0.8, t=3, wash=True)                     # a 10 loss is disallowed
+    n, carry = b.n, b.wash_carry
+    b.buy(1e-15, 0.8, t=4)
+    assert b.n == n and b.wash_carry == carry == pytest.approx(10.0)      # dust neither buys a lot nor takes the carry
+    b.buy(50.0, 0.8, t=5)
+    assert b.wash_carry == 0.0 and b.total_basis == pytest.approx(50.0 + 50.0 + 10.0)
+
+
+def test_b4_terminal_wealth_does_not_turn_on_rounding(monkeypatch):
+    """A 1e-13 change in the annual tax used to move B4's terminal wealth by up to $1,241 (the dust lot took the
+    wash carry). Every arm must ignore it."""
+    paths = [m.panel_arrays(synthetic_panel(months=480, seed=s)) for s in range(3, 9)]
+    real = m.annual_tax
+    for name in ("B4", "B1", "K0"):
+        arm = next(a for a in m.ARMS if a.name == name)
+        base = [m.simulate(arm, m.Owner(), m.make_path(p)).terminal_real for p in paths]
+        monkeypatch.setattr(m, "annual_tax", lambda *a: ((lambda q: (q[0] + 1e-13,) + q[1:])(real(*a))))
+        pert = [m.simulate(arm, m.Owner(), m.make_path(p)).terminal_real for p in paths]
+        monkeypatch.setattr(m, "annual_tax", real)
+        assert max(abs(x - y) for x, y in zip(base, pert)) < 1e-4, name
+
+
 def test_prorata_rebalance_realises_gains_only():
     b = m.LotBook()
     b.buy(100.0, 1.0, t=-24)        # will be a gain lot
@@ -510,6 +535,17 @@ def test_pair_rule_never_takes_a_default_that_fails_the_loss_bound():
     assert out["A"]["resolved"] is None and "fails the loss bound" in out["A"]["flag"]
     both_none = m.resolve_pair(_pair_choice(None, None, "B1", "B1"))
     assert both_none["A"]["resolved"] is None and both_none["A"]["agree"] is True
+
+
+def test_single_row_mode_records_that_row_alone():
+    """The owner's override: one named row, no pair rule."""
+    panel = synthetic_panel()
+    cfg = replace(TINY, decision_row="h=-0.02")
+    out = m.study(panel, cfg, m.Owner(), log=lambda s: None)
+    d = out["decision"]
+    assert d["mode"] == "single" and d["row"] == "h=-0.02" and "resolved" not in d["A"]
+    assert d["A"]["choice"] == out["choice"]["h=-0.02"]["A"]["choice"]
+    assert d["B"]["choice"] == out["choice"]["h=-0.02"]["B"]["choice"]
 
 
 def test_decision_row_is_checked_before_any_input_is_read(tmp_path):
