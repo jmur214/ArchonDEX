@@ -105,10 +105,18 @@ TRADE_PER_MIN = 170
 #: drips one byte a second would otherwise block for ever.
 REQUEST_HARD_CAP_S = 60.0
 
-# The real-quote rule, v2 (2026-11-24).
+# The real-quote rule, v2 (2026-11-24). `real_quote` is RECOMPUTABLE: it is a function of the
+# stored RULE_COLUMNS alone (real_quote_mask), no row is dropped because of it, and --verify
+# recomputes it rather than reading it. It marks a usable quote, not a tight one: a study that
+# needs a tighter market applies its own spread filter to the stored bid and ask.
 QUOTE_RULE = "v2"
-SPREAD_ABS = 0.10          # dollars
-SPREAD_FRAC = 0.50         # of the mid
+RULE_COLUMNS = ("snap_date", "underlying", "option_type", "strike", "bid", "ask", "bid_size",
+                "ask_size", "quote_ts", "iv", "ref_low", "ref_high")
+SPREAD_ABS = 0.10          # dollars; only reachable below a penny bid while SPREAD_FRAC is 1.75
+#: Of the mid, so ask <= 15 x bid: rejects only pathological spreads (director ruling
+#: 2026-11-24). At 0.50 it rejected 11.7 % / 6.1 % of the non-XSP two-sided rows of the two
+#: captures (97-98 % out of the money); at 1.75, 1.2 % / 1.0 %; at 2.00 it can reject nothing.
+SPREAD_FRAC = 1.75
 INTRINSIC_SLACK = 0.02     # of the underlying: 15-min delayed prices vs real-time quotes
 IV_MIN, IV_MAX = 0.01, 5.0
 COUNT_MAX = 1e9            # a size / volume / open interest outside [0, this] is not a value
@@ -580,10 +588,11 @@ def real_quote_mask(df: pd.DataFrame, no_iv: Collection[str] = ()) -> pd.Series:
         2026-11-20 close that admitted 144 pulled XSP quotes (bid 0, size 0);
       * bid <= ask <= the no-arbitrage bound (``ref_high`` for a call, the strike for a put),
         and ask >= intrinsic - 2 % of the underlying (a constant placeholder fails this);
-      * spread <= max($0.10, 50 % of the mid);
+      * spread <= max($0.10, 175 % of the mid), i.e. ask <= 15 x bid (see SPREAD_FRAC);
       * 1 % <= implied vol <= 500 %, unless the underlying is in ``no_iv`` (Alpaca computes no
         IV for index options).
-    Null or unparseable values fail their leg. Vectorized; returns a bool Series."""
+    Null or unparseable values fail their leg. Reads only ``RULE_COLUMNS``, so the flag can be
+    recomputed from a stored file. Vectorized; returns a bool Series."""
     if df.empty:
         return pd.Series(False, index=df.index, dtype=bool)
     session = pd.to_datetime(df["snap_date"].astype(str), format="%Y-%m-%d", errors="coerce")

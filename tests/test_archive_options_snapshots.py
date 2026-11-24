@@ -380,9 +380,26 @@ def test_R4_intrinsic_slack_is_two_percent_and_uses_the_lenient_reference() -> N
     assert is_real(option_type="P", strike=100.0, ref_low=75.0, ref_high=100.0, bid=3.0, ask=3.2)
 
 
-def test_R4_the_spread_leg_is_ten_cents_or_half_the_mid() -> None:
-    assert is_real(bid=0.01, ask=0.11) and not is_real(bid=0.01, ask=0.13)
-    assert is_real(bid=3.0, ask=5.0) and not is_real(bid=3.0, ask=5.1)  # 2/4 = 50 %, 2.1/4.05
+def test_R4_the_spread_leg_rejects_only_asks_above_15_times_the_bid() -> None:
+    """175 % of the mid is exactly ask = 15 x bid (director ruling 2026-11-24)."""
+    assert m.SPREAD_FRAC == 1.75
+    for bid in (0.01, 0.25, 1.0, 3.0):
+        assert is_real(bid=bid, ask=15 * bid), bid
+        assert not is_real(bid=bid, ask=15 * bid + 0.01), bid
+    assert is_real(bid=7.46, ask=13.98), "a wide but two-sided market is usable"
+
+
+def test_R4_the_ten_cent_allowance_still_exists_for_sub_penny_bids() -> None:
+    assert is_real(bid=0.005, ask=0.10)                                 # 20 x bid, 9.5 cents
+    assert not is_real(bid=0.005, ask=0.15)
+
+
+def test_the_real_quote_flag_is_recomputable_from_the_stored_columns(tmp_path: Path) -> None:
+    run(tmp_path, Market(snap=_only("XSP", WIPED)), cfg_for(floor=0.5))
+    df = stored(tmp_path)
+    assert 0 < df.real_quote.sum() < len(df), "both values must occur"
+    again = m.real_quote_mask(df[list(m.RULE_COLUMNS)], {"XSP"})
+    assert again.tolist() == df.real_quote.tolist()
 
 
 @pytest.mark.parametrize("bad", [np.nan, 0.0, -0.1, np.inf, 1e-9, 0.009, 5.01, 999.0, True, "abc",
