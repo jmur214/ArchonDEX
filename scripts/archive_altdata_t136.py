@@ -103,6 +103,11 @@ def _headers_for(url: str) -> dict:
 
 
 def _get(url: str, timeout: int = 90) -> bytes:
+    if _is_sec_host(url):
+        # sec.gov: the contact user agent must not follow a redirect off the host, and
+        # `timeout` bounds the whole request, not each read (core/sec_http.py).
+        from core.sec_http import fetch
+        return fetch(url, _headers_for(url), timeout=timeout)
     req = urllib.request.Request(url, headers=_headers_for(url))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
@@ -1450,6 +1455,317 @@ def pull_form4_index(days_back: int = 5) -> str:
                 f"{allf['cik'].nunique()} distinct CIKs; parquet {n} (INDEX only, not XML)")
     except Exception as e:
         return f"form4: FAILED ({type(e).__name__}: {e})"
+
+
+# --- T-412: the event desk's FORWARD 8-K feed ---------------------------------------- #
+# The event interpreter (intelligence/event_call/) read a batch-built research panel
+# (data/edgar/8k/panel_8k_items.parquet) that is in no image and no sync and ends
+# 2026-06-10, so in the cloud it saw no document on any day (T-411 Part 3 row 6). This is
+# its forward feed, built from the same two SEC sources the research panel and the Form 4
+# pull already use:
+#   1. the EDGAR daily FORM index (one request per business day) -> the day's 8-K rows
+#      (form == "8-K" exactly; 8-K/A excluded, as T-137) for the tracked universe's CIKs;
+#   2. ONE submissions request per filing company -> the item codes, acceptance time and
+#      primary document for each new accession (the research panel's own field names).
+# Accessions already in the panel are never asked for again. SEC fair access: SEC_UA (via
+# _get, sec.gov hosts only), ~7.7 req/s, a request cap and a wall-clock budget. The result
+# lands in OUT_DIR (the synced alt-data directory) beside a receipt that states what was
+# asked and what came back, so a zero is never silent.
+EDGAR_8K_PANEL = "edgar_8k_items.parquet"
+EDGAR_8K_RECEIPT = "edgar_8k_fetch_receipt.json"
+EDGAR_TICKERS_CACHE = "edgar_company_tickers.json"
+EDGAR_TICKERS_MAX_AGE_DAYS = 7          # SEC's ticker map changes slowly; refresh weekly
+EDGAR_8K_RATE_SLEEP_S = 0.13            # ~7.7 req/s, under SEC's 10 req/s ceiling
+EDGAR_8K_MAX_SUBMISSIONS = 150          # a normal day needs ~25 (one per filing company)
+EDGAR_8K_TIME_BUDGET_S = 120.0          # wall-clock cap on the whole pull
+EDGAR_8K_TIMEOUT_S = 20                 # per request, in total (core/sec_http.py)
+# When the feed is not whole, the report line starts FAILED or PARTIAL and the source
+# register flags it. A feed that "worked" on a block page, a missing index or a changed
+# JSON shape used to read as a quiet day.
+EDGAR_8K_MAX_UNRECORDED_SHARE = 0.20    # of the filings it should have recorded
+EDGAR_8K_MIN_TICKER_COVERAGE = 0.90     # of the tracked tickers the SEC map must resolve
+EDGAR_8K_REQUIRED_DAYS = 3              # each EDGAR business day this recent must be readable
+EDGAR_8K_COLUMNS = ["ticker", "cik", "accession", "filing_date", "acceptance_dt", "items",
+                    "primary_document", "company", "index_date", "fetched_at"]
+
+
+def _sec_ticker_key(t: str) -> str:
+    """SEC's ticker map spells share classes with '-' (BRK-B); the membership file and
+    Alpaca use '.' (BRK.B). Compare on one spelling."""
+    return str(t).strip().upper().replace(".", "-")
+
+
+def _map_tickers(data: dict, universe: list[str]) -> tuple[dict[int, str], float]:
+    """({CIK: the universe ticker that files under it}, the share of the universe mapped).
+    Where one CIK carries several universe tickers (GOOG/GOOGL) the first in sorted order is
+    used, so a filing is recorded once."""
+    by_key = {_sec_ticker_key(t): t for t in universe}
+    out: dict[int, str] = {}
+    mapped: set[str] = set()
+    for v in data.values():
+        t = by_key.get(_sec_ticker_key(v.get("ticker", "")))
+        if t is None:
+            continue
+        cik = int(v["cik_str"])
+        out[cik] = min(out.get(cik, t), t)
+        mapped.add(t)
+    return out, (len(mapped) / len(universe) if universe else 0.0)
+
+
+def _edgar_cik_map(universe: list[str], today: pd.Timestamp) -> tuple[dict[int, str], float]:
+    """SEC's ticker map for the universe, cached in OUT_DIR and refreshed weekly.
+
+    A map that resolves too few tracked tickers is never CACHED: a truncated download used
+    to be kept for a week, silently narrowing the feed. If the fresh one is short and an
+    older cached one covers more, the older one is used."""
+    cache = OUT_DIR / EDGAR_TICKERS_CACHE
+    cached: dict = {}
+    try:
+        doc = json.loads(cache.read_text())
+        if isinstance(doc.get("data"), dict):
+            cached = doc
+            age = (today - pd.Timestamp(doc["fetched_at"][:10])).days
+            ciks, cover = _map_tickers(doc["data"], universe)
+            if age <= EDGAR_TICKERS_MAX_AGE_DAYS and cover >= EDGAR_8K_MIN_TICKER_COVERAGE:
+                return ciks, cover
+    except Exception:
+        cached = {}
+    try:
+        data = json.loads(_get("https://www.sec.gov/files/company_tickers.json",
+                               timeout=EDGAR_8K_TIMEOUT_S))
+        ciks, cover = _map_tickers(data, universe)
+    except Exception:
+        if not cached:
+            raise
+        return _map_tickers(cached["data"], universe)      # an old whole map beats none
+    finally:
+        time.sleep(EDGAR_8K_RATE_SLEEP_S)
+    if cover >= EDGAR_8K_MIN_TICKER_COVERAGE:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"fetched_at": str(today.date()), "data": data}))
+    elif cached:
+        old, old_cover = _map_tickers(cached["data"], universe)
+        if old_cover > cover:
+            return old, old_cover
+    return ciks, cover
+
+
+def _edgar_business_days(today: pd.Timestamp, days_back: int) -> list[pd.Timestamp]:
+    """EDGAR's business days before ``today`` inside the window, newest first: weekdays less
+    US federal holidays (EDGAR publishes no index on those; it does on Good Friday)."""
+    from pandas.tseries.holiday import USFederalHolidayCalendar
+    first = today - pd.Timedelta(days=max(days_back - 1, 0))
+    closed = set(USFederalHolidayCalendar().holidays(first - pd.Timedelta(days=7), today))
+    days = pd.date_range(first, today - pd.Timedelta(days=1), freq="D") if first < today else []
+    return [d for d in reversed(list(days)) if d.weekday() < 5 and d not in closed]
+
+
+def _index_text(d: pd.Timestamp) -> str | None:
+    """One day's EDGAR form index, or None (a holiday, not posted yet, or SEC refused).
+    Asked twice: a single transient refusal must not cost a day's filings."""
+    url = (f"https://www.sec.gov/Archives/edgar/daily-index/{d.year}/"
+           f"QTR{(d.month - 1) // 3 + 1}/form.{d.strftime('%Y%m%d')}.idx")
+    for _attempt in range(2):
+        try:
+            return _get(url, timeout=EDGAR_8K_TIMEOUT_S).decode("latin-1")
+        except Exception:
+            continue
+        finally:
+            time.sleep(EDGAR_8K_RATE_SLEEP_S)
+    return None
+
+
+def _parse_form_index_8k(txt: str) -> pd.DataFrame:
+    """The 8-K rows of one EDGAR daily form index (fixed-width: form, company..., CIK,
+    date filed, file name). Vectorised over the ~3,000 lines of a business day."""
+    empty = pd.DataFrame(columns=["cik", "accession", "index_date", "company"])
+    parts = pd.Series(txt.splitlines(), dtype=object).str.split()
+    parts = parts[(parts.str.len() >= 5) & parts.str[0].eq("8-K")]
+    parts = parts[parts.str[-3].str.isdigit().fillna(False).astype(bool)]
+    if parts.empty:
+        return empty
+    dates = pd.to_datetime(parts.str[-2], format="mixed", errors="coerce")
+    parts, dates = parts[dates.notna()], dates[dates.notna()]
+    if parts.empty:
+        return empty
+    return pd.DataFrame({
+        "cik": parts.str[-3].astype(int).to_numpy(),
+        # edgar/data/<cik>/<accession>.txt -> the accession
+        "accession": parts.str[-1].str.rsplit("/", n=1).str[-1]
+                                  .str.replace(".txt", "", regex=False).to_numpy(),
+        "index_date": dates.dt.strftime("%Y-%m-%d").to_numpy(),
+        "company": parts.str[1:-3].str.join(" ").to_numpy(),
+    })
+
+
+def pull_8k_items(universe: Iterable[str] | None = None, *, as_of: str | None = None,
+                  days_back: int = 5, max_submissions: int | None = None,
+                  time_budget_s: float | None = None) -> str:
+    """The forward 8-K feed for the tracked universe (see the block comment above). Never
+    raises: every failure is a 'FAILED (...)' line, and the receipt records it."""
+    try:
+        return _pull_8k_items(universe, as_of=as_of, days_back=days_back,
+                              max_submissions=max_submissions, time_budget_s=time_budget_s)
+    except Exception as e:
+        _write_8k_receipt({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        return f"edgar_8k: FAILED ({type(e).__name__}: {e})"
+
+
+def _write_8k_receipt(receipt: dict) -> None:
+    try:
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        receipt = {"_schema": "edgar_8k_fetch_receipt/v1",
+                   "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(), **receipt}
+        (OUT_DIR / EDGAR_8K_RECEIPT).write_text(json.dumps(receipt, indent=2, default=str))
+    except Exception:
+        pass                               # the returned line still carries the outcome
+
+
+def _pull_8k_items(universe: Iterable[str] | None, *, as_of: str | None, days_back: int,
+                   max_submissions: int | None, time_budget_s: float | None) -> str:
+    t0 = time.monotonic()
+    max_submissions = max_submissions or EDGAR_8K_MAX_SUBMISSIONS     # call-time reads,
+    time_budget_s = time_budget_s or EDGAR_8K_TIME_BUDGET_S           # so tests can patch
+    today = pd.Timestamp(as_of or pd.Timestamp.now()).normalize()
+    uni = sorted({str(t).strip().upper() for t in (universe or []) if str(t).strip()})
+    if not uni:
+        _write_8k_receipt({"ok": False, "error": "empty universe"})
+        return "edgar_8k: FAILED (empty universe — no tracked tickers to ask about)"
+    cik_of, coverage = _edgar_cik_map(uni, today)
+    if not cik_of:
+        _write_8k_receipt({"ok": False, "error": "no universe ticker mapped to a CIK",
+                           "universe_size": len(uni)})
+        return f"edgar_8k: FAILED (none of {len(uni)} tickers mapped to an SEC CIK)"
+
+    # Newest first: the prior business day's index is the one this run must not miss.
+    index_ok: dict[str, int] = {}                        # date -> 8-K rows in that index
+    frames: list[pd.DataFrame] = []
+    business = _edgar_business_days(today, days_back)
+    for n_asked, d in enumerate(business):
+        if (time.monotonic() - t0) > time_budget_s:
+            if not n_asked:
+                _write_8k_receipt({"ok": False, "error": "time budget spent, nothing asked"})
+                return (f"edgar_8k: FAILED (the {time_budget_s:g}s time budget was spent before "
+                        f"any daily index was asked for)")
+            break
+        txt = _index_text(d)
+        if txt is not None:
+            part = _parse_form_index_8k(txt)
+            index_ok[str(d.date())] = len(part)
+            frames.append(part)
+    missing = [str(d.date()) for d in business if str(d.date()) not in index_ok]
+    blank = [d for d, n in index_ok.items() if n == 0]
+    if not any(index_ok.values()):
+        why = (f"missing {missing}" if missing else "") + (
+            f"; readable but holding no 8-K row (a block page or a format change): {blank}"
+            if blank else "")
+        _write_8k_receipt({"ok": False, "index_ok": index_ok, "index_missing": missing,
+                           "error": f"no usable daily index: {why}"})
+        return f"edgar_8k: FAILED (no usable EDGAR daily index in {days_back}d: {why})"
+    idx = pd.concat(frames, ignore_index=True)
+    n_8k_in_index = len(idx)
+    idx = idx[idx["cik"].isin(list(cik_of))].drop_duplicates("accession")
+    n_universe = len(idx)
+
+    panel = OUT_DIR / EDGAR_8K_PANEL
+    have: set[str] = set()
+    if panel.exists():                                   # unreadable = FAILED, never "empty"
+        have = set(pd.read_parquet(panel, columns=["accession"])["accession"].astype(str))
+    todo = idx[~idx["accession"].isin(have)]
+
+    rows: list[dict] = []
+    n_sub = n_sub_fail = n_unmatched = 0
+    truncated = False
+    fetched_at = pd.Timestamp.now(tz="UTC").isoformat()
+    for cik, grp in todo.groupby("cik", sort=True):
+        if n_sub >= max_submissions or (time.monotonic() - t0) > time_budget_s:
+            truncated = True
+            break
+        n_sub += 1
+        try:
+            sub = json.loads(_get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json",
+                                  timeout=EDGAR_8K_TIMEOUT_S))
+        except Exception:
+            n_sub_fail += 1
+            continue
+        finally:
+            time.sleep(EDGAR_8K_RATE_SLEEP_S)
+        recent = (sub.get("filings") or {}).get("recent") or {}
+        accs = list(recent.get("accessionNumber") or [])
+        pos = {a: k for k, a in enumerate(accs)}
+
+        def _col(name: str, k: int):
+            vals = recent.get(name) or []
+            return vals[k] if k < len(vals) else None
+
+        for r in grp.itertuples(index=False):
+            k = pos.get(r.accession)
+            if k is None or _col("form", k) != "8-K":
+                n_unmatched += 1                         # not in this CIK's recent block
+                continue
+            rows.append({"ticker": cik_of[int(cik)], "cik": int(cik), "accession": r.accession,
+                         # the submissions date where SEC gives one, else the index's own
+                         "filing_date": str(_col("filingDate", k) or r.index_date)[:10],
+                         "acceptance_dt": str(_col("acceptanceDateTime", k) or ""),
+                         "items": str(_col("items", k) or ""),
+                         "primary_document": str(_col("primaryDocument", k) or ""),
+                         "company": r.company, "index_date": r.index_date,
+                         "fetched_at": fetched_at})
+    new = pd.DataFrame(rows, columns=EDGAR_8K_COLUMNS)
+    if len(new) or not panel.exists():
+        _append(new, panel, ["accession"])
+    n_total = len(pd.read_parquet(panel, columns=["accession"]))
+    n_todo, n_lost = len(todo), len(todo) - len(new)
+    # What is wrong with this pull, in words. `failed` = it delivered nothing usable;
+    # `partial` = it delivered, but not everything it should have.
+    failed: list[str] = []
+    partial: list[str] = []
+    recent_days = [str(d.date()) for d in business
+                   if d >= today - pd.Timedelta(days=EDGAR_8K_REQUIRED_DAYS)]
+    need = recent_days or [str(d.date()) for d in business[:1]]
+    prior = str(business[0].date()) if business else None
+    if prior and prior not in index_ok:
+        partial.append(f"the prior business day's index ({prior}) is missing")
+    elif prior and index_ok[prior] == 0:
+        partial.append(f"the prior business day's index ({prior}) holds no 8-K row "
+                       f"(a block page or a format change)")
+    older = [d for d in need if d != prior and not index_ok.get(d)]
+    if older:
+        partial.append(f"recent index missing or blank: {older}")
+    if n_todo and n_sub == 0:
+        failed.append(f"the time budget ran out before any of {n_todo} filing(s) was asked for")
+    elif n_todo and n_lost == n_todo:
+        failed.append(f"none of {n_todo} filing(s) could be recorded ({n_sub_fail} of {n_sub} "
+                      f"submissions requests failed, {n_unmatched} filing(s) not in the "
+                      f"company's recent list — a changed JSON shape?)")
+    elif n_todo and n_lost / n_todo > EDGAR_8K_MAX_UNRECORDED_SHARE:
+        partial.append(f"{n_lost} of {n_todo} filing(s) not recorded "
+                       f"(threshold {EDGAR_8K_MAX_UNRECORDED_SHARE:.0%})")
+    if truncated and not failed:
+        partial.append("TRUNCATED by the request/time budget (the rest retry next run)")
+    if coverage < EDGAR_8K_MIN_TICKER_COVERAGE:
+        partial.append(f"the SEC ticker map resolves {coverage:.0%} of {len(uni)} tracked "
+                       f"tickers (threshold {EDGAR_8K_MIN_TICKER_COVERAGE:.0%})")
+    _write_8k_receipt({
+        "ok": not (failed or partial), "failed": failed, "partial": partial,
+        "as_of": str(today.date()), "days_back": days_back,
+        "universe_size": len(uni), "universe_ciks": len(cik_of),
+        "ticker_coverage": round(coverage, 4),
+        "index_ok": index_ok, "index_missing": missing, "prior_business_day": prior,
+        "n_8k_in_index": n_8k_in_index, "n_universe_filings": n_universe,
+        "n_already_in_panel": n_universe - n_todo, "n_new": len(new),
+        "n_submissions": n_sub, "n_submission_failures": n_sub_fail,
+        "n_unmatched": n_unmatched, "n_not_recorded": n_lost, "truncated": truncated,
+        "panel_rows": n_total, "elapsed_s": round(time.monotonic() - t0, 1)})
+    if failed:
+        return "edgar_8k: FAILED (" + "; ".join([*failed, *partial]) + ")"
+    line = (f"+{len(new)} new 8-K filing(s) for {len(uni)} tracked tickers "
+            f"({len(cik_of)} CIKs) from index {sorted(index_ok)}"
+            + (f" (missing {missing})" if missing else "")
+            + f"; {n_sub} submissions asked, {n_sub_fail} failed"
+            + (f", {n_unmatched} unmatched" if n_unmatched else "") + f"; panel {n_total}")
+    return (f"edgar_8k: PARTIAL ({'; '.join(partial)}) — {line}" if partial
+            else f"edgar_8k: {line}")
 
 
 def pull_usaspending(days_back: int = 7) -> str:

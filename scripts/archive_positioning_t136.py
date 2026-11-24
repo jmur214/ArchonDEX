@@ -56,6 +56,10 @@ def _headers_for(url: str) -> dict:
 
 
 def _get_bytes(url: str, timeout: int = 60) -> bytes:
+    if _is_sec_host(url):
+        # the contact user agent must not follow a redirect off sec.gov (core/sec_http.py)
+        from core.sec_http import fetch
+        return fetch(url, _headers_for(url), timeout=timeout)
     req = urllib.request.Request(url, headers=_headers_for(url))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()

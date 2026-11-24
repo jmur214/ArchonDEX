@@ -54,6 +54,12 @@ SCAN_NEWS_CAP = 40              # broad recent-headline digest fed to the blind 
 # needs ~2300 tokens). The governor still gates monthly cost. 4000 leaves headroom
 # for 2-3 theses; a scan reply this size is ~$0.26.
 SCAN_MAX_OUTPUT_TOKENS = 4000
+# T-412: bounds on the event interpreter now that it has a live feed (~25-30 allowlisted
+# 8-K items on a normal day; a peak earnings day can be 3x). Deferred documents are not
+# marked seen, so they retry on the next run inside the 3-day forward window.
+EVENT_MAX_DOCUMENTS_PER_RUN = 60
+EVENT_TIME_BUDGET_S = 240.0      # checked before each call; one call (<=2 min) can overrun it
+EVENT_BUDGET_RESERVE_USD = 10.0  # of the shared monthly budget, never spent by the event desk
 
 
 @dataclass
@@ -194,8 +200,10 @@ def _scan_inputs(base: Path, as_of: str) -> "tuple[list, list, dict]":
 
 def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                     allowlist, root: str, now_iso: str,
-                    load_panel=None, tier: str = "daily") -> IntelPulseResult:
-    """Run the three report-only LLM steps for ``as_of``. Never raises."""
+                    load_panel=None, tier: str = "daily",
+                    prev_session: Optional[str] = None) -> IntelPulseResult:
+    """Run the three report-only LLM steps for ``as_of``. Never raises. ``prev_session``
+    (T-412) is the last completed market session, for the event interpreter's window."""
     base = Path(root)
     res = IntelPulseResult()
 
@@ -339,17 +347,35 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
 
     # --- 3. D's event pulse_step (forward-only 8-K interpreter, report-only) -- #
     try:
+        import dataclasses as _dc
+        import datetime as _dt
+        from intelligence.event_call.eightk_feed import FORWARD_PANEL_REL
         from intelligence.event_call.run_forward import pulse_step
+        # T-412: the interpreter's feed existed in no container, so it had never made a
+        # call. It now reads the FORWARD panel this run fetched (under its own root), and
+        # — because a live feed means ~25-30 calls a day where there were none — it runs
+        # on the SAME governor ledger with a RESERVE held back: the event desk can never
+        # spend the last EVENT_BUDGET_RESERVE_USD of the month, so the analyst note that
+        # account 3 trades on cannot be starved by it. The per-run document and time caps
+        # bound how long the step can hold the run before the durable push.
+        ev_gov = CostGovernor(_dc.replace(gov.cfg, monthly_budget_usd=max(
+            0.0, gov.cfg.monthly_budget_usd - EVENT_BUDGET_RESERVE_USD)), str(gov.ledger))
         # 2026-11-19: the event-call ledger lives under THIS run's root, like the raw
         # archive beside it. pulse_step's default is the module's own checkout, so a
         # pulse rooted elsewhere appended to (and de-duplicated against) a ledger the
         # cloud sync never moves. Identical where the root is the checkout.
         ev = pulse_step(
-            as_of, model_call=model_call, governor=gov,
+            as_of, model_call=model_call, governor=ev_gov,
             prompt_path="config/prompts/event_interpreter/v1.txt",
             model_id_requested=model_id, prompt_version="event_interpreter/v1",
             projected_cost_usd=_PROJ_EVENT, raw_dir=raw_dir,
-            ledger_path=base / EVENT_LEDGER_REL)
+            ledger_path=base / EVENT_LEDGER_REL,
+            panel_path=base / FORWARD_PANEL_REL,
+            # the forward-only guard compares as_of with the RUN's date (the pulse's
+            # now_iso), not the container clock's
+            today=_dt.date.fromisoformat(str(now_iso)[:10]),
+            max_documents=EVENT_MAX_DOCUMENTS_PER_RUN,
+            time_budget_s=EVENT_TIME_BUDGET_S, prev_session=prev_session)
         res.event = ev if isinstance(ev, dict) else {"status": "unknown"}
     except Exception as exc:   # noqa: BLE001
         res.event = {"status": f"error:{type(exc).__name__}"}

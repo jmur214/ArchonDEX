@@ -38,6 +38,13 @@
           "pending_note": "rev33 deployed 2026-09-10 (query_prices 0 -> 50 rows); book window opens 2026-09-11. Announcement record; superseded by the stamped from_date above.",
           "treatment_caveat": "WHAT THE LABEL IS WORTH, as distinct from when it starts. The arm in this era can HONESTLY QUERY a price substrate that ends 2026-05-22 — verified on the first price_fed note, which asked for recent SPY prices and correctly got zero rows. So the era's actual treatment is 'can query a stale research substrate', which is close to NO TREATMENT. A price_fed-era A/B read measures a nearly-empty treatment and should surprise nobody by showing nothing; it is NOT evidence that the agentic design does not work. The real treatment begins with the live-price cohort.",
           "caveat_note": "Kept in its own field: the `note` above is a stamped record of a FACT (when the label starts) and must stay byte-identical. This is INTERPRETATION (what the label is worth) and may be revised without ever touching the stamped fact."
+        },
+        {
+          "label": "rates_and_events_fed",
+          "from_date": "2026-11-25",
+          "pending_from": "2026-11-25",
+          "pending_note": "T-412. Until this deploy `query_rate_path` and `query_events` returned [] on every cloud run: the FRED rate path reached the container only after the arm had finished, and the event interpreter had no 8-K feed. With T-412 the rate path is on disk before the arm runs, and the event ledger fills from the first interpreted filing. The prompt does not change, so `by_prompt_version` cannot see it — the same defect class as price_blind. STAMP AT DEPLOY: set `from_date` to the date of the FIRST 09:45 ET run on the T-412 image (the next session after the deploy, not the deploy date), in the commit the image is built from, and move `pending_from` to the same date if the deploy slips. Until it is stamped, rows on or after `pending_from` are labelled rates_and_events_fed_UNSTAMPED.",
+          "treatment_caveat": "WHAT THE LABEL IS WORTH. Rates: the arm can now query the FRED target-rate path it could not see before. Events: 8-K calls from the event interpreter, whose input is the filing's cover document (the press release is a separate exhibit it does not read), so the event treatment is thin until that changes; and the ledger is empty on the first day of the era. query_resolved_predictions is unchanged: the event desk's rows are excluded from it."
         }
       ]
     }

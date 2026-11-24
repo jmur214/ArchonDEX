@@ -29,11 +29,12 @@ is imported lazily so importing this module never requires it.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # The durable files the loop must carry between days. Paths are relative
 # to the repo/app root; the S3 mirror preserves this layout.
@@ -214,6 +215,24 @@ ALTDATA_DIRS: List[str] = [
     "data/positioning",      # FINRA/SEC/NAAIM
 ]
 
+# T-412 — the event desk's 8-K files. ONE account writes them (account 1, which runs the
+# event interpreter); all three accounts share the ``altdata/`` prefix. Another account's
+# copy is always older, so it neither pulls nor pushes them.
+ALTDATA_8K_FILES: Tuple[str, ...] = (
+    "data/macro_data/alt/edgar_8k_items.parquet",
+    "data/macro_data/alt/edgar_8k_fetch_receipt.json",
+    "data/macro_data/alt/edgar_company_tickers.json",
+)
+# T-412 — what account 1 needs BEFORE its first alt-data reader, and therefore before the
+# main state push: about 1.5 MB, not the ~80 MB hoard. Step 7 still pulls the whole hoard
+# immediately before the archive, exactly where it always did.
+ALTDATA_EARLY_FILES: Tuple[str, ...] = (
+    "data/macro_data/alt/kalshi_kxfed_snapshots.parquet",
+    "data/macro_data/alt/fred_rate_path.parquet",
+) + ALTDATA_8K_FILES
+# A killed `aws s3 sync` can leave its partial download (`name.parquet.1a2B3c4D`) behind.
+_PARTIAL_DOWNLOAD = re.compile(r"\.[0-9A-Za-z]{8}$")
+
 # T-290b: D's news panel (T-289) is a LARGE, append-only, MONTH-partitioned
 # store (~264 MB backfilled, ~2 MB/mo forward). The altdata whole-dir sync
 # above would pull the entire history down every container start — pointless
@@ -268,13 +287,28 @@ class CloudState:
                  root: Optional[str] = None):
         self.cfg = cfg or CloudStateConfig.from_env()
         self.root = Path(root) if root else Path(__file__).resolve().parents[1]
+        # T-412 alt-data state for this process (None = not attempted).
+        self.altdata_owner_8k = False                    # the driver sets it on account 1
+        self.altdata_clean: Optional[bool] = None        # the last full hoard pull
+        self.altdata_early_clean: Optional[bool] = None  # the early targeted pull
+        self.altdata_push_notes: List[str] = []          # what a push held back, and why
+        self._alt_manifest: Optional[Dict[str, Tuple[int, int]]] = None
 
     # ------------------------------------------------------------------ #
-    def _aws(self, *args: str) -> subprocess.CompletedProcess:
+    def _aws(self, *args: str, timeout_s: Optional[float] = None) -> subprocess.CompletedProcess:
+        """Run one aws CLI call. ``timeout_s`` (T-412) bounds it: a call that overruns is
+        returned as a failed CompletedProcess (rc 124), never raised and never left
+        hanging — used where a sync now runs BEFORE the durable push."""
         cmd = ["aws", *args, "--region", self.cfg.region]
         if self.cfg.profile:
             cmd += ["--profile", self.cfg.profile]
-        return subprocess.run(cmd, capture_output=True, text=True)
+        if timeout_s is None:
+            return subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(cmd, 124, "",
+                                               f"timeout after {timeout_s:.0f}s")
 
     def pull(self) -> bool:
         """Sync durable state from S3 → local. Returns True if anything
@@ -402,22 +436,81 @@ class CloudState:
     def _altdata_s3(self, rel: str) -> str:
         return f"s3://{self.cfg.bucket}/{ALTDATA_PREFIX}/{rel}"
 
-    def pull_altdata(self) -> bool:
-        """Sync the alt-data hoard S3 → local (whole dirs) so the archivers'
-        dedup accumulates across days on a fresh container. Off-cloud no-op;
-        a missing prefix (first run) is not an error. Best-effort — a failure
-        here must never block the trading pulse (the caller wraps this)."""
+    def _alt_files(self) -> Dict[str, Tuple[int, int]]:
+        """Every file in the local alt-data directories → (size, mtime_ns)."""
+        out: Dict[str, Tuple[int, int]] = {}
+        for rel in ALTDATA_DIRS:
+            for f in sorted((self.root / rel).rglob("*")):
+                if f.is_file() and not _PARTIAL_DOWNLOAD.search(f.name):
+                    st = f.stat()
+                    out[f.relative_to(self.root).as_posix()] = (st.st_size, st.st_mtime_ns)
+        return out
+
+    def pull_altdata(self, timeout_s: Optional[float] = None,
+                     only: Optional[Iterable[str]] = None) -> bool:
+        """Sync alt-data S3 → local. Off-cloud no-op (False); a missing prefix (a first run)
+        is not an error. Best-effort — the caller wraps it.
+
+        True only when EVERY directory asked for synced. (T-412 review: it used to be True
+        when ANY did, so a pull that timed out half-way read as complete; step 7 then
+        archived into the partial directory and pushed it, replacing 117 rows of history
+        in S3 with 1.)
+
+        ``only`` — the early, targeted pull: just these run-relative files, each directory
+        bounded by ``timeout_s`` because it runs before the main state push. Without it the
+        whole hoard is synced, unbounded, as always — except the 8-K files, which account 1
+        has already pulled (and then written to) and no other account uses."""
         if not self.cfg.enabled:
             return False
-        synced = False
+        wanted = None if only is None else [str(r) for r in only]
+        kw = {"timeout_s": timeout_s} if timeout_s is not None else {}
+        ok = True
         for rel in ALTDATA_DIRS:
+            if wanted is None:
+                names = [Path(r).name for r in ALTDATA_8K_FILES if Path(r).parent.as_posix() == rel]
+                flt = [a for n in names for a in ("--exclude", n)]
+            else:
+                names = [Path(r).name for r in wanted if Path(r).parent.as_posix() == rel]
+                if not names:
+                    continue
+                flt = ["--exclude", "*"] + [a for n in names for a in ("--include", n)]
             local = self.root / rel
             local.mkdir(parents=True, exist_ok=True)
             r = self._aws("s3", "sync", self._altdata_s3(rel), str(local),
-                          "--no-progress")
-            if r.returncode == 0:
-                synced = True
-        return synced
+                          "--no-progress", *flt, **kw)
+            if getattr(r, "returncode", 1) != 0:
+                ok = False
+                err = (getattr(r, "stderr", "") or "").strip().splitlines()
+                print(f"   ALTDATA-PULL-FAIL {rel}/: {err[-1][:160] if err else 'unknown error'}",
+                      file=sys.stderr)
+        if wanted is None:
+            self.altdata_clean = ok
+            self._alt_manifest = self._alt_files() if ok else None
+        else:
+            self.altdata_early_clean = ok
+        return ok
+
+    def _push_filter(self, rel: str) -> Optional[List[str]]:
+        """The sync filter for one directory's push, or None when this run changed nothing
+        in it. Only files THIS run changed since its own pull go up: ``aws s3 sync`` uploads
+        whenever sizes differ, so an untouched, older copy would replace a newer object
+        another account pushed in between."""
+        eightk = [r for r in ALTDATA_8K_FILES if Path(r).parent.as_posix() == rel]
+        if self._alt_manifest is None:               # no pull in this process: whole directory
+            skip = [] if self.altdata_owner_8k else [Path(r).name for r in eightk]
+            return [a for n in skip for a in ("--exclude", n)]
+        now = self._alt_files()
+        changed = [r for r, sig in now.items() if r.startswith(rel + "/")
+                   and r not in eightk and self._alt_manifest.get(r) != sig]
+        mine = [r for r in eightk if r in now] if self.altdata_owner_8k else []
+        if mine and self.altdata_early_clean is False:
+            # this run's 8-K panel was built WITHOUT the history in S3 — pushing it would
+            # replace that history with a few days. Tomorrow's run re-fetches today's rows.
+            self.altdata_push_notes.append("8-K files NOT pushed: their early pull was "
+                                           "incomplete, so this panel lacks its history")
+            mine = []
+        names = [r[len(rel) + 1:] for r in changed + mine]
+        return ["--exclude", "*"] + [a for n in names for a in ("--include", n)] if names else None
 
     def push_altdata(self) -> bool:
         """Sync the alt-data hoard local → S3 under the ``altdata/`` prefix.
@@ -428,16 +521,29 @@ class CloudState:
         previously a failed sync (e.g. a missing altdata/* grant) was silently
         swallowed, so the hoard never landed in S3 and nothing said so (the same
         class as the news-panel silent-push failure). True iff every existing dir
-        synced (vacuously True when disabled / nothing local)."""
+        synced (vacuously True when disabled / nothing local).
+
+        T-412: REFUSES (False) when this process's hoard pull was incomplete — the local
+        directory is then a fragment of the history, and pushing it would overwrite the
+        whole. And only what this run changed is uploaded (``_push_filter``)."""
         if not self.cfg.enabled:
             return True
+        self.altdata_push_notes = []
+        if self.altdata_clean is False:
+            self.altdata_push_notes.append("hoard NOT pushed: this run's pull of it was "
+                                           "incomplete (a partial copy would overwrite S3)")
+            print(f"   ALTDATA-PUSH REFUSED — {self.altdata_push_notes[-1]}", file=sys.stderr)
+            return False
         ok = True
         for rel in ALTDATA_DIRS:
             local = self.root / rel
             if not local.exists():
                 continue
+            flt = self._push_filter(rel)
+            if flt is None:
+                continue                             # this run changed nothing here
             r = self._aws("s3", "sync", str(local), self._altdata_s3(rel),
-                          "--no-progress")
+                          "--no-progress", *flt)
             if getattr(r, "returncode", 0) != 0:
                 ok = False
                 err = (getattr(r, "stderr", "") or "").strip().splitlines()

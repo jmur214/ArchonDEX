@@ -18,3 +18,8 @@
 - [Kalshi public API quirks](reference_kalshi_public_api_quirks_2026_11_19.md) — one series per /markets call (comma list silently 0); 4 workers → 429; pre-cutoff markets live only in /historical.
 - [T-405 Kalshi series archive](project_t405_kalshi_series_archive_2026_11_19.md) — merged 49331c7; selection rule, real-quote rule, per-event + historical resolver, rc contract.
 - [pandas 3 dtypes + monkeypatch defaults](feedback_pandas3_dtypes_and_monkeypatch_defaults_2026_11_19.md) — to_datetime needs format="ISO8601" (mixed shapes → silent NaT); astype("string") NA flavour; default args defeat monkeypatch.
+- [T-412 information reaches the desks](project_t412_information_reaches_desks_2026_11_20.md) — 0/59 is the PRICE resolvers' code; event desk had 3 dead links; census eval clock can't MISS; shared altdata race.
+- [Multi-day drive masks ephemeral-disk defects](feedback_multiday_drive_masks_ephemeral_disk_2026_11_20.md) — day N's tail leaves files day N+1 reads; pin asserts to the day's own rows.
+- [SEC EDGAR forward 8-K formats](reference_sec_edgar_forward_8k_formats_2026_11_20.md) — daily index not posted same day; submissions arrays; BRK-B vs BRK.B; body = cover page.
+- [Making data visible switches on dormant code](feedback_making_data_visible_switches_on_dormant_code_2026_11_24.md) — T-412 review: list what READS what the desk writes; fresh ≠ works; ANY-synced + push erases history.
+- [Privacy files and transport locks](feedback_privacy_files_and_transport_locks_2026_11_24.md) — Read/Edit only on files with the SEC contact; stub OpenerDirector.open, refuse sockets.

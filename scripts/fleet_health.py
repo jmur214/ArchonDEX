@@ -46,6 +46,13 @@ MAX_ONE_DAY_GAP = 0.10
 #: the check must keep saying so.)
 #: A book parked (degraded) for at least this many consecutive sessions is reported.
 PARKED_SESSIONS = 5
+#: T-412: every account's run ends by writing a ``source_register`` block (did each
+#: information source reach its reader?). A heartbeat without one means the run never
+#: reached its tail — a container killed after trading — or the register could not be
+#: written. Required of every account once ANY account has written one (the image is
+#: deployed), and of all of them from this date whatever they have written: a merged
+#: register nobody runs is itself a finding. Move the date if the deploy is held.
+SOURCE_REGISTER_REQUIRED_FROM = date(2026, 12, 7)
 
 Reader = Callable[[str], Tuple[Optional[bytes], str]]
 
@@ -56,13 +63,16 @@ class FleetVerdict:
     problems: List[str] = field(default_factory=list)
     unknown: List[str] = field(default_factory=list)
     checked: int = 0
+    #: Worth reading, not a failure: a working register that reported a degraded path.
+    notes: List[str] = field(default_factory=list)
 
     @property
     def detail(self) -> str:
+        notes = "".join(f" | note: {n}" for n in self.notes)
         if self.ok:
-            return f"{self.checked} objects read; all accounts canonical, no book defect"
+            return f"{self.checked} objects read; all accounts canonical, no book defect{notes}"
         parts = self.problems + [f"UNKNOWN {u}" for u in self.unknown]
-        return f"{len(parts)} problem(s): " + " | ".join(parts)
+        return f"{len(parts)} problem(s): " + " | ".join(parts) + notes
 
 
 def judge_heartbeat(label: str, hb: dict, today: date) -> List[str]:
@@ -83,6 +93,27 @@ def judge_heartbeat(label: str, hb: dict, today: date) -> List[str]:
     if run.get("halted") is True and run.get("canonical") is True:
         out.append(f"{label}: HALTED on {run_date}")
     return out
+
+
+def judge_source_register(label: str, hb: dict, required: bool) -> Tuple[List[str], List[str]]:
+    """(problems, notes) in one account's ``source_register`` block. A MISSING block (when
+    one is required), a block that says the register FAILED, or one left over from another
+    run is a problem; a degraded but working register is a note — its own notify channel
+    already fired, and a nightly that is red every time a path degrades is one nobody reads."""
+    run_date = str((hb.get("last_run") or {}).get("run_date") or "")
+    blk = hb.get("source_register")
+    if not isinstance(blk, dict):
+        return ([f"{label}: no source_register block on {run_date} — the run did not reach its "
+                 f"tail (killed after trading?) or the register could not be written"]
+                if required else []), []
+    why = " | ".join(str(p) for p in (blk.get("problems") or [])[:3]) or "no reason recorded"
+    if blk.get("failed") or blk.get("n_sources") is None:
+        return [f"{label}: the source register FAILED on {run_date}: {why}"], []
+    if str(blk.get("as_of")) != run_date:
+        return [f"{label}: source_register is from {blk.get('as_of')}, not {run_date}"], []
+    if blk.get("degraded"):
+        return [], [f"{label}: {blk.get('n_problems')} information-path problem(s): {why}"]
+    return [], []
 
 
 def judge_book(name: str, book: dict) -> List[str]:
@@ -132,13 +163,26 @@ def _load(reader: Reader, key: str) -> Tuple[Optional[dict], Optional[str]]:
 def evaluate(reader: Reader, today: Optional[date] = None) -> FleetVerdict:
     today = today or date.today()
     v = FleetVerdict(ok=True)
+    beats: Dict[str, dict] = {}
     for label, prefix in ACCOUNTS.items():
         doc, err = _load(reader, f"{prefix}/data/state/paper_heartbeat.json")
         if doc is None:
             v.unknown.append(f"{label} ({err})")
             continue
         v.checked += 1
+        beats[label] = doc
         v.problems += judge_heartbeat(label, doc, today)
+    # the register's deploy is observed, not assumed: the first block any account writes
+    seen = [str(b["source_register"].get("as_of")) for b in beats.values()
+            if isinstance(b.get("source_register"), dict)
+            and b["source_register"].get("as_of")]
+    for label, doc in beats.items():
+        run_date = str((doc.get("last_run") or {}).get("run_date") or "")
+        required = (run_date >= SOURCE_REGISTER_REQUIRED_FROM.isoformat()
+                    or bool(seen) and run_date >= min(seen))
+        problems, notes = judge_source_register(label, doc, required)
+        v.problems += problems
+        v.notes += notes
     for fname in BOOKS:
         doc, err = _load(reader, f"{BOOK_PREFIX}/data/state/{fname}")
         if doc is None:

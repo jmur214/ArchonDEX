@@ -152,7 +152,16 @@ class EventShadowBook:
 
     # ---------- source (parameterized, not forked) ----------
     def _load_calls(self, as_of: str) -> Tuple[List[Dict[str, Any]], str]:
-        """Calls DATED as_of from the configured feed. Returns ([], reason) when dormant."""
+        """Calls DATED as_of from the configured feed. Returns ([], reason) when dormant.
+
+        T-412 — THE SHAPE THE LEDGER ACTUALLY WRITES. ``event_service`` appends each call to
+        ``event_calls.jsonl`` in the eval harness's NOTE shape: ``note_date`` (no top-level
+        ``as_of``), ``predictions``, and the call's own fields (symbol, direction,
+        materiality, event_type) nested under ``event_call``. This loader matched only a
+        flat ``event_call/v1`` dict (the shape its tests build), so against the real ledger
+        it would have found no call dated any session, ever — a second dead link behind the
+        missing 8-K feed. Ledger records are projected to the flat shape here; a flat record
+        is still accepted unchanged."""
         src = self._base() / self.cfg.source_path
         if not src.exists():
             return [], f"no source yet at {self.cfg.source_path} (dormant-but-armed)"
@@ -162,12 +171,26 @@ class EventShadowBook:
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
+                rec = _as_call(json.loads(line))
                 if str(rec.get("as_of", ""))[:10] == as_of:
                     out.append(rec)
         except Exception as exc:
             return [], f"source unreadable: {type(exc).__name__}"
         return out, ("ok" if out else "no calls dated this session")
+
+    def pending_symbols(self, trade_date: str) -> List[str]:
+        """Every ticker ``record(trade_date)`` will need a close for: the open positions,
+        the calls it will CONSUME (the prior session's — signal t, fill t+1) and the twin.
+
+        T-412: the driver priced the open positions plus calls dated TODAY, while
+        ``record()`` opens the PRIOR session's calls — so the first call the desk ever
+        received would have parked for want of a price. The thesis book had the same
+        defect and fixed it the same way (T-343): the fetch follows the book."""
+        st = self._state()
+        calls, _ = self._load_calls(_prev_session_key(trade_date, st))
+        syms = ({str(p.get("symbol", "")).upper() for p in st.get("open", [])}
+                | {str(c.get("symbol", "")).upper() for c in calls} | {TWIN_TICKER})
+        return sorted(s for s in syms if s)
 
     # ---------- the desk ----------
     def record(self, trade_date: str, *, closes: Optional[Dict[str, float]] = None,
@@ -310,6 +333,17 @@ class EventShadowBook:
             out["per_event_type"][et] = row
         out["promote_to_paper_leg"] = bool(any_pass)
         return out
+
+
+def _as_call(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """A ledger record (note shape, the call nested under ``event_call``) → the flat call
+    the desk consumes. A record that is already flat is returned unchanged."""
+    inner = rec.get("event_call")
+    if not isinstance(inner, dict):
+        return rec
+    return {**inner, "as_of": str(rec.get("note_date") or inner.get("as_of") or "")[:10],
+            "predictions": rec.get("predictions") or [],
+            "note_id": rec.get("note_id")}
 
 
 def _prev_session_key(trade_date: str, st: Dict[str, Any]) -> str:

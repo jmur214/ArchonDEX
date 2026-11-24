@@ -88,6 +88,10 @@ _FEED_HEALTH: List[Tuple[str, str, str, int, str, Optional[str]]] = [
     ("fred_rate_path", "data/macro_data/alt/fred_rate_path.parquet", "observation_date", 7, "iso", None),
     # T-334 feeds (weekday / posting-lag cadence)
     ("form4", "data/macro_data/alt/edgar_form4_index.parquet", "date_filed", 5, "iso", None),
+    # T-412: the event desk's forward 8-K feed (run_8k_feed, account 1, BEFORE the intel
+    # pulse). Aged on the newest FILING date: ~25 tracked-universe 8-Ks land every business
+    # day, so 5 days covers a weekend plus a holiday and still catches a dead feed.
+    ("edgar_8k", "data/macro_data/alt/edgar_8k_items.parquet", "filing_date", 5, "iso", None),
     ("usaspending", "data/macro_data/alt/usaspending_awards.parquet", "snap_date", 7, "iso", None),
     ("credit_oas", "data/macro_data/alt/credit_spread_oas.parquet",
      "observation_date", 7, "iso",                  # T-336 C5 (deep history + live tail)
@@ -134,11 +138,22 @@ def _newest(path: Path, col: str, fmt: str):
         return None
 
 
-def assess_feed_health(root: Path) -> Tuple[Dict[str, dict], List[str]]:
-    """Age EVERY feed against its own budget. Returns (per-feed detail, offenders)."""
+# T-412: feeds only ONE account's run collects. The other accounts share the S3 prefix but
+# never hold these files, so gating them there is a false alarm by construction.
+ACCOUNT_1_FEEDS: Tuple[str, ...] = ("edgar_8k",)
+
+
+def assess_feed_health(root: Path, *, not_collected_here: Tuple[str, ...] = ()
+                       ) -> Tuple[Dict[str, dict], List[str]]:
+    """Age EVERY feed against its own budget. Returns (per-feed detail, offenders).
+    ``not_collected_here`` names feeds another account's run owns: declared, not failed."""
     now = pd.Timestamp.now().normalize()
     detail, stale = {}, []
     for name, rel, col, budget, fmt, exempt in _FEED_HEALTH:
+        if name in not_collected_here:
+            detail[name] = {"age_days": None, "budget": budget, "ok": True,
+                            "exempt": "collected, gated and pushed by account 1's run only"}
+            continue
         if exempt:
             detail[name] = {"age_days": None, "budget": budget, "ok": True,
                             "exempt": exempt}
@@ -200,7 +215,8 @@ def _out_dir_under_root(module: ModuleType, out_dir: Path) -> Iterator[None]:
         module.OUT_DIR = previous
 
 
-def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResult:
+def run_altdata_archive(root: str, *, days_back: int = 10,
+                        not_collected_here: Tuple[str, ...] = ()) -> AltdataArchiveResult:
     """Run both T-136 archivers (each pull fail-open) and assess snapshot
     freshness. Never raises into the caller — the trading path stays clean.
 
@@ -256,7 +272,9 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
     landed = sum(1 for v in fresh_rows.values() if v > 0)
     # T-335: EVERY feed is now aged against its own cadence budget — degraded if the
     # same-day snapshot check fails OR any feed exceeds its budget / is unmonitorable.
-    feed_health, stale_feeds = assess_feed_health(root_p)
+    feed_health, stale_feeds = (
+        assess_feed_health(root_p, not_collected_here=not_collected_here)
+        if not_collected_here else assess_feed_health(root_p))
     snapshot_degraded = landed == 0
     stale_degraded = bool(stale_feeds)
     degraded = snapshot_degraded or stale_degraded
@@ -282,3 +300,64 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
                                 feed_health=feed_health, stale_feeds=stale_feeds,
                                 snapshot_degraded=snapshot_degraded,
                                 stale_degraded=stale_degraded)
+
+
+# --- T-412: the event desk's forward 8-K feed ---------------------------------------- #
+# Separate from run_altdata_archive on purpose. The archive runs LAST (after the durable
+# push) and its rows are read by nobody that morning; the 8-K feed has a reader in the
+# same run — the intel pulse's event interpreter — so it must run BEFORE the pulse, and
+# only on the account that runs the pulse (account 1). Same fail-open contract: it never
+# raises, its health is a separate channel, and it cannot change the trading verdict.
+EDGAR_8K_PANEL_REL = f"{ALT_REL}/edgar_8k_items.parquet"
+EDGAR_8K_RECEIPT_REL = f"{ALT_REL}/edgar_8k_fetch_receipt.json"
+MEMBERSHIP_REL = "data/universe/sp500_membership_pit.parquet"
+
+
+@dataclass
+class EightKFeedResult:
+    ok: bool
+    report: str
+    universe_size: int = 0
+    receipt: Dict[str, object] = field(default_factory=dict)
+
+
+def tracked_universe(root: str, as_of: str) -> List[str]:
+    """The S&P 500 members on ``as_of`` (point in time), from the membership file baked
+    into the paper image. Empty when the file is missing or unreadable — the feed then
+    reports FAILED (empty universe), never a quiet day."""
+    try:
+        mem = pd.read_parquet(Path(root) / MEMBERSHIP_REL, columns=["ticker", "start", "end"])
+    except Exception:
+        return []
+    day = pd.Timestamp(as_of)
+    live = (mem["start"] <= day) & (mem["end"].isna() | (mem["end"] >= day))
+    return sorted(mem.loc[live, "ticker"].dropna().astype(str).str.upper().unique().tolist())
+
+
+def run_8k_feed(root: str, *, as_of: str, days_back: int = 5) -> EightKFeedResult:
+    """Fetch the forward 8-K item feed into ``<root>/data/macro_data/alt/``. Never raises."""
+    import json as _json
+    root_p = Path(root)
+    receipt_p = root_p / EDGAR_8K_RECEIPT_REL
+
+    def _receipt() -> Dict[str, object]:
+        try:
+            return _json.loads(receipt_p.read_text())
+        except Exception:
+            return {}
+
+    before = _receipt()                         # yesterday's, pulled from S3 (or none)
+    universe = tracked_universe(root, as_of)
+    try:
+        import scripts.archive_altdata_t136 as ad
+        with _out_dir_under_root(ad, root_p / ALT_REL):
+            report = ad.pull_8k_items(universe, as_of=as_of, days_back=days_back)
+    except Exception as exc:                    # an import failure is still a stated outcome
+        report = f"edgar_8k: FAILED ({type(exc).__name__}: {exc})"
+    receipt = _receipt()
+    if receipt == before:                       # this run wrote none: never pass off an old one
+        receipt = {}
+    # PARTIAL is not ok: it delivered something, but not everything it should have.
+    bad = report.startswith(("edgar_8k: FAILED", "edgar_8k: PARTIAL"))
+    return EightKFeedResult(ok=not bad, report=report,
+                            universe_size=len(universe), receipt=receipt)

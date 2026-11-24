@@ -247,17 +247,41 @@ class ThesisBook:
                          for l in (th.get("instruments") or []) if l.get("symbol")}
         return sorted(s for s in syms if s)
 
+    def open_falsifiers(self) -> List[Dict[str, Any]]:
+        """Every falsifier on an OPEN basket, with what resolving it needs:
+        ``[{thesis_id, index, filed_date, falsifier}]``. The daily run resolves these with
+        A's eval-harness resolvers and hands the statuses back to ``record()`` (T-412)."""
+        out: List[Dict[str, Any]] = []
+        for pos in self._state().get("open", []):
+            th = pos.get("thesis") or {}
+            filed = str(pos.get("filed_date") or pos.get("entry_date") or "")[:10]
+            for i, f in enumerate(th.get("falsifiers") or []):
+                out.append({"thesis_id": str(pos.get("thesis_id", "")), "index": i,
+                            "filed_date": filed, "falsifier": f})
+        return out
+
     @staticmethod
     def _falsifier_fired(th: Dict[str, Any], trade_date: str,
-                         fired_ids: Optional[Dict[str, bool]] = None) -> Optional[str]:
-        """A falsifier fires when (a) an external resolution says so (`fired_ids`), or
-        (b) its hard `check_by` date has passed WITHOUT resolution — an unresolved
-        falsifier past its own deadline is FAIL-CLOSED as fired, never assumed benign."""
+                         fired_ids: Optional[Dict[str, bool]] = None,
+                         statuses: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
+        """A falsifier fires when (a) an external resolution says so (`fired_ids`, or a
+        per-falsifier status of ``fired``), or (b) its hard `check_by` date has passed
+        WITHOUT resolution — an unresolved falsifier past its own deadline is FAIL-CLOSED as
+        fired, never assumed benign. T-412: a falsifier whose resolver was CHECKED and came
+        back FALSE (``not_fired``) is resolved, so its deadline no longer kills the thesis;
+        ``pending`` and ``unresolvable`` falsifiers keep the deadline rule."""
         fired_ids = fired_ids or {}
         tid = str(th.get("thesis_id", ""))
         if fired_ids.get(tid):
             return "falsifier resolved TRUE"
-        for f in (th.get("falsifiers") or []):
+        by_index = {int(s.get("index", -1)): s for s in (statuses or [])}
+        for i, f in enumerate(th.get("falsifiers") or []):
+            st = by_index.get(i) or {}
+            if st.get("status") == "fired":
+                return f"falsifier resolved TRUE: {str(f.get('statement', ''))[:80]}"
+        for i, f in enumerate(th.get("falsifiers") or []):
+            if (by_index.get(i) or {}).get("status") == "not_fired":
+                continue                              # checked and passed — resolved
             cb = str(f.get("check_by", ""))[:10]
             if cb and cb < trade_date:
                 return f"falsifier past check_by {cb} unresolved (fail-closed)"
@@ -266,22 +290,60 @@ class ThesisBook:
     # ---------- the book ----------
     def record(self, trade_date: str, *, closes: Optional[Dict[str, float]] = None,
                theses: Optional[List[Dict[str, Any]]] = None,
-               falsifiers_fired: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
+               falsifiers_fired: Optional[Dict[str, bool]] = None,
+               falsifier_status: Optional[Dict[str, List[Dict[str, Any]]]] = None
+               ) -> Dict[str, Any]:
         """One session: mark open baskets, close those falsified or at horizon, open new
         qualifying theses (filled at TODAY's close ⇒ signal-t/fill-t+1). Idempotent per
-        date. REPORT-ONLY."""
+        date. REPORT-ONLY.
+
+        ``falsifier_status`` (T-412): ``{thesis_id: [{index, status, detail}]}`` from the
+        daily run's resolution pass, status ∈ fired / not_fired / pending / unresolvable.
+        Every open falsifier's status is written into the day's record, and the summary
+        counts them — an ``unresolvable`` falsifier is reported as such, never as 'not
+        fired'. Without it (the pre-T-412 call) the day records the falsifiers as
+        ``not_checked``: the run never asked."""
         st = self._state()
         if any(d.get("date") == trade_date for d in st["days"]):
             return self._summary(st)
         closes = closes or {}
         reasons: List[str] = []
         twin_px = closes.get(TWIN_TICKER)
+        checked = falsifier_status is not None
+        falsifier_status = falsifier_status or {}
+        day_falsifiers: Dict[str, List[Dict[str, Any]]] = {}
 
         # 1) mark + close (falsifier first, then horizon)
         still_open, closed_today = [], 0
         for pos in st["open"]:
             pos["held"] = int(pos.get("held", 0)) + 1
-            kill = self._falsifier_fired(pos["thesis"], trade_date, falsifiers_fired)
+            tid_ = str(pos.get("thesis_id", ""))
+            fs = falsifier_status.get(tid_) or []
+            # A falsifier that resolved FALSE at its end date is SETTLED. It is kept on the
+            # position so a later day with missing prices cannot turn "checked and passed"
+            # back into "unresolvable" and let the old deadline kill the thesis.
+            settled = pos.setdefault("settled_falsifiers", {})
+            for s_ in fs:
+                if s_.get("status") == "not_fired":
+                    settled[str(s_.get("index"))] = {"status": "not_fired",
+                                                     "detail": s_.get("detail"),
+                                                     "settled_on": trade_date}
+            fs = [s_ if str(s_.get("index")) not in settled or s_.get("status") == "fired"
+                  else {**s_, **settled[str(s_.get("index"))]} for s_ in fs]
+            have = {str(s_.get("index")) for s_ in fs}
+            fs += [{"index": int(i), **v} for i, v in settled.items() if i not in have]
+            by_i = {int(s.get("index", -1)): s for s in fs}
+            day_falsifiers[tid_] = [
+                {"index": i, "kind": f.get("kind"),
+                 "statement": str(f.get("statement", ""))[:120],
+                 "check_by": f.get("check_by"),
+                 "status": (by_i.get(i) or {}).get("status",
+                                                   "unresolvable" if checked else "not_checked"),
+                 "detail": (by_i.get(i) or {}).get(
+                     "detail", "no status returned by the resolution pass" if checked
+                     else "the run did not resolve falsifiers")}
+                for i, f in enumerate((pos.get("thesis") or {}).get("falsifiers") or [])]
+            kill = self._falsifier_fired(pos["thesis"], trade_date, falsifiers_fired, fs)
             # T-343: the thesis's clock runs from ITS FILING date, so days spent PENDING
             # (awaiting prices) consume horizon rather than extending it — a thesis is a
             # claim about a period, not about however long we took to open it. Returns are
@@ -404,6 +466,9 @@ class ThesisBook:
         st["days"].append({"date": trade_date, "opened": opened, "closed": closed_today,
                            "n_open": len(st["open"]), "n_pending": len(still_pending),
                            "expiring": expiring,
+                           # T-412: every open basket's falsifiers and what checking them
+                           # found today (fired / not_fired / pending / unresolvable)
+                           "falsifiers": day_falsifiers,
                            "degraded": bool(reasons), "reasons": reasons[:8]})
         self._write(st)
         return self._summary(st)
@@ -421,6 +486,9 @@ class ThesisBook:
                              # notify path, so it must be on the SUMMARY the pulse reads
                              # — a warning buried in state is the silence it exists to end.
                              "expiring": (st.get("days") or [{}])[-1].get("expiring", []),
+                             # T-412: the last session's falsifier checks, by status
+                             "falsifier_status_counts": _status_counts(
+                                 (st.get("days") or [{}])[-1].get("falsifiers") or {}),
                              "armed": True}
         if cl:
             ex = [c["excess_vs_twin"] for c in cl]
@@ -499,6 +567,13 @@ def _expiry_warnings(pending: List[Dict[str, Any]],
                     "blocked_on": str(th.get("_pending_reason", "reason not recorded")),
                     "window_days": RECOVERY_WINDOW_DAYS})
     return sorted(out, key=lambda w: w["days_to_expiry"])
+
+
+def _status_counts(day_falsifiers: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
+    """{status: n} over one day's falsifier records (vectorised count, not a loop)."""
+    rows = [f.get("status", "unknown") for fs in day_falsifiers.values() for f in fs]
+    return ({str(k): int(v) for k, v in pd.Series(rows, dtype=object).value_counts().items()}
+            if rows else {})
 
 
 def _prev_key(trade_date: str, st: Dict[str, Any]) -> str:
