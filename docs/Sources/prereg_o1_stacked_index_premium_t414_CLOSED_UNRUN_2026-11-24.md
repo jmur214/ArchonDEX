@@ -22,7 +22,7 @@ owner approval: 2026-11-20 ("we want to test and exhaust as many ideas as we can
 
 **Nothing was measured, so nothing is refuted.** Closing is a decision not to spend a trial on a test whose answer the public endpoint already fixes. The scope of that decision is in the §8 correction.
 
-**The look at the endpoint is recorded as outcome-adjacent: any later CNDR or BFLY variant carries +1 for it** (director). The full list of levels displayed is longer than §2 said; see the §2 correction.
+**The look at the endpoint is recorded as outcome-adjacent: any later CNDR or BFLY variant carries +1 for it** (director). The full list of levels displayed is longer than §2 said; see the §2 correction. **Extended by the director's second ruling (2026-11-24): the +1 covers all four series displayed (CNDR, BFLY, PUT and WPUT), for any later variant that uses any of them.**
 
 **How to read this file.** Every original sentence from §0 on is unchanged. Corrections are the blockquotes marked "CORRECTED 2026-11-24". Only the front matter was edited (the original status is kept there) and the closure notice, §15 and §16 were added. The untouched original is `git show b66b5a2:docs/Sources/prereg_o1_stacked_index_premium_t414_DRAFT_2026-11-20.md`.
 
@@ -76,9 +76,11 @@ owner approval: 2026-11-20 ("we want to test and exhaust as many ideas as we can
 
 > **CORRECTED 2026-11-24 (author; not from the review).** This disclosure was incomplete in four ways.
 > - **More levels were displayed than the two CNDR endpoints.** The span check printed the first two and last two rows of CNDR, BFLY, PUT and WPUT, so the endpoints of **all four** option indices were seen, and CNDR's and BFLY's one-day move into 2026-11-19 was visible. Checking the 2020-10-16 hole printed **CNDR's levels for 2020-10-13, -14, -15 and -19**, which are inside the test window. A level inside the window plus the endpoint gives a subwindow return, so "not seen … any subwindow" was false. I computed no return from any of them.
-> - The director's +1 covers CNDR and BFLY. PUT's and WPUT's endpoints were seen too; whether the +1 extends to them is the director's call.
+> - The director's +1 covers CNDR and BFLY. PUT's and WPUT's endpoints were seen too; whether the +1 extends to them is the director's call. **Ruled 2026-11-24: it does, for all four series.**
 > - **"All booleans were False by construction" was wrong for H1.** N1–N3 cannot be evaluated on 12 rolls, but H1 was evaluated on the smoke window and its False was displayed.
 > - **Two departures from the census were not listed here.** The census prescribed a cash buffer equal to the worst overlay month, charged as a drag; this DRAFT demoted it to a sensitivity (§3.4 correction). The census named the T-306 equity and cash series; this DRAFT used French and H.15 (explained in §4.2, not listed here).
+
+> **CORRECTED 2026-11-24 (review, R1).** A third unlisted departure: the census (§7.2) and `[NN-SHARPE-CI]` name the Politis–White block length; this DRAFT fixed a block of 12 rolls (§6) without listing it here or in §11's rulings.
 
 ## 3. Construction
 
@@ -150,6 +152,16 @@ Verified today against IRS Form 6781 (2025) and its instructions on the form, an
 - **UNVERIFIED hazard, material:** a short S&P 500 index call spread held against an S&P 500 fund may be an offsetting position under section 1092 (straddles; the index-overlap rules for a stock portfolio against an index option). If it is, condor losses could be deferred and the mixed-straddle rules could change the 60/40 character. The model ignores this. **No real version proceeds until a tax adviser rules on it.**
 
 > **CORRECTED 2026-11-24 (§1092; new).** This is more than a caveat: it can flip the sign of the result, so the modelled tax is a **best case**. An S&P index position against an S&P core fund is likely "related property" (reviewer's citation: 26 CFR 1.246-5(c)(1)(iii)(B) and (e)(2)(ii); I have not read the regulation). In the reviewer's synthetic case, with gains taxed each year and losing condors deferred, D is **−1.00 %/yr at σ 6 %**.
+>
+> Sizes from the review (R2), synthetic, c_high, after-tax D per year:
+>
+> | Tax treatment | σ 6 % | σ 4 % |
+> |---|---|---|
+> | As modelled (best case) | +0.52 % | not supplied |
+> | Net-loss years deferred | +0.12 % | not supplied |
+> | Each losing condor deferred | −1.00 % | −0.42 % |
+>
+> The two regulation cites are the 70 % overlap test and fund shares that mimic an index. The review also cites IRS CCA 20131902F, which treated S&P stocks with index puts and calls as a straddle (read there as a search excerpt only, and not by me). It adds an effect this section never mentioned: lost holding period and qualified-dividend status on new core lots.
 
 ## 4. Data census (verified 2026-11-20)
 
@@ -428,26 +440,40 @@ python -m pytest tests/test_t414_o1_stacked_premium.py -q
 
 ## 15. Review (2026-11-24)
 
-Verdict: NOT READY, CLOSE UNRUN. The reviewer reproduced the engine to 1e-15. The author of this file was given the findings marked "relayed" through the director's message. The text of the others was not in that message or in any file the author could find, so it is **not reconstructed here**; the numbers are listed so the record shows they exist.
+Verdict: NOT READY, CLOSE UNRUN. The reviewer reproduced the engine to 1e-15. The findings come from the independent reviewer's execution review, relayed by the director. The first version of this section lacked the text of R1, R2, R4–R8 and the minors; the director then supplied it. Its three unnumbered rows are R1 (the cash buffer), R2 (§1092) and R4 (the mutants).
+
+The figures are the reviewer's. The author checked only what is marked **[author checked]**, by reading the code at `b66b5a2` or by arithmetic; nothing was run.
 
 | # | Finding | Resolution |
 |---|---|---|
-| B1 | Pass probability mis-specified: the endpoint pins the mean, so t has an sd of 0.10–0.3, not 1 (relayed) | Text corrected in §0.3, §0.4, §7. Code not fixed: study closed |
-| B2 | The falsifier claims more than the form tested (relayed) | Text corrected in §0.4, §8. Not fixed: study closed |
-| R1 | Text not supplied to the author | Not fixed: study closed |
-| R2 | Text not supplied to the author | Not fixed: study closed |
-| R3 | κ is measured on ATM IV but used on VIX; on VIX it is 1.29–1.33 (relayed) | Text corrected in §0.1, §5.2, §9. Code not fixed: study closed |
-| R4 | Text not supplied to the author | Not fixed: study closed |
-| R5 | Text not supplied to the author | Not fixed: study closed |
-| R6 | Text not supplied to the author | Not fixed: study closed |
-| R7 | Text not supplied to the author | Not fixed: study closed |
-| R8 | Text not supplied to the author | Not fixed: study closed |
-| (number not supplied) | The §1092 straddle risk can flip the sign (relayed) | Text corrected in §3.5. Not fixed: study closed |
-| (number not supplied) | The F1 cash-buffer omission sets the sign (relayed) | Text corrected in §2, §3.4. Not fixed: study closed |
-| (number not supplied) | 22 of 34 mutants survived the tests (relayed) | Recorded in §10. Not fixed: study closed |
-| Minors | Neither their numbers nor their text were supplied to the author | Not fixed: study closed |
+| B1 | Pass probability mis-specified: the endpoint pins the mean, so t has an sd of 0.10–0.3, not 1 | Text corrected in §0.3, §0.4, §7. Code not fixed: study closed |
+| B2 | The falsifier claims more than the form tested | Text corrected in §0.4, §8. Not fixed: study closed |
+| R1 | The primary silently drops the census's bill buffer. T-410 §7.2 charges a worst-month cash buffer; the prereg made F2 (no buffer) primary and F1 a sensitivity (§3.4), missing from the §2 deviation list and the §11 rulings. F1 costs ≈ 0.5–0.8 %/yr and the planning after-tax D at c_high is +0.5 to +0.6 %/yr, so the choice sets the sign. Also unlisted: block 12 instead of Politis–White | Covered in the text by the §2 and §3.4 corrections (buffer) and the §2 R1 correction (block 12). §3.4 quotes the author's own grid for D (0.4–0.8 %/yr). Not fixed: study closed |
+| R2 | §1092 straddle risk flagged but unsized, and it can flip the sign: 26 CFR 1.246-5(c)(1)(iii)(B) (≥ 70 % overlap) and (e)(2)(ii) (fund shares mimicking an index) make an S&P core plus S&P options a likely straddle; IRS CCA 20131902F treated S&P stocks with index puts and calls as a straddle (search excerpt only). Also unmentioned: lost holding period and qualified-dividend status on new core lots. The fix would have been to label the decision cell "best-case tax" and add a gains-only tax cell | Covered in the text by the §3.5 correction, with the deferral sizes. The gains-only cell was not added. Not fixed: study closed |
+| R3 | κ is measured on ATM IV but used on VIX; on VIX it is 1.29–1.33 | Text corrected in §0.1, §5.2, §9. Code not fixed: study closed |
+| R4 | Tests much weaker than claimed. 40/40 pass, but 22 of 34 mutations survived. `test_run_refuses_while_unfrozen` and `test_out_under_data_is_refused` are vacuous: they pass with the check removed, because empty inputs also exit 2 **[author checked]**. `control_tax_ledger` claims "carryback earliest first", yet latest-first survives. Nothing pins the N1/N2 index, the cohort minimum, the 2.5th percentile, t, the year-end flags, the synthetic tax years or the cost scaling. `cmd_run` has no test: "uses cost_low" and "uses NO_TAX" both survive | Partly covered: §10's correction records 22 of 34 and the missing reversion tests. The vacuous tests and the unpinned items are recorded only here. Not fixed: study closed |
+| R5 | Fail-closed gaps in `build_panel`. The design check is one-sided (line 366 **[author checked]**): a ×10 rebase passes with a max roll of +893 %. A 15-day off-roll hole, 6 months flat, and 10 missing French days all pass; only `census` sees holes. Ten of CNDR's 61 zero-change days fall on roll Fridays (1986-10-17, 1986-12-19, 1987-05-15, 1987-12-18, 1988-02-19, 1989-02-17, 1989-03-17, 1992-09-18, 1995-08-18, 2002-01-18) and §4.1 does not say so ("present is not usable"). `run` rechecks only the design floor though §10 says every miss halts. The bill tolerance (75 bp/yr, line 736 **[author checked]**) equals the net effect; it should be 10 bp | Not covered elsewhere; this row supersedes §4.1's silence and §10's "any miss halts". The author checked that the ten dates are third Fridays, not the levels. Not fixed: study closed |
+| R6 | Output-guard bypasses (lines 823–829 **[author checked]**): `--out <repo>/DATA/x` on case-insensitive macOS; another worktree's `data/`; `--tag "A/../../escaped"` wrote outside `--out`; the guard switches off when FROZEN is True | Not covered elsewhere; this row supersedes §10's "any `--out` under a repo `data/` exits 2". Not fixed: study closed |
+| R7 | The gating-cost rule contradicts itself: code line 99 says the freeze "may only RAISE" c_high **[author checked]**; §5.3 says it can be lowered. With the mean known, lowering cost is the one lever toward a pass | The contradiction is recorded in §16 item 4. "The one lever" is recorded only here, and it supersedes §5.3's "does not bias the test toward a pass". Not fixed: study closed |
+| R8 | Trial count: the run also produces D, t and CI for BFLY, PUT and WPUT, and §8 uses them. Drop or count them (+4 on a literal `[NN-MBL]` reading) | Not covered elsewhere; this row supersedes §11's "count 0" for the robustness indices. 0 trials were consumed. Not fixed: study closed |
 
-The three rows without a number may be among R1, R2 and R4–R8. The author does not know which.
+**Minors** (numbered here in the order supplied; the numbers are this file's). Resolution for all: not fixed, study closed.
+
+| # | Finding |
+|---|---|
+| m1 | MV 1.02 is padding: the correct 1/(1 − credit/10W) is 1.009–1.012, so it is ≈ 0.03 %/yr conservative; §7's μ_x omits it |
+| m2 | N2 charges tax inside its window on 8 pre-window 2015 rolls |
+| m3 | §1212(c)(4)(B) first nets against the year's other capital gains |
+| m4 | Some states allow no carryback, yet refunds use the full τ including 5 % state |
+| m5 | τ = 23.6 % lacks NIIT (immaterial: t 1.30 → 1.35 for τ 0 → 34.8 % at σ 4 %) |
+| m6 | E[max of 372] = 2.946; 2.96 is the approximation |
+| m7 | At m = 1 the condor notional is ≈ 0.8–1.9× equity (p10–p90), undisclosed. **[author checked]** That range is κ 1.6; at R3's κ of 1.3 the same arithmetic gives ≈ 1.0–2.3× |
+| m8 | A pass should also require pricing the robo-exit tax |
+| m9 | A roll-day mark could breach −11 % and halt after the freeze |
+| m10 | Stale code references: lines 59 and 82 cite §4.6 (it is §4.5), line 113 cites §6.5, line 122 cites §9.2 **[author checked]**; "12 controls" is 7. The author did not find "12 controls" in the branch's script, tests, prereg or manual entry |
+| m11 | The probes' User-Agent carried the project name; it should be a generic one. §14's `ArchonDEX-research/1.0` is that string, so §14's "no personal details" does not mean no project name |
+
+**Verified by the reviewer:** methodology v4.2 re-fetched (md5 identical); m = 1.0 correct; the after-tax engine agrees on 300 random paths to 2e-15; the MDE's 2.29× gross is the 80 %-power figure, and the pass bar needs 1.9×; `run` refuses with the FROZEN message on the real inputs.
 
 ## 16. Corrections found by the author (2026-11-24)
 
