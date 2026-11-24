@@ -232,48 +232,62 @@
 ### `archive_options_snapshots.py`
 **Module Docstring:** scripts/archive_options_snapshots.py
 - **Class `ConfigError`**: The universe config is missing or malformed: the run cannot know what to expect.
+- **Class `KeysError`**: Alpaca keys are missing or cannot go into a header (the message names no value).
+- **Class `SlotError`**: The requested slot does not match the clock; the rows would be mislabelled.
 - **Class `UnderlyingSpec`**: One declared underlying; an index declares a price proxy and may have no IV.
 - **Class `ArchiveConfig`**: The validated universe config (see config/options_archive_universe.json).
   - `def declared()`
   - `def required()`
   - `def no_iv()`
   - `def subset()`: The same rules on a declared subset (a smoke run); the subset is the denominator.
+- **Class `CalendarView`**: Alpaca's calendar around ``today`` next to the rules. ``is_open`` is the union: a day is
+  - `def is_open()`
+  - `def close_time()`
+  - `def disagreement()`
+  - `def record()`
 - **Class `Verdict`**: The day's judgement: status, whether to write, and the coverage detail.
-- **Class `ApiError`**: An Alpaca call failed for good (status + the first 200 bytes of the body).
+- **Class `ApiError`**: An Alpaca call failed for good. The message is built here (path, status, redacted
   - `def __init__()`
 - **Class `AuthError`**: 401: the keys are wrong — every later call would fail the same way.
-- **Class `AlpacaReadClient`**: GET-only Alpaca client: per-host pacing under the measured limits, retries with
+- **Class `BudgetSpent`**: The run's wall-clock budget is gone; no further request is made.
+- **Class `AlpacaReadClient`**: GET-only Alpaca client: per-host pacing under the published limits, retries with backoff
   - `def __init__()`
+  - `def set_budget()`
+  - `def budget_spent()`
   - `def get()`
   - `def calendar()`
   - `def stock_snapshots()`
   - `def contracts()`
   - `def chain()`
-- **Class `RefPrice`**: The band/bound reference and the stored underlying fields for one underlying.
+- **Class `RefPrice`**: The band/bound references and the stored underlying fields for one underlying.
 - **Class `UnderlyingResult`**: One underlying's rows plus what was expected, returned, and any error.
 - **Class `RunOutcome`**: A run's exit code, status, one-line message and its run-log record.
 - **Function `load_config()`**: Parse and validate the universe config. Every malformation is a ConfigError.
-- **Function `load_keys()`**: Alpaca keys from the process environment, else from ``env_file`` (read, not loaded
-- **Function `nyse_holidays()`**: Full-day NYSE closures by rule (the offline fallback; Alpaca's calendar is primary
+- **Function `load_keys()`**: Alpaca keys from the process environment, else from ``env_file`` (read, not loaded into
+- **Function `nyse_holidays()`**: Full-day NYSE closures by rule (ad-hoc closures are only in Alpaca's calendar).
 - **Function `is_trading_day_rules()`**: No docstring
 - **Function `previous_trading_day_rules()`**: The latest rule-based trading day strictly before ``d``.
+- **Function `read_calendar()`**: Alpaca's calendar for +/-7 days. Usable only if every entry parses and the list holds a
+- **Function `resolve_session()`**: (session to capture, reason). None = nothing is due (closed day, near_close slot).
 - **Function `select_expiries()`**: The next ``n_weekly`` weekly expiries, then the next ``n_monthly`` monthlies.
 - **Function `parse_occ()`**: Vectorized OCC symbol parse: root (1-6 chars), YYMMDD, C/P, strike x1000 (8 digits).
-- **Function `real_quote_mask()`**: A row is a REAL quote only when its values are usable, never merely present:
-- **Function `judge()`**: Fail closed: zero real quotes -> FAILED and nothing written. An underlying is covered
+- **Function `real_quote_mask()`**: Rule v2: a row is a REAL quote only when its values are usable, never merely present:
+- **Function `coverage_table()`**: Per declared underlying: rows, real, listed (returned AND in the contract listing),
+- **Function `judge()`**: Fail closed, against what was EXPECTED. An underlying is covered when all hold:
 - **Function `empty_frame()`**: No docstring
+- **Function `to_table()`**: Coerce a frame to the fixed SCHEMA, value by value (an odd value becomes null).
 - **Function `snapshots_frame()`**: Flatten an Alpaca option-snapshot payload ({OCC symbol: snapshot}) into stored columns.
 - **Function `contracts_frame()`**: The trading API's option_contracts listing -> contract, root, expiry, style, OI.
-- **Function `to_table()`**: Cast a frame to the fixed SCHEMA (raises on a column that cannot be cast).
-- **Function `dedup()`**: Union and dedup on (snap_date, contract): a real-quote row beats a non-real one, then
+- **Function `dedup()`**: Union and dedup on (snap_date, slot, contract): a real-quote row beats a non-real one,
 - **Function `day_path()`**: No docstring
-- **Function `write_day()`**: Merge with the session's existing file (dedup), write atomically (temp + os.replace),
-- **Function `reference_prices()`**: Delayed-SIP latest trade (and this session's daily close) for every stock/ETF and
-- **Function `fetch_underlying()`**: Contracts (expiries + OI) then one chain call per selected expiry. Every API error is
-- **Function `trading_day_status()`**: (is a trading day, source, note). Alpaca's calendar first; the rules on its failure.
+- **Function `read_day()`**: A day file, or ValueError if it is unreadable or lacks a stored column.
+- **Function `write_day()`**: Merge with the session's existing file (dedup) and write atomically (temp +
+- **Function `reference_prices()`**: Delayed-SIP latest trade and this session's close for every stock/ETF and every declared
+- **Function `build_rows()`**: One underlying's stored rows in the fixed schema, with the real-quote flag.
+- **Function `fetch_underlying()`**: Contracts (expiries + OI), then one chain call per selected expiry. Any failure becomes
 - **Function `append_run_log()`**: No docstring
-- **Function `run_archive()`**: One archive run: calendar gate, reference prices, every underlying, judge, write.
-- **Function `verify_store()`**: Re-judge the latest session's file BY CONTENT (the rule recomputed from raw columns,
+- **Function `run_archive()`**: One archive run. Whatever happens, one record of it reaches the run log.
+- **Function `verify_store()`**: Is every session that is due captured? (now: a datetime in ET, or a date = 18:30 ET.)
 - **Function `main()`**: No docstring
 
 ### `archive_positioning_t136.py`

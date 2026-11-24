@@ -1293,21 +1293,28 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 # Do NOT retire one into the other (program-doc amendment 2026-07-08).
 ```
 
-### Options snapshot archive (T-416, 2026-11-20) — our own quotes + IV history, forward
+### Options snapshot archive (T-416, 2026-11-20; hardened 2026-11-24) — our own quotes + IV history, forward
 
 ```bash
 # Daily snapshot of option quotes, last trade, implied vol, greeks and OCC open interest
 # for the universe in config/options_archive_universe.json (SPY, QQQ, IWM, XSP + 45 large
-# S&P names; 4 weekly + 2 monthly expiries; strikes within ±20 % of the delayed-SIP price),
-# from Alpaca's FREE "indicative" feed (OPRA is HTTP 403 on this account). GET-only.
+# S&P names; 4 weekly + 2 monthly expiries; strikes in [0.8 x min, 1.2 x max] of the session
+# close and the delayed-SIP last trade), from Alpaca's FREE "indicative" feed. GET-only.
 # Output: data/macro_data/options/options_snapshot_YYYY-MM-DD.parquet (one per ET session,
-# zstd, fixed schema, deduped on (snap_date, contract)) + one JSON line per run in
-# data/macro_data/options/_archive_runs.jsonl. Keys: env, else --env-file (default
-# <repo>/.env); never printed. rc 0 = OK or SKIP (non-trading day), 1 = FAILED (zero real
-# quotes -> nothing written; coverage < 90 %, or a REQUIRED underlying (SPY/QQQ/IWM/XSP) not
-# covered -> rows kept; covered = >= 10 real rows AND >= 30 % of its rows real), 2 = broken
-# (keys/config/crash).
+# zstd, fixed schema, deduped on (snap_date, slot, contract)) + one JSON line per run,
+# including refused and crashed runs, in data/macro_data/options/_archive_runs.jsonl
+# (--verify needs it: it says what each run EXPECTED). An unreadable day file is renamed
+# _corrupt_...; nothing is deleted. Keys: env, else --env-file (default <repo>/.env).
+# rc 0 = OK or SKIP; 1 = FAILED; 2 = broken (keys/config/slot/crash); 142 = the wrapper's
+# hard bound killed it.
 .venv/bin/python scripts/archive_options_snapshots.py
+
+# SLOT. Default --slot eod captures the last session that has CLOSED: after the close it is
+# today; after midnight, before the open, on weekends and holidays it is the previous session,
+# captured late if it is missing (else SKIP). Between the open and the close eod is REFUSED
+# (rc 2): an intraday capture needs --slot near_close, which is refused outside the session.
+# Both slots live in one day file and never overwrite each other.
+.venv/bin/python scripts/archive_options_snapshots.py --slot near_close
 
 # Smoke into a scratch dir (NEVER data/). From an agent worktree pass the main .env:
 .venv/bin/python scripts/archive_options_snapshots.py --out-dir /tmp/opt_smoke \
@@ -1315,15 +1322,30 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 #   --underlyings SPY,AAPL,XSP  a declared SUBSET (it becomes the coverage denominator)
 #   --config PATH               a different universe file
 
-# Store check only (no API call): re-judges the latest session's file BY CONTENT with the
-# real-quote rule; on a weekend/holiday it checks the previous session. rc 0 / 1.
+# COVERED = >= 10 real rows (rule v2) AND >= 30 % of the name's rows real AND >= 90 % of the
+# contracts the listing named came back AND >= 4 expiries came back AND no single (bid, ask)
+# on > 25 % of its real rows. FAILED = zero real quotes (nothing written), < 90 % of names
+# covered, or a REQUIRED one (SPY/QQQ/IWM/XSP) not covered (rows kept). The OK line names
+# every name that was not covered.
+
+# Store check only (no API call): re-judges the last due session BY CONTENT against the run
+# log, and requires an eod capture for EVERY session since the first file. A gap alarms every
+# day until it is recorded in the config: "acknowledged_gaps": {"2026-12-01": "reason"}.
+# rc 0 / 1.
 .venv/bin/python scripts/archive_options_snapshots.py --verify
 
+# CALENDAR: a day is skipped only when Alpaca's calendar AND the NYSE rules both say closed.
+# On an ad-hoc closure the run says CALENDAR DISAGREEMENT and fails (no fresh quotes) that day;
+# --verify excuses it from the next session on.
+
 # Scheduled path: run_altdata_archivers.sh runs it (rc printed as options=<rc>, its own
-# term in the ALTDATA_ARCHIVER_FAILED condition; the drill forces it to 99) BEFORE
-# verify_altdata_snapshot.py, whose LOCAL-ONLY options check runs the same --verify logic.
+# term in the ALTDATA_ARCHIVER_FAILED condition; the drill forces it to 99) under a 2400 s
+# hard bound (ARCHONDEX_OPTIONS_TIMEOUT_S) BEFORE verify_altdata_snapshot.py, whose LOCAL-ONLY
+# options check runs the same --verify logic. launchd fires at 17:30 LOCAL time: in a time zone
+# where that is before 16:00 ET the eod slot is refused, loudly.
 # The cloud paper path is unchanged (paper_trader/altdata_archive.py lists untouched).
-# Read the store:  pd.read_parquet("data/macro_data/options")  (the run log is skipped)
+# Read the store:  pd.read_parquet("data/macro_data/options")  (the run log is skipped);
+#                  filter slot == "eod" for the daily series.
 ```
 
 ### THIRD-STREAM CANDIDATE BATTERY — same-day $0 verdict (2026-08-25, T-313 formalized)
