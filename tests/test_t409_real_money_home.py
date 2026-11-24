@@ -1,4 +1,4 @@
-"""Tests for scripts/t409_real_money_home.py (T-409 decision study, prereg rev. 4).
+"""Tests for scripts/t409_real_money_home.py (T-409 decision study, prereg rev. 5).
 
 Hand-computed tax and lot cases, a fuzz against an independently written Form 1040 worksheet, fail-closed
 input checks, the halting controls, the choice rule, determinism and the synthetic-panel plumbing. The
@@ -52,6 +52,16 @@ def test_school_year_ordinary_and_short_term_use_the_unused_deduction_first():
     tax2, _, _, d2 = m.annual_tax(y2, wages=8_000.0, idx=1.0, state=0.05, st_cf=0.0, lt_cf=0.0)
     assert d2["fed"] == pytest.approx(1_190.0)                # 11,900 at 10 %, not 20,000 from the first dollar
     assert tax2 == pytest.approx(2_190.0)
+
+
+def test_qdcg_worksheets_last_step_takes_the_smaller_of_the_two_taxes():
+    """Hand case, from Rev. Proc. 2025-32 rows. Taxable income 50,450: ordinary 49,450 (the top of the 0 % room) +
+    1,000 of long-term gain. Worksheet: tax(49,450) = 1,240 + 12 % x 37,050 = 5,686, plus 15 % of the 1,000 =
+    5,836. Ordinary tax on 50,450 = 5,800 + 22 % x 50 = 5,811, which is smaller. Incremental 125, not 150."""
+    y = m.TaxYear(lt=1_000.0)
+    _, _, _, d = m.annual_tax(y, wages=16_100.0 + 49_450.0, idx=1.0, state=0.0, st_cf=0.0, lt_cf=0.0)
+    assert d["taxable_income"] == pytest.approx(50_450.0)
+    assert d["fed"] == pytest.approx(125.0)
 
 
 def test_qdcg_worksheet_smaller_of_step():
@@ -122,7 +132,8 @@ def reference_1040(qual, ordinary, st, lt, wages, st_cf, lt_cf):
     w15 = max(0.0, w13 - (w5 + w9))
     w16 = min(w12, w15)
     w17 = w12 - w16
-    tax = m.bracket_tax(w5, 1.0) + 0.15 * w16 + 0.20 * w17 - m.bracket_tax(max(0.0, wages - 16_100.0), 1.0)
+    worksheet = m.bracket_tax(w5, 1.0) + 0.15 * w16 + 0.20 * w17
+    tax = min(worksheet, m.bracket_tax(ti, 1.0)) - m.bracket_tax(max(0.0, wages - 16_100.0), 1.0)
     nii = max(0.0, ordinary + qual + cap)
     niit = 0.038 * min(nii, max(0.0, agi - 200_000.0))
     st_new = lt_new = 0.0
@@ -241,7 +252,9 @@ def test_liquidation_goes_through_annual_tax_with_the_20pct_bracket_and_niit():
 
 # --------------------------------------------------------------------------------------- the Roth ----
 def test_roth_schedule_school_rule_and_post_school_backdoor_flag():
-    own = m.Owner(school_start=2, school_years=3, c_taxable_month=100.0, roth_contrib=1_200.0, real_discount=0.0)
+    assert m.Owner().roth_in_school is False                  # the primary: no source for $7,500 on ~$8k of wages
+    own = m.Owner(school_start=2, school_years=3, c_taxable_month=100.0, roth_contrib=1_200.0, real_discount=0.0,
+                  roth_in_school=True)
     _, roth_c, pv = m.contribution_schedule(own, 60)
     assert list(roth_c[::12]) == [1_200.0] * 5                # school wages 8,000 >= 1,200: contributes
     assert pv[0] == pytest.approx(100.0 * 59 + 4 * 1_200.0)
@@ -254,6 +267,13 @@ def test_roth_schedule_school_rule_and_post_school_backdoor_flag():
     noschool = replace(own, roth_in_school=False)
     _, rc4, _ = m.contribution_schedule(noschool, 60)
     assert list(rc4[::12]) == [1_200.0, 0.0, 0.0, 0.0, 1_200.0]
+
+
+def test_the_automatic_contribution_can_pause_in_school():
+    own = m.Owner(school_start=2, school_years=2, c_taxable_month=100.0, taxable_in_school=False)
+    tax_c, _, _ = m.contribution_schedule(own, 60)
+    assert tax_c[:12].sum() == 1_200.0 and tax_c[12:36].sum() == 0.0 and tax_c[36:].sum() == 2_400.0
+    assert m.contribution_schedule(m.Owner(), 12)[0].sum() == 12 * 500.0
 
 
 def test_roth_capacity_bounds_household_leverage():
@@ -386,6 +406,20 @@ def test_refuses_to_write_under_any_data_tree_even_through_a_symlink(tmp_path):
         m.cmd_run(_run_args(tmp_path, out=str(m.ROOT / "data" / "t409")))
 
 
+def test_the_guard_also_refuses_the_main_trees_data_from_a_worktree(tmp_path, monkeypatch):
+    main, wt = tmp_path / "main", tmp_path / "wt"
+    (main / ".git" / "worktrees" / "wt").mkdir(parents=True)
+    (main / "data").mkdir()
+    wt.mkdir()
+    (wt / ".git").write_text(f"gitdir: {main / '.git' / 'worktrees' / 'wt'}\n")
+    assert m.main_tree_of(wt) == main.resolve()
+    monkeypatch.setattr(m, "ROOT", wt)
+    with pytest.raises(m.InputError, match="refusing"):
+        m.cmd_run(_run_args(tmp_path, control_root=str(wt), out=str(main / "data" / "t409")))
+    with pytest.raises(m.InputError, match="refusing"):
+        m.cmd_run(_run_args(tmp_path, control_root=str(tmp_path / "elsewhere"), out=str(main / "data" / "t409")))
+
+
 def test_the_full_run_requires_jst_and_the_owners_decision_row(tmp_path):
     with pytest.raises(m.InputError, match="--jst"):
         m.cmd_run(_run_args(tmp_path, smoke=False, jst=False, decision_row="h=+0.00"))
@@ -431,6 +465,62 @@ def test_choice_takes_a_lower_arm_that_clearly_leads_when_the_top_arm_ties():
     assert out["choice"] == "B2"
 
 
+def test_the_band_uses_the_paired_se_not_the_spread_of_the_arms():
+    rng = np.random.default_rng(11)
+    common = rng.normal(12.0, 0.5, 400)                                  # the paths' shared luck
+    raw = {"K1": common, "K0": common + 0.01 + rng.normal(0.0, 0.001, 400)}
+    out = m.choose(raw, {}, _coh(["K0", "K1"]), None, ("K0", "K1"), "K1", 0.5)
+    assert out["choice"] == "K0"                  # paired SE ~ 5e-5; the arms' own SE (~0.025) would call it a tie
+    assert out["contrasts"]["K0"]["paired_mcse"] < 1e-3
+
+
+def test_an_ineligible_default_yields_the_best_eligible_arm():
+    raw = {"K1": np.full(50, 13.0), "K0": np.full(50, 12.0)}
+    out = m.choose(raw, {}, {"K0": {"ratio_min": 0.9}, "K1": {"ratio_min": 0.4}}, None, ("K0", "K1"), "K1", 0.5)
+    assert out["eligible"] == ["K0"] and out["choice"] == "K0" and "ineligible" in out["rule"]
+    none = m.choose(raw, {}, _coh(["K0", "K1"], 0.3), None, ("K0", "K1"), "K1", 0.5)
+    assert none["choice"] is None
+
+
+def test_the_highest_mean_arm_is_reported_and_never_decides():
+    raw = {"K1": np.full(1000, 12.0), "K0": np.where(np.arange(1000) % 10 == 0, 14.0, 11.7)}
+    out = m.choose(raw, {}, _coh(["K0", "K1"]), None, ("K0", "K1"), "K1", 0.5)
+    assert np.mean(raw["K0"]) < np.mean(raw["K1"])                       # lower typical outcome
+    assert out["choice"] == "K1" and out["highest_mean_eligible_arm"] == "K0"
+    assert out["mean_terminal_real"]["K0"] > out["mean_terminal_real"]["K1"]
+
+
+def _pair_choice(a0, a1, b0, b1, elig_a=("K0", "K1"), elig_b=("K1", "B1", "B2", "B3")):
+    r0, r1 = m.DECISION_PAIR
+    return {r0: {"A": {"choice": a0, "eligible": list(elig_a)}, "B": {"choice": b0, "eligible": list(elig_b)}},
+            r1: {"A": {"choice": a1, "eligible": list(elig_a)}, "B": {"choice": b1, "eligible": list(elig_b)}}}
+
+
+def test_pair_rule_agreement_is_the_choice_and_disagreement_is_the_default():
+    out = m.resolve_pair(_pair_choice("K1", "K1", "B1", "B2"))
+    assert out["A"]["resolved"] == "K1" and out["A"]["agree"] is True
+    assert out["B"]["resolved"] == "K1" and out["B"]["agree"] is False and "DISAGREE" in out["B"]["flag"]
+    assert out["B"]["choices"] == {"param:h=+0.00": "B1", "param:h=-0.02": "B2"}     # both choices are written
+    assert m.resolve_pair(_pair_choice("K0", "K0", "B3", "B3"))["B"]["resolved"] == "B3"
+    assert m.resolve_pair(_pair_choice("K0", "K1", "B1", "B1"))["A"]["resolved"] == "K1"
+
+
+def test_pair_rule_never_takes_a_default_that_fails_the_loss_bound():
+    out = m.resolve_pair(_pair_choice("K0", "K1", "B1", "B1", elig_a=("K0",)))
+    assert out["A"]["resolved"] is None and "fails the loss bound" in out["A"]["flag"]
+    both_none = m.resolve_pair(_pair_choice(None, None, "B1", "B1"))
+    assert both_none["A"]["resolved"] is None and both_none["A"]["agree"] is True
+
+
+def test_decision_row_is_checked_before_any_input_is_read(tmp_path):
+    with pytest.raises(m.InputError, match="decision row 'h=\\+0.55'"):
+        m.cmd_run(_run_args(tmp_path, smoke=True, decision_row="h=+0.55"))
+    with pytest.raises(m.InputError, match="missing input"):          # a valid row gets as far as the manifest
+        m.cmd_run(_run_args(tmp_path, smoke=True, decision_row="pair"))
+    assert m.decision_rows(m.Config())[-1] == "pair"
+    assert "pair" not in m.decision_rows(replace(m.Config(), param_rows=(0.0,)))
+
+
 def test_choice_eligibility_reads_the_unshifted_cohorts():
     raw = {"K1": np.zeros(50), "K0": np.full(50, 1.0)}
     unshifted = {"K0": {"ratio_min": 0.49}, "K1": {"ratio_min": 0.9}}
@@ -440,7 +530,75 @@ def test_choice_eligibility_reads_the_unshifted_cohorts():
     assert out["worst_cohort_ratio_this_row"]["K0"] == 0.9
 
 
+# -------------------------------------------------------------------------- the tax-sale details ----
+def test_tax_payment_sales_never_realise_a_washed_loss(monkeypatch):
+    """A falling market and a dividend tax: VOO (bought every month) is sold at a loss to pay the bill, which the
+    wash-sale rule disallows. Every monthly sale except SSO's must carry the wash flag; the final sale does not."""
+    n = 36
+    falling = {"voo": np.full(n, -0.01), "robo": np.full(n, -0.01), "sso": np.full(n, -0.02),
+               "upro": np.full(n, -0.03), "rf": np.zeros(n), "days": np.full(n, 30.4),
+               "cash_robo": np.zeros(n), "infl": np.zeros(n), "dy": np.full(n, 0.04 / 12)}
+    path = m.make_path(falling)
+    calls = []
+    real = m.LotBook.sell_hifo
+
+    def spy(self, dollars, price, t, wash=False):
+        calls.append((t, wash))
+        return real(self, dollars, price, t, wash)
+
+    monkeypatch.setattr(m.LotBook, "sell_hifo", spy)
+    arm = next(a for a in m.ARMS if a.name == "K1")
+    m.simulate(arm, m.Owner(state_rate=0.10), path)
+    monthly = [(t, w) for t, w in calls if t < n]
+    assert monthly and all(w for _, w in monthly)
+    assert [w for t, w in calls if t == n].count(False) >= 1
+
+
+def test_liquidation_counts_a_disallowed_loss_still_waiting_for_a_replacement():
+    book = m.LotBook()
+    book.buy(100_000.0, 1.0, t=-24)
+    book.wash_carry = 20_000.0
+    books = {"voo": book, "robo": m.LotBook(), "sso": m.LotBook()}
+    P = {"voo": np.array([1.0, 1.5]), "robo": np.ones(2), "sso": np.ones(2)}
+    own = m.Owner(state_rate=0.0, liq_wages=160_000.0)
+    got = m.liquidation_tax(books, P, 1, m.TaxYear(), own, 1.0, 0.0, 0.0)
+    want, _, _, _ = m.annual_tax(m.TaxYear(lt=50_000.0 - 20_000.0), 160_000.0, 1.0, 0.0, 0.0, 0.0)
+    assert got == pytest.approx(want)
+
+
+@pytest.mark.parametrize("balance,years", [(49_000.0, 0), (50_000.0, 2), (51_000.0, 2)])
+def test_robo_harvesting_is_active_only_from_50_000(balance, years):
+    n = 24
+    payout = m.ROBO_DY_UPLIFT / 12.0                     # the robo's whole return is its distribution: a flat price
+    flat = {"voo": np.zeros(n), "robo": np.full(n, payout), "sso": np.zeros(n), "upro": np.zeros(n),
+            "rf": np.zeros(n), "days": np.full(n, 30.4), "cash_robo": np.zeros(n), "infl": np.zeros(n),
+            "dy": np.zeros(n)}
+    own = m.Owner(taxable0=balance, g=0.0, c_taxable_month=0.0, roth_contrib=0.0, state_rate=0.0,
+                  robo_rebal=0.0, liquidate=False)
+    k0 = next(a for a in m.ARMS if a.name == "K0")
+    assert m.simulate(k0, own, m.make_path(flat)).tlh_years == years
+
+
 # ------------------------------------------------------------------------------------- vehicles ----
+def test_monthly_panel_matches_a_hand_computed_levered_month():
+    """Three bars (1, 1 and 3 calendar days) in January. SSO = 2g - (bill + 0.86 % x d/360) - 0.89 % x d/365.25;
+    UPRO = 3g - 2(bill + 0.85 % x d/360) - 0.90 % x d/365.25; VOO and the robo are the market less their fees."""
+    idx = pd.DatetimeIndex(["2010-01-04", "2010-01-05", "2010-01-08", "2010-02-01"])
+    french = pd.DataFrame({"mkt_rf": [0.010, -0.020, 0.005, 0.010], "rf": [0.0001, 0.0001, 0.0002, 0.0001]}, index=idx)
+    per = pd.period_range("2009-12", "2010-02", freq="M")
+    cpi = pd.Series([100.0, 101.0, 102.0], index=per)
+    dp = pd.Series([0.02, 0.02, 0.02], index=per)
+    panel = m.build_monthly_panel(french, cpi, dp)
+    sso = upro = voo = robo = 1.0
+    for g, rf, d in ((0.0101, 0.0001, 1), (-0.0199, 0.0001, 1), (0.0052, 0.0002, 3)):
+        sso *= 1 + 2 * g - (rf + 0.0086 * d / 360) - 0.0089 * d / 365.25
+        upro *= 1 + 3 * g - 2 * (rf + 0.0085 * d / 360) - 0.0090 * d / 365.25
+        voo *= 1 + g - 0.0003 * d / 365.25
+        robo *= 1 + g - 0.0015 * d / 365.25
+    row = panel.loc[pd.Period("2010-01", "M")]
+    assert row["sso"] == pytest.approx(sso - 1, abs=1e-12) and row["upro"] == pytest.approx(upro - 1, abs=1e-12)
+    assert row["voo"] == pytest.approx(voo - 1, abs=1e-12) and row["robo"] == pytest.approx(robo - 1, abs=1e-12)
+    assert row["infl"] == pytest.approx(0.01) and row["dy"] == pytest.approx(0.02 / 12)
 def test_bar252_mode_reproduces_the_t315_lev_daily_formula():
     rng = np.random.default_rng(0)
     idx = pd.bdate_range("2001-01-02", periods=500)
@@ -539,6 +697,73 @@ def test_lower_belief_row_lowers_levered_wealth_more_than_one_x():
     drop_k1 = hi["K1"]["E_log"] - lo["K1"]["E_log"]
     drop_b3 = hi["B3"]["E_log"] - lo["B3"]["E_log"]
     assert drop_b3 > drop_k1 > 0
+
+
+def test_rehearsal_of_the_full_configs_structure(monkeypatch):
+    """The whole Config (60 cohorts, four h rows, two parameter rows, blocks 12 and 120) on a 100-year synthetic
+    panel, with a 5-year horizon and 12 paths. Spies on run_paths and choose: every row gets block runs at the full
+    path count, the parameter rows (main and block) use the same deltas, K0 is in every row, and the loss bound
+    always reads the unshifted cohorts."""
+    cfg = replace(m.Config(), horizon_years=5, n_paths=12, owner_sensitivity=(), decision_row="pair")
+    panel = synthetic_panel(months=1203, start="1926-07")
+    calls, chooses = [], []
+    real_run, real_choose = m.run_paths, m.choose
+
+    def spy_run(index_paths, arrays, owner, arms, h, deltas=None):
+        calls.append({"n": len(index_paths), "h": h, "deltas": deltas, "arms": [a.name for a in arms]})
+        return real_run(index_paths, arrays, owner, arms, h, deltas)
+
+    def spy_choose(raw, raw_blocks, unshifted, shifted, candidates, default, bound):
+        chooses.append({"blocks": {b: {a: len(v[a]) for a in candidates} for b, v in raw_blocks.items()},
+                        "unshifted": unshifted, "shifted": shifted, "candidates": tuple(candidates)})
+        return real_choose(raw, raw_blocks, unshifted, shifted, candidates, default, bound)
+
+    monkeypatch.setattr(m, "run_paths", spy_run)
+    monkeypatch.setattr(m, "choose", spy_choose)
+    prog = m.Progress(m.arm_path_total(cfg), False)
+    out = m.study(panel, cfg, m.Owner(), log=lambda s: None, progress=prog)
+    assert prog.done == prog.total                     # the counter counts exactly the work done
+
+    rows = ["h=+0.00", "h=-0.01", "h=-0.02", "h=-0.03", "param:h=+0.00", "param:h=-0.02"]
+    assert list(out["choice"]) == rows and len(chooses) == 12
+    for c in chooses:
+        assert set(c["blocks"]) == {12, 120}
+        assert all(n == cfg.n_paths for by_arm in c["blocks"].values() for n in by_arm.values())
+    # the loss bound: one unshifted cohort table for every row, and it is the h = 0 one
+    assert all(c["unshifted"] is chooses[0]["unshifted"] for c in chooses)
+    coh = out["results"]["cohorts"]
+    un, sh = chooses[0]["unshifted"], chooses[-1]["shifted"]
+    for arm in ("K0", "K1", "B1", "B2", "B3"):
+        assert un[arm]["ratio_min"] == pytest.approx(coh["h=+0.00"]["g=0.15"][arm]["ratio_min"], abs=1e-5)
+    assert any(abs(un[a]["ratio_min"] - sh[a]["ratio_min"]) > 1e-6 for a in ("K0", "B1", "B2", "B3"))
+    assert all(out["choice"][r]["A"]["worst_cohort_ratio_unshifted"]
+               == out["choice"][rows[0]]["A"]["worst_cohort_ratio_unshifted"] for r in rows)
+    assert "K0" in out["choice"]["param:h=-0.02"]["A"]["worst_cohort_ratio_unshifted"]
+    # deltas: exactly the parameter rows (3 g levels + 2 block runs each) use them, and always the same draws
+    with_d = [c for c in calls if c["deltas"] is not None]
+    assert len(with_d) == 2 * (3 + 2)
+    assert all(c["deltas"] is with_d[0]["deltas"] for c in with_d)
+    assert sorted(c["h"] for c in with_d) == [-0.02] * 5 + [0.0] * 5
+    plain = [c for c in calls if c["deltas"] is None and c["n"] == cfg.n_paths]
+    assert len(plain) == 4 * (3 + 2)
+    # the block runs carry the choice arms on every row
+    blocks = [c for c in calls if c["arms"] == ["REF", "K0", "K1", "B1", "B2", "B3"]]
+    assert len(blocks) == 6 * 2 and all(c["n"] == cfg.n_paths for c in blocks)
+    # the progress total is the work actually done
+    assert sum(c["n"] * len(c["arms"]) for c in calls) == m.arm_path_total(cfg)
+    assert out["decision"]["mode"] == "pair" and set(out["decision"]) >= {"A", "B", "rows"}
+
+
+def test_the_smoke_covers_a_parameter_row_and_a_block_run():
+    assert m.SMOKE.param_rows and m.SMOKE.block_sensitivity
+    assert m.PAIR_ROW in m.decision_rows(m.SMOKE)
+
+
+def test_progress_is_stderr_only_and_counts_the_work(capsys):
+    prog = m.Progress(100, True)
+    prog.add(40, "x")
+    err = capsys.readouterr()
+    assert "40/100" in err.err and err.out == ""
 
 
 def test_gate_uses_monthly_periods_for_sortino():

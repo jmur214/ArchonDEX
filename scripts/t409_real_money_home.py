@@ -1,6 +1,6 @@
 """T-409 — where the owner's real money should sit: an after-tax household decision study.
 
-Pre-registration: docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md (revision 3, DRAFT until frozen).
+Pre-registration: docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md (revision 5, DRAFT until frozen).
 
 Every arm is an ordinary manual choice at an institutional broker:
 - keep the Schwab robo;
@@ -15,12 +15,17 @@ Commands
         Download the free inputs (Ken French daily factors; FRED CPIAUCNS through the API; optionally JST R6)
         and copy the Shiller dividend CSV. Writes DIR/manifest.json with each file's md5. The FRED key is
         read from the environment or --env-file and never printed.
-    python -m scripts.t409_real_money_home run --inputs DIR --out DIR --control-root ROOT [--smoke]
-        Verify the manifest, run the two positive controls (HALT if either fails), then the arms.
-        Writes DIR/results.json and DIR/results.md5. Deterministic: fixed seed, no timestamps in the JSON.
+    python -m scripts.t409_real_money_home run --inputs DIR --out DIR --control-root ROOT
+            [--smoke] [--jst] [--decision-row ROW|pair] [--progress]
+        Check the flags, then the manifest and INPUT_MD5, then the five positive controls (HALT if any
+        fails), then the arms. Writes DIR/results.json and DIR/results.md5. Deterministic: fixed seed, no
+        timestamps in the JSON. The full run requires --jst and --decision-row. `--decision-row pair` reads
+        the decision in BOTH parameter-uncertainty rows (DECISION_PAIR): agreement is the choice,
+        disagreement is the default arm. A row name (e.g. "h=-0.02") is the single-row override.
 
-Fail closed: any missing, unparseable or md5-mismatched input raises. Nothing is ever written under
-ROOT/data/. The full run is authorised only after the prereg is frozen; use --smoke otherwise.
+Fail closed: any missing, unparseable or md5-mismatched input raises. Nothing is ever written under a
+data/ tree (the control root's, this checkout's, or the main tree's behind a worktree). The full run is
+authorised only after the prereg is frozen; use --smoke otherwise.
 """
 from __future__ import annotations
 
@@ -53,7 +58,7 @@ SEED = 409
 DAYS_YEAR = 365.25
 
 # ----------------------------------------------------------------------------------------------------
-# Frozen parameters (prereg rev. 3 §4.2–§4.3). Fund costs per year; spreads over the French 1-month bill.
+# Frozen parameters (prereg rev. 5 §4). Fund costs per year; spreads over the French 1-month bill.
 # ----------------------------------------------------------------------------------------------------
 ER = {"voo": 0.0003, "sso": 0.0089, "upro": 0.0090, "robo": 0.0015}
 SPREAD = {"sso": 0.0057, "upro": 0.0056}          # B-5 measured swap spreads over B-5's financing base
@@ -78,7 +83,7 @@ FIFTEEN_TOP_2026 = 545_500.0
 NIIT_THRESHOLD = 200_000.0                         # fixed nominal by statute
 LOSS_OFFSET = 3_000.0                              # fixed nominal by statute
 
-# Positive controls (prereg rev. 3 §4.9). Inputs are pinned by md5; targets are the published numbers.
+# Positive controls (prereg rev. 5 §6). Inputs are pinned by md5; targets are the published numbers.
 CONTROL_FILES = {
     "t306_equity": ("data/research/substrate_multidecade/equity_tr_daily.csv", "c2030019b8846792b5f8e3d18421c905"),
     "t306_cash": ("data/research/substrate_multidecade/cash_daily.csv", "28a1446d578e3867c2a1d3b33eabe182"),
@@ -108,6 +113,10 @@ INPUT_MD5 = {"french": "98fad1a66fe8c9e792fcd013b979b962", "cpi": "74ac80ebee616
 CANDIDATES_A = ("K0", "K1")
 CANDIDATES_B = ("K1", "B1", "B2", "B3")
 DEFAULT_ARM = "K1"
+# The decision rule for an owner with no stated view (prereg rev. 5 §3.1; the director's ruling, 2026-11-24):
+# read the choice in both parameter-uncertainty rows. Agreement is the choice; disagreement is DEFAULT_ARM.
+PAIR_ROW = "pair"
+DECISION_PAIR = ("param:h=+0.00", "param:h=-0.02")
 STUDY_CONTROL_START = "1990-01"
 STUDY_CONTROL_MONTHS = 120
 STUDY_CONTROL_TOL = 0.01
@@ -132,7 +141,9 @@ class Owner:
     roth0: float = 15_000.0          # owner: $10-25k
     c_taxable_month: float = 500.0   # automatic contribution, continues through every fall
     roth_contrib: float = 7_500.0    # each January of a contribution year
-    roth_in_school: bool = True      # rev. 2 §4.4: a school year contributes iff its wages >= the contribution
+    roth_in_school: bool = False     # no source says $7,500 a year is contributed on ~$8k of school wages; True is
+                                     # a sensitivity (then a school year contributes iff wages >= the contribution)
+    taxable_in_school: bool = True   # the owner's automatic $/month continues in school (no source; see rev. 5 §2)
     roth_post_school: bool = True    # † backdoor Roth: $160k sits inside the 2026 single $153k-$168k phase-out
     school_start: int = 3            # 1-based year of the first school year (owner: more than a year away)
     school_years: int = 3
@@ -168,7 +179,8 @@ class Config:
         ("contrib_1000", (("c_taxable_month", 1_000.0),)), ("tlh_theta_3pct", (("tlh_theta", 0.03),)),
         ("tlh_theta_10pct", (("tlh_theta", 0.10),)), ("robo_rebal_0", (("robo_rebal", 0.0),)),
         ("robo_rebal_5pct", (("robo_rebal", 0.05),)), ("step_up", (("liquidate", False),)),
-        ("no_roth_post_school", (("roth_post_school", False),)), ("no_roth_in_school", (("roth_in_school", False),)),
+        ("no_roth_post_school", (("roth_post_school", False),)), ("roth_in_school", (("roth_in_school", True),)),
+        ("no_contrib_in_school", (("taxable_in_school", False),)),
     )
     owner_sensitivity_rows: Tuple[float, ...] = (0.0, -0.02)
     decision_row: Optional[str] = None       # the owner's row, fixed BEFORE the run and recorded in the frozen prereg
@@ -177,7 +189,7 @@ class Config:
 
 
 SMOKE = Config(horizon_years=10, cohort_starts=tuple(range(1990, 1997)), n_paths=16, block_mean=24,
-               block_sensitivity=(), rows=(0.0, -0.02), param_rows=(), g_grid=(0.0, 0.30), g_primary=0.30,
+               block_sensitivity=(12,), rows=(0.0, -0.02), param_rows=(0.0, -0.02), g_grid=(0.0, 0.30), g_primary=0.30,
                owner_sensitivity=(("roth_25k", (("roth0", 25_000.0),)), ("step_up", (("liquidate", False),))),
                owner_sensitivity_rows=(0.0,), smoke=True)
 
@@ -749,13 +761,18 @@ def annual_tax(y: TaxYear, wages: float, idx: float, state: float,
     at20 = rest - at15
     pref_tax = 0.15 * at15 + 0.20 * at20
     base_ti = max(0.0, wages - std)
-    fed_ord = bracket_tax(ord_ti, idx) - bracket_tax(base_ti, idx)
+    base_fed = bracket_tax(base_ti, idx)
+    fed_ord = bracket_tax(ord_ti, idx) - base_fed
+    # The worksheet's last step: the tax is the SMALLER of the preferential computation and the ordinary tax on
+    # all taxable income (they differ by at most 3 % of the $49,450-$50,400 strip, where the 12 % bracket
+    # still runs after the 0 % room ends).
+    fed = min(bracket_tax(ord_ti, idx) + pref_tax, bracket_tax(ti, idx)) - base_fed
     nii = max(0.0, other + cap_line)
     magi = wages + other + cap_line
     niit = 0.038 * min(nii, max(0.0, magi - NIIT_THRESHOLD))
     st_tax = state * max(0.0, other + cap_line)
-    tax = fed_ord + pref_tax + niit + st_tax
-    detail = {"fed_ord": fed_ord, "pref": pref_tax, "fed": fed_ord + pref_tax, "niit": niit, "state": st_tax,
+    tax = fed + niit + st_tax
+    detail = {"fed_ord": fed_ord, "pref": pref_tax, "fed": fed, "niit": niit, "state": st_tax,
               "at0": at0, "deduction": ded, "deduction_used": used, "taxable_income": ti}
     return tax, new_st_cf, new_lt_cf, detail
 
@@ -839,7 +856,7 @@ def make_path(arrays: Dict[str, np.ndarray]) -> PathInputs:
 
 
 def roth_contribution(owner: Owner, year0: int) -> float:
-    """Real Roth contribution in January of 0-based year `year0` (prereg rev. 4 §2)."""
+    """Real Roth contribution in January of 0-based year `year0` (prereg rev. 5 §2)."""
     ph = phase_of(owner, year0)
     if ph == "school":
         ok = owner.roth_in_school and owner.wages_school >= owner.roth_contrib
@@ -852,6 +869,10 @@ def roth_contribution(owner: Owner, year0: int) -> float:
 def contribution_schedule(owner: Owner, months: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Real contributions per month (taxable, Roth) and the real PV of all contributions after month t."""
     tax_c = np.full(months, owner.c_taxable_month)
+    if not owner.taxable_in_school:
+        for t in range(months):
+            if phase_of(owner, t // 12) == "school":
+                tax_c[t] = 0.0
     roth_c = np.zeros(months)
     for t in range(0, months, 12):
         roth_c[t] = roth_contribution(owner, t // 12)
@@ -1183,7 +1204,7 @@ def cohort_index_paths(panel: pd.DataFrame, starts: Sequence[int], months: int) 
 def choose(raw: Dict[str, np.ndarray], raw_blocks: Dict[int, Dict[str, np.ndarray]],
            cohort_unshifted: Dict[str, Dict[str, float]], cohort_row: Optional[Dict[str, Dict[str, float]]],
            candidates: Sequence[str], default: str, bound: float) -> Dict[str, object]:
-    """The owner's rule (prereg rev. 4 §3), per decision.
+    """The owner's rule (prereg rev. 5 §3.4), per decision.
 
     Eligible: worst UNshifted historical cohort >= bound x REF (the row's shifted cohorts are reported).
     Among eligible arms, in descending E[log W] order, the first whose paired lead over the default exceeds its
@@ -1196,6 +1217,11 @@ def choose(raw: Dict[str, np.ndarray], raw_blocks: Dict[int, Dict[str, np.ndarra
         "worst_cohort_ratio_this_row": ({a: cohort_row[a]["ratio_min"] for a in candidates}
                                         if cohort_row is not None else None),
         "contrasts": {}}
+    means = {a: float(np.mean(np.exp(raw[a]))) for a in candidates}
+    out["mean_terminal_real"] = means
+    # The rule picks the highest E[log W] (the best TYPICAL outcome). The highest mean (the best AVERAGE, which a
+    # few very large outcomes can dominate) is reported on its own line and never decides.
+    out["highest_mean_eligible_arm"] = max(elig, key=lambda a: means[a]) if elig else None
     if not elig:
         out["choice"], out["rule"] = None, "no eligible arm"
         return out
@@ -1368,12 +1394,100 @@ def _round(obj):
     return obj
 
 
+def decision_rows(cfg: Config) -> List[str]:
+    """Every row name `--decision-row` may take; the pair is offered only if both of its rows are run."""
+    rows = [f"h={h:+.2f}" for h in cfg.rows] + [f"param:h={h:+.2f}" for h in cfg.param_rows]
+    if all(r in rows for r in DECISION_PAIR):
+        rows.append(PAIR_ROW)
+    return rows
+
+
+def check_decision_row(cfg: Config) -> None:
+    if cfg.decision_row is not None and cfg.decision_row not in decision_rows(cfg):
+        raise InputError(f"decision row {cfg.decision_row!r} is not one of {decision_rows(cfg)}")
+
+
+def resolve_pair(choice: Dict[str, Dict[str, Dict[str, object]]], rows: Sequence[str] = DECISION_PAIR,
+                 default: str = DEFAULT_ARM) -> Dict[str, Dict[str, object]]:
+    """Read each decision in both rows. Agreement is the choice; disagreement is the default arm, flagged. The
+    default is never taken if it fails the loss bound: then there is no choice. Both choices are always written."""
+    out: Dict[str, Dict[str, object]] = {}
+    for d in ("A", "B"):
+        picks = [choice[r][d]["choice"] for r in rows]
+        agree = picks[0] == picks[1]
+        if agree:
+            resolved, flag = picks[0], ("the two rows agree" if picks[0] is not None
+                                        else "no eligible arm in either row")
+        elif all(default in choice[r][d]["eligible"] for r in rows):
+            resolved, flag = default, "the two rows DISAGREE: the tie-break default"
+        else:
+            resolved, flag = None, "the two rows DISAGREE and the default fails the loss bound: no choice"
+        out[d] = {"choices": dict(zip(rows, picks)), "agree": agree, "resolved": resolved, "flag": flag}
+    return out
+
+
+def arm_path_total(cfg: Config) -> int:
+    """How many arm-paths `study` runs for `cfg` (the runtime is this times roughly 5-9 ms)."""
+    n_all = len(ARMS)
+    n_a = sum(a.decision in ("ref", "A") for a in ARMS)
+    n_choice = sum(a.name in ("REF",) + CANDIDATES_A + CANDIDATES_B for a in ARMS)
+    total = 0
+    for is_param in [False] * len(cfg.rows) + [True] * len(cfg.param_rows):
+        for g in cfg.g_grid:
+            n = n_all if g == cfg.g_primary else n_a
+            total += n * cfg.n_paths + (0 if is_param else n * len(cfg.cohort_starts))
+        total += len(cfg.block_sensitivity) * n_choice * cfg.n_paths
+    n_sens = min(max(cfg.n_paths // 4, 8), cfg.n_paths)
+    total += len(cfg.owner_sensitivity) * len(cfg.owner_sensitivity_rows) * n_all * (len(cfg.cohort_starts) + n_sens)
+    return total
+
+
+class Progress:
+    """Arm-path progress on stderr. Never part of the results."""
+
+    def __init__(self, total: int, enabled: bool) -> None:
+        self.total, self.enabled, self.done, self.t0 = total, enabled, 0, time.time()
+
+    def add(self, n: int, label: str) -> None:
+        self.done += n
+        if self.enabled:
+            el = time.time() - self.t0
+            left = el * (self.total - self.done) / max(self.done, 1)
+            print(f"[progress] {label}: {self.done:,}/{self.total:,} arm-paths ({100 * self.done / self.total:.0f} %), "
+                  f"{el:.0f}s elapsed, ~{left:.0f}s left", file=sys.stderr, flush=True)
+
+
+def main_tree_of(tree: Path) -> Optional[Path]:
+    """The main working tree behind `tree`: itself if it is one, the owner of a linked worktree, else None."""
+    g = tree / ".git"
+    if g.is_dir():
+        return tree
+    if g.is_file():
+        text = g.read_text().strip()
+        if text.startswith("gitdir:"):
+            p = Path(text.split(":", 1)[1].strip())
+            p = p if p.is_absolute() else tree / p
+            for parent in p.resolve().parents:
+                if parent.name == ".git":
+                    return parent.parent
+    return None
+
+
+def guarded_data_dirs(control_root: Path) -> List[Path]:
+    """Every data/ tree the run may not write under: the control root's, this checkout's, and the main tree's
+    behind either (a worktree's own data/ is not the only copy of the real one)."""
+    trees = [control_root, ROOT] + [t for t in (main_tree_of(control_root), main_tree_of(ROOT)) if t is not None]
+    return [t / "data" for t in dict.fromkeys(trees)]
+
+
 def logw(res: Dict[str, List[ArmResult]]) -> Dict[str, np.ndarray]:
     return {a: np.log(np.array([r.terminal_real for r in rs])) for a, rs in res.items()}
 
 
 def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataFrame] = None,
-          log: Callable[[str], None] = print) -> Dict[str, object]:
+          log: Callable[[str], None] = print, progress: Optional[Progress] = None) -> Dict[str, object]:
+    check_decision_row(cfg)                       # before anything is computed
+    prog = progress if progress is not None else Progress(arm_path_total(cfg), False)
     months = cfg.horizon_years * 12
     owner = replace(owner, horizon_years=cfg.horizon_years)
     if 0.0 not in cfg.rows:
@@ -1394,6 +1508,12 @@ def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataF
     results: Dict[str, object] = {"cohorts": {}, "bootstrap": {}, "block_sensitivity": {}, "owner_sensitivity": {}}
     raw_boot: Dict[str, Dict[str, np.ndarray]] = {}
     raw_blocks: Dict[str, Dict[int, Dict[str, np.ndarray]]] = {}
+    def rp(ix: np.ndarray, own: Owner, arms: Sequence[Arm], h: float, dl: Optional[np.ndarray],
+           label: str) -> Dict[str, List[ArmResult]]:
+        out_ = run_paths(ix, arrays, own, arms, h, dl)
+        prog.add(len(ix) * len(arms), label)
+        return out_
+
     for rk, h, dl in rows:
         results["bootstrap"][rk] = {}
         if dl is None:
@@ -1403,9 +1523,9 @@ def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataF
             arms = list(ARMS) if g == cfg.g_primary else a_arms
             t0 = time.time()
             if dl is None:
-                results["cohorts"][rk][f"g={g:.2f}"] = summarize(run_paths(coh_ix, arrays, own, arms, h),
+                results["cohorts"][rk][f"g={g:.2f}"] = summarize(rp(coh_ix, own, arms, h, None, f"{rk} g={g} cohorts"),
                                                                  kind="cohort", effective_n=eff_n)
-            rb = run_paths(boot_ix, arrays, own, arms, h, dl)
+            rb = rp(boot_ix, own, arms, h, dl, f"{rk} g={g} bootstrap")
             results["bootstrap"][rk][f"g={g:.2f}"] = summarize(rb)
             if g == cfg.g_primary:
                 raw_boot[rk] = logw(rb)
@@ -1413,7 +1533,7 @@ def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataF
         own = replace(owner, g=cfg.g_primary)
         raw_blocks[rk] = {}
         for b, ix in block_ix.items():
-            rbb = run_paths(ix, arrays, own, choice_arms, h, dl)
+            rbb = rp(ix, own, choice_arms, h, dl, f"{rk} block={b}")
             raw_blocks[rk][b] = logw(rbb)
             results["block_sensitivity"].setdefault(rk, {})[f"block={b}"] = summarize(rbb)
     own = replace(owner, g=cfg.g_primary)
@@ -1423,8 +1543,10 @@ def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataF
         results["owner_sensitivity"][label] = {}
         for h in cfg.owner_sensitivity_rows:
             results["owner_sensitivity"][label][f"h={h:+.2f}"] = {
-                "cohorts": summarize(run_paths(coh_ix, arrays, own_s, list(ARMS), h), kind="cohort", effective_n=eff_n),
-                "bootstrap": summarize(run_paths(boot_ix[:n_sens], arrays, own_s, list(ARMS), h))}
+                "cohorts": summarize(rp(coh_ix, own_s, list(ARMS), h, None, f"owner {label} {h:+.2f} cohorts"),
+                                     kind="cohort", effective_n=eff_n),
+                "bootstrap": summarize(rp(boot_ix[:n_sens], own_s, list(ARMS), h, None,
+                                          f"owner {label} {h:+.2f} bootstrap"))}
     unshifted = results["cohorts"]["h=+0.00"][gp]
     choice = {}
     for rk, h, dl in rows:
@@ -1434,10 +1556,10 @@ def study(panel: pd.DataFrame, cfg: Config, owner: Owner, jst: Optional[pd.DataF
                       "B": choose(raw_boot[rk], raw_blocks[rk], unshifted, shifted, CANDIDATES_B, DEFAULT_ARM,
                                   cfg.loss_bound)}
     decision = None
-    if cfg.decision_row is not None:
-        if cfg.decision_row not in choice:
-            raise InputError(f"decision row {cfg.decision_row!r} is not one of {sorted(choice)}")
-        decision = {"row": cfg.decision_row, **choice[cfg.decision_row]}
+    if cfg.decision_row == PAIR_ROW:
+        decision = {"mode": "pair", "rows": list(DECISION_PAIR), **resolve_pair(choice)}
+    elif cfg.decision_row is not None:
+        decision = {"mode": "single", "row": cfg.decision_row, **choice[cfg.decision_row]}
     out = {
         "config": asdict(cfg), "owner": asdict(owner), "arms": [asdict(a) for a in ARMS],
         "census": {"panel_months": len(panel), "panel_span": [str(panel.index[0]), str(panel.index[-1])],
@@ -1505,7 +1627,7 @@ def independent_ref_terminal(arr: Dict[str, np.ndarray], own: Owner) -> float:
     z0, z15 = ZERO_RATE_TOP_2026 * cpi, FIFTEEN_TOP_2026 * cpi
     at0 = max(0.0, min(ti, z0) - min(ordi, z0))
     at15 = min(pref - at0, max(0.0, min(ti, z15) - ordi - at0))
-    fed = (_table_tax_2026(ordi, cpi) + 0.15 * at15 + 0.20 * (pref - at0 - at15)
+    fed = (min(_table_tax_2026(ordi, cpi) + 0.15 * at15 + 0.20 * (pref - at0 - at15), _table_tax_2026(ti, cpi))
            - _table_tax_2026(max(0.0, wages - std), cpi))
     niit = 0.038 * min(st + lt, max(0.0, wages + st + lt - NIIT_THRESHOLD))
     taxable = sum(v for _, v, _ in lots)
@@ -1547,12 +1669,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     decision_row = getattr(args, "decision_row", None)
     if not args.smoke:
         if not args.jst:
-            raise InputError("the full run requires --jst (prereg rev. 4 §5)")
+            raise InputError("the full run requires --jst (prereg rev. 5 §9)")
         if decision_row is None:
             raise InputError("the full run requires --decision-row: the owner's row, recorded in the frozen prereg")
     cfg = replace(SMOKE if args.smoke else Config(), decision_row=decision_row)
+    check_decision_row(cfg)                        # before any input is read
     inputs, out_dir, root = Path(args.inputs), Path(args.out), Path(args.control_root)
-    for base in (root / "data", ROOT / "data"):
+    for base in guarded_data_dirs(root):
         if _inside(out_dir, base):
             raise InputError(f"refusing to write under a data/ tree: {out_dir} is inside {base}")
     need = ["french", "cpi", "shiller"] + (["jst"] if args.jst else [])
@@ -1574,7 +1697,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     jst = load_jst(files["jst"]) if args.jst else None
     print(f"== panel {panel.index[0]}..{panel.index[-1]} ({len(panel)} months); dividend yield carried "
           f"{carried} months; smoke={cfg.smoke}; decision row {cfg.decision_row} ==")
-    res = study(panel, cfg, Owner(), jst)
+    prog = Progress(arm_path_total(cfg), bool(getattr(args, "progress", False)))
+    res = study(panel, cfg, Owner(), jst, progress=prog)
     res["controls"] = _round(controls)
     res["census"]["dividend_yield_carried_months"] = carried
     res["census"]["input_md5"] = {k: md5_of(p) for k, p in files.items()}
@@ -1604,7 +1728,12 @@ def print_summary(res: Dict[str, object]) -> None:
                           f"  min ratio {m['ratio_min']:.3f}  {tail}")
     for rk, c in res["choice"].items():
         print(f"-- choice {rk}: A -> {c['A']['choice']}, B -> {c['B']['choice']}")
-    print("-- decision (the owner's frozen row):", json.dumps(res["decision"], sort_keys=True)[:400])
+    for d in ("A", "B"):
+        for rk, c in res["choice"].items():
+            if rk in DECISION_PAIR or rk == (res["decision"] or {}).get("row"):
+                print(f"-- decision {d} in {rk}: choice (highest typical outcome) {c[d]['choice']}; "
+                      f"highest MEAN arm (reported, never decides) {c[d]['highest_mean_eligible_arm']}")
+    print("-- decision (the frozen record):", json.dumps(res["decision"], sort_keys=True)[:900])
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -1659,7 +1788,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     r.add_argument("--smoke", action="store_true")
     r.add_argument("--jst", action="store_true")
     r.add_argument("--decision-row", dest="decision_row", default=None,
-                   help='the owner\'s row, e.g. "h=-0.02" or "param:h=+0.00" (required for the full run)')
+                   help='"pair" (the rule for an owner with no stated view) or one row, e.g. "h=-0.02" or '
+                        '"param:h=+0.00" (the owner\'s override); required for the full run')
+    r.add_argument("--progress", action="store_true", help="arm-path progress on stderr")
     a = ap.parse_args(argv)
     return cmd_fetch(a) if a.cmd == "fetch" else cmd_run(a)
 

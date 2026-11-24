@@ -2109,33 +2109,34 @@ straddles zero).
 
 ## T-409 — where the owner's real money sits: the after-tax household decision study (added 2026-11-20)
 A standalone harness for the DRAFT prereg `docs/Sources/prereg_real_money_home_t409_DRAFT_2026-11-19.md`
-(revision 3). The full run is authorised only after the director freezes it; until then, run `--smoke` and
-the tests.
+(revision 5, the freeze candidate). The full run is authorised only after the director freezes it; until
+then, run `--smoke` and the tests.
 - Arms are ordinary manual choices at Schwab: keep the robo; leave the program without selling; VOO; a 2×
   ETF in the Roth. Nothing uses the trading machine, the paper fleet or a repo strategy.
-- `fetch` writes ONLY into `--inputs`:
-  - French daily factors;
-  - FRED CPIAUCNS through the API, with FRED_API_KEY from the environment or `--env-file`, never printed;
-  - a copy of the repo's Shiller CSV;
-  - JST R6 with `--jst`;
-  - a `manifest.json` of md5s.
-- `run` verifies the manifest (fail closed) and REFUSES an `--out` under `<control-root>/data/`.
-- `run` first executes two positive controls on md5-pinned repo files and HALTS if either misses its
-  published number by more than $1:
-  - T-399 corrected static 2× on T-306;
-  - T-287 buy-hold and `schwab_like`.
-- It then runs the arms. The output is `results.json` plus `results.md5` (deterministic, seed 409).
-- Since revision 4:
-  - the inputs must match `INPUT_MD5` in the code: a re-fetch will not, so use the frozen archive;
-  - a fifth control, the study path vs an independent recurrence, halts on a difference above $0.01;
-  - the full run REQUIRES both `--jst` and `--decision-row` (the owner's row, recorded in the frozen prereg).
+- `fetch` writes ONLY into `--inputs`: French daily factors; FRED CPIAUCNS through the API (FRED_API_KEY from
+  the environment or `--env-file`, never printed); a copy of the repo's Shiller CSV; JST R6 with `--jst`; a
+  `manifest.json` of md5s. Re-fetched files will NOT match `INPUT_MD5`: use the frozen archive,
+  `/Users/jacksonmurphy/Dev/_research_snapshots/t409_real_money_home_2026-11-20/inputs/`.
+- `run` checks the flags first (the full run needs `--jst` and `--decision-row`; the row is checked against the
+  rows this configuration computes), then the manifest and `INPUT_MD5`, then the FIVE positive controls, and
+  HALTS on a failure:
+  - T-399 bar and corrected static 2× on T-306 ($1 tolerance);
+  - T-287 buy-hold and `schwab_like` as published ($1);
+  - the study path: REF through `simulate` against an independent recurrence ($0.01).
+- `--decision-row pair` (the rule for an owner with no stated view) reads the choice in both
+  `param:h=+0.00` and `param:h=-0.02`; agreement is the choice, disagreement is K1 (flagged). A row name is the
+  owner's override.
+- `--progress` prints arm-path progress on stderr. The full run is 668,400 arm-paths: plan 55–100 minutes a run,
+  twice. The output is `results.json` plus `results.md5` (deterministic, seed 409).
+- `run` REFUSES an `--out` under any `data/` tree: the control root's, this checkout's, and the main tree's
+  behind a worktree (literal and symlink-resolved).
 
 ```bash
 python -m scripts.t409_real_money_home fetch --inputs <scratch>/t409/inputs \
     --shiller-csv <repo>/data/macro/shiller_ie_data.csv --env-file <repo>/.env --jst
-python -m scripts.t409_real_money_home run --inputs <scratch>/t409/inputs --out <scratch>/t409/smoke \
-    --control-root <repo> --smoke --jst      # plumbing only: 10-year cohorts on 1985+, 16 paths
+python -m scripts.t409_real_money_home run --inputs <frozen-inputs-dir> --out <scratch>/t409/smoke \
+    --control-root <repo> --smoke --jst --decision-row pair   # plumbing only: 10-year cohorts on 1985+, 16 paths
 python -m scripts.t409_real_money_home run --inputs <frozen-inputs-dir> --out <scratch>/t409/run_A \
-    --control-root <repo> --jst --decision-row "<the owner's row, e.g. h=-0.02>"   # THE FULL RUN — only after the freeze; run twice, md5 must match
+    --control-root <repo> --jst --decision-row pair --progress  # THE FULL RUN — only after the freeze; run twice, md5 must match
 python -m pytest tests/test_t409_real_money_home.py -q   # T409_CONTROL_ROOT=<repo> adds the data-backed control test
 ```

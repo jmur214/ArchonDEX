@@ -2328,6 +2328,9 @@
 - **Class `Arm`**: No docstring
 - **Class `PathInputs`**: One path: monthly arrays of length T (months), plus derived price-only indices.
 - **Class `ArmResult`**: No docstring
+- **Class `Progress`**: Arm-path progress on stderr. Never part of the results.
+  - `def __init__()`
+  - `def add()`
 - **Function `md5_of()`**: No docstring
 - **Function `require_file()`**: No docstring
 - **Function `read_manifest()`**: No docstring
@@ -2349,7 +2352,7 @@
 - **Function `annual_tax()`**: Incremental tax caused by the taxable account in one year (nominal), Form 1040 order.
 - **Function `zero_rate_room()`**: Largest extra long-term gain this year that adds no federal tax (income tax + NIIT), found by bisection
 - **Function `make_path()`**: No docstring
-- **Function `roth_contribution()`**: Real Roth contribution in January of 0-based year `year0` (prereg rev. 4 §2).
+- **Function `roth_contribution()`**: Real Roth contribution in January of 0-based year `year0` (prereg rev. 5 §2).
 - **Function `contribution_schedule()`**: Real contributions per month (taxable, Roth) and the real PV of all contributions after month t.
 - **Function `phase_of()`**: No docstring
 - **Function `wages_of()`**: No docstring
@@ -2359,12 +2362,18 @@
 - **Function `run_paths()`**: No docstring
 - **Function `summarize()`**: Bootstrap paths carry Monte Carlo SEs and probabilities. Overlapping historical cohorts are NOT
 - **Function `cohort_index_paths()`**: Every pre-registered January start must fit the panel; one that does not HALTS (never a silent skip).
-- **Function `choose()`**: The owner's rule (prereg rev. 4 §3), per decision.
+- **Function `choose()`**: The owner's rule (prereg rev. 5 §3.4), per decision.
 - **Function `static_mix_returns()`**: No docstring
 - **Function `gate_and_sortino()`**: No docstring
 - **Function `load_jst()`**: No docstring
 - **Function `jst_cohorts()`**: Per JST country: 40-year cohorts of household 1x vs annual-reset leverage (pre-tax, uncapped by Roth
 - **Function `us_reset_calibration()`**: On the L1 panel: the same household rule with the daily-reset SSO blend (monthly steps, January
+- **Function `decision_rows()`**: Every row name `--decision-row` may take; the pair is offered only if both of its rows are run.
+- **Function `check_decision_row()`**: No docstring
+- **Function `resolve_pair()`**: Read each decision in both rows. Agreement is the choice; disagreement is the default arm, flagged. The
+- **Function `arm_path_total()`**: How many arm-paths `study` runs for `cfg` (the runtime is this times roughly 5-9 ms).
+- **Function `main_tree_of()`**: The main working tree behind `tree`: itself if it is one, the owner of a linked worktree, else None.
+- **Function `guarded_data_dirs()`**: Every data/ tree the run may not write under: the control root's, this checkout's, and the main tree's
 - **Function `logw()`**: No docstring
 - **Function `study()`**: No docstring
 - **Function `canonical_md5()`**: No docstring
