@@ -48,6 +48,14 @@ metadata:
 - 668,400 arm-paths, 55-100 min a run, run twice; smoke md5 `cb5d9cea`; frozen inputs in `/Users/jacksonmurphy/Dev/_research_snapshots/t409_real_money_home_2026-11-20/inputs/`.
 - Study-path control $415,477.1850.
 
+**Result (2026-11-24, frozen at main `d109f84`, two runs, md5 `35523022`):**
+- Decision A -> K1 (leave the robo without selling), decision B -> B1 (SSO in the Roth, lifecycle cap 2x); both pair rows agree.
+- B1 leads K1 by +0.358 / +0.209 in E[log W] (bands 0.012); P(below S&P reference) 0.11 / 0.24; worst bootstrap path 0.62-0.66.
+- Gate cannot certify leverage: t 1.50 vs bar 2.96; 1.25x blend Sortino 0.790 (ci_low 0.455) vs VOO 0.839 (ci_low 0.500).
+- My pre-stated E5 was WRONG: I expected a flip at h = -2 and a loss at -3; leverage led at both (+0.20, +0.13). E7 wrong too (JST floor 0.530, France).
+- Verdict doc: `docs/Audit/real_money_home_verdict_t409_2026-11-24.md`; runs in `_research_snapshots/t409_real_money_home_2026-11-20/runs/`.
+- The frozen output stores worst cohorts as ratios only, never dollars; owner-grid cells have no block runs, so no band there.
+
 **Why:** the owner asked "where does the real money sit"; the director asks the owner once, only for decision-relevant inputs.
 
 **How to apply:**
