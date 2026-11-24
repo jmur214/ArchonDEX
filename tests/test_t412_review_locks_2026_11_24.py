@@ -576,19 +576,40 @@ def test_8_todays_partial_bar_settles_nothing_and_fires_nothing(tmp_path):
     (root / "data/state/thesis_book_machine.json").write_text(json.dumps(st))
     from paper_trader.artifact_paths import ANALYST_NOTE
     ANALYST_NOTE.path_for(root, "2026-09-15").write_text(json.dumps({
-        "as_of": "2026-09-15", "predictions": [{"statement": "SPY below 100 today",
-        "probability": .1, "resolver": {"type": "price_above", "symbol": "SPY", "level": 100.0,
-                                        "direction": "below", "by_date": str(DAY),
-                                        "mode": "terminal"}}]}))
+        "as_of": "2026-09-15", "predictions": [
+            {"statement": f"{sym} below 50 today", "probability": .1,
+             "resolver": {"type": "price_above", "symbol": sym, "level": 50.0,
+                          "direction": "below", "by_date": str(DAY), "mode": "terminal"}}
+            # SPY comes from the sleeve's own series, QQQ from the live fetch: two trims
+            for sym in ("SPY", "QQQ")]}))
     r = _main(tmp_path, client=_client(DAY, forming=1.0), armed=False)
     book = json.loads((root / "data/state/thesis_book_machine.json").read_text())
     assert [p["thesis_id"] for p in book["open"]] == ["t-term", "t-touch", "t-dd"], r["out"][-1500:]
     assert {v[0]["status"] for v in book["days"][-1]["falsifiers"].values()} == {"pending"}
     rows = [json.loads(ln) for ln in
             (root / "data/intel/analyst_predictions.jsonl").read_text().splitlines()]
-    today = next(x for x in rows if x["statement"] == "SPY below 100 today")
-    assert today["resolvable"] is False and today["outcome"] is None
-    assert r["hb"]["source_register"]["readers"]["eval_harness"]["outcome"]["n_awaiting"] == 1
+    today = {x["statement"]: x for x in rows if x["statement"].endswith("below 50 today")}
+    assert set(today) == {"SPY below 50 today", "QQQ below 50 today"}
+    assert all(x["resolvable"] is False and x["outcome"] is None for x in today.values()), today
+    assert r["hb"]["source_register"]["readers"]["eval_harness"]["outcome"]["n_awaiting"] == 2
+
+
+def test_8_the_falsifier_resolver_trims_for_itself():
+    """Firing is irreversible, so the guard is in the resolver too, not only in its caller."""
+    from intelligence.analyst import eval_harness as eh
+    idx = pd.bdate_range("2026-06-01", "2026-09-17").append(pd.DatetimeIndex(["2026-09-18"]))
+    s = pd.Series([100.0] * (len(idx) - 1) + [40.0], index=idx)        # today's partial bar
+    for res in ({"type": "price_above", "symbol": "SPY", "level": 90, "direction": "below",
+                 "by_date": "2026-09-18", "mode": "terminal"},
+                {"type": "price_above", "symbol": "SPY", "level": 90, "direction": "below",
+                 "by_date": "2026-12-18", "mode": "touch"},
+                {"type": "dd_exceeds", "symbol": "SPY", "threshold_pct": 10,
+                 "start_date": "2026-08-01", "end_date": "2026-12-01"}):
+        f = {"kind": "resolver", "resolver": res}
+        assert eh.resolve_falsifier(f, "2026-08-01", "2026-09-18", price_fn=lambda _s: s)[0] == "pending"
+        # the next session, with that bar complete, each is decided
+        done = pd.concat([s, pd.Series([40.0], index=[pd.Timestamp("2026-09-21")])])
+        assert eh.resolve_falsifier(f, "2026-08-01", "2026-09-21", price_fn=lambda _s: done)[0] == "fired"
 
 
 # --------------------------------------------------------------------------- #
@@ -681,12 +702,29 @@ def test_3_a_healthy_feed_is_ok_and_a_truncated_ticker_map_is_never_cached(tmp_p
     import scripts.archive_altdata_t136 as ad
     line = _feed(tmp_path, monkeypatch, _sec("2026-09-17"))
     assert line.startswith("edgar_8k: +3 new") and "PARTIAL" not in line, line
+    uni = ["ACME"] + [f"T{i}" for i in range(19)]
+    ciks = {t: 1000 + i for i, t in enumerate(uni)}
+    whole = json.dumps({str(i): {"cik_str": c, "ticker": t}
+                        for i, (t, c) in enumerate(ciks.items())}).encode()
+    stub = json.dumps({"0": {"cik_str": 1000, "ticker": "ACME"}}).encode()
     cache = tmp_path / ad.EDGAR_TICKERS_CACHE
-    good = cache.read_text()
-    uni = ["ACME"] + [f"T{i}" for i in range(19)]            # the map resolves 1 of 20
-    line = _feed(tmp_path, monkeypatch, _sec("2026-09-17"), universe=uni)
+    cache.write_text("{}")                                   # nothing usable cached yet
+    # a truncated reply with nothing better to fall back on: said, and not kept
+    line = _feed(tmp_path, monkeypatch, _with(_sec("2026-09-17"), "company_tickers", stub),
+                 universe=uni)
     assert line.startswith("edgar_8k: PARTIAL") and "resolves 5% of 20" in line, line
-    assert cache.read_text() == good
+    assert cache.read_text() == "{}"
+    # a whole one is kept …
+    line = _feed(tmp_path, monkeypatch, _with(_sec("2026-09-17"), "company_tickers", whole),
+                 universe=uni)
+    good = cache.read_text()
+    assert "PARTIAL" not in line and json.loads(good)["data"] == json.loads(whole)
+    # … and, once stale, still beats a truncated refresh, which does not replace it
+    cache.write_text(good.replace("2026-09-17", "2026-08-01"))
+    stale = cache.read_text()
+    line = _feed(tmp_path, monkeypatch, _with(_sec("2026-09-17"), "company_tickers", stub),
+                 universe=uni)
+    assert "PARTIAL" not in line and cache.read_text() == stale, line
 
 
 def test_3_the_eval_share_has_stated_exclusions_and_no_permanent_alarm(tmp_path):
