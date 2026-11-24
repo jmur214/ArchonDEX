@@ -7,6 +7,7 @@ No literal address appears here: the SEC header is read from the module's own co
 """
 from __future__ import annotations
 
+import socket
 import urllib.request
 
 import pytest
@@ -22,8 +23,9 @@ class _Resp:
     def __init__(self, body: bytes = b"[]") -> None:
         self._body = body
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, n: int = -1) -> bytes:
+        body, self._body = self._body, b""      # a chunked reader sees the end
+        return body
 
     def __enter__(self) -> "_Resp":
         return self
@@ -32,14 +34,29 @@ class _Resp:
         return False
 
 
+def _refuse(*_a: object, **_k: object) -> None:
+    raise OSError("network refused by the privacy lock")
+
+
+def _stub_wire(monkeypatch: pytest.MonkeyPatch, seen: list[tuple[str, str]], body: bytes) -> None:
+    """Capture at ``OpenerDirector.open`` — the one method BOTH ``urllib.request.urlopen`` and
+    a purpose-built opener (core/sec_http.py, 2026-11-24) go through — and refuse sockets, so a
+    transport that bypasses this capture fails here instead of reaching the network. (Stubbing
+    ``urlopen`` alone let the SEC transport through to sec.gov the day it was introduced.)"""
+    def fake_open(self, fullurl, data=None, timeout=None):  # noqa: ANN001
+        req = fullurl if not isinstance(fullurl, str) else urllib.request.Request(fullurl)
+        seen.append((req.full_url, req.get_header("User-agent") or ""))
+        return _Resp(body)
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", fake_open)
+    monkeypatch.setattr(socket.socket, "connect", _refuse)
+    monkeypatch.setattr(socket, "create_connection", _refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", _refuse)
+
+
 def _capture(monkeypatch: pytest.MonkeyPatch, tmp_path) -> list[tuple[str, str]]:
     seen: list[tuple[str, str]] = []
-
-    def fake_urlopen(req, timeout=None):  # noqa: ANN001
-        seen.append((req.full_url, req.get_header("User-agent") or ""))
-        return _Resp()
-
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    _stub_wire(monkeypatch, seen, b"[]")
     monkeypatch.setattr(m, "OUT_DIR", tmp_path)
     monkeypatch.setattr(m, "_append", lambda *a, **k: None)
     monkeypatch.setattr(m.time, "sleep", lambda s: None)
@@ -76,12 +93,7 @@ def test_the_lock_catches_a_contact_ua_on_every_host(monkeypatch, tmp_path):
 def _capture_positioning(monkeypatch: pytest.MonkeyPatch, tmp_path, ua=None) -> list[tuple[str, str]]:
     import scripts.archive_positioning_t136 as p
     seen: list[tuple[str, str]] = []
-
-    def fake_urlopen(req, timeout=None):  # noqa: ANN001
-        seen.append((req.full_url, req.get_header("User-agent") or ""))
-        return _Resp(b"")
-
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    _stub_wire(monkeypatch, seen, b"")
     monkeypatch.setattr(p, "OUT_DIR", tmp_path)
     monkeypatch.setattr(p, "_append_parquet", lambda *a, **k: 0)
     monkeypatch.setattr(p.time, "sleep", lambda s: None)
@@ -111,6 +123,21 @@ def test_positioning_lock_catches_a_contact_ua(monkeypatch, tmp_path):
     import scripts.archive_positioning_t136 as p
     seen = _capture_positioning(monkeypatch, tmp_path, ua={"User-Agent": "x a@b.c"})
     assert any("@" in ua for url, ua in seen if not p._is_sec_host(url))
+
+
+def test_the_8k_feed_and_the_body_fetch_ask_sec_hosts_only(monkeypatch, tmp_path):
+    """T-412: the forward 8-K feed and the filing-body fetch, through the real transport."""
+    import intelligence.event_call.eightk_body as eb
+    seen: list[tuple[str, str]] = []
+    _stub_wire(monkeypatch, seen, b"{}")
+    monkeypatch.setattr(m, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(m.time, "sleep", lambda s: None)
+    monkeypatch.setattr(m, "_edgar_cik_map", lambda uni, today: ({1000: "ACME"}, 1.0))
+    m.pull_8k_items(["ACME"], as_of="2026-09-17")
+    eb.fetch_8k_text(1000, "0000001000-26-000001", primary_document="d.htm")
+    # three business-day indexes in the window + one filing body
+    assert len(seen) == 4 and all(m._is_sec_host(u) for u, _ in seen), seen
+    assert all("@" in ua for _, ua in seen)            # SEC's policy: the declared contact
 
 
 @pytest.mark.parametrize("modname", [

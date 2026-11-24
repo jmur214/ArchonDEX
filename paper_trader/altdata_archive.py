@@ -138,11 +138,22 @@ def _newest(path: Path, col: str, fmt: str):
         return None
 
 
-def assess_feed_health(root: Path) -> Tuple[Dict[str, dict], List[str]]:
-    """Age EVERY feed against its own budget. Returns (per-feed detail, offenders)."""
+# T-412: feeds only ONE account's run collects. The other accounts share the S3 prefix but
+# never hold these files, so gating them there is a false alarm by construction.
+ACCOUNT_1_FEEDS: Tuple[str, ...] = ("edgar_8k",)
+
+
+def assess_feed_health(root: Path, *, not_collected_here: Tuple[str, ...] = ()
+                       ) -> Tuple[Dict[str, dict], List[str]]:
+    """Age EVERY feed against its own budget. Returns (per-feed detail, offenders).
+    ``not_collected_here`` names feeds another account's run owns: declared, not failed."""
     now = pd.Timestamp.now().normalize()
     detail, stale = {}, []
     for name, rel, col, budget, fmt, exempt in _FEED_HEALTH:
+        if name in not_collected_here:
+            detail[name] = {"age_days": None, "budget": budget, "ok": True,
+                            "exempt": "collected, gated and pushed by account 1's run only"}
+            continue
         if exempt:
             detail[name] = {"age_days": None, "budget": budget, "ok": True,
                             "exempt": exempt}
@@ -204,7 +215,8 @@ def _out_dir_under_root(module: ModuleType, out_dir: Path) -> Iterator[None]:
         module.OUT_DIR = previous
 
 
-def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResult:
+def run_altdata_archive(root: str, *, days_back: int = 10,
+                        not_collected_here: Tuple[str, ...] = ()) -> AltdataArchiveResult:
     """Run both T-136 archivers (each pull fail-open) and assess snapshot
     freshness. Never raises into the caller — the trading path stays clean.
 
@@ -260,7 +272,9 @@ def run_altdata_archive(root: str, *, days_back: int = 10) -> AltdataArchiveResu
     landed = sum(1 for v in fresh_rows.values() if v > 0)
     # T-335: EVERY feed is now aged against its own cadence budget — degraded if the
     # same-day snapshot check fails OR any feed exceeds its budget / is unmonitorable.
-    feed_health, stale_feeds = assess_feed_health(root_p)
+    feed_health, stale_feeds = (
+        assess_feed_health(root_p, not_collected_here=not_collected_here)
+        if not_collected_here else assess_feed_health(root_p))
     snapshot_degraded = landed == 0
     stale_degraded = bool(stale_feeds)
     degraded = snapshot_degraded or stale_degraded
@@ -343,5 +357,7 @@ def run_8k_feed(root: str, *, as_of: str, days_back: int = 5) -> EightKFeedResul
     receipt = _receipt()
     if receipt == before:                       # this run wrote none: never pass off an old one
         receipt = {}
-    return EightKFeedResult(ok="FAILED" not in report, report=report,
+    # PARTIAL is not ok: it delivered something, but not everything it should have.
+    bad = report.startswith(("edgar_8k: FAILED", "edgar_8k: PARTIAL"))
+    return EightKFeedResult(ok=not bad, report=report,
                             universe_size=len(universe), receipt=receipt)

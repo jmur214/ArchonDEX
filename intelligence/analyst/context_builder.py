@@ -182,17 +182,30 @@ def _special_sits_section(as_of: dt.date, events_path: Path = EVENTS_PARQUET) ->
 
 
 def _open_predictions_section(as_of: dt.date, pred_log: Path = PRED_LOG) -> Dict[str, Any]:
-    """Yesterday's still-open predictions (unresolved, by_date >= as_of), so the
-    model can revisit them. Read-only; fail-open."""
+    """The analysts' own logged predictions, so the model can revisit them. Read-only;
+    fail-open.
+
+    T-412 (reviewer B1): this is part of the bundle behind the note account 3 TRADES on,
+    so its contents may not change as a side effect of another desk coming alive. The log
+    it reads also receives the event interpreter's predictions; once that desk has a feed
+    (~25 calls a day) they filled all 50 places and pushed every one of the analyst's own
+    out. Only analyst rows are admitted, which is exactly what the log held before.
+
+    (Known and deliberately unchanged: no row carries ``resolved``, so every logged row
+    counts as open, settled or not. Correcting that would change account 3's input — a
+    prompt-track decision, not a plumbing one.)"""
     try:
         if not pred_log.exists():
             return {"open": [], "degraded": False}
+        from intelligence.analyst.eval_harness import is_analyst_row
         seen: Dict[str, Dict[str, Any]] = {}
         for line in pred_log.read_text().splitlines():
             line = line.strip()
             if not line:
                 continue
             r = json.loads(line)
+            if not is_analyst_row(r):
+                continue           # another desk's prediction (see the docstring)
             pid = r.get("prediction_id") or r.get("statement")
             seen[pid] = r          # last write wins (resolution overwrites)
         openp = [{"statement": r.get("statement"), "probability": r.get("probability"),

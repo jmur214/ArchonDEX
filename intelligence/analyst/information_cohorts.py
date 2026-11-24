@@ -43,21 +43,25 @@ def cohort_for(source: str, note_date: str, registry: Optional[dict] = None) -> 
     spec = (reg or {}).get(source)
     if not spec:
         return None
-    best_label, best_date = spec.get("default_cohort"), None
-    pending_label = None
+    if not note_date:
+        return spec.get("default_cohort")
+    day = str(note_date)[:10]
+    best_label, best_date = spec.get("default_cohort"), ""
     for c in spec.get("cohorts", []):
         frm, pend = c.get("from_date"), c.get("pending_from")
-        if not note_date:
+        # A STAMPED date always wins over the announcement of the SAME boundary (T-351).
+        # Announced but UNCONFIRMED is flagged rather than asserting the prior cohort —
+        # once the fix is live, defaulting to "price_blind" is a MISLABEL.
+        start = str(frm or pend or "")[:10]
+        if not start or day < start:
             continue
-        if frm and str(note_date)[:10] >= str(frm)[:10]:
-            if best_date is None or str(frm)[:10] >= str(best_date)[:10]:
-                best_label, best_date = c.get("label"), frm
-        elif not frm and pend and str(note_date)[:10] >= str(pend)[:10]:
-            # T-351: announced but UNCONFIRMED. Flag it rather than asserting the prior
-            # cohort — once the fix is live, defaulting to "price_blind" is a MISLABEL.
-            pending_label = f"{c.get('label')}{UNSTAMPED_SUFFIX}"
-    # a STAMPED boundary always wins over a pending one
-    return best_label if best_date else (pending_label or best_label)
+        # The LATEST boundary at or before the row decides. (T-412: an earlier stamped
+        # boundary used to silence every later announced one, so a second era could never
+        # be flagged — its rows would have carried the first era's label.)
+        if start >= best_date:
+            best_label = c.get("label") if frm else f"{c.get('label')}{UNSTAMPED_SUFFIX}"
+            best_date = start
+    return best_label
 
 
 def is_unstamped(cohort: Optional[str]) -> bool:

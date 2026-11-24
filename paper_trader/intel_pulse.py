@@ -200,8 +200,10 @@ def _scan_inputs(base: Path, as_of: str) -> "tuple[list, list, dict]":
 
 def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
                     allowlist, root: str, now_iso: str,
-                    load_panel=None, tier: str = "daily") -> IntelPulseResult:
-    """Run the three report-only LLM steps for ``as_of``. Never raises."""
+                    load_panel=None, tier: str = "daily",
+                    prev_session: Optional[str] = None) -> IntelPulseResult:
+    """Run the three report-only LLM steps for ``as_of``. Never raises. ``prev_session``
+    (T-412) is the last completed market session, for the event interpreter's window."""
     base = Path(root)
     res = IntelPulseResult()
 
@@ -373,7 +375,7 @@ def run_intel_pulse(as_of, *, portfolios: Dict[str, Dict[str, float]],
             # now_iso), not the container clock's
             today=_dt.date.fromisoformat(str(now_iso)[:10]),
             max_documents=EVENT_MAX_DOCUMENTS_PER_RUN,
-            time_budget_s=EVENT_TIME_BUDGET_S)
+            time_budget_s=EVENT_TIME_BUDGET_S, prev_session=prev_session)
         res.event = ev if isinstance(ev, dict) else {"status": "unknown"}
     except Exception as exc:   # noqa: BLE001
         res.event = {"status": f"error:{type(exc).__name__}"}

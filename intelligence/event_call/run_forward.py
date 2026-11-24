@@ -103,6 +103,23 @@ def _within_date_floor(doc: EventDocument, floor: Optional[str]) -> bool:
         return True
 
 
+# A session this far back is not "the one before a long weekend" — a price series that
+# stopped must not widen the window without limit.
+MAX_SESSION_REACH_DAYS = 7
+
+
+def _date_floor(aod: _dt.date, max_lag_days: int, prev_session: Optional[str]) -> str:
+    """The oldest filing date this run may read (see ``run_forward`` on prev_session)."""
+    floor = aod - _dt.timedelta(days=max_lag_days)
+    try:
+        prev = _dt.date.fromisoformat(str(prev_session)[:10]) if prev_session else None
+    except ValueError:
+        prev = None
+    if prev is not None and aod - _dt.timedelta(days=MAX_SESSION_REACH_DAYS) <= prev < floor:
+        floor = prev
+    return floor.isoformat()
+
+
 def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
                 prompt_path: str, model_id_requested: str, prompt_version: str,
                 projected_cost_usd: float, raw_dir: str,
@@ -111,7 +128,8 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
                 today: Optional[_dt.date] = None, max_lag_days: int = DEFAULT_MAX_LAG_DAYS,
                 body_fetch=fetch_8k_text, panel_path: Optional[Path] = None,
                 max_documents: Optional[int] = None,
-                time_budget_s: Optional[float] = None) -> ForwardRunResult:
+                time_budget_s: Optional[float] = None,
+                prev_session: Optional[str] = None) -> ForwardRunResult:
     """Fire one event call per NEW document dated on/around `as_of`. Forward-only (hard PIT guard).
 
     T-412 — ``panel_path`` names the 8-K panel this run reads (the daily pulse passes the
@@ -123,7 +141,13 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
     the old same-day default could never match a forward-fetched document.
     ``max_documents`` / ``time_budget_s`` bound one run (each call can take a minute; the
     pulse runs before the durable push); deferred documents stay unseen and are retried
-    on the next run inside the window."""
+    on the next run inside the window.
+    ``prev_session`` is the date of the last completed market session (the driver's own
+    price series): the window reaches back to it, because the filings of the session
+    before a long weekend first appear in this run. Three calendar days alone dropped a
+    Friday's filings on the Tuesday after a Monday holiday, and a Thursday's on the Monday
+    after Good Friday or Christmas. It widens only which documents are read; the
+    forward-only guard on ``as_of`` below is unchanged."""
     import time as _time
     t0 = _time.monotonic()
     as_of_s = _dt.date.fromisoformat(str(as_of)[:10]).isoformat()
@@ -137,7 +161,7 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
     # T-331 item 6: the file_date floor defaults to `as_of − max_lag_days` — the same
     # forward-only window the run itself is bounded by, so a stale document can't be
     # paid for even once.
-    date_floor = (aod - _dt.timedelta(days=max_lag_days)).isoformat()
+    date_floor = _date_floor(aod, max_lag_days, prev_session)
     feed = panel_status(Path(panel_path), as_of_s) if panel_path is not None else None
     seen: Set[str] = load_seen(ledger_path)
     docs = new_documents(as_of_s, universe=universe, since=since or date_floor, seen=seen,
@@ -155,16 +179,26 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
         if not _within_date_floor(doc, date_floor):
             res.statuses.append(f"stale_file_date:{doc.document_ref}")
             continue                             # older than the floor → no paid call
-        if not _attach_body(doc, fetch=body_fetch, cache=bodies):
-            res.n_no_body += 1
-            res.statuses.append(f"no_body:{doc.document_ref}")
-            continue                             # no interpretable/NON-TRIVIAL body → no call
-        res.n_called += 1
-        r = run_event_call(doc, as_of=as_of_s, prompt_path=prompt_path, model_call=model_call,
-                           governor=governor, model_id_requested=model_id_requested,
-                           prompt_version=prompt_version, projected_cost_usd=projected_cost_usd,
-                           raw_dir=raw_dir, ledger_path=ledger_path, now_iso=now_iso)
+        # One bad document must not cost the rest of the batch (recorded as invalid).
+        try:
+            if not _attach_body(doc, fetch=body_fetch, cache=bodies):
+                res.n_no_body += 1
+                res.statuses.append(f"no_body:{doc.document_ref}")
+                continue                         # no interpretable/NON-TRIVIAL body → no call
+            r = run_event_call(doc, as_of=as_of_s, prompt_path=prompt_path,
+                               model_call=model_call, governor=governor,
+                               model_id_requested=model_id_requested,
+                               prompt_version=prompt_version,
+                               projected_cost_usd=projected_cost_usd,
+                               raw_dir=raw_dir, ledger_path=ledger_path, now_iso=now_iso)
+        except Exception as e:   # noqa: BLE001
+            res.n_invalid += 1
+            res.statuses.append(f"invalid:error:{type(e).__name__}:{doc.document_ref}")
+            continue
         res.statuses.append(r.status)
+        # a call the governor refused never reached the model (an adapter error did)
+        if not r.status.startswith("skipped:") or r.status.startswith("skipped:model_call_error"):
+            res.n_called += 1
         if r.status == "ok":
             res.n_ok += 1
         elif r.status.startswith("skipped:"):
@@ -172,7 +206,8 @@ def run_forward(as_of, *, model_call: ModelCall, governor: CostGovernor,
         else:
             res.n_invalid += 1
         if r.status.startswith("skipped:") and "budget" in r.status:
-            break                                # governor exhausted → stop the batch
+            res.n_deferred = len(docs) - i - 1   # governor exhausted → stop the batch; the
+            break                                # rest were not looked at, and say so
     return res
 
 
@@ -185,14 +220,16 @@ def pulse_step(as_of, *, model_call: Optional[ModelCall], governor: CostGovernor
     this returns a degraded flag and fires NO call — the record simply does not open that day.
     T-412: the 8-K feed's state rides along as ``feed`` either way (when ``panel_path`` is
     passed), so a day with no adapter still says whether the documents were there."""
+    def _feed() -> Dict[str, Any]:
+        if kw.get("panel_path") is None:
+            return {}
+        try:
+            return {"feed": panel_status(Path(kw["panel_path"]), as_of)}
+        except Exception as e:   # noqa: BLE001
+            return {"feed": {"ok": False, "reason": f"status_error:{type(e).__name__}"}}
+
     if model_call is None:
-        out: Dict[str, Any] = {"status": "degraded", "reason": "no_model_adapter", "n_ok": 0}
-        if kw.get("panel_path") is not None:
-            try:
-                out["feed"] = panel_status(Path(kw["panel_path"]), as_of)
-            except Exception as e:   # noqa: BLE001
-                out["feed"] = {"ok": False, "reason": f"status_error:{type(e).__name__}"}
-        return out
+        return {"status": "degraded", "reason": "no_model_adapter", "n_ok": 0, **_feed()}
     try:
         r = run_forward(as_of, model_call=model_call, governor=governor, prompt_path=prompt_path,
                         model_id_requested=model_id_requested, prompt_version=prompt_version,
@@ -204,4 +241,4 @@ def pulse_step(as_of, *, model_call: Optional[ModelCall], governor: CostGovernor
             out.update(feed=r.feed, n_called=r.n_called, n_deferred=r.n_deferred)
         return out
     except Exception as e:   # noqa: BLE001 — never fail the pulse
-        return {"status": "degraded", "reason": f"error:{type(e).__name__}", "n_ok": 0}
+        return {"status": "degraded", "reason": f"error:{type(e).__name__}", "n_ok": 0, **_feed()}

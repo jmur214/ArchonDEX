@@ -1406,16 +1406,20 @@ session that will say anything about the fleet.
 ### T-412 — does the information reach the desks? (2026-11-20)
 
 ```bash
-python -m pytest tests/test_information_reaches_desks_t412.py -q   # two real main() days, hermetic
+python -m pytest tests/test_information_reaches_desks_t412.py -q       # two real main() days, hermetic
+python -m pytest tests/test_t412_review_locks_2026_11_24.py -q         # the 2026-11-24 review, one lock per finding
 ```
 
 No new CLI: the daily run (`scripts/run_paper_cloud_day.py`) does the work and prints it. On
-account 1, after the orders and before the durable push: `ALTDATA-PULL` (the alt-data hoard,
-pulled once, before its first reader), `EDGAR-8K` (the forward 8-K item feed into
-`data/macro_data/alt/edgar_8k_items.parquet` + `edgar_8k_fetch_receipt.json`, SEC hosts only),
+account 1, after the orders: `POST-TRADE PUSH` (the order journal is durable BEFORE the slow
+steps), then `ALTDATA-PULL early=` (only the few files read before step 7; step 7 still pulls the
+whole hoard, and pushes nothing when that pull was incomplete), `EDGAR-8K` (the forward 8-K item
+feed into `data/macro_data/alt/edgar_8k_items.parquet` + `edgar_8k_fetch_receipt.json`, SEC hosts
+only; a line starting `FAILED` or `PARTIAL` is a degraded feed and says why),
 `THESIS-FALSIFIERS[<desk>]` (fired / not_fired / pending / unresolvable), `EVENT-FEED` (what the
-event interpreter saw and called) and an `EVAL` line that now names today's due-but-unresolved
-predictions with their reasons and symbols. On EVERY account, at the tail: `12. SOURCES` — the
+event interpreter saw and called) and an `EVAL` line with the share of today's judged predictions
+that resolved, and the reasons and symbols of those that did not. On EVERY account, at the tail:
+`12. SOURCES` — the
 source register (`paper_trader/source_register.py`), also written to the heartbeat as
 `source_register`. Read it as: each declared source, each reader, a verdict (fresh / absent /
 empty / stale / undated / read_before_arrival / not_run / retired) and the arrival steps; any

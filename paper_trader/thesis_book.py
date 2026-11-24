@@ -319,6 +319,19 @@ class ThesisBook:
             pos["held"] = int(pos.get("held", 0)) + 1
             tid_ = str(pos.get("thesis_id", ""))
             fs = falsifier_status.get(tid_) or []
+            # A falsifier that resolved FALSE at its end date is SETTLED. It is kept on the
+            # position so a later day with missing prices cannot turn "checked and passed"
+            # back into "unresolvable" and let the old deadline kill the thesis.
+            settled = pos.setdefault("settled_falsifiers", {})
+            for s_ in fs:
+                if s_.get("status") == "not_fired":
+                    settled[str(s_.get("index"))] = {"status": "not_fired",
+                                                     "detail": s_.get("detail"),
+                                                     "settled_on": trade_date}
+            fs = [s_ if str(s_.get("index")) not in settled or s_.get("status") == "fired"
+                  else {**s_, **settled[str(s_.get("index"))]} for s_ in fs]
+            have = {str(s_.get("index")) for s_ in fs}
+            fs += [{"index": int(i), **v} for i, v in settled.items() if i not in have]
             by_i = {int(s.get("index", -1)): s for s in fs}
             day_falsifiers[tid_] = [
                 {"index": i, "kind": f.get("kind"),

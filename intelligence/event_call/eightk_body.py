@@ -11,10 +11,14 @@ Archives/edgar/data/{cik}/{accession-no-dashes}/{primaryDocument} → html_to_te
 """
 from __future__ import annotations
 
+import json
 import time
+import urllib.error
 from typing import Optional
 
 import requests
+
+from core.sec_http import fetch
 
 UA = {"User-Agent": "ArchonDEX research jsm13700@gmail.com"}   # T-137 etiquette
 RATE_SLEEP = 0.13                                              # ~7.7 req/s (< 10 req/s ceiling)
@@ -30,18 +34,35 @@ def _html_to_text(html: str) -> str:
         return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html or "")).strip()
 
 
+FETCH_TIMEOUT_S = 15             # per attempt, in TOTAL (core/sec_http.py)
+FETCH_ATTEMPTS = 2
+
+
 def _get(url: str, *, json_: bool = False, session: Optional[requests.Session] = None):
-    s = session or requests
-    for i in range(3):
+    """GET from sec.gov: text (or JSON), or None. Through core/sec_http: the contact user
+    agent never follows a redirect off sec.gov, and the timeout bounds the whole request
+    (`requests`' bounds each read, so a trickling server could hold this step — which runs
+    before the paper run's main state push — indefinitely). An explicit ``session`` is a
+    test seam; it does not follow redirects either."""
+    for i in range(FETCH_ATTEMPTS):
         try:
-            r = s.get(url, headers=UA, timeout=30)
-            time.sleep(RATE_SLEEP)
-            if r.status_code == 200:
+            if session is not None:
+                r = session.get(url, headers=UA, timeout=FETCH_TIMEOUT_S, allow_redirects=False)
+                if r.status_code == 404:
+                    return None
+                if r.status_code != 200:
+                    raise OSError(f"HTTP {r.status_code}")
                 return r.json() if json_ else r.text
-            if r.status_code == 404:
+            raw = fetch(url, UA, timeout=FETCH_TIMEOUT_S).decode("utf-8", errors="replace")
+            return json.loads(raw) if json_ else raw
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
                 return None
+            time.sleep(RATE_SLEEP * (i + 1))
         except Exception:
             time.sleep(RATE_SLEEP * (i + 1))
+        finally:
+            time.sleep(RATE_SLEEP)
     return None
 
 

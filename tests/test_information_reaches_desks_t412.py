@@ -54,14 +54,16 @@ def _refuse(*_a: Any, **_k: Any) -> Any:
 
 
 class _S3Dir:
-    """CloudState stand-in. S3 is a DIRECTORY: pull_altdata copies the seeded hoard into the
-    run's root and push_altdata copies it back, so alt-data exists in the run ONLY after the
-    pull — the property the step-order lock is about."""
+    """CloudState stand-in. S3 is a DIRECTORY: pull_altdata copies from the seeded hoard into
+    the run's root (only the named files on the EARLY pull) and push_altdata copies it back,
+    so alt-data exists in the run ONLY after a pull — the property the step-order lock is
+    about."""
 
     def __init__(self, s3: Path, root: Path) -> None:
         self.s3, self.root = s3, root
         self.cfg = types.SimpleNamespace(enabled=False, s3_root="LOCAL", prefix="t412-lock")
-        self.altdata_pulls = 0
+        self.early_pulls: list[tuple] = []
+        self.full_pulls = 0
 
     def pull(self) -> bool:
         return False
@@ -84,12 +86,18 @@ class _S3Dir:
     def push_news_month(self, *_a: Any, **_k: Any) -> bool:
         return True
 
-    def pull_altdata(self, timeout_s: float | None = None) -> bool:
-        self.altdata_pulls += 1
+    def pull_altdata(self, timeout_s: float | None = None, only: Any = None) -> bool:
+        names = None if only is None else {Path(r).name for r in only}
+        if names is None:
+            self.full_pulls += 1
+        else:
+            self.early_pulls.append((timeout_s, tuple(only)))
         src, dst = self.s3 / "altdata/data/macro_data/alt", self.root / "data/macro_data/alt"
         dst.mkdir(parents=True, exist_ok=True)
         for f in src.glob("*"):
-            shutil.copy2(f, dst / f.name)
+            mine = f.name.startswith("edgar_")      # account 1's own: only the early pull
+            if (names is None and not mine) or (names is not None and f.name in names):
+                shutil.copy2(f, dst / f.name)
         return True
 
     def push_altdata(self) -> bool:
@@ -151,6 +159,11 @@ def _fake_sec_get(url: str, timeout: int = 90) -> bytes:
                           ).encode()
     if url.endswith("form.20260916.idx"):
         return _FORM_IDX.encode("latin-1")
+    if "/daily-index/" in url:                   # a healthy SEC: every past weekday posted
+        d = dt.datetime.strptime(url.split("form.")[1][:8], "%Y%m%d").date()
+        if d.weekday() < 5 and d <= DAY1:
+            return (f"8-K   ELSEWHERE INC   9999   {d:%Y%m%d}   "
+                    f"edgar/data/9999/0000009999-26-{d:%m%d}00.txt\n").encode("latin-1")
     if url.endswith(f"CIK{ACME_CIK:010d}.json"):
         return json.dumps({"filings": {"recent": {
             "accessionNumber": [ACME_ACC, "0000001234-26-000778"],
@@ -363,7 +376,8 @@ def drives(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     d1 = _drive(DAY1, root, cloud)
     d1["thesis"] = json.loads((root / "data/state/thesis_book_machine.json").read_text())
     d2 = _drive(DAY2, root, cloud)
-    return {"root": root, "s3": s3, "d1": d1, "d2": d2, "altdata_pulls": cloud.altdata_pulls}
+    return {"root": root, "s3": s3, "d1": d1, "d2": d2, "early_pulls": cloud.early_pulls,
+            "full_pulls": cloud.full_pulls}
 
 
 def _reg(d: dict) -> dict:
@@ -390,7 +404,7 @@ def test_the_eval_resolves_the_records_that_settle_on_the_pulled_altdata(drives)
     assert log[f"{pid}#1"]["resolvable"] and log[f"{pid}#1"]["outcome"] == 1, log[f"{pid}#1"]
     # the market-implied baseline is read from the same pulled snapshot (PIT, note date)
     assert log[f"{pid}#0"]["baseline_implied"] == pytest.approx(0.62)
-    assert "today: 3/3 due resolved" in drives["d1"]["out"], drives["d1"]["out"][-3000:]
+    assert "today: 3/3 judged resolved" in drives["d1"]["out"], drives["d1"]["out"][-3000:]
 
 
 def test_a_prediction_outside_the_sleeve_resolves_on_a_live_fetch(drives):
@@ -400,9 +414,18 @@ def test_a_prediction_outside_the_sleeve_resolves_on_a_live_fetch(drives):
     assert rec["resolvable"] and rec["outcome"] == 1, rec
 
 
-def test_the_altdata_is_pulled_once_per_run_and_the_archive_reuses_it(drives):
-    assert drives["altdata_pulls"] == 2, "one pull per run (two runs), not one per reader"
-    assert "ALTDATA-PULL pulled=True" in drives["d1"]["out"]
+def test_the_early_pull_is_targeted_and_bounded_and_step_7_still_pulls_the_hoard(drives):
+    """The early pull (before the main state push) asks for the few files its readers need,
+    with a bound; the whole hoard is still pulled once, right before the archive."""
+    import scripts.run_paper_cloud_day as drv
+    from paper_trader.cloud_state import ALTDATA_EARLY_FILES
+    from paper_trader import source_register as sr
+    assert drives["early_pulls"] == [(drv.ALTDATA_EARLY_PULL_TIMEOUT_S, ALTDATA_EARLY_FILES)] * 2
+    assert drives["full_pulls"] == 2
+    assert "ALTDATA-PULL early=True" in drives["d1"]["out"]
+    # every source the register says arrives by that pull is in it
+    assert {s.rel for s in sr.SOURCES if sr.ALTDATA_PULL in s.arrives_by} \
+        <= set(ALTDATA_EARLY_FILES)
 
 
 # --------------------------------------------------------------------------- #
@@ -461,7 +484,8 @@ def test_the_8k_feed_lands_under_the_root_and_is_pushed_with_the_hoard(drives):
     assert (row["ticker"], row["items"], row["primary_document"]) == ("ACME", "2.02,9.01", ACME_DOC)
     assert (s3 / "altdata/data/macro_data/alt/edgar_8k_items.parquet").exists()
     receipt = json.loads((root / "data/macro_data/alt/edgar_8k_fetch_receipt.json").read_text())
-    assert receipt["ok"] and receipt["index_ok"] == ["2026-09-16"]
+    assert receipt["ok"], receipt
+    assert receipt["index_ok"]["2026-09-16"] == 2 and receipt["index_missing"] == []
     reg = _reg(drives["d1"])
     assert reg["sources"]["edgar_8k_items"]["reads"]["intel_pulse"]["verdict"] == "fresh"
     assert reg["sources"]["edgar_8k_items"]["arrives_by"]["edgar_8k_fetch"]["ok"] is True
@@ -557,11 +581,12 @@ def test_the_8k_pull_truncates_at_its_request_budget_and_says_so(tmp_path, monke
     from paper_trader.altdata_archive import _out_dir_under_root
     monkeypatch.setattr(ad, "_get", _fake_sec_get)
     monkeypatch.setattr(ad, "EDGAR_8K_RATE_SLEEP_S", 0.0)
-    monkeypatch.setattr(ad, "_edgar_cik_map", lambda uni, today: {ACME_CIK: "ACME", 9999: "NOPE"})
+    monkeypatch.setattr(ad, "_edgar_cik_map",
+                        lambda uni, today: ({ACME_CIK: "ACME", 9999: "NOPE"}, 1.0))
     with _out_dir_under_root(ad, tmp_path):
         line = ad.pull_8k_items(["ACME", "NOPE"], as_of="2026-09-17", days_back=2,
                                 max_submissions=1)
-    assert "TRUNCATED" in line, line
+    assert line.startswith("edgar_8k: PARTIAL") and "TRUNCATED" in line, line
     assert json.loads((tmp_path / ad.EDGAR_8K_RECEIPT).read_text())["truncated"] is True
 
 
@@ -655,7 +680,7 @@ def test_resolve_falsifier_statuses():
     assert eh.resolve_falsifier(touch, "2026-08-03", "2026-09-17", price_fn=pf)[0] == "fired"
     assert eh.resolve_falsifier(terminal, "2026-08-03", "2026-09-17", price_fn=pf)[0] == "pending"
     st, why = eh.resolve_falsifier(gone, "2026-08-03", "2026-09-17", price_fn=pf)
-    assert st == "unresolvable" and "source_absent_or_stale" in why
+    assert st == "unresolvable" and "no price series for ZZZZ" in why
     assert eh.resolve_falsifier({"kind": "qualitative"}, "2026-08-03", "2026-09-17")[0] \
         == "unresolvable"
 
@@ -674,25 +699,31 @@ def test_a_book_recorded_without_a_resolution_pass_says_not_checked(tmp_path):
     assert s["falsifier_status_counts"] == {"not_checked": 1}
 
 
-def test_the_altdata_sync_pulls_once_and_replays_a_failure():
+def test_the_altdata_sync_early_then_full_and_a_stand_in_without_keywords():
     import scripts.run_paper_cloud_day as drv
+    from paper_trader.cloud_state import ALTDATA_EARLY_FILES
+    seen: list[dict] = []
 
     class _C:
-        n = 0
-
-        def pull_altdata(self) -> bool:          # a stand-in without the timeout keyword
-            _C.n += 1
-            return True
+        def pull_altdata(self, **kw) -> bool:
+            seen.append(kw)
+            return not kw                       # the early pull fails; the full one is clean
     s = drv._AltdataSync(_C())
-    assert s.ensure(timeout_s=5) is True and s.ensure() is True and _C.n == 1
+    assert s.ensure(timeout_s=5) is False and s.ensure() is True
+    assert seen == [{"timeout_s": 5, "only": ALTDATA_EARLY_FILES}, {}]
+
+    class _Plain:
+        def pull_altdata(self) -> bool:          # an older stand-in: no keywords
+            return True
+    assert drv._AltdataSync(_Plain()).ensure(timeout_s=5) is True
 
     class _Boom:
-        def pull_altdata(self, timeout_s=None):
+        def pull_altdata(self, **kw):
             raise RuntimeError("s3 down")
     b = drv._AltdataSync(_Boom())
-    for _ in range(2):                             # step 7 still sees the failure
+    for kw in ({"timeout_s": 1}, {}):            # both callers see it (step 7 records it)
         with pytest.raises(RuntimeError):
-            b.ensure()
+            b.ensure(**kw)
 
 
 def test_a_stalled_aws_call_is_bounded(monkeypatch):

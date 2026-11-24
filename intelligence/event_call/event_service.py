@@ -117,13 +117,16 @@ def run_event_call(doc: EventDocument, *, as_of: str, prompt_path: str,
         return EventCallResult(None, f"skipped:model_call_error:{type(e).__name__}",
                                document_ref=doc.document_ref)
 
-    pathlib.Path(raw_dir).mkdir(parents=True, exist_ok=True)
-    safe_ref = doc.document_ref.replace("/", "_").replace("#", "_")
-    raw_path = str(pathlib.Path(raw_dir) / f"raw_{safe_ref}.json")
-    pathlib.Path(raw_path).write_text(json.dumps(
-        {"document_ref": doc.document_ref, "as_of": as_of,
-         "response": resp.get("text", ""), "model_id_served": resp.get("model_id_served"),
-         "input_bundle_sha256": bundle_sha}, default=str))
+    # One append-only file a month, not one file a call: the directory is synced whole at
+    # every container start, and a live feed makes ~25-30 calls a day.
+    raw_file = pathlib.Path(raw_dir) / f"raw_event_calls_{str(as_of)[:7]}.jsonl"
+    raw_file.parent.mkdir(parents=True, exist_ok=True)
+    raw_path = str(raw_file)
+    with raw_file.open("a") as fh:
+        fh.write(json.dumps(
+            {"document_ref": doc.document_ref, "as_of": as_of,
+             "response": resp.get("text", ""), "model_id_served": resp.get("model_id_served"),
+             "input_bundle_sha256": bundle_sha}, default=str) + "\n")
 
     # record spend regardless of validity (the call happened)
     usage = resp.get("usage", {}) or {}
@@ -134,6 +137,9 @@ def run_event_call(doc: EventDocument, *, as_of: str, prompt_path: str,
         payload = json.loads(resp.get("text", ""))
     except Exception:
         return EventCallResult(None, "invalid:not_json", document_ref=doc.document_ref, raw_path=raw_path)
+    if not isinstance(payload, dict):      # valid JSON, wrong shape — one bad reply, not a crash
+        return EventCallResult(None, "invalid:not_an_object", document_ref=doc.document_ref,
+                               raw_path=raw_path)
 
     # the service (not the model) fills provenance + the PIT document identity
     payload.setdefault("as_of", as_of)

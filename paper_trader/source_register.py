@@ -311,13 +311,23 @@ class SourceRegister:
             pass
 
     def outcome(self, reader: str, detail: Dict[str, Any],
-                problem: Optional[str] = None) -> None:
-        """What the reader made of its input. ``problem`` (when given) is a degraded
-        reason: e.g. the eval harness had predictions come due and settled none."""
+                problem: Any = None) -> None:
+        """What the reader made of its input. ``problem`` — a string or a list of them — is
+        a degraded reason. "The input was there" is not "the path works": a reader that
+        raised, refused, or produced nothing from fresh input reports it here (T-412
+        review: 14 of 14 reads were fresh while the eval and the pulse both raised)."""
         try:
-            self._outcomes[reader] = {"detail": detail, "problem": problem}
+            probs = [problem] if isinstance(problem, str) else list(problem or [])
+            prev = self._outcomes.get(reader) or {"detail": {}, "problems": []}
+            self._outcomes[reader] = {"detail": {**prev["detail"], **(detail or {})},
+                                      "problems": prev["problems"] + probs}
         except Exception:
             pass
+
+    def raised(self, reader: str, exc: BaseException) -> None:
+        """``reader`` raised: whatever it was fed, it produced nothing."""
+        self.outcome(reader, {"raised": type(exc).__name__},
+                     problem=f"raised {type(exc).__name__}: {str(exc)[:120]}")
 
     def block(self) -> Dict[str, Any]:
         """The heartbeat block. Re-probes every source at the tail. Never raises."""
@@ -325,7 +335,8 @@ class SourceRegister:
             return self._block()
         except Exception as exc:                      # a broken register says so, loudly
             return {"_schema": "source_register/v1", "as_of": self.as_of,
-                    "strategy": self.strategy, "degraded": True,
+                    "strategy": self.strategy, "degraded": True, "failed": True,
+                    "n_sources": None, "n_problems": 1,
                     "problems": [f"the register itself failed: {type(exc).__name__}: {exc}"]}
 
     def _block(self) -> Dict[str, Any]:
@@ -372,9 +383,8 @@ class SourceRegister:
                        **({"outcome": self._outcomes[r]["detail"]}
                           if r in self._outcomes else {})}
                    for r in declared_readers}
-        for r, o in sorted(self._outcomes.items()):
-            if o.get("problem"):
-                problems.append(f"{r}: {o['problem']}")
+        problems = [f"{r}: {p}" for r, o in sorted(self._outcomes.items())
+                    for p in o["problems"]] + problems      # what broke, before what was read
         unread = {sid: {"rel": rel, "present": (self.root / rel).exists(),
                         "why_unread": f"no daily-run consumer (T-411 Part 3 {row})"}
                   for sid, rel, row in UNREAD_SOURCES} if self.strategy == ACCOUNT_1 else {}
@@ -385,9 +395,60 @@ class SourceRegister:
                 "readers": readers, "sources": sources, "unread_collected": unread}
 
 
+# --------------------------------------------------------------------------------------
+# judging a reader's outcome (pure functions; the driver feeds the result to outcome())
+# --------------------------------------------------------------------------------------
+#: Of the documents the event interpreter looked at, the shares that count as a problem.
+MAX_NO_BODY_SHARE = 0.25
+MAX_INVALID_SHARE = 0.50
+
+
+def event_interpreter_problems(ev: Any) -> List[str]:
+    """Why the event interpreter's day was not whole. Anything but status ``ok`` is a
+    problem (a raise, a refusal, no model key, a missing panel), and so is an ``ok`` day
+    that read documents and interpreted none, was refused its budget, or ran out of room."""
+    if not isinstance(ev, dict) or not ev:
+        return ["event interpreter returned nothing"]
+    out: List[str] = []
+    status, reason = str(ev.get("status") or "unknown"), ev.get("reason")
+    if status != "ok":
+        out.append(f"event interpreter {status}" + (f": {reason}" if reason else ""))
+    feed = ev.get("feed") or {}
+    if feed and not feed.get("ok") and str(feed.get("reason")) != str(reason):
+        out.append(f"event interpreter's 8-K feed: {feed.get('reason')}")
+    if feed.get("n_bad_dates"):
+        out.append(f"event interpreter's 8-K feed: {feed['n_bad_dates']} row(s) with an "
+                   f"unparseable filing date")
+
+    def n(k: str) -> int:
+        return int(ev.get(k) or 0)
+    docs, looked = n("n_documents"), n("n_documents") - n("n_deferred")
+    if docs and not n("n_ok"):
+        out.append(f"event interpreter read {docs} document(s) and interpreted none "
+                   f"(no body {n('n_no_body')}, invalid {n('n_invalid')}, refused "
+                   f"{n('n_skipped')}, deferred {n('n_deferred')})")
+    elif looked > 0:
+        if n("n_no_body") / looked > MAX_NO_BODY_SHARE:
+            out.append(f"event interpreter: no filing body for {n('n_no_body')} of {looked} "
+                       f"document(s) (threshold {MAX_NO_BODY_SHARE:.0%})")
+        if n("n_invalid") / looked > MAX_INVALID_SHARE:
+            out.append(f"event interpreter: {n('n_invalid')} of {looked} replies invalid "
+                       f"(threshold {MAX_INVALID_SHARE:.0%})")
+    if n("n_skipped"):
+        out.append(f"event interpreter: {n('n_skipped')} call(s) refused or failed "
+                   f"(budget, kill switch or model error)")
+    if n("n_deferred"):
+        out.append(f"event interpreter: {n('n_deferred')} of {docs} document(s) deferred to "
+                   f"the next run")
+    return out
+
+
 def register_line(block: Dict[str, Any]) -> str:
     """The run-log one-liner. Names the problem — a count alone is not actionable."""
-    if not block.get("n_sources"):
+    if block.get("n_sources") is None:       # it could not be built, or it failed itself
+        return ("[SOURCE-REGISTER][DEGRADED] the register FAILED — information paths "
+                "UNVERIFIED: " + " | ".join(map(str, block.get("problems") or ["no reason"])))
+    if not block["n_sources"] and not block.get("degraded"):
         return (f"SOURCE-REGISTER no declared information sources for "
                 f"{block.get('strategy')} (prices only)")
     head = (f"SOURCE-REGISTER fresh_reads={block.get('n_fresh')}/{block.get('n_reads')} "

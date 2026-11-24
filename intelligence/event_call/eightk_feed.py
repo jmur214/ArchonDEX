@@ -38,6 +38,15 @@ FORWARD_PANEL_REL = "data/macro_data/alt/edgar_8k_items.parquet"
 # Stale when the newest FILING is older than this: ~25 tracked 8-Ks land every business
 # day, so 5 calendar days covers a weekend plus a holiday and still catches a dead feed.
 PANEL_MAX_AGE_DAYS = 5
+# What the reader below cannot work without.
+REQUIRED_COLUMNS = ("ticker", "cik", "accession", "filing_date", "items")
+
+
+def filing_dates(values: pd.Series) -> pd.Series:
+    """Panel filing dates as timestamps; an unparseable one is NaT. ONE coercion for the
+    status check and the reader: the status used to tolerate a bad date while the reader
+    raised on it, so a panel called fresh produced no document at all."""
+    return pd.to_datetime(values, errors="coerce", format="mixed")
 
 
 def panel_status(panel_path: pathlib.Path, as_of, *,
@@ -54,11 +63,16 @@ def panel_status(panel_path: pathlib.Path, as_of, *,
     if not panel_path.exists():
         return {**out, "reason": f"8k_panel_absent: {panel_path.name} is not on disk"}
     try:
-        fd = pd.to_datetime(pd.read_parquet(panel_path, columns=["filing_date"])["filing_date"],
-                            errors="coerce")
+        df = pd.read_parquet(panel_path)
+        missing = sorted(set(REQUIRED_COLUMNS) - set(df.columns))
+        if missing:
+            return {**out, "n_rows": int(len(df)),
+                    "reason": f"8k_panel_malformed: no column {', '.join(missing)}"}
+        fd = filing_dates(df["filing_date"])
     except Exception as exc:
         return {**out, "reason": f"8k_panel_unreadable: {type(exc).__name__}"}
     out["n_rows"] = int(len(fd))
+    out["n_bad_dates"] = int(fd.isna().sum())
     fd = fd.dropna()
     if fd.empty:
         return {**out, "reason": "8k_panel_empty: no row carries a parseable filing_date"}
@@ -123,8 +137,8 @@ def new_8k_documents(as_of, *, universe: Optional[Set[str]] = None,
     if not panel_path.exists():
         return []
     df = pd.read_parquet(panel_path)
-    df = df.dropna(subset=["filing_date"]).copy()
-    df["fd"] = pd.to_datetime(df["filing_date"]).dt.date
+    df = df.assign(fd=filing_dates(df["filing_date"])).dropna(subset=["fd"])
+    df["fd"] = df["fd"].dt.date
     hi = _dt.date.fromisoformat(_iso(as_of))
     lo = _dt.date.fromisoformat(since) if since else hi
     df = df[(df["fd"] >= lo) & (df["fd"] <= hi)]
@@ -190,6 +204,12 @@ def new_documents(as_of, *, universe: Optional[Set[str]] = None, since: Optional
     docs = new_8k_documents(as_of, universe=universe, since=since,
                             panel_path=panel_path or PANEL_8K) + \
         new_special_situation_documents(as_of, since=since)
+    # One call per document, ever — within this batch too: a filing listed twice in the
+    # panel would otherwise be paid for twice before the ledger could see the first.
+    unique: Dict[str, EventDocument] = {}
+    for d in docs:
+        unique.setdefault(d.document_ref, d)              # first listing wins, order kept
+    docs = list(unique.values())
     if seen:
         docs = [d for d in docs if d.document_ref not in seen]
     return docs

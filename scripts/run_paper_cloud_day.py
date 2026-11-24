@@ -109,56 +109,43 @@ class _FailClosed(Exception):
         self.code, self.msg = code, msg
 
 
-# T-412: the alt-data pull's per-directory bound when it runs BEFORE the durable push.
-# The hoard is ~80 MB (S3 -> Fargate in-region: seconds); this only caps a stalled sync.
-# The new pre-push steps together are bounded at about 15 minutes in the WORST case (this
-# pull 2 x 120 s; the 8-K feed's index fetches 5 x 20 s + its 120 s budget + one request;
-# the event interpreter's 240 s budget + one body fetch and one model call past it) inside
-# the 30-minute job timeout. A normal day adds about one to two minutes.
-ALTDATA_EARLY_PULL_TIMEOUT_S = 120.0
+# T-412: the EARLY alt-data pull's bound per directory. It fetches only the handful of
+# files account 1's early readers need (cloud_state.ALTDATA_EARLY_FILES, about 1.5 MB), so
+# this only caps a stalled sync. What is new before the main state push is bounded at about
+# 11 minutes in the worst case (this pull 60 s; the 8-K feed's 120 s budget plus one 30 s
+# request; the event interpreter's 240 s budget plus one body fetch of 45 s and one model
+# call of up to 2 minutes) inside the 30-minute job timeout, and adds one to two minutes on
+# a normal day. The order journal no longer depends on it: see the POST-TRADE PUSH in main().
+ALTDATA_EARLY_PULL_TIMEOUT_S = 60.0
 
 
 class _AltdataSync:
-    """Pull the alt-data hoard (S3 -> local, read-only for trading) ONCE per run, at the
-    first point anything needs it.
+    """The run's two alt-data pulls (S3 -> local, read-only for trading).
 
-    T-412: the pull used to run only in step 7, after the durable push — but the eval
-    harness, the thesis book's falsifier checks and the event interpreter read
-    ``data/macro_data/alt/`` earlier in the same run, so in a fresh container they read
-    nothing (the cloud eval resolved 0 of 59). Account 1 now calls ``ensure()`` before its
-    first alt-data reader; step 7's archive calls it again and reuses the result, so the
-    hoard is pulled once and the archive's dedup sees exactly what it saw before.
+    ``ensure(timeout_s=...)`` is the EARLY one, on account 1 only: the few files read before
+    step 7. The eval harness, the thesis book's falsifier checks and the event interpreter
+    read ``data/macro_data/alt/`` earlier in the run than the hoard used to arrive, so in a
+    fresh container they read nothing.
 
-    A failure is remembered and RE-RAISED on every later call, so step 7's own fail-open
-    handler still records it exactly as it did when step 7 made the call itself."""
+    ``ensure()`` is step 7's full pull, unbounded and immediately before the archive, where
+    it always was. It runs every time, so an early pull that failed or stopped half-way is
+    made good before anything is archived on top of it. Each returns True only when every
+    directory it asked for synced; a raise passes through to the caller's handler."""
 
     def __init__(self, cloud) -> None:
         self._cloud = cloud
-        self._done = False
-        self._result = False
-        self._error: "Exception | None" = None
-
-    @property
-    def done(self) -> bool:
-        return self._done
 
     def ensure(self, timeout_s: "float | None" = None) -> bool:
-        if not self._done:
-            self._done = True
-            try:
-                try:
-                    self._result = bool(self._cloud.pull_altdata(timeout_s=timeout_s)
-                                        if timeout_s is not None
-                                        else self._cloud.pull_altdata())
-                except TypeError as exc:      # a CloudState stand-in without the bound
-                    if "timeout_s" not in str(exc):
-                        raise
-                    self._result = bool(self._cloud.pull_altdata())
-            except Exception as exc:          # noqa: BLE001 — remembered, re-raised below
-                self._error = exc
-        if self._error is not None:
-            raise self._error
-        return self._result
+        if timeout_s is None:
+            return bool(self._cloud.pull_altdata())
+        from paper_trader.cloud_state import ALTDATA_EARLY_FILES
+        try:
+            return bool(self._cloud.pull_altdata(timeout_s=timeout_s,
+                                                 only=ALTDATA_EARLY_FILES))
+        except TypeError as exc:                 # a CloudState stand-in without the keywords
+            if "unexpected keyword" not in str(exc):
+                raise
+            return bool(self._cloud.pull_altdata())
 
 
 class _AnyName:
@@ -167,6 +154,10 @@ class _AnyName:
 
     def __getattr__(self, name: str) -> str:
         return name
+
+    @staticmethod
+    def event_interpreter_problems(*_a, **_k) -> list:
+        return []                     # the one function the call sites use
 
 
 class _NullRegister:
@@ -185,8 +176,12 @@ class _NullRegister:
     def outcome(self, *_a, **_k) -> None:
         return None
 
+    def raised(self, *_a, **_k) -> None:
+        return None
+
     def block(self) -> dict:
-        return {"_schema": "source_register/v1", "degraded": True, "n_sources": None,
+        return {"_schema": "source_register/v1", "degraded": True, "failed": True,
+                "n_sources": None,
                 "problems": [f"the source register could not be built: {self.why}"],
                 "n_problems": 1}
 
@@ -289,18 +284,19 @@ def _run_family_strategy(*, constructor, fetch_universe, tracking_universe,
             equity, latest_bar_date)
 
 
-def _live_series_for(client, symbols, have=None) -> dict:
-    """T-412: live daily closes (completed bars, UNTRIMMED — resolution looks back at bars
-    that already exist) for every symbol in ``symbols`` not already in ``have``.
-    Fail-open: ``{}`` on any error, and the resolvers then fail closed per symbol."""
+def _live_series_for(client, symbols, have=None, *, before) -> dict:
+    """T-412: live daily closes for every symbol in ``symbols`` not already in ``have``,
+    COMPLETED bars only (strictly before ``before``). Never raises and one bad symbol never
+    empties the rest (paper_trader/report_prices.py); a symbol with no price is absent and
+    its resolver fails closed, naming it."""
+    from paper_trader.report_prices import fetch_closes
     need = sorted({str(s).upper() for s in (symbols or ()) if s} - set(have or {}))
     if not need:
         return {}
-    try:
-        got = client.fetch_daily_closes(need, lookback_days=400)
-    except Exception:   # noqa: BLE001 — a report-only lookup; the resolver says what it lacked
-        return {}
-    return {str(t).upper(): s for t, s in (got or {}).items() if s is not None and len(s)}
+    got = fetch_closes(client, need, lookback_days=400, before=before)
+    if got.dropped:
+        print(f"   PRICES     no price for {got.dropped} (those resolvers fail closed)")
+    return {k.upper(): v for k, v in got.closes.items()}
 
 
 def _resolve_open_falsifiers(book, *, today, client, root, live) -> dict:
@@ -314,7 +310,7 @@ def _resolve_open_falsifiers(book, *, today, client, root, live) -> dict:
     syms = {s for o in opens
             for s in _eh._price_symbols((o.get("falsifier") or {}).get("resolver") or {})}
     series = {str(k).upper(): v for k, v in (live or {}).items()}
-    series.update(_live_series_for(client, syms, series))
+    series.update(_live_series_for(client, syms, series, before=today))
     event_fn = _eh.event_fn_for_root(root)
     out: dict = {}
     for o in opens:
@@ -595,6 +591,12 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
         _sr = _AnyName()              # the call sites below stay valid; they record nothing
         register = _NullRegister(f"{type(exc).__name__}: {exc}")
     alt_sync = _AltdataSync(cloud)
+    # T-412: account 1 alone fetches, gates and pushes the event desk's 8-K files; the
+    # three accounts share the altdata/ prefix and any other account's copy is older.
+    try:
+        cloud.altdata_owner_8k = args.strategy == "trend_sleeve"
+    except Exception:   # noqa: BLE001 — a stand-in that refuses attributes
+        pass
 
     # --- 2. armed daily cycle ----------------------------------------- #
     cfg = PaperConfig(allocator=args.allocator)
@@ -866,18 +868,15 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
         # forming TODAY bar so the signal can never read an intraday price
         # (the 09:00 ET schedule is pre-open, but this holds at any run time).
         import pandas as _pd
-        raw_closes = closes                      # pre-trim: every COMPLETED bar
         closes = {t: s[s.index < _pd.Timestamp(today)] for t, s in closes.items()}
-        # T-331: hand LIVE series to the eval harness (below).
-        # T-349 — hand it the UNTRIMMED series. The `< today` trim above is a SIGNAL
-        # causality guard (a signal must never read a forming bar) and it is correct
-        # there. Resolution is the opposite operation: it looks BACKWARD at an expiry
-        # that has already happened. Feeding it the trimmed series meant a prediction
-        # expiring ON a pulse day could not see its own expiry bar, failed `_has_thru`,
-        # and was logged unresolvable — which (before the T-349 retry fix) was terminal.
-        # The strategy still uses the trimmed `closes`; only the report-only eval sees
-        # this one, so no signal can read a forming bar through this path.
-        eval_price_series = raw_closes
+        # T-331: hand LIVE series to the eval harness (below) — COMPLETED bars only.
+        # T-349 handed it the UNTRIMMED series so that a prediction expiring on a pulse day
+        # could see "its own expiry bar". At 09:45 ET that bar is a PARTIAL one: the review
+        # of 2026-11-24 showed it settling predictions, and firing thesis falsifiers, on
+        # fifteen minutes of trading. The retry rule T-349 added at the same time is what
+        # makes trimming safe: the row is logged unresolvable today and settles on the next
+        # run, when the session has closed.
+        eval_price_series = closes
         # [NN-FAIL-CLOSED]: never trade a STALE signal — every asset's last
         # completed bar must be recent (the prior session), else HALT.
         stale = [t for t in SLEEVE_UNIVERSE
@@ -1180,6 +1179,24 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             print(f"   LLM-ANALYST stream-record WARN {type(exc).__name__} "
                   f"(non-fatal, report-only)", file=sys.stderr)
 
+    # --- T-412 review (item 7) POST-TRADE PUSH, account 1 only. Everything new between
+    # the orders and the main push (the early alt-data pull, the 8-K feed, the event
+    # interpreter's model calls) can take minutes, and a container killed in there used to
+    # lose the day's order journal: tomorrow would resume from yesterday's state with every
+    # fill unexplained. The trading record is made durable HERE, before any of it. It is
+    # best-effort and seals nothing: step 5's push is still the one that decides canonical,
+    # and a killed run still emits no metric, so the silent-stop alarm still fires. ------- #
+    if args.strategy == "trend_sleeve":
+        try:
+            _early_push = cloud.push()
+        except Exception as exc:   # noqa: BLE001 — step 5 pushes again and decides
+            _early_push = f"raised {type(exc).__name__}"
+        if _early_push is not True and cloud.cfg.enabled:
+            print(f"   POST-TRADE PUSH WARN: {_early_push} — the order journal is not yet "
+                  f"durable; step 5 pushes again", file=sys.stderr)
+        else:
+            print("   POST-TRADE PUSH ok (the order journal is durable before the slow steps)")
+
     # --- T-238 Part 2: forward-track the sleeve vs both robos + feed the
     # pre-registered EXECUTION-fidelity gates (report-only, never changes
     # trading). Tracking-error is recorded ONLY on SETTLED (non-rebalance)
@@ -1291,24 +1308,25 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                       + " (report-only T-316 3rd-stream forward clock)")
             except Exception as exc:
                 print(f"   DBMF-SHADOW warn: {type(exc).__name__} (non-fatal)")
-            # --- T-412 STEP ORDER: the alt-data hoard (S3 -> local, read-only for
-            # trading) arrives HERE, before its first reader — the thesis book's falsifier
-            # checks, the intel pulse (agentic rate-path tool, scan context, the event
-            # interpreter's 8-K feed) and the eval harness (Kalshi/FOMC settlement, the
-            # market-implied baseline). It used to arrive only in step 7, after the durable
-            # push, so in a fresh container every one of them read an empty directory.
-            # Orders were staged and submitted ABOVE (run_trading_day); this pull can only
-            # delay the durable push, by at most ALTDATA_EARLY_PULL_TIMEOUT_S per directory,
-            # and it can never raise out of this block. The ARCHIVE (the network fetch) is
-            # NOT moved: it stays in step 7, after the push, fail-open. ------------------- #
+            # --- T-412 STEP ORDER: the alt-data files account 1 reads before step 7
+            # (S3 -> local, read-only for trading) arrive HERE, before their first reader —
+            # the thesis book's falsifier checks, the intel pulse (agentic rate-path tool,
+            # scan context, the event interpreter's 8-K feed) and the eval harness
+            # (Kalshi/FOMC settlement, the market-implied baseline). They used to arrive
+            # only with the hoard in step 7, so in a fresh container every one of those
+            # read an empty directory. Orders were submitted and the journal pushed ABOVE;
+            # this pull is about 1.5 MB, bounded, and cannot raise out of this block. The
+            # hoard pull and the ARCHIVE (the network fetch) are NOT moved: step 7, after
+            # the main push, fail-open. ---------------------------------------------------- #
             try:
                 _alt_ok = alt_sync.ensure(timeout_s=ALTDATA_EARLY_PULL_TIMEOUT_S)
-                print(f"   ALTDATA-PULL pulled={_alt_ok} (before the first alt-data reader; "
+                print(f"   ALTDATA-PULL early={_alt_ok} (the files read before step 7; "
                       f"S3 {'enabled' if cloud.cfg.enabled else 'disabled — local files only'})")
                 register.arrived(_sr.ALTDATA_PULL, ok=_alt_ok or not cloud.cfg.enabled,
                                  detail=("synced" if _alt_ok else
                                          ("S3 disabled — local files only"
-                                          if not cloud.cfg.enabled else "sync FAILED")))
+                                          if not cloud.cfg.enabled else
+                                          "early sync FAILED or timed out")))
             except Exception as exc:
                 print(f"   ALTDATA-PULL warn: {type(exc).__name__}: {exc} (non-fatal; "
                       f"step 7 records it)", file=sys.stderr)
@@ -1335,6 +1353,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
             # share one standard. Report-only; fail-closed parking, never a fake fill. --- #
             try:
                 from paper_trader.event_shadow_book import EVENT_DESK, EventShadowBook
+                from paper_trader.report_prices import fetch_closes, last_prices
                 # ANALYST_DESK retired T-355: its feed never existed and the agentic
                 # arm's output is weights, not calls — it is booked by LlmShadowBook
                 # below instead. One desk on this machinery now.
@@ -1348,14 +1367,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                     # desk's first call would have parked for want of a price.
                     _syms = sorted(set(_bk.pending_symbols(str(today)))
                                    | {str(c.get("symbol", "")).upper() for c in _calls})
-                    _px = {}
-                    if _syms:
-                        try:
-                            _fetched = client.fetch_daily_closes(_syms, lookback_days=10)
-                            _px = {t: float(s.iloc[-1]) for t, s in _fetched.items()
-                                   if s is not None and len(s)}
-                        except Exception:
-                            _px = {}          # → the desk parks the day (never fabricates)
+                    # one bad symbol must not park every other call (report_prices)
+                    _got = fetch_closes(client, _syms, lookback_days=10)
+                    _px = last_prices(_got)
+                    if _got.dropped:
+                        print(f"   EVENT-DESK no price for {_got.dropped}")
+                        register.outcome(_sr.EVENT_DESK, {"unpriced": _got.dropped}, problem=(
+                            f"no price for {len(_got.dropped)} of {len(_syms)} symbol(s): "
+                            f"{_got.dropped}"))
                     _es = _bk.record(str(today), closes=_px, calls=_calls or None)
                     print(f"   EVENT-DESK[{_cfg.name}] days={_es.get('n_days')} "
                           f"open={_es.get('n_open')} closed={_es.get('n_closed')}"
@@ -1364,12 +1383,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                           + " (report-only T-322; gate = D/T-304 bar)")
             except Exception as exc:
                 print(f"   EVENT-DESK warn: {type(exc).__name__} (non-fatal)")
+                register.raised(_sr.EVENT_DESK, exc)
             # --- T-326 THESIS BOOKS: D's thesis desk gets a virtual book. Differs from
             # the fixed-horizon desks: months-long holds, FALSIFIER-triggered exits, and
             # multi-leg baskets. Two channel sub-books (machine / user_seeded) so the
             # records never blend. Scoring defers to D's OWN T-324 promotion_check —
             # one standard, not a second. Report-only, fail-closed. -------------------- #
             try:
+                from paper_trader.report_prices import fetch_closes, last_prices
                 from paper_trader.thesis_book import (MACHINE_DESK, USER_DESK, ThesisBook)
                 register.read(_sr.THESIS_BOOK)
                 for _tcfg in (MACHINE_DESK, USER_DESK):
@@ -1395,14 +1416,8 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                     # PRIOR session, so a newly-filed leg was never priced and the thesis
                     # parked. Nobody can pre-list what the machine will pick (FN, AMTM).
                     _tsyms = _tb.pending_symbols(str(today))
-                    _tpx = {}
-                    if _tsyms:
-                        try:
-                            _f = client.fetch_daily_closes(_tsyms, lookback_days=10)
-                            _tpx = {t: float(v.iloc[-1]) for t, v in _f.items()
-                                    if v is not None and len(v)}
-                        except Exception:
-                            _tpx = {}      # → the book parks the day (never fabricates)
+                    # one unpriceable leg must not park every other basket (report_prices)
+                    _tpx = last_prices(fetch_closes(client, _tsyms, lookback_days=10))
                     _miss = [s for s in _tsyms if s not in _tpx]
                     # record() loads the prior session's theses itself; do NOT pass today's.
                     _ts = _tb.record(str(today), closes=_tpx, falsifier_status=_fstat)
@@ -1425,6 +1440,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                           + " (report-only T-326; gate = D/T-324 bar)")
             except Exception as exc:
                 print(f"   THESIS-BOOK warn: {type(exc).__name__} (non-fatal)")
+                register.raised(_sr.THESIS_BOOK, exc)
             # --- T-328 LIVE BOOKS: the performance laboratory. Four report-only NAV-vs-twin
             # books (SPY null / damped-offense T-298 / quality satellite / sleeve-at-$50K).
             # Performance testing scales through BOOKS, not accounts. The sleeve + offense
@@ -1529,7 +1545,10 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 _ip = run_intel_pulse(
                     str(today), portfolios={"sleeve": _held_w},
                     allowlist=list(SLEEVE_UNIVERSE), root=str(root),
-                    now_iso=now_et().isoformat())
+                    now_iso=now_et().isoformat(),
+                    # the last completed session, from this run's own price series: the
+                    # event interpreter's window must reach back to it across a holiday
+                    prev_session=str(latest_bar_date) if latest_bar_date else None)
                 print(f"   INTEL      {_ip.summary_line()}")
                 # T-412: the event interpreter's view of its feed, on the record.
                 _ev = _ip.event if isinstance(_ip.event, dict) else {}
@@ -1539,19 +1558,14 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                       f"docs={_ev.get('n_documents')} called={_ev.get('n_called')} "
                       f"ok={_ev.get('n_ok')} no_body={_ev.get('n_no_body')} "
                       f"deferred={_ev.get('n_deferred')}")
-                _evp = None
-                if str(_ev.get("status", "")).startswith("error"):
-                    _evp = f"event interpreter errored: {_ev.get('status')}"
-                elif str(_ev.get("reason") or "").startswith("refused"):
-                    _evp = f"event interpreter refused: {_ev.get('reason')}"
-                elif _evf and not _evf.get("ok"):
-                    _evp = f"event interpreter's 8-K feed: {_evf.get('reason')}"
                 register.outcome(_sr.INTEL_PULSE, {"event": {
                     k: _ev.get(k) for k in ("status", "reason", "n_documents", "n_called",
-                                            "n_ok", "n_no_body", "n_invalid", "n_deferred")}},
-                    problem=_evp)
+                                            "n_ok", "n_no_body", "n_invalid", "n_skipped",
+                                            "n_deferred")}},
+                    problem=_sr.event_interpreter_problems(_ev))
             except Exception as exc:
                 print(f"   INTEL warn: {type(exc).__name__} (non-fatal, report-only)")
+                register.raised(_sr.INTEL_PULSE, exc)
             # --- T-302 LLM shadow book: REPORT-ONLY virtual book of the analyst's
             # hypothetical actions vs a 60/40 twin (never touches orders/weights).
             # Gated on a note EXISTING → ships dormant-but-armed; wakes the day E's
@@ -1598,6 +1612,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                           f"rejected={lsum['n_rejected']} (report-only analyst record)")
                 except Exception as exc:
                     print(f"   {_tag} warn: {type(exc).__name__} (non-fatal)")
+                    register.raised(_sr.LLM_SHADOW_AGENTIC if _arm else _sr.LLM_SHADOW, exc)
             # --- T-308 EVAL HARNESS: resolve expired analyst + event-call predictions
             # against prices/Kalshi/FRED/calendar; append-only log + summary (skill,
             # calibration, g1_skill). REPORT-ONLY, fully fail-open (never blocks trading).
@@ -1614,7 +1629,7 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 try:
                     _eval_live.update(_live_series_for(
                         client, _eh.pending_price_symbols(str(today), root=root),
-                        _eval_live))
+                        _eval_live, before=today))
                 except Exception as _e:   # noqa: BLE001
                     print(f"   EVAL       price pre-fetch warn: {type(_e).__name__} "
                           f"(non-fatal; unresolved symbols are named below)")
@@ -1642,19 +1657,17 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                 _rt = _eh.resolved_today(str(today), root=root)
                 print(f"   EVAL resolved={_es.get('n_resolvable', 0)}/{_es.get('n_records', 0)} "
                       f"brier={_es.get('brier')} g1_vs_implied_ci_low={_g1.get('diff_ci_low')} "
-                      f"clears={_g1.get('clears')} | today: {_rt['n_resolved']}/{_rt['n_due']} "
-                      f"due resolved"
+                      f"clears={_g1.get('clears')} | today: {_rt['n_resolved']}/{_rt['n_judged']} "
+                      f"judged resolved (due {_rt['n_due']}, awaiting their data "
+                      f"{_rt['n_awaiting']}, chronic {_rt['n_chronic']})"
                       + (f", unresolved {_rt['unresolvable_reasons']} "
                          f"symbols={_rt['unresolvable_price_symbols']}"
                          if _rt["n_due"] > _rt["n_resolved"] else "")
                       + " (report-only prediction ledger)")
-                register.outcome(_sr.EVAL_HARNESS, _rt, problem=(
-                    f"{_rt['n_due']} prediction(s) came due and NONE resolved "
-                    f"({_rt['unresolvable_reasons']}; price symbols "
-                    f"{_rt['unresolvable_price_symbols']})"
-                    if _rt["n_due"] and not _rt["n_resolved"] else None))
+                register.outcome(_sr.EVAL_HARNESS, _rt, problem=_eh.resolution_problem(_rt))
             except Exception as exc:
                 print(f"   EVAL warn: {type(exc).__name__} (non-fatal)")
+                register.raised(_sr.EVAL_HARNESS, exc)
             # --- T-344 DIGEST: the weekly performance digest as a FRIDAY pulse
             # step (docs/Core/digest_wiring_spec_t344.md — closing 'the surface
             # built to watch everything was the last unwatched clock').
@@ -1901,23 +1914,33 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
     # flags LOUDLY via the heartbeat's separate alt-data channel. The hoard is
     # persisted under the distinct S3 ``altdata/`` prefix. ------------------- #
     try:
-        from paper_trader.altdata_archive import run_altdata_archive
-        # history down → dedup accrues. T-412: pulled ONCE per run — account 1 already
-        # pulled it before its first alt-data reader (above); this reuses that result
-        # (and re-raises a failure it hit, into this block's fail-open handler).
-        alt_sync.ensure()
-        ar = run_altdata_archive(str(root))
+        from paper_trader.altdata_archive import ACCOUNT_1_FEEDS, run_altdata_archive
+        # history down → dedup accrues, unbounded, immediately before the archive.
+        _hoard_clean = alt_sync.ensure()
+        _owner = args.strategy == "trend_sleeve"   # account 1 writes and gates the 8-K files
+        ar = (run_altdata_archive(str(root)) if _owner else
+              run_altdata_archive(str(root), not_collected_here=ACCOUNT_1_FEEDS))
         for line in ar.reports:
             print(f"7. ALTDATA   {line}")
         # T-325 (2026-08-05): push BEFORE recording, and fold a failed push into the
         # degraded flag (altdata/ had the same missing-grant silent-push failure as
         # news_panel/). record_altdata was previously called before the push, so a
         # push failure could never reach the heartbeat.
-        altdata_pushed = cloud.push_altdata()   # durable under altdata/ prefix
-        _ad_degraded = ar.degraded or (not altdata_pushed)
-        _ad_reason = (ar.reason if altdata_pushed else
-                      (f"{ar.reason} | " if ar.reason else "")
-                      + "s3_push_failed: altdata hoard did NOT persist to S3")
+        # T-412 review (B2): after an incomplete pull the local hoard is a FRAGMENT of the
+        # history; pushing it replaced 117 rows in S3 with 1. It is not pushed. (CloudState
+        # refuses too; this is the driver's own statement of it.)
+        _partial = bool(cloud.cfg.enabled) and not _hoard_clean
+        altdata_pushed = False if _partial else cloud.push_altdata()
+        _held = list(getattr(cloud, "altdata_push_notes", None) or [])
+        _ad_degraded = ar.degraded or (not altdata_pushed) or bool(_held)
+        _why = ("hoard_pull_incomplete: the altdata hoard was NOT pushed (a partial copy "
+                "would overwrite the history in S3); today's rows are not durable"
+                if _partial else
+                "; ".join(_held) if _held else
+                None if altdata_pushed else
+                "s3_push_failed: altdata hoard did NOT persist to S3")
+        _ad_reason = (ar.reason if _why is None else
+                      (f"{ar.reason} | " if ar.reason else "") + _why)
         hb.record_altdata(degraded=_ad_degraded, reason=_ad_reason,
                           fresh_rows=ar.fresh_rows)
         print(f"7. ALTDATA   degraded={_ad_degraded} pushed={altdata_pushed} | {_ad_reason}")
@@ -2023,8 +2046,22 @@ def main(argv=None, *, now=None, client=None, cloud=None, root=None,
                  else f"[SOURCE-REGISTER][DEGRADED] {_srb.get('problems')}"))
         hb.record_source_register(_srb)
     except Exception as exc:   # noqa: BLE001 — loud, never fatal
-        print(f"12. SOURCES  [SOURCE-REGISTER][ALERT] the register failed: "
-              f"{type(exc).__name__} — information paths UNVERIFIED today", file=sys.stderr)
+        _srw = (f"[SOURCE-REGISTER][ALERT] the register's block could not be recorded: "
+                f"{type(exc).__name__} — information paths UNVERIFIED today")
+        print(f"12. SOURCES  {_srw}", file=sys.stderr)
+        # A stderr line is read by nobody. Say it on the notify channel, and leave a block
+        # that says FAILED; if even that cannot be written the block is MISSING, which
+        # scripts/fleet_health.py reports.
+        try:
+            hb._notify(_srw)
+            _st = hb._read_status() or {}
+            _st["source_register"] = {
+                "_schema": "source_register/v1", "as_of": str(today),
+                "strategy": args.strategy, "degraded": True, "failed": True,
+                "n_sources": None, "n_problems": 1, "problems": [_srw]}
+            hb._atomic_write(hb.status_path, _st)
+        except Exception:   # noqa: BLE001
+            pass
 
     # --- Tail heartbeat re-sync (T-329d3). The main durable push (step 5) sealed
     # the day's canonical verdict, but steps 7 (altdata), 8 (news), and the census

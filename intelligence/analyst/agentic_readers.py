@@ -268,6 +268,7 @@ def build_readers(root: Union[str, Path],
     # -- query_resolved_predictions --------------------------------------------
     def query_resolved_predictions(inp: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
+            from intelligence.analyst.eval_harness import is_analyst_row
             path = root_p / "data" / "intel" / "analyst_predictions.jsonl"
             if not path.exists():
                 return []
@@ -286,6 +287,8 @@ def build_readers(root: Union[str, Path],
                     continue
                 if not r.get("resolvable"):     # only genuinely-scored rows
                     continue
+                if not is_analyst_row(r):       # the analysts' own record (T-412): the
+                    continue                    # event desk's rows would displace it all
                 prob, outcome = r.get("probability"), r.get("outcome")
                 brier = None
                 if isinstance(prob, (int, float)) and outcome in (0, 1):
