@@ -23,3 +23,6 @@
 - [SEC EDGAR forward 8-K formats](reference_sec_edgar_forward_8k_formats_2026_11_20.md) — daily index not posted same day; submissions arrays; BRK-B vs BRK.B; body = cover page.
 - [Making data visible switches on dormant code](feedback_making_data_visible_switches_on_dormant_code_2026_11_24.md) — T-412 review: list what READS what the desk writes; fresh ≠ works; ANY-synced + push erases history.
 - [Privacy files and transport locks](feedback_privacy_files_and_transport_locks_2026_11_24.md) — Read/Edit only on files with the SEC contact; stub OpenerDirector.open, refuse sockets.
+- [Alpaca options API quirks](reference_alpaca_options_api_quirks_2026_11_20.md) — 200/min data + contracts; OPRA 403; SPX/XSP quotes but NO IV; SPX root stale on expiry day; delayed_sip works; OI lags ~2 d.
+- [T-416 options snapshot archive](project_t416_options_snapshot_archive_2026_11_20.md) — rule v2, coverage vs EXPECTED, slots, calendar union, gap alarms, hard bounds; unmerged, first artifact owed.
+- [Judge against expected; adversarial probes](feedback_judge_against_expected_and_read_my_own_table_2026_11_24.md) — 36/36 reversions still missed 9 silent-loss paths; reconcile my own table.
