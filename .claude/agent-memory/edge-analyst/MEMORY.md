@@ -31,3 +31,4 @@
 - [Options data sources verified 2026-11-20](reference_options_data_sources_2026_11_20.md) — Alpaca option bars+trades from ~2024-01 incl. expired, NO historical quotes; Cboe CDN 1986+ indices; P/C ends 2019
 - [Displacement threshold](feedback_displacement_threshold.md) — a diversifier displacing equity must beat μ_E − σ_E² + ρσσ (~7.4 %); else only stacked forms can add wealth
 - [T-413 E-1 CLOSED UNRUN 2026-11-24](project_t413_e1_phase1_2026_11_20.md) — 0 trials, refutes nothing; sd(log q) was the noise floor; my gate-lowering error
+- [T-414 O-1 stacked condor CLOSED UNRUN 2026-11-24](project_t414_o1_stacked_premium_2026_11_20.md) — a public endpoint fixes t; P(pass) ≈ 0.1 %, not 2 %; any CNDR/BFLY/PUT/WPUT variant carries +1
