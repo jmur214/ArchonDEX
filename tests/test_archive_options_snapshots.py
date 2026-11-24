@@ -307,6 +307,9 @@ def test_both_timestamp_shapes_parse_in_both_orders_and_garbage_is_counted() -> 
         assert out.notna().all() and bad == 0, order
     out, bad = m._parse_ts(pd.Series([b, "yesterday-ish", None, 1732000000, [1]], dtype=object))
     assert bad == 3 and out.isna().tolist() == [False, True, True, True, True]
+    long = pd.Series([a] * 80 + [[1]], dtype=object)     # > 50 rows: pandas hashes the values
+    out, bad = m._parse_ts(long)
+    assert bad == 1 and out.notna().sum() == 80
 
 
 def test_a_stale_daily_bar_is_not_todays_volume() -> None:
@@ -917,6 +920,7 @@ ODD_SNAPSHOTS: dict[str, Any] = {
     "size inf": lambda s: s["latestQuote"].update(bs=float("inf")),
     "size 3e9": lambda s: s["latestQuote"].update(bs=3_000_000_000),
     "bid list": lambda s: s["latestQuote"].update(bp=[1, 2]),
+    "bid inf": lambda s: s["latestQuote"].update(bp=float("inf"), ap=float("inf")),
     "exchange int": lambda s: s["latestQuote"].update(bx=5),
     "time int": lambda s: s["latestQuote"].update(t=1732000000),
     "quote null": lambda s: s.update(latestQuote=None, greeks=None, latestTrade=None),
@@ -932,6 +936,7 @@ def test_R7_one_odd_value_costs_at_most_its_own_row(tmp_path: Path, name: str) -
     assert out.status == "OK", out.message                # 78 of 84 (93 %) still listed
     df = stored(tmp_path)
     assert (df.underlying == "SPY").sum() == 84 and (df.underlying == "AAPL").sum() >= 78
+    assert not np.isinf(df.select_dtypes("float")).any().any(), "an infinity is stored as null"
     assert pq.read_schema(m.day_path(tmp_path, SNAP)).equals(m.SCHEMA, check_metadata=False)
 
 
@@ -1245,7 +1250,8 @@ def test_R5_verify_believes_a_closure_only_from_a_LATER_runs_calendar(tmp_path: 
     assert ok and "excused as ad-hoc closures: 2026-11-19" in msg, msg
     run(tmp_path, Market(session=date(2026, 11, 23)), now=et(date(2026, 11, 23)))  # lists 11-19
     ok, msg = m.verify_store(tmp_path, cfg_for(), date(2026, 11, 23))
-    assert not ok and "2026-11-19" in msg, "a later calendar that lists the day wins"
+    assert not ok and "for session(s) 2026-11-19" in msg and "excused" not in msg, (
+        "a later calendar that lists the day wins")
 
 
 def test_verifier_rejudges_by_CONTENT_not_the_stored_flag(tmp_path: Path) -> None:
