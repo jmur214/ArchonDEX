@@ -19,4 +19,5 @@
 - [T-405 Kalshi series archive](project_t405_kalshi_series_archive_2026_11_19.md) — merged 49331c7; selection rule, real-quote rule, per-event + historical resolver, rc contract.
 - [pandas 3 dtypes + monkeypatch defaults](feedback_pandas3_dtypes_and_monkeypatch_defaults_2026_11_19.md) — to_datetime needs format="ISO8601" (mixed shapes → silent NaT); astype("string") NA flavour; default args defeat monkeypatch; df.style is the Styler.
 - [Alpaca options API quirks](reference_alpaca_options_api_quirks_2026_11_20.md) — 200/min data + contracts; OPRA 403; SPX/XSP quotes but NO IV; SPX root stale on expiry day; delayed_sip works; OI lags ~2 d.
-- [T-416 options snapshot archive](project_t416_options_snapshot_archive_2026_11_20.md) — weekly-last + 3rd-Friday expiries, usable-value rule, 90 % + REQUIRED index + 30 % share coverage, ~1 MB/day; first artifact owed.
+- [T-416 options snapshot archive](project_t416_options_snapshot_archive_2026_11_20.md) — rule v2, coverage vs EXPECTED, slots, calendar union, gap alarms, hard bounds; unmerged, first artifact owed.
+- [Judge against expected; adversarial probes](feedback_judge_against_expected_and_read_my_own_table_2026_11_24.md) — 36/36 reversions still missed 9 silent-loss paths; reconcile my own table.

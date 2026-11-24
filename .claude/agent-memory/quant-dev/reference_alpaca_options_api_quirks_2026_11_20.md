@@ -25,6 +25,9 @@ Measured 2026-11-20 with the paper key from the main `.env` (never printed), usi
   - Deep-OTM rows look like bid 0.00 / ask 0.01.
   - No ask<bid, bid==ask or 1.00-placeholder asks were seen in about 3.8k rows (one ask==1.00 on XSP).
 - **Latency:** each chain call (one expiry, ±20 %) takes about 0.3-0.5 s. A full 49-underlying day was 343 calls in 109 s, with 0 × 429 at 170/min pacing.
-- **Quote wipe at the close:** at 15:59:59 ET on 2026-11-20, 164 XSP contracts were rewritten to bid 0 / ask 0, size 0, exchange "?", with fresh timestamps. That is the "present but empty" shape. ETF options quote until 16:15 ET; a new closing quote condition `T` appears at 16:00:00 on real quotes. The feed state at 18:30 ET (the launchd time) was NOT observed.
+- **Delisted strikes linger:** the chain serves contracts the active listing has dropped (COST 2026-11-24: 100 of 890, all stamped the previous session). Match against the listing and flag them; they have no style/OI.
+- **Do last quotes persist?** Seen for SPX-root (Thursday's quote on Friday) and delisted COST strikes (the previous session's). NOT observed for ACTIVE contracts after midnight or over a weekend; T-416's late capture assumes it and FAILS (no fresh quotes) if it is wrong.
+- **requests traps:** the read timeout is per socket read (a drip server blocks for ever); `InvalidHeader` quotes the header VALUE in its message; redirects carry custom auth headers to the new host.
+- **Quote wipe at the close:** (corrected 2026-11-24: rule v1 rejected the 164 zeroed rows but admitted 144 more bid-0 XSP rows through its trade leg.) at 15:59:59 ET on 2026-11-20, 164 XSP contracts were rewritten to bid 0 / ask 0, size 0, exchange "?", with fresh timestamps. That is the "present but empty" shape. ETF options quote until 16:15 ET; a new closing quote condition `T` appears at 16:00:00 on real quotes. The feed state at 18:30 ET (the launchd time) was NOT observed.
 
 Design that uses these: [[project-t416-options-snapshot-archive]].
