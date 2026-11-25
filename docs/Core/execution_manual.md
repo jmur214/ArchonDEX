@@ -1343,6 +1343,17 @@ rm -f ~/Library/LaunchAgents/com.archondex.t295-population.plist
 # hard bound (ARCHONDEX_OPTIONS_TIMEOUT_S) BEFORE verify_altdata_snapshot.py, whose LOCAL-ONLY
 # options check runs the same --verify logic. launchd fires at 17:30 LOCAL time: in a time zone
 # where that is before 16:00 ET the eod slot is refused, loudly.
+
+# INTRADAY capture (T-418): a second launchd job fires 11:30 CT = 12:30 ET, Monday-Friday,
+# and runs --slot near_close through its own wrapper. Log:
+# data/macro_data/alt/logs/options_intraday_YYYY-MM-DD.log. Outside 09:35-12:55 ET (a late
+# firing after the laptop woke) it logs OPTIONS_INTRADAY_MISSED and captures nothing; inside
+# the window a non-zero rc prints OPTIONS_INTRADAY_FAILED and alarms (SNS + local).
+bash scripts/run_options_intraday.sh           # manual invocation of the wrapper
+cp scripts/launchd/com.archondex.options-intraday.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.archondex.options-intraday.plist
+launchctl kickstart gui/$(id -u)/com.archondex.options-intraday   # fire now (test)
+launchctl bootout gui/$(id -u)/com.archondex.options-intraday     # retire
 # The cloud paper path is unchanged (paper_trader/altdata_archive.py lists untouched).
 # Read the store:  pd.read_parquet("data/macro_data/options")  (the run log is skipped);
 #                  filter slot == "eod" for the daily series.

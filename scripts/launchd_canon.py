@@ -36,6 +36,11 @@ LIVE_JOBS: Dict[str, str] = {
     "com.archondex.altdata-archive":
         "the canonical ~EOD (18:30 ET) local alt-data snapshot; consumed by the "
         "feed-health gate in paper_trader/altdata_archive.py",
+    "com.archondex.options-intraday":
+        "the 12:30 ET intraday options capture (T-418, registered on the user's word "
+        "2026-11-24); its quotes are consumed by option cost models, because the closing "
+        "XSP quote is too wide to price, and its wrapper's exit-code gate alarms on a "
+        "failed capture",
     "com.archondex.janitor":
         "Phase-6 rung 0; its report is consumed by the janitor_ran_nightly clock",
     "com.archondex.director-pass":

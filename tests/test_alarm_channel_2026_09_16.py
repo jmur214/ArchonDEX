@@ -22,7 +22,8 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 LAUNCHD_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
-WRAPPERS = ("scripts/run_altdata_archivers.sh", "scripts/run_janitor_nightly.sh")
+WRAPPERS = ("scripts/run_altdata_archivers.sh", "scripts/run_janitor_nightly.sh",
+            "scripts/run_options_intraday.sh")
 
 
 def _resolvable_under_launchd(cmd: str) -> bool:
